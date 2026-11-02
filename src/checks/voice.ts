@@ -251,7 +251,7 @@ function fitTranscript(meta: {
     detail.speakersOmitted = meta.speakers.length - (detail.speakers as unknown[]).length;
     trimmed = true;
   }
-  for (const [index, segment] of segments.entries()) {
+  for (const segment of segments) {
     const whole = { ...detail, segments: [...detail.segments, segment] };
     if (byteSize(whole) <= TRANSCRIPT_BUDGET) {
       detail.segments.push(segment);
