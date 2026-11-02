@@ -56,6 +56,11 @@ function png(w: number, h: number) {
 }
 const BIG = png(WIDE, TALL);
 
+// A stalled transfer past the headers cannot be staged in this harness: the browser launches behind a dead proxy,
+// so no real server is reachable from the page; a route stub answers whole; and a service worker script bypasses
+// route stubs (all verified 2026-11-02). The deadline therefore stays armed through `answer.blob()` by mirroring the
+// reviewed §19 pattern, and the held-answer test below covers the whole-response stall.
+
 const SHOT = `art/01JCASE0000000000000000000/render/${"a".repeat(64)}-landing-1.png`;
 const WALK = `art/01JCASE0000000000000000000/render/${"d".repeat(64)}-walk-2.png`;
 const LONG = "accountverificationnimbusmai1securelogin.portal.example";
@@ -123,6 +128,8 @@ function html() {
 type Mode = "png" | "gone" | "link-expired" | "unavailable" | "network" | "signed-out";
 let mode: Mode = "png";
 let hold: Promise<void> | null = null;
+let delayMs = 0;
+let holdImages = true;
 let withScript = true;
 const requests: { url: string; kind: string }[] = [];
 
@@ -149,7 +156,8 @@ async function open(width: number, theme: "light" | "dark" = "light") {
       });
     if (url.pathname.startsWith("/a/")) {
       requests.push({ url: url.pathname + url.search, kind: request.resourceType() });
-      if (hold) await hold;
+      if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      if (hold && (holdImages || request.resourceType() !== "image")) await hold;
       if (mode === "network") return route.abort("failed");
       if (mode === "signed-out")
         return route.fulfill({
@@ -223,6 +231,8 @@ const gate = () => {
 async function reset() {
   mode = "png";
   hold = null;
+  delayMs = 0;
+  holdImages = true;
   withScript = true;
   requests.length = 0;
 }
@@ -673,6 +683,108 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       } finally {
         hold = null;
         slow.go();
+        await context.close();
+      }
+    });
+
+    it("gives up a stalled viewer request after its deadline, and Try again loads once the answer comes", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        await p.evaluate(() => {
+          document.querySelector("#e1 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
+        });
+        delayMs = 600;
+        await opener(p).focus();
+        await p.keyboard.press("Enter");
+        const dialog = viewer(p);
+        // The answer arrives past the deadline: the failed-read state with Try again, announced once.
+        await expect.poll(() => dialog.getByRole("status").textContent()).toContain("could not be loaded");
+        expect(await dialog.getByRole("button", { name: "Try again" }).count()).toBe(1);
+        expect(await dialog.locator("img").isVisible()).toBe(false);
+        // A retry re-arms the deadline and gives up the same way while the answer still stalls.
+        await dialog.getByRole("button", { name: "Try again" }).click();
+        await expect.poll(() => dialog.getByRole("status").textContent()).toContain("could not be loaded");
+        // Try again loads once the route answers promptly.
+        delayMs = 0;
+        await dialog.getByRole("button", { name: "Try again" }).click();
+        await expect.poll(() => dialog.locator("img").isVisible()).toBe(true);
+        expect(await dialog.getByText("This screenshot could not be loaded.").count()).toBe(0);
+      } finally {
+        delayMs = 0;
+        await context.close();
+      }
+    });
+
+    it("bounds a stalled preview classification, and its Try again reloads the preview", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      const slow = gate();
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        await p.evaluate(() => {
+          document.querySelector("#e1 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
+        });
+        hold = slow.g;
+        holdImages = false;
+        mode = "unavailable";
+        await p.evaluate(() => {
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&again=1`);
+        });
+        // The preview fails fast but its classification stalls: the card still reaches its failed state on a bound.
+        const note = p.locator("#e1 [data-evidence-failed]");
+        await expect.poll(() => note.getAttribute("data-evidence-failed")).toBe("temporary");
+        expect(await note.getByRole("button", { name: "Try again" }).count()).toBe(1);
+        hold = null;
+        holdImages = true;
+        slow.go();
+        mode = "png";
+        await note.getByRole("button", { name: "Try again" }).click();
+        await expect.poll(() => note.count()).toBe(0);
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+      } finally {
+        hold = null;
+        holdImages = true;
+        slow.go();
+        await context.close();
+      }
+    });
+
+    it("lets a closed viewer's late answer change nothing after reopen", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        const failed: string[] = [];
+        p.on("requestfailed", (r) => {
+          if (r.url().includes("/a/") && r.failure()?.errorText.includes("ABORTED")) failed.push(r.url());
+        });
+        delayMs = 400;
+        const before = requests.length;
+        const link = opener(p);
+        await link.focus();
+        await p.keyboard.press("Enter");
+        await expect.poll(() => requests.length).toBe(before + 1);
+        // Close before anything answers, then reopen while the first answer is still late.
+        await p.keyboard.press("Escape");
+        await expect.poll(() => failed.length).toBe(1);
+        mode = "gone";
+        await p.keyboard.press("Enter");
+        await expect.poll(() => requests.length).toBe(before + 2);
+        // The late first answer changes nothing: the reopened viewer shows its own state's outcome, and focus
+        // stays where the reopen put it (the aborted first request runs no code that could move it). The stub delay
+        // stays under the default 1 s poll timeout.
+        const dialog = viewer(p);
+        await expect
+          .poll(() => dialog.getByRole("region").getByText("This screenshot is no longer stored.").isVisible())
+          .toBe(true);
+        expect(await dialog.locator("img").isVisible()).toBe(false);
+        expect(await p.evaluate(() => document.activeElement?.getAttribute("aria-label"))).toBe("Close");
+      } finally {
+        delayMs = 0;
+        mode = "png";
         await context.close();
       }
     });
