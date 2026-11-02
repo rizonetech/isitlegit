@@ -153,7 +153,7 @@ Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is
 
 **Corrected 2026-11-02:** the confusion criterion above is read as the completion review corrected it (the shipped line presents the sender first and the labelled submitter in the same line, so meeting the sender's name first in that line is not confusion): confusion is needing navigation to tell the submitter from the sender at all. The readers run on the shipped report itself in `test/node/phone-attribution-measure.test.tsx`, which writes the raw observations `eval/phone-attribution.ts` analyses; the human claim is D07 T09 §17's.
 
-**Test checkpoint:** `pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx` writes the observations, `node eval/phone-attribution.ts` reports both medians, and `pnpm exec vitest run --project node test/node/phone-attribution.test.ts` passes.
+**Test checkpoint:** `PHONE_BENCH=1 pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx` writes the observations, `node eval/phone-attribution.ts` reports both medians, and `pnpm exec vitest run --project node test/node/phone-attribution.test.ts` passes.
 
 ## 5. Per-provider reputation results
 

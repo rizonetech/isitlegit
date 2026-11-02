@@ -3,7 +3,7 @@
 // viewport scan at 360 px, a proxy for human reading, not human times); this script validates their raw
 // observations, summarises them and persists the result:
 //
-//   pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx
+//   PHONE_BENCH=1 pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx
 //   node eval/phone-attribution.ts   (writes eval/phone-attribution-results.json)
 //
 // The benchmark shape there is the same shipped report with the phone attribution segment removed (the
@@ -101,7 +101,7 @@ async function main() {
   const file = join(import.meta.dirname, "phone-attribution-observations.json");
   if (!existsSync(file))
     throw new Error(
-      "no observations: run pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx first",
+      "no observations: run PHONE_BENCH=1 pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx first",
     );
   const stored = JSON.parse(readFileSync(file, "utf8")) as {
     stimulusVersion?: string;

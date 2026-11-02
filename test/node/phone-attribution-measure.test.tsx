@@ -158,75 +158,81 @@ const SCAN = `(function ({ submitter, senderName }) {
   return { missing: false, scrolls, firstIdentity, identified, openedDetails };
 })`;
 
-describe.skipIf(!chromiumPath() && !process.env.CI)("phone attribution measure", { timeout: 180_000 }, () => {
-  it("writes the scripted readers' raw observations", async () => {
-    const observations: Observation[] = [];
-    for (const [ci, c] of CASES.entries()) {
-      for (let run = 0; run < 5; run++) {
-        const shapes = run % 2 ? (["benchmark", "shipped"] as const) : (["shipped", "benchmark"] as const);
-        for (const shape of shapes) {
-          const context = await browser.newContext({ viewport: { width: 360, height: 740 } });
-          const p: Page = await context.newPage();
-          await p.goto(`${origin}/r/${ID}?case=${ci}`, { waitUntil: "load" });
-          // No measurement on an unstyled page: the stylesheet must have loaded, the phone line must be
-          // shown and the desktop line hidden, as the shipped stylesheet rules them at this width.
-          const styled = await p.evaluate((name) => {
-            const lines = [...document.querySelectorAll("p")].filter((el) => el.textContent?.includes(name));
-            const shown = lines.filter((el) => getComputedStyle(el).display !== "none");
-            const sheetLoaded = [...document.styleSheets].some((s) => (s.href ?? "").includes("/static/app."));
-            return sheetLoaded && lines.length >= 2 && shown.length === 1;
-          }, SUBMITTER);
-          if (!styled) throw new Error("the shipped stylesheet did not apply: refusing to measure");
-          if (shape === "benchmark")
-            // The pre-attribution shape: the same phone line without who brought the case in.
-            await p.evaluate((name) => {
-              // Only the phone line loses its segment; the desktop header keeps naming the checker, as it did.
-              for (const el of document.querySelectorAll("p.md\\:hidden"))
-                if (el.textContent?.includes(name))
-                  el.textContent = el.textContent.replace(/(?:^| · )(Forwarded|Uploaded)[^·]*(?= ·|$)/, "");
+// Collecting evidence is explicit (as VOICE_BENCH is): an ordinary browser run must not rewrite the
+// committed observations. Run with PHONE_BENCH=1, then `node eval/phone-attribution.ts`.
+describe.skipIf(!process.env.PHONE_BENCH || (!chromiumPath() && !process.env.CI))(
+  "phone attribution measure",
+  { timeout: 180_000 },
+  () => {
+    it("writes the scripted readers' raw observations", async () => {
+      const observations: Observation[] = [];
+      for (const [ci, c] of CASES.entries()) {
+        for (let run = 0; run < 5; run++) {
+          const shapes = run % 2 ? (["benchmark", "shipped"] as const) : (["shipped", "benchmark"] as const);
+          for (const shape of shapes) {
+            const context = await browser.newContext({ viewport: { width: 360, height: 740 } });
+            const p: Page = await context.newPage();
+            await p.goto(`${origin}/r/${ID}?case=${ci}`, { waitUntil: "load" });
+            // No measurement on an unstyled page: the stylesheet must have loaded, the phone line must be
+            // shown and the desktop line hidden, as the shipped stylesheet rules them at this width.
+            const styled = await p.evaluate((name) => {
+              const lines = [...document.querySelectorAll("p")].filter((el) => el.textContent?.includes(name));
+              const shown = lines.filter((el) => getComputedStyle(el).display !== "none");
+              const sheetLoaded = [...document.styleSheets].some((s) => (s.href ?? "").includes("/static/app."));
+              return sheetLoaded && lines.length >= 2 && shown.length === 1;
             }, SUBMITTER);
-          const start = await p.evaluate(() => performance.now());
-          const found = (await p.evaluate(
-            `(${SCAN})({ submitter: ${JSON.stringify(SUBMITTER)}, senderName: ${JSON.stringify(c.senderName)} })`,
-          )) as {
-            missing: boolean;
-            scrolls: number;
-            firstIdentity: "sender" | "submitter" | null;
-            identified: boolean;
-            openedDetails: boolean;
-          };
-          const ms = Math.round((await p.evaluate(() => performance.now())) - (start as number));
-          expect(found.missing, `${c.name} lacks an identity`).toBe(false);
-          observations.push({
-            case: c.name,
-            shape,
-            run,
-            scrolls: found.scrolls,
-            openedDetails: found.openedDetails,
-            firstIdentity: found.firstIdentity,
-            identified: found.identified,
-            confused: !found.identified || found.openedDetails,
-            ms,
-          });
-          await context.close();
+            if (!styled) throw new Error("the shipped stylesheet did not apply: refusing to measure");
+            if (shape === "benchmark")
+              // The pre-attribution shape: the same phone line without who brought the case in.
+              await p.evaluate((name) => {
+                // Only the phone line loses its segment; the desktop header keeps naming the checker, as it did.
+                for (const el of document.querySelectorAll("p.md\\:hidden"))
+                  if (el.textContent?.includes(name))
+                    el.textContent = el.textContent.replace(/(?:^| · )(Forwarded|Uploaded)[^·]*(?= ·|$)/, "");
+              }, SUBMITTER);
+            const start = await p.evaluate(() => performance.now());
+            const found = (await p.evaluate(
+              `(${SCAN})({ submitter: ${JSON.stringify(SUBMITTER)}, senderName: ${JSON.stringify(c.senderName)} })`,
+            )) as {
+              missing: boolean;
+              scrolls: number;
+              firstIdentity: "sender" | "submitter" | null;
+              identified: boolean;
+              openedDetails: boolean;
+            };
+            const ms = Math.round((await p.evaluate(() => performance.now())) - (start as number));
+            expect(found.missing, `${c.name} lacks an identity`).toBe(false);
+            observations.push({
+              case: c.name,
+              shape,
+              run,
+              scrolls: found.scrolls,
+              openedDetails: found.openedDetails,
+              firstIdentity: found.firstIdentity,
+              identified: found.identified,
+              confused: !found.identified || found.openedDetails,
+              ms,
+            });
+            await context.close();
+          }
         }
       }
-    }
-    // Provenance travels with the observations: the analyser publishes these, never its own HEAD.
-    const { execSync } = await import("node:child_process");
-    writeFileSync(
-      OUT,
-      `${JSON.stringify(
-        {
-          stimulusVersion: "phone-attribution-v1",
-          revision: execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(),
-          collectedAt: new Date().toISOString(),
-          observations,
-        },
-        null,
-        2,
-      )}\n`,
-    );
-    expect(observations).toHaveLength(30);
-  });
-});
+      // Provenance travels with the observations: the analyser publishes these, never its own HEAD.
+      const { execSync } = await import("node:child_process");
+      writeFileSync(
+        OUT,
+        `${JSON.stringify(
+          {
+            stimulusVersion: "phone-attribution-v1",
+            revision: execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(),
+            collectedAt: new Date().toISOString(),
+            observations,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      expect(observations).toHaveLength(30);
+    });
+  },
+);
