@@ -122,6 +122,8 @@ Detection rate on attacks, false positive rate on genuine mail (suspicious or ma
 
 ## 3. Model ablation runs
 
+> **Started:** 2026-11-02T03:40Z
+
 The manifesto's first priority made measurable (spec 4.9): rerun the eval with each Meta model switched off in turn (Muse Spark reasoning replaced by the rule-based verdict, no Muse Wonder walkthrough, no SAM 3.1 comparison, no Voice Transcribe, no Loupe page screening (Muse Spark screens every page instead); corrected 2026-10-28 20:45 SAST, was Spark page screening, now the failover behind Loupe; corrected 2026-10-27, was Glimmer) and record what each removal costs in detection, false positives, time and cost. A model whose removal costs nothing is cut or reworked.
 
 **Phase:** 6
@@ -134,6 +136,7 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 2. Run and tabulate. Done when: `eval/RESULTS.md` has the ablation table.
 
 - [ ] Add per-case `ablate` flags (set only for the eval organisation via the runner) honoured by the agent, walkthrough, SAM, voice and screening steps. Done when: `test/eval/ablation.test.ts` shows each flag skips only its model.
+> **Corrected 2026-11-02** (validation against the tree): the flag contract and the runner plumbing are this lane's; the per-step hooks live in other lanes' steps (`src/agent/loop.ts` and the walkthrough driver in the walkthrough lane; SAM comparison in the walkthrough lane's D03 T03; voice transcription in the checks lane's D02; page screening in the glimmer lane's D03 T04; all model calls flow through `src/meta/client.ts`). Those hooks are requested through the coordinator, not built here: each hook names this section, skips exactly its model for flagged eval-organisation cases, and carries a regression test in the owning lane. The live ablation runs wait on the hooks; the eval-owned contract, selection and reporting below do not.
 - [ ] Run `pnpm eval:ablate` on a budget-sized subset (stratified by category) for each switch. Done when: one run row exists per switch.
 - [ ] Write the table (model removed, detection change, false-positive change, time change, cost change) to `eval/RESULTS.md` and act on any zero-contribution model by filing a section through `add-todo`. Done when: the table exists and any such model has a filed section.
 - [ ] Report the rule-based verdict's impersonation rule (D04 T01 §9) with link following on: its detection and false positives per category on the labelled sets, with `link.final_domain_changed` and `link.lure_button` firing as in production, against the 2 percent false-positive target. Done when: the ablation results list the rule's firing checks and the false positives each caused on genuine samples. Source: D04 T01 §9's completion review, 2026-11-01.
