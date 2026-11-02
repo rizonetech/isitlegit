@@ -7,13 +7,22 @@ import { createCase } from "../../src/db/cases";
 import { saveFeedback, withdrawFeedback } from "../../src/db/feedback";
 import { listTriage, moveTriage, saveTriageNote, triageCounts } from "../../src/db/feedback-triage";
 import { ulid } from "../../src/db/ulid";
-import { authEnv, call } from "../auth/helpers";
+import { authEnv, call, signIn } from "../auth/helpers";
 import { makeOrg } from "../trust/helpers";
 
 const db = env.DB;
 
 // Every test starts from an empty queue: leftover rows would move the tabs and the pages.
-const TABLES = ["feedback", "check_outcomes", "case_verdicts", "cases", "organization"];
+const TABLES = [
+  "feedback",
+  "check_outcomes",
+  "case_verdicts",
+  "cases",
+  "org_domains",
+  "invitation",
+  "org_limits",
+  "organization",
+];
 beforeEach(async () => {
   for (const table of TABLES) {
     const quoted = table === "organization" ? `"${table}"` : table;
@@ -158,57 +167,58 @@ globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
   return outerQueueFetch(input as Request, init);
 }) as typeof fetch;
 
-describe("the feedback queue page", () => {
-  const workerEnv = {
-    ...authEnv,
-    CF_ACCESS_AUD: AUD,
-    CF_ACCESS_TEAM_DOMAIN: TEAM,
-    CF_ACCESS_EMAIL: SIGNIN,
-    OPERATOR_EMAIL: OPERATOR,
-  } as unknown as Env;
-  const b64url = (bytes: Uint8Array | string) => {
-    const raw = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
-    return btoa(String.fromCharCode(...raw))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
-  };
-  const jwt = async () => {
-    const head = b64url(JSON.stringify({ alg: "RS256", kid: queueKey.kid, typ: "JWT" }));
-    const body = b64url(
-      JSON.stringify({ aud: AUD, iss: `https://${TEAM}`, exp: Math.floor(Date.now() / 1000) + 600, email: SIGNIN }),
-    );
-    const sig = new Uint8Array(
-      await crypto.subtle.sign("RSASSA-PKCS1-v1_5", queueKey.privateKey, new TextEncoder().encode(`${head}.${body}`)),
-    );
-    return `${head}.${body}.${b64url(sig)}`;
-  };
-  const ORIGIN = new URL(authEnv.APP_URL).origin;
-  const headers = async (extra: Record<string, string> = {}) => ({
-    accept: "text/html",
-    "cf-access-jwt-assertion": await jwt(),
-    ...extra,
-  });
-  const get = async (path: string, authed = true) =>
-    call(path, { headers: authed ? await headers() : { accept: "text/html" } }, workerEnv);
-  const post = async (path: string, fields: Record<string, string>, origin = ORIGIN) =>
-    call(
-      path,
-      {
-        method: "POST",
-        headers: { ...(await headers()), origin, "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams(fields).toString(),
-      },
-      workerEnv,
-    );
-  const words = (html: string) =>
-    html
-      .replace(/&#39;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&amp;/g, "&");
+const workerEnv = {
+  ...authEnv,
+  CF_ACCESS_AUD: AUD,
+  CF_ACCESS_TEAM_DOMAIN: TEAM,
+  CF_ACCESS_EMAIL: SIGNIN,
+  OPERATOR_EMAIL: OPERATOR,
+} as unknown as Env;
+const b64url = (bytes: Uint8Array | string) => {
+  const raw = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+  return btoa(String.fromCharCode(...raw))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+const jwt = async () => {
+  const head = b64url(JSON.stringify({ alg: "RS256", kid: queueKey.kid, typ: "JWT" }));
+  const body = b64url(
+    JSON.stringify({ aud: AUD, iss: `https://${TEAM}`, exp: Math.floor(Date.now() / 1000) + 600, email: SIGNIN }),
+  );
+  const sig = new Uint8Array(
+    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", queueKey.privateKey, new TextEncoder().encode(`${head}.${body}`)),
+  );
+  return `${head}.${body}.${b64url(sig)}`;
+};
+const ORIGIN = new URL(authEnv.APP_URL).origin;
+const headers = async (extra: Record<string, string> = {}) => ({
+  accept: "text/html",
+  "cf-access-jwt-assertion": await jwt(),
+  ...extra,
+});
+const get = async (path: string, authed = true) =>
+  call(path, { headers: authed ? await headers() : { accept: "text/html" } }, workerEnv);
+const post = async (path: string, fields: Record<string, string>, origin = ORIGIN) =>
+  call(
+    path,
+    {
+      method: "POST",
+      headers: { ...(await headers()), origin, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(fields).toString(),
+    },
+    workerEnv,
+  );
 
+const words = (html: string) =>
+  html
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
+describe("the feedback queue page", () => {
   const seedCase = async (orgId: string) => {
     const id = ulid();
     const at = new Date().toISOString();
@@ -338,5 +348,134 @@ describe("the feedback queue page", () => {
       .first<{ triage: string; triage_note: string | null }>();
     expect(kept?.triage).toBe("new");
     expect(kept?.triage_note).toBeNull();
+  });
+});
+
+describe("the organisation detail page", () => {
+  const seedOrg = async (name = "Detail Org (fictional)") => {
+    const orgId = await makeOrg(name);
+    await db
+      .prepare(
+        `INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, 'detail.example', 't12345678901234567890123456789012', 'verified', 'dns', ?, ?)`,
+      )
+      .bind(`d-${crypto.randomUUID()}`, orgId, new Date().toISOString(), new Date().toISOString())
+      .run();
+    const { cookie } = await signIn(`owner-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`);
+    const user = await db.prepare(`SELECT id FROM "user" ORDER BY rowid DESC LIMIT 1`).bind().first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'owner', ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, new Date().toISOString())
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO "invitation" (id, "organizationId", email, role, status, "expiresAt", "createdAt", "inviterId") VALUES (?, ?, 'pending@demo.isitlegit.co.za', 'member', 'pending', ?, ?, ?)`,
+      )
+      .bind(
+        `i-${crypto.randomUUID()}`,
+        orgId,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        new Date().toISOString(),
+        user?.id,
+      )
+      .run();
+    void cookie;
+    return { orgId, userId: user?.id ?? "" };
+  };
+  const seedOrgCase = async (orgId: string, createdAt: string, verdict: "safe" | "suspicious" = "safe") => {
+    const id = ulid();
+    await db
+      .prepare(
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, original_subject, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, 1, 'Statement', ?, ?)`,
+      )
+      .bind(id, orgId, verdict, createdAt, createdAt)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at) VALUES (?, ?, 'h', 0.9, '[]', '[]', 'stub', ?)`,
+      )
+      .bind(id, verdict, createdAt)
+      .run();
+    return id;
+  };
+
+  it("draws the header, onboarding, domains, members, weeks, threats, feedback and plan", async () => {
+    const { orgId } = await seedOrg();
+    const at = new Date();
+    await seedOrgCase(orgId, at.toISOString(), "suspicious");
+    await db
+      .prepare(
+        `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, findings, revision) VALUES ((SELECT id FROM cases WHERE org_id = ? LIMIT 1), 'r1', 'link.credential_form', 1, 'ran', 2, 'test')`,
+      )
+      .bind(orgId)
+      .run();
+    const feedbackId = `fq-${crypto.randomUUID()}`;
+    await db
+      .prepare(
+        `INSERT INTO feedback (id, case_id, user_id, kind, note, providers_json, created_at, updated_at) VALUES (?, (SELECT id FROM cases WHERE org_id = ? LIMIT 1), 'u-x', 'missed', 'Nope', '[]', ?, ?)`,
+      )
+      .bind(feedbackId, orgId, at.toISOString(), at.toISOString())
+      .run();
+    const response = await get(`/admin/orgs/${orgId}`);
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("Detail Org");
+    expect(text).toContain("Trial,");
+    expect(text).toContain("Verify your domain");
+    expect(text).toContain("detail.example");
+    expect(text).toContain("Invited");
+    expect(text).toContain("Cases by week");
+    expect(text).toContain("Top threats, 30 days");
+    expect(text).toContain("A page that collects what you type");
+    expect(text).toContain("Feedback from this organisation");
+    expect(text).toContain("Open queue");
+    expect(text).toContain("Plan");
+    expect(text).toContain("Protected identity: not set up");
+  });
+
+  it("answers 404 for an unknown organisation", async () => {
+    expect((await get("/admin/orgs/no-such-org")).status).toBe(404);
+  });
+
+  it("sets and clears the daily cap with the value kept on refusal", async () => {
+    const { orgId } = await seedOrg();
+    const set = await post(`/admin/orgs/${orgId}/cap`, { action: "set", cap: "30" });
+    expect(set.status).toBe(303);
+    const stored = await db
+      .prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ cap: number }>();
+    expect(stored?.cap).toBe(30);
+    const page = words(await (await get(`/admin/orgs/${orgId}`)).text());
+    expect(page).toContain("Today 0 of 30 cases");
+    const bad = await post(`/admin/orgs/${orgId}/cap`, { action: "set", cap: "abc" });
+    expect(bad.status).toBe(200);
+    expect(words(await bad.text())).toContain("whole number from 0 to 50");
+    const cleared = await post(`/admin/orgs/${orgId}/cap`, { action: "clear" });
+    expect(cleared.status).toBe(303);
+    const gone = await db
+      .prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ cap: number | null }>();
+    expect(gone?.cap).toBeNull();
+  });
+
+  it("extends the trial to a future day and refuses bad dates and paid plans", async () => {
+    const { orgId } = await seedOrg();
+    const future = new Date(Date.now() + 30 * 86_400_000);
+    const day = `${future.getUTCFullYear()}-${String(future.getUTCMonth() + 1).padStart(2, "0")}-${String(future.getUTCDate()).padStart(2, "0")}`;
+    const extended = await post(`/admin/orgs/${orgId}/trial`, { until: day });
+    expect(extended.status).toBe(303);
+    const past = await post(`/admin/orgs/${orgId}/trial`, { until: "2001-01-01" });
+    expect(words(await past.text())).toContain("still to come");
+    const shapeless = await post(`/admin/orgs/${orgId}/trial`, { until: "soon" });
+    expect(words(await shapeless.text())).toContain("YYYY-MM-DD");
+    await db
+      .prepare(
+        "INSERT INTO org_limits (org_id, plan) VALUES (?, 'protect') ON CONFLICT (org_id) DO UPDATE SET plan = 'protect'",
+      )
+      .bind(orgId)
+      .run();
+    const paid = await post(`/admin/orgs/${orgId}/trial`, { until: day });
+    expect(words(await paid.text())).toContain("Only a trial can be extended.");
   });
 });

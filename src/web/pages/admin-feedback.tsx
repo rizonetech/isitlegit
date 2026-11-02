@@ -7,7 +7,7 @@ import { type Context, Hono } from "hono";
 import { readSmallForm } from "../../auth/form";
 import { listTriage, moveTriage, saveTriageNote, type Triage, triageCounts } from "../../db/feedback-triage";
 import { signReportLink } from "../report-link";
-import { FeedbackQueuePage, type QueueDetail, type QueueItem } from "./admin-feedback-view";
+import { FeedbackQueuePage, type OrgFeedbackItem, type QueueDetail, type QueueItem } from "./admin-feedback-view";
 import { caseLines, whenText } from "./cases-view";
 import { errorPage, HEADERS } from "./errors";
 
@@ -239,6 +239,39 @@ async function drawQueue(
 }
 
 const tabOf = (value: string | null): Triage => (value === "triaged" || value === "closed" ? value : "new");
+
+// The organisation detail's feedback card (D07 T08 §5 X2): the most recent reports whatever their tab, each with
+// the effective status the queue would show it under.
+export async function orgFeedbackItems(
+  db: D1Database,
+  orgId: string,
+  limit: number,
+  secret: string | undefined,
+  now: Date,
+): Promise<OrgFeedbackItem[]> {
+  const rows = await db
+    .prepare(`${QUEUE_SELECT} WHERE c.org_id = ? ORDER BY f.created_at DESC LIMIT ?`)
+    .bind(orgId, limit)
+    .all<QueueRow>();
+  const items = await queueItems(db, rows.results, secret, now);
+  return rows.results.map((row, index) => {
+    const item = items[index];
+    if (!item) throw new Error("orgFeedbackItems: queue item missing for its row");
+    const effective =
+      row.triage !== "new" && row.triaged_updated_at !== null && row.updated_at !== row.triaged_updated_at
+        ? "new"
+        : row.triage;
+    return {
+      id: item.id,
+      caseTitle: item.caseTitle,
+      caseHref: item.caseHref,
+      verdict: item.verdict,
+      theySay: item.theySay,
+      status:
+        effective === "new" ? ("New" as const) : effective === "triaged" ? ("Triaged" as const) : ("Closed" as const),
+    };
+  });
+}
 
 adminFeedbackRoutes.get("/admin/feedback", async (c) => {
   try {

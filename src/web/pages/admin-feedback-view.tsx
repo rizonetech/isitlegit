@@ -24,6 +24,15 @@ export type QueueItem = {
   when: string;
 };
 
+export type OrgFeedbackItem = {
+  id: string;
+  caseTitle: string;
+  caseHref: string;
+  verdict: "Safe" | "Suspicious" | "Malicious";
+  theySay: "Safe" | "Unsafe";
+  status: "New" | "Triaged" | "Closed";
+};
+
 export type QueueDetail = {
   id: string;
   title: string;
