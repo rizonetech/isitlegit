@@ -346,7 +346,10 @@ export async function rekeyAccounts(
   db: D1Database,
   from: BankKeys,
   to: BankKeys,
+  actor?: string,
 ): Promise<{ moved: number; unreadable: number; byOrg: { orgId: string; moved: number }[] }> {
+  if (from.id === to.id && from.matchId === to.matchId)
+    throw new KeyMismatch("the previous and current keys are the same pair");
   await db
     .prepare(
       `INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)
@@ -360,9 +363,12 @@ export async function rekeyAccounts(
     throw new KeyMismatch("the registry is under neither the old nor the new keys");
   let moved = 0;
   let unreadable = 0;
-  // Rows moved per organisation across both tables, so the caller can audit each organisation it re-keyed
-  // (D05 T01 §4): a retry moves only what is left, so its events name only the rows that run moved.
-  const perOrg = new Map<string, number>();
+  // Rows are moved organisation by organisation, each organisation's updates in one batch with its
+  // `bank.rekeyed` audit event when an actor is named (D05 T01 §4, correction 4), so a moved row is never
+  // left without its event: a failure leaves that organisation untouched, and a retry moves only what is
+  // left and audits only that. Rows that cannot be decrypted are left as they are and counted.
+  type Ready = { table: string; row: Pick<Row, "id" | "org_id">; number: string };
+  const byOrgRows = new Map<string, Ready[]>();
   for (const table of ACCOUNT_TABLES) {
     const rows = (
       await db
@@ -378,23 +384,34 @@ export async function rekeyAccounts(
         unreadable++;
         continue;
       }
-      const sealed = await sealNumber(to, number);
-      const done = await db
-        .prepare(
-          `UPDATE ${table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
-           WHERE id = ? AND key_id = ? AND match_key_id = ?`,
-        )
-        .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, row.id, from.id, from.matchId)
-        .run();
-      moved += done.meta.changes;
-      if (done.meta.changes > 0) perOrg.set(row.org_id, (perOrg.get(row.org_id) ?? 0) + done.meta.changes);
+      const list = byOrgRows.get(row.org_id) ?? [];
+      list.push({ table, row, number });
+      byOrgRows.set(row.org_id, list);
     }
   }
-  return {
-    moved,
-    unreadable,
-    byOrg: [...perOrg.entries()].map(([orgId, n]) => ({ orgId, moved: n })).sort((a, b) => a.orgId.localeCompare(b.orgId)),
-  };
+  const perOrg: { orgId: string; moved: number }[] = [];
+  const at = new Date().toISOString();
+  for (const orgId of [...byOrgRows.keys()].sort((a, b) => a.localeCompare(b))) {
+    const ready = byOrgRows.get(orgId) as Ready[];
+    const statements: D1PreparedStatement[] = [];
+    for (const { table, row, number } of ready) {
+      const sealed = await sealNumber(to, number);
+      statements.push(
+        db
+          .prepare(
+            `UPDATE ${table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
+             WHERE id = ? AND key_id = ? AND match_key_id = ?`,
+          )
+          .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, row.id, from.id, from.matchId),
+      );
+    }
+    if (actor) statements.push(eventStatement(db, orgId, actor, "bank.rekeyed", { moved: ready.length }, at));
+    const results = await db.batch(statements);
+    const changed = results.slice(0, ready.length).reduce((sum, r) => sum + (r.meta?.changes ?? 0), 0);
+    moved += changed;
+    if (changed > 0) perOrg.push({ orgId, moved: changed });
+  }
+  return { moved, unreadable, byOrg: perOrg };
 }
 
 // The recovery when a key is lost for good (docs/operations.md, Bank keys): makes `to` the current keys first, so no

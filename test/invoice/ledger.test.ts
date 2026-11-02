@@ -638,7 +638,12 @@ describe("one epoch across the registry and the ledger", () => {
     // The registry moved, the ledger did not: the ledger refuses under either key rather than answer.
     for (const k of [keys, next])
       await expect(matchSupplierAccount(db, k, org, supplierId, claim)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: org, moved: 1 }] });
+    // The retry moves the supplier row (and the registry row too if its organisation's batch came after the
+    // failed one): its organisation is audited for exactly the row it moved.
+    const retry = await rekeyAccounts(db, keys, next);
+    expect(retry.byOrg).toContainEqual({ orgId: org, moved: 1 });
+    expect(retry.moved).toBe(retry.byOrg.reduce((sum, o) => sum + o.moved, 0));
+    expect(retry.unreadable).toBe(0);
     expect(await matchSupplierAccount(db, next, org, supplierId, claim)).toEqual({ match: true });
     expect(await matchBankAccount(db, next, { orgId: checker }, registered, claim)).toEqual({ match: true });
     // The old keys can add to neither table once the epoch has moved.

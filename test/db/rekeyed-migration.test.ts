@@ -96,6 +96,24 @@ describe("migration 0076", () => {
         .run(),
     ).rejects.toThrow();
 
+    // The other constraints 0047 set still hold: a blank actor and a non-object detail are refused.
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO trust_events (id, org_id, actor, kind, detail_json, created_at) VALUES (?, ?, '', 'bank.added', '{}', ?)",
+        )
+        .bind("evt-actor", orgId, "2026-11-02T00:00:00.000Z")
+        .run(),
+    ).rejects.toThrow();
+    await expect(
+      db
+        .prepare(
+          "INSERT INTO trust_events (id, org_id, actor, kind, detail_json, created_at) VALUES (?, ?, 'owner', 'bank.added', '[]', ?)",
+        )
+        .bind("evt-detail", orgId, "2026-11-02T00:00:00.000Z")
+        .run(),
+    ).rejects.toThrow();
+
     await db.prepare(`DELETE FROM "organization" WHERE id = ?`).bind(orgId).run();
     const left = await db.prepare("SELECT COUNT(*) AS n FROM trust_events WHERE org_id = ?").bind(orgId).first<{ n: number }>();
     expect(left?.n).toBe(0);

@@ -30,7 +30,6 @@ import { FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD, hourlyRateUsd } from ".
 import { ledgerStatement } from "../../vision/glimmer-minutes";
 import { abandonLostKeys, bankKeys, rekeyAccounts } from "../../trust/bank";
 import { BankKeysMissing, KeyMismatch } from "../../trust/errors";
-import { eventStatement } from "../../trust/identity";
 import { CHECK_WORDS } from "../components/evidence/check-words";
 import {
   type CapDraft,
@@ -623,22 +622,29 @@ adminRoutes.post("/admin/bank-keys", async (c) => {
           return json({ error: "the previous bank keys are malformed; rotation refused and nothing was changed" }, 422);
         throw error;
       }
+      if (from.id === current.id && from.matchId === current.matchId)
+        return json({ error: "the previous and current keys are the same pair; nothing was changed" }, 422);
       try {
-        const result = await rekeyAccounts(db, from, current);
-        if (result.byOrg.length > 0) {
-          const at = new Date().toISOString();
-          await db.batch(
-            result.byOrg.map((o) => eventStatement(db, o.orgId, actor, "bank.rekeyed", { moved: o.moved }, at)),
-          );
+        const result = await rekeyAccounts(db, from, current, actor);
+        // Completion is proven across both tables, not from this run's counts: any row still under other
+        // keys (unreadable, or under a pair this run was not given) keeps the rotation unfinished.
+        let remaining = 0;
+        for (const table of ["bank_accounts", "supplier_accounts"]) {
+          const row = await db
+            .prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE key_id != ? OR match_key_id != ?`)
+            .bind(current.id, current.matchId)
+            .first<{ n: number }>();
+          remaining += row?.n ?? 0;
         }
         return json({
           operation: "rotate",
           moved: result.moved,
           unreadable: result.unreadable,
           organisations: result.byOrg.length,
+          remaining,
           note:
-            result.unreadable > 0
-              ? "Rows that could not be decrypted were left as they are and still refuse matches; run the action again to move only what is left."
+            remaining > 0
+              ? "Accounts still under other keys remain; they still refuse matches. Resolve them (a row that cannot be decrypted stays refused until its owner registers again), then post rotate again with the same keys."
               : "Every account now matches under the current keys; remove the previous secrets again.",
         });
       } catch (error) {
@@ -647,13 +653,30 @@ adminRoutes.post("/admin/bank-keys", async (c) => {
             { error: "the registry is under neither the previous nor the current keys; nothing was changed by this run" },
             409,
           );
-        throw error;
+        return json(
+          {
+            error:
+              "the rotation did not finish; some organisations may already have moved, each with its audit event. Post the same operation again with the same keys to finish only what is left.",
+          },
+          500,
+        );
       }
     }
     if (form.operation === "recover") {
       if (form.confirm !== "recover")
         return json({ error: "recovery needs its explicit confirmation; nothing was changed" }, 422);
-      const result = await abandonLostKeys(db, current, actor);
+      let result: Awaited<ReturnType<typeof abandonLostKeys>>;
+      try {
+        result = await abandonLostKeys(db, current, actor);
+      } catch {
+        return json(
+          {
+            error:
+              "the recovery did not finish; some accounts may already have been deleted, each with its audit event. Post the same operation again with the same confirmation to finish only what is left.",
+          },
+          500,
+        );
+      }
       return json({
         operation: "recover",
         deleted: result.deleted,

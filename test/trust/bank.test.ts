@@ -508,13 +508,14 @@ describe("the owner's view, re-keying and what never leaks", () => {
     await db.exec("DROP TRIGGER fail_rekey");
     const keyOf = async (id: string) =>
       (await db.prepare("SELECT key_id FROM bank_accounts WHERE id = ?").bind(id).first<{ key_id: string }>())?.key_id;
-    expect([await keyOf(first.id), await keyOf(second.id)]).toEqual([next.id, keys.id]);
-    // Half-moved: matching refuses under either key rather than answering from half the registry.
+    // The organisation's rows move in one batch with its audit event, so the failed run moved none of them.
+    expect([await keyOf(first.id), await keyOf(second.id)]).toEqual([keys.id, keys.id]);
+    // Unmoved: matching refuses under either key rather than answering from half the registry.
     const checker = await makeOrg("Checker");
     const input = { number: NUMBER, branchCode: "250655" };
     for (const k of [keys, next])
       await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: a, moved: 1 }] });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 2, unreadable: 0, byOrg: [{ orgId: a, moved: 2 }] });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
     expect(await decryptForOwner(db, next, a, second.id)).toBe("12345678");
   });

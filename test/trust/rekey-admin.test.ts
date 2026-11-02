@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetAccessKeyCache } from "../../src/auth/access";
+import { addSupplier, addSupplierAccount, matchSupplierAccount } from "../../src/invoice/ledger";
 import { addAccount, bankKeys, matchBankAccount } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import { authEnv, call } from "../auth/helpers";
@@ -224,6 +225,82 @@ describe("the bank key admin action", () => {
     expect(((await again.json()) as Record<string, unknown>).moved).toBe(0);
     for (const orgId of [a, b])
       expect((await events(orgId)).filter((e) => e.kind === "bank.rekeyed")).toHaveLength(1);
+  });
+
+  it("refuses a missing Origin, an identical pair, an incompatible registry and an unreadable row, reporting what remains", async () => {
+    const orgId = await business("hadeda");
+    const old = await bankKeys(OLD);
+    await addAccount(db, old, orgId, "owner", account);
+    const jwt = await token();
+    const headers = { "cf-access-jwt-assertion": jwt };
+
+    // Missing Origin: the form call goes without one (the helper only adds it when absent, so send it raw).
+    const raw = await post({ operation: "rotate" }, withPrevious(PREVIOUS), { ...headers, origin: "" });
+    expect(raw.status).toBe(403);
+    // Previous pair identical to the current pair.
+    const same = await post(
+      { operation: "rotate" },
+      withPrevious({ BANK_KEY_PREVIOUS: NEW.BANK_KEY, BANK_MATCH_KEY_PREVIOUS: NEW.BANK_MATCH_KEY }),
+      headers,
+    );
+    expect(same.status).toBe(422);
+    expect(await keyIds()).toEqual([old.id]);
+
+    // A registry under a third pair refuses.
+    const third = await bankKeys(keyPair(13));
+    await db
+      .prepare("UPDATE bank_key_epoch SET key_id = ?, match_key_id = ? WHERE id = 1")
+      .bind(third.id, third.matchId)
+      .run();
+    await db.prepare("UPDATE bank_accounts SET key_id = ?, match_key_id = ?").bind(third.id, third.matchId).run();
+    expect((await post({ operation: "rotate" }, withPrevious(PREVIOUS), headers)).status).toBe(409);
+
+    // Back under the old keys with a broken ciphertext: refused as unreadable, counted as remaining.
+    await db
+      .prepare("UPDATE bank_key_epoch SET key_id = ?, match_key_id = ? WHERE id = 1")
+      .bind(old.id, old.matchId)
+      .run();
+    await db.prepare("UPDATE bank_accounts SET key_id = ?, match_key_id = ?").bind(old.id, old.matchId).run();
+    await db.prepare("UPDATE bank_accounts SET number_ciphertext = ?").bind(new Uint8Array(27)).run();
+    const res = await post({ operation: "rotate" }, withPrevious(PREVIOUS), headers);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ moved: 0, unreadable: 1, remaining: 1 });
+    expect(String(body.note)).toContain("still refuse");
+  });
+
+  it("rotates a supplier account too, and a database failure answers with retry guidance and loses no audit event", async () => {
+    const orgId = await business("hadeda");
+    const old = await bankKeys(OLD);
+    const failing = await business("zebra");
+    await addAccount(db, old, orgId, "owner", account);
+    const { id: supplierId } = await addSupplier(db, orgId, "owner", {
+      name: "Karoo Parts",
+      domains: ["billing.karooparts.co.za"],
+    });
+    await addSupplierAccount(db, old, orgId, "owner", supplierId, { ...account, number: "12345678" });
+    await addAccount(db, old, failing, "owner", { ...account, number: "87654321" });
+    const jwt = await token();
+    const headers = { "cf-access-jwt-assertion": jwt };
+
+    await db.exec(
+      `CREATE TRIGGER fail_one BEFORE UPDATE ON bank_accounts WHEN NEW.org_id = '${failing}' BEGIN SELECT RAISE(ABORT, 'database down'); END`,
+    );
+    const failed = await post({ operation: "rotate" }, withPrevious(PREVIOUS), headers);
+    expect(failed.status).toBe(500);
+    expect(String(((await failed.json()) as Record<string, unknown>).error)).toContain("Post the same operation again");
+    // The organisation that moved carries its event; the failed one carries none and no moved rows.
+    expect((await events(failing)).filter((e) => e.kind === "bank.rekeyed")).toEqual([]);
+
+    await db.exec("DROP TRIGGER fail_one");
+    const res = await post({ operation: "rotate" }, withPrevious(PREVIOUS), headers);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.remaining).toBe(0);
+    for (const id of [orgId, failing])
+      expect((await events(id)).filter((e) => e.kind === "bank.rekeyed")).toHaveLength(1);
+    const next = await bankKeys(NEW);
+    expect(
+      await matchSupplierAccount(db, next, orgId, supplierId, { number: "12345678", branchCode: "250655" }),
+    ).toEqual({ match: true });
   });
 
   it("refuses recovery without its confirmation, then deletes ordinary accounts and keeps the protected ones", async () => {
