@@ -9,12 +9,15 @@ export type PackInput = {
   finding: Finding;
   contacts: RdapContacts;
   evidenceSummaries: string[];
+  // Structured affirmative branding evidence (a high or critical logo match on the case),
+  // never a word search over summaries.
+  brandingConfirmed?: boolean;
   screenshotName: string | null;
 };
 
 export function takedownMarkdown(input: PackInput): string {
   const { finding, contacts } = input;
-  const branding = input.evidenceSummaries.some((s) => /logo|brand|name/i.test(s));
+  const branding = input.brandingConfirmed === true;
   const claim =
     finding.outcome === "confirmed"
       ? branding

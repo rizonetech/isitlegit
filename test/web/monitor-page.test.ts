@@ -174,3 +174,44 @@ describe("the monitor page refusals", () => {
     expect(page).toContain("Dismissed");
   });
 });
+
+describe("the monitor page states and counts", () => {
+  it("shows numerical counts after dismissal, refuses cross-tenant restore and anonymous changes, and warns on a partial run", async () => {
+    const mine = await makeOrg("Mine");
+    const other = await makeOrg("Other");
+    await finding(mine, "fake-one.example");
+    await db
+      .prepare(
+        `INSERT INTO monitor_runs (org_id, day, run_id, outcome, started_at) VALUES (?, '2026-11-02', 'run-1', 'partial', '2026-11-02T04:15:00Z')`,
+      )
+      .bind(mine)
+      .run();
+    const me = await person(mine);
+    let page = await (await get(me.cookie, "/monitor")).text();
+    expect(page).toContain("finished only partly");
+    await post(me.cookie, "/monitor/dismiss", { host: "fake-one.example", reason: "Ours" });
+    page = await (await get(me.cookie, "/monitor")).text();
+    const dismissedCard = page.split("Dismissed, with your reason")[0] ?? "";
+    expect(dismissedCard).toContain(">1<");
+
+    const stranger = await person(other);
+    expect((await post(stranger.cookie, "/monitor/restore", { host: "fake-one.example" })).status).toBe(400);
+    const anon = await call(
+      "/monitor/dismiss",
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ host: "fake-one.example", reason: "x" }).toString(),
+      },
+      authEnv,
+    );
+    expect(anon.status).not.toBe(303);
+    const row = await db
+      .prepare("SELECT status FROM monitor_findings WHERE org_id = ? AND host = 'fake-one.example'")
+      .bind(mine)
+      .first<{ status: string }>();
+    expect(row?.status).toBe("dismissed");
+    // A failed mutation (blank reason) changes nothing and says so.
+    expect((await post(me.cookie, "/monitor/dismiss", { host: "fake-one.example", reason: "" })).status).toBe(400);
+  });
+});

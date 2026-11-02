@@ -3,6 +3,7 @@
 // confirmed finding is called a fake site; an unconfirmed one lists without that claim and a
 // partial one as incomplete. Nothing here contacts a registrar or host: the pack is the member's
 // to send.
+import { raw } from "hono/html";
 import type { Finding } from "../../monitor/findings";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Button } from "../components/Button";
@@ -59,7 +60,11 @@ export function MonitorPage(props: {
     <Document
       title="Impersonation monitor"
       scripts={
-        <script>{`document.addEventListener("error",function(e){var t=e.target;if(t&&t.id==="monitor-shot"){t.replaceWith(Object.assign(document.createElement("p"),{className:"mt-12 text-14 text-muted",textContent:"The settled screenshot could not be loaded. Reload the page to try again; the evidence below still stands."}))}},true)`}</script>
+        <script>
+          {raw(
+            `document.addEventListener("error",function(e){var t=e.target;if(t&&t.id==="monitor-shot"){t.replaceWith(Object.assign(document.createElement("p"),{className:"mt-12 text-14 text-muted",textContent:"The settled screenshot could not be loaded. Reload the page to try again; the evidence below still stands."}))}},true)`,
+          )}
+        </script>
       }
     >
       <AppShell {...props.shell} active="monitor">

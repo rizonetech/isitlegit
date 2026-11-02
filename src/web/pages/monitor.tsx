@@ -214,10 +214,20 @@ async function buildPack(c: Context<GateEnv>, finding: Finding) {
   const resolved = await dohResolve()(finding.host).catch(() => null);
   const ip = Array.isArray(resolved) ? (resolved[0] ?? null) : null;
   const contacts = await rdapContacts(fetch, { domain: finding.host, bootstrap, ip });
+  const brandingConfirmed = finding.case_id
+    ? (await db
+        .prepare(
+          `SELECT 1 AS ok FROM evidence WHERE case_id = ? AND "check" = 'vision.logo_match' AND severity IN ('high', 'critical') LIMIT 1`,
+        )
+        .bind(finding.case_id)
+        .first<{ ok: number }>()
+        .catch(() => null)) !== null
+    : false;
   const input = {
     finding,
     contacts,
     evidenceSummaries: summaries,
+    brandingConfirmed,
     screenshotName: screenshotJpeg ? "screenshot.jpg (embedded in the PDF pack)" : null,
   };
   return { markdown: takedownMarkdown(input), pdf: takedownPdf({ ...input, screenshotJpeg }) };
