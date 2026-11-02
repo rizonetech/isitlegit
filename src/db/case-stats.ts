@@ -77,60 +77,30 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     week.medianSecondsToVerdict = m === null ? null : Math.round(m);
   });
   // Threat kinds (D07 T04 §18): each flagged case of a week takes at most one kind, from positive evidence on
-  // its current run alone, in invoice, impersonation, phishing order. A flagged case with none of these (a
+  // its current run alone, in invoice, impersonation, phishing order. The flags are read in SQL, one row per
+  // flagged case, so no evidence detail crosses into the Worker. A flagged case with none of these (a
   // malware-only case) counts in no kind, so the kinds need not sum to the week's flagged total.
-  const evidenceRows = (
+  const flaggedRows = (
     await db
       .prepare(
-        `SELECT c.id AS case_id, e."check" AS check_name, e.severity, e.detail_json
-         FROM cases c JOIN evidence e ON e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
-         WHERE c.org_id = ? AND c.created_at >= ?`,
+        `SELECT c.id, c.created_at,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND (e."check" = 'invoice.detected'
+               OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') = 'invoice'))) AS inv,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND ((e."check" = 'domain.lookalike' AND e.severity IN ('medium', 'high'))
+               OR (e."check" = 'vision.brand_domain_mismatch' AND json_extract(e.detail_json, '$.confirmed') = 1))) AS imp,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND e."check" IN ('link.credential_form', 'link.card_form', 'link.lure_button', 'walkthrough.credential_target')) AS ph
+         FROM cases c
+         WHERE c.org_id = ? AND c.created_at >= ? AND c.status IN ('done', 'partial')
+           AND c.verdict IN ('malicious', 'suspicious')`,
       )
       .bind(orgId, from)
-      .all<{ case_id: string; check_name: string; severity: string; detail_json: string }>()
+      .all<{ id: string; created_at: string; inv: number; imp: number; ph: number }>()
   ).results;
-  const kindOf = new Map<string, "phishing" | "invoice" | "impersonation">();
-  const rank = { invoice: 0, impersonation: 1, phishing: 2 } as const;
-  const confirmed = (json: string) => {
-    try {
-      return (JSON.parse(json) as { confirmed?: unknown }).confirmed === true;
-    } catch {
-      return false;
-    }
-  };
-  const docType = (json: string) => {
-    try {
-      return (JSON.parse(json) as { type?: unknown }).type;
-    } catch {
-      return null;
-    }
-  };
-  for (const e of evidenceRows) {
-    let kind: "phishing" | "invoice" | "impersonation" | null = null;
-    if (
-      e.check_name === "invoice.detected" ||
-      (e.check_name === "document.type" && docType(e.detail_json) === "invoice")
-    )
-      kind = "invoice";
-    else if (
-      (e.check_name === "domain.lookalike" && (e.severity === "medium" || e.severity === "high")) ||
-      (e.check_name === "vision.brand_domain_mismatch" && confirmed(e.detail_json))
-    )
-      kind = "impersonation";
-    else if (
-      ["link.credential_form", "link.card_form", "link.lure_button", "walkthrough.credential_target"].includes(
-        e.check_name,
-      )
-    )
-      kind = "phishing";
-    if (!kind) continue;
-    const held = kindOf.get(e.case_id);
-    if (!held || rank[kind] < rank[held]) kindOf.set(e.case_id, kind);
-  }
-  for (const row of rows) {
-    const decided = (row.status === "done" || row.status === "partial") && row.verdict;
-    if (!decided || (row.verdict !== "malicious" && row.verdict !== "suspicious")) continue;
-    const kind = kindOf.get(row.id);
+  for (const row of flaggedRows) {
+    const kind = row.inv === 1 ? "invoice" : row.imp === 1 ? "impersonation" : row.ph === 1 ? "phishing" : null;
     if (!kind) continue;
     const index = weeks - 1 - Math.floor((Date.parse(row.created_at) - fromMs) / WEEK_MS);
     const week = out[index];
