@@ -26,7 +26,8 @@ import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { screenSmokePage } from "./vision/smoke-screen.ts";
-import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { AXE_SOURCE } from "./web/dev/axe-source";
+import { GalleryFrame, GalleryPage, GalleryState } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
 import { adminRoutes } from "./web/pages/admin";
 import { adminFeedbackRoutes } from "./web/pages/admin-feedback";
@@ -153,6 +154,16 @@ app.get("/dev/components/frame/:id", (c) => {
   const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
   return frame ? c.html(frame) : c.notFound();
 });
+app.get("/dev/components/state/:slug", (c) => {
+  const state = c.env.ENV === "development" ? GalleryState(c.req.param("slug")) : null;
+  return state ? c.html(state) : c.notFound();
+});
+// axe-core for the gallery's on-demand checks (§15), only in development: every deploy answers it 404.
+app.get("/dev/axe.min.js", (c) =>
+  c.env.ENV === "development"
+    ? c.body(AXE_SOURCE, 200, { "Content-Type": "text/javascript; charset=utf-8" })
+    : c.notFound(),
+);
 
 // An unmatched path is the 404 page, which says nothing of whether the page exists or is someone else's (E1); an
 // uncaught throw is the 500 page with a reference, the error's class and that reference logged as JSON and nothing of its

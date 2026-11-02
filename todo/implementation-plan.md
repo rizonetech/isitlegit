@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 182 | Checklist items: 766
+Sections: 182 | Checklist items: 771
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -497,7 +497,7 @@ Sections: 182 | Checklist items: 766
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
 | [x]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
-| [ ]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 3     |
+| [ ]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 8     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
@@ -618,4 +618,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 330/540 verified sections, 139 ready to run now.
 
-Checklist: 2621/3378 items completed (includes Commit items).
+Checklist: 2628/3383 items completed (includes Commit items).

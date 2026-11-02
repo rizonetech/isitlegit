@@ -113,7 +113,7 @@ describe("the component gallery", () => {
   }, 120_000);
 
   it("answers 404 for the gallery and its frames as committed", async () => {
-    for (const path of ["/dev/components", `/dev/components/frame/${GALLERY_FRAMES[0]?.id}`]) {
+    for (const path of ["/dev/components", `/dev/components/frame/${GALLERY_FRAMES[0]?.id}`, "/dev/axe.min.js"]) {
       const res = await get(path);
       expect(res.status, path).toBe(404);
       await res.arrayBuffer();

@@ -4,7 +4,14 @@ import { raw } from "hono/html";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Document } from "../../src/web/components/Document.tsx";
-import { GALLERY_FRAMES, GalleryFrame, GalleryPage } from "../../src/web/dev/gallery.tsx";
+import {
+  anchorOf,
+  GALLERY_FRAMES,
+  GALLERY_STATES,
+  GalleryFrame,
+  GalleryPage,
+  GalleryState,
+} from "../../src/web/dev/gallery.tsx";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 
@@ -34,6 +41,8 @@ async function open(path: string, pages: Record<string, string>, width: number, 
     if (own) return route.fulfill({ status: 200, contentType: "text/html", body: own });
     const frame = /^\/dev\/components\/frame\/(.+)$/.exec(url)?.[1];
     if (frame) return route.fulfill({ status: 200, contentType: "text/html", body: String(GalleryFrame(frame)) });
+    const state = /^\/dev\/components\/state\/(.+)$/.exec(url)?.[1];
+    if (state) return route.fulfill({ status: 200, contentType: "text/html", body: String(GalleryState(state)) });
     const file = join(PUBLIC, url);
     if (url.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });
@@ -52,18 +61,26 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("accessibility of the compon
       it(`passes on the gallery, its copy feedback shown both ways (${theme}, ${width} px)`, async () => {
         const { p, context } = await open("/dev/components", galleryPages(), width, theme);
         expect(problems(await scan(p))).toEqual([]);
-        const group = p.locator('[data-gallery-state="copy-group"]');
+        await context.close();
+        const copyPage = await open(
+          `/dev/components/state/${anchorOf("state", "copy-group")}`,
+          galleryPages(),
+          width,
+          theme,
+        );
+        const { p: p2, context: context2 } = copyPage;
+        const group = p2.locator("main");
         await group.getByRole("button", { name: "Copy the check address" }).click();
         await expect.poll(() => group.locator("[data-copy-status]").textContent()).toBe("Copied");
         expect(await group.locator("[data-copy-status]").isVisible()).toBe(true);
-        expect(problems(await scan(p))).toEqual([]);
-        await p.evaluate(() => {
+        expect(problems(await scan(p2))).toEqual([]);
+        await p2.evaluate(() => {
           navigator.clipboard.writeText = () => Promise.reject(new DOMException("denied", "NotAllowedError"));
         });
         await group.getByRole("button", { name: "Copy the check address" }).click();
         await expect.poll(() => group.locator("[data-copy-status]").textContent()).toContain("Copy failed");
-        expect(problems(await scan(p))).toEqual([]);
-        await context.close();
+        expect(problems(await scan(p2))).toEqual([]);
+        await context2.close();
       });
 
   for (const theme of ["light", "dark"] as const)
@@ -102,6 +119,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("accessibility of the compon
             expect(await p.locator("nav details[open]").count(), `${frame.id} switcher open`).toBe(1);
             failures.push(...problems(await scan(p)).map((x) => `${frame.id} (switcher open): ${x}`));
           }
+          await context.close();
+        }
+        expect(failures).toEqual([]);
+      });
+
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [1280, 360])
+      it(`passes on every gallery state (${theme}, ${width} px)`, async () => {
+        const failures: string[] = [];
+        for (const state of GALLERY_STATES) {
+          const path = `/dev/components/state/${anchorOf("state", state.id)}`;
+          const { p, context } = await open(path, {}, width, theme);
+          failures.push(...problems(await scan(p)).map((x) => `${state.id}: ${x}`));
           await context.close();
         }
         expect(failures).toEqual([]);
