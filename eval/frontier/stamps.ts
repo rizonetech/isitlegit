@@ -66,14 +66,19 @@ export async function buildSet(dir = SET_DIR): Promise<ManifestEntry[]> {
   for (let i = 0; i < 20; i++) {
     const kind = i % 2 === 0 ? "genuine" : "doctored";
     const alteration = kind === "genuine" ? "none" : (alterations[i % alterations.length] as string);
-    const png = await sharp(Buffer.from(popSvg(i, kind, alteration))).png().toBuffer();
+    const png = await sharp(Buffer.from(popSvg(i, kind, alteration)))
+      .png()
+      .toBuffer();
     const file = `pop-${String(i + 1).padStart(2, "0")}-${kind}.png`;
     writeAtomic(join(staging, file), png);
     entries.push({ file, label: kind, alteration, sha256: sha256(png) });
   }
   // The genuine reference both arms receive: the first genuine page's stamp region, cut at the known box.
   const first = entries.find((e) => e.label === "genuine");
-  const ref = await sharp(join(staging, first?.file ?? "")).extract(STAMP_BOX).png().toBuffer();
+  const ref = await sharp(join(staging, first?.file ?? ""))
+    .extract(STAMP_BOX)
+    .png()
+    .toBuffer();
   writeAtomic(join(staging, "reference-stamp.png"), ref);
   writeAtomic(join(staging, "manifest.json"), `${JSON.stringify(entries, null, 1)}\n`);
   renameSync(staging, dir);
@@ -129,7 +134,8 @@ export function checkLog(logText: string, entries: ManifestEntry[], outcomes: Ar
   ] as const) {
     if (f.detection !== null && !logText.includes(`${arm} detection ${(100 * f.detection).toFixed(1)}%`))
       problems.push(`${arm} detection figure missing or differs in the log`);
-    if (!logText.includes(`${arm} cost US$${f.totalUsd.toFixed(4)}`)) problems.push(`${arm} cost missing or differs in the log`);
+    if (!logText.includes(`${arm} cost US$${f.totalUsd.toFixed(4)}`))
+      problems.push(`${arm} cost missing or differs in the log`);
   }
   return problems;
 }
