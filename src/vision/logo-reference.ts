@@ -83,9 +83,7 @@ export async function referenceLogo(bucket: R2Bucket, brand: string): Promise<Re
   const parsed = logoIndex.safeParse(raw);
   if (!parsed.success) throw new LogoReferenceError("invalid-index", "the reference logo index fails its schema");
   const wanted = normaliseBrand(brand);
-  const entry = parsed.data.logos.find(
-    (logo) => normaliseBrand(logo.brand) === wanted || logo.slug === slugOf(brand),
-  );
+  const entry = parsed.data.logos.find((logo) => normaliseBrand(logo.brand) === wanted || logo.slug === slugOf(brand));
   if (!entry) throw new LogoReferenceError("missing-brand", `no reference logo is stored for ${brand}`);
   const image = await bucket.get(entry.key);
   if (!image) throw new LogoReferenceError("missing-image", `the reference logo at ${entry.key} is not stored`);

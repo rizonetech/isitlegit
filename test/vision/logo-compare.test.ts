@@ -38,7 +38,12 @@ const DIFFERENT = {
 
 function ctx(fetchImpl: typeof fetch, caseId: string): LogoCompareContext {
   return {
-    meta: { env: META, budget: d1Budget(db, { caller: "vision", caseId }), owner: { kind: "case", caseId, step: "vision" }, fetch: fetchImpl },
+    meta: {
+      env: META,
+      budget: d1Budget(db, { caller: "vision", caseId }),
+      owner: { kind: "case", caseId, step: "vision" },
+      fetch: fetchImpl,
+    },
     kv,
     owner: { kind: "case", caseId, step: "vision" },
     waitUntil: () => {},
