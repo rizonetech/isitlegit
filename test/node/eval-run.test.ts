@@ -1295,7 +1295,7 @@ describe("the ablation arm mode", () => {
 });
 
 describe("the ablation flag transport", () => {
-  it("sends the arm mode on every upload", async () => {
+  it("passes the arm mode to the upload transport on every upload (wire serialization waits on the D01 admit)", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     const modes: string[] = [];
     const api: Api = {

@@ -683,12 +683,13 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
       const body = (await res.json().catch(() => null)) as { user?: { id?: string } } | null;
       return body?.user?.id ?? null;
     },
-    async upload(sample, bytes, mode) {
+    async upload(sample, bytes, _mode) {
       const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
       const form = new FormData();
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
-      // The server admits the switch from the eval organisation only (checks lane D01); other lanes' cases are unaffected.
-      form.set("mode", mode);
+      // The arm mode is held at the transport boundary, not serialized: `/api/upload` admits exactly one field named
+      // `file` and refuses anything else, so a `mode` field would fail every upload until the checks lane's D01 admit
+      // lands (requested through the coordinator with this section named). Then one line sends it.
       const res = await fetchImpl(new URL("/api/upload", base), {
         method: "POST",
         headers: { cookie },
