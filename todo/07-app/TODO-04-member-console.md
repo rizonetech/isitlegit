@@ -60,6 +60,7 @@ track: day-6
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
 | 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
+| 30 | §30 | Phone forwarding guidance on the Cases page | §1 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -971,6 +972,30 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 > **Verified:** 2026-11-02 | §29 | e4b0dc807387ac790eb3921829a0ebfc07968b5c
 > **Review:** `docs/reviews/d07-t04-s29.json`
+
+## 30. Phone forwarding guidance on the Cases page
+
+The Cases first-run page tells a member on a phone how to forward mail from desktop Outlook, Outlook on the web and Gmail (`HOW_TO` in `src/web/pages/cases-view.tsx`), but not from a phone mail app, and it does not say when uploading the file instead is the better route (D07 T01 §14 completion review, 2026-11-02). A member whose only device is a phone is left to guess the step this page exists to teach.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 (Cases, first-run state), board `Cases-Empty`
+**Job:** a member on a phone forwards a suspicious email as an attachment, or uploads it, without guessing
+**Treatment:** the first-run how-to tiles name the phone mail apps' forward-as-attachment steps and when to upload instead
+**Chrome:** `EmptyState` (§8 of D07 T01) on the Cases page (D07 T04 §1)
+
+**Build order:**
+
+1. Name the phone steps in `design/SPEC.md` M1. Done when: M1 names the phone mail app steps and the upload choice, and `python3 design/tools/check-design.py` passes.
+2. Draw the phone guidance in the first-run how-to tiles (`src/web/pages/cases-view.tsx`). Done when: `test/node/cases-browser.test.tsx` reads the phone steps and the upload choice at 360 px in both themes.
+
+- [ ] Add the phone mail app steps (Apple Mail and Gmail on a phone: forward as attachment where the app offers it, save and upload where it does not) and the when-to-upload line to `design/SPEC.md` M1. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
+- [ ] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
+- [ ] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes reads the phone steps and the upload choice, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
+- [ ] Commit: `web: phone forwarding guidance on the Cases page`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/cases-browser.test.tsx` passes with the phone guidance read at 360 px in both themes.
 
 ## Verification
 
