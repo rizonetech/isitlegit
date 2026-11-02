@@ -5,7 +5,7 @@
 import { invisibleRuns } from "../src/checks/invisible-unicode.ts";
 import type { InvisibleSummary } from "./components.ts";
 
-const tag = (ascii: string) => [...ascii].map((c) => String.fromCodePoint(0xe0000 + c.codePointAt(0)!)).join("");
+const tag = (ascii: string) => [...ascii].map((c) => String.fromCodePoint(0xe0000 + (c.codePointAt(0) ?? 0))).join("");
 const ignorable = (n: number) => "​".repeat(n);
 
 export const INVISIBLE_PAYLOADS: { name: string; text: string }[] = [
@@ -33,7 +33,8 @@ export function scoreInvisible(): InvisibleSummary & { missed: string[]; flagged
   const missed = INVISIBLE_PAYLOADS.filter((p) => timed(p.text).runs.length === 0).map((p) => p.name);
   const flagged = INVISIBLE_CONTROLS.filter((c) => timed(c.text).runs.length > 0).map((c) => c.name);
   const sorted = [...timesMs].sort((a, b) => a - b);
-  const at = (q: number) => (sorted.length ? (sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)] as number) : null);
+  const at = (q: number) =>
+    sorted.length ? (sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)] as number) : null;
   return {
     payloads: INVISIBLE_PAYLOADS.length,
     detected: INVISIBLE_PAYLOADS.length - missed.length,
