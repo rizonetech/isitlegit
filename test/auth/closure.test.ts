@@ -1,7 +1,8 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { closeOrganisation, scheduledClosurePurge } from "../../src/auth/closure";
+import { closeOrganisation, purgeOrganisation, scheduledClosurePurge } from "../../src/auth/closure";
 import { findMemberBySender } from "../../src/auth/senders";
+import { createCase } from "../../src/db/cases";
 import { FYNBOS_ORG_ID } from "../../src/demo/seed";
 import { authEnv, call, signIn } from "./helpers";
 
@@ -215,6 +216,57 @@ describe("the scheduled purge", () => {
     const report = await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
     expect(report.purged).not.toContain(org);
     expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(1);
+  });
+
+  it("never purges an eligible organisation with a protected member, and refuses its next case", async () => {
+    const org = await organisation();
+    const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
+    await join(org, owner, "owner");
+    await join(org, await user("derick@rizonetech.com"));
+    await db
+      .prepare(`UPDATE "organization" SET "closedAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 26 * 86_400_000).toISOString(), org)
+      .run();
+    const report = await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
+    expect(report.purged).not.toContain(org);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(1);
+    const admitted = await createCase(db, {
+      orgId: org,
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: owner,
+      sourceKind: "email-file",
+    }).catch(() => null);
+    expect(admitted && "ok" in admitted ? admitted.ok : false).toBe(false);
+    expect(await count(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`, org)).toBe(0);
+  });
+
+  it("resumes an interrupted purge on the next run", async () => {
+    const org = await organisation();
+    const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
+    await join(org, owner, "owner");
+    for (const n of [1, 2]) {
+      const caseId = `case-${tag()}`;
+      await db
+        .prepare(
+          `INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, ?)`,
+        )
+        .bind(caseId, org, now(), now())
+        .run();
+      const key = `raw/${caseId}/message.eml`;
+      await bucket.put(key, "mail");
+      await db
+        .prepare(
+          `INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', ?, 'message/rfc822', 4)`,
+        )
+        .bind(key, caseId, "a".repeat(64))
+        .run();
+    }
+    const first = await purgeOrganisation({ DB: db, ARTEFACTS: bucket }, org, 1);
+    expect(first.done).toBe(false);
+    const second = await purgeOrganisation({ DB: db, ARTEFACTS: bucket }, org, 200);
+    expect(second.done).toBe(true);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(0);
   });
 
   it("deletes an abandoned signup untouched for 30 days, and keeps a completed one", async () => {

@@ -930,6 +930,8 @@ Controls:
 - sign out: Signs out other sessions. (Account)
 - close account: Close account button for the owner of the active organisation, naming that organisation in its confirmation (this organisation, its stored mail and cases, and its history are deleted 30 days after closing; closing refuses new cases at once and cannot be undone). Shown only to an owner; after closing, the page states the organisation is closed and its deletion date. (Account)
 
+- Deviation (D07 T02 §9): the Close account control is built on the Account page but is not yet drawn on the Account board, pending the operator's approval of the drawn change (asked 2026-11-02); the board is redrawn and re-exported when that approval lands.
+
 States:
 
 - loading: Not drawn. Deferred to D07 T08 §3: server-rendered; not drawn.

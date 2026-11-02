@@ -59,13 +59,11 @@ export async function closeOrganisation(
     )
     .bind(now.toISOString(), orgId)
     .first<{ closedAt: string }>();
-  if (done) {
-    // Its verified domains and addresses are released at once, so another organisation may claim them; the rows
-    // the purge would delete anyway go now, and the claimable check needs no second read of closure.
-    await db.prepare(`DELETE FROM org_domains WHERE org_id = ?`).bind(orgId).run();
-    await db.prepare(`DELETE FROM org_addresses WHERE org_id = ?`).bind(orgId).run();
-    return { ok: true, already: false };
-  }
+  // Its verified domains and addresses are released at once, so another organisation may claim them; the release
+  // runs on every successful close, so an interrupted first release completes on the owner's retry.
+  await db.prepare(`DELETE FROM org_domains WHERE org_id = ?`).bind(orgId).run();
+  await db.prepare(`DELETE FROM org_addresses WHERE org_id = ?`).bind(orgId).run();
+  if (done) return { ok: true, already: false };
   // A repeat (double press, two tabs, retry after a lost answer) keeps the first stamp.
   return (await organisationClosedAt(db, orgId))
     ? { ok: true, already: true }
@@ -98,26 +96,41 @@ export async function purgeOrganisation(
     await drop(row.key);
   }
   if (objects >= limit) return { objects, done: false };
+  // Each case whose prefixes are empty is finished and deleted in this run, so a retry never re-lists it: at most
+  // 50 cases are examined per run, and progress persists through empty prefixes.
   const caseIds = (
-    await db.prepare(`SELECT id FROM cases WHERE org_id = ?`).bind(orgId).all<{ id: string }>()
+    await db.prepare(`SELECT id FROM cases WHERE org_id = ? ORDER BY id LIMIT 50`).bind(orgId).all<{ id: string }>()
   ).results.map((r) => r.id);
   let more = false;
   for (const caseId of caseIds) {
+    let caseMore = false;
     for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
       const listed = await env.ARTEFACTS.list({ prefix, limit: Math.max(1, limit - objects) });
       for (const object of listed.objects) {
         if (objects >= limit) {
-          more = true;
+          caseMore = true;
           break;
         }
         await drop(object.key);
       }
-      if (listed.truncated || objects >= limit) more = true;
-      if (more) break;
+      if (listed.truncated || objects >= limit) caseMore = true;
+      if (caseMore) break;
     }
-    if (more) break;
+    if (caseMore) {
+      more = true;
+      break;
+    }
+    await db.prepare(`DELETE FROM evidence WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM case_events WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM case_verdicts WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM sender_observations WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM cases WHERE id = ?`).bind(caseId).run();
   }
-  if (more) return { objects, done: false };
+  const remaining = await db
+    .prepare(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`)
+    .bind(orgId)
+    .first<{ n: number }>();
+  if (more || (remaining?.n ?? 0) > 0) return { objects, done: false };
   const del = (sql: string) => db.prepare(sql).bind(orgId).run();
   await del(`DELETE FROM sender_observations WHERE org_id = ?`);
   await del(`DELETE FROM evidence WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
@@ -186,22 +199,45 @@ export async function scheduledClosurePurge(
     .all<{ id: string; userId: string | null; email: string }>();
   for (const row of stale.results) {
     if (isProtectedAccount(row.email)) continue;
-    await db.prepare(`DELETE FROM invite_redemptions WHERE id = ?`).bind(row.id).run();
-    report.abandoned++;
-    if (row.userId) {
+    // The user goes first, while the redemption still names it: a failure leaves the reference for the next run.
+    const user =
+      row.userId != null
+        ? await db
+            .prepare(`SELECT id, email FROM "user" WHERE id = ?`)
+            .bind(row.userId)
+            .first<{ id: string; email: string }>()
+        : await db
+            .prepare(`SELECT id, email FROM "user" WHERE email = ?`)
+            .bind(row.email)
+            .first<{ id: string; email: string }>();
+    if (user && !isProtectedAccount(user.email)) {
       const memberOf = await db
-        .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = ?`)
-        .bind(row.userId)
+        .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = ? AND "organizationId" <> ?`)
+        .bind(user.id, `org-${row.id}`)
         .first<{ n: number }>();
-      if (!memberOf?.n) {
-        const user = await db
-          .prepare(`SELECT email FROM "user" WHERE id = ?`)
-          .bind(row.userId)
-          .first<{ email: string }>();
-        if (user && !isProtectedAccount(user.email))
-          await db.prepare(`DELETE FROM "user" WHERE id = ?`).bind(row.userId).run();
+      if (!memberOf?.n) await db.prepare(`DELETE FROM "user" WHERE id = ?`).bind(user.id).run();
+    }
+    // An interrupted signup's organisation (its slug names the redemption) goes too when nothing is in it.
+    const orphanOrg = await db
+      .prepare(`SELECT id FROM "organization" WHERE slug = ?`)
+      .bind(`org-${row.id}`)
+      .first<{ id: string }>();
+    if (orphanOrg) {
+      const members = await db
+        .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "organizationId" = ?`)
+        .bind(orphanOrg.id)
+        .first<{ n: number }>();
+      const cases = await db
+        .prepare(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`)
+        .bind(orphanOrg.id)
+        .first<{ n: number }>();
+      if (!(members?.n ?? 0) && !(cases?.n ?? 0)) {
+        await db.prepare(`DELETE FROM "member" WHERE "organizationId" = ?`).bind(orphanOrg.id).run();
+        await db.prepare(`DELETE FROM "organization" WHERE id = ?`).bind(orphanOrg.id).run();
       }
     }
+    await db.prepare(`DELETE FROM invite_redemptions WHERE id = ?`).bind(row.id).run();
+    report.abandoned++;
   }
   return report;
 }
