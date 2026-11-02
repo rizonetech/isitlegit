@@ -1102,7 +1102,9 @@ document.addEventListener("keydown", (event) => {
 // Focusing the Cases search with `/` (D07 T04 §15), as Gmail and GitHub do: only where the box is on the page,
 // never while typing in a field or with a modifier, and the key stays text inside any editable control. The
 // hint's Turn off button is the WCAG 2.1.4 off switch: the choice is kept in the browser and restored on load.
+let slashMemory: boolean | null = null;
 const slashOff = () => {
+  if (slashMemory !== null) return slashMemory;
   try {
     return localStorage.getItem("iil-slash-search") === "off";
   } catch {
@@ -1120,15 +1122,16 @@ drawSlashToggle();
 document.addEventListener("click", (event) => {
   const button = (event.target as Element | null)?.closest<HTMLButtonElement>("[data-slash-toggle]");
   if (!button) return;
+  slashMemory = !slashOff();
   try {
-    localStorage.setItem("iil-slash-search", slashOff() ? "on" : "off");
+    localStorage.setItem("iil-slash-search", slashMemory ? "off" : "on");
   } catch {
-    // A browser that refuses storage keeps the shortcut on; the button still redraws for this page.
+    // A browser that refuses storage keeps the choice for this page in memory alone.
   }
   drawSlashToggle();
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
   if (event.isComposing || slashOff()) return;
   const target = event.target as Element | null;
   if (target?.closest("input, textarea, select, [contenteditable]")) return;
