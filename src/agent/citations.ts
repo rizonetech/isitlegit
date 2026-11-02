@@ -45,29 +45,32 @@ const OPENERS = new Set([
   "After",
   "Before",
 ]);
-// Auxiliary verbs: a capital followed by one of these is a sentence's subject, not part of a name.
-const AUXILIARIES = new Set([
-  "is",
-  "are",
-  "was",
-  "were",
-  "has",
-  "have",
-  "had",
-  "will",
-  "would",
-  "can",
-  "could",
-  "shall",
-  "should",
-  "may",
-  "might",
-  "must",
-  "seems",
-  "appears",
-  "remains",
-  "became",
-  "becomes",
+// Words that complete an institution's name after a compact chain (U.S. Bank, U.S. Treasury): a
+// capital outside this set, followed by a lowercase word mid-sentence, opens the next sentence.
+const NAME_COMPLETERS = new Set([
+  "bank",
+  "banks",
+  "government",
+  "congress",
+  "senate",
+  "court",
+  "courts",
+  "treasury",
+  "department",
+  "university",
+  "postal",
+  "reserve",
+  "commission",
+  "agency",
+  "bureau",
+  "council",
+  "parliament",
+  "administration",
+  "institute",
+  "airlines",
+  "airways",
+  "service",
+  "services",
 ]);
 
 function splitText(text: string): string[] {
@@ -142,17 +145,20 @@ function splitText(text: string): string[] {
       const followingInitial = following.length === 1 && text.charAt(e) === ".";
       // A chain or honorific continues a name (U.S. Bank, Dr. Smith). A marker absorbed at the stop
       // ends it whatever follows (a capital, a number, a domain), and so does an opener word.
-      // Mid-sentence, a capital followed by an auxiliary verb is a new subject (the U.S. Payment
-      // is ...), not a name; a chain opening its own sentence keeps its name (U.S. Bank is ...).
+      // Mid-sentence after a compact chain (U.S., e.g.), a capital followed by a lowercase word is
+      // a new subject (the U.S. Payment clears ...), not a name, unless the capital completes an
+      // institution's name (U.S. Bank customers ...). Spaced initials are a person's name (J. A.
+      // Smith is ...), and a chain opening its own sentence keeps its name (U.S. Bank is ...).
       let f = e;
       while (f < text.length && /\s/.test(text.charAt(f))) f++;
       let g = f;
       while (g < text.length && /[A-Za-z]/.test(text.charAt(g))) g++;
       const newSubject =
-        initialChain &&
+        /^[a-z](?:\.[a-z])+$/.test(before) &&
         text.slice(start, p + 1).trim().length > 0 &&
         /^[A-Z]/.test(following) &&
-        AUXILIARIES.has(text.slice(f, g).toLowerCase());
+        !NAME_COMPLETERS.has(following.toLowerCase()) &&
+        /^[a-z]+$/.test(text.slice(f, g));
       const nameEnds = absorbedMarker || newSubject || (OPENERS.has(following) && !followingInitial);
       if ((initialChain || HONORIFICS.has(before)) && !nameEnds) continue;
       // An abbreviation continues only into a lowercase word, and never across an absorbed marker:

@@ -252,6 +252,20 @@ describe("validateCitations", () => {
     ).toEqual([]);
   });
 
+  it("splits a new subject after a compact chain and keeps a person's initials whole", () => {
+    const found = validateCitations(
+      { cited_evidence_ids: ["E1"], explanation: "The sender is based in the U.S. Payment clears immediately [E1]." },
+      CASE,
+    );
+    expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    for (const explanation of [
+      "The sender J. Smith is impersonated [E1].",
+      "The sender J. A. Smith is impersonated [E1].",
+    ]) {
+      expect(validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE)).toEqual([]);
+    }
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [
