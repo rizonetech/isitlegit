@@ -260,6 +260,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
         })
         .toBe("Copied");
       expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
+      const line = group.locator("[data-copy-status]");
+      expect(await line.getAttribute("role")).toBe("status");
+      expect(await line.getAttribute("aria-live")).toBe("polite");
+      expect(await line.isVisible()).toBe(true);
       await context.close();
     });
 
@@ -282,6 +286,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
           return { text: sel?.toString() ?? "", own: !!source && !!sel?.anchorNode && source.contains(sel.anchorNode) };
         });
         expect(selected).toEqual({ text: CHECK_ADDRESS, own: true });
+        const line = group.locator("[data-copy-status]");
+        expect(await line.getAttribute("role")).toBe("status");
+        expect(await line.getAttribute("aria-live")).toBe("polite");
+        expect(await line.isVisible()).toBe(true);
         await context.close();
       });
 
