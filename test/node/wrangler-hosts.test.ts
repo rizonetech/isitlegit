@@ -12,10 +12,15 @@ const config = JSON.parse(
 
 describe("wrangler.jsonc's hosts", () => {
   it("serves the app on app.isitlegit.co.za as a custom domain, the host its mailed links name", () => {
-    // The app's host is first, and the only other custom domain is the redirect fixtures' (D02 T07 §2), served by this
-    // Worker under a secret path prefix: a third host is a decision, so it fails here until it is named.
+    // The app's host is first; the apex trust paths and the www redirect host are D07 T06 §20's decision, and the
+    // redirect fixtures' host (D02 T07 §2) is served by this Worker under a secret path prefix: a further host is
+    // a decision, so it fails here until it is named.
     expect(config.routes).toEqual([
       { pattern: "app.isitlegit.co.za", custom_domain: true },
+      { pattern: "isitlegit.co.za/v/*", zone_name: "isitlegit.co.za" },
+      { pattern: "isitlegit.co.za/s/*", zone_name: "isitlegit.co.za" },
+      { pattern: "isitlegit.co.za/b/*", zone_name: "isitlegit.co.za" },
+      { pattern: "www.isitlegit.co.za", custom_domain: true },
       { pattern: "fixtures.isitlegit.co.za", custom_domain: true },
     ]);
     expect(new URL(config.vars.APP_URL as string).host).toBe("app.isitlegit.co.za");
