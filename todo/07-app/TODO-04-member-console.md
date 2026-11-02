@@ -59,7 +59,7 @@ track: day-6
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
-| 29 | §29 | Verifier detail on the Domains page | §28 | [ ] |
+| 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
 
 ## 1. Cases list with filters and search
 
@@ -944,6 +944,9 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 - [x] Commit: `web: verifier detail on the domains page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` and `pnpm exec vitest run --project browser test/node/domains-list-browser.test.tsx` pass; the page test fails if a departed verifier's name is drawn. **Added 2026-11-02 (plan review P1/P2):** row-scoped detail assertions from a fresh mounted GET use a named verifier distinct from the reader with two verifiers sharing an abbreviation, expected emails through the extended org-scoped reader, the SAST time including a UTC-to-SAST date rollover, email-only wording for an unnamed member, and no disclosure when no verifier was recorded.
+
+> **Verified:** 2026-11-02 | §29 | e4b0dc807387ac790eb3921829a0ebfc07968b5c
+> **Review:** `docs/reviews/d07-t04-s29.json`
 
 ## Verification
 
