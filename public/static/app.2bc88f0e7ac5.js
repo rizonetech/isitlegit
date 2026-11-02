@@ -1115,7 +1115,6 @@ const drawSlashToggle = () => {
   const off = slashOff();
   for (const button of document.querySelectorAll                   ("[data-slash-toggle]")) {
     button.textContent = off ? "Turn on the / shortcut" : "Turn off the / shortcut";
-    button.setAttribute("aria-pressed", off ? "true" : "false");
   }
 };
 drawSlashToggle();

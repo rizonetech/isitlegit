@@ -10,4 +10,4 @@ export const MOTION = {"malicious":"/static/brand/motion/malicious.da9c8945ec56.
 export const EMAIL_LOGO = "/static/brand/email/logo.7fc1aeeffec7.png";
 export const EMAIL_ART = {"malicious":"/static/brand/email/malicious.46893c322150.png","suspicious":"/static/brand/email/suspicious.982d74d0a6ad.png","safe":"/static/brand/email/safe.c510697b93a0.png","question":"/static/brand/email/question.c9e2f0bf52ca.png"} as const;
 export const HTMX = "/static/htmx.d6fdc75f204e.js";
-export const APP_JS = "/static/app.b29661315f73.js";
+export const APP_JS = "/static/app.2bc88f0e7ac5.js";

@@ -600,6 +600,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await p.keyboard.press("/");
     await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
     expect(await p.locator("#case-search").inputValue()).toBe("");
+    // With the shortcut on: a select keeps the key, a modifier never fires it, and composition never fires it.
+    await p.locator("#case-channel").click();
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-channel");
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("Control+/");
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.evaluate(() => {
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "/", isComposing: true, bubbles: true }));
+    });
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.keyboard.press("/");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
     // The key stays text in the box itself and in a date field.
     await p.keyboard.press("/");
     await expect.poll(() => p.locator("#case-search").inputValue()).toBe("/");
@@ -617,12 +630,6 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await p.locator("body").click({ position: { x: 5, y: 5 } });
     await p.keyboard.press("/");
     expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
-    // A select keeps the key too: focus stays and nothing is intercepted.
-    await p.locator("#case-channel").click();
-    await p.keyboard.press("/");
-    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-channel");
-    await p.keyboard.press("Control+/");
-    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-channel");
     await p.getByRole("button", { name: "Turn on the / shortcut" }).click();
     await p.locator("body").click({ position: { x: 5, y: 5 } });
     await p.keyboard.press("/");

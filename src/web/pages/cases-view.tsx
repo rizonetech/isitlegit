@@ -471,7 +471,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
         </div>
         <p class="type-small text-muted mt-4">
           Press / to search{" "}
-          <button type="button" data-slash-toggle aria-pressed="false" class="underline">
+          <button type="button" data-slash-toggle class="underline">
             Turn off the / shortcut
           </button>
         </p>
