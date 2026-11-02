@@ -707,7 +707,11 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval re
 
 ## 23. Auth outcomes stored before slower checks
 
+> **Started:** 2026-11-02T19:24Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the Workflow stores a case's evidence only after the whole checks step, so a slow or failed later check leaves the fast header-authentication outcome (`auth.*`) unstored with it. D07 T09 §1 needs the auth outcomes and items stored before the slower checks run, later outcomes joining under the same run id.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the auth family is the registered checks whose names start `auth.` (`auth.spf`, `auth.dkim`, `auth.dmarc`, `auth.alignment`, `auth.results`, `auth.arc`), run on their own first through `runChecksWithOutcomes` over a subset registry built from `checks.all()`; (2) the checks step in `src/pipeline/analysis-workflow.ts` saves that phase (`saveEvidence` with the auth outcomes) before the full run, and the full run's own save then replaces the checks rows under the same run id (`saveEvidence` already keys both evidence and outcomes by the case's current run), so the final stored set is exactly today's; the auth checks run twice, which is safe here because they read only the stored headers and authentication results and reach no network; (3) a failure in the full run after the auth save leaves the auth items and outcomes stored, which is the state D07 T09 §1 reads.
 
 **Phase:** 7
 **Needs:** none
@@ -717,7 +721,7 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the 
 
 1. Store the auth result first, the rest under the same run. Done when: a case whose later checks are still running (or failed) already reads its stored `auth.*` items and outcomes.
 
-- [ ] Split the checks step in `src/pipeline/analysis-workflow.ts` so the header-authentication outcomes and items are saved (`saveEvidence` with the run id the rest will join) before the remaining checks run, and the remaining outcomes join that same run without replacing the auth rows. Done when: `test/pipeline/analysis-workflow.test.ts` reads the stored auth items while a later check is still pending and after it fails, with every outcome under one run id.
+- [ ] Split the checks step in `src/pipeline/analysis-workflow.ts` into two phases: run the `auth.` family on its own and save it (`saveEvidence` with its outcomes) before the full run, whose save replaces the checks rows under the same run id, auth rows included, so the final set is unchanged. Done when: `test/pipeline/analysis-workflow.test.ts` reads the stored auth items and outcomes after the full run fails, and the completed case's stored evidence and outcomes equal one full run's, every row under one run id.
 - [ ] Commit: `pipeline: auth outcomes stored before slower checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a failed later check leaves no stored auth outcome.
