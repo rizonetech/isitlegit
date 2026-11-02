@@ -127,10 +127,7 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
         );
         // The provisioning references are recorded as each resource is made, so an interrupted signup's user and
         // organisation stay findable by the abandoned-signup cleanup (D07 T02 §9).
-        await db
-          .prepare("UPDATE invite_redemptions SET user_id = ? WHERE id = ?")
-          .bind(user.id, redemption.id)
-          .run();
+        await db.prepare("UPDATE invite_redemptions SET user_id = ? WHERE id = ?").bind(user.id, redemption.id).run();
         const slug = `org-${redemption.id}`;
         // A pending signup resumed for an address that has since joined another organisation (an invitation accepted
         // meanwhile) is one that address no longer needs: it is told to sign in, not given a second organisation.

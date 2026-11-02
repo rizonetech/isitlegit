@@ -105,7 +105,12 @@ describe("closing an organisation", () => {
     );
     expect(bare.status).toBe(303);
     expect(
-      (await db.prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`).bind(org).first<{ c: string | null }>())?.c,
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(org)
+          .first<{ c: string | null }>()
+      )?.c,
     ).toBeNull();
     const confirmPage = await call("/settings/account/close", { headers: { cookie } }, authEnv);
     const confirmHtml = await confirmPage.text();

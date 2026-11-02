@@ -56,7 +56,10 @@ export async function memberOfSender(
       : null,
   ]);
   const found = byAddress
-    ? { orgId: byAddress.org_id, by: byDomain?.org_id === byAddress.org_id ? ("domain" as const) : ("address" as const) }
+    ? {
+        orgId: byAddress.org_id,
+        by: byDomain?.org_id === byAddress.org_id ? ("domain" as const) : ("address" as const),
+      }
     : byDomain
       ? { orgId: byDomain.org_id, by: "domain" as const }
       : null;

@@ -53,8 +53,7 @@ export async function activeMembership(env: Env, signedIn: SignedIn): Promise<Ac
   // write boundary (domains, addresses, uploads) after closure (D07 T02 §9).
   let closed: { closedAt: string | null } | null;
   try {
-    closed = await env.DB
-      .prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
+    closed = await env.DB.prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
       .bind(active)
       .first<{ closedAt: string | null }>();
   } catch {
