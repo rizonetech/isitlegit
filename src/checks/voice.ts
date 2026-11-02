@@ -223,7 +223,7 @@ export function voiceLureEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
 // counted as people; the segments ride in the detail under its bound, every cut marked.
 function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   if (!view.transcripts?.length) return [];
-  return view.transcripts.map((t) => {
+  return view.transcripts.map((t): EvidenceDraft => {
     const name = t.filename ? ` (${plain(t.filename, 80)})` : "";
     if (t.malformed)
       return {
