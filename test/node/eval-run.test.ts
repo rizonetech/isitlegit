@@ -1259,3 +1259,35 @@ describe("what the completion review found (E3)", () => {
     );
   });
 });
+
+describe("the ablation arm mode", () => {
+  it("stores the arm mode on the run row and refuses an unknown mode", async () => {
+    const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
+    const out = await runEval({
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      mode: "ablate:no-sam",
+    });
+    expect(out.exit).toBe(0);
+    expect(t.runs.get("run-00000001")?.mode).toBe("ablate:no-sam");
+    const refused = await runEval({
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      mode: "ablate:no-such-model",
+    });
+    expect(refused.exit).toBe(3);
+    expect(refused.problems).toMatchObject([expect.stringMatching(/unknown run mode/)]);
+  });
+});

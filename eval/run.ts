@@ -20,6 +20,7 @@ import { MEMBER_CASES_TODAY, sastDayStart } from "../src/db/cap-rule.ts";
 import { inlineLong, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
+import { isAblateFlag } from "./ablate.ts";
 
 import {
   EXIT,
@@ -196,6 +197,9 @@ export async function runEval(args: {
   db: Db;
   env: Env;
   resume?: string | null;
+  // An ablation arm name (`ablate:<flag>`), or the full pipeline. The mode is stored on the run row so reports can
+  // tell arms apart; a resume keeps the stored mode.
+  mode?: string;
 }): Promise<RunResult> {
   const { samples, setVersion, options, api, db, env } = args;
   const refused = (problems: string[]): RunResult => ({
@@ -223,6 +227,9 @@ export async function runEval(args: {
   const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
   let commitSha = commitNow;
   let capUsd = options.capUsd;
+  const mode = args.mode ?? "full";
+  if (mode !== "full" && !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))))
+    return refused([`unknown run mode ${JSON.stringify(mode)}: "full" or "ablate:<flag>"`]);
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
@@ -306,7 +313,7 @@ export async function runEval(args: {
             id: runId,
             commitSha,
             setVersion,
-            mode: "full",
+            mode,
             sets: args.sets,
             sampleLimit: args.sampleLimit,
             status: "running",
