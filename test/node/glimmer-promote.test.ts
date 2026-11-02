@@ -11,11 +11,14 @@ import {
   type Client,
   type Deps,
   promote,
+  type ReleaseDeps,
   readActive,
+  release,
   report,
   rollback,
   writeJson,
 } from "../../scripts/glimmer/promote.ts";
+import { screenThroughWorker } from "../../scripts/smoke.ts";
 import type { Active } from "../../src/vision/glimmer-caps.ts";
 import { type Exec, ledgerStatus, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 
@@ -549,5 +552,147 @@ describe("the active file is the one source of the served version (§32)", () =>
     expect(JSON.parse(String(wake.oneTokenRequest(env).init.body)).model).toContain(named);
     expect(screen.glimmerBody({ messages: [] }).model).toContain(named);
     expect(caps.recoveryCommand(caps.DEPLOYED_VERSION)).toBe("node scripts/glimmer/deploy.ts ensure 1.1");
+  });
+});
+
+describe("releasing to production (§36)", () => {
+  let t = Date.parse("2026-11-02T08:00:00Z");
+  const stages: string[] = [];
+  const deps = (over: Partial<ReleaseDeps> = {}): ReleaseDeps => ({
+    commit: "a".repeat(40),
+    activeVersion: "1.1",
+    preflight: async () => void stages.push("preflight"),
+    servingState: async () => "worker-v1",
+    deployWorker: async () => {
+      stages.push("prepare");
+      t += 60_000;
+    },
+    waitHealth: async () => {
+      stages.push("activation");
+      t += 30_000;
+    },
+    smoke: async () => {
+      stages.push("probe");
+      t += 20_000;
+    },
+    screenFixture: async () => {
+      stages.push("screen");
+      t += 10_000;
+      return { screener: "glimmer", version: "1.1" };
+    },
+    now: () => new Date(t),
+    ...over,
+  });
+  beforeEach(() => {
+    t = Date.parse("2026-11-02T08:00:00Z");
+    stages.length = 0;
+  });
+
+  it("releases with each stage timed separately against the budget", async () => {
+    const result = await release(deps());
+    expect(result).toMatchObject({
+      outcome: "released",
+      version: "1.1",
+      timings: { prepare_ms: 60_000, activation_ms: 30_000, probe_ms: 20_000, screen_ms: 10_000, within_budget: true },
+    });
+    expect(stages).toEqual(["preflight", "prepare", "activation", "probe", "screen"]);
+  });
+
+  it("refuses at preflight before any deploy", async () => {
+    const result = await release(
+      deps({
+        preflight: async () => {
+          throw new Error("remote migrations are pending");
+        },
+      }),
+    );
+    expect(result).toMatchObject({ outcome: "refused", stage: "preflight", serving: "unchanged" });
+    expect(stages).not.toContain("prepare");
+  });
+
+  it("stops at the failed stage and says what is serving: changed, unchanged, uncertain", async () => {
+    let serving = "worker-v1";
+    const changed = await release(
+      deps({
+        servingState: async () => serving,
+        deployWorker: async () => {
+          serving = "worker-v2";
+        },
+        waitHealth: async () => {
+          throw new Error("/health did not report the commit");
+        },
+      }),
+    );
+    expect(changed).toMatchObject({ outcome: "failed", stage: "activation", serving: "changed" });
+    expect(stages).not.toContain("probe");
+    const unchanged = await release(
+      deps({
+        deployWorker: async () => {
+          throw new Error("wrangler deploy failed");
+        },
+      }),
+    );
+    expect(unchanged).toMatchObject({ outcome: "failed", stage: "prepare", serving: "unchanged" });
+    let reads = 0;
+    const uncertain = await release(
+      deps({
+        servingState: async () => {
+          if (++reads > 1) throw new Error("wrangler cannot be read");
+          return "worker-v1";
+        },
+        deployWorker: async () => {
+          throw new Error("wrangler deploy lost its answer");
+        },
+      }),
+    );
+    expect(uncertain).toMatchObject({ outcome: "failed", stage: "prepare", serving: "uncertain" });
+    expect(JSON.stringify(uncertain)).toContain("docs/operations.md");
+  });
+
+  it("fails when the deployed Worker serves the fixture by Spark or by another version", async () => {
+    expect(await release(deps({ screenFixture: async () => ({ screener: "spark", version: "1.1" }) }))).toMatchObject({
+      outcome: "failed",
+      stage: "screen",
+      detail: expect.stringContaining("spark"),
+    });
+    expect(await release(deps({ screenFixture: async () => ({ screener: "glimmer", version: "1.0" }) }))).toMatchObject(
+      {
+        outcome: "failed",
+        stage: "screen",
+        detail: expect.stringContaining("1.0"),
+      },
+    );
+  });
+
+  it("reports the budget expiring during a stage as a failure at that stage", async () => {
+    const result = await release(
+      deps({
+        deployWorker: async () => {
+          t += (BUDGET_MINUTES + 1) * 60_000;
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      outcome: "failed",
+      stage: "prepare",
+      detail: expect.stringContaining("budget expired"),
+    });
+    expect(stages).not.toContain("activation");
+  });
+
+  it("reads the SCREEN check back from the deployed Worker's answer", async () => {
+    const fetcher = (async () =>
+      new Response(JSON.stringify({ checks: { SCREEN: "ok glimmer 1.1" } }), { status: 200 })) as typeof fetch;
+    await expect(screenThroughWorker("https://worker.example", "t", fetcher)).resolves.toEqual({
+      screener: "glimmer",
+      version: "1.1",
+    });
+    const broken = (async () =>
+      new Response(JSON.stringify({ checks: { SCREEN: "screening failed: error/model" } }), {
+        status: 503,
+      })) as typeof fetch;
+    await expect(screenThroughWorker("https://worker.example", "t", broken)).rejects.toThrow("SCREEN");
+    const absent = (async () => new Response(JSON.stringify({ checks: {} }), { status: 200 })) as typeof fetch;
+    await expect(screenThroughWorker("https://worker.example", "t", absent)).rejects.toThrow("absent");
   });
 });
