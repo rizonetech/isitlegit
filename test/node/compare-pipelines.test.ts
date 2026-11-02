@@ -197,6 +197,52 @@ describe("split figures and the conventional split", () => {
     expect(balanceOf(built, built)).toMatchObject({ share_gap: 0, within_tolerance: true });
   });
 
+  it("calls a seed unmet on a type-only gap and on a training-only gap, independently", () => {
+    const base = {
+      train: 100,
+      eval: 100,
+      dropped: 0,
+      lure_share_eval: 0.5,
+      lure_share_train: 0.5,
+      cross_brand: 0,
+      cross_site: 0,
+      near_duplicate_eval_pages: 0,
+      lure_types: { train: { credential: 50, fake_shop: 50 }, eval: { credential: 50, fake_shop: 50 } },
+    };
+    const typeOnly = { ...base, lure_types: { train: { credential: 50, fake_shop: 50 }, eval: { credential: 100 } } };
+    expect(balanceOf(base, typeOnly).within_tolerance).toBe(false);
+    expect(balanceOf(base, typeOnly).share_gap).toBe(0);
+    const trainOnly = { ...base, lure_share_train: 0.7 };
+    expect(balanceOf(base, trainOnly).within_tolerance).toBe(false);
+    expect(balanceOf(base, trainOnly).train_share_gap).toBeCloseTo(0.2);
+    const trainTypeOnly = {
+      ...base,
+      lure_types: { train: { credential: 100 }, eval: { credential: 50, fake_shop: 50 } },
+    };
+    expect(balanceOf(base, trainTypeOnly).within_tolerance).toBe(false);
+    expect(balanceOf(base, base).within_tolerance).toBe(true);
+  });
+
+  it("the stratified baseline matches lure-type shares, not only the lure share", () => {
+    const typed = (id: string, brand: string, lure: boolean, type: string | null, n: number): Page => ({
+      ...page(id, brand, `${brand}.com`, lure, BigInt(n) << 9n, n),
+      lureType: type,
+    });
+    const pages: Page[] = [];
+    let n = 0;
+    for (let b = 0; b < 20; b++)
+      for (let k = 0; k < 2; k++) pages.push(typed(`cred${b}-${k}`, `Cred${b}`, true, "credential", n++));
+    for (let b = 0; b < 20; b++)
+      for (let k = 0; k < 2; k++) pages.push(typed(`shop${b}-${k}`, `Shop${b}`, true, "fake_shop", n++));
+    for (let b = 0; b < 20; b++) pages.push(typed(`ok${b}`, `Benign${b}`, false, null, n++));
+    const sides = stratifiedGroupSplit(pages, seeded(3), 0.3, 0.5, { credential: 0.5, fake_shop: 0.5 });
+    const figures = splitFigures(pages, sides);
+    const evalTypes = figures.lure_types?.eval ?? {};
+    const evalLures = Object.values(evalTypes).reduce((a, b) => a + b, 0);
+    expect(Math.abs((evalTypes.credential ?? 0) / evalLures - 0.5)).toBeLessThan(0.15);
+    expect(Math.abs((evalTypes.fake_shop ?? 0) / evalLures - 0.5)).toBeLessThan(0.15);
+  });
+
   it("the stratified baseline is deterministic per seed, differs between seeds, and removes a planted twin from training", () => {
     const pages: Page[] = [];
     for (let i = 0; i < 40; i++)
@@ -376,7 +422,14 @@ describe("recording a result", () => {
       stratified: [20261101, 20261102].map((seed, i) => ({
         seed,
         witnesses: { brands: [], sites: [], near: [] },
-        balance: { share_gap: i * 0.1, within_tolerance: i === 0, tolerance: 0.05, type_share_gap: {} },
+        balance: {
+          share_gap: i * 0.1,
+          train_share_gap: 0,
+          within_tolerance: i === 0,
+          tolerance: 0.05,
+          type_share_gap: { credential: 0.01 },
+          train_type_share_gap: { credential: 0.02 },
+        },
         assignment: { train: [], eval: [], dropped: [] },
         figures: {
           lure_types: { train: { credential: 30 }, eval: { credential: 4 + i, fake_shop: 1 } },
@@ -403,16 +456,22 @@ describe("recording a result", () => {
   it("writes the figures of the result and nothing typed, once per input digest", () => {
     const line = measurementLine(split, "2026-11-01", "f".repeat(64));
     expect(line).toContain("the same 100 pages");
-    expect(line).toContain("train 85, eval 10, 5 dropped, eval lure share 40.0%, 0 brands, 3 sites");
+    expect(line).toContain(
+      "train 85, eval 10, 5 dropped, eval lure share 40.0%, train lure share n/a, 0 brands, 3 sites",
+    );
     expect(line).toContain("train.meta.jsonl aaaaaaaaaaaa");
     // The stratified baseline, every seed, beside §10's (§39).
     expect(line).toContain("Stratified grouped baseline");
     expect(line).toContain("seed 20261101: train 86, eval 10, 4 dropped, eval lure share 50.0%");
     // The balance claim names its tolerance and calls a seed outside it unmet, with the lure types on the eval side.
     expect(line).toContain("within 5 share points");
-    expect(line).toContain("share gap 0.0 points (met)");
-    expect(line).toContain("share gap 10.0 points (UNMET)");
+    expect(line).toContain(
+      "share gap 0.0 points, train share gap 0.0 points, eval type gaps credential 1.0, train type gaps credential 2.0 (met)",
+    );
+    expect(line).toContain("share gap 10.0 points");
+    expect(line).toContain("(UNMET)");
     expect(line).toContain("eval lure types credential 4 fake_shop 1");
+    expect(line).toContain("train lure types credential 30");
     expect(line).toContain("seed 20261102: train 87, eval 10, 3 dropped");
     const doc = "# T\n\n## Measurements\n\n- old\n\n## Decisions\n";
     const once = recordMeasurement(doc, line) as string;
