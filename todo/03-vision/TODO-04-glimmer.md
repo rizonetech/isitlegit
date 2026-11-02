@@ -80,6 +80,9 @@ track: day-6
 | 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 | 44 | §44 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
+| 45 | §45 | Confidence escalation from Loupe to Spark | §1 | [ ] |
+| 46 | §46 | Every screened page captured and labelled | §45 | [ ] |
+| 47 | §47 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1478,6 +1481,65 @@ Operator, 2026-11-02: grow the training store from its frozen 172,987 pages (1.1
 - [ ] Commit: `glimmer: twelve to seventeen thousand more training pages`
 
 **Test checkpoint:** the freeze record's total is between 180,000 and 190,000 and `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes.
+
+## 45. Confidence escalation from Loupe to Spark
+
+Operator, 2026-11-02: a page Loupe is unsure about escalates to Muse Spark 1.3, and a page Spark is unsure about escalates to a second Spark pass, so a borderline page is never settled by the weakest answer. Section 1's failover already sends a page to Spark when Loupe cannot answer; this section adds escalation when Loupe answers but is unsure. Muse Wonder 1.0 is not a tier: it is the Muse Code reviewer on the operator's subscription, not a Meta Model API product model, and the product provider rule (Meta Model API plus Fireworks only) stands, so Wonder's part is offline judging in §46. Owning layer: the screening route in `src/vision/screen.ts`.
+
+**Phase:** 6
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Escalate on a confidence band, then prove each tier in tests. Done when: a stubbed unsure Loupe answer reaches Spark, an unsure Spark answer reaches the second pass, and a sure answer at either tier stops.
+
+- [ ] Add an unsure band to `screenPage` in `src/vision/screen.ts`: a Loupe answer whose `confidence` falls inside `ESCALATION_BAND` (a named constant, defaults 0.35 to 0.65) escalates to Spark through the same `structured(PageAnswer, ...)` call §1 uses, and the returned `PageScreen` names the tier that settled it. Done when: `test/vision/screen.test.ts` shows a sure Loupe answer (0.9, 0.1) never calling Spark and a band answer (0.5) always calling it, with the band read from the one constant. Cheaper substitute: escalating on every answer doubles Spark spend for no measured gain.
+- [ ] Add the second Spark pass in `src/vision/screen.ts`: when Spark's own answer also falls inside `ESCALATION_BAND`, ask once more and take the second answer, recording both call references in the result. Done when: the test's unsure-then-sure Spark script settles on the second answer and a sure first Spark answer is never re-asked. Cheaper substitute: averaging the two answers invents a confidence neither model gave.
+- [ ] Record the escalation in the screening result (`screener`, the tier, and why the page escalated) where §1 records the failover reason, so the monitor's stored record (D05 T04 §3) and the eval's ablation read the same fact. Done when: `test/vision/screen.test.ts` reads the tier and reason back from the result for an escalated and a non-escalated page. Cheaper substitute: logging the escalation only loses it to the ablation.
+- [ ] Measure the band on the §1 monitor set (40 pages, none in training): record Loupe alone, Loupe plus escalation, accuracy, lure recall, false alarms and Spark cost per page in `docs/frontier-log.md`. Done when: both rows exist and the band stays only if escalation does not raise false alarms on that set. Cheaper substitute: shipping the band unmeasured asserts the gain the manifesto forbids asserting.
+- [ ] Commit: `vision: escalate unsure Loupe answers to Spark`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes, and fails if a sure Loupe answer reaches Spark or an unsure one settles without escalating.
+
+## 46. Every screened page captured and labelled
+
+Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next training set and labelled immediately. The capture half already exists privately in §41 (day-zero case capture, its own schema, a separately authorised consent and redaction gate before any model pipeline); this section is the admission half for pages: every page `screenPage` settles, in the monitor and in a case, is copied into the page store under a new origin, labelled at once by Spark (the §9 teacher), and queued for offline judging when the label is disputed. Muse Wonder 1.0's part is that offline judging (with Astra, as §9's queue already does), never a production call. No page trains until the §41 gate admits it. Owning layer: offline ingestion in `scripts/glimmer/`, with the copy made where the page is labelled (the D05 T04 §10 flow for monitor findings).
+
+**Phase:** 6
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Copy each settled page at labelling time, label it, queue disputes. Done when: a labelled page is in the store with its label and provenance, a disputed one is in the review queue, and neither trains before admission.
+
+- [ ] Write `captureScreenedPage` in `scripts/glimmer/store.ts`: for a settled `PageScreen`, store the screenshot and visible text under origin `production` with host, settle time, settling tier (§45) and both answers when escalated, deduplicated by screenshot hash as §10 does. Done when: `test/node/glimmer-store.test.ts` stores one copy per page, none for a page already stored, and reads the tier and answers back. Cheaper substitute: recapturing the page later gets a changed or deleted page, not the one that was judged.
+- [ ] Label each captured page at once with Spark through the §9 teacher path (`scripts/glimmer/teacher-label.ts`), the label written as `label_source: spark-teacher` beside the settling answers. Done when: the store test reads a Spark label on every captured page and a failed labelling leaves the page counted unlabelled, never guessed. Cheaper substitute: taking Loupe's own answer as the label trains Loupe on itself.
+- [ ] Queue a captured page for offline judging in the store's `review-queue.jsonl` when Spark's label disagrees with the settling answer or Spark's confidence falls inside `ESCALATION_BAND` (§45), judged by Astra and Wonder offline before admission, as §9 queues disputes. Done when: the test's disagreeing page lands in the queue unchanged and a judged page carries the judge's label as its own `label_source`. Cheaper substitute: admitting disputed labels unjudged imports the teacher's errors at scale.
+- [ ] Admit captured pages to a training build only through §41's consent and redaction gate: the dataset builder takes origin `production` pages only when the gate's record names them, and a page with recipient identifiers in its URL or text is redacted first or withheld and counted, as §41 rules. Done when: `test/node/glimmer-capture.test.ts` shows an unadmitted production page in no training line and a withheld page counted, never silently dropped. Cheaper substitute: importing captures directly bypasses the consent the capture was taken under.
+- [ ] Report the flywheel in `docs/glimmer/training.md`: captured, labelled, queued, judged, admitted and withheld counts per version. Done when: the counts reconcile with the store manifest for one run. Cheaper substitute: a captured total alone hides the unlabelled and disputed backlog.
+- [ ] Commit: `glimmer: capture and label every screened page`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-store.test.ts test/node/glimmer-capture.test.ts` passes, and fails if a settled page is missing, unlabelled without being counted, or admitted unjudged after a dispute.
+
+## 47. Loupe 1.1 promoted on a better-than-1.0 gate
+
+Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is that it is better than Loupe 1.0; if it is, 1.1 ships before submission. This supersedes the 2026-11-01 note pausing 1.1 until after the event for promotion only (§42 to §44 stay Phase 7). Better means, on the §13 held-out set with its stratified grouped split (§39): higher lure recall at no more false alarms, or fewer false alarms at no less recall, each with its denominator printed. Owning layer: the promotion gate in `scripts/glimmer/version-gate.py` and the one stored active-version file §32 built.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Compare 1.1 against 1.0 on the held-out set and promote on the one gate. Done when: the gate prints both versions' recall, false alarms and denominators, and 1.1 is the active version exactly when it is better.
+
+- [ ] Amend `decide()` in `scripts/glimmer/version-gate.py` to the operator's one gate: on the same held-out file with complete records, pass exactly when lure recall is higher with false alarms no higher, or false alarms lower with recall no lower; the more-training-lines rule and the separate South African slice rule stop being gates (the slice still prints). Done when: `tests/scripts/test_version_gate.py` passes a strictly-better candidate, refuses an equal one, refuses a recall gain bought with more false alarms, and promotes a candidate trained on fewer lines that is strictly better. Cheaper substitute: keeping the extra rules lets a better 1.1 stay undeployed on a technicality, which the operator's decision forbids.
+- [ ] Promote a passing 1.1 through §32's stored active-version file and §36's release path, recording both versions' figures in `docs/glimmer/training.md` and the model card (§17). Done when: the active version reads 1.1 after a passing gate and 1.0 after a failing one, with the figures recorded either way. Cheaper substitute: deploying the new weights by hand leaves the stored version and the running deployment disagreeing.
+- [ ] Commit: `glimmer: promote Loupe 1.1 on a better-than-1.0 gate`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_version_gate` passes, and fails if an equal or worse candidate promotes.
 
 ## Verification
 
