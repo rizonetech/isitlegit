@@ -36,7 +36,8 @@ track: day-4
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
-| 5 | §5 | Logos for blocked brands | §2, §4 | [ ] |
+| 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
+| 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
 
 ## 1. SAM 3.1 client, parser and crops
 
@@ -195,6 +196,24 @@ Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The 
 - [ ] Commit: `vision: reference logos for every brand and the chosen variants`
 
 **Test checkpoint:** `node scripts/load-reference-logos.ts --check --local` prints `reference logos: 23 brands in R2` and exits 0; `pnpm exec vitest run test/node/reference-logos.test.ts` passes.
+
+## 6. Ablation flag in segmentation
+
+Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-sam` case the vision step skips SAM segmentation entirely (no SAM call, no crops) and its coverage states the ablation, so the arm measures what the reading and the checks find without segmented crops.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read the flag where the vision step decides to segment. Done when: a flagged case makes no SAM call and stores no crop.
+2. State the ablation in the step's coverage. Done when: the case's evidence names it instead of a SAM failure.
+
+- [ ] Honour `no-sam` in the vision step's segmentation (`src/vision/step.ts`) through `ablateFlagFor` (D04 T01 §14): `segmentPages` is never called, the crop manifest work is skipped, and the coverage item states `ablated: "no-sam"`. Done when: `test/vision/step.test.ts` shows a flagged case with no SAM request in its fetch log, no crop artefacts, and the ablated coverage read back; an unflagged case segments as today.
+- [ ] Commit: `vision: ablation flag in segmentation`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/step.test.ts` passes, and fails if a flagged case sends a SAM request.
 
 ## Verification
 

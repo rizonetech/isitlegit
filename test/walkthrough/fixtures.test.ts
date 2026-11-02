@@ -2,13 +2,14 @@ import { env } from "cloudflare:test";
 import puppeteer from "@cloudflare/puppeteer";
 import { beforeEach, describe, expect, it } from "vitest";
 import brandFacts from "../../data/demo/fynbos-freight/brand.json";
+import { bundled } from "../../src/checks/brands";
 import { createCase } from "../../src/db/cases";
 import { collectSubmission, readSubmissions } from "../../src/fixtures/collect";
 import { FIXTURES_HOST, fixturesResponse } from "../../src/fixtures/redirects";
 import type { Store } from "../../src/intake/store";
 import { canaryFor } from "../../src/walkthrough/canary";
 import { Driver } from "../../src/walkthrough/driver";
-import { acceptance } from "../../src/walkthrough/evidence";
+import { acceptance, walkthroughEvidence } from "../../src/walkthrough/evidence";
 
 // D04 T02 §1: the fictional-brand fixture sites, on their own host under the prefix secret, and
 // their collector, which records only a traced canary pair. Real D1 and KV, a stubbed nothing:
@@ -278,6 +279,35 @@ describe("the collector", () => {
   });
 });
 
+// One login walk against the served pages, for the readings below (D04 T02 §8).
+async function walkLogin(pair: { username: string; password: string }, d = deps) {
+  const caseId = await newCase();
+  const served = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const answer = await fixturesResponse(new Request(input, init), PREFIX, d);
+    return answer ?? new Response("Not found", { status: 404 });
+  }) as typeof fetch;
+  const driver = await Driver.open(await puppeteer.launch(env.BROWSER), {
+    caseId,
+    walkId: "fixtures-reading",
+    canary: pair,
+    startUrl: `${HOST}/${PREFIX}/nimbusmail/`,
+    store,
+    fetch: served,
+    resolve: async () => ["93.184.215.14"],
+  });
+  try {
+    await driver.execute({ tool: "click", x: 100, y: 30 });
+    await driver.execute({ tool: "click", x: 100, y: 115 });
+    await driver.execute({ tool: "type", text: pair.username });
+    await driver.execute({ tool: "click", x: 100, y: 175 });
+    await driver.execute({ tool: "type", text: pair.password });
+    await driver.execute({ tool: "click", x: 60, y: 236 });
+    return { caseId, record: driver.trace() };
+  } finally {
+    await driver.close();
+  }
+}
+
 describe("the flow in a browser", () => {
   it("drives the served lure to a stored, accepted canary submission", async () => {
     const caseId = await newCase();
@@ -364,5 +394,59 @@ describe("the flow in a browser", () => {
     } finally {
       await driver.close();
     }
+  }, 300_000);
+
+  it("reads a refused pair as rejected and collector failures as unknown (D04 T02 §8)", async () => {
+    const issuedCase = await newCase();
+    const issued = await minted(issuedCase);
+    // A format-valid pair that was never issued together: the collector refuses it (403).
+    const refused = await walkLogin({ username: issued.username, password: "IsItLegit-Canary-ZZZZZZZZZZZZZZZZZZZZ" });
+    const refusedSubmission = refused.record.submissions[0];
+    if (!refusedSubmission) throw new Error("no submission");
+    expect(refusedSubmission.status).toBe(403);
+    expect(acceptance(refused.record, refusedSubmission)).toBe("rejected");
+
+    // The collector's store fails (500): a backend failure, not a refusal.
+    const kvDown = {
+      db,
+      kv: {
+        get: async () => null,
+        put: async (key: string) => {
+          if (key.startsWith("fixtures:submissions:")) throw new Error("kv down");
+        },
+      } as unknown as KVNamespace,
+    };
+    const caseForPair = await newCase();
+    const pair = await minted(caseForPair);
+    const failed = await walkLogin(pair, kvDown);
+    const failedSubmission = failed.record.submissions[0];
+    if (!failedSubmission) throw new Error("no submission");
+    expect(failedSubmission.status).toBe(500);
+    expect(acceptance(failed.record, failedSubmission)).toBe("unknown");
+
+    // The collector is rate-limited (429) before it ever sees the credentials.
+    for (let i = 0; i < 30; i += 1)
+      await fixturesResponse(
+        new Request(`${HOST}/${PREFIX}/collect`, {
+          method: "POST",
+          body: new URLSearchParams({ email: "victim@example.org", password: "hunter2" }),
+        }),
+        PREFIX,
+        deps,
+      );
+    const limitedCase = await newCase();
+    const limitedPair = await minted(limitedCase);
+    const limited = await walkLogin(limitedPair);
+    const limitedSubmission = limited.record.submissions[0];
+    if (!limitedSubmission) throw new Error("no submission");
+    expect(limitedSubmission.status).toBe(429);
+    expect(acceptance(limited.record, limitedSubmission)).toBe("unknown");
+    const items = walkthroughEvidence(
+      { startUrl: `${HOST}/${PREFIX}/nimbusmail/`, outcome: "finished", record: limited.record },
+      null,
+      null,
+      bundled,
+    );
+    expect(items.map((e) => e.check)).not.toContain("walkthrough.canary_accepted");
   }, 300_000);
 });
