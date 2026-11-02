@@ -5,13 +5,14 @@
 // the reading finds a login or payment form. Mail-only checks never run. One failed page never stops
 // the next; every investigation settles confirmed, unconfirmed or partial for §5 to read.
 import { addEvidence, type EvidenceDraft, saveEvidence } from "../checks/evidence";
-import { createCase } from "../db/cases";
+import { createCase, setStatus, setVerdict } from "../db/cases";
 import { putAttachment, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import { getIdentity } from "../trust/identity";
 import { compareLogo, type LogoImage, logoMatchItem, logoNotComparedItem } from "../vision/logo-compare";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "../vision/reading";
 import { type Flagged, flaggedForWalkthrough } from "./flagged";
+import { protectedOrgs } from "./run";
 
 export type InvestigationState = "investigating" | "confirmed" | "unconfirmed" | "partial";
 
@@ -129,6 +130,14 @@ async function investigate(
   const refs: string[] = [];
   const finish = async (state: InvestigationState) => {
     await settle(db, orgId, page.capture_key, state, refs, now());
+    // The shared case leaves `received` with the investigation (round 4): confirmed carries a
+    // malicious verdict and finishes; anything else finishes partial, never a clean verdict.
+    if (state === "confirmed") {
+      await setVerdict(db, orgId, caseId, "malicious").catch(() => null);
+      await setStatus(db, orgId, caseId, "done").catch(() => null);
+    } else {
+      await setStatus(db, orgId, caseId, "partial").catch(() => null);
+    }
     return state;
   };
   const shot = await bucket.get(`${page.capture_key}screenshot.jpg`).catch(() => null);
@@ -294,6 +303,9 @@ async function investigate(
 export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: string): Promise<PipelineSummary> {
   const now = deps.now ?? (() => new Date());
   const summary: PipelineSummary = { investigated: 0, skipped: 0, failed: 0 };
+  // The monitor's own eligibility gate (round 4): no protection on, no investigation, whatever
+  // outstanding rows an earlier run left.
+  if (!(await protectedOrgs(deps.db)).includes(orgId)) return summary;
   // Outstanding investigations are recovered whatever their age or whether a newer capture
   // replaced them (completion review gap 5): their rows, not the run's window, name the work.
   const outstanding = (
