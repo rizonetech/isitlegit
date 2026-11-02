@@ -385,13 +385,13 @@ Sections: 88 | Checklist items: 575
 
 ### Phase 7: After the event
 
-Sections: 167 | Checklist items: 690
+Sections: 167 | Checklist items: 693
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
 | [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none                 | 6     |
 | [x]    | D00 T01 §15 | Review schedule by section risk                  | none                 | 5     |
-| [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none                 | 3     |
+| [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none                 | 6     |
 | [ ]    | D00 T01 §17 | Light against full review, measured              | none                 | 4     |
 | [x]    | D00 T01 §21 | Pre-push excerpt from the tools' error output    | none                 | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard                 | none                 | 6     |
@@ -593,4 +593,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 315/515 verified sections, 83 ready to run now.
 
-Checklist: 2498/3224 items completed (includes Commit items).
+Checklist: 2498/3227 items completed (includes Commit items).
