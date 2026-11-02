@@ -657,6 +657,11 @@ def _root_vars(css_text):
     return out
 
 
+def _canonical_board(path):
+    text = pathlib.Path(path).read_text(encoding="utf-8")
+    return SRC_RE.sub(lambda m: f"{m.group(1)}ASSET{m.group(4)}", text)
+
+
 def _board_assets(name, source):
     """Asset paths a board references, as fingerprint counts them."""
     found = set()
@@ -737,8 +742,13 @@ def _cmd_diff_impl(args):
         raise BoardError(f"{candidate} is not a canvas folder")
     # Verify the approved baseline still is the approved baseline.
     manifest = load_json_or(png_dir / "manifest.json", {})
+    if not isinstance(manifest, dict):
+        raise BoardError(f"{png_dir / 'manifest.json'} is not a manifest object; recover with a fresh export")
     approved_canvas = read_canvas(source)
     for name, rec in approved["boards"].items():
+        if not isinstance(rec, dict):
+            raise BoardError(f"approved baseline: {name} record in approved.json is malformed; "
+                             "recover with import --approve or a fresh export")
         board_file = source / f"{name}.dc.html"
         if not board_file.is_file():
             raise BoardError(f"approved baseline: {name}.dc.html is missing from {source}; "
@@ -753,7 +763,11 @@ def _cmd_diff_impl(args):
         before = png_dir / f"{name}.png"
         if not before.is_file() or manifest.get(name) != fingerprint(name, source, (rec["w"], rec["h"])):
             raise BoardError(f"approved baseline: {name}.png is missing or stale; recover with a fresh export")
-        if png_size(before) != (rec["w"], rec["h"]):
+        try:
+            before_size = png_size(before)
+        except BoardError:
+            raise BoardError(f"approved baseline: {name}.png is corrupt; recover with a fresh export")
+        if before_size != (rec["w"], rec["h"]):
             raise BoardError(f"approved baseline: {name}.png is corrupt; recover with a fresh export")
         try:
             from PIL import Image
@@ -764,6 +778,7 @@ def _cmd_diff_impl(args):
     if _sha256_file(source / "ui.css") != approved.get("ui_css_sha256"):
         raise BoardError("approved baseline: ui.css no longer matches approved.json; "
                          "recover with import --approve or a fresh export")
+    render_candidate = candidate
     if not (candidate / "ui.css").is_file():
         raise BoardError(f"{candidate}/ui.css is missing; a candidate canvas needs its stylesheet")
     # A raw canvas folder carries /_blob/ asset links: rewrite them through assets.json into a shadow copy.
@@ -790,7 +805,7 @@ def _cmd_diff_impl(args):
                 target = (assets_base / assets[m.group(1)]).resolve()
                 return os.path.relpath(target, shadow)
             f.write_text(BLOB_RE.sub(_mapped, text), encoding="utf-8")
-        candidate = shadow
+        render_candidate = shadow
     cand_canvas = read_canvas(candidate)
     cand_names = [f[:-len(".dc.html")] for f in cand_canvas["boards"]]
     approved_names = list(approved["boards"])
@@ -802,7 +817,10 @@ def _cmd_diff_impl(args):
         rec = approved["boards"][name]
         cand_file = candidate / f"{name}.dc.html"
         cand_size = cand_canvas["boards"][f"{name}.dc.html"]
-        if _sha256_file(cand_file) != rec.get("sha256") or (cand_size["w"], cand_size["h"]) != (rec["w"], rec["h"]):
+        approved_file = source / f"{name}.dc.html"
+        if hashlib.sha256(_canonical_board(cand_file).encode()).hexdigest() != \
+                hashlib.sha256(_canonical_board(approved_file).encode()).hexdigest() or \
+                (cand_size["w"], cand_size["h"]) != (rec["w"], rec["h"]):
             changed.add(name)
             continue
         base_assets = _board_assets(name, source)
@@ -834,6 +852,23 @@ def _cmd_diff_impl(args):
     base_vars = _root_vars((source / "ui.css").read_text(encoding="utf-8"))
     tokens = sorted(n for n in set(cand_vars) | set(base_vars) if cand_vars.get(n) != base_vars.get(n) and n in roles)
     owners = _fidelity_owners(args.todo, sorted(set(cand_names) | set(approved_names)))
+    try:
+        spec_text = pathlib.Path(args.spec).read_text(encoding="utf-8")
+        spec_owner = dict(re.findall(r"^\| (\w+) \|.*\| (D\d+ T\d+ §\d+) \|$", spec_text, re.M))
+    except OSError:
+        spec_owner = {}
+    try:
+        cov_all = json.loads((source.parent / "coverage.json").read_text(encoding="utf-8"))
+        for key, entry in cov_all.items():
+            ref = spec_owner.get(key)
+            if not ref:
+                continue
+            for item in entry.get("items", []):
+                b = item.get("board")
+                if b and ref not in owners.get(b, []):
+                    owners.setdefault(b, []).append(ref)
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
     coverage_boards = set()
     try:
         cov = json.loads((source.parent / "coverage.json").read_text(encoding="utf-8"))
@@ -857,7 +892,7 @@ def _cmd_diff_impl(args):
                 rows.append((name, "removed board"))
                 continue
             nonce = secrets.token_hex(16)
-            page, board = standalone(name, candidate, pages, True, nonce, pathlib.Path(args.asset_root))
+            page, board = standalone(name, render_candidate, pages, True, nonce, pathlib.Path(args.asset_root))
             page_path = pages / f"{name}.html"
             atomic_write(page_path, page)
             after_path = staging / f"{name}.after.png"
@@ -892,7 +927,12 @@ def _cmd_diff_impl(args):
         token_text = ", ".join(f"{n} ({base_vars.get(n, 'none')} -> {cand_vars.get(n, 'none')})" for n in tokens)
         cand_fp = hashlib.sha256()
         for fname in sorted(cand_canvas["boards"]):
-            cand_fp.update(f"{fname}:{_file_hash(str(candidate / fname))}\n".encode())
+            rec_c = cand_canvas["boards"][fname]
+            cand_fp.update(f"{fname}:{hashlib.sha256(_canonical_board(candidate / fname).encode()).hexdigest()}"
+                           f":{rec_c['w']}x{rec_c['h']}\n".encode())
+            for src in sorted(_board_assets(fname[:-8], candidate)):
+                cand_fp.update(f"asset {src}:{_file_hash(str(candidate / urllib.parse.unquote(src)))}\n".encode())
+        cand_fp.update(f"ui.css:{_file_hash(str(candidate / 'ui.css'))}\n".encode())
         lines = ["# Design change comparison", "",
                  f"Approved: {approved.get('approved', 'unknown')} | Candidate fingerprint: {cand_fp.hexdigest()[:16]}", "",
                  f"Tokens changed: {token_text if token_text else 'none'}", "",
@@ -958,6 +998,7 @@ def main(argv=None):
     df.add_argument("--out", default=str(ROOT / "build/mockups/diff"))
     df.add_argument("--tokens", default=str(ROOT / "design/tokens/colors.json"))
     df.add_argument("--todo", default=str(ROOT / "todo"))
+    df.add_argument("--spec", default=str(ROOT / "design/SPEC.md"))
     df.add_argument("--asset-root", default=str(ASSET_ROOT), help="the folder every board image must sit in (design/)")
     args = ap.parse_args(argv)
     try:

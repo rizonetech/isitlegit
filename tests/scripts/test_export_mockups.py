@@ -511,6 +511,11 @@ class Diff(Fixture):
         self.todo.mkdir(parents=True)
         (self.todo / "TODO-01-fixture.md").write_text(
             "# TODO-01\n\n## 1. Fixture\n\n**Fidelity:** boards `Board`, values from `ui.css`\n")
+        (self.root / "SPEC.md").write_text(
+            "| # | Route | Page | Purpose | Owner |\n| - | - | - | - | - |\n"
+            "| S1 | `/` | Home | x | D07 T06 §2 |\n| S2 | `/p` | Part page | x | D07 T98 §7 |\n")
+        (self.root / "approved" / "coverage.json").write_text(json.dumps(
+            {"S1": {"items": [{"board": "Board"}]}, "S2": {"items": [{"board": "Part"}]}}))
         ui = ":root{--ink:#181519}\nbody{color:#181519;font-family:'Exo 2',sans-serif} button,input,select,textarea{font-family:inherit}"
         for name in ("Part.dc.html", "Board.dc.html", "pic.svg"):
             shutil.copy2(self.src / name, self.approved_src / name)
@@ -535,6 +540,7 @@ class Diff(Fixture):
     def diff(self, *extra):
         return self.run_tool("diff", str(self.candidate), "--source", str(self.approved_src), "--png", str(self.png),
                              "--out", str(self.diff_out), "--tokens", str(self.tokens), "--todo", str(self.root / "todo"),
+                             "--spec", str(self.root / "SPEC.md"),
                              "--asset-root", str(self.candidate), *extra)
 
     def summary(self):
@@ -682,6 +688,52 @@ class Diff(Fixture):
                             "--todo", str(self.root / "todo"), "--asset-root", str(self.candidate))
         self.assertEqual(run.returncode, 1)
         self.assertIn("overlaps", run.stderr)
+
+    def test_indirect_ownership_through_coverage_and_spec(self):
+        (self.candidate / "Part.dc.html").write_text(PART.replace("One", "Uno"))
+        self.assertEqual(self.diff().returncode, 0)
+        self.assertIn("D07 T98 §7", self.summary())
+
+    def test_an_unchanged_raw_canvas_lists_nothing(self):
+        (self.candidate / "Board.dc.html").write_text(
+            BOARD.replace('src="pic.svg"', 'src="/_blob/0123456789abcdef0123456789abcdef"'))
+        (self.candidate / "assets.json").write_text(json.dumps({"0123456789abcdef0123456789abcdef": "pic.svg"}))
+        run = self.diff("--asset-root", str(self.root))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("(none)", self.summary())
+
+    def test_the_candidate_fingerprint_follows_stylesheet_and_size(self):
+        self.assertEqual(self.diff().returncode, 0)
+        first = [l for l in self.summary().splitlines() if "Candidate fingerprint" in l][0]
+        (self.candidate / "ui.css").write_text(
+            ":root{--ink:#000000}\nbody{color:#000000;font-family:'Exo 2',sans-serif} button,input,select,textarea{font-family:inherit}")
+        self.assertEqual(self.diff().returncode, 0)
+        second = [l for l in self.summary().splitlines() if "Candidate fingerprint" in l][0]
+        self.assertNotEqual(first, second)
+
+    def test_a_resized_board_reports_its_union_share(self):
+        canvas = json.loads((self.candidate / "canvas.json").read_text())
+        canvas["boards"]["Board.dc.html"] = {"w": 401, "h": 300, "title": "Board"}
+        (self.candidate / "canvas.json").write_text(json.dumps(canvas))
+        self.assertEqual(self.diff().returncode, 0)
+        from PIL import Image
+        before = Image.open(self.diff_out / "Board.before.png").convert("RGB")
+        after = Image.open(self.diff_out / "Board.after.png").convert("RGB")
+        ow, oh = min(before.width, after.width), min(before.height, after.height)
+        total = before.width * before.height + after.width * after.height - ow * oh
+        bp, ap = before.load(), after.load()
+        same = sum(1 for y in range(oh) for x in range(ow) if bp[x, y] == ap[x, y])
+        share = f"{(total - same) / total * 100:.1f}%"
+        self.assertIn(share, self.summary())
+
+    def test_an_interrupted_publication_is_recovered_on_the_next_run(self):
+        self.assertEqual(self.diff().returncode, 0)
+        backup = self.diff_out.parent / f".{self.diff_out.name}.old"
+        shutil.rmtree(self.diff_out)
+        backup.mkdir()
+        (backup / "summary.md").write_text("old\n")
+        self.assertEqual(self.diff().returncode, 0)
+        self.assertTrue((self.diff_out / "summary.md").exists())
 
     def test_a_stale_baseline_is_refused(self):
         (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))
