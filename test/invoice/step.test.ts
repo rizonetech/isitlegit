@@ -85,6 +85,31 @@ function deps(script: (() => Response)[]) {
 
 const pdf = new TextEncoder().encode("%PDF-1.4 synthetic");
 
+function makePdf(pages: number): Uint8Array {
+  const objects: string[] = [];
+  const kids = Array.from({ length: pages }, (_, i) => `${4 + i * 2} 0 R`).join(" ");
+  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objects[2] = `<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`;
+  objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  for (let i = 0; i < pages; i++) {
+    objects[4 + i * 2] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${5 + i * 2} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`;
+    const stream = `BT /F1 48 Tf 72 700 Td (Page ${i + 1}) Tj ET`;
+    objects[5 + i * 2] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  }
+  let out = "%PDF-1.4\n";
+  const offsets: number[] = [0];
+  for (let n = 1; n < objects.length; n++) {
+    offsets[n] = out.length;
+    out += `${n} 0 obj\n${objects[n]}\nendobj\n`;
+  }
+  const xref = out.length;
+  out += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  for (let n = 1; n < objects.length; n++) out += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+  out += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new TextEncoder().encode(out);
+}
+
 describe("the invoice step", () => {
   it("reads an attached invoice, states it masked and seals its account", async () => {
     const org = await makeOrg();
@@ -165,6 +190,33 @@ describe("the invoice step", () => {
     const keys = await bankKeys(env);
     const artefact = items[0]?.artefacts[0] as string;
     expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
+  });
+
+  it("a replay that no longer finds an account removes the sealed one", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
+    const keys = await bankKeys(env);
+    const artefact = (await readEvidence(db, caseId))[0]?.artefacts[0] as string;
+    expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
+    await invoiceStep(deps([() => answer({ ...FIELDS, is_invoice: false })]), caseId, org);
+    expect(await readCaseInvoiceAccount(db, keys, org, caseId, artefact)).toBeNull();
+    await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
+    expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
+    await invoiceStep(deps([() => refusal()]), caseId, org);
+    expect(await readCaseInvoiceAccount(db, keys, org, caseId, artefact)).toBeNull();
+  });
+
+  it("states a document past the page bound instead of calling it", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "big.pdf", makePdf(51), "application/pdf");
+    const got = await invoiceStep(deps([]), caseId, org);
+    expect(got.outcome).toBe("not_checked");
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.not_checked"]);
+    expect(items[0]?.detail).toMatchObject({ checked: false, reason: "too-many-pages" });
   });
 
   it("two invoice documents keep two accounts apart", async () => {

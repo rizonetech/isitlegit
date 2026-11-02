@@ -158,6 +158,22 @@ describe("the evidence", () => {
   it("states a failure as not_checked with the reason kind only", () => {
     const item = notCheckedItem("model-timeout", "cases/c1/x.pdf");
     expect(item.check).toBe("invoice.not_checked");
-    expect(item.detail).toEqual({ reason: "model-timeout", attachment: "cases/c1/x.pdf" });
+    expect(item.detail).toEqual({ checked: false, reason: "model-timeout", attachment: "cases/c1/x.pdf" });
+  });
+
+  it("scrubs a number repeated in another field and names incomplete banking details", () => {
+    const repeated = InvoiceFields.parse({
+      ...FIELDS,
+      reference: "06200441773",
+      account_holder: "Karoo Parts 0620 0441 773",
+      branch_code: null,
+    });
+    const item = detectedItem(repeated, "cases/c1/x.pdf");
+    expect(JSON.stringify(item)).not.toContain("06200441773");
+    expect(JSON.stringify(item)).not.toContain("0620 0441 773");
+    expect(item?.detail).toMatchObject({ account_last3: "773" });
+    expect(item?.summary).toContain("banking details incomplete");
+    // With no branch, no account can be sealed from the stated number.
+    expect(payeeAccount(repeated)).toBeNull();
   });
 });

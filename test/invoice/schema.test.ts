@@ -61,7 +61,12 @@ describe("InvoiceFields", () => {
     ["amount not integer cents", { amount_cents: 123.45 }],
     ["amount negative", { amount_cents: -1 }],
     ["currency not a three-letter code", { currency: "rand" }],
+    ["currency not an ISO code", { currency: "ZZZ" }],
     ["due date not ISO", { due_date: "30 Nov 2026" }],
+    ["due date that does not exist", { due_date: "2026-99-99" }],
+    ["due date on a day the month lacks", { due_date: "2026-02-30" }],
+    ["domain without a suffix", { supplier_domain: "." }],
+    ["domain with an empty label", { supplier_domain: "karoo..co.za" }],
     ["an unnamed property", { edited: true }],
   ])("refuses %s", (_name, over) => {
     expect(() => InvoiceFields.parse({ ...invoice, ...over })).toThrow();

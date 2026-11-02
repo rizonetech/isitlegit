@@ -97,29 +97,46 @@ export function payeeAccount(fields: InvoiceFields): { number: string; branchCod
 
 const plain = (v: string | null, fallback: string) => (v === null || v === "" ? fallback : v);
 
+// No field of the evidence may carry the account number in full (gap 7, completion review): a supplier
+// name, holder or reference that repeats it (a reference that is the number, a holder printed with it) is
+// scrubbed to its masked form wherever it appears, in detail and summary alike.
+function scrub(value: string | null, fields: InvoiceFields): string | null {
+  if (value === null || fields.account_number === null) return value;
+  const digits = fields.account_number.replace(/[\s-]+/g, "");
+  if (digits.length < 7) return value;
+  const masked = `***${digits.slice(-3)}`;
+  // The number as printed in any spacing: a run of digits, spaces and dashes whose digits are the number.
+  return value.replace(/[\d][\d -]*\d/g, (run) => (run.replace(/[\s-]+/g, "") === digits ? masked : run));
+}
+
 // The `invoice.detected` item: every extracted field except the account number in full, which exists only
 // sealed in `case_invoice_accounts` (gap 7). The artefact key is the document's provenance (gap 4).
 export function detectedItem(fields: InvoiceFields, artefactKey: string): EvidenceDraft | null {
   if (!fields.is_invoice) return null;
   const account = payeeAccount(fields);
-  const supplier = plain(fields.supplier_name, "an unnamed supplier");
+  // The last three are shown whenever the document stated a number, even when no usable account can be
+  // sealed from it (a missing branch): absent and incomplete are different statements.
+  const last3 = fields.account_number === null ? null : fields.account_number.replace(/[\s-]+/g, "").slice(-3);
+  const supplier = plain(scrub(fields.supplier_name, fields), "an unnamed supplier");
   const summary = account
     ? `Invoice from ${supplier}: account ***${account.number.slice(-3)}`.slice(0, 200)
-    : `Invoice from ${supplier}: no account stated`.slice(0, 200);
+    : last3 !== null
+      ? `Invoice from ${supplier}: account ***${last3}, banking details incomplete`.slice(0, 200)
+      : `Invoice from ${supplier}: no account stated`.slice(0, 200);
   return {
     check: "invoice.detected",
     severity: "info",
     summary,
     detail: {
-      supplier_name: fields.supplier_name,
+      supplier_name: scrub(fields.supplier_name, fields),
       supplier_domain: fields.supplier_domain,
-      bank_name: fields.bank_name,
-      account_holder: fields.account_holder,
-      account_last3: account ? account.number.slice(-3) : null,
+      bank_name: scrub(fields.bank_name, fields),
+      account_holder: scrub(fields.account_holder, fields),
+      account_last3: last3,
       branch_code: fields.branch_code,
       amount_cents: fields.amount_cents,
       currency: fields.currency,
-      reference: fields.reference,
+      reference: scrub(fields.reference, fields),
       due_date: fields.due_date,
       attachment: artefactKey,
     },
@@ -146,12 +163,15 @@ export function selectDocuments(docs: readonly PdfDocument[]): { call: PdfDocume
 }
 
 // The failure stated as its own item (gap 2): the reason kind only, never the model's or the error's words.
+// `checked: false` is the coverage marker both verdict paths read (`detail.checked === false` in
+// src/agent/rule-verdict.ts and src/agent/loop.ts), so a failed extraction makes a safe-leaning report
+// partial instead of a clean bill.
 export function notCheckedItem(reason: string, artefactKey: string): EvidenceDraft {
   return {
     check: "invoice.not_checked",
     severity: "info",
     summary: `An attached document could not be read as an invoice (${reason})`.slice(0, 200),
-    detail: { reason, attachment: artefactKey },
+    detail: { checked: false, reason, attachment: artefactKey },
     artefacts: [artefactKey],
   };
 }

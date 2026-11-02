@@ -8,6 +8,7 @@
 // the call again, recorded like the first. A replay replaces the producer's items and each document's
 // account row, never accumulating either.
 import { addEvidence, type EvidenceDraft } from "../checks/evidence";
+import { pdfText } from "../checks/pdf-text";
 import { artefactsOf, readArtefact, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import { type BankKeys, claimKeys, sealNumber } from "../trust/bank";
@@ -21,6 +22,8 @@ import {
   payeeAccount,
   selectDocuments,
 } from "./extract";
+import { readPdf } from "./pdf";
+import { pageList } from "./pdf-content";
 
 export type InvoiceDeps = {
   db: D1Database;
@@ -48,13 +51,41 @@ const toBase64 = (bytes: Uint8Array) => {
 export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: string): Promise<InvoiceResult> {
   const pdfs = (await artefactsOf(deps.store, caseId, "attachment")).filter((a) => a.mediaType === "application/pdf");
   if (pdfs.length === 0) return { outcome: "none" };
-  const docs: PdfDocument[] = pdfs.map((a) => ({
-    artefactKey: a.key,
-    filename: a.key.split(`${a.sha256}-`)[1] ?? "attachment.pdf",
-    bytes: a.bytes,
-  }));
-  const { call, stated } = selectDocuments(docs);
-  const items: EvidenceDraft[] = stated.map((s) => notCheckedItem(s.reason, s.doc.artefactKey));
+  // Each document is read once, here: its page count (the page tree of src/invoice/pdf-content.ts) feeds
+  // the bounds, and its bytes feed the call, so nothing is fetched twice. A document that cannot be read
+  // or parsed is stated unreadable, never silently dropped.
+  type Loaded = PdfDocument & { body: Uint8Array | null };
+  const loaded: Loaded[] = [];
+  const items: EvidenceDraft[] = [];
+  for (const a of pdfs) {
+    const base = {
+      artefactKey: a.key,
+      filename: a.key.split(`${a.sha256}-`)[1] ?? "attachment.pdf",
+      bytes: a.bytes,
+    };
+    const read = await readArtefact(deps.store, caseId, a.key);
+    if (!read || "missing" in read) {
+      loaded.push({ ...base, body: null });
+      continue;
+    }
+    let pages: number | undefined;
+    try {
+      pages = pageList(await readPdf(read.body)).length;
+    } catch {
+      pages = undefined;
+    }
+    if (pages === undefined) {
+      loaded.push({ ...base, body: null });
+      continue;
+    }
+    loaded.push({ ...base, pages, body: read.body });
+  }
+  const readable = loaded.filter((d) => d.body !== null);
+  for (const d of loaded) if (d.body === null) items.push(notCheckedItem("unreadable", d.artefactKey));
+  const { call, stated } = selectDocuments(readable);
+  for (const s of stated) items.push(notCheckedItem(s.reason, s.doc.artefactKey));
+  const statedFailure = loaded.some((d) => d.body === null) ? "unreadable" : (stated[0]?.reason ?? null);
+  const bodyOf = new Map(readable.map((d) => [d.artefactKey, d.body as Uint8Array]));
   let keys: BankKeys;
   try {
     keys = await deps.keys();
@@ -74,22 +105,70 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
   };
   const pending: Pending[] = [];
   let invoices = 0;
-  let firstFailure: string | null = null;
-  for (const doc of call) {
-    const read = await readArtefact(deps.store, caseId, doc.artefactKey);
-    if (!read || "missing" in read) {
-      items.push(notCheckedItem("unreadable", doc.artefactKey));
-      firstFailure ??= "unreadable";
-      continue;
+  let firstFailure: string | null = statedFailure;
+  // The whole state of this run, written together: the producer's items, then the accounts in one batch,
+  // first deleting the rows of any document this run did not seal (a replay whose new reading is a
+  // refusal, a non-invoice or an account-less invoice removes the account the old reading sealed, so §6
+  // can never read a stale account). Evidence first: an interruption leaves an invoice stated with no
+  // account rather than an account a verdict never saw.
+  const allKeys = pdfs.map((a) => a.key);
+  const writeAll = async () => {
+    await addEvidence(deps.db, caseId, "invoice", items, deps.now);
+    const keep = new Set(pending.map((p) => p.artefactKey));
+    const stale = allKeys.filter((k) => !keep.has(k));
+    const statements: D1PreparedStatement[] = [];
+    if (stale.length > 0)
+      statements.push(
+        deps.db
+          .prepare(
+            `DELETE FROM case_invoice_accounts WHERE case_id = ? AND artefact_key IN (${stale.map(() => "?").join(", ")})`,
+          )
+          .bind(caseId, ...stale),
+      );
+    if (pending.length > 0) {
+      statements.push(claimKeys(deps.db, keys));
+      for (const p of pending) {
+        const sealed = await sealNumber(keys, p.number);
+        statements.push(
+          caseInvoiceAccountStatement(
+            deps.db,
+            keys,
+            sealed,
+            {
+              caseId,
+              orgId,
+              artefactKey: p.artefactKey,
+              bankName: p.bankName,
+              holder: p.holder,
+              branchCode: p.branchCode,
+            },
+            deps.now?.() ?? new Date(),
+          ),
+        );
+      }
     }
+    if (statements.length > 0) await deps.db.batch(statements);
+  };
+  for (const doc of call) {
+    const body = bodyOf.get(doc.artefactKey) as Uint8Array;
+    // The document's own text layer goes with the file, inside its untrusted block: the production path
+    // holds the same boundary the request test proves, not only the warning in the instructions.
+    const text = await pdfText(body).catch(() => null);
     const got = await extractInvoiceFields(
-      { pdfBase64: toBase64(read.body), filename: doc.filename },
+      {
+        pdfBase64: toBase64(body),
+        filename: doc.filename,
+        ...(text && text.text.trim() !== "" ? { documentText: text.text } : {}),
+      },
       { ...deps.meta, owner: { kind: "case", caseId, step: "invoice" }, waitUntil: deps.waitUntil },
     );
     if (!got.ok) {
-      // A retry may cure an infrastructure fault: the step throws and writes nothing, so no half-stated
-      // attempt survives beside the retry's own statement.
-      if (got.infra) throw new Error(`invoice extraction infrastructure failure: ${got.reason}`);
+      if (got.infra) {
+        // A retry may cure it: the documents already read are committed first, so the retry's cost is
+        // only the documents it still owes, and no half-stated attempt survives beside its statement.
+        await writeAll();
+        throw new Error(`invoice extraction infrastructure failure: ${got.reason}`);
+      }
       items.push(notCheckedItem(got.reason, doc.artefactKey));
       firstFailure ??= got.reason;
       continue;
@@ -109,32 +188,7 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
         branchCode: account.branchCode,
       });
   }
-  // Evidence first, then the accounts: an interruption leaves an invoice stated with no account (§6 then
-  // offers no mark, and says why) rather than an account a verdict never saw. The retry replaces both.
-  await addEvidence(deps.db, caseId, "invoice", items, deps.now);
-  if (pending.length > 0) {
-    const statements: D1PreparedStatement[] = [claimKeys(deps.db, keys)];
-    for (const p of pending) {
-      const sealed = await sealNumber(keys, p.number);
-      statements.push(
-        caseInvoiceAccountStatement(
-          deps.db,
-          keys,
-          sealed,
-          {
-            caseId,
-            orgId,
-            artefactKey: p.artefactKey,
-            bankName: p.bankName,
-            holder: p.holder,
-            branchCode: p.branchCode,
-          },
-          deps.now?.() ?? new Date(),
-        ),
-      );
-    }
-    await deps.db.batch(statements);
-  }
+  await writeAll();
   if (invoices > 0) return { outcome: "read", invoices };
   if (firstFailure !== null) return { outcome: "not_checked", reason: firstFailure };
   return { outcome: "read", invoices: 0 };
