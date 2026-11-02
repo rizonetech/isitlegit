@@ -1032,6 +1032,22 @@ describe("the checks step and the event writer", () => {
           disposition: "attachment",
           bytes: 10,
         },
+        {
+          key: `raw/${mid}/attachments/dd-fourth.ogg`,
+          filename: "fourth.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+        {
+          key: `raw/${mid}/attachments/ee-fifth.ogg`,
+          filename: "fifth.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
       ],
       truncated: [],
       omitted: 0,
@@ -1061,6 +1077,29 @@ describe("the checks step and the event writer", () => {
       new TextEncoder().encode(JSON.stringify({ text: "no turns here" })),
       "application/json",
     );
+    const gone = await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-4.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await env.ARTEFACTS.delete(gone.key);
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-5.json",
+      new TextEncoder().encode(
+        JSON.stringify({
+          turns: Array.from({ length: 30 }, (_, i) => ({ ...turn, startMs: i * 1000, text: "é".repeat(1500) })),
+          gaps: [],
+          complete: true,
+        }),
+      ),
+      "application/json",
+    );
     // The mail case's aggregate transcript holds no turns and is excluded, never a fourth item.
     await putArtefact(
       store,
@@ -1074,8 +1113,13 @@ describe("the checks step and the event writer", () => {
     await storeVoice(store, mid, { state: "not_checked", reason: "the reading did not finish" });
     await checks(store, mid, parsedKey(mid), { orgId: "org-transcript-mail", channel: "email" }, async () => []);
     const items = (await readEvidence(env.DB, mid)).filter((e) => e.check === "voice.transcript");
-    expect(items).toHaveLength(3);
+    expect(items).toHaveLength(5);
     const byName = (name: string) => items.find((i) => i.detail.filename === name);
+    expect(byName("fourth.ogg")?.detail).toMatchObject({ malformed: true });
+    const fifth = byName("fifth.ogg");
+    expect(fifth?.detail.trimmed).toBe(true);
+    expect((fifth?.detail.segmentsOmitted as number) ?? 0).toBeGreaterThan(0);
+    expect(new TextEncoder().encode(JSON.stringify(fifth?.detail)).length).toBeLessThanOrEqual(65_536);
     expect(byName("first.ogg")?.detail).toMatchObject({
       recording: `raw/${mid}/attachments/aa-first.ogg`,
       segments: [{ text: "Please pay today.", startMs: 0, endMs: 1000, chunk: 1, speaker: "A" }],
