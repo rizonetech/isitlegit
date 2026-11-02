@@ -35,7 +35,7 @@ track: day-5
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
 | 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [x] |
 | 3 | §3 | Standalone document path with the fixed | §2, D01 T03 §1, D07 T03 §30 | [ ] |
-| 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
+| 4 | §4 | Muse Image doctored document pairs | §2 | [x] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 | 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
@@ -160,9 +160,12 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 - [x] Handle refusals and failures distinctly (plan review gap 5): a content-policy refusal is recorded with its attempt and cost, never retried with a reformulated prompt, and its pair is made in code; authentication, budget, transport and malformed-response failures stop the run with completed pairs preserved and the incomplete state reported. Done when: the mocked test drives each kind.
 - [x] Measure honestly (plan review gap 6): the frontier entry records, per pair, the §2 extraction's read of the doctored field (caught or missed) over genuine and doctored denominators, with PDF forensics stated `unavailable` for raster images, never counted as clean. Done when: the entry names each denominator and the unavailable count.
 - [x] Record cost, refusals and how often forensics alone catches an image edit in `docs/frontier-log.md`. Done 2026-11-02: `docs/frontier-log.md`, US$0.6161 counted of the US$1.00 cap.
-- [ ] Commit: `eval: Muse Image doctored payment documents`
+- [x] Commit: `eval: Muse Image doctored payment documents`
 
 **Test checkpoint:** `python3 -c "import json;d=json.load(open('eval/sets/payment-docs/labels.json'));print(len(d))"` prints `40`, and `pnpm exec vitest run test/node/make-doctored.test.ts` passes.
+
+> **Verified:** 2026-11-02 | §4 | 0f0c30c4cf99a24e5146f305c035d102c3fa630d
+> **Review:** `docs/reviews/d06-t02-s4.json`
 
 ## 5. More PDF encodings and protected files
 
