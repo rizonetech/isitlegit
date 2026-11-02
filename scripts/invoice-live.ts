@@ -51,6 +51,7 @@ type Line = {
   outcome?: string;
   docs?: { name: string; fields: unknown; ms: number }[];
   attempts?: { estimateUsd: number; actualUsd: number | null }[];
+  total?: number;
 };
 
 export function readResult(report: string): Line | null {
@@ -122,6 +123,22 @@ export async function liveRun(deps: Deps): Promise<Outcome> {
   }
   const result = readResult(ran.report);
   if (!result?.attempts) return { code: 1, settled: "kept", usd: WORST };
+  // A partial result (fewer documents than the set holds) may miss an attempt that was still in
+  // flight when the snapshot was taken: settling it as measured would undercount, so the whole
+  // reservation stays counted at the estimate instead.
+  const expected = result.total;
+  if (expected && (result.docs?.length ?? 0) < expected) {
+    await deps.budget.uncertain(id, {
+      ms: Date.now() - started,
+      outcome: "error",
+      certainty: "estimated",
+      source: "estimate",
+    });
+    deps.log(
+      `invoice-live: partial result (${result.docs?.length ?? 0} of ${expected} documents); US$${WORST.toFixed(4)} stays counted`,
+    );
+    return { code: 1, settled: "kept", usd: WORST };
+  }
   const uncertain = result.attempts.some((a) => a.actualUsd === null);
   const usd = result.attempts.reduce((sum, a) => sum + (a.actualUsd ?? a.estimateUsd), 0);
   await deps.budget.settle(id, usd, {
