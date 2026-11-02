@@ -309,7 +309,7 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 - [ ] Prove the surface in `test/node/admin-eval-page-browser.test.tsx` on the §4 precedent (`test/node/eval-page-browser.test.tsx`): axe clean in both themes at 360 and 1280 px, the wide tables reachable by keyboard with a visible focus ring and no sideways scroll at 200% text, table captions and headers read by name. Done when: the browser test passes on the seeded page. Cheaper substitute: none (a table the operator cannot reach by keyboard is not built).
 - [ ] Commit: `web: admin eval runs page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes, and `pnpm exec vitest run --project node test/node/admin-eval-page-browser.test.tsx` passes.
 
 ## 10. Public run history
 
