@@ -41,7 +41,7 @@ track: day-2
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
-| 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
+| 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [ ] |
@@ -237,9 +237,12 @@ Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-siz
 
 - [x] Give the preview image transfer in `src/web/client/app.ts` (the `data-evidence-image` load the figure starts, including after card-level Try again) the same 15-second deadline pattern §55 gave the viewer (`data-deadline-ms` shortens it for a test), showing the card's temporary-failure state with Try again when it fires. The deadline starts only when the transfer starts (a preview the browser has not begun loading, such as a lazy preview in a closed disclosure, is never timed out). Done when: `test/node/evidence-cards-browser.test.tsx` holds a preview transfer past a 300 ms deadline, finds the failed state with Try again, releases it and finds Try again reload the preview, and a mutation removing the deadline fails it.
 - [x] Bound every attempt of the preview in `src/web/client/app.ts`: the timer clears when an attempt loads or errors, each Try again arms a fresh deadline, and a late result from an abandoned attempt does not overwrite the current state. Done when: `test/node/evidence-cards-browser.test.tsx` stalls two attempts in a row and each ends in the failed state, a preview that loads stays loaded past the old deadline, and an old response arriving after a retry does not change the retried state. Cheaper substitute: one timer for the card's life, which gives up a retry that is still loading.
-- [ ] Commit: `web: bounded preview image transfer`
+- [x] Commit: `web: bounded preview image transfer`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the stalled preview transfer given up.
+
+> **Verified:** 2026-11-02 | §8 | 7db9ed95d29d8bb1bc02844e1be4dcd1cd855057
+> **Review:** `docs/reviews/d07-t09-s8.json`
 
 ## 9. Complete decoded run on the card
 
