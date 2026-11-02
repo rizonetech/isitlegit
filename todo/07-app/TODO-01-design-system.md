@@ -49,7 +49,7 @@ track: day-1
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
 | 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [x] |
-| 15 | §15 | Gallery theme, width and | §10 | [ ] |
+| 15 | §15 | Gallery theme, width and | §10 | [x] |
 | 16 | §16 | One-border focus and an inset combobox chevron | §6 | [ ] |
 | 17 | §17 | Premium polish sweep over every surface | §16 | [ ] |
 
@@ -607,9 +607,12 @@ The gallery (§10) shows every state, but a developer who wants the dark theme, 
 - [x] Scan every preview document with the gate's own rule set (`test/node/axe.ts` options: the WCAG 2.2 A and AA tags with `target-size`): the gallery document, then each state and frame document as it is ready, attributing every finding to its state or frame and listing undecided results as undecided. Done when: the test plants a defect in a frame, an undecided result in a state, and the same violation in two previews, and finds each listed under its own preview. Cheaper substitute: scanning only the gallery document, which axe runs with iframes off.
 - [x] Give the accessibility panel a lifecycle: idle before the first run, running while it scans, clean when no finding remains, findings when any remain, and failed when the script or a scan fails, with a retry that runs again, highlights cleared and results replaced on every rerun, and findings invalidated (back to idle) when the theme or width changes. Done when: the test fails a scan then retries clean, removes a planted defect then reruns clean, and changes a setting mid-scan and finds no stale findings. Cheaper substitute: leaving the last findings beside previews they no longer describe.
 - [x] Serve the gallery's own script and axe from the Worker in development only: `/dev/components` loads its controls script and `/dev/axe.min.js` (a Text rule in `wrangler.jsonc`, the PDF library's pattern) with no test-side injection, and both answer 404 when `ENV` is not development. Done when: `test/node/gallery-controls.test.ts` drives the real Worker (as `test/node/serve.test.ts` boots it) and a non-development boot 404s the axe route. Cheaper substitute: the test injecting axe itself, which proves nothing about the served page.
-- [ ] Commit: `web: gallery theme, width and accessibility controls`
+- [x] Commit: `web: gallery theme, width and accessibility controls`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/gallery-controls.test.ts` passes: theme and width applied to every preview, and a planted defect found and highlighted under its state.
+
+> **Verified:** 2026-11-02 | §15 | 8ceb78635d19ea1427f9e89be711f22b829ad9aa
+> **Review:** `docs/reviews/d07-t01-s15.json`
 
 ## 16. One-border focus and an inset combobox chevron
 
