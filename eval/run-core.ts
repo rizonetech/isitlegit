@@ -179,13 +179,23 @@ export type Options = {
   capUsd: number;
   resume: string | null;
   verify: string | null;
+  mode: string | null;
   dry: boolean;
   help: boolean;
 };
 
 // The command line, each option validated; a problem is a refusal (exit 3) named in the message.
 export function parseArgs(argv: readonly string[]): Options | { error: string } {
-  const o: Options = { sets: [], limit: null, capUsd: Number.NaN, resume: null, verify: null, dry: false, help: false };
+  const o: Options = {
+    sets: [],
+    limit: null,
+    capUsd: Number.NaN,
+    resume: null,
+    verify: null,
+    mode: null,
+    dry: false,
+    help: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] as string;
     const value = () => argv[++i];
@@ -209,6 +219,10 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
       if (!v || !/^[a-z0-9-]{8,64}$/.test(v)) return { error: `${a} needs a run id` };
       if (a === "--resume") o.resume = v;
       else o.verify = v;
+    } else if (a === "--mode") {
+      const v = value();
+      if (!v) return { error: "--mode needs a value: full or ablate:<flag>" };
+      o.mode = v;
     } else return { error: `unknown option ${a}` };
   }
   if (!o.sets.length) o.sets = [...SETS];
@@ -218,8 +232,8 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
 }
 
 export const USAGE = [
-  "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--dry]",
-  "       pnpm eval:run --resume <run id>   (keeps the cap and the selection the run began with)",
+  "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--mode <full|ablate:flag>] [--dry]",
+  "       pnpm eval:run --resume <run id>   (keeps the cap, the selection and the mode the run began with)",
   "       pnpm eval:run --verify <run id>",
   `sets: ${SETS.join(", ")} (all by default). Needs EVAL_SESSION_COOKIE; exit 0 complete, 1 fault, 2 incomplete, 3 refused.`,
 ].join("\n");
