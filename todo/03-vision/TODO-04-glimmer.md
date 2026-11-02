@@ -1556,6 +1556,8 @@ Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next tr
 
 ## 47. Loupe 1.1 promoted on a better-than-1.0 gate
 
+> **Started:** 2026-11-02T18:02:00Z
+
 Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is that it is better than Loupe 1.0; if it is, 1.1 ships before submission. This supersedes the 2026-11-01 note pausing 1.1 until after the event for promotion only (§42 to §44 stay Phase 7). Better means, on the §13 held-out set with its stratified grouped split (§39): higher lure recall at no more false alarms, or fewer false alarms at no less recall, each with its denominator printed. Owning layer: the promotion gate in `scripts/glimmer/version-gate.py` and the one stored active-version file §32 built.
 
 **Phase:** 6
