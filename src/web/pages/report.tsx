@@ -249,6 +249,34 @@ async function render(
           },
         }
       : null;
+  // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
+  // steps quietly missing; a case outside the run says so and keeps the way back.
+  let steps: ReportSteps | undefined;
+  if (view === "member" && navFilters) {
+    const neighbours = await caseNeighbours(db, orgId, navFilters, id);
+    if (!neighbours.ok) throw new Error(neighbours.error.message);
+    const back = (page: number) => casesHref({ ...navFilters, page });
+    const notice = navNotice;
+    const orgChanged = activeOrgId !== null && activeOrgId !== orgId;
+    steps = neighbours.value
+      ? {
+          previous: neighbours.value.previous ? reportHref(navFilters, neighbours.value.previous) : null,
+          next: neighbours.value.next ? reportHref(navFilters, neighbours.value.next) : null,
+          back: back(Math.max(1, Math.ceil(neighbours.value.position / PAGE_SIZE))),
+          position: neighbours.value.position,
+          matching: neighbours.value.matching,
+          ...(notice ? { notice } : {}),
+          ...(orgChanged ? { orgChanged: true } : {}),
+        }
+      : {
+          previous: null,
+          next: null,
+          back: back(1),
+          unmatched: true,
+          ...(notice ? { notice } : {}),
+          ...(orgChanged ? { orgChanged: true } : {}),
+        };
+  }
   const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
   const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
   const facts = headerFacts(found.value, checker);
@@ -289,39 +317,11 @@ async function render(
                 view={view}
                 copy={copy}
                 oob
-                {...(view === "member" && navFilters ? { backHref: casesHref(navFilters) } : {})}
+                {...(steps ? { backHref: steps.back } : {})}
               />,
             )),
       { headers: HEADERS },
     );
-  // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
-  // steps quietly missing; a case outside the run says so and keeps the way back.
-  let steps: ReportSteps | undefined;
-  if (view === "member" && navFilters) {
-    const neighbours = await caseNeighbours(db, orgId, navFilters, id);
-    if (!neighbours.ok) throw new Error(neighbours.error.message);
-    const back = (page: number) => casesHref({ ...navFilters, page });
-    const notice = navNotice;
-    const orgChanged = activeOrgId !== null && activeOrgId !== orgId;
-    steps = neighbours.value
-      ? {
-          previous: neighbours.value.previous ? reportHref(navFilters, neighbours.value.previous) : null,
-          next: neighbours.value.next ? reportHref(navFilters, neighbours.value.next) : null,
-          back: back(Math.max(1, Math.ceil(neighbours.value.position / PAGE_SIZE))),
-          position: neighbours.value.position,
-          matching: neighbours.value.matching,
-          ...(notice ? { notice } : {}),
-          ...(orgChanged ? { orgChanged: true } : {}),
-        }
-      : {
-          previous: null,
-          next: null,
-          back: back(1),
-          unmatched: true,
-          ...(notice ? { notice } : {}),
-          ...(orgChanged ? { orgChanged: true } : {}),
-        };
-  }
   const shell =
     view === "member"
       ? await memberShell(db, user as { id: string; name: string; email: string }, activeOrgId ?? orgId, "cases", orgId)
