@@ -249,6 +249,9 @@ async function render(
           },
         }
       : null;
+  const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
+  const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
+  const facts = headerFacts(found.value, checker);
   // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
   // steps quietly missing; a case outside the run says so and keeps the way back.
   let steps: ReportSteps | undefined;
@@ -279,9 +282,6 @@ async function render(
           ...(orgChanged ? { orgChanged: true } : {}),
         };
   }
-  const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
-  const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
-  const facts = headerFacts(found.value, checker);
   if (mode === "status")
     return new Response(
       String(
