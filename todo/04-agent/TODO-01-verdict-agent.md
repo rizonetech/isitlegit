@@ -47,6 +47,8 @@ track: day-6
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
+| 11 | §11 | Floor outcome persisted with the verdict | §4 | [ ] |
+| 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -317,6 +319,44 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 - [ ] Commit: `agent: logo tools for the verdict agent`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
+
+## 11. Floor outcome persisted with the verdict
+
+Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §8): `applyFloor` (`src/agent/floor.ts`) returns `floorApplied` (`from`, `to`, `evidenceIds`), but the agent loop (`src/agent/loop.ts`) keeps only a `floored` boolean and `storeVerdict`/`saveVerdict` persist no floor record, so the eval reads the floor component as not measured. The migration number is the coordinator's to give before any schema change.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Persist the floor outcome per case. Done when: a floored case's stored verdict reads back its `floorApplied` record, and an unfloored case reads back none.
+
+- [ ] Carry `floorApplied` on the verdict view the loop builds (`src/agent/loop.ts`, from `floorFor` beside the existing `floored` boolean) through `saveVerdict` and `getVerdict` (`src/db/verdicts.ts`), in the column or record the coordinator's migration number names. Done when: `test/agent/loop.test.ts` stores a floored verdict and reads its `from`, `to` and evidence ids back, and an unfloored verdict reads back no record.
+- [ ] Keep the rule-based fallback (`src/agent/rule-verdict.ts` through the loop's fallback) carrying the same record, so a fallback verdict is measured the same way. Done when: the fallback path's stored verdict carries its floor record in the same test suite.
+- [ ] Commit: `agent: floor outcome persisted with the verdict`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/floor.test.ts` passes, and fails if a floored verdict stores no floor record.
+
+## 12. Bank-change action with the ledger phone
+
+Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActionsFor` (`src/agent/loop.ts`) already attaches `bankChangeAction()` to the verdict's actions, but never with the supplier's number, so the report cannot put the ledger phone first under "Do this first". Coordinator decision: checks attaches it in the loop, consuming the fixed action trust's producer already writes; trust does not edit the loop, and sequences D06 T01 §3's proof after this gates.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/invoice/fixed-actions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Attach the action with the number the records hold. Done when: a bank-change case's stored actions hold `bankChangeAction(phone)` with the ledger number, and a case with no number in its records holds the numberless action as today.
+
+- [ ] Read the supplier's phone from the case's own records in `fixedActionsFor` (`src/agent/loop.ts`): the `agent.ledger_lookup` item's supplier detail or the invoice item trust's producer writes, never a number from the mail itself. Done when: `test/agent/loop.test.ts` shows the numbered action first in the stored actions for the ledger fixture and the numberless action for a fixture whose records hold no number.
+- [ ] Keep the fallback path (`src/agent/loop.ts`) attaching the same numbered action, so a fallback verdict's actions match the agent's. Done when: the same suite reads the numbered action back from a fallback verdict.
+- [ ] Commit: `agent: bank-change action with the ledger phone`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
 
 ## Verification
 
