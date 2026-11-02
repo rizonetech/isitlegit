@@ -747,11 +747,30 @@ export function scoreBenign(pages: BenignPipelinePage[]) {
   };
 }
 export const corpusDir = (dir: string) => join(dir, "runs", "compare", "corpus");
-export function readCorpus(dir: string): { pages: CorpusPage[]; seed: number | null; file: string } {
+export const corpusPageFile = (dir: string, id: string) => join(corpusDir(dir), "pages", `${id}.json`);
+// The corpus is a manifest (`corpus.json`, naming each page file and its sha256) plus one file a page: a single
+// file for the whole corpus exceeds the runtime's string limit once archives are embedded.
+export function readCorpus(dir: string): {
+  pages: CorpusPage[];
+  seed: number | null;
+  file: string;
+  pageFiles: { id: string; file: string }[];
+} {
   const file = join(corpusDir(dir), "corpus.json");
-  if (!existsSync(file)) return { pages: [], seed: null, file };
-  const parsed = JSON.parse(readFileSync(file, "utf-8")) as { seed?: number; pages?: CorpusPage[] };
-  return { pages: parsed.pages ?? [], seed: parsed.seed ?? null, file };
+  if (!existsSync(file)) return { pages: [], seed: null, file, pageFiles: [] };
+  const parsed = JSON.parse(readFileSync(file, "utf-8")) as {
+    seed?: number;
+    pages?: CorpusPage[];
+    page_files?: { id: string }[];
+  };
+  if (parsed.page_files)
+    return {
+      pages: parsed.page_files.map((p) => JSON.parse(readFileSync(corpusPageFile(dir, p.id), "utf-8")) as CorpusPage),
+      seed: parsed.seed ?? null,
+      file,
+      pageFiles: parsed.page_files.map((p) => ({ id: p.id, file: corpusPageFile(dir, p.id) })),
+    };
+  return { pages: parsed.pages ?? [], seed: parsed.seed ?? null, file, pageFiles: [] };
 }
 // Run both pipelines over the recorded corpus. The production side renders each page through the replay seam and
 // applies `unusable()` unchanged; a replayed capture that differs from the viewed one is a replay failure, counted
@@ -761,8 +780,11 @@ export async function compareBenign(
   renderPage?: (page: CorpusPage) => Promise<ViewedCapture & { admitted: boolean }>,
 ): Promise<Result<BenignFigures & { seed: number | null; strata: Record<string, number> }>> {
   const name = "benign";
-  const { pages, seed, file } = readCorpus(dir);
-  const inputs = [describeInput("benign corpus (archives, viewed captures, labels)", file)];
+  const { pages, seed, file, pageFiles } = readCorpus(dir);
+  const inputs = [
+    describeInput("benign corpus manifest", file),
+    ...pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file)),
+  ];
   const missing = incompleteIfMissing(name, inputs);
   if (missing) return missing;
   const coverage = benignCoverage(pages);

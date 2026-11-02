@@ -9,11 +9,11 @@
 // (benign-sa checkout pages). The corpus lands in `<store>/runs/compare/corpus/corpus.json` with its seed; a page
 // whose recording fails is counted and named, never silently dropped.
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../lib/chromium.ts";
-import { type CorpusPage, corpusDir } from "./compare-pipelines.ts";
+import { type CorpusPage, corpusDir, readCorpus } from "./compare-pipelines.ts";
 import { openRenderer, unusable, wallShown } from "./render.ts";
 import { openStore, storeDir } from "./store.ts";
 
@@ -157,17 +157,26 @@ if (import.meta.filename === process.argv[1]) {
   const file = join(corpusDir(dir), "corpus.json");
   let existing: CorpusPage[] = [];
   if (topup) {
-    const prior = JSON.parse(readFileSync(file, "utf-8")) as { pages: CorpusPage[]; failed?: string[] };
-    existing = prior.pages;
-    failed.push(...(prior.failed ?? []));
+    existing = readCorpus(dir).pages;
+    failed.push(...((JSON.parse(readFileSync(file, "utf-8")) as { failed?: string[] }).failed ?? []));
     const held = new Set(existing.map((p) => p.url));
     for (let i = pages.length - 1; i >= 0; i--) if (held.has(pages[i]?.url ?? "")) pages.splice(i, 1);
   }
   const all = [...existing, ...pages];
+  // One file a page plus a manifest naming each: a single corpus file exceeds the runtime's string limit.
+  mkdirSync(join(corpusDir(dir), "pages"), { recursive: true });
+  const pageFiles = all.map((p) => {
+    const pageFile = join(corpusDir(dir), "pages", `${p.id}.json`);
+    const data = JSON.stringify(p);
+    writeFileSync(`${pageFile}.tmp`, data);
+    renameSync(`${pageFile}.tmp`, pageFile);
+    return { id: p.id, sha256: createHash("sha256").update(data).digest("hex") };
+  });
   const fd = openSync(`${file}.tmp`, "w");
-  writeSync(fd, `{"seed":${CORPUS_SEED},"recorded":${JSON.stringify(new Date().toISOString())},"pages":[`);
-  all.forEach((p, i) => writeSync(fd, `${i ? "," : ""}${JSON.stringify(p)}`));
-  writeSync(fd, `],"failed":${JSON.stringify(failed)}}\n`);
+  writeSync(
+    fd,
+    `${JSON.stringify({ seed: CORPUS_SEED, recorded: new Date().toISOString(), page_files: pageFiles, failed })}\n`,
+  );
   closeSync(fd);
   renameSync(`${file}.tmp`, file);
   console.log(
