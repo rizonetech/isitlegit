@@ -119,6 +119,11 @@ describe("the monitor page", () => {
     const page = await (await get(me.cookie, "/monitor?finding=fake-one.example")).text();
     expect(page).toContain("Finding detail");
     expect(page).toContain("/monitor/shot/fake-one.example");
+    await finding(mine, "fake-three.example");
+    const third = await (await get(me.cookie, "/monitor?finding=fake-three.example")).text();
+    const panel = third.split("Finding detail")[1] ?? "";
+    expect(panel).toContain("fake-three.example");
+    expect(panel).toContain("/monitor/shot/fake-three.example");
   });
 
   it("dismisses with a reason, stays dismissed, and restores", async () => {

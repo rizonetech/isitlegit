@@ -51,7 +51,10 @@ async function draw(
       .first<{ day: string; outcome: string }>()
       .catch(() => null),
   ]);
+  const shots: Record<string, boolean> = {};
   for (const finding of findings) {
+    shots[finding.host] =
+      (await c.env.ARTEFACTS.head(`${finding.capture_key}screenshot.jpg`).catch(() => null)) !== null;
     if (!finding.case_id) continue;
     const rows = await c.env.DB.prepare("SELECT summary FROM evidence WHERE case_id = ? ORDER BY seq LIMIT 8")
       .bind(finding.case_id)
@@ -64,6 +67,7 @@ async function draw(
       shell={shell}
       findings={findings}
       evidence={evidence}
+      shots={shots}
       selected={selected}
       lastRunDay={lastRun?.day ?? null}
       partialRun={lastRun?.outcome === "partial" || lastRun?.outcome === "failed"}
@@ -83,7 +87,7 @@ monitorRoutes.get(
     try {
       const done = c.req.query("done");
       const outcome: MonitorOutcome | null = done === "dismissed" || done === "restored" ? done : null;
-      return await draw(c, who.org.id, outcome);
+      return await draw(c, who.org.id, outcome, 200, c.req.query("finding") ?? null);
     } catch (error) {
       return outage((error as Error).name);
     }

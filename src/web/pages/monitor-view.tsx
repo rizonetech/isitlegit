@@ -37,6 +37,7 @@ export function MonitorPage(props: {
   shell: Omit<MemberShellProps, "children">;
   findings: Finding[];
   evidence?: Record<string, string[]>;
+  shots?: Record<string, boolean>;
   selected?: string | null;
   lastRunDay: string | null;
   partialRun: boolean;
@@ -112,11 +113,18 @@ export function MonitorPage(props: {
                   <p class="text-14 text-muted">
                     {outcomeWords(selected.outcome)} · first seen {sastDay(selected.first_seen)}
                   </p>
-                  <img
-                    class="mt-12 w-full rounded-small border border-line"
-                    src={`/monitor/shot/${encodeURIComponent(selected.host)}`}
-                    alt={`Screenshot of ${selected.host} from the settled capture`}
-                  />
+                  {props.shots?.[selected.host] ? (
+                    <img
+                      class="mt-12 w-full rounded-small border border-line"
+                      src={`/monitor/shot/${encodeURIComponent(selected.host)}`}
+                      alt={`Screenshot of ${selected.host} from the settled capture`}
+                    />
+                  ) : (
+                    <p class="mt-12 text-14 text-muted">
+                      The settled screenshot could not be read back. The evidence below still stands, and the takedown
+                      pack says the same.
+                    </p>
+                  )}
                   {(props.evidence?.[selected.host]?.length ?? 0) > 0 && (
                     <ul class="mt-12 list-disc pl-16 text-14">
                       {(props.evidence?.[selected.host] ?? []).map((line) => (
@@ -168,6 +176,11 @@ export function MonitorPage(props: {
                             ))}
                           </ul>
                         </details>
+                      )}
+                      {finding.alert_state === "failed" && (
+                        <span class="block text-13 text-alert">
+                          The alert mail could not be sent. It will be tried again on the next run.
+                        </span>
                       )}
                       {finding.alert_state === "uncertain" && (
                         <span class="block text-13 text-alert">The alert mail may not have been sent.</span>

@@ -173,11 +173,11 @@ export async function alertNewFindings(
       subject: `Impersonation found: ${finding.host}`,
       text: [
         `A fake site impersonating your business was found at ${finding.host} (first seen ${finding.first_seen}).`,
-        `See the evidence and its screenshot: ${deps.appUrl}/monitor#${finding.host}`,
+        `See the evidence and its screenshot: ${deps.appUrl}/monitor?finding=${finding.host}`,
         `Download the takedown pack: ${deps.appUrl}/monitor/pack/${finding.host}?format=pdf`,
         "We have not contacted the registrar or host for you. The pack has what they need.",
       ].join("\n\n"),
-      html: `<p>A fake site impersonating your business was found at <strong>${finding.host}</strong> (first seen ${finding.first_seen}).</p><p><a href="${deps.appUrl}/monitor/pack/${finding.host}?format=pdf" style="display:inline-block;padding:10px 18px;background:#FF4A14;color:#ffffff;text-decoration:none;border-radius:6px">Download the takedown pack</a></p><p>See the evidence and its screenshot: <a href="${deps.appUrl}/monitor#${finding.host}">${deps.appUrl}/monitor#${finding.host}</a></p><p>We have not contacted the registrar or host for you. The pack has what they need.</p>`,
+      html: `<p>A fake site impersonating your business was found at <strong>${finding.host}</strong> (first seen ${finding.first_seen}).</p><p><a href="${deps.appUrl}/monitor/pack/${finding.host}?format=pdf" style="display:inline-block;padding:10px 18px;background:#FF4A14;color:#ffffff;text-decoration:none;border-radius:6px">Download the takedown pack</a></p><p>See the evidence and its screenshot: <a href="${deps.appUrl}/monitor?finding=${finding.host}">${deps.appUrl}/monitor?finding=${finding.host}</a></p><p>We have not contacted the registrar or host for you. The pack has what they need.</p>`,
     }).catch(() => ({ status: "failed", reason: "send threw", attempts: 0 }) as SendOutcome);
     // A duplicate outcome reconciles from the durable send record: a send that landed before
     // an earlier findings update failed is still a delivered alert, never a resend.
@@ -203,8 +203,14 @@ export async function alertNewFindings(
         .prepare("UPDATE monitor_findings SET alert_state = 'refused', updated_at = ? WHERE org_id = ? AND host = ?")
         .bind(now().toISOString(), orgId, finding.host)
         .run();
+    } else {
+      // A definite failure is stated on the finding; alerted_at stays null, so the next run
+      // retries with the same key.
+      await db
+        .prepare("UPDATE monitor_findings SET alert_state = 'failed', updated_at = ? WHERE org_id = ? AND host = ?")
+        .bind(now().toISOString(), orgId, finding.host)
+        .run();
     }
-    // failed/retry: alerted_at stays null, so the next run retries with the same key.
   }
   return sent;
 }
