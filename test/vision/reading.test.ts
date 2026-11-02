@@ -233,7 +233,8 @@ describe("readingItems persistence", () => {
     const brand = stored.find((i) => i.check === "vision.claimed_brand");
     expect(brand?.detail.visible_sender).toBe("Accounts <billing@fictional.example>");
     const urgency = stored.find((i) => i.check === "vision.urgency");
-    expect((urgency?.detail.quotes as string[])[0]).toHaveLength(200);
+    if (!urgency) throw new Error("vision.urgency item missing");
+    expect((urgency.detail.quotes as string[])[0]).toHaveLength(200);
   });
 });
 
