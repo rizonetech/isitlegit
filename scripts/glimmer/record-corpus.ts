@@ -86,24 +86,28 @@ if (import.meta.filename === process.argv[1]) {
     .filter((l) => l && !l.startsWith("#"))
     .map((l) => l.split("\t"))
     .filter((p) => p.length >= 2);
-  const strata: Record<string, string[]> = {
-    walls: seededSample([...new Set(walls)], per),
-    genuine: seededSample(
-      stored.filter((p) => !p.login && !p.payment).map((p) => p.url),
-      per,
-    ),
-    login: seededSample(
-      [
-        ...stored.filter((p) => p.login).map((p) => p.url),
-        ...sa.filter((p) => p[0] === "login").map((p) => p[1] as string),
-      ],
-      per,
-    ),
-    payment: seededSample(
-      sa.filter((p) => p[0] === "checkout").map((p) => p[1] as string),
-      per,
-    ),
-  };
+  const topup = process.argv[3] === "topup";
+  const paymentUrls = [
+    ...stored.filter((p) => p.payment).map((p) => p.url),
+    ...sa.filter((p) => p[0] === "checkout" || p[0] === "shop").map((p) => p[1] as string),
+  ];
+  const strata: Record<string, string[]> = topup
+    ? { payment: seededSample([...new Set(paymentUrls)], per, CORPUS_SEED + 1) }
+    : {
+        walls: seededSample([...new Set(walls)], per),
+        genuine: seededSample(
+          stored.filter((p) => !p.login && !p.payment).map((p) => p.url),
+          per,
+        ),
+        login: seededSample(
+          [
+            ...stored.filter((p) => p.login).map((p) => p.url),
+            ...sa.filter((p) => p[0] === "login").map((p) => p[1] as string),
+          ],
+          per,
+        ),
+        payment: seededSample(paymentUrls, per),
+      };
   const executablePath = chromiumPath();
   if (!executablePath) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
   const browser = await chromium.launch({ executablePath, chromiumSandbox: true });
@@ -112,7 +116,7 @@ if (import.meta.filename === process.argv[1]) {
   const failed: string[] = [];
   for (const [stratum, urls] of Object.entries(strata)) {
     for (const [i, url] of urls.entries()) {
-      const id = `${stratum}-${i}`;
+      const id = topup ? `${stratum}-topup-${i}` : `${stratum}-${i}`;
       try {
         const harFile = join(corpusDir(dir), `${id}.har.json`);
         mkdirSync(corpusDir(dir), { recursive: true });
@@ -148,11 +152,21 @@ if (import.meta.filename === process.argv[1]) {
   }
   await renderer.close();
   await browser.close();
-  // Streamed page by page: a whole corpus in one string exceeds the runtime's string limit.
+  // Streamed page by page: a whole corpus in one string exceeds the runtime's string limit. A top-up run merges
+  // with the corpus already on disk, skipping URLs it already holds.
   const file = join(corpusDir(dir), "corpus.json");
+  let existing: CorpusPage[] = [];
+  if (topup) {
+    const prior = JSON.parse(readFileSync(file, "utf-8")) as { pages: CorpusPage[]; failed?: string[] };
+    existing = prior.pages;
+    failed.push(...(prior.failed ?? []));
+    const held = new Set(existing.map((p) => p.url));
+    for (let i = pages.length - 1; i >= 0; i--) if (held.has(pages[i]?.url ?? "")) pages.splice(i, 1);
+  }
+  const all = [...existing, ...pages];
   const fd = openSync(`${file}.tmp`, "w");
   writeSync(fd, `{"seed":${CORPUS_SEED},"recorded":${JSON.stringify(new Date().toISOString())},"pages":[`);
-  pages.forEach((p, i) => writeSync(fd, `${i ? "," : ""}${JSON.stringify(p)}`));
+  all.forEach((p, i) => writeSync(fd, `${i ? "," : ""}${JSON.stringify(p)}`));
   writeSync(fd, `],"failed":${JSON.stringify(failed)}}\n`);
   closeSync(fd);
   renameSync(`${file}.tmp`, file);
