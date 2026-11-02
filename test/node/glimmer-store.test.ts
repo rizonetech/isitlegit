@@ -850,3 +850,72 @@ describe("captured production pages (§46)", () => {
     expect(admitProductionPages(store, [id], "operator", "2026-11-02T17:31:00Z").refused).toHaveLength(1);
   });
 });
+
+describe("the production backlog path (§46 completion)", () => {
+  it("labels every cleared page once, fails closed on a damaged queue, and refuses an invalid judgement", async () => {
+    const { captureScreenedPage, clearProductionPage, processProductionBacklog, readReviewQueue, applyJudgements } =
+      await import("../../scripts/glimmer/store.ts");
+    const { writeFileSync, existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const store = openStore(dir);
+    const shot = screenshot;
+    const mk = (text: string) =>
+      captureScreenedPage(store, {
+        screenshot: shot,
+        text,
+        host: "lure.example",
+        settledAt: "2026-11-02T17:50:00Z",
+        tier: "glimmer",
+        screener: "glimmer" as const,
+        settling: {
+          brand: null,
+          has_login_form: true,
+          has_payment_form: false,
+          lure: true,
+          lure_type: "credential" as const,
+          confidence: 0.9,
+        },
+      });
+    const one = (await mk("Sign in one")) as { id: string };
+    // Distinct screenshot bytes are needed per page; reuse the same shot only once, so the second page is a duplicate.
+    expect(clearProductionPage(store, one.id, "operator", "2026-11-02T17:50:00Z")).toMatchObject({ cleared: true });
+    let calls = 0;
+    const labeller = async () => {
+      calls++;
+      return {
+        brand: null,
+        has_login_form: true,
+        has_payment_form: false,
+        lure: true,
+        lure_type: "credential" as const,
+        confidence: 0.9,
+      };
+    };
+    expect(await processProductionBacklog(store, labeller, "2026-11-02T17:51:00Z")).toMatchObject({
+      labelled: 1,
+      failed: [],
+    });
+    expect(await processProductionBacklog(store, labeller, "2026-11-02T17:52:00Z")).toMatchObject({
+      labelled: 0,
+      skipped: 1,
+    });
+    expect(calls).toBe(1);
+    // An invalid judgement answer is refused before anything is written.
+    const [page] = store.manifest();
+    expect(
+      applyJudgements(store, [
+        {
+          id: one.id,
+          screenshot: page?.sha256.screenshot ?? "",
+          text: page?.sha256.text ?? "",
+          answer: { lure: "maybe" } as never,
+          source: "claude",
+        },
+      ]),
+    ).toMatchObject([{ accepted: false, reason: expect.stringContaining("PageAnswer") }]);
+    // A damaged queue fails closed.
+    writeFileSync(join(dir, "review-queue.jsonl"), "not json\n");
+    expect(() => readReviewQueue(store)).toThrow(/does not read/);
+    expect(existsSync(join(dir, "review-queue.jsonl"))).toBe(true);
+  });
+});
