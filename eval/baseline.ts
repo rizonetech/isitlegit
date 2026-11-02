@@ -17,7 +17,7 @@ export type BaselineCheckpoint = {
   sets: string[];
   setVersions: Record<string, string>;
   deployment: string;
-  batches: { set: string; runId: string }[];
+  batches: { set: string; runId: string; samples: string[] }[];
 };
 
 // An earlier run's stored result for one sample: what a stale repeat may pool from.
@@ -49,6 +49,9 @@ export type BaselineResult = {
 
 export type BaselineClients = {
   sets: string[];
+  // True when the caller named the sets explicitly. On resume an explicit selection must match the checkpoint;
+  // without one the checkpoint's selection runs again, never the defaults.
+  setsExplicit: boolean;
   caps: Record<string, number>;
   api: Api;
   db: BaselineDb;
@@ -74,7 +77,7 @@ function writeJson(dir: string, name: string, value: unknown): string {
 
 export function parseBaselineArgs(
   argv: readonly string[],
-): { sets: string[]; resume: string | null } | { error: string } {
+): { sets: string[]; setsExplicit: boolean; resume: string | null } | { error: string } {
   const sets: string[] = [];
   let resume: string | null = null;
   for (let i = 0; i < argv.length; i++) {
@@ -92,7 +95,7 @@ export function parseBaselineArgs(
       resume = v;
     } else return { error: `unknown option ${a}` };
   }
-  return { sets: sets.length ? sets : [...BASELINE_SETS], resume };
+  return { sets: sets.length ? sets : [...BASELINE_SETS], setsExplicit: sets.length > 0, resume };
 }
 
 function readCheckpoint(dir: string, id: string): BaselineCheckpoint | null {
@@ -106,23 +109,21 @@ function readCheckpoint(dir: string, id: string): BaselineCheckpoint | null {
 // Only a stale repeat pools, and only from a verified run on the same deployment, set version and mode whose
 // stored result for the sample is measured. A missing source, a mismatch or a null verdict stays unmeasured and
 // never counts: the entry keeps the stale outcome with no verdict and no pooled run.
-const entryOf = (batch: { set: string; batchRunId: string; deployment: string }, r: ResultRow): ManifestEntry => ({
-  sample: r.sample,
-  set: batch.set,
-  runId: batch.batchRunId,
-  deployment: batch.deployment,
-  outcome: r.outcome,
-  verdict: r.verdict,
-  ms: r.ms,
-  costUsd: r.costUsd,
-});
-
 export async function pooledEntry(
   db: BaselineDb,
   batch: { set: string; batchRunId: string; deployment: string; setVersion: string },
   r: ResultRow,
 ): Promise<ManifestEntry> {
-  const direct = entryOf(batch, r);
+  const direct: ManifestEntry = {
+    sample: r.sample,
+    set: batch.set,
+    runId: batch.batchRunId,
+    deployment: batch.deployment,
+    outcome: r.outcome,
+    verdict: r.verdict,
+    ms: r.ms,
+    costUsd: r.costUsd,
+  };
   if (r.outcome !== "stale-repeat") return direct;
   const sources = await db.findSampleRuns(r.sample).catch(() => [] as SampleSource[]);
   const qualifying = sources.filter(
@@ -169,7 +170,6 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
     manifest: null,
     problems,
   });
-  if (!sets.length) return { ...fail("refused"), problems: [...problems, "no sets selected"] };
   for (const set of sets) {
     if (!(SETS as readonly string[]).includes(set))
       return { ...fail("refused"), problems: [...problems, `unknown set ${JSON.stringify(set)}`] };
@@ -181,13 +181,33 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
   const checkpoint = clients.resume ? readCheckpoint(manifestDir, clients.resume) : null;
   if (clients.resume && !checkpoint)
     return { ...fail("refused"), problems: [...problems, `no checkpoint for baseline ${clients.resume}`] };
-  const done = new Map((checkpoint?.batches ?? []).map((b) => [b.set, b.runId]));
+  const sameSelection = (a: string[], b: string[]) =>
+    a.length === b.length && [...a].sort().join(",") === [...b].sort().join(",");
+  // Without an explicit selection the checkpoint's selection runs again; a conflicting one refuses before spending.
+  const runSets =
+    clients.resume && checkpoint && !clients.setsExplicit
+      ? checkpoint.sets
+      : clients.resume && checkpoint && !sameSelection(sets, checkpoint.sets)
+        ? null
+        : sets;
+  if (runSets === null)
+    return {
+      ...fail("refused"),
+      problems: [
+        ...problems,
+        `resume keeps the checkpoint selection (${checkpoint?.sets.join(",")}); requested ${sets.join(",")} does not match it`,
+      ],
+    };
+  if (!runSets.length) return { ...fail("refused"), problems: [...problems, "no sets selected"] };
+  const done = new Map((checkpoint?.batches ?? []).map((b) => [b.set, b]));
   const setVersions: Record<string, string> = { ...(checkpoint?.setVersions ?? {}) };
   let deployment = checkpoint?.deployment ?? null;
   const expected: string[] = [];
   const entries: ManifestEntry[] = [];
-  for (const set of sets) {
-    if (done.has(set)) {
+  const checkpointSamples = new Map<string, string[]>();
+  for (const set of runSets) {
+    const prior = done.get(set);
+    if (prior) {
       // A resume remeasures nothing, but it rechecks the population: a set whose bytes or labels changed since the
       // checkpoint is a different population and refuses, naming the set and both versions.
       const again = select(set);
@@ -199,16 +219,34 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
             `set ${set} changed since the checkpoint (was ${checkpoint?.setVersions[set]}, now ${again.setVersion}): reselect, do not resume`,
           ],
         };
-      const stored = await db.readRun(done.get(set) as string).catch(() => null);
+      const stored = await db.readRun(prior.runId).catch(() => null);
       if (!stored) {
         problems.push(`checkpoint batch for ${set} is gone; rerun the baseline without --resume`);
         return { id, status: "incomplete", batches, manifest: null, problems };
       }
-      for (const r of stored.results) {
-        expected.push(r.sample);
-        entries.push(entryOf({ set, batchRunId: stored.run.id, deployment: stored.run.commitSha }, r));
+      // A resumed batch goes through the same verified pooling path as a fresh one: its verdicts and provenance
+      // survive, and the expected population is the checkpoint's selection, not whatever rows happen to be stored.
+      const reverified = await verifyRun(db, prior.runId).catch(() => ({
+        ok: false as const,
+        problems: ["unreadable"],
+      }));
+      if (!reverified.ok || stored.run.status !== "complete") {
+        problems.push(
+          `checkpoint batch for ${set} run ${prior.runId} no longer verifies; rerun the baseline without --resume`,
+        );
+        return { id, status: "incomplete", batches, manifest: null, problems };
       }
-      batches.push({ set, runId: stored.run.id, status: stored.run.status });
+      expected.push(...prior.samples);
+      checkpointSamples.set(set, [...prior.samples]);
+      for (const r of stored.results)
+        entries.push(
+          await pooledEntry(
+            db,
+            { set, batchRunId: prior.runId, deployment: stored.run.commitSha, setVersion: again.setVersion },
+            r,
+          ),
+        );
+      batches.push({ set, runId: prior.runId, status: stored.run.status });
       continue;
     }
     const picked = select(set);
@@ -218,6 +256,10 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
     }
     setVersions[set] = picked.setVersion;
     expected.push(...picked.samples.map((s) => s.id));
+    checkpointSamples.set(
+      set,
+      picked.samples.map((s) => s.id),
+    );
     const commit = await api.commit().catch(() => null);
     if (commit === null) {
       problems.push(`could not read the deployment before batch ${set}`);
@@ -258,23 +300,42 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
       problems.push(`batch ${set} run ${batch.runId} did not verify: ${verified.problems.join("; ")}`);
       return { id, status: "incomplete", batches, manifest: null, problems };
     }
+    const stored = await db.readRun(batch.runId).catch(() => null);
+    if (!stored) {
+      problems.push(`batch ${set} run ${batch.runId} cannot be read back`);
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
+    // The stored run is the identity that counts, not the pre-batch read: a deployment change between the two
+    // refuses the batch before its results are checkpointed or pooled, naming both deployments.
+    if (stored.run.commitSha !== deployment) {
+      problems.push(
+        `batch ${set} ran on ${stored.run.commitSha}, not ${deployment} of this baseline: a baseline is measured on one deployment`,
+      );
+      batches[batches.length - 1] = { set, runId: batch.runId, status: stored.run.status };
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
     // The checkpoint lands before the next batch spends: an interruption resumes here, never resubmits.
     try {
       writeJson(manifestDir, `${id}.checkpoint.json`, {
         id,
-        sets,
+        sets: runSets,
         setVersions,
         deployment,
-        batches: batches.flatMap((b) => (b.runId === null ? [] : [{ set: b.set, runId: b.runId }])),
+        batches: batches.flatMap((b) =>
+          b.runId === null ? [] : [{ set: b.set, runId: b.runId, samples: checkpointSamples.get(b.set) ?? [] }],
+        ),
       } satisfies BaselineCheckpoint);
     } catch (error) {
       problems.push(`the checkpoint write failed: ${error instanceof Error ? error.message : String(error)}`);
       return { id, status: "incomplete", batches, manifest: null, problems };
     }
-    const stored = await db.readRun(batch.runId).catch(() => null);
-    for (const r of stored?.results ?? [])
+    for (const r of stored.results)
       entries.push(
-        await pooledEntry(db, { set, batchRunId: batch.runId, deployment, setVersion: picked.setVersion }, r),
+        await pooledEntry(
+          db,
+          { set, batchRunId: batch.runId, deployment: stored.run.commitSha, setVersion: picked.setVersion },
+          r,
+        ),
       );
   }
   const seen = new Map(entries.map((e) => [e.sample, e]));
@@ -284,10 +345,10 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
   });
   const manifest: BaselineManifest = {
     id,
-    sets,
+    sets: runSets,
     setVersions,
     deployment: deployment as string,
-    caps: Object.fromEntries(sets.map((set) => [set, caps[set] as number])) as Record<string, number>,
+    caps: Object.fromEntries(runSets.map((set) => [set, caps[set] as number])) as Record<string, number>,
     expected,
     entries,
     unmeasured,
@@ -338,6 +399,7 @@ export async function main(
   if (live) {
     clients = {
       sets: parsed.sets,
+      setsExplicit: parsed.setsExplicit,
       caps,
       api: live.api,
       db: live.db,
@@ -384,6 +446,7 @@ export async function main(
     const setsRoot = join(ROOT, "eval/sets");
     clients = {
       sets: parsed.sets,
+      setsExplicit: parsed.setsExplicit,
       caps,
       api: liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie),
       db: { ...db, findSampleRuns },
@@ -414,8 +477,10 @@ export async function main(
   for (const p of out.problems) console.error(`eval:baseline: ${p}`);
   const batches = out.batches.map((b) => `${b.set}=${b.runId ?? "none"}(${b.status})`).join(" ");
   console.log(
-    `eval:baseline: ${out.status}${out.manifest ? ` manifest ${out.manifest}` : ""}${batches ? `; ${batches}` : ""}`,
+    `eval:baseline: ${out.status} baseline ${out.id}${out.manifest ? ` manifest ${out.manifest}` : ""}${batches ? `; ${batches}` : ""}`,
   );
+  if (out.status !== "complete" && (clients.resume || out.batches.some((b) => b.runId !== null)))
+    console.log(`eval:baseline: resume with pnpm eval:baseline --resume ${out.id}`);
   return out.status === "complete" ? 0 : out.status === "incomplete" ? 2 : 3;
 }
 

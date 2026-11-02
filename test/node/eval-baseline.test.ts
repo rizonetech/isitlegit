@@ -144,6 +144,7 @@ describe("the baseline orchestration", () => {
     const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
     const out = await runBaseline({
       sets: ["synthetic-sa"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 13 },
       api: t.api,
       db: t.db,
@@ -159,6 +160,7 @@ describe("the baseline orchestration", () => {
     const t = setup({ commits: ["abc123", "abc123", "def456", "def456"], cases: allSafe(["synthetic-sa/s0.eml"]) });
     const out = await runBaseline({
       sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 13, "nazario-2025": 5 },
       api: t.api,
       db: t.db,
@@ -178,6 +180,7 @@ describe("the baseline orchestration", () => {
     });
     const clients = {
       sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 13, "nazario-2025": 5 },
       api: t.api,
       db: t.db,
@@ -194,10 +197,60 @@ describe("the baseline orchestration", () => {
     expect(t.uploads.filter((u) => u.startsWith("nazario-2025/"))).toHaveLength(2);
     expect(resumed.batches.map((b) => b.set)).toEqual(["synthetic-sa", "nazario-2025"]);
   });
+  it("a resume without explicit sets reruns the checkpoint selection", async () => {
+    const t = setup({
+      commits: ["abc123"],
+      cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml", "nazario-2025/s0.eml", "nazario-2025/s1.eml"]),
+    });
+    const clients = {
+      sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
+      caps: { "synthetic-sa": 13, "nazario-2025": 5 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+    };
+    const first = await runBaseline({ ...clients, select: t.selectFor(["nazario-2025"]) });
+    expect(first.status).toBe("incomplete");
+    const resumed = await runBaseline({
+      ...clients,
+      sets: [],
+      setsExplicit: false,
+      select: t.selectFor(),
+      resume: first.id,
+    });
+    expect(resumed.status).toBe("complete");
+    expect(resumed.batches.map((b) => b.set)).toEqual(["synthetic-sa", "nazario-2025"]);
+    expect(t.uploads.filter((u) => u.startsWith("synthetic-sa/"))).toHaveLength(2);
+  });
+  it("a resume with conflicting explicit sets refuses before spending", async () => {
+    const t = setup({
+      commits: ["abc123"],
+      cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml", "nazario-2025/s0.eml", "nazario-2025/s1.eml"]),
+    });
+    const clients = {
+      sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
+      caps: { "synthetic-sa": 13, "nazario-2025": 5 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+    };
+    const first = await runBaseline({ ...clients, select: t.selectFor(["nazario-2025"]) });
+    expect(first.status).toBe("incomplete");
+    const uploaded = t.uploads.length;
+    const resumed = await runBaseline({ ...clients, sets: ["nazario-2025"], select: t.selectFor(), resume: first.id });
+    expect(resumed.status).toBe("refused");
+    expect(resumed.problems.join(" ")).toMatch(/synthetic-sa,nazario-2025/);
+    expect(t.uploads).toHaveLength(uploaded);
+  });
   it("pools a stale repeat from the earlier verified run, each sample once", async () => {
     const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
     const clients = {
       sets: ["synthetic-sa"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 13 },
       api: t.api,
       db: t.db,
@@ -239,6 +292,7 @@ describe("the baseline orchestration", () => {
     t.advance(86_400_000);
     const out = await runBaseline({
       sets: ["synthetic-sa"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 13 },
       api: t.api,
       db: t.db,
@@ -261,6 +315,7 @@ describe("the baseline refusals", () => {
     const t = setup({ commits: ["abc123"], cases: {} });
     const empty = await runBaseline({
       sets: [],
+      setsExplicit: true,
       caps: {},
       api: t.api,
       db: t.db,
@@ -271,6 +326,7 @@ describe("the baseline refusals", () => {
     expect(empty.status).toBe("refused");
     const refused = await runBaseline({
       sets: ["synthetic-sa"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 0 },
       api: t.api,
       db: t.db,
@@ -292,6 +348,7 @@ describe("the baseline comparability guard", () => {
     });
     const clients = {
       sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
       caps: { "synthetic-sa": 13, "nazario-2025": 5 },
       api: t.api,
       db: t.db,
@@ -319,17 +376,43 @@ describe("the baseline comparability guard", () => {
     expect(resumed.problems.join(" ")).toMatch(/v2-sa/);
     expect(t.uploads).toHaveLength(uploaded);
   });
+  it("refuses a batch whose stored deployment moved mid-batch, naming both", async () => {
+    const t = setup({
+      commits: ["abc123", "def456", "def456"],
+      cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]),
+    });
+    const out = await runBaseline({
+      sets: ["synthetic-sa"],
+      setsExplicit: true,
+      caps: { "synthetic-sa": 13 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    });
+    expect(out.status).toBe("incomplete");
+    expect(out.problems.join(" ")).toMatch(/abc123/);
+    expect(out.problems.join(" ")).toMatch(/def456/);
+    expect(out.manifest).toBeNull();
+  });
 });
 
 describe("the baseline command entry point", () => {
   it("parses the default selection, subsets, resume and refusals", () => {
     expect(parseBaselineArgs([])).toEqual({
       sets: ["synthetic-sa", "nazario-2025", "synthetic-challenge"],
+      setsExplicit: false,
       resume: null,
     });
-    expect(parseBaselineArgs(["--sets", "nazario-2025"])).toEqual({ sets: ["nazario-2025"], resume: null });
+    expect(parseBaselineArgs(["--sets", "nazario-2025"])).toEqual({
+      sets: ["nazario-2025"],
+      setsExplicit: true,
+      resume: null,
+    });
     expect(parseBaselineArgs(["--sets", "synthetic-sa,nazario-2025", "--resume", "base-7"])).toEqual({
       sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
       resume: "base-7",
     });
     expect(parseBaselineArgs(["--sets", "nope"])).toHaveProperty("error");
