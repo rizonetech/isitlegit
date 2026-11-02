@@ -382,6 +382,16 @@ class MergePlan(fixtures.Stamp):
         self.assertNotEqual(self.wrapper("lane", "extra").returncode, 0)
         self.assertFalse((self.root / ".git" / "MERGE_HEAD").exists(), "nothing merged")
 
+    def test_merge_lane_outside_a_repository_says_so(self):
+        import tempfile
+
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        with tempfile.TemporaryDirectory() as plain:
+            done = subprocess.run([str(self.root / "scripts" / "merge-lane.sh"), "lane"], cwd=plain,
+                                  capture_output=True, text=True, env=env, timeout=120)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("not a git repository", done.stderr)
+
     def test_merge_lane_runs_as_the_executable_itself(self):
         env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
         script = self.root / "scripts" / "merge-lane.sh"

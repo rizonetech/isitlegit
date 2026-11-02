@@ -18,7 +18,7 @@ case $1 in
     ;;
 esac
 
-git_dir=$(git rev-parse --git-dir 2>/dev/null) || exit 1
+git_dir=$(git rev-parse --git-dir) || exit 1
 if [ -f "$git_dir/MERGE_HEAD" ]; then
   echo "merge-lane: a merge is already in progress; conclude it with 'git commit --no-edit' or abandon it with 'git merge --abort'" >&2
   exit 1
