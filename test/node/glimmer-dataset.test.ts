@@ -122,6 +122,20 @@ function page(id: string, over: Partial<StoredPage> = {}, labels: Partial<Stored
   } as StoredPage;
 }
 
+describe("the taught confidence (§45)", () => {
+  it("teaches confidence as P(lure): benign below the band, lure above it", () => {
+    expect(answerOf(page("benign"))?.confidence).toBe(0.05);
+    expect(answerOf(page("lure", {}, { lure: true, lure_type: "credential" }))?.confidence).toBe(0.95);
+    const unverified = page("unv", { label_source: { lure: "unverified" } } as Partial<StoredPage>, {
+      lure: true,
+      lure_type: "credential",
+    });
+    expect(answerOf(unverified)?.confidence).toBe(0.7);
+    const unverifiedBenign = page("unvb", { label_source: { lure: "unverified" } } as Partial<StoredPage>);
+    expect(answerOf(unverifiedBenign)?.confidence).toBe(0.3);
+  });
+});
+
 describe("near duplicates", () => {
   it("drop a resized copy with the same text and keep a look-alike with other words", async () => {
     const original = await shot(1, 1280, 1600);

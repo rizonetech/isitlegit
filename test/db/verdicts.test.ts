@@ -144,6 +144,41 @@ describe("saveVerdict", () => {
     expect(await saveVerdict(broken, id, view)).toMatchObject({ ok: false, error: { code: "database" } });
   });
 
+  it("persists the floor outcome through save, the Workflow store, and replay (D04 T01 §11)", async () => {
+    const floored = {
+      ...view,
+      floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"] },
+    };
+    const id = await newCase();
+    await setStatus(env.DB, "org-verdicts", id, "running");
+    expect(await saveVerdict(env.DB, id, floored)).toMatchObject({
+      ok: true,
+      value: { floorApplied: floored.floorApplied },
+    });
+    // The production sequence: the Workflow's store step with the same view answers the stored row, twice.
+    expect(await storeVerdict(env.DB, "org-verdicts", id, floored)).toMatchObject({
+      ok: true,
+      value: { floorApplied: floored.floorApplied },
+    });
+    expect(await storeVerdict(env.DB, "org-verdicts", id, floored)).toMatchObject({ ok: true });
+    // A changed floor record is a conflict and alters nothing stored.
+    const changed = { ...floored, floorApplied: { ...floored.floorApplied, to: "suspicious" as const } };
+    expect(await saveVerdict(env.DB, id, changed)).toMatchObject({ ok: false, error: { code: "conflict" } });
+    expect(await storeVerdict(env.DB, "org-verdicts", id, changed)).toMatchObject({
+      ok: false,
+      error: { code: "conflict" },
+    });
+    expect(await getVerdict(env.DB, id)).toMatchObject({ ok: true, value: { floorApplied: floored.floorApplied } });
+    // A row stored before the floor column (its value null) reads back no record.
+    const old = await newCase("org-verdicts", 0);
+    await env.DB.prepare(
+      "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at) VALUES (?, 'suspicious', 'h', 0.5, '[]', '[]', 'stub', 'now')",
+    )
+      .bind(old)
+      .run();
+    expect(await getVerdict(env.DB, old)).toMatchObject({ ok: true, value: { floorApplied: null } });
+  });
+
   it("is removed with its case while another case's verdict stays", async () => {
     const gone = await newCase();
     const kept = await newCase();

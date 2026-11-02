@@ -181,7 +181,7 @@ Sections: 78 | Checklist items: 569
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 61 | Checklist items: 301
+Sections: 61 | Checklist items: 305
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -227,7 +227,7 @@ Sections: 61 | Checklist items: 301
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
 | [x]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 4     |
-| [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 2     |
+| [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 6     |
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [x]    | D07 T03 §12 | Reputation cards                                     | none       | 6     |
@@ -290,15 +290,15 @@ Sections: 15 | Checklist items: 128
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 91 | Checklist items: 595
+Sections: 91 | Checklist items: 600
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
-| [ ]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 5     |
-| [ ]    | D03 T04 §46 | Every screened page captured and labelled    | meta-api              | 6     |
-| [ ]    | D03 T04 §47 | Loupe 1.1 promoted on a better-than-1.0 gate | none                  | 3     |
+| [x]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 8     |
+| [x]    | D03 T04 §46 | Every screened page captured and labelled    | meta-api              | 7     |
+| [ ]    | D03 T04 §47 | Loupe 1.1 promoted on a better-than-1.0 gate | none                  | 4     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence     | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                           | none                  | 11    |
 | [x]    | D04 T01 §3  | Read-only agent tools with zod validation    | none                  | 6     |
@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 595
 
 ### Phase 7: After the event
 
-Sections: 168 | Checklist items: 700
+Sections: 174 | Checklist items: 721
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -412,6 +412,7 @@ Sections: 168 | Checklist items: 700
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
+| [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
@@ -428,8 +429,10 @@ Sections: 168 | Checklist items: 700
 | [ ]    | D02 T04 §10 | Attachment content                               | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
+| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
+| [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
@@ -456,6 +459,9 @@ Sections: 168 | Checklist items: 700
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier              | cloudflare           | 4     |
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
+| [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
+| [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 3     |
+| [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [ ]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
@@ -598,6 +604,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 318/522 verified sections, 127 ready to run now.
+Progress: 321/528 verified sections, 130 ready to run now.
 
-Checklist: 2516/3273 items completed (includes Commit items).
+Checklist: 2541/3303 items completed (includes Commit items).
