@@ -16,14 +16,14 @@ import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidenc
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
+import { checks as fullRegistry } from "../checks/index";
 import { invisibleOf, PhraseLog, PhraseStream, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
 import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
-import { type ReputationDeps, reputationOf } from "../checks/reputation";
-import { checks as fullRegistry } from "../checks/index";
 import { CheckRegistry } from "../checks/registry";
+import { type ReputationDeps, reputationOf } from "../checks/reputation";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf, sniff } from "../checks/sniff";

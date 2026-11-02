@@ -849,7 +849,11 @@ describe("the checks step and the event writer", () => {
     const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
     if (!made.ok) throw new Error(made.error.message);
     const id = made.value.id;
-    await putRaw(store, id, new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"));
+    await putRaw(
+      store,
+      id,
+      new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"),
+    );
     const header =
       "mx.google.com; spf=pass smtp.mailfrom=bounce@mailer.example; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=bank.example";
     await putParsed(store, id, {
@@ -900,8 +904,7 @@ describe("the checks step and the event writer", () => {
       expect(after?.check).toBe(item.check);
       expect(after?.summary).toBe(item.summary);
     }
-    const runs = new Set((await readCheckOutcomes(env.DB, id)).map((o) => o.check.split(".")[0]));
-    expect(runs.size).toBeGreaterThan(0);
+    expect((await readCheckOutcomes(env.DB, id))?.length).toBeGreaterThan(0);
   });
 
   it("stores auth.arc through the step with its earlier context, headers and raw key (D02 T02 §3)", async () => {
