@@ -23,7 +23,7 @@ import {
 } from "./brand";
 import { detectBoxes } from "./detector";
 import { compareLogo, logoMatchItem, logoNotComparedItem } from "./logo-compare";
-import { LogoReferenceError, referenceLogo } from "./logo-reference";
+import { LogoReferenceError, referenceLogos } from "./logo-reference";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
@@ -681,7 +681,7 @@ async function runVision(
             if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
           }
         }
-        const references = new Map<string, Awaited<ReturnType<typeof referenceLogo>> | LogoReferenceError>();
+        const references = new Map<string, Awaited<ReturnType<typeof referenceLogos>> | LogoReferenceError>();
         const byImage = new Map(images.map((image) => [image.id, image]));
         for (const claim of claims) {
           const image = byImage.get(claim.image);
@@ -708,7 +708,7 @@ async function runVision(
           let reference = references.get(brand);
           if (reference === undefined) {
             reference = await withinLogo(
-              referenceLogo(deps.store.bucket, brand).catch((error: unknown) =>
+              referenceLogos(deps.store.bucket, brand).catch((error: unknown) =>
                 error instanceof LogoReferenceError
                   ? error
                   : new LogoReferenceError("missing-image", "the reference logo could not be read"),
@@ -732,17 +732,34 @@ async function runVision(
                 logoItems.push(logoNotComparedItem(brand, cropKey, "missing-crop"));
                 continue;
               }
-              const judgement = await compareLogo(
-                {
-                  meta: { ...deps.meta, owner },
-                  kv: deps.kv,
-                  owner,
-                  waitUntil: deps.waitUntil,
-                  deadline: logoDeadline,
-                },
-                { bytes: crop.body, mediaType: "image/png", label: cropKey },
-                { bytes: reference.bytes, mediaType: reference.mediaType, label: reference.slug },
-              );
+              // Each variant in turn (D03 T03 §5): a match on any is the brand's; when none
+              // matches, the wordmark judgement speaks for the crop. A variant that fails loses
+              // only itself; every variant failing states the crop not compared.
+              let judgement: Awaited<ReturnType<typeof compareLogo>> | null = null;
+              let firstError: unknown = null;
+              for (const variant of reference) {
+                try {
+                  const judged = await compareLogo(
+                    {
+                      meta: { ...deps.meta, owner },
+                      kv: deps.kv,
+                      owner,
+                      waitUntil: deps.waitUntil,
+                      deadline: logoDeadline,
+                    },
+                    { bytes: crop.body, mediaType: "image/png", label: cropKey },
+                    { bytes: variant.bytes, mediaType: variant.mediaType, label: `${variant.slug}-${variant.variant}` },
+                  );
+                  if (judged.same_brand) {
+                    judgement = judged;
+                    break;
+                  }
+                  judgement ??= judged;
+                } catch (error) {
+                  firstError ??= error;
+                }
+              }
+              if (!judgement) throw firstError ?? new Error("comparison-failed");
               logoItems.push(logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged"));
             } catch (error) {
               const reason =
