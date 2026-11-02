@@ -6,7 +6,7 @@
 import { decodeEntities } from "./entities";
 import { IgnorableStripper, kept } from "./ignorable";
 import { hasInstruction, INSTRUCTION } from "./instruction-words";
-import { type InvisibleRun, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
+import { type InvisibleRun, MAX_DECODED, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
 
 // An invisible run as the log keeps it (D02 T05 §3): where it was read, and how strongly it weighs: high when its
 // decoded text reads as an instruction, medium for other tag text, low for a run of other invisible characters.
@@ -205,7 +205,7 @@ export class PhraseLog {
     // The decoded words kept for the view are bounded; the phrases have read them whole.
     const logged: LoggedRun = {
       ...run,
-      decoded: run.decoded === null ? null : run.decoded.slice(0, 2_000),
+      decoded: run.decoded === null ? null : run.decoded.slice(0, MAX_DECODED),
       location,
       key,
       severity: run.decoded === null ? "low" : steering ? "high" : "medium",

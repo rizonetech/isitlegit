@@ -87,7 +87,7 @@ export function classify(run: readonly number[], before: number | undefined): In
 // A run's first code points kept: enough to tell a recommended flag (seven at most) or a run of one or two kept as text.
 const HEAD = 8;
 // A tag run's decoded text kept for the evidence; the phrases are handed it all as it streams.
-export const MAX_DECODED = 2_000;
+export const MAX_DECODED = 8_000;
 const printable = (code: number) => code >= 0xe0020 && code <= 0xe007e;
 
 // Reads text chunk by chunk, taking out the runs it finds and giving back the rest, in bounded state whatever a run's

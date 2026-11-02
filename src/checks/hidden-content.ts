@@ -81,18 +81,14 @@ export function hiddenTextEvidence(view: CaseView): EvidenceDraft[] {
 // Text in characters no font draws (D02 T05 §3), as the phrase streams logged it: a tag run's decoded words, high when
 // they read as an instruction, else medium; a run of other invisible characters, low; then a count of the rest carrying
 // the highest severity among them.
+const RUN_MAX = 8_000;
+const detailBytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+
 function invisibleEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.invisibleText;
   if (!found) return [];
-  const items: EvidenceDraft[] = found.runs.map((run) => ({
-    check: "content.hidden_text",
-    severity: run.severity,
-    summary: bounded(
-      run.decoded === null
-        ? `A run of ${run.length} invisible characters sits in ${run.location === "subject" ? "the subject" : "the text"}.`
-        : `Text spelled in invisible characters${run.location === "subject" ? " in the subject" : ""}: "${plain(run.decoded, 120)}"`,
-    ),
-    detail: fittedDetail({
+  const items: EvidenceDraft[] = found.runs.map((run) => {
+    const detail = fittedDetail({
       reason: "invisible-characters",
       kind: run.kind,
       quote: run.decoded?.slice(0, QUOTE) ?? null,
@@ -100,9 +96,29 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
       location: run.location,
       // Where the instruction is, however far into the run (D02 T05 §6); absent when the run holds none.
       ...(run.instruction ? { instruction: run.instruction } : {}),
-    }) as EvidenceDraft["detail"],
-    artefacts: [view.raw],
-  }));
+    }) as Record<string, unknown>;
+    if (run.decoded !== null) {
+      // The whole decoded run, past the quote's opening (D02 T05 §11): attached after the fitting so its
+      // generic string clip cannot cut it first, bounded at RUN_MAX code points and then only to the
+      // detail's byte budget, with the cut always marked.
+      const chars = Array.from(run.decoded);
+      let kept = chars.slice(0, RUN_MAX);
+      while (kept.length && detailBytes({ ...detail, run: { text: kept.join(""), truncated: true } }) > 60_000)
+        kept = kept.slice(0, Math.floor(kept.length / 2));
+      detail.run = { text: kept.join(""), truncated: kept.length < chars.length };
+    }
+    return {
+      check: "content.hidden_text",
+      severity: run.severity,
+      summary: bounded(
+        run.decoded === null
+          ? `A run of ${run.length} invisible characters sits in ${run.location === "subject" ? "the subject" : "the text"}.`
+          : `Text spelled in invisible characters${run.location === "subject" ? " in the subject" : ""}: "${plain(run.decoded, 120)}"`,
+      ),
+      detail: detail as EvidenceDraft["detail"],
+      artefacts: [view.raw],
+    };
+  });
   if (found.more > 0)
     items.push({
       check: "content.hidden_text",
