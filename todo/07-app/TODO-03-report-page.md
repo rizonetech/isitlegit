@@ -98,7 +98,7 @@ track: day-2
 | 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
 | 53 | §53 | One-action copy of the complete headers | §19 | [ ] |
 | 54 | §54 | All stored headers read in place | §19 | [ ] |
-| 55 | §55 | A deadline on the full-size viewer's request | §8 | [ ] |
+| 55 | §55 | A deadline on the full-size viewer's request | §8 | [x] |
 
 > **Moved at the gate merge (coordinator, 2026-11-02):** the section filed from D04 T02 §6's completion review as §53 of this file (walkthrough refusal and reuse cards) is now D07 T09 §7, because this file reached its 55-section cap when both lanes filed into it. The `- Filed: D07 T03 §53` lines in `docs/reviews/04-agent/D04-T02-s6.md` name its first address; its permanent address is D07 T09 §7.
 
@@ -1767,6 +1767,9 @@ Filed 2026-11-01 from §19's completion review, which found the same weakness in
 - [x] Commit: `web: a deadline on the full-size viewer's request`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx` passes with the stalled request given up.
+
+> **Verified:** 2026-11-02 | §55 | 64f650cdd2ac90b822849066cf5a6bc5342ff37f
+> **Review:** `docs/reviews/d07-t03-s55.json`
 
 ## Verification
 
