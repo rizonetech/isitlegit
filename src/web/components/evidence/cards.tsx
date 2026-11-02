@@ -1574,6 +1574,9 @@ export function EvidenceCards(props: {
   heading?: string;
   intro?: string;
   empty?: string;
+  // The run shown's check versions (D07 T03 §39), drawn as a disclosure on the count line; the terminal report
+  // passes the stored outcomes, the running report passes none.
+  versions?: readonly { check: string; revision?: string }[] | null;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
   const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
@@ -1584,6 +1587,16 @@ export function EvidenceCards(props: {
         {props.heading ?? "Evidence"}
       </h2>
       {props.intro && <p class="type-small text-muted">{props.intro}</p>}
+      {props.versions && props.versions.length > 0 && (
+        <details>
+          <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Check versions</summary>
+          <ul class="flex flex-col gap-4 mt-8 text-14">
+            {props.versions.map((o) => (
+              <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {props.items.length === 0 ? (
         <p class="type-small text-muted">{props.empty ?? "No evidence was recorded."}</p>
       ) : (

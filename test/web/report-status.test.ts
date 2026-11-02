@@ -562,6 +562,56 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T03 §39: the count line's Check versions disclosure lists each check of the run shown with the Worker
+  // version that ran it, "version not recorded" for a row stored before versions were kept, nothing when no
+  // outcomes were stored, and the newer run's versions after a retry.
+  it("lists each check's version for the run shown, and follows a retry", async () => {
+    const { cookie, id } = await setup();
+    const finish = async (revision: string | null) => {
+      await saveEvidence(
+        db,
+        id,
+        [
+          {
+            check: "sender.first_time",
+            severity: "info",
+            summary: "A sender who has written before",
+            detail: { history: "known", from: "x@y.example", headers: [] },
+            artefacts: [],
+          },
+        ],
+        undefined,
+        undefined,
+        [
+          { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+          { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+        ],
+        revision,
+      );
+      await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+      await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    };
+    // Stored before versions were kept: no revision on the row.
+    await finish(null);
+    let html = await (await poll(id, cookie)).text();
+    expect(html).toContain("Check versions");
+    expect(html).toContain("Lookalike domains: version not recorded");
+    // A retry (a new run id) with its own outcomes: the list is the newer run's.
+    await db.prepare("UPDATE cases SET run_id = 'run-2' WHERE id = ?").bind(id).run();
+    await finish("v-2026-11-02-9f2c");
+    html = await (await poll(id, cookie)).text();
+    expect(html).toContain("Lookalike domains: v-2026-11-02-9f2c");
+    expect(html).not.toContain("version not recorded");
+  });
+
+  it("draws no Check versions disclosure when no outcomes were stored", async () => {
+    const { cookie, id } = await setup();
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("Check versions");
+  });
+
   // D07 T03 §37: the early authentication card through the real routes, from stored outcomes and items, gone at the finish.
   it("draws the early authentication card through the status route while running, and not once finished", async () => {
     const { cookie, id } = await setup();

@@ -21,6 +21,7 @@ import { CONFIRMING, RETRY_WORDS, type RetryNote } from "./retry-words";
 
 // A stored check outcome (D02 T01 §3, `readCheckOutcomes`), as the report reads it; `null` for a case checked before
 // outcomes were stored. `summary`: what a clean or finding run saw (D02 T01 §7), absent when none was stored.
+// `revision`: the Worker version that ran it (D02 T01 §4), absent for a row stored before versions were kept.
 export type Coverage =
   | {
       check: string;
@@ -28,6 +29,7 @@ export type Coverage =
       reason: string | null;
       findings: number;
       summary?: string;
+      revision?: string;
     }[]
   | null;
 
@@ -548,6 +550,7 @@ export function ReportLive(props: LiveProps) {
               cited={[]}
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
               intro={evidenceCount(props.evidence, props.coverage)}
+              versions={props.coverage}
               empty="Nothing was found before the check stopped."
             />
           )}
@@ -596,6 +599,7 @@ export function ReportLive(props: LiveProps) {
             file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
             columns={(verdict as ReportVerdict).verdict === "safe" ? 3 : 2}
             intro={evidenceCount(props.evidence, props.coverage)}
+            versions={props.coverage}
           />
           {(verdict as ReportVerdict).verdict === "safe" && <CleanChecks coverage={props.coverage} />}
           {props.trace && (
