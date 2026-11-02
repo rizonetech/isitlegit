@@ -183,6 +183,17 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
   const entries: ManifestEntry[] = [];
   for (const set of sets) {
     if (done.has(set)) {
+      // A resume remeasures nothing, but it rechecks the population: a set whose bytes or labels changed since the
+      // checkpoint is a different population and refuses, naming the set and both versions.
+      const again = select(set);
+      if (again.setVersion !== checkpoint?.setVersions[set])
+        return {
+          ...fail("refused"),
+          problems: [
+            ...problems,
+            `set ${set} changed since the checkpoint (was ${checkpoint?.setVersions[set]}, now ${again.setVersion}): reselect, do not resume`,
+          ],
+        };
       const stored = await db.readRun(done.get(set) as string).catch(() => null);
       if (!stored) {
         problems.push(`checkpoint batch for ${set} is gone; rerun the baseline without --resume`);

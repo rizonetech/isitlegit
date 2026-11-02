@@ -128,10 +128,11 @@ function setup(script: Script) {
   };
 }
 
+const oldCases = { createdAt: "2026-11-02T10:00:00.000Z", updatedAt: "2026-11-02T10:00:01.500Z" };
+const allSafe = (ids: string[]) =>
+  Object.fromEntries(ids.map((id) => [`case-${id}`, { verdict: "safe" as const, ...oldCases }]));
+
 describe("the baseline orchestration", () => {
-  const old = { createdAt: "2026-11-02T10:00:00.000Z", updatedAt: "2026-11-02T10:00:01.500Z" };
-  const allSafe = (ids: string[]) =>
-    Object.fromEntries(ids.map((id) => [`case-${id}`, { verdict: "safe" as const, ...old }]));
   it("runs per-set batches within their caps and writes a manifest", async () => {
     const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
     const out = await runBaseline({
@@ -219,8 +220,8 @@ describe("the baseline orchestration", () => {
     const t = setup({
       commits: ["abc123"],
       cases: {
-        "case-orphan-s0": { verdict: "safe", ...old },
-        "case-orphan-s1": { verdict: "safe", ...old },
+        "case-orphan-s0": { verdict: "safe", ...oldCases },
+        "case-orphan-s1": { verdict: "safe", ...oldCases },
       },
     });
     t.api.upload = async (sample) => ({
@@ -245,5 +246,42 @@ describe("the baseline orchestration", () => {
       expect(e.pooledFrom).toBeUndefined();
       expect(e.verdict).toBeNull();
     }
+  });
+});
+
+describe("the baseline comparability guard", () => {
+  it("refuses a resume whose set changed, naming the set and both versions", async () => {
+    const t = setup({
+      commits: ["abc123"],
+      cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml", "nazario-2025/s0.eml", "nazario-2025/s1.eml"]),
+    });
+    const clients = {
+      sets: ["synthetic-sa", "nazario-2025"],
+      caps: { "synthetic-sa": 13, "nazario-2025": 5 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+    };
+    const sa = t.samples.filter((s) => s.set === "synthetic-sa");
+    const first = await runBaseline({
+      ...clients,
+      select: (set) =>
+        set === "synthetic-sa" ? { samples: sa, setVersion: "v1-sa" } : { samples: [], setVersion: "v1-naz" },
+    });
+    expect(first.status).toBe("incomplete");
+    const uploaded = t.uploads.length;
+    expect(uploaded).toBeGreaterThan(0);
+    const resumed = await runBaseline({
+      ...clients,
+      select: (set) =>
+        set === "synthetic-sa" ? { samples: sa, setVersion: "v2-sa" } : { samples: [], setVersion: "v1-naz" },
+      resume: first.id,
+    });
+    expect(resumed.status).toBe("refused");
+    expect(resumed.problems.join(" ")).toMatch(/synthetic-sa/);
+    expect(resumed.problems.join(" ")).toMatch(/v1-sa/);
+    expect(resumed.problems.join(" ")).toMatch(/v2-sa/);
+    expect(t.uploads).toHaveLength(uploaded);
   });
 });
