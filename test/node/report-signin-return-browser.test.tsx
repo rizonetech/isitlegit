@@ -72,7 +72,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const { p, context } = await open(width, theme);
           const signIn = p.getByRole("link", { name: "Sign in" });
           expect(await signIn.isVisible()).toBe(true);
-          expect(await signIn.getAttribute("href")).toBe(`/signin?next=${encodeURIComponent(`/r/${ID}`)}`);
+          // The stored verdict's sign-in carries the one-press dispute return (D07 T03 §22).
+          expect(await signIn.getAttribute("href")).toBe(`/signin?next=${encodeURIComponent(`/r/${ID}?dispute=1`)}`);
           expect(await p.getByText("to tell us if we got it wrong.").isVisible()).toBe(true);
           let reached = false;
           for (let i = 0; i < 60 && !reached; i++) {
