@@ -44,7 +44,7 @@ track: day-4
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [ ] |
-| 8 | §8 | Collector failure is not rejection | §1, §5 | [ ] |
+| 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
 | 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §11 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
@@ -316,6 +316,9 @@ Filed 2026-11-02 from §1's completion review (G6): a fixture collector that ans
 - [x] Commit: `walkthrough: collector failures are not credential rejections`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 or 429 is classified `rejected`.
+
+> **Verified:** 2026-11-02 | §8 | e0993398daee4eab02c7454f5984001e7cea231f
+> **Review:** `docs/reviews/d04-t02-s8.json`
 
 ## 9. Ablation flag in the walkthrough
 

@@ -461,7 +461,7 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
-| [ ]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
+| [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
 | [ ]    | D05 T02 §3  | Registry comparison evidence that                | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business    | none                 | 5     |
@@ -601,6 +601,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 318/525 verified sections, 130 ready to run now.
+Progress: 319/525 verified sections, 129 ready to run now.
 
 Checklist: 2529/3282 items completed (includes Commit items).
