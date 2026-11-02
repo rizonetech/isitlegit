@@ -181,3 +181,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 23:32 SAST: D07 T04 §11 built
 - Plan review 4 P2s folded in. Built: provider disclosures in the DNS card (finding the DNS host first), board changed through the canvas import with the 2026-11-02 approval, SPEC A5.
 - Gates so far: domains-page 16/16, domains browser disclosures + a11y 5/5, check-design 0.
+
+## Resume 23:55 SAST: D07 T04 §11 STAMPED
+- §11 (DNS help per provider) stamped; gates quoted at the stamp. Round 1 read a stale candidate named in the prompt and was re-run on the right range as round 2 (clean).
+- Next ready: D07 T04 §12.

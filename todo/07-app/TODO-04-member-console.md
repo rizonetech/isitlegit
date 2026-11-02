@@ -41,7 +41,7 @@ track: day-6
 | 8 | §8 | A chosen date range in the | §1 | [x] |
 | 9 | §9 | Next and previous case | §1, D07 T03 §1 | [x] |
 | 10 | §10 | A Checked by filter in the | §7 | [x] |
-| 11 | §11 | DNS help per provider | D07 T02 §15 | [ ] |
+| 11 | §11 | DNS help per provider | D07 T02 §15 | [x] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
 | 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
@@ -528,11 +528,14 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 - [x] Prove each provider's whole recipe in `test/web/domains-page.test.ts` with distinct stored claims: the exact record value and whole record name for this claim, the Name format that provider expects, its TTL or default, its save action, the way back to Check now, and its troubleshooting. Done when: changing a claim's value or domain changes what the steps print, and a wrong Name format in a step fails. Cheaper substitute: asserting the provider's name appears, which a heading alone passes.
 - [x] Draw the help entry and one expanded disclosure on the board `Verify-Domain` and bring it in through `design/tools/export-mockups.py import --approve` with the operator's 2026-11-02 approval, then `export`. Done when: `design/tools/check-design.py` passes with the disclosures on the board, collapsed and expanded. Cheaper substitute: a SPEC line alone, which leaves the next board import free to erase the control.
 - [x] Drive the disclosures in `test/node/domains-browser.test.tsx`: open and close every provider and the generic steps by keyboard alone with focus kept, expanded at 360 and 1280 px in both themes under the accessibility gate, and without JavaScript. Done when: each disclosure opens in one action in Chromium. Cheaper substitute: server-rendered assertions, which prove the words exist but not that anyone can open them.
-- [ ] Commit: `web: dns help for each provider on the domain page`
+- [x] Commit: `web: dns help for each provider on the domain page`
 
 > **Deferred:** suggesting the DNS host's own guide from the nameservers -> XREF: D07 T04 §33
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
+
+> **Verified:** 2026-11-02 | §11 | e0e0674decc4cf36e993d6c7f4212eed6a46fe2f
+> **Review:** `docs/reviews/d07-t04-s11.json`
 
 ## 12. Remove a case checked by mistake
 
