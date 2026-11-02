@@ -34,13 +34,13 @@ track: day-6
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [x] |
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [x] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [x] |
-| 4 | §4 | Full pipeline on flagged pages | §3, §9, D04 T02 §6 | [ ] |
+| 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [ ] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
-| 6 | §6 | Demo lookalike site found by the monitor | §5 | [ ] |
-| 7 | §7 | Certificate-transparency search for brand tokens | §5 | [ ] |
+| 6 | §6 | Demo lookalike site found by | §5 | [ ] |
+| 7 | §7 | Certificate-transparency search for | §5 | [ ] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
-| 10 | §10 | Findings exported to Loupe's training | §5 | [ ] |
+| 10 | §10 | Findings exported to | §5 | [ ] |
 
 ## 1. Lookalike candidate generator
 
@@ -149,11 +149,11 @@ Each fetched page's screenshot and visible text go to `screenPage` with the scre
 > **Verified:** 2026-11-01 | §3 | a3b714ed094d96ee8ad7d23e21fc56002a0e3f7e
 > **Review:** `docs/reviews/d05-t04-s3.json`
 
-## 4. Full pipeline on flagged pages
+## 4. Full pipeline on
 
 Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop compared with the business's registered logo, Muse Spark reading, and the walkthrough when a login or payment form is present.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** meta-api, cloudflare
 **Surface:** no
 
@@ -171,7 +171,7 @@ Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop comp
 
 The business gets an alert with the evidence and a takedown pack: domain, registrar and hosting provider from RDAP, screenshots, abuse contacts (spec 4.11). We never contact registrars or hosts for them during the event. Findings are listed on the console, where the business can dismiss one.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` member console, impersonation monitor section
@@ -191,11 +191,11 @@ The business gets an alert with the evidence and a takedown pack: domain, regist
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/takedown.test.ts test/web/monitor-page.test.ts` passes.
 
-## 6. Demo lookalike site found by the monitor
+## 6. Demo lookalike site found by
 
 The demo needs the monitor to find a real live page: a lookalike of the fictional demo business, hosted by us on a fixture domain under `fixtures.isitlegit.co.za`, wired into the demo business's candidate list as an extra seed so the daily run finds it (spec 4.11, plan "Demo fixture").
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 
@@ -210,7 +210,7 @@ The demo needs the monitor to find a real live page: a lookalike of the fictiona
 
 **Test checkpoint:** `pnpm exec tsx scripts/run-monitor.ts --org demo-fynbos --wait 300` exits 0 after a finding for the fixture host is stored.
 
-## 7. Certificate-transparency search for brand tokens
+## 7. Certificate-transparency search for
 
 New certificates whose names contain the business's brand tokens reveal lookalikes before they are used (spec 4.11). First on the monitor's cut list (spec section 8), so this runs after the event.
 
@@ -291,11 +291,11 @@ A page Loupe flags goes to the full pipeline (§4), whose Muse Wonder walkthroug
 > **Verified:** 2026-11-01 | §9 | c02c5dadd2752744ee21b1eafbe0cd927a813a32
 > **Review:** `docs/reviews/d05-t04-s9.json`
 
-## 10. Findings exported to Loupe's training
+## 10. Findings exported to
 
 Loupe gets better on real South African lures only if what the monitor learns flows back into its training set (operator decision 2026-10-28 22:42 SAST: Loupe's learning is "extremely important"). Each labelled outcome becomes a training page: a lure the full pipeline confirmed, a flag Spark declined (§9), and a finding the business dismissed as not a fake (§5). Production deletes stored artefacts after 30 days (spec 4.8), and this machine may be off for days, so a labelled finding's public page is copied in production the moment it is labelled, into R2 under `training/`, and a local export copies it into Loupe's training store (operator question 2026-10-28 22:51 SAST: how production data reaches the store). **Operator decision (2026-10-28 22:56 SAST):** no retention is set on `training/`: no lifecycle rule and no deletion, so the R2 copies stay as the durable record of every monitor-labelled page, and the local store can be rebuilt from them. The store lives outside every repository at `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`), with origin `monitor`, so the glimmer lane's retraining (D03 T04, its own section) takes them into Loupe's next version.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 

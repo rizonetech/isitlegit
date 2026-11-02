@@ -232,7 +232,7 @@ Filed 2026-10-30 from D02 T02 §1's completion review (Part 1 item 12): receiver
 
 Filed 2026-10-30 from §5's completion review (out of scope): §5 remembers a sender for the whole organisation for good, so one member's earlier check makes the sender familiar to everyone, even after a long silence. Familiarity per recipient (the member who forwarded) and a recency horizon would keep the signal where it still means something.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -268,7 +268,7 @@ Filed 2026-10-30 from §5's completion review (out of scope): IsItLegit sees onl
 
 Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6 proves a gateway's relays from the addresses its sending domain publishes in SPF, so a gateway whose relay addresses are not in that SPF cannot be proven, where Microsoft 365's enhanced filtering and Google's inbound-gateway setting take the gateway's ranges as configured. Taking ranges from the organisation, or reading its provider's connector settings, changes who states the trust and what the product reads, so it is a design decision first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** no
 

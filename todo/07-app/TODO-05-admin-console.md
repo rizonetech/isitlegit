@@ -32,9 +32,9 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [x] |
-| 3 | §3 | Service health tiles on the overview | §2 | [ ] |
+| 3 | §3 | Service health tiles on | §2 | [ ] |
 | 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
-| 5 | §5 | Filter the organisations table by need | §2 | [ ] |
+| 5 | §5 | Filter the organisations | §2 | [ ] |
 
 ## 1. Access application and JWT verification
 
@@ -106,7 +106,7 @@ Every organisation (name, created, domains verified, members, cases this week, t
 > **Verified:** 2026-11-02 | §2 | 0ec71c94e113c9a8060e25af55b58ace0436a73a
 > **Review:** `docs/reviews/d07-t05-s2.json`
 
-## 3. Service health tiles on the overview
+## 3. Service health tiles on
 
 SPEC X1 draws six service-health tiles (email intake, workflows, Meta Model API, Browser Run, Google Web Risk, outbound mail), each with a status dot, a word (Healthy, Slow, Down) and a detail line, and a red tile emails the operator. No document defines the thresholds or the checked-every-minute job behind them, so §2 did not invent them. Filed 2026-11-01 from D07 T05 §2.
 
@@ -156,7 +156,7 @@ The overview search matches the organisation name only (D07 T05 §2), so the ope
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a domain search returns no row.
 
-## 5. Filter the organisations table by need
+## 5. Filter the organisations
 
 The organisations table is fixed in alphabetical order (D07 T05 §2), so the operator cannot pull the clients that need attention: a domain waiting on verification, or open feedback. This section adds that filter to the table. The board draws no such control, so the board change goes to the operator first.
 

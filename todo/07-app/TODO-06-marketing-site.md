@@ -45,9 +45,9 @@ track: day-6
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
 | 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
-| 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
+| 14 | §14 | Cross-border safeguards | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
-| 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
+| 16 | §16 | Protect outcome case study | §7 | [ ] |
 | 17 | §17 | Operator approval of launch terms | §8 | [x] |
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
@@ -436,7 +436,7 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (S3 gains the block or a new page)
@@ -460,7 +460,7 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
@@ -483,7 +483,7 @@ A visitor without an invite code asks for one on the page and is told what happe
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): keep the mailto link to hello@isitlegit.co.za for now; the on-site request form waits until after the competition.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
@@ -500,13 +500,13 @@ A visitor without an invite code asks for one on the page and is told what happe
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
 
-## 14. Cross-border safeguards per provider
+## 14. Cross-border safeguards
 
 Which POPIA section 72 condition covers each processor that works outside South Africa (Cloudflare, Meta, SMTP2GO, Google, Fireworks): a binding agreement or terms, the data subject's consent, or contract necessity, with the supporting document named. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 1). §5 says plainly that this is being confirmed and invites a question to hello@; the facts need the operator (or Rizonetech's adviser) to read each provider's data processing terms, so nothing is guessed here.
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
@@ -529,7 +529,7 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
@@ -546,13 +546,13 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
 
-## 16. Protect outcome case study on /protect
+## 16. Protect outcome case study
 
 One reproducible synthetic Protect investigation on `/protect` showing the forwarded input, the identity comparison evidence, the impersonation alert and the bank-confirmation outcome, with dated measurements from D08 and its limits stated, reachable in at most one action. Filed 2026-10-31 by D07 T06 §7's completion review (Part 2, item 2). Needs D05's protection evidence, D08's dated measurement and the operator's approved design on S4 first.
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` S4 entry first
@@ -626,7 +626,7 @@ Give `/security` one link to a dated, public security-assurance report covering 
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S8 Security, board `design/mockups/png/Security.png` (the link placement is a design change first)
@@ -649,7 +649,7 @@ Give `/security` one link to a dated, public security-assurance report covering 
 
 The first production deploy of `isitlegit-site` (§6's script), the Worker routes for `/v/*`, `/s/*` and `/b/*` on the apex, and every read-back and measurement that needs the live hosts. Filed 2026-10-31 by D07 T06 §6's decomposition; the coordinator deploys.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 

@@ -37,8 +37,8 @@ track: day-3
 | 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [x] |
 | 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [x] |
 | 3 | §3 | Landing screenshot and form detection | §2 | [x] |
-| 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
-| 5 | §5 | Automatic and click-time link checks | §1 | [ ] |
+| 4 | §4 | QR code decoding from images | §2 | [ ] |
+| 5 | §5 | Automatic and click-time | §1 | [ ] |
 | 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
 | 7 | §7 | Redirect fixtures proven live | §2 | [ ] |
 
@@ -149,11 +149,11 @@ On the final page, take a screenshot to R2 and look for password fields, card-nu
 > **Verified:** 2026-11-01 | §3 | 215c1c7d149663a607712a528bd16185e95aa192
 > **Review:** `docs/reviews/d02-t07-s3.json`
 
-## 4. QR code decoding from images and PDF pages
+## 4. QR code decoding from images
 
 QR codes in images or PDFs hide links from text scanners (spec 4.3). They are decoded with `jsqr` inside the Browser Run page (PDF pages rasterised by `pdfjs-dist` there), and the URLs join the link checks. First on the cut list (spec section 8): if time runs short, this section is cut and the report says QR codes are not checked.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 
@@ -169,7 +169,7 @@ QR codes in images or PDFs hide links from text scanners (spec 4.3). They are de
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/qr.test.ts` passes.
 
-## 5. Automatic and click-time link checks
+## 5. Automatic and click-time
 
 **Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
@@ -193,7 +193,7 @@ Filed 2026-10-31 from §1's completion review (out of scope): a member must forw
 
 Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove chosen examples, not how many links extraction finds in real-shaped mail, how many it invents, or how long it takes on large and damaged files.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -211,7 +211,7 @@ Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove 
 
 Split from §2 on 2026-11-01: the redirect fixtures host (`src/fixtures/redirects.ts`, route and script built in §2) goes live with the Worker's next production deploy from main, which this lane does not run; the proof that the deployed host answers and that a stored case reads back the live chain belongs after that deploy.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 

@@ -37,7 +37,7 @@ track: day-5
 
 The recipient is the supplier's registered finance contact from code and stored records, never from the invoice or a model (spec 4.6a). One request per case; the body states the amount and the last three digits of the account on the invoice (the invoice is the member's document) and asks for a yes or no reply.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -58,7 +58,7 @@ The recipient is the supplier's registered finance contact from code and stored 
 
 Replies to `verify+<token>@isitlegit.co.za` arrive through Email Routing (a rule routing `verify@` to the Worker) and are matched by token and by sender (must be the registered contact). The answer (confirmed, denied, unclear) is extracted from the first lines by rules, not a model, and becomes evidence.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 

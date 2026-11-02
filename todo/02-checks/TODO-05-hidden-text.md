@@ -221,7 +221,7 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the hidden-text checks are proven on chosen fixtures, not measured: how often an instruction hidden by invisible characters, an encoded subject or a document's text gets through, how often legitimate multilingual mail is flagged, and what the checks cost. Microsoft's Prompt Shields with Spotlighting is the comparator named.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
@@ -269,7 +269,7 @@ Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads
 
 Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads PDFs and Office Open XML; a legacy Word, Excel or PowerPoint file, an RTF document or an OpenDocument file is stated as not checked, while extraction tools such as Apache Tika read them all.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes unchanged.

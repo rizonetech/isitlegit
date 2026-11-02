@@ -49,7 +49,7 @@ track: day-1
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
 | 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
-| 15 | §15 | Gallery theme, width and accessibility controls | §10 | [ ] |
+| 15 | §15 | Gallery theme, width and | §10 | [ ] |
 
 ## 1. Attended design session, design/SPEC.md
 
@@ -507,7 +507,7 @@ A member of many organisations (a managed-service provider looking after 50 busi
 
 An icon-only button (the shell's copy button, the phone Menu) has its accessible name only as `aria-label`, so a sighted member must recognise the icon (D07 T01 §9 completion review, 2026-10-30: GitHub's Primer shows an icon button's name as a tooltip on hover and focus). The boards draw no tooltip, so showing one is a design amendment the operator approves first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` 1 (shared parts; boards `AppNav`, `Report-Mobile`), with the amendment the operator approves
@@ -537,7 +537,7 @@ Icon button labels: yes (2026-10-30)
 
 On a phone the check address and its copy button sit in the sidebar behind Menu, so copying takes two presses where the desktop takes one (D07 T01 §9 completion review, 2026-10-30). Bringing the copy onto the phone page itself changes the approved phone shell (`Report-Mobile`, P1), so it is a design amendment the operator approves first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` P1 and the phone boards (`Report-Mobile`), with the amendment the operator approves
@@ -562,7 +562,7 @@ Phone copy: cases (2026-10-30)
 
 **Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
 
-## 15. Gallery theme, width and accessibility controls
+## 15. Gallery theme, width and
 
 The gallery (§10) shows every state, but a developer who wants the dark theme, the phone width or the accessibility findings for one state must use the browser's own tools or read `pnpm test:a11y`'s output in a terminal (D07 T01 §10 completion review E3 and E4, 2026-10-30: Storybook offers theme and viewport toolbars and its accessibility panel beside the selected story).
 

@@ -58,12 +58,12 @@ track: day-6
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [x] |
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
-| 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
+| 23 | §23 | A start-up-inclusive, repeatable win | §21 | [ ] |
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
-| 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
+| 25 | §25 | The signals rubric in the | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [x] |
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
-| 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
+| 28 | §28 | Converter limits and item lineage | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [x] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [x] |
@@ -889,7 +889,7 @@ Filed 2026-10-29, split out of D03 T04 §21 by its plan review (completion revie
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes with the concurrent-source cases, and `python3 scripts/glimmer/fetch_bench.py` exits 0 with `docs/glimmer/fetch-bench.json` recording the `two-sources` scenario: a raw launch-to-verified median ratio strictly under 1.00, both hosts transferring at the same time for each tool, at most four connections, every run whole.
 
-## 23. A start-up-inclusive, repeatable win over aria2c
+## 23. A start-up-inclusive, repeatable win
 
 Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 beat aria2c 1.37.0 with each tool's own start-up taken off its time (cut 0.998, mirror 0.70, gigabyte 0.99), a choice recorded in §21 with its reversal cost. The review's point stands: a user pays the start-up, and a Python interpreter's start (about 0.12 seconds: imports, argument checks) against a C program's (about 0.01) leaves `fetch.py` about 3 percent slower raw on the 96 MiB cut scenario; §21's breakdown shows no more than 0.02 seconds of that can be cut inside the script. A narrow median win is also not a repeatable one: the gigabyte runs' times overlap.
 
@@ -954,7 +954,7 @@ Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phis
 > **Verified:** 2026-10-29 | §24 | b36d132e91c72f98dd80eeee7f5b7f17015c09b8
 > **Review:** `docs/reviews/d03-t04-s24.json`
 
-## 25. The signals rubric in the prompts, measured
+## 25. The signals rubric in the
 
 Filed 2026-10-29, split out of D03 T04 §24 by its plan review (gaps 4 to 10): §24 writes the phishing-signals rubric; this section puts it into the screener's instructions and the Spark teacher's prompt and keeps it only if it measurably helps, on held-out pages, without the measurement being able to flatter it.
 
@@ -1058,7 +1058,7 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 > **Verified:** 2026-11-01 | §27 | c536ae8523ebc0d7a348b6be53958b24b35f4fa0
 > **Review:** `docs/reviews/d03-t04-s27.json`
 
-## 28. Converter limits and item lineage for Loupe 1.1
+## 28. Converter limits and item lineage
 
 Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and G6, `docs/reviews/03-vision/D03-T04-s18.md`). §18 bound every source to its inputs and receipts and fixed what changes Loupe 1.0's training set; these five need deeper converter and importer work than fits before 1.0's collection freeze (2026-10-31 00:00 SAST), and none changes a page 1.0 trains on: each converter already ran under §18's limits on its published, digest-checked inputs, ScamFerret's import is bound to its manifest after its clean re-import, and the import records count every item. Decision (unattended): file for 1.1; reversing it means doing this section before the freeze and re-running every conversion.
 
@@ -1368,7 +1368,7 @@ Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordi
 > **Verified:** 2026-11-01 | §40 | d6d2055912d0da279487b68bda7638a91692e262
 > **Review:** `docs/reviews/d03-t04-s40.json`
 
-## 41. Day-zero case capture into the training store
+## 41. Day-zero case capture
 
 > **Started:** 2026-10-31T20:26:27Z
 

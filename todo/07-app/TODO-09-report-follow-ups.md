@@ -51,7 +51,7 @@ track: day-2
 
 Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw once the checks step stores its outcomes, and that step also runs slower work (link following, landing pages, domain age), so results a member could act on wait behind unrelated work. The pipeline change is the checks lane's; this section owns the report's side and its proof.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the early authentication card, `Report-Running-Early`), unchanged
@@ -74,7 +74,7 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw o
 
 Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inconclusive result (a temporary receiver error, a permanent configuration error, a result that decides nothing) as "Could not be checked" with the item's summary, where Defender's authentication view names the kind. The stored item keeps each result's raw value (`detail.results[].result`), so the kinds can be told apart on the card once the board's words are approved.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the early authentication card, `Report-Running-Early`), its pill words extended once approved
@@ -186,7 +186,7 @@ Moved at the gate merge (coordinator, 2026-11-02): filed as D07 T03 §53 from D0
 
 Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the walkthrough family renderer of D07 T03 §13 draws the four checks D07 T03 §5 produces, but a walk that could not run stores `walkthrough.not_checked` (D04 T02 §6), which falls through to the hidden-text card's heading, and a reused walk's items carry `detail.reused.at`, which no card shows, so a member reads an earlier observation as this case's own fresh walk. Both are wording on cards D07 T03 §13 owns; the producer's shapes are fixed by D04 T02 §6.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
@@ -209,7 +209,7 @@ Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the w
 
 Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-size viewer's request and the failure classification, but a preview's own image transfer stays unbounded. If classification times out, then the reader retries and that image transfer stalls without emitting `load` or `error`, "Loading the screenshot again." persists and no retry control returns.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the evidence cards' preview images)
@@ -230,7 +230,7 @@ Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-siz
 
 Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence item): the card shows the run's opening and the first instruction's excerpt, so a reader still cannot read an instruction that runs past the stored excerpt, or a later instruction in the same run, without decoding the original elsewhere (Embrace The Red's ASCII Smuggler). The producer keeps one excerpt of at most 250 characters (`SPOT_TEXT` in `src/checks/instruction-phrases.ts`), and widening that storage is the checks lane's producer work: this section waits on that row, asked through the coordinator; the field shape below is a proposal for it, not a decision.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards
@@ -256,7 +256,7 @@ Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence 
 
 Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence item, against VirusTotal's URL report, which names the resources its clean analysis contacted): a clean check's stored summary is at most 120 characters, so for a message naming many targets it cannot list them all, and the clean list offers no way to inspect the rest. The examined set lives with the producer: storing it is the checks lane's data contract, asked through the coordinator; this section draws it.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing)
@@ -282,7 +282,7 @@ Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence 
 
 Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item): the Check versions list names each check's Worker version but not what the check did, so a skipped or failed check's version reads the same as one that ran clean. The stored outcome and its reason are already kept (`readCheckOutcomes`); this section draws them beside the version.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards (the Check versions disclosure)
@@ -306,7 +306,7 @@ Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence 
 
 Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item, against VirusTotal's engine version plus signature-update date): the Worker version alone cannot explain a changed finding when the detection data changed without a deployment. The stored provenance already exists (each outcome's data revision, identity and source, D02 T01 §6, read by `readCheckOutcomes`); this section draws it beside the Worker version, for the checks it applies to, with an explicit unknown when none was stored, never today's dataset.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards (the Check versions disclosure)

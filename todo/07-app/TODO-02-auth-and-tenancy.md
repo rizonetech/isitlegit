@@ -51,7 +51,7 @@ track: day-1
 | 14 | §14 | Invite acceptance page | §3, §7 | [x] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [x] |
-| 17 | §17 | Correct a mistyped signup address | §13 | [ ] |
+| 17 | §17 | Correct a mistyped | §13 | [ ] |
 | 18 | §18 | Passkey-first sign-in | §16 | [ ] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
@@ -59,7 +59,7 @@ track: day-1
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
-| 25 | §25 | Same-device other-browser link guidance | §12 | [ ] |
+| 25 | §25 | Same-device other-browser | §12 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -683,7 +683,7 @@ The sign-in page's "Sign in with a passkey" (`design/SPEC.md` A1, the passkey bu
 > **Verified:** 2026-10-31 | §16 | a9bbca50a09f9115ee8b128fa23a550a45a698e5
 > **Review:** `docs/reviews/d07-t02-s16.json`
 
-## 17. Correct a mistyped signup address
+## 17. Correct a mistyped
 
 An owner who typed their address wrong at signup fixes it without a second invite code and without leaving an organisation stranded under an address nobody reads. Filed 2026-10-31 from D07 T02 §13's completion review (Part 1, the typo recovery Slack's signup offers): today the first link goes to the wrong address, the code is used, and only the operator can recover it.
 
@@ -712,7 +712,7 @@ An owner who typed their address wrong at signup fixes it without a second invit
 
 Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. A1 leads with the email form and offers the passkey below it, so a member who signs in by passkey every time presses "Sign in with a passkey" first; Google's sign-in offers the passkey before anything is typed. Changing A1's order is a design decision first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -736,7 +736,7 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. The passkey prompt's "No passkey found on this device?" panel sends the member to the email link, though the browser can use a passkey on their phone (a QR code, the hybrid transport) without one here. The ceremony already allows it; the words do not say so. A change to A1's prompt is a design decision first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -881,7 +881,7 @@ Filed 2026-10-31 at the coordinator's request, from the console lane's D07 T04 �
 > **Verified:** 2026-11-01 | §24 | 9bf8b221e06232c4f89a96a3b4eb2997bd920430
 > **Review:** `docs/reviews/d07-t02-s24.json`
 
-## 25. Same-device other-browser link guidance
+## 25. Same-device other-browser
 
 Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-T02-s12.md, G3): the other-device state compares browser handles, so a member who asked in Chrome and opens the email link in Edge on the same laptop is told "You asked for this link on another device" and to go back to it, when the original browser is on the same machine. Okta's email authenticator names the original browser or tab, not a device. `design/SPEC.md` A1 (the confirm, link asked for on another device state, built by §12 on the operator's decision b) fixes the device-only wording, so the wording change is the operator's first.
 

@@ -43,7 +43,7 @@ track: day-4
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
-| 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
+| 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [ ] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
@@ -271,11 +271,11 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 > **Verified:** 2026-11-01 | §6 | 804d0318b8194d86e77949d4d1d8e04d928e3df0
 > **Review:** `docs/reviews/d04-t02-s6.json`
 
-## 7. One URL policy with the redirect checks
+## 7. One URL policy with the
 
 Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in Browser Run) was not stamped when the walkthrough driver needed request interception, so §3 wrote its own strict URL policy (`src/walkthrough/url-policy.ts`). Two policies for the same question drift apart; this section makes one.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/walkthrough/driver.test.ts test/walkthrough/url-policy.test.ts` passes unchanged.
@@ -294,7 +294,7 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 
 Filed 2026-11-02 from §1's completion review (G6): a fixture collector that answers 500 (its trace or store failed) is read by `acceptance()` in `src/walkthrough/evidence.ts` as a credential rejection, because every status at or above 400 classifies as rejected. A backend failure and a refused login are different findings: the first says the fixture broke, the second says the page said no.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes with the §5 cases unchanged except the new failure classifications.

@@ -39,7 +39,7 @@ track: day-2
 | 7 | §7 | Compressed 7z headers read | §3 | [x] |
 | 8 | §8 | Archive members read by content | §3 | [x] |
 | 9 | §9 | Embedded objects in RTF documents | §5 | [x] |
-| 10 | §10 | Attachment content analysis, decided | §8 | [ ] |
+| 10 | §10 | Attachment content | §8 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -183,7 +183,7 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the
 
 Filed 2026-10-31 from §2's completion review (out of scope): §2 reads an HTML attachment's literal features, so a payload split across strings, encoded twice, or a login form written by script at load time can show none of them. Finding those needs more than signatures, and is judged on a labelled set, not on examples.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -285,11 +285,11 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 > **Verified:** 2026-10-31 | §9 | ef359abd3344a243e2b9e0d5fcef4b8b00149f46
 > **Review:** `docs/reviews/d02-t04-s9.json`
 
-## 10. Attachment content analysis, decided
+## 10. Attachment content
 
 Filed 2026-10-31 from §8's completion review (Part 2 item 1, out of scope): the attachment checks say what a file is by its bytes and structure (a program, a macro, an encrypted archive) but not whether a file of an ordinary type is harmful: a malicious PDF that stays a PDF passes. Microsoft Defender for Office 365's Safe Attachments analyses attachments in a detonation environment; this product never opens or runs an attachment (design spec 4.3), so any deeper analysis is a design decision first: a static analyser of document internals, a reputation lookup of file hashes, or neither. The reviewer's target, at least 95% detection with at most 2% false positives on a licensed, labelled archive corpus including malicious documents with correct extensions, needs that corpus, which the repository does not hold.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** no
 

@@ -64,13 +64,13 @@ track: day-0
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [x] |
-| 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
+| 26 | §26 | Uncoordinated lane: no run guard | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [x] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
-| 32 | §32 | Wake dispatched after each push to main | §27 | [ ] |
+| 32 | §32 | Wake dispatched after each | §27 | [ ] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -791,7 +791,7 @@ Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/
 
 Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm typecheck` or `pnpm lint` fails, `scripts/hooks/pre-push` (§13) shows "its errors" by grepping the output for `error|✖|×|failed`. Biome's warning blocks carry the same words, so in a run with 13 warnings and 1 error the excerpt showed a `noCommaOperator` warning from `scripts/glimmer/source-pages.ts` and hid the one real error, a formatter diff in a test file. The word grep is a home-made scanner of output the tools already classify: Biome can print errors only (`--diagnostic-level=error`, Biome 2.6.3 `biome check --help`; `pnpm lint --diagnostic-level=error` passes it through to `biome check .`, measured 2026-10-30: 13 warnings hidden, exit 0 on this tree), and `tsc` marks each error `error TS<code>`. The fix takes the excerpt from those, keeping the push's verdict on the exit codes of the same `pnpm typecheck` and `pnpm lint` CI runs (§13).
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -915,11 +915,11 @@ Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope the
 > **Verified:** 2026-10-31 | §25 | 8f02cc6db391aefd74a84857976b9002681684bd
 > **Review:** `docs/reviews/d00-t01-s25.json`
 
-## 26. Uncoordinated lane: no run guard, reviewless stamps
+## 26. Uncoordinated lane: no run guard
 
 Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane): the `media` lane (D10, branch `claude/trusting-pasteur-umwvqz`) is registered but not coordinated. Lane scoping (§19) already keeps its rows out of every other lane's queries. The tools must also know the lane is uncoordinated, so that no run guard starts in it and its stamps need no plan review, completion review or rounds, with the waiver recorded rather than silent.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -995,7 +995,7 @@ Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan r
 
 Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there). `stamp` writes three files (the receipt, the TODO file, the regenerated plan), each temp-then-replace, and rolls back on an exception or interrupt (`scripts/lib/todo_graph.py` `stamp`, the `except BaseException` block). A process killed outright (SIGKILL, a closed terminal, a crashed session) runs no rollback: the receipt can exist while the TODO file is unstamped, and a second `stamp` refuses with `receipt already exists`, so the writer has to find and delete the receipt by hand. The fix lets the stamp recover its own half-written state without weakening any check.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -1050,7 +1050,7 @@ Prove on live Claude sessions what the helper tests cannot: that a lane waiting 
 
 **Test checkpoint:** `docs/live-checks.md` holds the dated run with its elapsed seconds.
 
-## 32. Wake dispatched after each push to main
+## 32. Wake dispatched after each
 
 Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wake.py waiters` and sends one message per lane by hand (4 + N actions per push), where Claude Code's agent teams deliver a completion with none. Filed 2026-11-01 by D00 T01 \u00a727's completion review (excellence item 1, out of scope there because the send is the coordinator's `SendMessage`).
 

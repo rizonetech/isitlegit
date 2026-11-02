@@ -36,6 +36,9 @@ track: day-6
 | 4 | §4 | Remotion title cards and animation | §3 | [ ] |
 | 5 | §5 | Final eval run and dashboard screenshot | D08 T02 §5 | [ ] |
 | 6 | §6 | Final README | §1, §2, §5 | [ ] |
+| 7 | §7 | Detection finetuning from the final miss analysis | D08 T02 §5 | [ ] |
+| 8 | §8 | Demo path polish: report, trace and timing | §3, D08 T02 §5 | [ ] |
+| 9 | §9 | Final polish sweep: a11y, performance, wording | §8 | [ ] |
 
 ## 1. CONTRIBUTIONS.md by day, commit ranges
 
@@ -152,6 +155,71 @@ The README a judge reads first: the problem, the demo video link (added by the o
 - [ ] Commit: `launch: final README`
 
 **Test checkpoint:** `pnpm exec tsx scripts/check-links.ts README.md` exits 0.
+
+## 7. Detection finetuning from the final miss analysis
+
+Phase 8 (operator, 2026-11-02): after the eval chain measures the chained models (D08 T02 §3 ablation, §5 worst-miss fixes), tune what the misses actually show, prompt wording, reasoning effort per call, check thresholds above the deterministic floor, and re-measure. No tuning without a before and after number on the same set version.
+
+**Phase:** 8
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Tune from evidence. Done when: each change names the miss class it answers and its measured effect.
+
+- [ ] Take the miss classes from D08 T02 §5's record in `eval/RESULTS.md`. Done when: every tuned change cites a miss class and count. Cheaper substitute: tuning from anecdotes, refused.
+- [ ] Apply the tuning in the owning layer (prompt in `src/agent/`, effort in the call site, threshold in `src/checks/`). Done when: no change touches the deterministic floor in `src/agent/floor.ts`. Cheaper substitute: post-hoc verdict filtering, refused.
+- [ ] Re-run the full eval on the same set version and record before and after in `eval/RESULTS.md`. Done when: detection, false alarms, median time and cost are printed for both.
+- [ ] Commit: `launch: detection finetuning from the final miss analysis`
+
+**Test checkpoint:** `grep -c 'Finetuning' eval/RESULTS.md` prints at least `1`, and the eval suite for the touched layer passes.
+
+## 8. Demo path polish: report, trace and timing
+
+Phase 8 (operator, 2026-11-02): the exact path the 3 minute demo walks, forwarded mail to cited verdict with the model trace, polished until it is flawless on the live service: wording, trace readability, timing inside the spec 4.9 targets, and every state (partial, failed, recovered) designed.
+
+**Phase:** 8
+**Needs:** cloudflare, meta-api
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 Report and S10 Results: verdict banner, three reasons, actions, model trace
+**Job:** a judge watching the demo sees each model at work and believes the verdict
+**Treatment:** verdict first, then what to do, then the cited evidence and trace, in plain words
+**Chrome:** the existing report page and public eval page shells, no new surface
+
+**Build order:**
+
+1. Polish the demo path. Done when: a live run of the demo script (§3) shows no placeholder, raw error or unexplained wait.
+
+- [ ] Walk the demo script (§3) live and list every rough edge in `docs/phase-runs/`. Done when: the list exists with one line per edge. Cheaper substitute: polishing from screenshots, refused.
+- [ ] Fix each edge in its owning layer (wording in `src/web/pages/report-view.tsx`, trace in the trace component, timing in the step that waits). Done when: the re-walk shows none left. Cheaper substitute: demo-only special cases in product code, refused.
+- [ ] Prove the partial and failed states on the same path (a model outage yields a marked partial report). Done when: the walk record shows both.
+- [ ] Commit: `launch: demo path polish`
+
+**Test checkpoint:** `grep -c 'demo walk' docs/phase-runs/*submission*.md` prints at least `1` after the live §3 demo walk, with the verdict time inside the spec 4.9 targets.
+
+## 9. Final polish sweep: a11y, performance, wording
+
+Phase 8 (operator, 2026-11-02): the last sweep over the shipped surfaces before submission: WCAG 2.2 AA on the demo and report surfaces, page weight on a mid-range phone, and plain-language wording a busy owner reads once.
+
+**Phase:** 8
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 Report and S10 Results surfaces at phone and desktop widths
+**Job:** a busy owner reads the answer once, on a phone, and acts
+**Treatment:** one design language from tokens only, every state designed, no raw errors
+**Chrome:** the existing report page and public eval page shells, no new surface
+
+**Build order:**
+
+1. Sweep and fix. Done when: every check below passes on the final deployment.
+
+- [ ] Run `pnpm test:a11y` on the component gallery. Done when: it passes with no AA violation. Cheaper substitute: spot-checking one page, refused.
+- [ ] Measure the report page weight and first render on the live deployment. Done when: the numbers are recorded in the run file and inside the design spec 4.9 targets.
+- [ ] Read every demo-path string aloud once and fix what needs a second reading, in `src/web/`. Done when: the sweep record lists the strings changed. Cheaper substitute: a spell-check only, refused.
+- [ ] Commit: `launch: final polish sweep`
+
+**Test checkpoint:** `pnpm test:a11y` passes and the sweep record exists.
 
 ## Verification
 

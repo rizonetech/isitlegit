@@ -44,7 +44,7 @@ track: day-6
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [x] |
 | 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
-| 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
+| 16 | §16 | Name a passkey's provider from | §14 | [ ] |
 | 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 | 19 | §19 | Help route on the site 500 page | §9 | [ ] |
@@ -284,7 +284,7 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 
 A recipient whose report link has passed its 7 days (D01 T01 §8) reaches the 410 page (`design/SPEC.md` E2, §1), which today offers signing in or forwarding the email again. A stranger holding an old link must learn nothing, yet the person the reply went to should get a fresh link to the same report in one step, without a new analysis or searching for the case. Filed from D01 T01 §8's completion review (out-of-scope excellence gap, 2026-10-27), which compared it with Stripe's hosted invoice page, whose expired-link page sends a fresh link to the recipient's address.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** operator
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` E2 (the 410 page, once its renewal control is drawn), board `Error-410` and the renewed-link email
@@ -548,11 +548,11 @@ The operator-only daily-cases override (`setDailyCapOverrideStatement`, `src/aut
 > **Verified:** 2026-11-01 | §15 | cc85e58f5a128cffef9d5001502ea245b06f8d09
 > **Review:** `docs/reviews/d07-t08-s15.json`
 
-## 16. Name a passkey's provider from its AAGUID
+## 16. Name a passkey's provider from
 
 Filed from the D07 T08 §14 completion review (excellence item E3). A passkey row says "Syncs between devices" or "This device only" and a name the member typed or the day it was added; the same row could say where it lives (iCloud Keychain, Google Password Manager, 1Password, Windows Hello), because the authenticator's AAGUID is stored in `passkey.aaguid`. Which provider an AAGUID belongs to is third-party data and a design addition to the Account board, so a wrong or invented label would mislead a member deciding which passkey to remove: nothing is built before the owner approves the board and the source of the mapping.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** operator
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M9 (board `Account`, once its provider column is drawn)
@@ -603,7 +603,7 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 
 Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list says "Most teams finish in about ten minutes" (the approved board's sentence) and exists to get a new member to their first real verdict in minutes; nothing measures either. Real organisations have to use it first, so this waits for attended runs, and it ends in either evidence for the sentence or a reworded sentence on the board and in `design/SPEC.md` A4.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** attended
 **Surface:** no
 
@@ -622,7 +622,7 @@ Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list s
 
 When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S11 (a deviation or a revised board for the 500's help link)
@@ -643,7 +643,7 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 
 Board X4's "Add to eval set" stores a synthetic copy of the case, so the member's real email never leaves their case. No eval-set intake exists (0067 and 0073 carry runs, results and published only), and the synthetic-data rules with intake review, consumption, duplicate prevention and removal belong to the eval lane. Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the triage action)
@@ -664,7 +664,7 @@ Board X4's "Add to eval set" stores a synthetic copy of the case, so the member'
 
 Board X4's "File a TODO" files the operator's follow-up from a feedback item. No product TODO backend exists (`operator-actions.md` is the handover blocker list, not product data). Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the triage action)
@@ -685,7 +685,7 @@ Board X4's "File a TODO" files the operator's follow-up from a feedback item. No
 
 Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in `src/` or the migrations, and enforcement (refusing admission, signing, verification) with reinstatement belongs with the auth lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 6).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X2 (the plan card action)
@@ -706,7 +706,7 @@ Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in
 
 Board X2's threats card ends with "Money at risk caught" across the invoices. No amount column exists in the merged migrations, and the verified amount contract belongs to the invoice lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 7).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** no
 **Fidelity:** `design/SPEC.md` X2 (the threats card line)
@@ -727,7 +727,7 @@ Board X2's threats card ends with "Money at risk caught" across the invoices. No
 
 The feedback queue finds a complaint only by paging through its tab fifty at a time, and the detail panel offers no way to step to the next complaint. Search or filter (by case, organisation or words) and previous/next item navigation need their own surface: the board X4 queue has neither, so the controls need operator approval and a SPEC note before they are drawn. Filed 2026-11-02 from D07 T08 §5's completion review (gap G16).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the queue)

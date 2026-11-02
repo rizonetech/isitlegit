@@ -38,19 +38,19 @@ track: day-6
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
-| 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
-| 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
-| 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
-| 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
+| 8 | §8 | A chosen date range in the | §1 | [ ] |
+| 9 | §9 | Next and previous case | §1, D07 T03 §1 | [ ] |
+| 10 | §10 | A Checked by filter in the | §7 | [ ] |
+| 11 | §11 | DNS help per provider | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
 | 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
-| 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
+| 15 | §15 | Slash shortcut to the | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
-| 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
-| 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
-| 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
+| 18 | §18 | Threat kinds under Malicious | §2 | [ ] |
+| 19 | §19 | Chosen reporting period for the | §2 | [ ] |
+| 20 | §20 | Opt-in weekly counts | §2 | [ ] |
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
@@ -349,7 +349,7 @@ Each row named as the board names it: the original's subject over its sender, th
 > **Verified:** 2026-10-31 | §7 | aa6143fac032a2930bf0a4fff4f74bac38b77102
 > **Review:** `docs/reviews/d07-t04-s7.json`
 
-## 8. A chosen date range in the Cases list
+## 8. A chosen date range in the
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -374,7 +374,7 @@ A member looking for a check from a known week picks its dates instead of paging
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
 
-## 9. Next and previous case from a report
+## 9. Next and previous case
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -399,7 +399,7 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if a step leaves the filter or the organisation.
 
-## 10. A Checked by filter in the Cases list
+## 10. A Checked by filter in the
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -424,7 +424,7 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
 
-## 11. DNS help for each provider on the domain page
+## 11. DNS help per provider
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -457,7 +457,7 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 
 Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence item). A member who uploads the wrong file, or a private one by mistake, has no way to remove it: the case, its stored file and its evidence stay until the 30-day retention. VirusTotal Private Scanning lets its users delete a file alone or the file and its report. Whether a member may delete, who in the organisation may, and what is kept for audit are the operator's to decide; the stored objects are D01's (the checks lane), asked through the coordinator.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** owner-decision
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases and M3 Report, a removal confirmation added to the boards
@@ -534,7 +534,7 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 > **Verified:** 2026-11-01 | §14 | 50742aa926b7ab689fd9256db71462f868993f0b
 > **Review:** `docs/reviews/d07-t04-s14.json`
 
-## 15. Slash shortcut to the Cases search
+## 15. Slash shortcut to the
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -603,7 +603,7 @@ The board's third tile: the rand total of this week's invoices whose bank detail
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unflagged invoice's amount is counted.
 
-## 18. Threat kinds under Malicious or suspicious
+## 18. Threat kinds by verdict
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -629,7 +629,7 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
 
-## 19. Chosen reporting period for the counts export
+## 19. Reporting period choice
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
@@ -654,7 +654,7 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
-## 20. Opt-in weekly counts report by email
+## 20. Opt-in weekly counts
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
