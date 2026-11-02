@@ -63,6 +63,10 @@ export type MetaContext = {
   // The caller's own absolute deadline, when it has one: re-read at every send, so work that expired
   // while the request was being prepared (serialised, reserved) starts no transport attempt.
   expired?: () => boolean;
+  // Search grounding, opened only for the grounded brand call (D03 T02 §4): its presence is what
+  // lets a `web_search*` tool past the refusal below, and `maxSearches` is the cap the reservation
+  // prices and the caller accepts against (Meta documents no per-request search-count parameter).
+  search?: { maxSearches: number };
   // Keeps an attempt's record write alive past the call's deadline (a Workflow step's or a request's own waitUntil).
   waitUntil?: (promise: Promise<unknown>) => void;
   fetch?: typeof fetch;
@@ -131,9 +135,13 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       );
     // What the budget cannot bound before the call is refused before it (D03 T01 §2 final review): web search is billed
     // per query with no per-request cap Meta documents (D03 T02 §4 budgets it), and a file the server fetches (a file id,
-    // a file URL, an input file such as a PDF) is billed by its content, which the request does not carry.
-    if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
-      throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+    // a file URL, an input file such as a PDF) is billed by its content, which the request does not carry. Grounding is
+    // open only on a context carrying its search cap (D03 T02 §4): every other caller still refuses.
+    if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search"))) {
+      const cap = ctx.search?.maxSearches;
+      if (!Number.isInteger(cap) || (cap as number) < 1)
+        throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+    }
     if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
       throw new ModelError(
         "invalid-request",
@@ -163,6 +171,10 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
     inputBytes: new TextEncoder().encode(text).byteLength,
     maxOutputTokens: params.max_output_tokens as number,
     images,
+    // A grounded call reserves its whole search cap; its answer settles at the searches it reports.
+    searches: (params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search"))
+      ? (ctx.search?.maxSearches ?? 0)
+      : 0,
   });
   const answer = await withRetries(ctx, seen, (signal, n) => {
     let requestId: string | null = null;
@@ -190,6 +202,8 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
           outputTokens: data.usage?.output_tokens,
           // SAM is billed per image sent, one at least.
           images: Math.max(1, images),
+          // The searches this answer itself ran, counted from its own output (D03 T02 §4).
+          searches: (data.output ?? []).filter((item) => item.type === "web_search_call").length,
         },
         logId,
         requestId,

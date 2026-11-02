@@ -139,12 +139,16 @@ describe("visionStep with a stubbed model", () => {
     const out = await visionStep(deps(first, fetchStub), first);
     expect(out.outcome).toBe("read");
     const items = (await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."));
+    // The claimed brand's domain outcome rides with the reading (D03 T02 §4): the stub's grounded
+    // answer cites nothing, so each picture's claim is stated unconfirmed, never a mismatch.
     expect(items.map((e) => e.check)).toEqual([
       "vision.claimed_brand",
       "vision.requested_action",
       "vision.urgency",
       "vision.claimed_brand",
       "vision.requested_action",
+      "vision.brand_domain_mismatch",
+      "vision.brand_domain_mismatch",
     ]);
     expect(items.every((e) => e.artefacts.length === 1 && e.artefacts[0]?.includes(first))).toBe(true);
     const view = ruleVerdict(await readEvidence(env.DB, first), { headersAvailable: true });
@@ -162,7 +166,7 @@ describe("visionStep with a stubbed model", () => {
       first,
     );
     expect(replay.outcome).toBe("read");
-    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(5);
+    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(7);
 
     // A twin case (the same message and attachment) is served from the cache too, with its own
     // artefact keys in the rebuilt evidence.
@@ -175,7 +179,7 @@ describe("visionStep with a stubbed model", () => {
     );
     expect(out2.outcome).toBe("read");
     const twin = (await readEvidence(env.DB, second)).filter((e) => e.check.startsWith("vision."));
-    expect(twin).toHaveLength(5);
+    expect(twin).toHaveLength(7);
     expect(twin.every((e) => e.artefacts[0]?.includes(second))).toBe(true);
   }, 300_000);
 
@@ -501,8 +505,140 @@ describe("visionStep with a stubbed model", () => {
     const coverage = items.find((e) => e.check === "vision.coverage");
     expect(coverage?.detail).toMatchObject({ checked: false, complete: false });
     expect(JSON.stringify(coverage?.detail)).toContain("could not be read back");
-    // Not cached: a second run spends the model again.
+    // Not cached: a second run spends the model again (each run is the reading call plus the
+    // claimed brand's grounded call, D03 T02 §4, which the same stub answers).
     await visionStep(deps(caseId, fetchStub, theStore), caseId);
-    expect(calls).toBe(2);
+    expect(calls).toBe(4);
+  }, 300_000);
+});
+
+// D03 T02 §4 at the step: claimed brands compared with the domains the case holds, isolated from
+// the reading, replaced on replay, and fenced by the step deadline.
+describe("visionStep brand domains (D03 T02 §4)", () => {
+  const groundedReply = (text: string, url: string, title: string) =>
+    new Response(
+      JSON.stringify({
+        id: "r",
+        object: "response",
+        status: "completed",
+        output: [
+          { type: "web_search_call", id: "ws_1", status: "completed" },
+          {
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "output_text",
+                text,
+                annotations: [{ type: "url_citation", url, title, start_index: 0, end_index: 8 }],
+              },
+            ],
+          },
+        ],
+        usage: { input_tokens: 100, output_tokens: 20 },
+      }),
+      { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+    );
+
+  const lanternReading = {
+    readings: [
+      {
+        image: "image-1",
+        claimed_brand: "Lantern Bank",
+        requested_action: "pay",
+        urgency_cues: [],
+        visible_sender: "billing@evil.example",
+        payment_request: true,
+        confidence: 0.9,
+      },
+      {
+        image: "image-2",
+        claimed_brand: "Lantern Bank",
+        requested_action: "pay",
+        urgency_cues: [],
+        visible_sender: null,
+        payment_request: true,
+        confidence: 0.8,
+      },
+    ],
+  };
+
+  const routed = (groundedImpl: (body: string) => Response | Promise<Response>) =>
+    (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = String(init?.body ?? "");
+      if (body.includes("web_search")) return groundedImpl(body);
+      return reply(lanternReading);
+    }) as typeof fetch;
+
+  it("replaces brand outcomes on replay: unconfirmed, then a cited mismatch, then a match, with PDF items kept", async () => {
+    const caseId = await seededCase("brand-transitions");
+    await putAttachment(store, caseId, "broken.pdf", new TextEncoder().encode("%PDF-1.4 damaged"), "application/pdf");
+    let cited = false;
+    const fetchStub = routed(() =>
+      cited
+        ? groundedReply("DOMAIN: lanternbank.example", "https://lanternbank.example/about", "Lantern Bank official")
+        : reply({}),
+    );
+    const brandItems = async () =>
+      (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.brand_domain_mismatch");
+
+    await visionStep(deps(caseId, fetchStub), caseId);
+    let items = await brandItems();
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((e) => e.detail.confirmed === false)).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+
+    cited = true;
+    await visionStep(deps(caseId, fetchStub), caseId);
+    items = await brandItems();
+    expect(
+      items.some((e) => e.severity === "high" && e.detail.source_url === "https://lanternbank.example/about"),
+    ).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+    const afterMismatch = items.length;
+
+    // The resolution the next case would reuse now also names the shown domain: the replay's
+    // comparison matches, so the high item is replaced, not kept beside a match.
+    await (env as unknown as Env).CACHE.put(
+      "vision:brand:v1:brand-domains-1:lanternbank",
+      JSON.stringify({
+        domains: ["lanternbank.example", "evil.example"],
+        source_url: "https://lanternbank.example/about",
+        expires_at: Date.now() + 60_000,
+      }),
+    );
+    await visionStep(deps(caseId, fetchStub), caseId);
+    items = await brandItems();
+    expect(items.some((e) => e.severity === "high")).toBe(false);
+    expect(items.length).toBeLessThanOrEqual(afterMismatch);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+  }, 300_000);
+
+  it("states a grounded outage unconfirmed and leaves the reading standing", async () => {
+    const caseId = await seededCase("brand-outage");
+    const fetchStub = routed(() => {
+      throw new Error("search is down");
+    });
+    const out = await visionStep(deps(caseId, fetchStub), caseId);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect(items.some((e) => e.check === "vision.brand_domain_mismatch" && e.detail.confirmed === false)).toBe(true);
+  }, 300_000);
+
+  it("publishes no brand cache entry when the step deadline fires during a stalled lookup", async () => {
+    const caseId = await seededCase("brand-stalled");
+    const fetchStub = routed(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      return groundedReply("DOMAIN: lanternbank.example", "https://lanternbank.example/about", "Lantern Bank official");
+    });
+    const out = await visionStep({ ...deps(caseId, fetchStub), deadlineMs: 2_000 }, caseId);
+    expect(out.outcome).toBe("not_checked");
+    const cachedEntry = await (env as unknown as Env).CACHE.get("vision:brand:v1:brand-domains-1:lanternbank", "json");
+    // Only the earlier test's entry may stand; the stalled answer must not have replaced it with
+    // its own late result, and no brand item may stand on this case.
+    expect((cachedEntry as { domains?: string[] } | null)?.domains).toEqual(["lanternbank.example", "evil.example"]);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.brand_domain_mismatch")).toBe(false);
   }, 300_000);
 });

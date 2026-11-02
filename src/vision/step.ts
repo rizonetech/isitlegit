@@ -7,9 +7,19 @@
 // the opposite: when even the failure statement cannot be written, the step throws, so the case ends
 // partial instead of reaching a verdict with its missing coverage concealed.
 import type { Browser } from "@cloudflare/puppeteer";
+import { brandTable, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
-import { artefactsOf, readArtefact, readVisible, type Store } from "../intake/store";
+import { originalHeaderOf } from "../intake/original-header";
+import { artefactsOf, parsedKey, readArtefact, readVisible, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
+import {
+  type BrandResolution,
+  brandItem,
+  type ComparedDomain,
+  normaliseBrand,
+  resolveBrand,
+  shownDomain,
+} from "./brand";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
@@ -67,7 +77,49 @@ const ATTEMPT_OWNED = new Set([
   "vision.urgency",
   "vision.coverage",
   "vision.not_checked",
+  "vision.brand_domain_mismatch",
 ]);
+
+// The case's authoritative sender domain, from its parsed From header; null when the case holds
+// no readable one (an upload, a repeated From), never guessed from the picture.
+async function senderDomainOf(store: Store, caseId: string): Promise<string | null> {
+  try {
+    const read = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!read || !("body" in read)) return null;
+    const parsed = JSON.parse(new TextDecoder().decode(read.body)) as {
+      headers?: { name: string; value: string }[];
+    };
+    if (!Array.isArray(parsed.headers)) return null;
+    const address = originalHeaderOf(parsed.headers).fromAddress;
+    const host = address?.slice(address.lastIndexOf("@") + 1).toLowerCase();
+    return host && registrable(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+// Every landing or link host the case's evidence already carries, from the addresses in its
+// items' details; a read failure leaves the brand stage with the sender and shown domains.
+async function landingHostsOf(db: D1Database, caseId: string): Promise<string[]> {
+  const hosts = new Set<string>();
+  const collect = (value: unknown) => {
+    if (typeof value === "string" && /^https?:\/\//.test(value)) {
+      try {
+        const host = new URL(value).hostname.toLowerCase();
+        if (registrable(host)) hosts.add(host);
+      } catch {
+        // Not an address: data, not a landing.
+      }
+    } else if (Array.isArray(value)) for (const entry of value) collect(entry);
+    else if (value && typeof value === "object") for (const entry of Object.values(value)) collect(entry);
+  };
+  try {
+    for (const item of await readEvidence(db, caseId)) collect(item.detail);
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+  }
+  return [...hosts];
+}
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
 // failures, one per attachment) and replaces the ones it does. The expiry gate is re-read after the
@@ -375,6 +427,77 @@ async function runVision(
     );
     const items = readingItems(reading, images);
     if (losses.length) items.push(coverageItem(losses));
+
+    // Each claimed brand against its real domains (D03 T02 §4), isolated per brand after the
+    // reading exists: a lookup that fails states that brand unconfirmed and leaves every other
+    // item standing, and expired work starts no grounded call.
+    const claims = reading.readings.filter((entry) => entry.claimed_brand);
+    if (claims.length && !expired()) {
+      let table: Awaited<ReturnType<typeof brandTable>> | null = null;
+      try {
+        table = await brandTable({ CACHE: deps.kv });
+        const sender = await senderDomainOf(deps.store, caseId);
+        const landings = await landingHostsOf(deps.db, caseId);
+        const byId = new Map(images.map((image) => [image.id, image]));
+        const resolutions = new Map<string, BrandResolution>();
+        const grounded = { count: 0 };
+        for (const claim of claims) {
+          if (expired()) break;
+          const image = byId.get(claim.image);
+          const brand = claim.claimed_brand;
+          if (!image || !brand) continue;
+          const comparedByHost = new Map<string, ComparedDomain>();
+          if (sender) comparedByHost.set(sender, { host: sender, kind: "sender" });
+          for (const host of landings)
+            if (!comparedByHost.has(host)) comparedByHost.set(host, { host, kind: "landing" });
+          const shown = shownDomain(claim.visible_sender);
+          if (shown && !comparedByHost.has(shown)) comparedByHost.set(shown, { host: shown, kind: "shown" });
+          const compared = [...comparedByHost.values()];
+          try {
+            const key = normaliseBrand(brand);
+            let resolution = resolutions.get(key);
+            if (!resolution) {
+              const registrables = new Set(
+                compared.map((entry) => registrable(entry.host)).filter((domain) => domain !== null),
+              );
+              resolution = await resolveBrand(
+                {
+                  meta: deps.meta,
+                  owner,
+                  kv: deps.kv,
+                  table,
+                  deadline: { at: deadlineAt, expired },
+                  grounded,
+                },
+                brand,
+                registrables,
+              );
+              resolutions.set(key, resolution);
+            }
+            const item = brandItem(table, brand, image, compared, resolution);
+            if (item) items.push(item);
+          } catch {
+            const fallback = brandItem(table, brand, image, compared, {
+              kind: "unconfirmed",
+              reason: "lookup-failed",
+            });
+            if (fallback) items.push(fallback);
+          }
+        }
+      } catch {
+        // The stage's own setup failed (the table read): the reading stands without it, and the
+        // absence is stated per claim rather than concealed.
+        for (const claim of claims) {
+          const image = images.find((entry) => entry.id === claim.image);
+          if (!image || !claim.claimed_brand || !table) continue;
+          const fallback = brandItem(table, claim.claimed_brand, image, [], {
+            kind: "unconfirmed",
+            reason: "lookup-failed",
+          });
+          if (fallback) items.push(fallback);
+        }
+      }
+    }
     if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
     return { outcome: "read", items: items.length };
   } catch (error) {
