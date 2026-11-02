@@ -53,7 +53,7 @@ async function drawn(c: Context<GateEnv>, signedIn: SignedIn, status: number, al
   if (!membership.ok)
     return membership.reason === "unavailable"
       ? outage("membership")
-      : errorPage(403, "", { email: signedIn.user.email });
+      : errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" });
   const [usage, shell] = await Promise.all([
     todayUsage(c.env.DB, membership.org.id),
     memberShell(c.env.DB, signedIn.user, membership.org.id, "cases"),

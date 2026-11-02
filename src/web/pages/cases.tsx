@@ -38,7 +38,7 @@ casesRoutes.get(
     if (!membership.ok)
       return membership.reason === "unavailable"
         ? outage(c.req.raw, "membership")
-        : errorPage(403, "", { email: signedIn.user.email });
+        : errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" });
     // Drawn for another organisation than the active one: the whole page again, at the address asked for.
     const drawnFor = c.req.header(ORG_HEADER);
     if (drawnFor && drawnFor !== membership.org.id)
@@ -101,7 +101,7 @@ casesRoutes.get(
     if (!membership.ok)
       return membership.reason === "unavailable"
         ? outage(c.req.raw, "membership", "cases-csv")
-        : errorPage(403, "", { email: signedIn.user.email });
+        : errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" });
     // Asked from a page drawn for another organisation than the active one (switched in another tab): the Cases page
     // of the active one, whose export is then the member's to press, never the other organisation's counts unasked.
     const asked = new URL(c.req.url).searchParams.get("org");

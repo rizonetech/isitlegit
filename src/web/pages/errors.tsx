@@ -55,11 +55,30 @@ const forward = (
 export function errorPage(
   code: Extract<ErrorCode, 403 | 404 | 410 | 500>,
   caseId: string,
-  options: { retry?: string; ref?: string; now?: Date; email?: string } = {},
+  options: { retry?: string; ref?: string; now?: Date; email?: string; closed?: boolean } = {},
 ) {
   const footer = referenceLine(options.ref ?? reference(code), options.now ?? new Date());
   const body =
-    code === 403 ? (
+    code === 403 && options.closed ? (
+      <ErrorState
+        code={403}
+        title="This organisation is closed."
+        actions={[
+          <Button variant="dark" href="/settings/account">
+            Your account
+          </Button>,
+          <form method="post" action="/auth/sign-out">
+            <Button type="submit" variant="ghost">
+              Sign out
+            </Button>
+          </form>,
+        ]}
+        footer={footer}
+      >
+        Its owner closed it, so it no longer takes cases. Your account page says when its stored mail, cases and history
+        will be deleted.
+      </ErrorState>
+    ) : code === 403 ? (
       // E3, answered by the Cases list itself (D07 T04 §1): the board's "Go to your own cases" is this page, so only Sign
       // out is offered (a Deviation in design/SPEC.md E3).
       <ErrorState

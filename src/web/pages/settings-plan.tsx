@@ -38,7 +38,7 @@ planRoutes.get(
     if (!membership.ok)
       return membership.reason === "unavailable"
         ? outage("membership", from)
-        : errorPage(403, "", { email: signedIn.user.email });
+        : errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" });
     const orgId = membership.org.id;
     try {
       const now = new Date();

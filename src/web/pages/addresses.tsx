@@ -68,7 +68,7 @@ async function manager(env: Env, signedIn: SignedIn, request: Request) {
   if (!membership.ok)
     return membership.reason === "unavailable"
       ? { refused: outage(request, "membership") }
-      : { refused: errorPage(403, "", { email: signedIn.user.email }) };
+      : { refused: errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" }) };
   if (!["owner", "admin"].includes(membership.org.role)) {
     let name: { name: string } | null;
     try {

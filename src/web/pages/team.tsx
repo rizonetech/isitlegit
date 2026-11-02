@@ -186,7 +186,7 @@ async function memberOf(env: Env, signedIn: SignedIn) {
   if (!membership.ok)
     return membership.reason === "unavailable"
       ? { refused: outage("membership") }
-      : { refused: errorPage(403, "", { email: signedIn.user.email }) };
+      : { refused: errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" }) };
   return { org: membership.org };
 }
 
