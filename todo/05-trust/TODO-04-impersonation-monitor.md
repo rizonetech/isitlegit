@@ -366,6 +366,8 @@ Every settled monitor page (§3 and §4's screens) and every settled case page (
 
 ## 12. Monitor case allowance and quality
 
+> **Started:** 2026-11-02T23:43Z
+
 Monitor investigations must not consume the member's own checking allowance, and the pipeline's quality (destination, form and confirmation accuracy, latency, cost, and each model's measured contribution) needs a corpus before any superiority claim (D05 T04 §4 completion review, filed 2026-11-02).
 
 **Phase:** 7
