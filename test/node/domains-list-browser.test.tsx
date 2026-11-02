@@ -353,9 +353,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domains page in Chromiu
           .first()
           .isVisible(),
       ).toBe(true);
-      // Open disclosures in both themes fit the width and pass the accessibility gate's rules.
+      // Open disclosures in both themes fit the width and pass the accessibility gate's rules. The keyboard
+      // open and close run again inside the theme loop, so script-enabled dark-mode interaction is covered too.
+      const nkosi = row("nkosi.example").locator("summary");
+      const shownNkosi = () => p.getByText(nkosiDetail, { exact: true }).locator("visible=true");
       for (const theme of ["light", "dark"] as const) {
         await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        await nkosi.press("Enter");
+        expect(await shownNkosi().first().isVisible(), `${theme} keyboard open`).toBe(true);
+        await nkosi.press("Enter");
+        expect(await shownNkosi().count(), `${theme} keyboard close`).toBe(0);
+        expect(await p.evaluate(() => document.activeElement?.tagName), `${theme} focus retained`).toBe("SUMMARY");
         expect(
           await p.evaluate(() => document.documentElement.scrollWidth),
           `${theme} detail open`,
