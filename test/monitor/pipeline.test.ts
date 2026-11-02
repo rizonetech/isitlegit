@@ -50,7 +50,7 @@ function stubFetch() {
 async function flagged(orgId: string, domain: string, host: string) {
   const key = `monitor/${orgId}/${host}/2026-11-02T00:00:00.000Z/`;
   await env.ARTEFACTS.put(`${key}screenshot.jpg`, fakeJpeg(1280, 800, 30_000));
-  await env.ARTEFACTS.put(`${key}text.txt`, "Fynbos Freight sign in to continue.");
+  await env.ARTEFACTS.put(`${key}text.txt`, `Fynbos Freight sign in to continue at ${host}.`);
   await db
     .prepare(
       `INSERT INTO monitor_hosts (org_id, domain, resolves, captured_at, capture_key, first_seen, last_seen)
@@ -93,6 +93,7 @@ function deps(walked: string[]): PipelineDeps {
     },
     walk: async (caseId) => {
       walked.push(caseId);
+      return { outcome: "walked" };
     },
     cropLogo: async () => ({ bytes: fakeJpeg(100, 100, 2_000), mediaType: "image/png", label: "crop" }),
   };
@@ -116,12 +117,61 @@ describe("the monitor pipeline", () => {
     expect(checks).toContain("vision.logo_match");
     expect(checks).toContain("link.credential_form");
     expect(evidence.find((e) => e.check === "vision.logo_match")?.severity).toBe("high");
-    expect(JSON.stringify(evidence)).not.toContain("identities/");
+    expect(JSON.stringify(evidence)).not.toContain("ident/");
     expect(walked).toEqual([row?.case_id]);
     // A repeated run skips the settled investigation and walks nothing again.
     const again = await monitorPipeline(deps(walked), orgId, "2026-11-01T00:00:00.000Z");
     expect(again.skipped).toBe(1);
     expect(walked).toHaveLength(1);
+  });
+
+  it("uses each organisation's own logo and never walks without a form", async () => {
+    const a = await business();
+    const b = await business();
+    await registerLogo(a.orgId);
+    await registerLogo(b.orgId);
+    await flagged(a.orgId, a.domain, "a-lure.example");
+    await flagged(b.orgId, b.domain, "b-lure.example");
+    const walked: string[] = [];
+    // No form in this reading: requested_action none, so no trigger and no walk.
+    const noForm = {
+      readings: [{ ...READING.readings[0], requested_action: "none", payment_request: false }],
+    };
+    const fetchNone = (async (_i: RequestInfo | URL, init?: RequestInit) =>
+      String(init?.body ?? "").includes("logo_comparison") ? answer(JUDGEMENT) : answer(noForm)) as typeof fetch;
+    const d = { ...deps(walked), meta: { ...deps(walked).meta, fetch: fetchNone } };
+    await monitorPipeline(d, a.orgId, "2026-11-01T00:00:00.000Z");
+    await monitorPipeline(d, b.orgId, "2026-11-01T00:00:00.000Z");
+    expect(walked).toEqual([]);
+    for (const org of [a.orgId, b.orgId]) {
+      const row = await db
+        .prepare("SELECT case_id FROM monitor_investigations WHERE org_id = ?")
+        .bind(org)
+        .first<{ case_id: string }>();
+      const evidence = await readEvidence(db, row?.case_id as string);
+      expect(evidence.some((e) => e.check === "vision.logo_match")).toBe(true);
+      expect(JSON.stringify(evidence)).not.toContain("ident/");
+    }
+  });
+
+  it("states an SVG registered logo not compared", async () => {
+    const { orgId, domain } = await business();
+    const key = `ident/${orgId}/logo.svg`;
+    await env.ARTEFACTS.put(key, "<svg/>");
+    await db
+      .prepare("UPDATE identities SET logo_r2_key = ?, logo_media_type = 'image/svg+xml' WHERE org_id = ?")
+      .bind(key, orgId)
+      .run();
+    await flagged(orgId, domain, "svg-lure.example");
+    await monitorPipeline(deps([]), orgId, "2026-11-01T00:00:00.000Z");
+    const row = await db
+      .prepare("SELECT case_id, state FROM monitor_investigations WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ case_id: string; state: string }>();
+    const evidence = await readEvidence(db, row?.case_id as string);
+    const logo = evidence.find((e) => e.check === "vision.logo_match");
+    expect(logo?.detail).toMatchObject({ checked: false, reason: "registered-logo-svg" });
+    expect(row?.state).toBe("partial");
   });
 
   it("states a missing capture partial and carries on", async () => {

@@ -83,6 +83,26 @@ async function investigate(
     .run();
   let caseId = existing?.case_id ?? null;
   if (!caseId) {
+    // A prior run may have created the case and stopped before recording it: adopt that case
+    // (the system uploader's, for this host, made after the investigation row) instead of
+    // creating an orphan beside it.
+    const orphan = await db
+      .prepare(
+        `SELECT id FROM cases WHERE org_id = ? AND uploaded_by = 'monitor' AND upload_name = ?
+         AND created_at >= (SELECT created_at FROM monitor_investigations WHERE org_id = ? AND capture_key = ?)
+         ORDER BY created_at LIMIT 1`,
+      )
+      .bind(orgId, page.domain, orgId, page.capture_key)
+      .first<{ id: string }>();
+    if (orphan) {
+      caseId = orphan.id;
+      await db
+        .prepare("UPDATE monitor_investigations SET case_id = ?, updated_at = ? WHERE org_id = ? AND capture_key = ?")
+        .bind(caseId, now().toISOString(), orgId, page.capture_key)
+        .run();
+    }
+  }
+  if (!caseId) {
     const made = await createCase(db, {
       orgId,
       channel: "upload",
@@ -120,8 +140,8 @@ async function investigate(
   }
   const screenshot = new Uint8Array(await shot.arrayBuffer());
   const visibleText = textObj ? await textObj.text() : "";
-  await putAttachment(deps.store, caseId, "screenshot.jpg", screenshot, "image/jpeg");
-  const artefactKey = `cases/${caseId}/screenshot.jpg`;
+  const stored = await putAttachment(deps.store, caseId, "screenshot.jpg", screenshot, "image/jpeg");
+  const artefactKey = stored.key;
   const image: ReadingImage = {
     id: "P1",
     promptLabel: "the flagged page's screenshot",
@@ -155,10 +175,15 @@ async function investigate(
   // any impersonation claim (completion review gap 2): its own host is official, anything else
   // is a mismatch.
   const hostRow = await db
-    .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ?")
+    .prepare("SELECT capture_url, captured_at FROM monitor_hosts WHERE org_id = ? AND domain = ?")
     .bind(orgId, page.domain)
-    .first<{ capture_url: string | null }>();
-  const finalHost = hostRow?.capture_url ? new URL(hostRow.capture_url).hostname : page.domain;
+    .first<{ capture_url: string | null; captured_at: string | null }>();
+  // The host row holds only the current capture: its URL judges this investigation only when
+  // it is this capture's moment (the capture key's trailing segment); otherwise the flagged
+  // host itself is the destination, never another capture's redirect.
+  const moment = page.capture_key.replace(/\/$/, "").split("/").at(-1);
+  const finalHost =
+    hostRow?.capture_url && hostRow.captured_at === moment ? new URL(hostRow.capture_url).hostname : page.domain;
   const ownDomains = (
     await db
       .prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'")
@@ -233,12 +258,26 @@ async function investigate(
     );
     refs.push(...savedTrigger.map((e) => e.id));
   }
+  let walkFailed = false;
   if (action === "log_in" || action === "pay") {
-    await deps.walk(caseId).catch(() => null);
-    refs.push("walkthrough");
+    const walked = await deps.walk(caseId).catch(() => {
+      walkFailed = true;
+      return null;
+    });
+    if ((walked as { outcome?: string } | null)?.outcome === "not-run") walkFailed = true;
   }
-  const confirmed = logoCompared && items.some((i) => i.check === "vision.logo_match" && i.severity === "high");
-  return finish(confirmed ? "confirmed" : "unconfirmed");
+  // Settlement reads the whole case (round 1): the walkthrough's own findings beside the logo,
+  // and every final Evidence ID, collected after all producers have written.
+  const { readEvidence } = await import("../checks/evidence");
+  const final = await readEvidence(db, caseId);
+  refs.length = 0;
+  refs.push(...final.map((e) => e.id));
+  const confirmed =
+    final.some((e) => e.check === "vision.logo_match" && e.severity === "high") ||
+    final.some((e) => e.check.startsWith("walkthrough.") && e.severity === "high");
+  const failed =
+    walkFailed || !logoCompared || final.some((e) => (e.detail as { checked?: boolean }).checked === false);
+  return finish(confirmed ? "confirmed" : failed ? "partial" : "unconfirmed");
 }
 
 // Every flagged page with no terminal investigation, investigated in order; a failure settles its
