@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 602
 
 ### Phase 7: After the event
 
-Sections: 175 | Checklist items: 734
+Sections: 176 | Checklist items: 738
 
 | Status | Reference   | Deliverable                                        | Needs                | Items |
 | ------ | ----------- | -------------------------------------------------- | -------------------- | ----- |
@@ -543,6 +543,7 @@ Sections: 175 | Checklist items: 734
 | [ ]    | D07 T06 §19 | Security assurance evidence link                   | none                 | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back                   | cloudflare           | 9     |
 | [ ]    | D07 T06 §22 | Direct bank fraud-line links in the recovery steps | none                 | 4     |
+| [ ]    | D07 T06 §23 | Billing timing in the pricing terms                | none                 | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed                               | cloudflare, operator | 2     |
 | [ ]    | D07 T08 §7  | Renew an expired report link                       | operator             | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from                     | operator             | 4     |
@@ -605,6 +606,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 322/529 verified sections, 130 ready to run now.
+Progress: 322/530 verified sections, 130 ready to run now.
 
-Checklist: 2556/3318 items completed (includes Commit items).
+Checklist: 2556/3322 items completed (includes Commit items).

@@ -54,6 +54,7 @@ track: day-6
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
 | 21 | §21 | Drop the 3 November repository note | §18 | [x] |
 | 22 | §22 | Direct bank fraud-line links in the recovery steps | §11 | [ ] |
+| 23 | §23 | Billing timing in the pricing terms | §12 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -502,6 +503,8 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
 
+> **Deferred:** billing timing (member-count changes, cancellation effect) -> XREF: D07 T06 §23
+
 ## 13. On-site invite request
 
 A visitor without an invite code asks for one on the page and is told what happens next, with no email-client handoff, while access stays invite-only. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 3): §4 offers a mailto link to hello@isitlegit.co.za. Needs a place to receive requests (a form endpoint or the app's intake), so the operator decides where requests go first.
@@ -765,6 +768,29 @@ SABRIC's own guidance lists each bank's fraud hotline on one page; §11's first 
 - [ ] Commit: `site: direct bank fraud-line links`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with step 1 linking each bank's own fraud page.
+
+## 23. Billing timing in the pricing terms
+
+§12 states the price, the VAT reading and the commitment, but not when a member-count change alters the charge or when a cancellation takes effect. Filed 2026-11-02 by D07 T06 §12's completion review (out-of-scope G2): those rules belong to billing, which has not started, so they are defined with the billing build and stated on `/pricing` before any customer is charged.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S5 (the terms answers §12 added)
+**Job:** a buyer knows when a change in members changes the price and when cancelling stops it
+**Treatment:** two plain answers added to the pricing page's terms when billing exists
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. With the billing build (its owning lane, through the coordinator), record the member-count and cancellation timing rules, then state them on `/pricing`. Done when: the rules and their dates are here and the page states them before billing starts.
+
+- [ ] Record the billing rules (when a member added or removed changes the charge, and the date a cancellation takes effect) from the billing build's owner, through the coordinator. Done when: the rules and dates are recorded here.
+- [ ] Add the two answers to the Questions on `/pricing` in `site/src/pages/pricing.astro`, beside the §12 terms. Done when: the built page states both. Cheaper substitute: stating timing before billing defines it, refused (invented terms).
+- [ ] Test in `site/test/pricing.test.ts` that both answers sit in their questions. Done when: the test fails when one is removed.
+- [ ] Commit: `site: billing timing in the pricing terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with both timing answers on `/pricing`, before any customer is charged.
 
 ## Verification
 

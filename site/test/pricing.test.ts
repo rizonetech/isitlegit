@@ -105,6 +105,13 @@ describe("Pricing", () => {
       return text(questions.slice(at, questions.indexOf("</div>", at)));
     };
     assert.ok(answer("What does the price include?").includes("include VAT"), "the VAT answer is not in its question");
+    assert.doesNotMatch(answer("What does the price include?"), /exclude VAT|do not include VAT|plus VAT/, "the VAT promise is reversed");
+    // A reversed VAT promise in the built page must fail this same check.
+    const mutated = html.replace("include VAT", "do not include VAT");
+    const atMut = mutated.indexOf("What does the price include?");
+    const mutAnswer = text(mutated.slice(atMut, mutated.indexOf("</div>", atMut)));
+    assert.match(mutAnswer, /do not include VAT/, "the mutation did not land");
+    assert.ok(/exclude VAT|do not include VAT|plus VAT/.test(mutAnswer), "a reversed VAT promise would pass");
     const locked = answer("Am I locked in?");
     for (const words of ["month-to-month", "cancel anytime", "keeps Free check"])
       assert.ok(locked.includes(words), `the commitment answer misses "${words}"`);
