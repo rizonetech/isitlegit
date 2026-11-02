@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 173 | Checklist items: 718
+Sections: 178 | Checklist items: 728
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -413,12 +413,15 @@ Sections: 173 | Checklist items: 718
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
 | [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
+| [ ]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator             | 6     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
+| [ ]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 2     |
+| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 2     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -430,9 +433,11 @@ Sections: 173 | Checklist items: 718
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
 | [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
+| [ ]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
+| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 2     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
@@ -603,6 +608,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 320/527 verified sections, 132 ready to run now.
+Progress: 320/532 verified sections, 137 ready to run now.
 
-Checklist: 2540/3296 items completed (includes Commit items).
+Checklist: 2540/3306 items completed (includes Commit items).

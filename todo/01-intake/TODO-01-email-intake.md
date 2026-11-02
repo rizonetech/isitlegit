@@ -61,6 +61,7 @@ track: day-1
 | 20 | §20 | Earlier attempts readable on | §19 | [ ] |
 | 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
 | 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [ ] |
+| 23 | §23 | Auth outcomes stored before slower checks | §9 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -700,6 +701,23 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval re
 - [ ] Commit: `intake: replay-scoped claims for the eval organisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts` passes, and fails if a second replay run answers the first run's case or another organisation's.
+
+## 23. Auth outcomes stored before slower checks
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the Workflow stores a case's evidence only after the whole checks step, so a slow or failed later check leaves the fast header-authentication outcome (`auth.*`) unstored with it. D07 T09 §1 needs the auth outcomes and items stored before the slower checks run, later outcomes joining under the same run id.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Store the auth result first, the rest under the same run. Done when: a case whose later checks are still running (or failed) already reads its stored `auth.*` items and outcomes.
+
+- [ ] Split the checks step in `src/pipeline/analysis-workflow.ts` so the header-authentication outcomes and items are saved (`saveEvidence` with the run id the rest will join) before the remaining checks run, and the remaining outcomes join that same run without replacing the auth rows. Done when: `test/pipeline/analysis-workflow.test.ts` reads the stored auth items while a later check is still pending and after it fails, with every outcome under one run id.
+- [ ] Commit: `pipeline: auth outcomes stored before slower checks`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a failed later check leaves no stored auth outcome.
 
 ## Verification
 
