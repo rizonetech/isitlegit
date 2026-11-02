@@ -37,7 +37,7 @@ export class SegmentError extends Error {
 export const MIN_CONFIDENCE = 0.4;
 export const MAX_BOXES_PER_IMAGE = 8;
 export const CROP_PADDING_PX = 8;
-const CROP_TIMEOUT_MS = 30_000;
+export const CROP_TIMEOUT_MS = 30_000;
 
 const toBase64 = (bytes: Uint8Array) => {
   let out = "";

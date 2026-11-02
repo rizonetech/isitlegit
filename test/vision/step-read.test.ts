@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import puppeteer from "@cloudflare/puppeteer";
+import puppeteer, { type Browser, type Page } from "@cloudflare/puppeteer";
 import { describe, expect, it } from "vitest";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { readEvidence } from "../../src/checks/evidence";
@@ -419,6 +419,61 @@ describe("visionStep with a stubbed model", () => {
       const coverage = items.find((e) => e.check === "vision.coverage");
       expect(JSON.stringify(coverage?.detail)).toContain("segmentation");
       expect(await artefactsOf(store, stalledCase, "crop")).toHaveLength(0);
+    } finally {
+      samResponder = samEmpty;
+    }
+  }, 300_000);
+
+  it("loses one image to a stalled crop operation and still segments the next", async () => {
+    const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
+    const text =
+      `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
+    samResponder = () =>
+      samSse([
+        { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0, delta: text },
+        { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text },
+        {
+          type: "response.completed",
+          response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+        },
+      ]);
+    try {
+      const caseId = await seededCase("stall-one-image");
+      const base = deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch);
+      let stalled = false;
+      const launch = async () => {
+        const browser = await puppeteer.launch(env.BROWSER);
+        return new Proxy(browser, {
+          get(target, prop) {
+            if (prop === "newPage")
+              return async (...args: unknown[]) => {
+                const page = await (target.newPage as (...a: unknown[]) => Promise<Page>)(...args);
+                const original = page.evaluate.bind(page) as (...a: unknown[]) => Promise<unknown>;
+                (page as { evaluate: unknown }).evaluate = (...a: unknown[]) => {
+                  // The first segmentation sizing evaluation (sam.ts alone uses createImageBitmap)
+                  // never answers: its own operation bound, not the phase's remainder, ends it.
+                  if (!stalled && typeof a[0] === "function" && String(a[0]).includes("createImageBitmap")) {
+                    stalled = true;
+                    return new Promise(() => {});
+                  }
+                  return original(...a);
+                };
+                return page;
+              };
+            const value = Reflect.get(target, prop);
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        }) as Browser;
+      };
+      const started = Date.now();
+      const out = await visionStep({ ...base, launch }, caseId);
+      expect(out.outcome).toBe("read");
+      // The second image's three crops landed; the first image's loss is stated.
+      expect((await artefactsOf(store, caseId, "crop")).filter((c) => c.mediaType === "image/png")).toHaveLength(3);
+      const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+      const coverage = items.find((e) => e.check === "vision.coverage");
+      expect(JSON.stringify(coverage?.detail)).toContain("segmentation was unavailable");
+      expect(Date.now() - started).toBeLessThan(120_000);
     } finally {
       samResponder = samEmpty;
     }

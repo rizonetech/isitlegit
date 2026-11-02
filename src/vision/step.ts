@@ -14,7 +14,7 @@ import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
-import { cropBoxes, imageSize, segmentImage, selectBoxes, storeCrops } from "./sam";
+import { CROP_TIMEOUT_MS, cropBoxes, imageSize, segmentImage, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
   db: D1Database;
@@ -337,8 +337,10 @@ async function runVision(
             continue;
           }
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          const left = Math.max(1, segmentBy - Date.now());
-          const size = await imageSize(browser, source.bytes, left);
+          // Each browser operation is capped at its own bound as well as the phase's remainder,
+          // so one stalled image cannot spend every later image's allowance.
+          const opLeft = () => Math.max(1, Math.min(CROP_TIMEOUT_MS, segmentBy - Date.now()));
+          const size = await imageSize(browser, source.bytes, opLeft());
           const selected = selectBoxes(boxes, size);
           if (!selected.length) {
             if (!failures.length && !segmentExpired())
@@ -346,12 +348,7 @@ async function runVision(
             unprocessed--;
             continue;
           }
-          const { crops, failures: cropFailures } = await cropBoxes(
-            browser,
-            source.bytes,
-            selected,
-            Math.max(1, segmentBy - Date.now()),
-          );
+          const { crops, failures: cropFailures } = await cropBoxes(browser, source.bytes, selected, opLeft());
           if (cropFailures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
           if (crops.length && !segmentExpired())
             await storeCrops(deps.store, caseId, provenance, crops, segmentExpired, segmentBy);
