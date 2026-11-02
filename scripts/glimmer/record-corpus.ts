@@ -9,7 +9,7 @@
 // (benign-sa checkout pages). The corpus lands in `<store>/runs/compare/corpus/corpus.json` with its seed; a page
 // whose recording fails is counted and named, never silently dropped.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../lib/chromium.ts";
@@ -36,17 +36,26 @@ type HarEntry = {
   response: {
     status: number;
     headers: { name: string; value: string }[];
-    content: { text?: string; encoding?: string };
+    content: { text?: string; encoding?: string; mimeType?: string };
   };
 };
 export function harToArchive(har: { log: { entries: HarEntry[] } }): CorpusPage["archive"] {
   const archive: CorpusPage["archive"] = {};
   for (const entry of har.log.entries) {
+    if (archive[entry.request.url]) continue;
     const text = entry.response.content.text ?? "";
+    const mime = entry.response.content.mimeType ?? "";
+    // Media, fonts and oversized bodies carry no text, form or wall evidence: replay answers them empty, so the
+    // corpus stays small enough to hold and parse.
+    const heavy = /^(image|font|video|audio)\//.test(mime) || text.length > 2_000_000;
     archive[entry.request.url] = {
       status: entry.response.status,
       headers: Object.fromEntries(entry.response.headers.map((h) => [h.name.toLowerCase(), h.value])),
-      bodyBase64: entry.response.content.encoding === "base64" ? text : Buffer.from(text).toString("base64"),
+      bodyBase64: heavy
+        ? ""
+        : entry.response.content.encoding === "base64"
+          ? text
+          : Buffer.from(text).toString("base64"),
     };
   }
   return archive;
@@ -139,9 +148,13 @@ if (import.meta.filename === process.argv[1]) {
   }
   await renderer.close();
   await browser.close();
-  const out = { seed: CORPUS_SEED, recorded: new Date().toISOString(), pages, failed };
+  // Streamed page by page: a whole corpus in one string exceeds the runtime's string limit.
   const file = join(corpusDir(dir), "corpus.json");
-  writeFileSync(`${file}.tmp`, `${JSON.stringify(out, null, 2)}\n`);
+  const fd = openSync(`${file}.tmp`, "w");
+  writeSync(fd, `{"seed":${CORPUS_SEED},"recorded":${JSON.stringify(new Date().toISOString())},"pages":[`);
+  pages.forEach((p, i) => writeSync(fd, `${i ? "," : ""}${JSON.stringify(p)}`));
+  writeSync(fd, `],"failed":${JSON.stringify(failed)}}\n`);
+  closeSync(fd);
   renameSync(`${file}.tmp`, file);
   console.log(
     JSON.stringify(
