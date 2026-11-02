@@ -454,6 +454,83 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
     expect(items.find((e) => e.check === "walkthrough.chain")?.detail).toMatchObject({ omitted: { hidden: 181 } });
   });
 
+  it("reads a server failure and an operational 4xx as unknown, never a rejection (D04 T02 §8)", () => {
+    const pages: WalkRecord["pages"] = [
+      { seq: 1, url: "https://lure.example/", screenshotKey: "k1", began: 0, asksPassword: true, failure: false },
+      {
+        seq: 3,
+        url: "https://collector.example/done",
+        screenshotKey: "k2",
+        began: 2,
+        asksPassword: false,
+        failure: false,
+      },
+    ];
+    for (const [status, expected] of [
+      [500, "unknown"],
+      [429, "unknown"],
+      [400, "unknown"],
+      [404, "unknown"],
+      [413, "unknown"],
+      [403, "unknown"],
+      [401, "rejected"],
+    ] as const) {
+      const submission: WalkRecord["submissions"][number] = {
+        fromPage: 1,
+        method: "POST",
+        fields: ["password"],
+        state: "delivered",
+        status,
+        seq: 2,
+        deliveredAt: 1,
+        url: "https://collector.example/c",
+        domain: "collector.example",
+      };
+      const record: WalkRecord = {
+        pages,
+        submissions: [submission],
+        hidden: [],
+        omitted: { pages: 0, submissions: 0, hidden: 0 },
+      };
+      expect(acceptance(record, submission), `status ${status}`).toBe(expected);
+    }
+    // A 403 the following page corroborates as a credential refusal (it asks again and says no) stays rejected;
+    // either sign alone (a challenge page, the original form left by a blocked fetch) reads unknown.
+    const refused: WalkRecord["submissions"][number] = {
+      fromPage: 1,
+      method: "POST",
+      fields: ["password"],
+      state: "delivered",
+      status: 403,
+      seq: 2,
+      deliveredAt: 1,
+      url: "https://collector.example/c",
+      domain: "collector.example",
+    };
+    const withPage = (asksPassword: boolean, failure: boolean, refusal: boolean): WalkRecord => ({
+      pages: [
+        pages[0] as WalkRecord["pages"][number],
+        {
+          seq: 3,
+          url: "https://collector.example/again",
+          screenshotKey: "k2",
+          began: 2,
+          asksPassword,
+          failure,
+          refusal,
+        },
+      ],
+      submissions: [refused],
+      hidden: [],
+      omitted: { pages: 0, submissions: 0, hidden: 0 },
+    });
+    expect(acceptance(withPage(true, true, true), refused)).toBe("rejected");
+    expect(acceptance(withPage(false, true, false), refused)).toBe("unknown");
+    expect(acceptance(withPage(true, false, false), refused)).toBe("unknown");
+    // A challenge or generic error page: it asks again and says a failure word, but refuses no credential.
+    expect(acceptance(withPage(true, true, false), refused)).toBe("unknown");
+  });
+
   it("keeps the strongest findings within its bounds, says when it left any out, and counts pages, not screenshots", () => {
     const base = { fromPage: 1, method: "POST", fields: ["password"], state: "delivered" as const, status: 200 };
     const record: WalkRecord = {

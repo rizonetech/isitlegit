@@ -329,7 +329,12 @@ export async function storeCrops(
   fenceAt?: number,
   timeoutMs: number = STORE_TIMEOUT_MS,
 ): Promise<Stored[]> {
-  const stem = source.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
+  // The stem is capped so the longest name built from it (a manifest's `-manifest-<generation>.json`)
+  // stays inside the store's 120-character name limit: an attacker-named attachment must not have
+  // its manifest suffix truncated away, which would hide the crop set from its readers.
+  const stem = Array.from(source.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, ""))
+    .slice(0, 100)
+    .join("");
   // Every wait and every write is fenced at the earlier of this operation's own timeout and the
   // caller's deadline: a wait that times out locally leaves nothing able to publish afterwards,
   // because the store's own fence is that same earlier instant.
