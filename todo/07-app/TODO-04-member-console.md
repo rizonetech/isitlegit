@@ -356,7 +356,9 @@ Each row named as the board names it: the original's subject over its sender, th
 A member looking for a check from a known week picks its dates instead of paging through a fixed period. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 2): the board `Cases` offers only fixed periods, so the control is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve From and To dates beside the fixed periods on the Cases board (a board change first, as the section requires).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the date range
 **Job:** a member finds the checks of a known week or month in one step
@@ -381,7 +383,9 @@ A member looking for a check from a known week picks its dates instead of paging
 A member reviewing a filtered run of cases steps from one report to the next without going back to the list. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 3): the board `Main` (M3) has no such control, so the control is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve Previous and Next on the report, stepping through the currently filtered Cases list (a board change first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 Report, once the operator approves a board change adding the step controls
 **Job:** a member works through a filtered list of reports in order
@@ -406,7 +410,9 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 A member narrows the list to the cases one colleague checked. Filed 2026-10-30 at the checks lane's suggestion (D01 T03 §11's completion review, through the coordinator): the board `Cases` has no such filter, so the control is a design change first; it waits on §7 so an upload names its uploader.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve a Checked by select (Everyone, then each member) beside the channel filter (a board change first; it waits on section 7 naming uploaders).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the filter
 **Job:** a member reviews what one colleague has checked
@@ -431,7 +437,9 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 An owner who does not know where their DNS lives reaches the steps for their provider in one action from the domain page: where the TXT record goes, what the provider calls Name (host, `@`, or the whole name), the value, TTL, and what to do when Check now still finds nothing. Filed 2026-10-30 from D07 T02 §15's completion review (excellence item 2, against Microsoft 365's domain setup): the board `Verify-Domain` has no help entry, so it is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the provider help entry; written steps for Cloudflare, Hetzner, xneelo and Afrihost first, generic TXT instructions for every other provider.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A5 Verify a domain, once the operator approves a board change adding the help entry
 **Job:** an owner adds the TXT record at their own DNS provider without searching for how
@@ -458,7 +466,9 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence item). A member who uploads the wrong file, or a private one by mistake, has no way to remove it: the case, its stored file and its evidence stay until the 30-day retention. VirusTotal Private Scanning lets its users delete a file alone or the file and its report. Whether a member may delete, who in the organisation may, and what is kept for audit are the operator's to decide; the stored objects are D01's (the checks lane), asked through the coordinator.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** The uploading member only may remove a case, within 24 hours, keeping an audit row naming who removed what and when (never the file); the two protected test accounts are skipped by every removal path, with a test, as AGENTS.md requires.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases and M3 Report, a removal confirmation added to the boards
 **Job:** a member undoes a check they did not mean to make
@@ -541,7 +551,9 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 A member presses `/` anywhere on the Cases list, outside a text field, and lands in the search box, as Gmail and GitHub let them. Filed 2026-10-31 from D07 T04 §7's completion review (G5): the board shows no shortcut or its hint, so the shortcut and how it is discovered are a design decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve slash to focus the Cases search, the key named in the placeholder or a hint, never firing while typing in a field (recorded in SPEC M1 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`), once the SPEC records the shortcut and its hint
 **Job:** a keyboard user reaches the search in one keystroke

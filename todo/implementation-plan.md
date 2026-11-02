@@ -504,14 +504,14 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T03 §54 | All stored headers read in place                 | none                 | 3     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none                 | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none                 | 4     |
-| [ ]    | D07 T04 §8  | A chosen date range in the                       | owner-decision       | 3     |
-| [ ]    | D07 T04 §9  | Next and previous case                           | owner-decision       | 3     |
-| [ ]    | D07 T04 §10 | A Checked by filter in the                       | owner-decision       | 3     |
-| [ ]    | D07 T04 §11 | DNS help per provider                            | owner-decision       | 3     |
-| [ ]    | D07 T04 §12 | Remove a case checked by mistake                 | owner-decision       | 4     |
+| [ ]    | D07 T04 §8  | A chosen date range in the                       | none                 | 3     |
+| [ ]    | D07 T04 §9  | Next and previous case                           | none                 | 3     |
+| [ ]    | D07 T04 §10 | A Checked by filter in the                       | none                 | 3     |
+| [ ]    | D07 T04 §11 | DNS help per provider                            | none                 | 3     |
+| [ ]    | D07 T04 §12 | Remove a case checked by mistake                 | none                 | 4     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none                 | 4     |
 | [x]    | D07 T04 §14 | Multi-word search in the Cases list              | none                 | 6     |
-| [ ]    | D07 T04 §15 | Slash shortcut to the                            | owner-decision       | 3     |
+| [ ]    | D07 T04 §15 | Slash shortcut to the                            | none                 | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended             | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none                 | 4     |
 | [ ]    | D07 T04 §18 | Threat kinds by verdict                          | owner-decision       | 4     |
@@ -594,6 +594,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 102 ready to run now.
+Progress: 315/518 verified sections, 108 ready to run now.
 
 Checklist: 2498/3241 items completed (includes Commit items).
