@@ -32,7 +32,7 @@ track: day-4
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [ ] |
+| 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
@@ -70,9 +70,12 @@ track: day-4
 - [x] Bound the crop operation in `src/vision/sam.ts`: clip the padded box to the decoded bounds, typed failures for decode, null `toBlob`, browser and storage failure, page and blob URLs released on every path, the caller's browser never closed, writes fenced after expiry, and a stalled crop loses only its own image. Done when: the test decodes actual crop pixels of a distinctive synthetic image (an edge box included), covers a stalled crop beside a successful next image, and reads back the stored bytes and metadata.
 - [x] Wire segmentation into `visionStep` in `src/vision/step.ts`: after the selected images are buffered, run the three concepts per image with the step's browser and deadline, store each crop through `putArtefact` naming its source image and concept, and join any segmentation failure to the reading's coverage losses before the commit. Done when: a case-level test (`test/vision/step-read.test.ts`) processes a render and a PDF page through this path and reads back their crops, with a stubbed SAM failure stated as coverage and no case failure.
 - [x] Prove the streaming transport in `test/meta/client.test.ts`: fragmented events, an interrupted or stalled stream, a retryable HTTP failure, a budget refusal and failed-attempt accounting, the deadline covering stream consumption and settlement after it. Done when: those tests pass beside the existing client tests.
-- [ ] Commit: `vision: SAM 3.1 segmentation and crops`
+- [x] Commit: `vision: SAM 3.1 segmentation and crops`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/sam.test.ts` passes and fails if two concepts are sent in one request; `pnpm exec vitest run test/meta/client.test.ts` passes its streaming cases.
+
+> **Verified:** 2026-11-02 | §1 | 2a365bb4a217f040e5576ce9f598b3e631b1e81c
+> **Review:** `docs/reviews/d03-t03-s1.json`
 
 ## 2. Reference logo store in R2
 
