@@ -262,8 +262,8 @@ describe("ledgerLookup", () => {
       ...(await ledger({ supplier: "Nobody" })),
     ];
     expect(drafts.map((d) => d.detail)).toEqual([
-      { supplier: "Acme Supplies", known: true, match: true },
-      { supplier: "Acme Supplies", known: true, match: false },
+      { supplier: "Acme Supplies", known: true, match: true, phone: null },
+      { supplier: "Acme Supplies", known: true, match: false, phone: null },
       { supplier: null, known: false },
     ]);
     expect(JSON.stringify(drafts)).not.toContain(ACCOUNT);

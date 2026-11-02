@@ -244,7 +244,9 @@ describe("the upload form without the script", () => {
     form.append("note", "hello");
     const res = await call("/upload", { method: "POST", body: form, headers: { accept: BROWSER, cookie } });
     expect(res.status).toBe(400);
-    expect(alertOf(await res.text())).toContain("Send exactly one file, in a field named file, and nothing else.");
+    expect(alertOf(await res.text())).toContain(
+      "Send exactly one file in a field named file, and at most one replayRunId field, and nothing else.",
+    );
   });
 });
 

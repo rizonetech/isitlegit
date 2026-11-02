@@ -758,6 +758,116 @@ describe("an upload whose browser leaves", () => {
     expect(await caseStatus(id)).toBe("done");
   });
 
+  it("admits each eval replay run as its own case, and a repeat of one run as its duplicate (D01 T01 §22)", async () => {
+    const { cookie, orgId } = await member();
+    const evalEnv = { ...(env as unknown as Env), EVAL_ORG_ID: orgId } as Env;
+    const first = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], evalEnv);
+    expect(first.status).toBe(201);
+    const one = (await first.json()) as { caseId: string };
+    const second = await upload(cookie, [["replayRunId", "run-2"], file(PDF, "x.pdf")], evalEnv);
+    expect(second.status).toBe(201);
+    const two = (await second.json()) as { caseId: string };
+    expect(two.caseId).not.toBe(one.caseId);
+    const repeat = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], evalEnv);
+    expect(repeat.status).toBe(200);
+    expect(await repeat.json()).toEqual({ caseId: one.caseId, repeat: true });
+    const keys = (
+      await db
+        .prepare("SELECT message_key FROM intake_messages WHERE org_id = ?")
+        .bind(orgId)
+        .all<{ message_key: string }>()
+    ).results.map((r) => r.message_key);
+    expect(keys.some((k) => k.startsWith("replay:run-1:"))).toBe(true);
+    expect(keys.some((k) => k.startsWith("replay:run-2:"))).toBe(true);
+    // With the variable unset, the same field is ignored: an ordinary case of its own, then its duplicate.
+    const plain = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-3"]]);
+    expect(plain.status).toBe(201);
+    const plainCase = ((await plain.json()) as { caseId: string }).caseId;
+    expect(plainCase).not.toBe(one.caseId);
+    const plainRepeat = await upload(cookie, [file(PDF, "x.pdf")]);
+    expect(await plainRepeat.json()).toEqual({ caseId: plainCase, repeat: true });
+  });
+
+  it("expires a replay claim like an ordinary one, then admits the run again (D01 T01 §22)", async () => {
+    const { cookie, orgId } = await member();
+    const evalEnv = { ...(env as unknown as Env), EVAL_ORG_ID: orgId } as Env;
+    const first = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], evalEnv);
+    const one = ((await first.json()) as { caseId: string }).caseId;
+    await db
+      .prepare("UPDATE intake_messages SET claimed_at = ? WHERE org_id = ?")
+      .bind(new Date(Date.now() - 25 * 60 * 60_000).toISOString(), orgId)
+      .run();
+    await sweepIntake(env as unknown as Parameters<typeof sweepIntake>[0]);
+    expect(await claimsOf(orgId)).toHaveLength(0);
+    const again = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], evalEnv);
+    expect(again.status).toBe(201);
+    expect(((await again.json()) as { caseId: string }).caseId).not.toBe(one);
+  });
+
+  it("keeps replay claims inside their own organisation (D01 T01 §22)", async () => {
+    const a = await member();
+    const b = await member();
+    const envA = { ...(env as unknown as Env), EVAL_ORG_ID: a.orgId } as Env;
+    const fromA = await upload(a.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], envA);
+    expect(fromA.status).toBe(201);
+    const caseA = ((await fromA.json()) as { caseId: string }).caseId;
+    // The same bytes and run id from another organisation, with that organisation named as eval for its
+    // own request, answer only its own case; without the predicate each would read the other's.
+    const envB = { ...(env as unknown as Env), EVAL_ORG_ID: b.orgId } as Env;
+    const fromB = await upload(b.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], envB);
+    expect(fromB.status).toBe(201);
+    const caseB = ((await fromB.json()) as { caseId: string }).caseId;
+    expect(caseB).not.toBe(caseA);
+    expect((await casesOf(a.orgId)).map((c) => c.id)).toEqual([caseA]);
+    expect((await casesOf(b.orgId)).map((c) => c.id)).toEqual([caseB]);
+    // Each organisation's persisted claim is its own, scoped and linked to its own case, and each
+    // organisation's scoped repeat answers its own case (round 1).
+    for (const [orgId, caseId] of [
+      [a.orgId, caseA],
+      [b.orgId, caseB],
+    ] as const) {
+      const claims = (
+        await db
+          .prepare("SELECT message_key, case_id FROM intake_messages WHERE org_id = ?")
+          .bind(orgId)
+          .all<{ message_key: string; case_id: string }>()
+      ).results;
+      expect(claims).toEqual([{ message_key: expect.stringMatching(/^replay:run-1:/), case_id: caseId }]);
+    }
+    const repeatA = await upload(a.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], envA);
+    expect(await repeatA.json()).toEqual({ caseId: caseA, repeat: true });
+    const repeatScopedB = await upload(b.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], envB);
+    expect(await repeatScopedB.json()).toEqual({ caseId: caseB, repeat: true });
+    // A non-eval organisation's replay field is ignored: it makes its own ordinary case, never A's,
+    // and that ordinary case is what its fieldless repeat duplicates.
+    const repeatB = await upload(b.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-9"]], envA);
+    expect(repeatB.status).toBe(201);
+    const ordinaryB = ((await repeatB.json()) as { caseId: string }).caseId;
+    expect(ordinaryB).not.toBe(caseA);
+    expect(ordinaryB).not.toBe(caseB);
+    const againB = await upload(b.cookie, [file(PDF, "x.pdf")], envA);
+    expect(await againB.json()).toEqual({ caseId: ordinaryB, repeat: true });
+  });
+
+  it("refuses a malformed replay run id before anything is admitted (D01 T01 §22)", async () => {
+    const { cookie, orgId } = await member();
+    const { seen, workerEnv } = counted();
+    const evalEnv = { ...workerEnv, EVAL_ORG_ID: orgId } as Env;
+    for (const parts of [
+      [file(PDF, "x.pdf"), ["replayRunId", ""]] as [string, Blob | string, string?][],
+      [file(PDF, "x.pdf"), ["replayRunId", "bad id!"]] as [string, Blob | string, string?][],
+      [file(PDF, "x.pdf"), ["replayRunId", "a".repeat(65)]] as [string, Blob | string, string?][],
+      [file(PDF, "x.pdf"), ["replayRunId", "run-1"], ["replayRunId", "run-2"]] as [string, Blob | string, string?][],
+      [file(PDF, "x.pdf"), ["replayRunId", new Blob(["run-1"]), "run.txt"]] as [string, Blob | string, string?][],
+    ]) {
+      expect((await upload(cookie, parts, evalEnv)).status).toBe(400);
+    }
+    expect(await casesOf(orgId)).toHaveLength(0);
+    expect(await claimsOf(orgId)).toHaveLength(0);
+    expect(seen.puts).toHaveLength(0);
+    expect(seen.starts).toBe(0);
+  });
+
   it("makes its case under a stale claim whose case was never made, with no sweep first", async () => {
     const { cookie, orgId } = await member();
     const key = `upload:${await uploadKey(PNG, "again.png", "image/png")}`;
