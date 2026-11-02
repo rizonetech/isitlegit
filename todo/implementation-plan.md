@@ -293,7 +293,7 @@ Sections: 26 | Checklist items: 192
 | [x]    | D05 T01 §2  | Encrypted bank accounts, match-only                | none       | 17    |
 | [x]    | D05 T01 §3  | Protected identity console page                    | none       | 14    |
 | [x]    | D05 T01 §5  | Protected live test accounts kept by every removal | none       | 4     |
-| [ ]    | D06 T01 §1  | Invoice detection and Muse Spark field extraction  | meta-api   | 14    |
+| [x]    | D06 T01 §1  | Invoice detection and Muse Spark field extraction  | meta-api   | 14    |
 | [x]    | D06 T01 §2  | Supplier ledger model and queries                  | none       | 11    |
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action            | none       | 6     |
 | [ ]    | D05 T03 §1  | Verification request to the contact                | none       | 6     |
@@ -570,6 +570,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 302/501 verified sections, 91 ready to run now.
+Progress: 303/501 verified sections, 93 ready to run now.
 
 Checklist: 2437/3148 items completed (includes Commit items).

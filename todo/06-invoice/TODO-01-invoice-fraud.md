@@ -34,7 +34,7 @@ track: day-5
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [ ] |
+| 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [x] |
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
 | 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
@@ -76,6 +76,9 @@ Muse Spark reads the PDF natively (`input_file`) and the page images, decides wh
 - [x] Commit: `invoice: detection and field extraction`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/extract.test.ts test/invoice/schema.test.ts` passes.
+
+> **Verified:** 2026-11-02 | §1 | 6a299922575bb53eff817406ceca0a5e30635e35
+> **Review:** `docs/reviews/d06-t01-s1.json`
 
 ## 2. Supplier ledger model and queries
 
