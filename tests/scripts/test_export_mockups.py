@@ -731,9 +731,13 @@ class Diff(Fixture):
         backup = self.diff_out.parent / f".{self.diff_out.name}.old"
         shutil.rmtree(self.diff_out)
         backup.mkdir()
-        (backup / "summary.md").write_text("old\n")
-        self.assertEqual(self.diff().returncode, 0)
-        self.assertTrue((self.diff_out / "summary.md").exists())
+        (backup / "summary.md").write_text("previous summary\n")
+        (backup / "Board.before.png").write_bytes(b"previous image")
+        (self.candidate / "Board.dc.html").write_text(BOARD.replace('name="Part" active="two"', 'name="Missing"'))
+        run = self.diff()
+        self.assertEqual(run.returncode, 1)
+        self.assertEqual((self.diff_out / "summary.md").read_text(), "previous summary\n")
+        self.assertEqual((self.diff_out / "Board.before.png").read_bytes(), b"previous image")
 
     def test_a_stale_baseline_is_refused(self):
         (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))

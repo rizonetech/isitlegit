@@ -869,15 +869,6 @@ def _cmd_diff_impl(args):
                     owners.setdefault(b, []).append(ref)
     except (OSError, json.JSONDecodeError, AttributeError):
         pass
-    coverage_boards = set()
-    try:
-        cov = json.loads((source.parent / "coverage.json").read_text(encoding="utf-8"))
-        for entry in cov.values():
-            for item in entry.get("items", []):
-                if item.get("board"):
-                    coverage_boards.add(item["board"])
-    except (OSError, json.JSONDecodeError, AttributeError):
-        pass
     # Render into staging; publish whole only on success.
     out.parent.mkdir(parents=True, exist_ok=True)
     staging = pathlib.Path(tempfile.mkdtemp(dir=out.parent, prefix=f".{out.name}.new."))
