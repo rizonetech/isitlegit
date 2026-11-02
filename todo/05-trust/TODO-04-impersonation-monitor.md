@@ -154,6 +154,10 @@ Each fetched page's screenshot and visible text go to `screenPage` with the scre
 
 Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop compared with the business's registered logo, Muse Spark reading, and the walkthrough when a login or payment form is present.
 
+> **Started:** 2026-11-02T20:05Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) a monitor case needs `channel = 'monitor'`, which neither the `Channel` enum (`src/db/cases.ts`) nor the `cases` table CHECK (migration 0001) allows today; a new migration (number asked from the coordinator 2026-11-02) rebuilds the CHECK and the enum gains the value, with the email/upload refinements in `createCase` scoped to their channels. (2) The work itself is `monitorPipeline` in `src/monitor/pipeline.ts`: for each page from `flaggedForWalkthrough` (§9's settled selection, never §10's labelled findings) it creates the monitor case, stores the page's capture as the case's page artefacts, then runs `visionStep` (whose logo comparison already reads the registered logo reference, `src/vision/logo-reference.ts`, not a brand table, so item 2 is the step's own proof on a monitor case) and, where the vision read finds a login or payment form, `walkthroughStep` under its own driver limits. (3) Mail-only checks never run: the pipeline calls the two steps directly, it does not start the mail Workflow. (4) Spend: Spark and walkthrough calls settle in the live D1 ledger under their callers; this section's proof is stubbed, and any live run states its own cap in the lane outbox before the call and never raises it.
+
 **Phase:** 7
 **Needs:** meta-api, cloudflare
 **Surface:** no
