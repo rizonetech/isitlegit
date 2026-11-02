@@ -60,7 +60,7 @@ track: day-1
 | 19 | §19 | A retried run's earlier findings kept apart | §17 | [x] |
 | 20 | §20 | Earlier attempts readable on | §19 | [ ] |
 | 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
-| 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [ ] |
+| 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [x] |
 | 23 | §23 | Auth outcomes stored before slower checks | §9 | [ ] |
 
 ## 1. Core D1 schema and migration runner
@@ -698,9 +698,12 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval re
 - [x] Scope the claim key with the replay run id (`claimKey` in `src/intake/admit.ts`) only when a replay id is honoured, the scoped key itself carrying the run id for attribution. Done when: the owning intake suites show two run ids making two cases, one run id replayed staying a duplicate, and an ordinary duplicate untouched.
 - [x] Enforce the multipart contract in the upload route (`src/intake/upload.ts`): one `file` plus at most one textual `replayRunId` in either order, the id 1 to 64 characters of letters, digits, `-` and `_`; empty, repeated, file-valued or malformed ids refused 400 before admission. Done when: HTTP tests in `test/intake/upload.test.ts` reach admission with a valid replay upload and create no claim, case, object or Workflow for each invalid shape. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s22.md`.)
 - [x] Prove the tenant boundary over HTTP: two organisations upload identical bytes with the same replay id, each answering its own organisation's case with its claim persisted under that organisation; with `EVAL_ORG_ID` unset the second upload is an ordinary duplicate. Done when: `test/intake/upload.test.ts` asserts both organisations' claims and cases apart, and removing the organisation predicate fails it. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s22.md`.)
-- [ ] Commit: `intake: replay-scoped claims for the eval organisation`
+- [x] Commit: `intake: replay-scoped claims for the eval organisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts` passes, and fails if a second replay run answers the first run's case or another organisation's.
+
+> **Verified:** 2026-11-02 | §22 | f7ecc89da9ea74d6ffa190fdee8cefa11908cece
+> **Review:** `docs/reviews/d01-t01-s22.json`
 
 ## 23. Auth outcomes stored before slower checks
 

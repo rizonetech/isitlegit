@@ -412,7 +412,7 @@ Sections: 178 | Checklist items: 728
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
-| [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
+| [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
 | [ ]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
@@ -608,6 +608,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 320/532 verified sections, 137 ready to run now.
+Progress: 321/532 verified sections, 136 ready to run now.
 
-Checklist: 2540/3306 items completed (includes Commit items).
+Checklist: 2541/3306 items completed (includes Commit items).
