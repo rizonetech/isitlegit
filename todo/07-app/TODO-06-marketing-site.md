@@ -432,6 +432,8 @@ A visitor can see IsItLegit judge a message before signing up: one action on the
 
 ## 11. Already paid: what to do now
 
+> **Started:** 2026-11-02T18:45Z
+
 A business owner who has already paid a fraudulent invoice finds, in one action from the invoice fraud page, what to do in the next hour in South Africa: phone their own bank's fraud line at once and ask it to contact the receiving bank, keep the mail and documents, report the case, and warn the real supplier. Filed 2026-10-31 by D07 T06 §3's completion review (Part 2, item 2): the FBI tells business email compromise victims to contact their financial institution immediately and ask it to contact the receiving institution (https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise), and the page offers only prevention.
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -453,7 +455,10 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 - [ ] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** common to §11 to §16 and §19: the operator decision is already recorded in each header, so the "record the operator's choice" step is done; what remains open is the board and `design/SPEC.md` entry (`Fidelity: none yet`), then the build, which the current 1-row build orders do not decompose (no items for the block itself, `article-check`, or browser proof). For this section: the decision is a block on `/invoice-fraud`; no such block, board, or SPEC S3 entry exists yet, no South African recovery sources are in `site/src/lib/sources.ts`, and the checkpoint's one-action test has no counterpart in `site/test/invoice-fraud.test.ts`.
+- [ ] Add the recovery block to `design/SPEC.md` S3 (a control: ordered steps with their source links, reachable in one action from the page's opening) with a recorded Deviation (no board draws it). Done when: S3 names the block, its steps and its one-action route. Cheaper substitute: a new page, refused by the operator decision.
 - [ ] Source every step from primary South African sources (SABRIC's guidance for fraud victims, the South African Police Service for reporting, each bank's own fraud line page), read and dated, in `site/src/lib/sources.ts`. Done when: every step has a source with its date.
+- [ ] Build the block on `/invoice-fraud` in `site/src/pages/invoice-fraud.astro` (steps in order: phone your own bank's fraud line at once and ask it to contact the receiving bank; keep the mail and documents; open a SAPS case; warn the real supplier on the number you already have), each step beside its source link, in tokens only. Done when: the built page shows the block and `pnpm --filter site build` exits 0. Cheaper substitute: unsourced advice, refused (every step sourced).
+- [ ] Test it in `site/test/invoice-fraud.test.ts`: the block is reached in one action from the page and every step sits beside its source link. Done when: the test fails when a step loses its source.
 - [ ] Commit: `site: already paid, what to do now`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
