@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 128
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 86 | Checklist items: 566
+Sections: 88 | Checklist items: 575
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -358,6 +358,7 @@ Sections: 86 | Checklist items: 566
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 8     |
 | [x]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 5     |
+| [ ]    | D08 T01 §8  | Pilot hold-out proof case                 | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
 | [x]    | D08 T02 §7  | Live eval runs                            | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §8  | Component measurements                    | meta-api, cloudflare  | 9     |
@@ -380,6 +381,7 @@ Sections: 86 | Checklist items: 566
 | [ ]    | D09 T02 §4  | Remotion title cards and animation        | none                  | 4     |
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot   | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                              | none                  | 5     |
+| [ ]    | D09 T02 §10 | Independent validation by an outsider     | attended              | 5     |
 
 ### Phase 7: After the event
 
@@ -556,13 +558,15 @@ Sections: 166 | Checklist items: 685
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 3 | Checklist items: 12
+Sections: 5 | Checklist items: 19
 
-| Status | Reference  | Deliverable                                       | Needs                | Items |
-| ------ | ---------- | ------------------------------------------------- | -------------------- | ----- |
-| [ ]    | D09 T02 §7 | Detection finetuning from the final miss analysis | meta-api             | 4     |
-| [ ]    | D09 T02 §8 | Demo path polish: report, trace and timing        | cloudflare, meta-api | 4     |
-| [ ]    | D09 T02 §9 | Final polish sweep: a11y, performance, wording    | none                 | 4     |
+| Status | Reference   | Deliverable                                       | Needs                | Items |
+| ------ | ----------- | ------------------------------------------------- | -------------------- | ----- |
+| [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis | meta-api             | 4     |
+| [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing        | cloudflare, meta-api | 4     |
+| [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording    | none                 | 4     |
+| [ ]    | D09 T02 §11 | Automated demo rehearsal, three clean runs        | cloudflare, meta-api | 4     |
+| [ ]    | D09 T02 §12 | Ablation chart for the results and README         | none                 | 3     |
 
 ### Phase 99: Manual, operator only
 
@@ -586,6 +590,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 313/510 verified sections, 85 ready to run now.
+Progress: 313/514 verified sections, 85 ready to run now.
 
-Checklist: 2490/3203 items completed (includes Commit items).
+Checklist: 2490/3219 items completed (includes Commit items).
