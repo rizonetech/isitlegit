@@ -1300,6 +1300,40 @@ describe("the ablation arm mode", () => {
   });
 });
 
+describe("the replay identity", () => {
+  it("measures a replayed sample anew under replay identity while an ordinary repeat stays stale-repeat", async () => {
+    const t = setup(2, {
+      cases: {
+        ...caseFor(0),
+        ...caseFor(1),
+        old: { status: "done", verdict: "safe", createdAt: "2026-11-01T08:00:00.000Z" },
+      },
+    });
+    const api: Api = {
+      ...t.api,
+      upload: async (sample, bytes, mode) =>
+        mode.startsWith("replay:")
+          ? { status: 201, caseId: `case-${t.samples.findIndex((s) => s.id === sample.id)}` }
+          : { status: 200, caseId: "old", repeat: true },
+    };
+    const base = {
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      db: t.db,
+      env: t.env,
+    };
+    const ordinary = await runEval({ ...base, api });
+    expect(ordinary.results.every((r) => r.outcome === "stale-repeat")).toBe(true);
+    const replayed = await runEval({ ...base, api, mode: "replay:run-00000009" });
+    expect(replayed.exit).toBe(0);
+    expect(replayed.results.every((r) => r.outcome === "done")).toBe(true);
+    expect(t.runs.get(replayed.runId ?? "")?.mode).toBe("replay:run-00000009");
+  });
+});
+
 describe("the ablation flag transport", () => {
   it("passes the arm mode to the upload transport on every upload (wire serialization waits on the D01 admit)", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });

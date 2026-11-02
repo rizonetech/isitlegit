@@ -234,8 +234,12 @@ export async function runEval(args: {
   let commitSha = commitNow;
   let capUsd = options.capUsd;
   let mode = args.mode ?? "full";
-  if (mode !== "full" && !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))))
-    return refused([`unknown run mode ${JSON.stringify(mode)}: "full" or "ablate:<flag>"`]);
+  if (
+    mode !== "full" &&
+    !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))) &&
+    !(mode.startsWith("replay:") && mode.length > "replay:".length)
+  )
+    return refused([`unknown run mode ${JSON.stringify(mode)}: "full", "ablate:<flag>" or "replay:<run id>"`]);
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
