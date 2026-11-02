@@ -1,172 +1,171 @@
 {
- "version": 1,
- "logos": [
-  {
-   "slug": "standard-bank",
-   "brand": "Standard Bank",
-   "url": "https://www.standardbank.co.za/southafrica/personal",
-   "kind": "header",
-   "selector": "a.header__logo--full"
-  },
-  {
-   "slug": "fnb",
-   "brand": "FNB",
-   "url": "https://www.fnb.co.za/",
-   "kind": "header",
-   "selector": "a.homepageLink img",
-   "zoom": 3
-  },
-  {
-   "slug": "absa",
-   "brand": "Absa",
-   "url": "https://www.absa.co.za/personal/",
-   "kind": "header",
-   "selector": "img[alt=\"absa\"]"
-  },
-  {
-   "slug": "nedbank",
-   "brand": "Nedbank",
-   "url": "https://personal.nedbank.co.za/home.html",
-   "kind": "header",
-   "selector": "a[data-pagequicklinkname=\"Logo1\"] img",
-   "zoom": 2
-  },
-  {
-   "slug": "discovery-bank",
-   "brand": "Discovery Bank",
-   "url": "https://www.discovery.co.za/",
-   "kind": "header",
-   "selector": "a.site-logo"
-  },
-  {
-   "slug": "tymebank",
-   "brand": "TymeBank",
-   "url": "https://gotyme.co.za/",
-   "kind": "header",
-   "selector": "img[alt=\"Logo\"]"
-  },
-  {
-   "slug": "microsoft",
-   "brand": "Microsoft",
-   "url": "https://www.microsoft.com/en-za",
-   "kind": "header",
-   "selector": "a.uhf-microsoft-logo img"
-  },
-  {
-   "slug": "google",
-   "brand": "Google",
-   "url": "https://www.google.com/",
-   "kind": "header",
-   "selector": "svg[aria-label=\"Google\"]"
-  },
-  {
-   "slug": "apple",
-   "brand": "Apple",
-   "url": "https://www.apple.com/",
-   "kind": "og",
-   "selector": "https://www.apple.com/ac/structured-data/images/open_graph_logo.png"
-  },
-  {
-   "slug": "docusign",
-   "brand": "DocuSign",
-   "url": "https://www.docusign.com/",
-   "kind": "header",
-   "selector": "svg[viewBox=\"0 0 1200 241.4\"]"
-  },
-  {
-   "slug": "adobe",
-   "brand": "Adobe",
-   "url": "https://blog.adobe.com/",
-   "kind": "header",
-   "selector": "a[href*='adobe.com'] svg",
-   "zoom": 4
-  },
-  {
-   "slug": "sars",
-   "brand": "SARS",
-   "url": "https://www.sars.gov.za/",
-   "kind": "header",
-   "selector": "img[src*=\"SARS-Logo\"]"
-  },
-  {
-   "slug": "xero",
-   "brand": "Xero",
-   "url": "https://www.xero.com/za/",
-   "kind": "header",
-   "selector": "a[href=\"/za/\"] svg"
-  },
-  {
-   "slug": "sage",
-   "brand": "Sage",
-   "url": "https://www.sage.com/en-za/",
-   "kind": "header",
-   "selector": "a.navbar-brand",
-   "zoom": 2
-  },
-  {
-   "slug": "dhl",
-   "brand": "DHL",
-   "url": "https://www.dhl.com/za-en/home.html",
-   "kind": "header",
-   "selector": "a.c-header-logo img"
-  },
-  {
-   "slug": "fedex",
-   "brand": "FedEx",
-   "url": "https://developer.fedex.com/",
-   "kind": "header",
-   "selector": "img[alt*='FedEx']",
-   "zoom": 3
-  },
-  {
-   "slug": "aramex",
-   "brand": "Aramex",
-   "url": "https://aramex.co.za/",
-   "kind": "header",
-   "selector": "a.sc_layouts_logo img"
-  },
-  {
-   "slug": "postnet",
-   "brand": "PostNet",
-   "url": "https://www.postnet.co.za/",
-   "kind": "header",
-   "selector": "img.align-middle"
-  },
-  {
-   "slug": "takealot",
-   "brand": "Takealot",
-   "url": "https://www.takealot.com/",
-   "kind": "og",
-   "selector": "https://static.takealot.com/images/logo_transparent.png"
-  },
-  {
-   "slug": "netflix",
-   "brand": "Netflix",
-   "url": "https://www.netflix.com/za/",
-   "kind": "header",
-   "selector": "img[data-hawkins-id=\"BrandNetflixLogotype\"]"
-  },
-  {
-   "slug": "paypal",
-   "brand": "PayPal",
-   "url": "https://www.paypal.com/za/home",
-   "kind": "header",
-   "selector": "a[data-testid=\"header-logo\"]",
-   "zoom": 2
-  },
-  {
-   "slug": "payfast",
-   "brand": "Payfast",
-   "url": "https://payfast.io/",
-   "kind": "header",
-   "selector": "img.is-logo-image"
-  },
-  {
-   "slug": "yoco",
-   "brand": "Yoco",
-   "url": "https://www.yoco.com/za/",
-   "kind": "header",
-   "selector": "a[aria-label=\"Yoco Logo\"] svg"
-  }
- ]
+  "version": 1,
+  "logos": [
+    {
+      "slug": "standard-bank",
+      "brand": "Standard Bank",
+      "url": "https://www.standardbank.co.za/southafrica/personal",
+      "kind": "header",
+      "selector": "a.header__logo--full"
+    },
+    {
+      "slug": "fnb",
+      "brand": "FNB",
+      "url": "https://www.fnb.co.za/",
+      "kind": "header",
+      "selector": "a.homepageLink img",
+      "zoom": 3
+    },
+    {
+      "slug": "absa",
+      "brand": "Absa",
+      "url": "https://www.absa.co.za/personal/",
+      "kind": "header",
+      "selector": "img[alt=\"absa\"]"
+    },
+    {
+      "slug": "nedbank",
+      "brand": "Nedbank",
+      "url": "https://personal.nedbank.co.za/home.html",
+      "kind": "header",
+      "selector": "a[data-pagequicklinkname=\"Logo1\"] img",
+      "zoom": 2
+    },
+    {
+      "slug": "discovery-bank",
+      "brand": "Discovery Bank",
+      "url": "https://www.discovery.co.za/",
+      "kind": "header",
+      "selector": "a.site-logo"
+    },
+    {
+      "slug": "tymebank",
+      "brand": "TymeBank",
+      "url": "https://gotyme.co.za/",
+      "kind": "header",
+      "selector": "img[alt=\"Logo\"]"
+    },
+    {
+      "slug": "microsoft",
+      "brand": "Microsoft",
+      "url": "https://www.microsoft.com/en-za",
+      "kind": "header",
+      "selector": "a.uhf-microsoft-logo img"
+    },
+    {
+      "slug": "google",
+      "brand": "Google",
+      "url": "https://www.google.com/",
+      "kind": "header",
+      "selector": "svg[aria-label=\"Google\"]"
+    },
+    {
+      "slug": "apple",
+      "brand": "Apple",
+      "url": "https://www.apple.com/",
+      "kind": "og",
+      "selector": "https://www.apple.com/ac/structured-data/images/open_graph_logo.png"
+    },
+    {
+      "slug": "docusign",
+      "brand": "DocuSign",
+      "url": "https://www.docusign.com/",
+      "kind": "header",
+      "selector": "svg[viewBox=\"0 0 1200 241.4\"]"
+    },
+    {
+      "slug": "adobe",
+      "brand": "Adobe",
+      "url": "https://www.adobe.com/",
+      "kind": "header",
+      "selector": "a.gnav-logo"
+    },
+    {
+      "slug": "sars",
+      "brand": "SARS",
+      "url": "https://www.sars.gov.za/",
+      "kind": "header",
+      "selector": "img[src*=\"SARS-Logo\"]"
+    },
+    {
+      "slug": "xero",
+      "brand": "Xero",
+      "url": "https://www.xero.com/za/",
+      "kind": "header",
+      "selector": "a[href=\"/za/\"] svg"
+    },
+    {
+      "slug": "sage",
+      "brand": "Sage",
+      "url": "https://www.sage.com/en-za/",
+      "kind": "header",
+      "selector": "a.navbar-brand",
+      "zoom": 2
+    },
+    {
+      "slug": "dhl",
+      "brand": "DHL",
+      "url": "https://www.dhl.com/za-en/home.html",
+      "kind": "header",
+      "selector": "a.c-header-logo img"
+    },
+    {
+      "slug": "fedex",
+      "brand": "FedEx",
+      "url": "https://developer.fedex.com/",
+      "kind": "header",
+      "selector": "img[alt*='FedEx']",
+      "zoom": 3
+    },
+    {
+      "slug": "aramex",
+      "brand": "Aramex",
+      "url": "https://aramex.co.za/",
+      "kind": "header",
+      "selector": "a.sc_layouts_logo img"
+    },
+    {
+      "slug": "postnet",
+      "brand": "PostNet",
+      "url": "https://www.postnet.co.za/",
+      "kind": "header",
+      "selector": "img.align-middle"
+    },
+    {
+      "slug": "takealot",
+      "brand": "Takealot",
+      "url": "https://www.takealot.com/",
+      "kind": "og",
+      "selector": "https://static.takealot.com/images/logo_transparent.png"
+    },
+    {
+      "slug": "netflix",
+      "brand": "Netflix",
+      "url": "https://www.netflix.com/za/",
+      "kind": "header",
+      "selector": "img[data-hawkins-id=\"BrandNetflixLogotype\"]"
+    },
+    {
+      "slug": "paypal",
+      "brand": "PayPal",
+      "url": "https://www.paypal.com/za/home",
+      "kind": "header",
+      "selector": "a[data-testid=\"header-logo\"]",
+      "zoom": 2
+    },
+    {
+      "slug": "payfast",
+      "brand": "Payfast",
+      "url": "https://payfast.io/",
+      "kind": "header",
+      "selector": "img.is-logo-image"
+    },
+    {
+      "slug": "yoco",
+      "brand": "Yoco",
+      "url": "https://www.yoco.com/za/",
+      "kind": "header",
+      "selector": "a[aria-label=\"Yoco Logo\"] svg"
+    }
+  ]
 }
