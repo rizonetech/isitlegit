@@ -562,17 +562,18 @@ Sections: 167 | Checklist items: 693
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 7 | Checklist items: 33
+Sections: 8 | Checklist items: 38
 
-| Status | Reference   | Deliverable                                       | Needs                | Items |
-| ------ | ----------- | ------------------------------------------------- | -------------------- | ----- |
-| [ ]    | D07 T01 §16 | One-border focus and an inset combobox chevron    | none                 | 5     |
-| [ ]    | D07 T01 §17 | Premium polish sweep over every surface           | none                 | 9     |
-| [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis | meta-api             | 4     |
-| [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing        | cloudflare, meta-api | 4     |
-| [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording    | none                 | 4     |
-| [ ]    | D09 T02 §11 | Automated demo rehearsal, three clean runs        | cloudflare, meta-api | 4     |
-| [ ]    | D09 T02 §12 | Ablation chart for the results and README         | none                 | 3     |
+| Status | Reference   | Deliverable                                          | Needs                | Items |
+| ------ | ----------- | ---------------------------------------------------- | -------------------- | ----- |
+| [ ]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 5     |
+| [ ]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 9     |
+| [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis    | meta-api             | 4     |
+| [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing           | cloudflare, meta-api | 4     |
+| [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording       | none                 | 4     |
+| [ ]    | D09 T02 §11 | Automated demo rehearsal, three clean runs           | cloudflare, meta-api | 4     |
+| [ ]    | D09 T02 §12 | Ablation chart for the results and README            | none                 | 3     |
+| [ ]    | D09 T02 §13 | Judge no-account demo: recorded replay from the repo | none                 | 5     |
 
 ### Phase 99: Manual, operator only
 
@@ -596,6 +597,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 316/520 verified sections, 130 ready to run now.
+Progress: 316/521 verified sections, 130 ready to run now.
 
-Checklist: 2506/3257 items completed (includes Commit items).
+Checklist: 2506/3262 items completed (includes Commit items).
