@@ -14,3 +14,5 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 01:58 SAST: round-2 P2 fixed (`49a2fde2`), round 3 dispatched (chain 2026-11-01T23:56:28Z). Next: read Round 3 verdict in docs/reviews/07-app/D07-T05-s2.md; fix any P1/P2 and re-round, else final review if scheduled, then stamp, push, announce. Outbox WAITING line current.
 
 ## Resume 02:16 SAST: round-3 P2 fixed (`0ec71c94`, batch atomicity + abandoned-claim takeover), round 4 dispatched (chain 2026-11-02T00:14:56Z). Next: read Round 4 verdict in docs/reviews/07-app/D07-T05-s2.md; fix any P1/P2 and re-round, else final review if scheduled, then stamp, push, announce. Outbox WAITING line current.
+
+## Resume 02:31 SAST: D07 T05 §2 stamped (`502a49d3`) and pushed (`775f1b59`). Next: coordinator gate; meanwhile query ready in lane claim for the next coordinator-assigned row (§3 is owner-decision gated; §4/§5 filed). Outbox WAITING line current.
