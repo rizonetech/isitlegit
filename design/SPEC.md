@@ -261,6 +261,7 @@ Controls:
 - the fixed action: Phone the supplier on the number you already have. (InvoiceFraud)
 - sourced figures: SABRIC 2025 figures, quote and FBI IC3 figure with source links. (InvoiceFraud)
 - payment document check: What the check looks for, its limit, and a sample card. (InvoiceFraud)
+- already paid recovery: Four ordered steps (phone your bank's fraud line, keep the mail and documents, open a SAPS case, warn the supplier), each beside its source link, reached by an "Already paid?" anchor in the opening. (Site-500 pattern: none; D07 T06 §11)
 
 States:
 
@@ -270,6 +271,7 @@ States:
 
 - Deviation (D07 T06 §3): the FBI line reads "The FBI's IC3 received" for "Worldwide, the FBI received", because the 2025 IC3 Annual Report does not call its figure worldwide; the sources line names SABRIC's nine participating banks; the byline reads "Reviewed 31 Oct 2026" with the author's line that he checked every figure against the report's table.
 - Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows the catch section only while at least one of its claims is proven, with only the proven steps (currently none, so the section is omitted); the section heading promises bank-change detection only while the catch claim itself is proven, else the neutral "Invoice checks"; the limit box shows only while its claim is proven; the SABRIC paragraph introduces the proven edit signs; omitted parts return automatically when their owners stamp.
+- Deviation (D07 T06 §11): the InvoiceFraud board draws no recovery block; the page also carries an "already paid" block (four sourced recovery steps under a labelled heading, reached by an anchor in the opening), because the page's reader may already have paid. Operator decision 2026-11-02 (a block on this page, not a new page).
 
 ### S4 Protect your business
 
