@@ -39,7 +39,7 @@ function splitText(text: string): string[] {
     let j = i + 1;
     for (;;) {
       let moved = false;
-      while (j < text.length && "\"'”’)]".includes(text.charAt(j))) {
+      while (j < text.length && "\"'”’)]*_`".includes(text.charAt(j))) {
         j++;
         moved = true;
       }
