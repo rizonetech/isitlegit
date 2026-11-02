@@ -6,10 +6,18 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
+import { brandTableRead } from "../checks/brands";
+import { ulid } from "../db/ulid";
 import { d1Budget } from "../meta/budget";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
 import { type Burst, REQUEST_MS, settleGlimmer } from "../vision/glimmer-wake";
+import type { LogoImage } from "../vision/logo-compare";
+import { cropBoxes, segment } from "../vision/sam";
 import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
+import { kvCache, walkthroughStep } from "../walkthrough/trigger";
+import { dohResolve } from "../walkthrough/url-policy";
+import { walk } from "../walkthrough/wonder";
+import { monitorPipeline, type PipelineDeps } from "./pipeline";
 import {
   type Capture,
   CaptureFailed,
@@ -164,11 +172,63 @@ export async function settleAgain(
 // back, and its retry may have nothing to capture and so never wake; round 3). The settle step reads the ledger and is
 // a no-op when nothing is held. A run that failed still fails, after the settlement.
 type Steps = Pick<WorkflowStep, "do">;
+// The pipeline's production deps (D05 T04 §4): the walkthrough with its own driver, and the SAM logo
+// crop through Browser Run, on the same Browser binding the capture uses.
+export function pipelineDeps(env: Env): PipelineDeps {
+  const store = { bucket: env.ARTEFACTS, db: env.DB };
+  return {
+    db: env.DB,
+    bucket: env.ARTEFACTS,
+    store,
+    kv: env.CACHE,
+    meta: {
+      env,
+      budget: d1Budget(env.DB, { caller: "monitor" }),
+    },
+    walk: async (caseId) => {
+      const { table } = await brandTableRead(env);
+      return walkthroughStep(
+        {
+          db: env.DB,
+          store,
+          cache: kvCache(env.CACHE),
+          launch: () => puppeteer.launch(env.BROWSER),
+          walk,
+          resolve: dohResolve(),
+          meta: { env, budget: d1Budget(env.DB, { caller: "walkthrough", caseId }) },
+          table,
+          revision: env.CF_VERSION_METADATA?.id ?? null,
+          walkId: () => ulid(),
+        },
+        caseId,
+      );
+    },
+    cropLogo: async (screenshot, dataUrl): Promise<LogoImage | null> => {
+      const meta = {
+        env,
+        budget: d1Budget(env.DB, { caller: "monitor" }),
+        owner: { kind: "monitor" as const, run: "pipeline", host: "page", step: "logo" },
+      };
+      const boxes = await segment(meta, dataUrl, "logo");
+      if (!boxes.length) return null;
+      const browser = await puppeteer.launch(env.BROWSER);
+      try {
+        const { crops } = await cropBoxes(browser, screenshot, boxes);
+        const crop = crops[0];
+        return crop ? { bytes: crop.bytes, mediaType: "image/png", label: "the page's logo crop" } : null;
+      } finally {
+        await browser.close();
+      }
+    },
+  };
+}
+
 export async function runMonitor(
   step: Steps,
   deps: MonitorDeps & { heldSince: (id: string) => Promise<number | null> },
   orgId: string,
   runId: string,
+  pipeline?: (orgId: string) => Promise<{ investigated: number }>,
 ): Promise<RunSummary> {
   let summary: RunSummary | undefined;
   let failure: unknown;
@@ -187,6 +247,14 @@ export async function runMonitor(
     { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
     () => settleAgain(deps, held),
   );
+  // The full pipeline on the run's flagged pages (D05 T04 §4), after settlement, in its own step: a
+  // page that fails settles partial on its own row and never fails the run.
+  if (pipeline)
+    await step.do(
+      "pipeline",
+      { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
+      async () => pipeline(orgId),
+    );
   if (failure !== undefined) throw failure;
   return summary as RunSummary;
 }
@@ -194,7 +262,10 @@ export async function runMonitor(
 export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
     const runId = `monitor-${event.payload.orgId}-${event.payload.day}`;
-    return runMonitor(step, monitorDeps(this.env, runId), event.payload.orgId, runId);
+    const since = new Date(Date.parse(event.payload.day) - 7 * 24 * 60 * 60_000).toISOString();
+    return runMonitor(step, monitorDeps(this.env, runId), event.payload.orgId, runId, (orgId) =>
+      monitorPipeline(pipelineDeps(this.env), orgId, since),
+    );
   }
 }
 
