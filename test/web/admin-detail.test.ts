@@ -2,13 +2,24 @@
 // Triaged and Closed tabs. A member edit after triage reopens the item, a stale operator POST is refused, and a
 // withdrawn row leaves the queue; the counts follow the triage state while notices still follow notified_at.
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createCase } from "../../src/db/cases";
 import { saveFeedback, withdrawFeedback } from "../../src/db/feedback";
 import { listTriage, moveTriage, saveTriageNote, triageCounts } from "../../src/db/feedback-triage";
+import { ulid } from "../../src/db/ulid";
+import { authEnv, call } from "../auth/helpers";
 import { makeOrg } from "../trust/helpers";
 
 const db = env.DB;
+
+// Every test starts from an empty queue: leftover rows would move the tabs and the pages.
+const TABLES = ["feedback", "check_outcomes", "case_verdicts", "cases", "organization"];
+beforeEach(async () => {
+  for (const table of TABLES) {
+    const quoted = table === "organization" ? `"${table}"` : table;
+    await db.prepare(`DELETE FROM ${quoted}`).run();
+  }
+});
 // The file shares one database across its tests, so every count asserts the move it made, not an absolute total.
 const moveOf = async (work: () => Promise<unknown>) => {
   const before = await triageCounts(db);
@@ -123,5 +134,209 @@ describe("feedback triage", () => {
     expect(first).toHaveLength(50);
     expect(second).toHaveLength(2);
     expect(new Set([...first, ...second].map((row) => row.id))).toEqual(new Set(ids));
+  });
+});
+
+const TEAM = "team.example.cloudflareaccess.com";
+const AUD = "test-aud-tag";
+const SIGNIN = "derick@rizonetech.com";
+const OPERATOR = "hostmaster@rizonetech.com";
+const makeQueueKey = async (kid: string) => {
+  const pair = (await crypto.subtle.generateKey(
+    { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+    true,
+    ["sign", "verify"],
+  )) as CryptoKeyPair;
+  const jwk = (await crypto.subtle.exportKey("jwk", pair.publicKey)) as JsonWebKey;
+  return { kid, privateKey: pair.privateKey, jwk: { ...jwk, kid, alg: "RS256", use: "sig" } as JsonWebKey };
+};
+const queueKey = await makeQueueKey("kid-queue");
+const outerQueueFetch: typeof fetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = (async (input: unknown, init?: RequestInit) => {
+  const url = input instanceof Request ? input.url : String(input);
+  if (url.startsWith(`https://${TEAM}/cdn-cgi/access/certs`)) return Response.json({ keys: [queueKey.jwk] });
+  return outerQueueFetch(input as Request, init);
+}) as typeof fetch;
+
+describe("the feedback queue page", () => {
+  const workerEnv = {
+    ...authEnv,
+    CF_ACCESS_AUD: AUD,
+    CF_ACCESS_TEAM_DOMAIN: TEAM,
+    CF_ACCESS_EMAIL: SIGNIN,
+    OPERATOR_EMAIL: OPERATOR,
+  } as unknown as Env;
+  const b64url = (bytes: Uint8Array | string) => {
+    const raw = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+    return btoa(String.fromCharCode(...raw))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  };
+  const jwt = async () => {
+    const head = b64url(JSON.stringify({ alg: "RS256", kid: queueKey.kid, typ: "JWT" }));
+    const body = b64url(
+      JSON.stringify({ aud: AUD, iss: `https://${TEAM}`, exp: Math.floor(Date.now() / 1000) + 600, email: SIGNIN }),
+    );
+    const sig = new Uint8Array(
+      await crypto.subtle.sign("RSASSA-PKCS1-v1_5", queueKey.privateKey, new TextEncoder().encode(`${head}.${body}`)),
+    );
+    return `${head}.${body}.${b64url(sig)}`;
+  };
+  const ORIGIN = new URL(authEnv.APP_URL).origin;
+  const headers = async (extra: Record<string, string> = {}) => ({
+    accept: "text/html",
+    "cf-access-jwt-assertion": await jwt(),
+    ...extra,
+  });
+  const get = async (path: string, authed = true) =>
+    call(path, { headers: authed ? await headers() : { accept: "text/html" } }, workerEnv);
+  const post = async (path: string, fields: Record<string, string>, origin = ORIGIN) =>
+    call(
+      path,
+      {
+        method: "POST",
+        headers: { ...(await headers()), origin, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(fields).toString(),
+      },
+      workerEnv,
+    );
+  const words = (html: string) =>
+    html
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&");
+
+  const seedCase = async (orgId: string) => {
+    const id = ulid();
+    const at = new Date().toISOString();
+    await db
+      .prepare(
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, original_subject, original_from_name, original_from_address, created_at, updated_at)
+         VALUES (?, ?, 'email', 'done', 'safe', 1, 'October statement', 'Thandi Nkosi', 'thandi@demo.isitlegit.co.za', ?, ?)`,
+      )
+      .bind(id, orgId, at, at)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at)
+         VALUES (?, 'safe', 'h', 0.9, '["The statement is real but the account is not on file"]', '[]', 'Muse Spark verdict', ?)`,
+      )
+      .bind(id, at)
+      .run();
+    return id;
+  };
+  const seedQueue = async (kind: "false_alarm" | "missed" = "false_alarm", providers = '["Google Web Risk"]') => {
+    const orgId = await makeOrg("Queue Org (fictional)");
+    const caseId = await seedCase(orgId);
+    const id = `qf-${crypto.randomUUID()}`;
+    const at = new Date().toISOString();
+    await db
+      .prepare(
+        `INSERT INTO feedback (id, case_id, user_id, kind, note, providers_json, created_at, updated_at)
+         VALUES (?, ?, 'user-queue', ?, 'Should be at least suspicious', ?, ?, ?)`,
+      )
+      .bind(id, caseId, kind, providers, at, at)
+      .run();
+    return { id, caseId, orgId, updatedAt: at };
+  };
+
+  it("lists the queue with tabs, verdicts, attribution and times", async () => {
+    await seedQueue();
+    const response = await get("/admin/feedback");
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("New 1");
+    expect(text).toContain("October statement");
+    expect(text).toContain("Queue Org");
+    expect(text).toContain("Safe");
+    expect(text).toContain("Google Web Risk");
+  });
+
+  it("selects a report with its quote, drivers and triage actions", async () => {
+    const row = await seedQueue();
+    const response = await get(`/admin/feedback?selected=${row.id}`);
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("What drove our verdict");
+    expect(text).toContain("Should be at least suspicious");
+    expect(text).toContain("Triage note");
+    expect(text).toContain("Close: verdict was right");
+  });
+
+  it("saves the note, refuses a stale one, closes and reopens", async () => {
+    const row = await seedQueue();
+    const noted = await post("/admin/feedback/note", {
+      id: row.id,
+      note: "Ledger was empty",
+      updatedAt: row.updatedAt,
+    });
+    expect(noted.status).toBe(200);
+    expect(words(await noted.text())).toContain("Note saved.");
+    const stale = await post("/admin/feedback/note", { id: row.id, note: "Too late", updatedAt: row.updatedAt });
+    expect(stale.status).toBe(200);
+    const staleText = words(await stale.text());
+    expect(staleText).toContain("changed while you worked");
+    expect(staleText).toContain("Too late");
+    const fresh = await db
+      .prepare("SELECT updated_at AS updatedAt FROM feedback WHERE id = ?")
+      .bind(row.id)
+      .first<{ updatedAt: string }>();
+    const closed = await post("/admin/feedback/close", { id: row.id, updatedAt: fresh?.updatedAt ?? "" });
+    expect(words(await closed.text())).toContain("Closed: the verdict was right.");
+    const closedPage = words(await (await get("/admin/feedback?triage=closed")).text());
+    expect(closedPage).toContain("Closed 1");
+    const reopened = await post("/admin/feedback/reopen", {
+      id: row.id,
+      updatedAt:
+        (
+          await db
+            .prepare("SELECT updated_at AS updatedAt FROM feedback WHERE id = ?")
+            .bind(row.id)
+            .first<{ updatedAt: string }>()
+        )?.updatedAt ?? "",
+    });
+    expect(words(await reopened.text())).toContain("Reopened for another look.");
+  });
+
+  it("reads a withdrawn selection as withdrawn and drops it from the queue", async () => {
+    const row = await seedQueue();
+    await db.prepare("DELETE FROM feedback WHERE id = ?").bind(row.id).run();
+    const response = await get(`/admin/feedback?selected=${row.id}`);
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("Report withdrawn");
+    expect(text).toContain("New 0");
+  });
+
+  it("refuses the queue and every mutation without Access or from another origin", async () => {
+    const denied = await get("/admin/feedback", false);
+    expect(denied.status).toBe(403);
+    const row = await seedQueue();
+    const forged = await post(
+      "/admin/feedback/note",
+      { id: row.id, note: "x", updatedAt: row.updatedAt },
+      "https://evil.example",
+    );
+    expect(forged.status).toBe(403);
+    const kept = await db.prepare("SELECT triage FROM feedback WHERE id = ?").bind(row.id).first<{ triage: string }>();
+    expect(kept?.triage).toBe("new");
+  });
+
+  it("keeps the typed note when the note is too long and stores nothing", async () => {
+    const row = await seedQueue();
+    const long = "n".repeat(1001);
+    const response = await post("/admin/feedback/note", { id: row.id, note: long, updatedAt: row.updatedAt });
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("too long");
+    const kept = await db
+      .prepare("SELECT triage, triage_note FROM feedback WHERE id = ?")
+      .bind(row.id)
+      .first<{ triage: string; triage_note: string | null }>();
+    expect(kept?.triage).toBe("new");
+    expect(kept?.triage_note).toBeNull();
   });
 });
