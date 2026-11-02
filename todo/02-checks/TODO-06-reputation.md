@@ -41,6 +41,7 @@ track: day-3
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [x] |
 | 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
+| 8 | §8 | Well-known list kept fresh, staleness stated | §6 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -194,6 +195,8 @@ Filed 2026-11-01 from the phase audit (checks lane, run e78fd72088d9): §1 and �
 
 ## 6. Well-known sites in KV
 
+> **Started:** 2026-11-02T05:16Z
+
 Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list into Wrangler's local storage and proves the loader and the reader; the production namespace stays at `not_loaded` until someone runs the loader against it. That is a deploy step of the coordinator's, like the brand table (`scripts/load-brands.ts`), and §4's well-known counter-signal must not be enabled before it reads back.
 
 **Phase:** 7
@@ -205,9 +208,9 @@ Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list
 
 1. Load and prove the list in production. Done when: `top:meta` in the production `CACHE` namespace reads back the generation §3's loader published, and the deployed Worker answers `known` for `microsoft.com` and `unknown` for a random new domain.
 
-- [ ] Run `node scripts/load-top-sites.ts --remote` (the coordinator, from this machine, after §3 is merged and deployed), keeping `top:meta:previous`. Done when: the loader exits 0 and its read-back matches, and the date and count are recorded in `docs/live-checks.md`.
-- [ ] Read the list through the deployed consumer: the checks step's `isWellKnown` (§5 wires it) on a case whose link is `microsoft.com`, and on a random new domain. Done when: the recorded case's evidence shows the well-known counter-signal for the first and none for the second. Until §5 is deployed, a one-off read of `top:meta` and one shard through `wrangler kv key get --remote` stands in, recorded as that.
-- [ ] Commit: `checks: well-known sites list in production KV`
+- [x] Run `node scripts/load-top-sites.ts --remote` (the coordinator, from this machine, after §3 is merged and deployed), keeping `top:meta:previous`. Done when: the loader exits 0 and its read-back matches, and the date and count are recorded in `docs/live-checks.md`. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s6.md`: the target is named: binding `CACHE`, namespace `ea28d6e83ede4a83bfb06898d8791a16` in `wrangler.jsonc`; before the load, read the active `top:meta` with `wrangler kv key get top:meta --binding CACHE --remote` and record it as the pre-load generation (none on the first load). On an uncertain publication, an interruption or a cleanup warning: read the active meta again, compare it with the pre-load and intended generations, resolve the warning, and repeat the consumer proof below after any recovery. Rollback is `node scripts/load-top-sites.ts --remote --restore`, verified by reading the restored generation and the consumer answers back; on the first production load no previous meta exists, `--restore` refuses, and restoring the original `not_loaded` state means deleting only the `top:` keys this load wrote, never the namespace or unrelated cache data.)
+- [ ] Read the list through the deployed consumer: the checks step's `isWellKnown` (§5 wires it, and §5 is stamped and deployed) on a case whose link is `microsoft.com`, and on a random new domain verified absent from the published list. (**Corrected 2026-11-02**, completion review, `docs/reviews/02-checks/D02-T06-s6.md`: this item was ticked on the local-reader probe; its Done when requires recorded deployed-Worker cases tied to the deployed version and generation, and `docs/live-checks.md` records that no authenticated deployed case was run, so the item is unticked until the coordinator gate provides that proof.) Done when: the recorded case's evidence shows the well-known counter-signal for the first and none for the second, the pair tied to the deployed version and the published generation: the first case proving the reader works rules out `not_loaded` and `not_checked` for the second, whose absence then reads `unknown`. (§5's deployed state replaces the metadata-and-one-shard stand-in this item first allowed; that stand-in no longer proves completion.)
+- [x] Commit: `checks: well-known sites list in production KV`
 
 **Test checkpoint:** `docs/live-checks.md` records the production load's generation, date and count, and a `known` and an `unknown` answer.
 
@@ -229,6 +232,26 @@ Filed 2026-11-01 from §3's completion review (Part 2 item 2): a decision that a
 - [ ] Commit: `checks: well-known list provenance`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes.
+
+## 8. Well-known list kept fresh, staleness stated
+
+Filed 2026-11-02 from §6's completion review (gaps 2 and 3, out of scope there): the reader answers from the list's metadata without reading its date, so a list loaded once stays authoritative for ever; no refresh owner, cadence or missed-refresh signal exists. The comparison baseline named in that review (a maintained ranking refreshed weekly) sets the target cadence.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the list fresh and say when it is not. Done when: a stale list no longer lends its counter-signal silently, and a missed refresh is visible to the operator.
+
+- [ ] Give the reader an age rule in `src/checks/top-sites.ts`: read the active metadata's date and, past an agreed age limit in days named beside the loader's constants, answer `not_checked` with the reason `stale` instead of a membership answer. Done when: `test/checks/top-sites.test.ts` covers fresh, boundary and stale metadata and the freeze check passes.
+- [ ] Name the refresh owner and cadence (weekly, matching the comparison baseline) in `docs/live-checks.md` with the loader command of §6 item 1, and record each production refresh's generation, date and count there. Done when: the page names the owner, the cadence and the first scheduled refresh date.
+- [ ] Report a missed refresh: the scheduled run that reads the list states `stale` in its log line when the age rule trips, so the operator sees it without a case having to arrive. Done when: a test of that run's log line covers the stale and fresh states.
+- [ ] Commit: `checks: well-known list freshness and staleness`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes, and fails if a stale list still answers membership.
 
 ## Verification
 
