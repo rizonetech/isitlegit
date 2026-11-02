@@ -555,7 +555,7 @@ Sections: 178 | Checklist items: 737
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
 | [x]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 4     |
-| [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 4     |
+| [x]    | D07 T09 §4  | Measured phone attribution                       | none                 | 4     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
 | [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
@@ -608,6 +608,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 324/532 verified sections, 131 ready to run now.
+Progress: 325/532 verified sections, 130 ready to run now.
 
-Checklist: 2554/3315 items completed (includes Commit items).
+Checklist: 2555/3315 items completed (includes Commit items).

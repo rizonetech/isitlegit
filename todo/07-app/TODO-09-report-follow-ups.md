@@ -37,7 +37,7 @@ track: day-2
 | 1 | §1 | Early results first | D07 T03 §37 | [ ] |
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
-| 4 | §4 | Measured phone attribution | D07 T03 §43 | [ ] |
+| 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
@@ -149,11 +149,14 @@ Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is
 - [x] Run the identification check in `eval/phone-attribution.ts`: scripted phone readers (a deterministic top-to-bottom viewport scan at 360 px, reading visible text in reading order and scrolling by viewport, the protocol defined in the script) timed identifying who brought a case in, on the shipped report and on the benchmark shape (the same report without the phone attribution line, the submitter named only in Submission details; a versioned fixture in the script, labelled a reconstruction of the pre-§43 surface, matched case content and viewing conditions). Synthetic cases name a distinct sender and submitter across the attribution's channel variants (forwarded by a member, uploaded, forwarded with the original attached). Done when: the check writes its raw observations (per case and run: scroll actions, first identity met, correct identification, scan time, presentation order, stimulus version, app revision) under `eval/` and reports each median and any sender confusion, rerunning reproduces the same medians within the script's stated rounding, and a case whose rendering lacks either identity fails the run rather than timing out quietly. Cheaper substitute: counting the line's presence, which §43 already proves.
 - [x] Prove the analysis separately in `test/node/phone-attribution.test.ts`: known-input tests for the median and confusion calculations and for rejecting missing or invalid observations, run against the pure analysis in `eval/phone-attribution.ts`. Done when: a wrong median, a missed confusion, or an accepted invalid observation fails it. Cheaper substitute: asserting that numbers print, which passes on any arithmetic.
 - [x] Record the outcome in `design/SPEC.md` M3 against the criteria set here in advance: the placement stands only when the shipped report's median scroll actions are lower, no scripted reader meets the sender first on any shipped case, and its median scan time is not higher; anything else is recorded as inconclusive or adverse with its sample counts and the stated limit (a scripted scan is a proxy for human reading, not human times). An adverse or inconclusive result files the follow-up that owns the redesign and remeasurement; this section does not redraw the board. Done when: the SPEC carries the numbers, their date and app revision, and the verdict against these criteria. Cheaper substitute: a claim without numbers.
-- [ ] Commit: `eval: phone attribution measured`
+- [x] Commit: `eval: phone attribution measured`
 
 **Corrected 2026-11-02:** the confusion criterion above is read as the completion review corrected it (the shipped line presents the sender first and the labelled submitter in the same line, so meeting the sender's name first in that line is not confusion): confusion is needing navigation to tell the submitter from the sender at all. The readers run on the shipped report itself in `test/node/phone-attribution-measure.test.tsx`, which writes the raw observations `eval/phone-attribution.ts` analyses; the human claim is D07 T09 §17's.
 
 **Test checkpoint:** `PHONE_BENCH=1 pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx` writes the observations, `node eval/phone-attribution.ts` reports both medians, and `pnpm exec vitest run --project node test/node/phone-attribution.test.ts` passes.
+
+> **Verified:** 2026-11-03 | §4 | eaa9e008d46e200d22adaadfb7f51176d034b21c
+> **Review:** `docs/reviews/d07-t09-s4.json`
 
 ## 5. Per-provider reputation results
 
