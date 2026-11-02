@@ -106,4 +106,116 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     expect(await box.getAttribute("data-a11y-state")).toBe("idle");
     await context.close();
   });
+
+  it("restores full width, and attributes frame, duplicate and undecided findings", async () => {
+    const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+    const p = await context.newPage();
+    await openGallery(p);
+    await p.getByRole("button", { name: "360 px" }).click();
+    await p.getByRole("button", { name: "Full", exact: true }).click();
+    const bandFrame = preview(p, "state verdict-band/complete-malicious");
+    await bandFrame.scrollIntoViewIfNeeded();
+    const bandDoc = await (await bandFrame.elementHandle())?.contentFrame();
+    const bandWidth = await bandDoc?.evaluate(
+      () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
+    );
+    expect(bandWidth).toBeGreaterThan(900);
+    const plant = async (label: string, html: string) => {
+      const frame = preview(p, label);
+      await frame.scrollIntoViewIfNeeded();
+      const doc = await (await frame.elementHandle())?.contentFrame();
+      await doc?.evaluate((h) => {
+        const div = document.createElement("div");
+        div.innerHTML = h;
+        document.querySelector("main")?.appendChild(div.firstElementChild as Node);
+      }, html);
+      return doc;
+    };
+    await plant(
+      "state button/primary",
+      '<button type="button"><svg aria-hidden="true" width="20" height="20"></svg></button>',
+    );
+    await plant(
+      "frame member-cases",
+      '<button type="button"><svg aria-hidden="true" width="20" height="20"></svg></button>',
+    );
+    await plant(
+      "state button/dark",
+      '<p style="background-image: linear-gradient(90deg, var(--color-ink), var(--color-surface)); color: var(--color-ink)">Gradient text</p>',
+    );
+    await p.getByRole("button", { name: "Run accessibility checks" }).click();
+    for (const label of ["state button/primary", "frame member-cases"]) {
+      const box = p.locator(`section[data-a11y-label="${label}"] [data-a11y-results]`);
+      await expect.poll(() => box.getAttribute("data-a11y-state"), { timeout: 120_000 }).toBe("findings");
+      expect(await box.textContent()).toContain("button-name");
+    }
+    const gradient = p.locator('section[data-a11y-label="state button/dark"] [data-a11y-results]');
+    await expect.poll(() => gradient.getAttribute("data-a11y-state"), { timeout: 120_000 }).toBe("findings");
+    expect(await gradient.textContent()).toContain("undecided");
+    await context.close();
+  });
+
+  it("fails then retries, stays idle when settings change mid-scan, and cleans up on rerun", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p = await context.newPage();
+    let blocked = true;
+    await p.route("**/dev/axe.min.js", async (route) => {
+      if (blocked) return route.abort();
+      return route.continue();
+    });
+    await openGallery(p);
+    await p.getByRole("button", { name: "Run accessibility checks" }).click();
+    await expect.poll(() => p.locator("[data-a11y-status]").textContent(), { timeout: 60_000 }).toContain("failed");
+    blocked = false;
+    const frame = preview(p, "state button/primary");
+    await frame.scrollIntoViewIfNeeded();
+    const doc = await (await frame.elementHandle())?.contentFrame();
+    await doc?.evaluate(() => {
+      const b = document.createElement("button");
+      b.innerHTML = '<svg aria-hidden="true" width="20" height="20"></svg>';
+      b.id = "planted-defect";
+      document.querySelector("main")?.appendChild(b);
+    });
+    const box = p.locator('section[data-a11y-label="state button/primary"] [data-a11y-results]');
+    // Mid-scan invalidation: start, change the theme at once, and the stale run must not publish.
+    await p.getByRole("button", { name: "Run accessibility checks" }).click();
+    await p.getByRole("button", { name: "Dark", exact: true }).click();
+    await p.waitForTimeout(8000);
+    expect(await box.getAttribute("data-a11y-state")).toBe("idle");
+    // Per-preview rerun finds it, removal plus rerun is clean.
+    await p
+      .locator('section[data-a11y-label="state button/primary"]')
+      .getByRole("button", { name: "Scan this preview" })
+      .click();
+    await expect.poll(() => box.getAttribute("data-a11y-state"), { timeout: 60_000 }).toBe("findings");
+    await doc?.evaluate(() => document.getElementById("planted-defect")?.remove());
+    await p
+      .locator('section[data-a11y-label="state button/primary"]')
+      .getByRole("button", { name: "Scan this preview" })
+      .click();
+    await expect.poll(() => box.getAttribute("data-a11y-state"), { timeout: 60_000 }).toBe("clean");
+    await context.close();
+  });
+
+  it("follows the system theme and works when session storage is unavailable", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: "dark" });
+    const p = await context.newPage();
+    await p.addInitScript(() => {
+      Object.defineProperty(window, "sessionStorage", {
+        get: () => {
+          throw new Error("blocked");
+        },
+      });
+    });
+    await openGallery(p);
+    await p.getByRole("button", { name: "System", exact: true }).click();
+    const frame = preview(p, "state button/primary");
+    await frame.scrollIntoViewIfNeeded();
+    const doc = await (await frame.elementHandle())?.contentFrame();
+    const bg = await doc?.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    expect(bg).toBe("rgb(18, 16, 20)");
+    await p.getByRole("button", { name: "Light", exact: true }).click();
+    await expect.poll(() => doc?.evaluate(() => document.documentElement.getAttribute("data-theme"))).toBe("light");
+    await context.close();
+  });
 });

@@ -114,7 +114,7 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
           var el = doc.querySelector(node.target[0]);
           if (el) {
             el.setAttribute("data-gallery-highlight", "");
-            el.style.outline = "3px solid #FF4A14"; el.style.outlineOffset = "2px";
+            el.style.outline = "3px solid var(--color-orange)"; el.style.outlineOffset = "2px";
             el.scrollIntoView({ block: "center" });
           }
         });
@@ -137,16 +137,22 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
       el.removeAttribute("data-gallery-highlight"); el.style.outline = ""; el.style.outlineOffset = "";
     });
   }
-  async function scanInto(box, label, win, doc) {
+  async function scanInto(box, label, win, doc, gen) {
     await loadAxe(win, doc);
     var res = await win.axe.run(doc, OPTIONS);
+    if (gen !== generation) return 0;
     return showFindings(box, label,
       res.violations.map(function (f) { return Object.assign({}, f, { kind: "violation" }); })
         .concat(res.incomplete.map(function (f) { return Object.assign({}, f, { kind: "undecided" }); })));
   }
+  var running = false, lastGen = 0;
   async function runScan(onlySection) {
+    if (running) return;
+    running = true;
     var gen = ++generation;
+    lastGen = gen;
     if (runButton) runButton.disabled = true;
+    document.querySelectorAll("[data-a11y-scan-one]").forEach(function (b) { b.disabled = true; });
     clearHighlights();
     if (status) status.textContent = "Running accessibility checks...";
     var boxes = onlySection ? [onlySection.querySelector("[data-a11y-results]")] :
@@ -162,7 +168,7 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
       if (gen !== generation) return;
       if (!onlySection) {
         var ownBox = document.querySelector("[data-a11y-results='gallery']");
-        if (ownBox) total += await scanInto(ownBox, "gallery page", window, document);
+        if (ownBox) total += await scanInto(ownBox, "gallery page", window, document, gen);
       }
       var sections = onlySection ? [onlySection] :
         Array.prototype.slice.call(document.querySelectorAll("section[data-a11y-label]"));
@@ -173,7 +179,7 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
         if (!frame || !box) continue;
         await waitLoad(frame);
         if (gen !== generation) return;
-        total += await scanInto(box, section.getAttribute("data-a11y-label"), frame.contentWindow, frame.contentDocument);
+        total += await scanInto(box, section.getAttribute("data-a11y-label"), frame.contentWindow, frame.contentDocument, gen);
       }
       if (gen !== generation) return;
       if (status) status.textContent = total ? total + " accessibility finding(s). See each preview below." : "Clean: no accessibility findings.";
@@ -187,7 +193,11 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
       });
       if (status) status.textContent = "Accessibility checks failed: " + e.message + ". Run them again to retry.";
     } finally {
-      if (runButton) runButton.disabled = false;
+      if (gen === lastGen) {
+        running = false;
+        if (runButton) runButton.disabled = false;
+        document.querySelectorAll("[data-a11y-scan-one]").forEach(function (b) { b.disabled = false; });
+      }
     }
   }
   var runButton = document.querySelector("[data-a11y-run]");
