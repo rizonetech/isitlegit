@@ -7,13 +7,25 @@
 // the opposite: when even the failure statement cannot be written, the step throws, so the case ends
 // partial instead of reaching a verdict with its missing coverage concealed.
 import type { Browser } from "@cloudflare/puppeteer";
+import { brandTable, bundled, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
-import { artefactsOf, readArtefact, readVisible, type Store } from "../intake/store";
+import { linksOf } from "../checks/links";
+import { originalHeaderOf } from "../intake/original-header";
+import { artefactsOf, parsedKey, readArtefact, readVisible, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
+import {
+  type BrandResolution,
+  brandItem,
+  type ComparedDomain,
+  normaliseBrand,
+  resolveBrand,
+  shownDomain,
+} from "./brand";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
+import { CROP_TIMEOUT_MS, cropBoxes, imageSize, segmentImage, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
   db: D1Database;
@@ -31,6 +43,9 @@ export type VisionDeps = {
   deadlineMs?: number;
   // The PDF phase's budget, inside the deadline; a test shrinks it to prove the phase is shared.
   pdfPhaseMs?: number;
+  // The brand stage's budget, inside the deadline; a test shrinks it to prove a stalled lookup
+  // states itself unconfirmed and leaves the committed reading standing.
+  brandPhaseMs?: number;
   now?: () => number;
 };
 
@@ -40,8 +55,16 @@ export const VISION_DEADLINE_MS = 270_000;
 // The PDF phase's shared budget: three documents near the rasteriser's own 90-second bound must not
 // starve the render's reading, so the phase ends here and states what it left undone.
 export const PDF_PHASE_MS = 120_000;
+// Segmentation never takes the reading's time: it ends this long before the step deadline, whatever
+// is left, so a stalled provider still leaves a readable case.
+const READING_RESERVE_MS = 60_000;
 // How long the timeout's own failure statement may take before the step fails instead.
 const STORE_WAIT_MS = 10_000;
+// The brand stage's own bound: it ends this long after it starts, and always before the step
+// deadline by the commit reserve, so its second commit lands and a stalled lookup states each
+// unfinished brand unconfirmed instead of taking the committed reading down with it (G6).
+export const BRAND_PHASE_MS = 90_000;
+const BRAND_COMMIT_RESERVE_MS = 15_000;
 
 export type VisionResult = { outcome: "read"; items: number } | { outcome: "not_checked"; reason: string };
 
@@ -63,17 +86,122 @@ const ATTEMPT_OWNED = new Set([
   "vision.urgency",
   "vision.coverage",
   "vision.not_checked",
+  "vision.brand_domain_mismatch",
 ]);
+
+type ParsedSummary = {
+  headers?: { name: string; value: string }[];
+  text?: string | null;
+  html?: string | null;
+  attachments?: { key: string; filename: string | null; mediaType: string }[];
+};
+
+// The stored parsed summary, read once for the brand stage; null when the case holds none or it
+// cannot be read (an upload), never guessed from the picture.
+async function parsedSummaryOf(store: Store, caseId: string): Promise<ParsedSummary | null> {
+  try {
+    const read = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!read || !("body" in read)) return null;
+    return JSON.parse(new TextDecoder().decode(read.body)) as ParsedSummary;
+  } catch {
+    return null;
+  }
+}
+
+// The case's authoritative sender domain, from its parsed From header; null when the case holds
+// no readable one (an upload, a repeated From), never guessed from the picture.
+function senderDomainOf(parsed: ParsedSummary | null): string | null {
+  if (!parsed || !Array.isArray(parsed.headers)) return null;
+  try {
+    const address = originalHeaderOf(parsed.headers).fromAddress;
+    const host = address?.slice(address.lastIndexOf("@") + 1).toLowerCase();
+    return host && registrable(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+// Every link host in the message itself, read with the checks' own link reader (D02 T07 §1), so
+// a direct link that produced no finding is still a destination this case holds (round 1): the
+// evidence's destination fields name where followed links ended, and this names where the
+// message's links point, followed or not.
+async function messageLinkHostsOf(store: Store, parsed: ParsedSummary | null): Promise<string[]> {
+  if (!parsed || (parsed.html == null && parsed.text == null)) return [];
+  try {
+    const links = await linksOf(store.bucket, {
+      source: { kind: "message", path: "inline", otherOriginals: 0 },
+      text: parsed.text ?? null,
+      html: parsed.html ?? null,
+      truncated: [],
+      attachments: (parsed.attachments ?? []).map((a) => ({
+        key: a.key,
+        filename: a.filename ?? "",
+        mediaType: a.mediaType,
+        contentId: null,
+        disposition: null,
+        charset: null,
+        bytes: 0,
+      })),
+      attachmentHeads: null,
+      htmlAttachments: null,
+    });
+    return [
+      ...new Set((links?.items ?? []).map((link) => link.host.toLowerCase()).filter((host) => registrable(host))),
+    ];
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+    return [];
+  }
+}
+
+// The destination fields a link item carries: the address it was written as, where it was last
+// seen, and its hops. Anything else in an item's detail (a reputation provider's delisting page,
+// a brand item's own cited source, a summary) is a reference, not a place the mail leads.
+const DESTINATION_KEYS = new Set(["href", "link", "final", "url"]);
+
+// Every landing host the case's link evidence actually names, from its destination fields only
+// (completion review, G1): provider references and this step's own earlier items never become
+// destinations, so a replay compares the same domains as the first attempt.
+export function landingHostsFrom(evidence: readonly { check: string; detail: Record<string, unknown> }[]): string[] {
+  const hosts = new Set<string>();
+  const collect = (key: string, value: unknown) => {
+    if (typeof value === "string" && DESTINATION_KEYS.has(key) && /^https?:\/\//.test(value)) {
+      try {
+        const host = new URL(value).hostname.toLowerCase();
+        if (registrable(host)) hosts.add(host);
+      } catch {
+        // Not an address: data, not a landing.
+      }
+    } else if (Array.isArray(value)) for (const entry of value) collect(key, entry);
+    else if (value && typeof value === "object")
+      for (const [childKey, entry] of Object.entries(value)) collect(childKey, entry);
+  };
+  for (const item of evidence) {
+    if (!item.check.startsWith("link.") && !item.check.startsWith("walkthrough.")) continue;
+    for (const [key, value] of Object.entries(item.detail)) collect(key, value);
+  }
+  return [...hosts];
+}
+
+async function landingHostsOf(db: D1Database, caseId: string): Promise<string[]> {
+  try {
+    return landingHostsFrom(await readEvidence(db, caseId));
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+    return [];
+  }
+}
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
 // failures, one per attachment) and replaces the ones it does. The expiry gate is re-read after the
-// evidence read, as late as the write can be fenced from here; the caller's own statement, written
-// after the attempt has settled, replaces anything a resuming attempt still lands.
+// evidence read and again inside the write, immediately before its batch; the caller's own
+// statement, written after the attempt has settled, replaces anything a resuming attempt lands.
 async function writeVision(
   db: D1Database,
   caseId: string,
   extra: EvidenceDraft[],
   expired?: () => boolean,
+  fenceAt?: number,
 ): Promise<boolean> {
   const existing = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("vision."));
   if (expired?.()) return false;
@@ -82,7 +210,10 @@ async function writeVision(
     .filter((e) => !ATTEMPT_OWNED.has(e.check))
     .filter((e) => !(e.check === "vision.pdf_unreadable" && stated.has(e.detail.attachment)))
     .map(({ check, severity, summary, detail, artefacts }) => ({ check, severity, summary, detail, artefacts }));
-  await addEvidence(db, caseId, "vision", [...kept, ...extra]);
+  // The fence travels into the write itself, re-read after its sequence read, immediately before
+  // its batch: a store delay no longer lets this attempt land over the timeout's statement.
+  await addEvidence(db, caseId, "vision", [...kept, ...extra], undefined, expired, fenceAt);
+  if (expired?.()) return false;
   return true;
 }
 
@@ -146,7 +277,7 @@ async function runVision(
   // so a stage resuming late can neither spend nor overwrite the timeout's statement.
   const commit = async (items: EvidenceDraft[]): Promise<boolean> => {
     if (expired()) return false;
-    return writeVision(deps.db, caseId, items, expired);
+    return writeVision(deps.db, caseId, items, expired, deadlineAt);
   };
   const pdfItems: EvidenceDraft[] = [];
   const fail = async (item: EvidenceDraft, reason: string): Promise<VisionResult> => {
@@ -170,7 +301,6 @@ async function runVision(
     // failure (its body unreadable included) is gathered and never stops its siblings; a document the
     // budget leaves over is stated as not rendered. The remaining time is recomputed after every
     // await, so a stalled body read consumes the phase instead of earning a fresh raster allowance.
-    const pdfs = (await artefactsOf(deps.store, caseId, "attachment")).filter((a) => a.mediaType === "application/pdf");
     const pages: { key: string; sha256: string; name: string; page: number }[] = [];
     let pdfIncomplete = false;
     const phaseEnds = now() + (deps.pdfPhaseMs ?? PDF_PHASE_MS);
@@ -190,6 +320,18 @@ async function runVision(
       }
     };
     let phaseSpent = false;
+    // Discovery is a phase wait too: listing the attachments inside the same budget, so a stalled
+    // store states the documents unread (the email is still read) instead of holding the step.
+    let pdfs: Awaited<ReturnType<typeof artefactsOf>> = [];
+    try {
+      pdfs = (await inPhase(artefactsOf(deps.store, caseId, "attachment"))).filter(
+        (a) => a.mediaType === "application/pdf",
+      );
+    } catch (error) {
+      if (!(error instanceof PdfUnreadable)) throw error;
+      pdfIncomplete = true;
+      phaseSpent = true;
+    }
     for (const pdf of pdfs) {
       if (expired()) return { outcome: "not_checked", reason: "timeout" };
       const name = pdf.key.split(`${pdf.sha256}-`)[1] ?? "attachment.pdf";
@@ -263,6 +405,7 @@ async function runVision(
     if (candidates.length > selected.length)
       losses.push(`${candidates.length - selected.length} further images were not read`);
     const images: ReadingImage[] = [];
+    const sources = new Map<string, { name: string; bytes: Uint8Array }>();
     for (const candidate of selected) {
       // A rejected read loses this image, not its siblings.
       const read = await readArtefact(deps.store, caseId, candidate.key).catch(() => null);
@@ -270,16 +413,79 @@ async function runVision(
         losses.push(`an image (${candidate.name}) could not be read back`);
         continue;
       }
-      images.push({
+      const image: ReadingImage = {
         id: `image-${images.length + 1}`,
         promptLabel: candidate.promptLabel,
         key: candidate.key,
         name: candidate.name,
         sha256: candidate.sha256,
         dataUrl: `data:image/png;base64,${toBase64(read.body)}`,
-      });
+      };
+      images.push(image);
+      sources.set(image.id, { name: candidate.name, bytes: read.body });
     }
     if (!images.length) return fail(notCheckedItem("no-picture"), "no-picture");
+
+    // SAM segmentation of the same pictures (D03 T03 §1), on this step's browser inside its
+    // deadline: each kept box becomes a stored crop naming its source image, for §3's comparison.
+    // A segmentation or crop failure is a stated coverage loss, never a case failure, and expired
+    // work stores nothing further.
+    if (browser) {
+      // The whole segmentation phase (streams, crops and storage) ends at segmentBy; everything
+      // after it belongs to the reading.
+      const segmentBy = deadlineAt - READING_RESERVE_MS;
+      const segmentExpired = () => expired() || Date.now() > segmentBy;
+      let unprocessed = images.length;
+      for (const image of images) {
+        if (expired()) return { outcome: "not_checked", reason: "timeout" };
+        if (Date.now() > segmentBy) break;
+        const source = sources.get(image.id);
+        if (!source) {
+          unprocessed--;
+          continue;
+        }
+        try {
+          const { boxes, failures } = await segmentImage(
+            { ...deps.meta, owner, expired: segmentExpired },
+            image.dataUrl,
+            segmentBy,
+          );
+          if (failures.length) losses.push(`segmentation was unavailable for ${source.name}`);
+          const provenance = { name: source.name, key: image.key, sha256: image.sha256 };
+          if (!boxes.length) {
+            // A completed zero-match replaces the previous current set with an empty one.
+            if (!failures.length && !segmentExpired())
+              await storeCrops(deps.store, caseId, provenance, [], segmentExpired, segmentBy);
+            unprocessed--;
+            continue;
+          }
+          if (expired()) return { outcome: "not_checked", reason: "timeout" };
+          // Each browser operation is capped at its own bound as well as the phase's remainder,
+          // so one stalled image cannot spend every later image's allowance.
+          const opLeft = () => Math.max(1, Math.min(CROP_TIMEOUT_MS, segmentBy - Date.now()));
+          const size = await imageSize(browser, source.bytes, opLeft());
+          const selected = selectBoxes(boxes, size);
+          if (!selected.length) {
+            if (!failures.length && !segmentExpired())
+              await storeCrops(deps.store, caseId, provenance, [], segmentExpired, segmentBy);
+            unprocessed--;
+            continue;
+          }
+          const { crops, failures: cropFailures } = await cropBoxes(browser, source.bytes, selected, opLeft());
+          if (cropFailures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
+          if (crops.length && !segmentExpired())
+            await storeCrops(deps.store, caseId, provenance, crops, segmentExpired, segmentBy);
+          unprocessed--;
+        } catch {
+          if (expired()) return { outcome: "not_checked", reason: "timeout" };
+          losses.push(`segmentation was unavailable for ${source.name}`);
+          unprocessed--;
+        }
+      }
+      // Images the phase never reached are stated, like every other unfinished picture.
+      if (unprocessed > 0 && Date.now() > segmentBy && !expired())
+        losses.push("segmentation did not run in the time left");
+    }
 
     const visible = (await readVisible(deps.store, caseId)) ?? "";
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
@@ -292,8 +498,107 @@ async function runVision(
     );
     const items = readingItems(reading, images);
     if (losses.length) items.push(coverageItem(losses));
+    // The reading commits before the brand stage starts (G6): a lookup that stalls or fails from
+    // here can state its brands unconfirmed, but can never take the reading down with it.
     if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
-    return { outcome: "read", items: items.length };
+
+    // Each claimed brand against its real domains (D03 T02 §4), isolated per brand after the
+    // reading exists: a lookup that fails states that brand unconfirmed and leaves every other
+    // item standing, and expired work starts no grounded call.
+    const brandItems: EvidenceDraft[] = [];
+    const claims = reading.readings.filter((entry) => entry.claimed_brand);
+    if (claims.length && !expired()) {
+      const brandAt = Math.min(
+        deadlineAt - BRAND_COMMIT_RESERVE_MS,
+        Date.now() + (deps.brandPhaseMs ?? BRAND_PHASE_MS),
+      );
+      const brandDeadline = { at: brandAt, expired: () => expired() || Date.now() > brandAt };
+      // Every setup wait is bounded by the brand deadline too (round 1): a stalled artefact or
+      // evidence read states its brands with what is at hand instead of holding the step until
+      // the outer timeout replaces the committed reading.
+      const withinBrand = async <T>(work: Promise<T>, late: T): Promise<T> => {
+        const left = brandAt - Date.now();
+        if (left <= 0) return late;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const expiredRead = new Promise<"late">((resolve) => {
+          timer = setTimeout(() => resolve("late"), left);
+        });
+        const settled = await Promise.race([work, expiredRead]).finally(() => clearTimeout(timer));
+        return settled === "late" ? late : settled;
+      };
+      let table: Awaited<ReturnType<typeof brandTable>> | null = null;
+      try {
+        table = await withinBrand(brandTable({ CACHE: deps.kv }), bundled);
+        const parsed = await withinBrand(parsedSummaryOf(deps.store, caseId), null);
+        const sender = senderDomainOf(parsed);
+        const landings = [
+          ...new Set([
+            ...(await withinBrand(landingHostsOf(deps.db, caseId), [] as string[])),
+            ...(await withinBrand(messageLinkHostsOf(deps.store, parsed), [] as string[])),
+          ]),
+        ];
+        const byId = new Map(images.map((image) => [image.id, image]));
+        const resolutions = new Map<string, BrandResolution>();
+        const grounded = { count: 0 };
+        for (const claim of claims) {
+          if (expired()) break;
+          const image = byId.get(claim.image);
+          const brand = claim.claimed_brand;
+          if (!image || !brand) continue;
+          const comparedByHost = new Map<string, ComparedDomain>();
+          if (sender) comparedByHost.set(sender, { host: sender, kind: "sender" });
+          for (const host of landings)
+            if (!comparedByHost.has(host)) comparedByHost.set(host, { host, kind: "landing" });
+          const shown = shownDomain(claim.visible_sender);
+          if (shown && !comparedByHost.has(shown)) comparedByHost.set(shown, { host: shown, kind: "shown" });
+          const compared = [...comparedByHost.values()];
+          try {
+            const key = normaliseBrand(brand);
+            let resolution = resolutions.get(key);
+            if (!resolution) {
+              const registrables = new Set(
+                compared.map((entry) => registrable(entry.host)).filter((domain) => domain !== null),
+              );
+              resolution = await resolveBrand(
+                {
+                  meta: deps.meta,
+                  owner,
+                  kv: deps.kv,
+                  table,
+                  deadline: brandDeadline,
+                  grounded,
+                },
+                brand,
+                registrables,
+              );
+              resolutions.set(key, resolution);
+            }
+            const item = brandItem(table, brand, image, compared, resolution);
+            if (item) brandItems.push(item);
+          } catch {
+            const fallback = brandItem(table, brand, image, compared, {
+              kind: "unconfirmed",
+              reason: "lookup-failed",
+            });
+            if (fallback) brandItems.push(fallback);
+          }
+        }
+      } catch {
+        // The stage's own setup failed (the table read): the reading stands without it, and the
+        // absence is stated per claim rather than concealed.
+        for (const claim of claims) {
+          const image = images.find((entry) => entry.id === claim.image);
+          if (!image || !claim.claimed_brand || !table) continue;
+          const fallback = brandItem(table, claim.claimed_brand, image, [], {
+            kind: "unconfirmed",
+            reason: "lookup-failed",
+          });
+          if (fallback) brandItems.push(fallback);
+        }
+      }
+    }
+    if (!(await commit([...pdfItems, ...items, ...brandItems]))) return { outcome: "not_checked", reason: "timeout" };
+    return { outcome: "read", items: items.length + brandItems.length };
   } catch (error) {
     // Expired work writes nothing: the timeout's own statement already stands.
     if (expired()) return { outcome: "not_checked", reason: "timeout" };

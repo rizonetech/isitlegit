@@ -2,7 +2,7 @@
 schema_version: 1
 id: protected-identity
 domain: 05-trust
-status: active
+status: done
 title: "TODO-01 -- Protected Identities and Encrypted Bank Accounts"
 track: day-5
 ---
@@ -35,7 +35,7 @@ track: day-5
 | 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [x] |
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [x] |
-| 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [ ] |
+| 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [x] |
 | 5 | §5 | Protected live test accounts kept by every removal | §2, D07 T02 §21 | [x] |
 
 ## 1. Protected identity data model and logo upload
@@ -175,6 +175,12 @@ Owners and admins manage the identity: display names, verified domains and addre
 
 **Corrected 2026-10-31** (checked against the repository before starting): `/admin` has no route and no Cloudflare Access check yet; the Worker's verification of `Cf-Access-Jwt-Assertion` is D07 T05 §1 (the console lane, Phase 6, needing `cloudflare`), so this section depends on it rather than building a second Access check. The lost-key recovery (`abandonLostKeys`, §2) is run by this same action: `docs/operations.md` names it here.
 
+> **Started:** 2026-11-02T03:22Z
+
+**Corrected 2026-11-02** (at start, checked against the merged repository): the 2026-10-31 correction above is stale. D07 T05 §1 has shipped: `src/index.ts` mounts `requireAccess` on `/admin` and `/admin/*` (the `Cf-Access-Jwt-Assertion` verification in `src/auth/access.ts`), and `adminRoutes` from `src/web/pages/admin.tsx` serves the console behind it, so this action adds its POST route inside that existing guard and builds no second Access check. Asked of the coordinator 2026-11-02: the next D1 migration number for the `trust_events` kind CHECK rebuild (last on main is 0075) and confirmation of the secret names `BANK_KEY_PREVIOUS` and `BANK_MATCH_KEY_PREVIOUS`. **Answered 2026-11-02 (coordinator):** migration `0076` is this section's; production has `BANK_KEY` and `BANK_MATCH_KEY` only, the two `*_PREVIOUS` secrets do not exist, so the action reads the previous keys only when present (setting them is a coordinator step at rotation time, from the vault, never through code or argv) and the build does not wait on them.
+
+**Corrected 2026-11-02** (plan review, 6 P2, `docs/reviews/05-trust/D05-T01-s4.md`): (1) the action is `POST /admin/bank-keys` with a validated operation selector (`rotate` or `recover`) and, for `recover`, an explicit confirmation field; missing or half-present or malformed previous keys refuse `rotate` without any mutation and never select recovery automatically; (2) `docs/operations.md` (Bank keys) gains the invocation procedure for this endpoint (request format, the secret-setting order against its current "re-key before setting current secrets" wording, temporary match refusals, verification and previous-secret cleanup), and `BANK_KEY_PREVIOUS` and `BANK_MATCH_KEY_PREVIOUS` are declared in `src/types/secrets.d.ts` as optional; (3) both operations require the admin console's established `sameOrigin` check on top of `requireAccess`, with no second Access verifier, and a foreign or missing Origin changes nothing (accounts, key epoch, events); (4) `rekeyAccounts` reports per-organisation moved counts, and the action writes one `bank.rekeyed` event per organisation it moved rows for, with the verified `accessEmail` as actor, so an interrupted run retried writes events only for the rows that run moves (no missing or duplicate audit records); (5) the route tests prove persisted rotation in both account tables, matching under the new keys, unreadable ciphertext, incompatible key epochs and an injected database failure after partial progress, with safe error responses and retry wording that carries no number or key, and the recovery answer directs owners of retained supplier accounts to the supplier ledger as well as owners of registry accounts to the identity page; (6) migration `0076` carries an upgrade test with pre-existing `trust_events` rows proving their preservation, the organisation foreign key and cascade, the index, the existing constraints, acceptance of `bank.rekeyed` and continued rejection of unknown kinds.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
@@ -183,13 +189,16 @@ Owners and admins manage the identity: display names, verified domains and addre
 
 1. Add the admin action. Done when: a test re-keys a registry through it, and a request without Access is refused.
 
-- [ ] Add a POST action under `/admin` that reads the old keys from new Worker secrets `BANK_KEY_PREVIOUS` and `BANK_MATCH_KEY_PREVIOUS` (asked of the coordinator first) and the current ones, runs `rekeyAccounts`, and returns the moved and unreadable counts, never a number or key. Done when: `test/trust/rekey-admin.test.ts` moves a registry and reads its counts.
-- [ ] Refuse the action without a valid Cloudflare Access assertion for the operator. Done when: the test's request without one gets 403 and changes nothing.
-- [ ] Record each run in `trust_events` against each organisation re-keyed (who, how many rows), under a new kind `bank.rekeyed`, which needs a migration rebuilding the table's kind CHECK (0047 is on main; its number from the coordinator). Done when: the test finds one event per organisation.
-- [ ] Show the lost-key recovery's answer when the action runs `abandonLostKeys`: how many accounts were deleted and how many were kept for the protected live accounts (D05 T01 §5), saying that a kept account still refuses matches with `KeyMismatch` until its owner removes it on the identity page and registers it again. Done when: the action's test runs the recovery over an ordinary and a protected organisation and its response names both figures and the explanation. **Added 2026-10-31** (D05 T01 §5's plan review, gap 1).
-- [ ] Commit: `trust: bank key replacement admin action`
+- [x] Add a POST action under `/admin` that reads the old keys from new Worker secrets `BANK_KEY_PREVIOUS` and `BANK_MATCH_KEY_PREVIOUS` (asked of the coordinator first) and the current ones, runs `rekeyAccounts`, and returns the moved and unreadable counts, never a number or key. Done when: `test/trust/rekey-admin.test.ts` moves a registry and reads its counts.
+- [x] Refuse the action without a valid Cloudflare Access assertion for the operator. Done when: the test's request without one gets 403 and changes nothing.
+- [x] Record each run in `trust_events` against each organisation re-keyed (who, how many rows), under a new kind `bank.rekeyed`, which needs a migration rebuilding the table's kind CHECK (0047 is on main; **Corrected 2026-11-02:** the coordinator's number is `0076_bank_rekeyed.sql`). Done when: the test finds one event per organisation.
+- [x] Show the lost-key recovery's answer when the action runs `abandonLostKeys`: how many accounts were deleted and how many were kept for the protected live accounts (D05 T01 §5), saying that a kept account still refuses matches with `KeyMismatch` until its owner removes it on the identity page and registers it again. Done when: the action's test runs the recovery over an ordinary and a protected organisation and its response names both figures and the explanation. **Added 2026-10-31** (D05 T01 §5's plan review, gap 1).
+- [x] Commit: `trust: bank key replacement admin action`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/rekey-admin.test.ts` passes and fails if the action runs without Access.
+
+> **Verified:** 2026-11-02 | §4 | 6ddd3737b0559d172d3c5241046069dd9982ccfe
+> **Review:** `docs/reviews/d05-t01-s4.json`
 
 ## 5. Protected live test accounts kept by every removal
 

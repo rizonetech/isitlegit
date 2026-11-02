@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
 | 12 | §12 | An upload admitted whatever the browser does | §1 | [x] |
 | 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [x] |
-| 14 | §14 | Voice extraction measured on test notes | §4 | [ ] |
+| 14 | §14 | Voice extraction measured on | §4 | [ ] |
 | 15 | §15 | Figures read out of a transcript by code | §4 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
@@ -536,11 +536,11 @@ Filed 2026-11-01 from D02 T05 §8's plan review: the checks read a Word, Excel o
 > **Verified:** 2026-11-01 | §13 | 24b9d659f7b547b432956750d1432a35e7cba5d9
 > **Review:** `docs/reviews/d01-t03-s13.json`
 
-## 14. Voice extraction measured on test notes
+## 14. Voice extraction measured on
 
 Filed 2026-11-01 from §4's completion review (Part 2, item 2): the extraction is tested with scripted model answers, which establish that nothing unsupported is kept and that failures are stated, not how often Spark reads a real voice note's request, identity and urgency correctly, nor how long it takes.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** meta-api
 **Surface:** no
 
@@ -559,7 +559,7 @@ Filed 2026-11-01 from §4's completion review (Part 2, item 2): the extraction i
 
 Filed 2026-11-01 from §4's review rounds: the model does not restate the amounts and accounts a speaker gives (four rounds found a way to read a figure out of the middle of another, however it was matched), so §4 keeps the speaker's sentence. A reader that needs the figures themselves, such as matching a spoken account number against the organisation's supplier accounts (D05 T02), needs them read by code from the transcript, which is deterministic and checkable.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 

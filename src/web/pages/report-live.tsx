@@ -20,9 +20,17 @@ import { cited, type ReportVerdict, VerdictSection } from "./report-verdict";
 import { CONFIRMING, RETRY_WORDS, type RetryNote } from "./retry-words";
 
 // A stored check outcome (D02 T01 §3, `readCheckOutcomes`), as the report reads it; `null` for a case checked before
-// outcomes were stored.
+// outcomes were stored. `summary`: what a clean or finding run saw (D02 T01 §7), absent when none was stored.
+// `revision`: the Worker version that ran it (D02 T01 §4), absent for a row stored before versions were kept.
 export type Coverage =
-  | { check: string; outcome: "ran" | "partial" | "skipped" | "failed"; reason: string | null; findings: number }[]
+  | {
+      check: string;
+      outcome: "ran" | "partial" | "skipped" | "failed";
+      reason: string | null;
+      findings: number;
+      summary?: string;
+      revision?: string;
+    }[]
   | null;
 
 // The evidence's count line (D07 T03 §18, M3: "9 findings · 8 checks ran · nothing skipped"), from the cards drawn and
@@ -42,8 +50,8 @@ export function evidenceCount(evidence: readonly CardItem[], coverage: Coverage)
 
 // The safe board's "Checks that found nothing" (D07 T03 §18, Report-Safe): each check that ran over all of its input
 // and found nothing, in run order, by its plain words, or by its stored name for a check retired since. A partial check
-// is never clean (part of its input went unread). The board follows each with what the check saw, which the outcomes
-// do not store (design/SPEC.md M3, Deviation).
+// is never clean (part of its input went unread). The board follows each with what the check saw (its stored result
+// summary, D02 T01 §7; D07 T03 §44), or "nothing found" when none was kept; a stored summary is drawn as text.
 export function CleanChecks(props: { coverage: Coverage }) {
   const clean = (props.coverage ?? []).filter((o) => o.outcome === "ran" && o.findings === 0);
   if (clean.length === 0) return null;
@@ -54,7 +62,7 @@ export function CleanChecks(props: { coverage: Coverage }) {
       </h2>
       <ul class="flex flex-col gap-8 text-14">
         {clean.map((o) => (
-          <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: nothing found`}</li>
+          <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.summary?.trim() ? o.summary : "nothing found"}`}</li>
         ))}
       </ul>
     </section>
@@ -542,6 +550,7 @@ export function ReportLive(props: LiveProps) {
               cited={[]}
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
               intro={evidenceCount(props.evidence, props.coverage)}
+              versions={props.coverage}
               empty="Nothing was found before the check stopped."
             />
           )}
@@ -590,6 +599,7 @@ export function ReportLive(props: LiveProps) {
             file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
             columns={(verdict as ReportVerdict).verdict === "safe" ? 3 : 2}
             intro={evidenceCount(props.evidence, props.coverage)}
+            versions={props.coverage}
           />
           {(verdict as ReportVerdict).verdict === "safe" && <CleanChecks coverage={props.coverage} />}
           {props.trace && (

@@ -59,18 +59,18 @@ track: day-0
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [x] |
-| 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
+| 21 | §21 | Pre-push excerpt from the tools' error output | -- | [x] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
-| 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
+| 23 | §23 | One command for a lane merge through its plan stop | §22 | [x] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [x] |
-| 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
+| 26 | §26 | Uncoordinated lane: no run guard | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [x] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
-| 32 | §32 | Wake dispatched after each push to main | §27 | [ ] |
+| 32 | §32 | Wake dispatched after each | §27 | [ ] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -632,6 +632,8 @@ Filed 2026-10-30 at the operator's request, to go quicker without lowering the b
 
 ## 16. A returned review kept when its record fails
 
+> **Started:** 2026-11-02T11:25:12Z
+
 Filed 2026-10-30 from D00 T01 §15's completion review (gap 11, missing out of scope): a reviewer's returned review is lost when `scripts/review-dispatch.py` cannot write the findings file after it (a full disk, a permission error, a lock), since the record branch catches only `Unrecorded`: the review was paid for and the operator sees an exception with no output. The existing findings survive, since the write is atomic.
 
 **Phase:** 7
@@ -646,6 +648,9 @@ Filed 2026-10-30 from D00 T01 §15's completion review (gap 11, missing out of s
 
 - [ ] Catch an `OSError` from writing the findings file in `scripts/review-dispatch.py`, printing the returned review whole to stderr with the record path that could not be written and the command to record it again, and exiting with the unrecorded code. Done when: the review's text, the path and the exit code are in the output with the findings file unchanged.
 - [ ] Add the tests to `scripts/tests/test_review_dispatch.py`, the write made to fail with `ENOSPC`, `EACCES` and a held lock. Done when: each case keeps the review in the output and fails if the catch is removed.
+- [ ] Add the recovery command (plan review P2, 2026-11-02): on a failed write the dispatcher spills the full result (review, writer, reviewer, model, cli, effort, lenses, pin, candidate, kind, timestamp) to `<record>.unrecorded.json` beside the record and prints `python3 scripts/review-dispatch.py --record-result <spill> --record <path>`; that mode records from the spill with no reviewer call. Done when: a test records from a spill after the failure is removed and reads the round back, metadata intact.
+- [ ] Cover every record kind (plan review P2, 2026-11-02): each failure mode is exercised across a round, a plan record and a completion record, asserting the whole review on stderr, the record path, the recovery command, exit status 2 and byte-identical findings. Done when: the cases fail with the catch removed.
+- [ ] Define the held lock (plan review P2, 2026-11-02): the lock case is a sharing violation at `os.replace` (the Windows form), simulated deterministically by patching `os.replace` to raise `PermissionError`; a POSIX advisory lock does not block replacement and is not the case. Done when: the test asserts the existing findings survive a failed replacement.
 - [ ] Commit: `tools: a review whose record fails is printed, not lost`
 
 **Test checkpoint:** `python3 -m pytest scripts/tests/test_review_dispatch.py` passes, including the three failed-write cases.
@@ -791,7 +796,7 @@ Filed 2026-10-30 from the completion review of §19 (`docs/reviews/00-workspace/
 
 Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm typecheck` or `pnpm lint` fails, `scripts/hooks/pre-push` (§13) shows "its errors" by grepping the output for `error|✖|×|failed`. Biome's warning blocks carry the same words, so in a run with 13 warnings and 1 error the excerpt showed a `noCommaOperator` warning from `scripts/glimmer/source-pages.ts` and hid the one real error, a formatter diff in a test file. The word grep is a home-made scanner of output the tools already classify: Biome can print errors only (`--diagnostic-level=error`, Biome 2.6.3 `biome check --help`; `pnpm lint --diagnostic-level=error` passes it through to `biome check .`, measured 2026-10-30: 13 warnings hidden, exit 0 on this tree), and `tsc` marks each error `error TS<code>`. The fix takes the excerpt from those, keeping the push's verdict on the exit codes of the same `pnpm typecheck` and `pnpm lint` CI runs (§13).
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -804,9 +809,12 @@ Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm 
 - [x] Use the error-level run's output only when it exits 1 (Biome's exit for diagnostics found) with a non-blank line; otherwise (it exits 0, prints nothing, or fails to launch with another status and its own stderr) show the first run's opening lines with a note that the error-level run gave no errors. Done when: two tests, an error-level run that exits 0 with no output and one that fails to launch (exit 127, `pnpm: command not found`-style stderr), each find the first run's opening lines and the note, and neither shows the launch failure's text as the lint's errors (**Corrected 2026-10-30**, plan review P2 2: was empty output only, which an implementation checking only emptiness would pass).
 - [x] Keep the refusal on the first run's status: the hook exits non-zero naming the first run's exit status, whatever the error-level run returns. Done when: a test whose plain lint fails (exit 1) and whose error-level run exits 0 finds the push refused, `exit 1` named, and the remote unchanged (**Added 2026-10-30**, plan review P2 1).
 - [x] On a failed `pnpm typecheck`, show the lines matching `error TS[0-9]+` (first 20), else the output's first 20 non-blank lines (a `wrangler types --check` failure prints no `TS` code). Done when: the existing test with 25 warning lines still finds the `error TS2339` line, and a new test of a typecheck failure with no `TS` line finds the opening lines.
-- [ ] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
+- [x] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_push_hook` passes, including the warnings-then-one-error lint case, which fails on the word grep.
+
+> **Verified:** 2026-11-02 | §21 | 13a771fdc824f849bb1a15e316efae31b9ca6877
+> **Review:** `docs/reviews/d00-t01-s21.json`
 
 ## 22. Lane merges regenerate the plan, never conflict on it
 
@@ -842,6 +850,8 @@ Asked by the operator 2026-10-30 ("can we avoid these conflicts?", then "build i
 
 ## 23. One command for a lane merge through its plan stop
 
+> **Started:** 2026-11-02T09:40:08Z
+
 Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope there). Under §22 a merge that changes the plan's inputs takes two commands (`git merge`, then `git commit --no-edit`), where a merge of a project without a committed generated file takes one. A wrapper that runs both, keeping every refusal, brings the common case back to one command.
 
 **Phase:** 2
@@ -852,11 +862,17 @@ Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope the
 
 1. Merge in one command. Done when: `scripts/merge-lane.sh <ref>` concludes a stamped merge with a current plan, and stops on any conflict or refusal with git's own message.
 
-- [ ] Write `scripts/merge-lane.sh <ref>`: `git merge --no-edit <ref>`; when it stopped only at `pre-merge-commit` (no unmerged paths, `MERGE_HEAD` present), run `git commit --no-edit`; otherwise exit with the merge's status and its message, leaving the merge for the lane to resolve. Done when: `tests/scripts/test_merge_plan.py` concludes a stamped merge with one call and a current plan, leaves a merge with a conflict open with its message, and passes a refusal of `pre-commit` through with no commit.
-- [ ] Name it in `AGENTS.md` Parallel lanes and `todo/README.md` Commands as the way to merge. Done when: both name it.
-- [ ] Commit: `tools: one command for a lane merge through its plan stop`
+- [x] Write `scripts/merge-lane.sh <ref>`: `git merge --no-edit <ref>`; when it stopped only at `pre-merge-commit` (no unmerged paths, `MERGE_HEAD` present), run `git commit --no-edit`; otherwise exit with the merge's status and its message, leaving the merge for the lane to resolve. Done when: `tests/scripts/test_merge_plan.py` concludes a stamped merge with one call and a current plan, leaves a merge with a conflict open with its message, and passes a refusal of `pre-commit` through with no commit.
+- [x] Refuse a pre-existing merge (plan review P2, 2026-11-02): if `MERGE_HEAD` exists before the wrapper runs, exit nonzero with git's position untouched, and positively identify this invocation's plan stop (the `pre-merge-commit` message in this merge's own output, no unmerged paths) before auto-committing. Done when: a test leaves a resolved-but-uncommitted merge exactly as it was, with the refusal shown.
+- [x] Cover the wrapper's other states (plan review P2, 2026-11-02): a clean non-plan merge, a fast-forward and an already-up-to-date call each assert exit status, git's output preserved, expected HEAD and parents and no extra commit; a `pre-commit` refusal asserts a nonzero wrapper exit, not only no commit. Done when: `tests/scripts/test_merge_plan.py` holds each state.
+- [x] Argument contract (plan review P3, 2026-11-02): the script is tracked mode `100755`, takes exactly one ref, and refuses a missing, extra or option-like argument before any mutation. Done when: a test calls the executable itself with no ref and with `--abort` and nothing merges.
+- [x] Name it in `AGENTS.md` Parallel lanes and `todo/README.md` Commands as the way to merge, with recovery: resolve and stage conflicts (or repair the hook refusal), then `git commit --no-edit`, or `git merge --abort` to abandon. Done when: both name it and the recovery.
+- [x] Commit: `tools: one command for a lane merge through its plan stop`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan` passes, including the one-call stamped merge.
+
+> **Verified:** 2026-11-02 | §23 | 47b161de83329b2bf6470bc7e499476719002f6c
+> **Review:** `docs/reviews/d00-t01-s23.json`
 
 ## 24. Pre-commit refuses a missing client list
 
@@ -913,11 +929,11 @@ Filed 2026-10-30 from D00 T01 §24's completion review (gap G4, out of scope the
 > **Verified:** 2026-10-31 | §25 | 8f02cc6db391aefd74a84857976b9002681684bd
 > **Review:** `docs/reviews/d00-t01-s25.json`
 
-## 26. Uncoordinated lane: no run guard, reviewless stamps
+## 26. Uncoordinated lane: no run guard
 
 Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane): the `media` lane (D10, branch `claude/trusting-pasteur-umwvqz`) is registered but not coordinated. Lane scoping (§19) already keeps its rows out of every other lane's queries. The tools must also know the lane is uncoordinated, so that no run guard starts in it and its stamps need no plan review, completion review or rounds, with the waiver recorded rather than silent.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -993,7 +1009,7 @@ Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan r
 
 Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there). `stamp` writes three files (the receipt, the TODO file, the regenerated plan), each temp-then-replace, and rolls back on an exception or interrupt (`scripts/lib/todo_graph.py` `stamp`, the `except BaseException` block). A process killed outright (SIGKILL, a closed terminal, a crashed session) runs no rollback: the receipt can exist while the TODO file is unstamped, and a second `stamp` refuses with `receipt already exists`, so the writer has to find and delete the receipt by hand. The fix lets the stamp recover its own half-written state without weakening any check.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -1048,14 +1064,16 @@ Prove on live Claude sessions what the helper tests cannot: that a lane waiting 
 
 **Test checkpoint:** `docs/live-checks.md` holds the dated run with its elapsed seconds.
 
-## 32. Wake dispatched after each push to main
+## 32. Wake dispatched after each
 
 Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wake.py waiters` and sends one message per lane by hand (4 + N actions per push), where Claude Code's agent teams deliver a completion with none. Filed 2026-11-01 by D00 T01 \u00a727's completion review (excellence item 1, out of scope there because the send is the coordinator's `SendMessage`).
 
 **Corrected 2026-11-01** (site lane, at filing): git has no post-push hook, so running the selection after a push needs a point the coordinator controls; the one buildable option is a push wrapper (`scripts/push_main.py`: capture `origin/main`, push, run `lane_wake.py waiters <old> <new>`, print the records) that the coordinator uses instead of a bare `git push origin main`. Whether to adopt that wrapper is the coordinator's decision, so the section waits on it (`Needs: owner-decision`); on a yes, the checklist below builds the wrapper and its test.
 
+**Operator decision 2026-11-02:** adopt the push wrapper (`scripts/push_main.py`); the coordinator pushes through it instead of a bare `git push origin main`.
+
 **Phase:** 7
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -1093,7 +1111,7 @@ Filed 2026-11-01 by the coordinator after the lanes moved from Claude Code to Mu
 - [x] Write `~/isitlegit-data/handover/operator-actions.md` with every current operator blocker (one line each: the action, the lane it unblocks, the date raised) and keep it to current blockers only, removing each as it clears. Done when: the file names each operator blocker the lanes currently report and no cleared one. Cheaper substitute: repeating the blockers in heartbeat reports, rejected because repetition trains the operator to ignore them.
 - [x] Write `~/isitlegit-data/handover/system-state.md`: every lane's session name and id, worktree, branch, resume command, the heartbeat job id, and the current form of each lane's wait. Done when: a reader with no session context can restart any stopped lane from the file alone. Cheaper substitute: the coordinator's memory of the session list, rejected because it dies with the session.
 - [x] Write the urgent-message rule into `AGENTS.md` (Parallel lanes) and into every lane's inbox, and extend `scripts/lane_waits.py` to report unacknowledged `URGENT <id>:` inbox lines with age and an escalation flag at 10 minutes. Done when: `tests/scripts/test_lane_waits.py` shows an unacknowledged urgent message reported with its age, an acknowledged one absent, and one older than 10 minutes flagged. Cheaper substitute: steering peer messages alone, rejected because a lane inside a long tool call receives nothing until it ends, while the inbox line is waiting at its next read and the heartbeat can see it was never acknowledged.
-- [ ] Write the lane-heartbeat rule into `AGENTS.md` (Parallel lanes), the spec into `~/isitlegit-data/handover/lane-heartbeat.md`, and the install instruction into every lane's inbox; the coordinator heartbeat lists lanes with no `lane heartbeat installed:` line in their outbox. Done when: every lane's outbox holds that line with a job id. Cheaper substitute: the coordinator waking idle lanes itself, rejected because its peer messages are not reliably admitted and it cannot create cron jobs in another lane's session.
+- [x] Write the lane-heartbeat rule into `AGENTS.md` (Parallel lanes), the spec into `~/isitlegit-data/handover/lane-heartbeat.md`, and the install instruction into every lane's inbox; the coordinator heartbeat lists lanes with no `lane heartbeat installed:` line in their outbox. Done when: every lane's outbox holds that line with a job id. Cheaper substitute: the coordinator waking idle lanes itself, rejected because its peer messages are not reliably admitted and it cannot create cron jobs in another lane's session.
 - [ ] Commit: `tools: unattended Muse lanes keep working for days`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_waits` passes, including the cleared wait notified once, the uncleared wait left alone, the lane with no `WAITING:` line reported unknown, an unacknowledged urgent message reported with its age, an acknowledged one absent, and one older than 10 minutes flagged for escalation.

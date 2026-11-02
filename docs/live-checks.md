@@ -258,3 +258,19 @@ Every probe has exactly one refused incident with its notice held and one sent a
 ## Well-known sites list in production KV (D02 T06 §6)
 
 Loaded 2026-11-02 by the checks lane from this machine: `node scripts/load-top-sites.ts --remote` exited 0 with "generation 72528f8d0b8b (100000 domains in 1119 shards) reads back (remote)". Before the load, `wrangler kv key get top:meta --binding CACHE --remote` (namespace ea28d6e83ede4a83bfb06898d8791a16) returned 404, so this was the first production load and no `top:meta:previous` exists yet. After the load the same read returns generation 72528f8d0b8b, source majestic-million, date 2026-11-02, count 100000. Consumer proof through the real reader (`isWellKnown`, src/checks/top-sites.ts) fed the exact production meta and shards fetched with `wrangler kv key get --remote`: `microsoft.com` answers known (present in the mi shard, 785 names) and `qzxwv-unlikely-7392.com`, verified absent from its qz shard (11 names), answers unknown; the probe test passed (1 passed) and was removed after running. A case-level read through the deployed Worker's report was not run: the live upload answers 401 "sign in first" without a member session, and no authenticated live path was available in the loading session.
+## First site deploy and apex read-backs (D07 T06 §20, coordinator, 2026-11-02)
+
+The proven-only deploy ran from gated main (`node scripts/deploy.ts --proven-only`, site version `1ed650c9-f500-4ad8-8540-862371f6b04e`): 63 claims proven and rendered, 31 omitted and listed in the site lane's run record; no unstamped claim is on the live pages. The app Worker then deployed from main `a83da8dc` (version `5bca7e53-ff72-4eae-b4ef-6c09798ed1a2`, gate 41387614244 green) with the apex trust routes and the www custom domain.
+
+| URL | Status | Result |
+| --- | --- | --- |
+| `https://isitlegit.co.za/` | 200 | the marketing home page |
+| `https://www.isitlegit.co.za/some/path?x=1` | 301 | `Location: https://isitlegit.co.za/some/path?x=1`, path and query kept |
+| `https://isitlegit.co.za/v/fynbos-freight` | 200 | the verify page, "Fynbos Freight" read in the body |
+| `https://isitlegit.co.za/b/fynbos-freight.png` | 200 | `image/png`, the signature badge |
+| `https://isitlegit.co.za/s/fynbos-freight` | 404 | the route reaches the app Worker; the seal frame's handler is D05 T02 §8 and §9, not yet stamped, so no seal is served yet |
+| `https://isitlegit.co.za/privacy` | 200 after 307 to `/privacy/` | heading "What happens to the email you forward?" |
+| `https://isitlegit.co.za/no-such-page-xyz` | 404 | the site's 404 page |
+| `https://app.isitlegit.co.za/health` | 200 | `{"ok":true,"commit":"a83da8dc0dae68e8d3de215820be57c47bed496c"}` |
+
+The production demo seed was read before these checks: `node scripts/seed-demo.ts --remote --check` (keys piped from the vault item "IsItLegit bank key", never printed) exits 0 with all five businesses `protected: true`.

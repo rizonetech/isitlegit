@@ -1,6 +1,13 @@
 // The Meta client (D03 T01 §1), at the transport: what reaches the gateway, how often, and what every failure becomes.
 import { describe, expect, it } from "vitest";
-import { type MetaContext, ModelError, metaRaw, metaResponses, wavSeconds } from "../../src/meta/client";
+import {
+  type MetaContext,
+  ModelError,
+  metaRaw,
+  metaResponses,
+  metaResponsesStream,
+  wavSeconds,
+} from "../../src/meta/client";
 import { type Budget, BudgetExceeded, BudgetUnavailable, NotSent } from "../../src/meta/guard";
 
 const KEY = "LLM_test_key_0123456789";
@@ -20,7 +27,15 @@ const envelope = (type: string, code: string | null = null, message = "something
 });
 
 // A budget that admits every attempt and keeps what happened to each (D03 T01 §2).
-type Charge = { id: string; model: string; estimate: number; attempt: number; state: string; actual?: number };
+type Charge = {
+  id: string;
+  model: string;
+  estimate: number;
+  attempt: number;
+  state: string;
+  actual?: number;
+  searches?: number;
+};
 function ledger(refuse?: () => Error) {
   const charges: Charge[] = [];
   const find = (id: string) => charges.find((c) => c.id === id) as Charge;
@@ -31,8 +46,8 @@ function ledger(refuse?: () => Error) {
       charges.push({ id, model, estimate, attempt, state: "reserved" });
       return id;
     },
-    async settle(id, actual) {
-      Object.assign(find(id), { state: "settled", actual });
+    async settle(id, actual, record) {
+      Object.assign(find(id), { state: "settled", actual, searches: record?.searches });
     },
     async uncertain(id) {
       find(id).state = "uncertain";
@@ -126,6 +141,59 @@ describe("metaResponses", () => {
     expect(body).toMatchObject({ model: "muse-spark-1.3", input: "hello", store: false });
   });
 
+  it("sends nothing once the caller's own deadline has passed", async () => {
+    // The caller's absolute deadline is re-read at the send, after serialisation and reservation:
+    // an expired caller starts no transport attempt, on the first try or a retry.
+    const { sent, ctx } = transport(() => json(200, answer));
+    const error = await failure(
+      metaResponses(
+        { model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 },
+        { ...ctx, expired: () => true },
+      ),
+    );
+    expect(error.kind).toBe("timeout");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("sends nothing when the caller expires while an attempt is being reserved, or before a retry", async () => {
+    // Expiry landing during budget reservation is caught at the send itself, after reservation.
+    const reserving = transport(() => json(200, answer));
+    const spend = ledger();
+    const slowBudget: Budget = {
+      ...spend.budget,
+      reserve: async (...args: Parameters<Budget["reserve"]>) => {
+        await new Promise((r) => setTimeout(r, 60));
+        return spend.budget.reserve(...args);
+      },
+    };
+    let expired = false;
+    setTimeout(() => {
+      expired = true;
+    }, 20);
+    const reserved = await failure(
+      metaResponses(
+        { model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 },
+        { ...reserving.ctx, budget: slowBudget, expired: () => expired },
+      ),
+    );
+    expect(reserved.kind).toBe("timeout");
+    expect(reserving.sent).toHaveLength(0);
+
+    // Expiry after a failed attempt stops the retry before it sends.
+    const retrying = transport(
+      () => json(500, envelope("api_error", "overloaded")),
+      () => json(200, answer),
+    );
+    const retried = await failure(
+      metaResponses(
+        { model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 },
+        { ...retrying.ctx, expired: () => retrying.sent.length > 0 },
+      ),
+    );
+    expect(retried.kind).toBe("timeout");
+    expect(retrying.sent).toHaveLength(1);
+  });
+
   it("takes a 200 that is not a response object as malformed", async () => {
     const { ctx } = transport(() => json(200, { hello: "world" }));
     expect(
@@ -137,6 +205,114 @@ describe("metaResponses", () => {
     expect(
       (await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, text.ctx))).kind,
     ).toBe("malformed");
+  });
+});
+
+describe("metaResponsesStream", () => {
+  const sse = (events: unknown[], done = true) =>
+    new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + (done ? "data: [DONE]\n\n" : ""), {
+      headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+    });
+  const deltaEvent = { type: "response.output_text.delta", delta: "<0f>" };
+  const completedEvent = {
+    type: "response.completed",
+    response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+  };
+  const call = (ctx: MetaContext) =>
+    metaResponsesStream(
+      { model: "sam-3.1", input: "logo", stream: true } as Parameters<typeof metaResponsesStream>[0],
+      ctx,
+    );
+
+  it("reads fragmented events to completion and settles after consumption at the reported usage", async () => {
+    const { sent, ctx, charges } = transport(() => sse([deltaEvent, deltaEvent, completedEvent]));
+    const answer = await call(ctx);
+    expect(sent).toHaveLength(1);
+    expect(answer.data.events.map((e) => e.type)).toEqual([
+      "response.output_text.delta",
+      "response.output_text.delta",
+      "response.completed",
+    ]);
+    expect(answer.data.response?.status).toBe("completed");
+    expect(charges).toHaveLength(1);
+    expect(charges[0]?.state).toBe("settled");
+  });
+
+  it("settles only after the stream is consumed, not when its headers arrive", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const encode = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encode.encode(`data: ${JSON.stringify(deltaEvent)}\n\n`));
+        await gate;
+        controller.enqueue(encode.encode(`data: ${JSON.stringify(completedEvent)}\n\ndata: [DONE]\n\n`));
+        controller.close();
+      },
+    });
+    const { ctx, charges } = transport(
+      () =>
+        new Response(body, {
+          headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+        }),
+    );
+    const pending = call(ctx);
+    await new Promise((r) => setTimeout(r, 75));
+    // The delta has arrived and the stream is still open: nothing may be settled yet.
+    expect(charges).toHaveLength(1);
+    expect(charges[0]?.state).toBe("reserved");
+    release();
+    const answer = await pending;
+    expect(answer.data.response?.status).toBe("completed");
+    expect(charges[0]?.state).toBe("settled");
+  });
+
+  it("retries a retryable HTTP failure and accounts for the failed attempt", async () => {
+    const { sent, ctx, charges } = transport(
+      () => json(500, envelope("api_error", "overloaded")),
+      () => sse([completedEvent]),
+    );
+    const answer = await call(ctx);
+    expect(sent).toHaveLength(2);
+    expect(answer.data.response?.status).toBe("completed");
+    expect(charges).toHaveLength(2);
+    expect(charges[0]?.state).not.toBe("reserved");
+    expect(charges[1]?.state).toBe("settled");
+  });
+
+  it("sends nothing when the budget refuses the reservation", async () => {
+    const { sent, ctx } = transport(() => sse([completedEvent]));
+    const budget: Budget = {
+      ...ctx.budget,
+      reserve: async () => {
+        throw new BudgetExceeded("day", "sam-3.1");
+      },
+    };
+    const error = await call({ ...ctx, budget }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BudgetExceeded);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("returns an incomplete stream as no completed response, never as an empty success", async () => {
+    const { ctx, charges } = transport(() => sse([deltaEvent], false));
+    const answer = await call(ctx);
+    expect(answer.data.response).toBeNull();
+    expect(answer.data.events).toHaveLength(1);
+    expect(charges[0]?.state).toBe("settled");
+  });
+
+  it("ends a stalled stream at the call deadline", async () => {
+    const hanging = new ReadableStream<Uint8Array>({ start: () => {} });
+    const { ctx } = transport(
+      () =>
+        new Response(hanging, {
+          headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1" },
+        }),
+    );
+    const error = await failure(call({ ...ctx, deadlineMs: 100 }));
+    expect(error.kind).toBe("timeout");
   });
 });
 
@@ -603,6 +779,37 @@ describe("final review (2026-10-29)", () => {
     for (const params of refusals)
       expect((await failure(metaResponses(params as never, ctx))).kind, JSON.stringify(params)).toBe("invalid-request");
     expect([sent, charges]).toEqual([[], []]);
+  });
+
+  it("opens web search only on a context carrying its cap, reserves the cap and settles the searches the answer ran (D03 T02 §4)", async () => {
+    const groundedAnswer = {
+      id: "resp_1",
+      object: "response",
+      output: [{ type: "web_search_call" }, { type: "web_search_call" }],
+      usage: { input_tokens: 10, output_tokens: 1 },
+    };
+    const { sent, ctx, charges } = transport(() => json(200, groundedAnswer));
+    await metaResponses(
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16, tools: [{ type: "web_search" }] },
+      { ...ctx, search: { maxSearches: 3 } },
+    );
+    expect(sent).toHaveLength(1);
+    // Reserved for the whole cap of 3 searches on top of the token bound, settled at the 2 the
+    // answer itself reported on top of its tokens (10 in, 1 out).
+    expect(charges[0]?.estimate).toBeGreaterThan(3 * 0.0025);
+    expect(charges[0]?.searches).toBe(2);
+    expect(charges[0]?.actual).toBeCloseTo((10 * 1.25 + 1 * 4.25) / 1_000_000 + 2 * 0.0025, 8);
+    // The streamed door stays shut to search: no caller there carries a cap.
+    expect(
+      (
+        await failure(
+          metaResponsesStream(
+            { model: "muse-spark-1.3", input: "x", max_output_tokens: 16, tools: [{ type: "web_search" }] } as never,
+            { ...ctx, search: { maxSearches: 3 } },
+          ),
+        )
+      ).kind,
+    ).toBe("invalid-request");
   });
 
   it("reserves a transcription for at least what its clip could hold, whatever length it is given", async () => {

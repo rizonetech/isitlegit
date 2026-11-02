@@ -38,7 +38,7 @@ track: day-5
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
 | 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
-| 5 | §5 | Synthetic invoices in genuine and tampered pairs | §1 | [ ] |
+| 5 | §5 | Synthetic invoices in genuine and | §1 | [ ] |
 | 6 | §6 | Mark invoices verified, with undo | §3, §4, D05 T03 §1 | [ ] |
 
 ## 1. Invoice detection and Muse Spark field extraction
@@ -104,7 +104,7 @@ Per-organisation ledger of known suppliers, their domains and verified bank deta
 
 Rules (spec 4.5): bank details differ from the ledger or the registered account, the supplier's domain differs from the ledger, or the mail says the bank has changed: critical evidence and the fixed instruction "Confirm by phoning the supplier on the number in your records, never one from this email." A protected supplier with a no-match also starts closed-loop verification (D05 T03).
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -161,11 +161,11 @@ Members see and manage their suppliers (spec 4.5, 4.8 dashboard): list and searc
 > **Verified:** 2026-11-01 | §4 | 7e5a233e68d4d44f635f7931d0e704f29a3fbf81
 > **Review:** `docs/reviews/d06-t01-s4.json`
 
-## 5. Synthetic invoices in genuine and tampered pairs
+## 5. Synthetic invoices in genuine and
 
 Three fictional suppliers (a courier, a stationery wholesaler, a cleaning service) with genuine invoices and tampered twins (changed account, changed domain, change-of-bank letter), generated as PDFs by code so tests and the demo never use real documents (spec 4.5, plan Day 5).
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -185,7 +185,7 @@ From an invoice case's report, a member records the invoice's supplier and bank 
 
 **Corrected 2026-10-31** (§4's plan review, `docs/reviews/06-invoice/D06-T01-s4.md`): (1) the invoice's account is read from the case's persisted extraction (§1's item "Persist each invoice case's extracted payee account"), tenant-scoped, never from fields the request supplies; a case with no or an unreadable extraction offers no mark and says why (gap 1); (2) marking an account already recorded for the supplier links the existing row to the case (`verified_from_case_id`, `source` unchanged) instead of adding a duplicate, a repeated mark changes nothing, a payee that matches no supplier or several asks the member to choose or add the supplier, and an undo reverses only what that mark changed, never removing an account that existed before it (gap 2); (3) a mark is stored (`supplier_verifications`: case, account, what it changed, who, when, undone when), its 24-hour expiry is the server's, and Undo is found again on the report and the ledger after a reload until then; afterwards the report explains that the undo has expired and the account is removed from the ledger instead (gap 3); (4) mark and undo pass the ledger's whole gate (Origin, active organisation, owner or admin, `bank-change`) and check that the case and the account belong to the organisation; the signed public report draws no control (gap 4); (8) the board's "Asked their finance contact at 09:20, awaiting reply" is the closed-loop request's stored state (D05 T03 §1, now a dependency), shown with "not requested" when none was sent and "request unavailable" when it cannot be read (gap 8).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` member console, M4 supplier ledger (the Undo toast and the "Changed on invoice" status) and the report's invoice actions (D07 T03 §2)

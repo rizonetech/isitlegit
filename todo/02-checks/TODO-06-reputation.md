@@ -39,7 +39,7 @@ track: day-3
 | 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [x] |
 | 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [x] |
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [x] |
-| 6 | §6 | Well-known sites list loaded into production KV | §3 | [ ] |
+| 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
@@ -192,13 +192,13 @@ Filed 2026-11-01 from the phase audit (checks lane, run e78fd72088d9): §1 and �
 > **Verified:** 2026-11-01 | §5 | 3ba50205513ae4361e2fcca4bfe6a3cb60931951
 > **Review:** `docs/reviews/d02-t06-s5.json`
 
-## 6. Well-known sites list loaded into production KV
+## 6. Well-known sites in KV
 
 > **Started:** 2026-11-02T05:16Z
 
 Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list into Wrangler's local storage and proves the loader and the reader; the production namespace stays at `not_loaded` until someone runs the loader against it. That is a deploy step of the coordinator's, like the brand table (`scripts/load-brands.ts`), and §4's well-known counter-signal must not be enabled before it reads back.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes unchanged.
@@ -217,7 +217,7 @@ Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list
 
 Filed 2026-11-01 from §3's completion review (Part 2 item 2): a decision that a domain was well known can be traced to the list only while its generation is still in KV, and the loader deletes generations older than the previous one. An investigator reading an older report could not reconstruct what the list said then.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes unchanged.

@@ -1,0 +1,126 @@
+{
+  "ref": "D04 T02 \u00a71",
+  "title": "Fictional-brand phishing fixture sites",
+  "implementation_sha": "0d20c4555c549e10570af631b460fd4b657a0198",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/04-agent/D04-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/04-agent/D04-T02-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/walkthrough/fixtures.test.ts -> 15 passed",
+    "pnpm exec vitest run test/walkthrough/driver.test.ts test/walkthrough/canary.test.ts test/walkthrough/url-policy.test.ts -> 61 passed, unmodified",
+    "pnpm exec vitest run test/checks/fixtures-host.test.ts -> 5 passed",
+    "pnpm typecheck -> 0 errors; pnpm lint -> no errors; pnpm build -> dry-run ok",
+    "python3 scripts/todo-graph.py validate -> valid: 502 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s1.md",
+    "verdict": "filed",
+    "candidate": "70d6f509ae54cb867aaecac022b3e8b3cc2424b3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T02 \u00a78",
+      "D09 T02 \u00a73"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s1.md",
+    "candidate": "b8721b85b6c932717543bab2bfb0cc9f63085f13",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

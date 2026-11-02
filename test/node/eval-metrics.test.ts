@@ -7,9 +7,18 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
 import { MAX_LABELS_BYTES } from "../../eval/load.ts";
-import { computeMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
+import { computeMetrics, coverageMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
+import { publishProblems } from "../../eval/publish.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
-import { hashFile, MAX_SAMPLE_BYTES, type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
+import {
+  type BaselineManifest,
+  hashFile,
+  MAX_SAMPLE_BYTES,
+  type ManifestEntry,
+  type Outcome,
+  type RunSample,
+  selectSamples,
+} from "../../eval/run-core.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const dirs: string[] = [];
@@ -103,14 +112,18 @@ describe("the figures", () => {
     expect(m.main.falsePositives).toEqual({ n: 3, hits: 1, rate: 1 / 3 });
     expect(m.main.modelBasis).toEqual({ n: 2, hits: 1, rate: 0.5 });
     expect(m.main.checksBasis).toEqual({ n: 2, hits: 1, rate: 0.5 });
-    // Time and cost medians come from the six measured cases only (the timeout has neither).
-    expect(m.main.analysisMs).toEqual({ n: 6, median: 3500, p95: 6000 });
-    expect(m.main.costUsd.n).toBe(6);
-    expect(m.main.costUsd.median).toBeCloseTo(0.04);
+    // Time and cost medians come from the five measured cases only (the timeout has neither; the partial case with
+    // no verdict keeps its costs in the total but not in a median).
+    expect(m.main.analysisMs).toEqual({ n: 5, median: 3000, p95: 5000 });
+    expect(m.main.costUsd.n).toBe(5);
+    expect(m.main.costUsd.median).toBeCloseTo(0.03);
     expect(m.main.costUsd.total).toBeCloseTo(0.28);
     expect(m.main.byCategory["credential-phishing"]).toMatchObject({ attacks: 4, detected: 2 });
-    expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 3, falsePositives: 1 });
-    expect(m.unmeasured).toEqual([{ sample: "synthetic-sa/a4.eml", outcome: "timeout" }]);
+    expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 2, falsePositives: 1 });
+    expect(m.unmeasured).toEqual([
+      { sample: "synthetic-sa/a4.eml", outcome: "timeout" },
+      { sample: "synthetic-sa/g3.eml", outcome: "partial" },
+    ]);
     expect(m.complete).toBe(false);
     expect(m.targets.filter((t) => t.state === "incomplete").map((t) => t.name)).toEqual([
       "detection",
@@ -126,6 +139,17 @@ describe("the figures", () => {
       row("synthetic-sa/g2.eml", "partial", null, { label: "genuine" }),
     ]);
     expect(m.main.falsePositives).toEqual({ n: 2, hits: 1, rate: 0.5 });
+  });
+
+  it("keeps a terminal case with no verdict unmeasured, never complete or publishable (C2)", () => {
+    const g = [sample("synthetic-sa", "g1.eml", "genuine"), sample("synthetic-sa", "g2.eml", "genuine")];
+    const m = go(g, [
+      row("synthetic-sa/g1.eml", "partial", "safe", { label: "genuine" }),
+      row("synthetic-sa/g2.eml", "partial", null, { label: "genuine" }),
+    ]);
+    expect(m.unmeasured).toEqual([{ sample: "synthetic-sa/g2.eml", outcome: "partial" }]);
+    expect(m.complete).toBe(false);
+    expect(publishProblems(m)).not.toEqual([]);
   });
 
   it("keeps a sample with no stored row in its denominator, listed, and never calls the report complete", () => {
@@ -522,5 +546,75 @@ describe("the command", () => {
     expect((await go2()).code).toBe(0);
     expect(hashFile(big, 100)).toMatch(/^[0-9a-f]{64}$/);
     expect(() => hashFile(big, 5)).toThrow(/larger than 5 bytes/);
+  });
+});
+
+describe("the coverage metrics from a baseline manifest", () => {
+  const entry = (
+    sampleId: string,
+    outcome: Outcome,
+    verdict: ResultRow["verdict"],
+    over: Partial<ManifestEntry> = {},
+  ): ManifestEntry => ({
+    sample: sampleId,
+    set: sampleId.slice(0, sampleId.indexOf("/")),
+    runId: "run-1",
+    deployment: "abc123",
+    outcome,
+    verdict,
+    ms: 1000,
+    costUsd: 0.02,
+    ...over,
+  });
+  it("scores pooled denominators with no double count, challenge apart", () => {
+    const samples = [
+      sample("synthetic-sa", "a1.eml", "attack"),
+      sample("synthetic-sa", "g1.eml", "genuine"),
+      sample("synthetic-sa", "a2.eml", "attack"),
+      sample("synthetic-challenge", "c1.eml", "attack"),
+    ];
+    const manifest: BaselineManifest = {
+      id: "base-1",
+      sets: ["synthetic-sa", "synthetic-challenge"],
+      setVersions: { "synthetic-sa": "v1", "synthetic-challenge": "v2" },
+      deployment: "abc123",
+      caps: { "synthetic-sa": 13, "synthetic-challenge": 5 },
+      expected: samples.map((s) => s.id),
+      entries: [
+        entry("synthetic-sa/a1.eml", "done", "suspicious"),
+        entry("synthetic-sa/g1.eml", "done", "safe"),
+        entry("synthetic-sa/a2.eml", "partial", null),
+        entry("synthetic-challenge/c1.eml", "done", "malicious"),
+      ],
+      unmeasured: ["synthetic-sa/a2.eml"],
+    };
+    const c = coverageMetrics(manifest, samples);
+    expect(c.main.detection).toEqual({ n: 2, hits: 1, rate: 0.5 });
+    expect(c.main.falsePositives).toEqual({ n: 1, hits: 0, rate: 0 });
+    expect(c.unmeasured).toEqual(["synthetic-sa/a2.eml"]);
+    expect(c.challenge?.detection).toEqual({ n: 1, hits: 1, rate: 1 });
+    expect(c.pooled).toBe(0);
+  });
+  it("counts a hand-pooled repeat once, and a null verdict never counts", () => {
+    const samples = [sample("nazario-2025", "p1.eml", "attack", "model"), sample("nazario-2025", "p2.eml", "attack")];
+    const manifest: BaselineManifest = {
+      id: "base-2",
+      sets: ["nazario-2025"],
+      setVersions: { "nazario-2025": "v3" },
+      deployment: "abc123",
+      caps: { "nazario-2025": 5 },
+      expected: ["nazario-2025/p1.eml", "nazario-2025/p2.eml"],
+      entries: [
+        entry("nazario-2025/p1.eml", "stale-repeat", null, { runId: "run-2", pooledFrom: "run-1" }),
+        entry("nazario-2025/p1.eml", "done", "suspicious", { runId: "run-1" }),
+        entry("nazario-2025/p2.eml", "partial", null),
+      ],
+      unmeasured: ["nazario-2025/p2.eml"],
+    };
+    const c = coverageMetrics(manifest, samples);
+    expect(c.main.detection).toEqual({ n: 2, hits: 1, rate: 0.5 });
+    expect(c.pooled).toBe(1);
+    expect(c.bySample["nazario-2025/p1.eml"]?.outcome).toBe("done");
+    expect(c.bySample["nazario-2025/p2.eml"]?.outcome).toBe("partial");
   });
 });

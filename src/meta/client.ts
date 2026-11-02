@@ -11,7 +11,12 @@
 // the gateway's log id and Meta's request id to trace it by; never Meta's free-text message, which can echo what was
 // sent (a rejected value, an image URL it could not fetch), a payload or a credential.
 import OpenAI from "openai";
-import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
+import type {
+  Response as MetaResponse,
+  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseStreamEvent,
+} from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
 import {
@@ -24,7 +29,7 @@ import {
   type Owner,
 } from "./guard.ts";
 import { ENDPOINTS, type Endpoint, isModelId, MODELS, type ModelId } from "./models.ts";
-import { estimateUsd } from "./pricing.ts";
+import { estimateUsd, SEARCH_CONTEXT_TOKENS } from "./pricing.ts";
 
 export // How long a timed-out call waits for its aborted attempt's record to be written before it throws.
 const RECORD_GRACE_MS = 2_000;
@@ -55,6 +60,13 @@ export type MetaContext = {
   owner: Owner;
   // The whole call, every attempt and every wait between them included.
   deadlineMs?: number;
+  // The caller's own absolute deadline, when it has one: re-read at every send, so work that expired
+  // while the request was being prepared (serialised, reserved) starts no transport attempt.
+  expired?: () => boolean;
+  // Search grounding, opened only for the grounded brand call (D03 T02 §4): its presence is what
+  // lets a `web_search*` tool past the refusal below, and `maxSearches` is the cap the reservation
+  // prices and the caller accepts against (Meta documents no per-request search-count parameter).
+  search?: { maxSearches: number };
   // Keeps an attempt's record write alive past the call's deadline (a Workflow step's or a request's own waitUntil).
   waitUntil?: (promise: Promise<unknown>) => void;
   fetch?: typeof fetch;
@@ -123,9 +135,13 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       );
     // What the budget cannot bound before the call is refused before it (D03 T01 §2 final review): web search is billed
     // per query with no per-request cap Meta documents (D03 T02 §4 budgets it), and a file the server fetches (a file id,
-    // a file URL, an input file such as a PDF) is billed by its content, which the request does not carry.
-    if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
-      throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+    // a file URL, an input file such as a PDF) is billed by its content, which the request does not carry. Grounding is
+    // open only on a context carrying its search cap (D03 T02 §4): every other caller still refuses.
+    if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search"))) {
+      const cap = ctx.search?.maxSearches;
+      if (!Number.isInteger(cap) || (cap as number) < 1)
+        throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+    }
     if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
       throw new ModelError(
         "invalid-request",
@@ -151,10 +167,20 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   const text = JSON.stringify(body, (key, value) =>
     key === "image_url" && typeof value === "string" && value.startsWith("data:") ? "" : value,
   );
+  const groundedCall = (params.tools ?? []).some((tool) =>
+    String((tool as { type?: unknown }).type).startsWith("web_search"),
+  );
   const estimate = estimateUsd(model, {
-    inputBytes: new TextEncoder().encode(text).byteLength,
+    // A grounded call also reserves the retrieved context its searches may bring back, which the
+    // request's own bytes cannot bound (D03 T02 §4): the day and total caps in the budget refuse
+    // the reservation before anything is sent when they cannot pay for it.
+    inputBytes:
+      new TextEncoder().encode(text).byteLength +
+      (groundedCall ? (ctx.search?.maxSearches ?? 0) : 0) * SEARCH_CONTEXT_TOKENS,
     maxOutputTokens: params.max_output_tokens as number,
     images,
+    // A grounded call reserves its whole search cap; its answer settles at the searches it reports.
+    searches: groundedCall ? (ctx.search?.maxSearches ?? 0) : 0,
   });
   const answer = await withRetries(ctx, seen, (signal, n) => {
     let requestId: string | null = null;
@@ -164,6 +190,8 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       estimate,
       n,
       async () => {
+        if (ctx.expired?.())
+          throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
         const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
         requestId = traced(response.headers).requestId;
         if (!isResponse(data))
@@ -180,11 +208,111 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
           outputTokens: data.usage?.output_tokens,
           // SAM is billed per image sent, one at least.
           images: Math.max(1, images),
+          // The searches this answer itself ran, counted from its own output (D03 T02 §4).
+          searches: (data.output ?? []).filter((item) => item.type === "web_search_call").length,
         },
         logId,
         requestId,
         // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
         reported: MODELS[model].unit === "token" && data.usage !== undefined,
+      }),
+      call,
+      undefined,
+      (error) => describeFailure(error, seen.last),
+    );
+  });
+  return { ...answer, callId: call.callId };
+}
+
+// The streaming sibling of `metaResponses` (D03 T03 §1): same gateway, ledger, retry and `store: false`
+// rules, but the answer is read as events to its end, because SAM's segmentation only completes on
+// `response.completed`. Settlement happens after the stream is consumed, at the usage the completed
+// response carries; a stream that ends without one settles as unreported and the caller reads the
+// absence as an incomplete answer, never as an empty success. The deadline covers consumption: the
+// retry loop's own deadline aborts the transport, and the caller's expiry is re-read at the send.
+export type StreamedResponse = { events: ResponseStreamEvent[]; response: MetaResponse | null };
+const MAX_STREAM_EVENTS = 10_000;
+
+export async function metaResponsesStream(
+  params: ResponseCreateParamsStreaming,
+  ctx: MetaContext,
+): Promise<MetaAnswer<StreamedResponse>> {
+  const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
+  const { model, apiKey, token, base } = await preflight(ctx, call, params.model, () => {
+    const model = standard(params.model, "responses");
+    if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
+      throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+    if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+      throw new ModelError(
+        "invalid-request",
+        "a server-referenced file cannot be bounded before it is sent; send its content",
+      );
+    // A token-priced stream reserves against its output limit like any Responses call; an
+    // image-priced one (SAM) is reserved per image and needs none.
+    if (
+      MODELS[model].unit === "token" &&
+      (!Number.isInteger(params.max_output_tokens) || (params.max_output_tokens as number) < 1)
+    )
+      throw new ModelError(
+        "invalid-request",
+        "a streamed Responses call to a token model must set max_output_tokens, which the budget reserves for",
+      );
+    return { model, ...settings(ctx.env) };
+  });
+  const seen = observe(ctx.fetch ?? fetch);
+  const client = new OpenAI({
+    apiKey,
+    baseURL: base,
+    defaultHeaders: { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) },
+    fetch: seen.fetch,
+    maxRetries: 0,
+    timeout: ctx.deadlineMs ?? DEFAULT_DEADLINE_MS,
+  });
+  const body: ResponseCreateParamsStreaming = { ...params, model, stream: true, store: false };
+  const json = JSON.stringify(body);
+  const images = imagesIn(json);
+  const text = JSON.stringify(body, (key, value) =>
+    key === "image_url" && typeof value === "string" && value.startsWith("data:") ? "" : value,
+  );
+  const estimate = estimateUsd(model, {
+    inputBytes: new TextEncoder().encode(text).byteLength,
+    maxOutputTokens: typeof params.max_output_tokens === "number" ? params.max_output_tokens : 0,
+    images,
+  });
+  const answer = await withRetries(ctx, seen, (signal, n) => {
+    let requestId: string | null = null;
+    return charged(
+      ctx.budget,
+      model,
+      estimate,
+      n,
+      async () => {
+        if (ctx.expired?.())
+          throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
+        const { data: stream, response: raw } = await client.responses
+          .create(body, { signal, maxRetries: 0 })
+          .withResponse();
+        requestId = traced(raw.headers).requestId;
+        const events: ResponseStreamEvent[] = [];
+        let completed: MetaResponse | null = null;
+        for await (const event of stream) {
+          events.push(event);
+          if (events.length > MAX_STREAM_EVENTS)
+            throw new ModelError("malformed", "Meta's stream carried more events than a call may hold");
+          if (event.type === "response.completed") completed = event.response;
+        }
+        return { data: { events, response: completed }, logId: traced(raw.headers).logId };
+      },
+      ({ data, logId }) => ({
+        usage: {
+          inputTokens: data.response?.usage?.input_tokens,
+          cachedTokens: data.response?.usage?.input_tokens_details?.cached_tokens,
+          outputTokens: data.response?.usage?.output_tokens,
+          images: Math.max(1, images),
+        },
+        logId,
+        requestId,
+        reported: MODELS[model].unit === "token" && data.response?.usage !== undefined,
       }),
       call,
       undefined,
@@ -546,6 +674,10 @@ async function withRetries<T>(
   try {
     for (let n = 1; ; n++) {
       seen.last = null;
+      // The caller's deadline, re-read before every attempt: a retry or repair that starts after it
+      // sends nothing.
+      if (ctx.expired?.())
+        throw end(new ModelError("timeout", "the caller's deadline passed before the request was sent"));
       const inflight = attempt(controller.signal, n);
       try {
         return await Promise.race([inflight, expired]);

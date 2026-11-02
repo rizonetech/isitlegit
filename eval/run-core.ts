@@ -30,6 +30,33 @@ export type RunSample = {
   sha256: string;
 };
 
+// One sample's coverage in a baseline manifest (D08 T02 §11): the batch that measured it, or the earlier run it was
+// pooled from when this baseline's own row was a stale repeat.
+export type ManifestEntry = {
+  sample: string;
+  set: string;
+  runId: string;
+  deployment: string;
+  outcome: Outcome;
+  verdict: string | null;
+  ms: number | null;
+  costUsd: number;
+  pooledFrom?: string;
+};
+
+// The deduplicated coverage of one baseline (D08 T02 §11): every expected sample once, unmeasured ones explicit, each
+// set's own version with the deployment the baseline was measured on.
+export type BaselineManifest = {
+  id: string;
+  sets: string[];
+  setVersions: Record<string, string>;
+  deployment: string;
+  caps: Record<string, number>;
+  expected: string[];
+  entries: ManifestEntry[];
+  unmeasured: string[];
+};
+
 const sha = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 
 // The largest sample hashed: the upload limit (25 MiB) with room, so a set cannot make the runner read without bound.
@@ -135,6 +162,30 @@ export function preflightProblems(p: Preflight): string[] {
 
 export const isTerminal = (o: Outcome) => o === "done" || o === "partial";
 
+// The safe next step for a refusal or fault, so a refused run names what to do instead of only what failed. The
+// caller prints each hint once; an unknown problem has none.
+export function recoveryHint(problem: string): string | null {
+  if (problem.includes("no samples selected"))
+    return "select at least one set with --set (sets: nazario-2025, synthetic-sa, synthetic-challenge)";
+  if (problem.includes("--cap-usd must be"))
+    return "state a positive cap with --cap-usd, at or above the run's estimate";
+  if (problem.includes("passes the stated cap"))
+    return "state a larger cap that still fits the shared day headroom, never above it";
+  if (problem.includes("passes the shared"))
+    return "run fewer sets (one --set at a time), or wait for the fresh SAST day when the day spend resets";
+  if (problem.includes("organisation's"))
+    return "ask the coordinator to raise the eval organisation's daily-cases override, or run fewer samples";
+  if (problem.includes("session is not signed in") || problem.includes("does not belong"))
+    return "refresh the eval session in the vault item IsItLegit eval session and export EVAL_SESSION_COOKIE again";
+  if (problem.includes("already complete"))
+    return "resume needs the run id of an unfinished run; start a new run for a fresh measurement";
+  if (problem.includes("deployment is "))
+    return "a run is measured on one deployment; start a new run instead of resuming";
+  if (problem.includes("was started with cap"))
+    return "a resume keeps the run's cap: drop --cap-usd or repeat that figure";
+  return null;
+}
+
 // A run is complete only when every selected sample ended `done` or `partial`.
 export function runStatus(selected: number, outcomes: readonly Outcome[]): RunStatus {
   return outcomes.length === selected && outcomes.every(isTerminal) ? "complete" : "incomplete";
@@ -155,13 +206,23 @@ export type Options = {
   capUsd: number;
   resume: string | null;
   verify: string | null;
+  mode: string | null;
   dry: boolean;
   help: boolean;
 };
 
 // The command line, each option validated; a problem is a refusal (exit 3) named in the message.
 export function parseArgs(argv: readonly string[]): Options | { error: string } {
-  const o: Options = { sets: [], limit: null, capUsd: Number.NaN, resume: null, verify: null, dry: false, help: false };
+  const o: Options = {
+    sets: [],
+    limit: null,
+    capUsd: Number.NaN,
+    resume: null,
+    verify: null,
+    mode: null,
+    dry: false,
+    help: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] as string;
     const value = () => argv[++i];
@@ -185,6 +246,10 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
       if (!v || !/^[a-z0-9-]{8,64}$/.test(v)) return { error: `${a} needs a run id` };
       if (a === "--resume") o.resume = v;
       else o.verify = v;
+    } else if (a === "--mode") {
+      const v = value();
+      if (!v) return { error: "--mode needs a value: full or ablate:<flag>" };
+      o.mode = v;
     } else return { error: `unknown option ${a}` };
   }
   if (!o.sets.length) o.sets = [...SETS];
@@ -194,8 +259,8 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
 }
 
 export const USAGE = [
-  "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--dry]",
-  "       pnpm eval:run --resume <run id>   (keeps the cap and the selection the run began with)",
+  "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--mode <full|ablate:flag>] [--dry]",
+  "       pnpm eval:run --resume <run id>   (keeps the cap, the selection and the mode the run began with)",
   "       pnpm eval:run --verify <run id>",
   `sets: ${SETS.join(", ")} (all by default). Needs EVAL_SESSION_COOKIE; exit 0 complete, 1 fault, 2 incomplete, 3 refused.`,
 ].join("\n");

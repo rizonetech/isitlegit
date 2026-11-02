@@ -110,6 +110,7 @@ export async function readMail(
         const answer = await structured(schema, readingRequest(images, visibleText), {
           ...ctx.meta,
           deadlineMs: Math.max(1, Math.min(READ_CALL_MS, deadline ? deadline.at - Date.now() : READ_CALL_MS)),
+          ...(deadline ? { expired: deadline.expired } : {}),
           waitUntil: ctx.waitUntil,
         });
         // Schema-valid is not yet a reading of these images: each one named exactly once.

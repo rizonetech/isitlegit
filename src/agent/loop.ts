@@ -67,6 +67,7 @@ const RULES = [
   "Critical evidence is a floor, not a suggestion: a case with bank details changed, a credential form on a lookalike domain, or malware sets the minimum verdict stated in the evidence, whatever you think of the rest.",
   "Cite only the Evidence IDs listed, exactly as written. A claim without a citation will be rejected.",
   "Never invent a phone number, a link or an instruction the evidence does not carry.",
+  "Judge the ask itself. A message that asks the reader to hand over sign-in details, to sign in through a link or page it supplies, to pay into new or changed bank details, or to follow a link or domain the evidence ties to harm (lookalike, newly registered, mismatched), is suspicious on its content, whatever its headers say. A routine ask the evidence does not tie to harm, such as a payment to the bank details already on file, and a message with no harmful ask, is not made suspicious by a check that could not run, an authentication result that is absent, or a header the upload never carried: that is missing evidence, and on missing evidence alone the verdict is safe, saying what could not be checked.",
 ].join("\n");
 
 // Fixed actions from evidence, decided by code, in the order the report puts them first: a bank change, a proof
