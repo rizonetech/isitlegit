@@ -535,7 +535,7 @@ Sections: 176 | Checklist items: 738
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID                 | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                           | none                 | 4     |
 | [x]    | D07 T06 §11 | Already paid: what to do now                       | none                 | 7     |
-| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                  | none                 | 7     |
+| [x]    | D07 T06 §12 | Pricing terms: VAT and commitment                  | none                 | 7     |
 | [ ]    | D07 T06 §13 | On-site invite request                             | none                 | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards                            | none                 | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice                    | none                 | 2     |
@@ -606,6 +606,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 322/530 verified sections, 130 ready to run now.
+Progress: 323/530 verified sections, 130 ready to run now.
 
-Checklist: 2556/3322 items completed (includes Commit items).
+Checklist: 2557/3322 items completed (includes Commit items).

@@ -43,7 +43,7 @@ track: day-6
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [x] |
 | 11 | §11 | Already paid: what to do now | §3 | [x] |
-| 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
+| 12 | §12 | Pricing terms: VAT and commitment | §4 | [x] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
 | 14 | §14 | Cross-border safeguards | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
@@ -499,11 +499,14 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 - [x] Test in `site/test/pricing.test.ts`: the VAT and commitment answers sit inside their named Q&A entries and the member scope inside the Protect tier, with both prices, the five-member boundary, the per-organisation unit, VAT, cancellation and Free check retention. Done when: the test fails on a removed, relocated or altered value, not only on removal.
 - [x] Audit the other price surfaces for consistency (`site/src/pages/index.astro`, `site/src/pages/protect.astro`: "from R499" summaries stay, with the applicable terms reachable; `src/web/pages/settings-plan-view.tsx` is the console lane's, routed through the coordinator if it disagrees). Done when: each surface is recorded as consistent or routed.
 - [x] Run `article-check` on the draft terms and on the built page: zero FAILs and every WARN answered, recorded in the run file. Done when: both outputs are recorded.
-- [ ] Commit: `site: pricing terms`
+- [x] Commit: `site: pricing terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
 
 > **Deferred:** billing timing (member-count changes, cancellation effect) -> XREF: D07 T06 §23
+
+> **Verified:** 2026-11-02 | §12 | 5f4c6523869cb287a3f528637cda5a79f2492f03
+> **Review:** `docs/reviews/d07-t06-s12.json`
 
 ## 13. On-site invite request
 
