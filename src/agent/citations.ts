@@ -45,6 +45,30 @@ const OPENERS = new Set([
   "After",
   "Before",
 ]);
+// Auxiliary verbs: a capital followed by one of these is a sentence's subject, not part of a name.
+const AUXILIARIES = new Set([
+  "is",
+  "are",
+  "was",
+  "were",
+  "has",
+  "have",
+  "had",
+  "will",
+  "would",
+  "can",
+  "could",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "must",
+  "seems",
+  "appears",
+  "remains",
+  "became",
+  "becomes",
+]);
 
 function splitText(text: string): string[] {
   const out: string[] = [];
@@ -118,11 +142,23 @@ function splitText(text: string): string[] {
       const followingInitial = following.length === 1 && text.charAt(e) === ".";
       // A chain or honorific continues a name (U.S. Bank, Dr. Smith). A marker absorbed at the stop
       // ends it whatever follows (a capital, a number, a domain), and so does an opener word.
-      const nameEnds = absorbedMarker || (OPENERS.has(following) && !followingInitial);
+      // Mid-sentence, a capital followed by an auxiliary verb is a new subject (the U.S. Payment
+      // is ...), not a name; a chain opening its own sentence keeps its name (U.S. Bank is ...).
+      let f = e;
+      while (f < text.length && /\s/.test(text.charAt(f))) f++;
+      let g = f;
+      while (g < text.length && /[A-Za-z]/.test(text.charAt(g))) g++;
+      const newSubject =
+        initialChain &&
+        text.slice(start, p + 1).trim().length > 0 &&
+        /^[A-Z]/.test(following) &&
+        AUXILIARIES.has(text.slice(f, g).toLowerCase());
+      const nameEnds = absorbedMarker || newSubject || (OPENERS.has(following) && !followingInitial);
       if ((initialChain || HONORIFICS.has(before)) && !nameEnds) continue;
-      // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
-      // after it starts the next sentence.
-      if (ABBREVIATIONS.has(before) && /^[a-z]$/.test(text.charAt(s))) continue;
+      // An abbreviation continues only into a lowercase word, and never across an absorbed marker:
+      // a capital, a quoted capital, a number, or anything after the sentence's marker starts the
+      // next sentence.
+      if (ABBREVIATIONS.has(before) && !absorbedMarker && /^[a-z]$/.test(text.charAt(s))) continue;
     }
     out.push(text.slice(start, j));
     start = k;

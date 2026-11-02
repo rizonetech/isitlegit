@@ -238,6 +238,20 @@ describe("validateCitations", () => {
     expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
   });
 
+  it("ends sentences at abbreviations and chains across markers, and before a new subject", () => {
+    for (const explanation of [
+      "The sender is Acme Ltd. [E1] paypal.example is verified.",
+      "The sender is based in the U.S. Payment is safe [E1].",
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    // A name at the start of its own sentence still reads as one sentence.
+    expect(
+      validateCitations({ cited_evidence_ids: ["E1"], explanation: "U.S. Bank customers were targeted [E1]." }, CASE),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [
