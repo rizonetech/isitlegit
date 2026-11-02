@@ -314,13 +314,7 @@ async function render(
         (held === headerKey(facts, view)
           ? ""
           : String(
-              <ReportHeader
-                facts={facts}
-                view={view}
-                copy={copy}
-                oob
-                {...(steps ? { backHref: steps.back } : {})}
-              />,
+              <ReportHeader facts={facts} view={view} copy={copy} oob {...(steps ? { backHref: steps.back } : {})} />,
             )),
       { headers: HEADERS },
     );

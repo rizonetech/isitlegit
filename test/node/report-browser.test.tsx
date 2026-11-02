@@ -167,8 +167,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
     // The keys live on the step controls (WCAG 2.1.4): Tab into them, then u returns to the list.
     for (
       let i = 0;
-      i < 30 &&
-      !(await p.evaluate(() => document.activeElement?.closest("[data-case-steps]") !== null));
+      i < 30 && !(await p.evaluate(() => document.activeElement?.closest("[data-case-steps]") !== null));
       i++
     )
       await p.keyboard.press("Tab");

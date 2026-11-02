@@ -264,7 +264,9 @@ async function slowAnswerArrived(p: Page, part: string) {
 const segment = (p: Page, name: string) => p.locator("fieldset label").filter({ hasText: new RegExp(`^${name}$`) });
 const ids = (p: Page) =>
   p.evaluate(() =>
-    [...document.querySelectorAll("table a[href^='/r/']")].map((a) => a.getAttribute("href")?.slice(3).split("?")[0] ?? ""),
+    [...document.querySelectorAll("table a[href^='/r/']")].map(
+      (a) => a.getAttribute("href")?.slice(3).split("?")[0] ?? "",
+    ),
   );
 const expected = (org: keyof typeof ORGS, f: Partial<CaseFilters>) =>
   listFor(ORGS[org].cases, {
