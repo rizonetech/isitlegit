@@ -953,7 +953,11 @@ describe("the checks step and the event writer", () => {
     const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
     if (!made.ok) throw new Error(made.error.message);
     const id = made.value.id;
-    await putRaw(store, id, new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"));
+    await putRaw(
+      store,
+      id,
+      new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"),
+    );
     const header =
       "mx.google.com; spf=pass smtp.mailfrom=bounce@mailer.example; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=bank.example";
     await putParsed(store, id, {
@@ -982,9 +986,7 @@ describe("the checks step and the event writer", () => {
       }) as unknown as Store["bucket"],
     };
     await expect(
-      checks(failingStore, id, parsedKey(id), { orgId: org, channel: "email" }, async () => [
-        "aspmx.l.google.com",
-      ]),
+      checks(failingStore, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]),
     ).rejects.toThrow();
     const early = await readEvidence(env.DB, id);
     expect(early.filter((e) => e.check.startsWith("auth.")).length).toBeGreaterThan(0);
