@@ -115,7 +115,10 @@ describe("migration 0076", () => {
     ).rejects.toThrow();
 
     await db.prepare(`DELETE FROM "organization" WHERE id = ?`).bind(orgId).run();
-    const left = await db.prepare("SELECT COUNT(*) AS n FROM trust_events WHERE org_id = ?").bind(orgId).first<{ n: number }>();
+    const left = await db
+      .prepare("SELECT COUNT(*) AS n FROM trust_events WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ n: number }>();
     expect(left?.n).toBe(0);
   });
 });

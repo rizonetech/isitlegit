@@ -26,9 +26,9 @@ import { sastDayStart } from "../../db/cases";
 import { type Statement, spentStatement } from "../../meta/budget-sql";
 import { DAY_CAP_USD, RESERVE_DAYS, RESERVE_USD, totalLimitFor } from "../../meta/caps";
 import { sastDay } from "../../meta/day";
-import { FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD, hourlyRateUsd } from "../../vision/glimmer-caps";
 import { abandonLostKeys, bankKeys, rekeyAccounts } from "../../trust/bank";
 import { BankKeysMissing, KeyMismatch } from "../../trust/errors";
+import { FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD, hourlyRateUsd } from "../../vision/glimmer-caps";
 import { ledgerStatement } from "../../vision/glimmer-minutes";
 import { CHECK_WORDS } from "../components/evidence/check-words";
 import {
@@ -610,10 +610,7 @@ adminRoutes.post("/admin/bank-keys", async (c) => {
       const previousKey = c.env.BANK_KEY_PREVIOUS;
       const previousMatchKey = c.env.BANK_MATCH_KEY_PREVIOUS;
       if (!previousKey || !previousMatchKey)
-        return json(
-          { error: "the previous bank keys are not set; rotation refused and nothing was changed" },
-          409,
-        );
+        return json({ error: "the previous bank keys are not set; rotation refused and nothing was changed" }, 409);
       let from: Awaited<ReturnType<typeof bankKeys>>;
       try {
         from = await bankKeys({ BANK_KEY: previousKey, BANK_MATCH_KEY: previousMatchKey });
@@ -650,7 +647,9 @@ adminRoutes.post("/admin/bank-keys", async (c) => {
       } catch (error) {
         if (error instanceof KeyMismatch)
           return json(
-            { error: "the registry is under neither the previous nor the current keys; nothing was changed by this run" },
+            {
+              error: "the registry is under neither the previous nor the current keys; nothing was changed by this run",
+            },
             409,
           );
         return json(

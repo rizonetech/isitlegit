@@ -48,8 +48,7 @@ const baseEnv = {
   BANK_KEY: NEW.BANK_KEY,
   BANK_MATCH_KEY: NEW.BANK_MATCH_KEY,
 } as unknown as Env;
-const withPrevious = (previous: Record<string, string | undefined>) =>
-  ({ ...baseEnv, ...previous }) as unknown as Env;
+const withPrevious = (previous: Record<string, string | undefined>) => ({ ...baseEnv, ...previous }) as unknown as Env;
 const PREVIOUS = { BANK_KEY_PREVIOUS: OLD.BANK_KEY, BANK_MATCH_KEY_PREVIOUS: OLD.BANK_MATCH_KEY };
 
 const b64url = (bytes: Uint8Array | string) => {
@@ -94,11 +93,7 @@ async function token() {
   return `${head}.${body}.${b64url(sig)}`;
 }
 
-const post = async (
-  form: Record<string, string>,
-  e: Env,
-  headers: Record<string, string> = {},
-) =>
+const post = async (form: Record<string, string>, e: Env, headers: Record<string, string> = {}) =>
   call(
     "/admin/bank-keys",
     {
@@ -142,10 +137,13 @@ async function business(name: string, id?: string) {
 }
 
 const epoch = async () =>
-  (await db.prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1").first<{ key_id: string; match_key_id: string }>()) ??
-  null;
+  (await db
+    .prepare("SELECT key_id, match_key_id FROM bank_key_epoch WHERE id = 1")
+    .first<{ key_id: string; match_key_id: string }>()) ?? null;
 const keyIds = async () =>
-  (await db.prepare("SELECT key_id FROM bank_accounts ORDER BY id").all<{ key_id: string }>()).results.map((r) => r.key_id);
+  (await db.prepare("SELECT key_id FROM bank_accounts ORDER BY id").all<{ key_id: string }>()).results.map(
+    (r) => r.key_id,
+  );
 
 describe("the bank key admin action", () => {
   it("refuses without Access and with a foreign origin, changing nothing", async () => {
@@ -223,8 +221,7 @@ describe("the bank key admin action", () => {
 
     const again = await post({ operation: "rotate" }, withPrevious(PREVIOUS), headers);
     expect(((await again.json()) as Record<string, unknown>).moved).toBe(0);
-    for (const orgId of [a, b])
-      expect((await events(orgId)).filter((e) => e.kind === "bank.rekeyed")).toHaveLength(1);
+    for (const orgId of [a, b]) expect((await events(orgId)).filter((e) => e.kind === "bank.rekeyed")).toHaveLength(1);
   });
 
   it("refuses a missing Origin, an identical pair, an incompatible registry and an unreadable row, reporting what remains", async () => {
@@ -322,8 +319,8 @@ describe("the bank key admin action", () => {
     expect(String(body.note)).toContain("identity page");
     expect(String(body.note)).toContain("supplier ledger");
     expect(await keyIds()).toEqual([old.id]);
-    expect(
-      (await db.prepare("SELECT org_id FROM bank_accounts").all<{ org_id: string }>()).results,
-    ).toEqual([{ org_id: protectedOrg }]);
+    expect((await db.prepare("SELECT org_id FROM bank_accounts").all<{ org_id: string }>()).results).toEqual([
+      { org_id: protectedOrg },
+    ]);
   });
 });
