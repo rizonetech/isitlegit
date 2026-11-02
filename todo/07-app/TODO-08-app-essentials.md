@@ -47,12 +47,13 @@ track: day-6
 | 16 | §16 | Name a passkey's provider from | §14 | [ ] |
 | 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
-| 19 | §19 | Help route on the site 500 page | §9 | [ ] |
+| 19 | §19 | Help route on the site 500 page | §9 | [x] |
 | 20 | §20 | Feedback to eval set | §5 | [ ] |
 | 21 | §21 | Operator TODO from feedback | §5 | [ ] |
 | 22 | §22 | Suspend an organisation | §5 | [ ] |
 | 23 | §23 | Money-at-risk aggregation | §5 | [ ] |
 | 24 | §24 | Feedback queue search and step | §5 | [ ] |
+| 25 | §25 | Support availability on the site 500 page | §19 | [ ] |
 
 ## 1. App and site error pages
 
@@ -620,6 +621,8 @@ Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list s
 
 ## 19. Help route on the site 500 page
 
+> **Started:** 2026-11-02T17:12Z
+
 When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
 
 **Phase:** 7
@@ -628,18 +631,26 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S11 (a deviation or a revised board for the 500's help link)
-**Job:** a visitor stuck on the 500 reaches Rizonetech in one activation without the site
-**Treatment:** one text link in the 500's panel, a mailto to the contact address
+**Job:** a visitor stuck on the 500 reaches Rizonetech in one activation without the site (one activation opens an email composer)
+**Treatment:** one text link in the 500's panel, a mailto to the contact address, with the address itself visible and selectable beside the link so a visitor with no configured mail handler can copy it into webmail
 **Chrome:** the standalone 500
 
 **Build order:**
 
 1. Decide with the operator whether the 500 carries a help link, record it in the SPEC, then add it. Done when: the 500 shows the link and its test finds the mailto, with the page still standalone.
 
-- [ ] Record the decision in `design/SPEC.md` S11, add the link to `site/src/pages/500.html.ts` and test it in the built file and in Chromium. Done when: the tests pass with the link present and the page still has no external request.
-- [ ] Commit: `site: a help link on the 500`
+- [x] Record the decision in `design/SPEC.md` S11 (including the visible-address fallback), add the link and the visible, selectable contact address to `site/src/pages/500.html.ts` and test it in the built file and in Chromium. Done when: the tests pass with the link present and the page still has no external request.
+- [x] Prove usability, not only presence: the built link's destination is exactly the `contact` mailto from `site/src/lib/links.ts`, and `site/test/browser.test.ts` asserts its visible accessible name, Tab reachability, focus indicator and native mailto target with JavaScript disabled and subresource requests blocked. Done when: that test fails on an unfocusable or mis-targeted help link. (Plan review P2, 2026-11-02.)
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the decision is already recorded in the header (add the mailto, SPEC S11 first), so step 1's "decide with the operator" is stale; what remains is the S11 record, then the link. Not shipped: `site/src/pages/500.html.ts` has no contact mailto (the `contact` address already exists at `site/src/lib/links.ts:36`), and SPEC S11 lists no help link yet. The existing standalone test asserts no external requests; a `mailto:` keeps the page standalone, but the item must name updating `site/test/errors.test.ts` to assert the mailto's presence, not only the absence of external requests.
+- [x] Commit: `site: a help link on the 500`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
+
+> **Deferred:** staffed support availability beside the 500 help route -> XREF: D07 T08 §25
+
+> **Verified:** 2026-11-02 | §19 | 81eba2aea924bceb2e2cdff412b18aaeb435fcf3
+> **Review:** `docs/reviews/d07-t08-s19.json`
 
 ## 20. Feedback to eval set
 
@@ -761,6 +772,29 @@ The feedback queue finds a complaint only by paging through its tab fifty at a t
 - [ ] Commit: `admin: feedback queue search and adjacent navigation`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails if a search returns a record outside its tab.
+
+## 25. Support availability on the site 500 page
+
+The standalone 500's help route (§19) gives an address with no expectation of when a person answers; the GOV.UK and HMRC service-error pattern, named by §19's completion review (2026-11-02), states support availability beside the contact route. Filed 2026-11-02 by D07 T08 §19's completion review (out-of-scope gap 3): the wording is an operator support-policy decision first (actual staffed hours and a response expectation the service can keep), so nothing is promised on the page before that decision exists.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S11 (the help-route control §19 added; this section extends its text)
+**Job:** a visitor stuck on the 500 knows when a person will answer
+**Treatment:** one plain sentence beside the help link, only what the operator has staffed
+**Chrome:** the standalone 500
+
+**Build order:**
+
+1. Record the operator's staffed hours and response expectation, then state them beside the help link. Done when: `design/SPEC.md` S11 carries the sentence and the built 500 shows it next to the address.
+
+- [ ] Record the operator's support hours and response expectation (with its date) in `design/SPEC.md` S11 and in this section. Done when: both records exist and say the same words. Cheaper substitute: a generic "we reply soon", refused (an unstaffed promise).
+- [ ] Add the sentence to the help line in `site/src/pages/500.html.ts`, reading the address from `contact` in `site/src/lib/links.ts` as §19 does. Done when: the built page shows the expectation beside the address and still makes no external request. Cheaper substitute: hard-coding the address again, refused (links.ts owns it).
+- [ ] Extend `site/test/errors.test.ts` to find the expectation beside the address in the built file. Done when: the test fails when the sentence is removed.
+- [ ] Commit: `site: support availability on the 500`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the stated expectation read beside the help address on the built 500.
 
 ## Verification
 

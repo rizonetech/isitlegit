@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { AXE, problems, scan } from "../../test/node/axe.ts";
 import { launch } from "../../test/node/browser.ts";
-import { CHECK_ADDRESS } from "../src/lib/links.ts";
+import { CHECK_ADDRESS, contact, HELLO_ADDRESS } from "../src/lib/links.ts";
 import { COPIED, COPY_FAILED } from "../src/scripts/copy.ts";
 import { proven } from "./lib/proven.ts";
 
@@ -238,6 +238,29 @@ describe("the privacy and terms pages' contents links", () => {
   }
 });
 
+describe("the invoice fraud page's already-paid anchor", () => {
+  it("reaches the recovery heading by mouse and keyboard, with focus continuing into its links", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await open(context, "/invoice-fraud");
+      const anchor = page.getByRole("link", { name: /Already paid a fake invoice/ });
+      await anchor.click();
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "already-paid");
+      await page.keyboard.press("Tab");
+      const next = await page.evaluate(() => (document.activeElement as HTMLElement)?.closest("[data-region=recovery]") != null);
+      assert.ok(next, "Tab after the recovery heading left the recovery block");
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await anchor.focus();
+      const outline = await anchor.evaluate((el) => getComputedStyle(el).outlineStyle);
+      assert.notEqual(outline, "none", "the anchor shows no focus ring");
+      await page.keyboard.press("Enter");
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "already-paid");
+    } finally {
+      await context.close();
+    }
+  });
+});
+
 describe("the protect page on phones", () => {
   it("keeps the proven tables inside 390 px without sideways scrolling", async () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
@@ -355,7 +378,7 @@ describe("the error pages", () => {
 
   for (const [route, labels] of [
     ["/404.html", ["Home", "How it works", "Pricing", "Sign up first"]],
-    ["/500.html", ["Try again", "Home", "Sign up first"]],
+    ["/500.html", ["Try again", "Home", "Sign up first", HELLO_ADDRESS]],
   ] as const) {
     it(`${route}: every recovery link is reached by Tab, named, and shows its focus ring`, async () => {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -429,6 +452,43 @@ describe("the error pages", () => {
       assert.equal(await page.locator("h1").textContent(), "This page didn't load.");
       assert.equal(await page.getByRole("link", { name: "Try again" }).isVisible(), true);
       assert.equal(await page.getByRole("link", { name: "Home" }).isVisible(), true);
+      const help = page.getByRole("link", { name: HELLO_ADDRESS });
+      assert.equal(await help.isVisible(), true, "the help link is not visible with JavaScript off");
+      assert.equal(await help.getAttribute("href"), contact, "the help link is not the contact mailto");
+      // Tab reaches the help link in the degraded context too, with its focus ring.
+      let focused = false;
+      for (let i = 0; i < 12 && !focused; i++) {
+        await page.keyboard.press("Tab");
+        focused = await page.evaluate(
+          (addr) => document.activeElement?.textContent?.includes(addr) ?? false,
+          HELLO_ADDRESS,
+        );
+      }
+      assert.ok(focused, "Tab did not reach the help link with JavaScript off");
+      assert.notEqual(
+        await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle),
+        "none",
+        "the help link shows no focus ring with JavaScript off",
+      );
+      // The visible address can be selected whole, for copying into webmail: nothing disables
+      // selection on it, and a range over its text yields exactly the address.
+      assert.notEqual(
+        await help.evaluate((el) => getComputedStyle(el).userSelect),
+        "none",
+        "selection is disabled on the visible address",
+      );
+      assert.equal(
+        await help.evaluate((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          return selection?.toString();
+        }),
+        HELLO_ADDRESS,
+        "the visible address could not be selected whole",
+      );
       assert.deepEqual(blocked, [], "the page asked for something other than its own document");
     } finally {
       await context.close();

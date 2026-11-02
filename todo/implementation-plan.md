@@ -249,13 +249,13 @@ Sections: 61 | Checklist items: 305
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 12 | Checklist items: 112
+Sections: 12 | Checklist items: 115
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [x]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 12    |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
+| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
 | [x]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 10    |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 91 | Checklist items: 596
+Sections: 95 | Checklist items: 613
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -305,6 +305,10 @@ Sections: 91 | Checklist items: 596
 | [x]    | D04 T01 §4  | Verdict agent loop on the Responses API      | meta-api              | 11    |
 | [x]    | D04 T01 §5  | Citation validator with fallback             | none                  | 5     |
 | [x]    | D04 T01 §9  | Impersonation family in rule verdict         | none                  | 3     |
+| [ ]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
+| [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
+| [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
+| [ ]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks           | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs           | meta-api              | 2     |
@@ -341,7 +345,7 @@ Sections: 91 | Checklist items: 596
 | [x]    | D07 T06 §18 | Public repository and advisory read-back     | none                  | 2     |
 | [x]    | D07 T06 §21 | Drop the 3 November repository note          | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                    | cloudflare            | 8     |
-| [ ]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 4     |
+| [ ]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
 | [x]    | D07 T08 §1  | App and site error pages                     | none                  | 5     |
 | [x]    | D07 T08 §2  | First-run onboarding checklist               | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys                | none                  | 7     |
@@ -388,7 +392,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 176 | Checklist items: 736
+Sections: 177 | Checklist items: 747
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -401,7 +405,7 @@ Sections: 176 | Checklist items: 736
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none                 | 5     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process            | none                 | 3     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator             | 2     |
-| [ ]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 2     |
+| [x]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none                 | 8     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended             | 6     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none                 | 4     |
@@ -463,7 +467,7 @@ Sections: 176 | Checklist items: 736
 | [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 3     |
 | [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
-| [ ]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
+| [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
 | [ ]    | D05 T02 §3  | Registry comparison evidence that                | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business    | none                 | 5     |
@@ -537,7 +541,7 @@ Sections: 176 | Checklist items: 736
 | [ ]    | D07 T05 §3  | Service health tiles on                          | none                 | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                         | none                 | 4     |
-| [ ]    | D07 T06 §11 | Already paid: what to do now                     | none                 | 3     |
+| [ ]    | D07 T06 §11 | Already paid: what to do now                     | none                 | 7     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                | none                 | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                           | none                 | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards                          | none                 | 2     |
@@ -549,12 +553,13 @@ Sections: 176 | Checklist items: 736
 | [ ]    | D07 T08 §7  | Renew an expired report link                     | operator             | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from                   | operator             | 4     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time             | attended             | 4     |
-| [ ]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 2     |
+| [x]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 3     |
 | [ ]    | D07 T08 §20 | Feedback to eval set                             | none                 | 2     |
 | [ ]    | D07 T08 §21 | Operator TODO from feedback                      | none                 | 2     |
 | [ ]    | D07 T08 §22 | Suspend an organisation                          | none                 | 2     |
 | [ ]    | D07 T08 §23 | Money-at-risk aggregation                        | none                 | 2     |
 | [ ]    | D07 T08 §24 | Feedback queue search and step                   | none                 | 8     |
+| [ ]    | D07 T08 §25 | Support availability on the site 500 page        | operator             | 4     |
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
 | [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 3     |
@@ -606,6 +611,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 323/530 verified sections, 138 ready to run now.
+Progress: 326/535 verified sections, 135 ready to run now.
 
-Checklist: 2582/3333 items completed (includes Commit items).
+Checklist: 2610/3364 items completed (includes Commit items).
