@@ -34,7 +34,7 @@ track: day-4
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
-| 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
+| 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [x] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 | 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
@@ -160,11 +160,21 @@ SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent w
 - [x] Export `compareLogo` from `src/vision/logo-compare.ts` taking a crop and a reference image (bytes, media type, provenance label), refusing SVG and unsupported types with a typed error. Done when: `test/vision/logo-compare.test.ts` compares a registered-style reference that is absent from the curated index.
 - [x] Write the negative judgement as evidence: `same_brand: false` yields an info `vision.logo_match` item naming the differences and the crop, never a clearance. Done when: the test reads it back beside the same-brand cases.
 - [x] Join `vision.logo_match` to `ATTEMPT_OWNED` and run comparisons in a bounded phase with a commit reserve in `src/vision/step.ts`. Done when: `test/vision/step-read.test.ts` shows a replay replacing logo results, a stalled comparison stated as coverage with the reading standing, and same and different judgements on official, unrelated and unjudged domains read back.
-- [ ] Commit: `vision: logo comparison by Muse Spark`
+- [x] Commit: `vision: logo comparison by Muse Spark`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts test/vision/logo-reference.test.ts test/vision/step-read.test.ts` passes, and fails if a replay keeps a stale logo item, if a stalled comparison takes the reading down, or if a different judgement is stated as a clearance.
 
+> **Verified:** 2026-11-02 | §3 | 3f2dffa554a6d124b3d792162c2c957664b2aca6
+> **Review:** `docs/reviews/d03-t03-s3.json`
+
 ## 4. Logo recall check and detector choice
+
+> **Started:** 2026-11-02T19:45:00Z
+
+> **Corrected 2026-11-02 (plan validation against the tree):** (1) `scripts/fixtures/make-branded.ts` and `eval/sets/logo-recall/` do not exist yet; this section creates both, drawing on `scripts/fixtures/make-brand-logos.ts` for fictional logo drawing. (2) The measurement runs live Meta calls (SAM `sam-3.1` and Muse Spark perception grounding on 20 samples each) through the shared spend ledger (`~/isitlegit-data/ledgers/meta-spend.json`); before any paid call the run states its cap and never raises it, and the measured cost and latency are recorded per detector. (3) `src/vision/detector.ts` does not exist yet; the interface it exposes is the one `segmentImage` in `src/vision/sam.ts` already implements (boxes for an image), so the vision step can take the chosen detector without a second segmentation path.
+
+
+> **Corrected 2026-11-02 (plan review, gaps 1 to 4, planned in):** (1) The chosen detector is wired into `visionStep`: the step calls it instead of `segmentImage` directly, with case-level tests for both selections reading back crops, manifests and logo evidence, including a zero-match replay clearing the previous set. (2) Grounding replaces the `logo` concept alone; `stamp` and `signature` stay on SAM. Its normalised boxes are converted to source pixels against the decoded image size and validated, confidence is absent (kept, sorted below confident boxes, as `selectBoxes` already treats it), the existing box limits apply, and its failures become coverage losses that publish no late crops. (3) One deterministic policy: SAM stays unless its recall is under 16 of 20 and grounding's recall is higher; a tie keeps SAM, both under 16 keeps SAM with the shortfall recorded, and an incomplete run (a refused or failed sample) scores that sample as missed, never out of the denominator. (4) The runner renders each fixture through the product render path, ties labels to those exact pixels, scores the boxes production selection retains, and saves per-sample predictions, failures, costs and timings under `eval/sets/logo-recall/`; IoU boundaries and the published totals are recomputed from the saved results in the test.
 
 SAM's logo quality on rendered email is unknown (risks table). This section measures recall on 20 synthetic branded emails and, if SAM finds fewer than 16 of 20 logos, switches detection to Muse Spark perception grounding (boxes from the vision model), recording why.
 
@@ -181,6 +191,8 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 - [ ] Measure SAM recall (box IoU at least 0.5) and record it with cost and latency in `docs/frontier-log.md`. Done when: the entry exists.
 - [ ] Implement perception grounding with `muse-spark-1.3` (boxes on a normalised grid, Meta docs `image-understanding`) behind the same interface and measure it on the same set. Done when: both numbers are recorded.
 - [ ] Set `DETECTOR` in `src/vision/detector.ts` to the better one (SAM unless recall is under 16 of 20) and note the decision in design spec section 8 risks row. Done when: the constant and the note exist.
+- [ ] Wire the chosen detector into `visionStep` (`src/vision/step.ts`) behind `src/vision/detector.ts` (grounding for the `logo` concept alone when selected, SAM for every concept otherwise, stamp and signature always SAM). Done when: `test/vision/step-read.test.ts` reads back crops, manifests and logo evidence for both selections and a zero-match replay clears the previous set.
+- [ ] Score reproducibly: the runner saves per-sample predictions, failures, costs and timings, and the test recomputes the published recall from them (IoU at least 0.5, a failed or refused sample scored missed). Done when: `test/vision/detector.test.ts` covers the IoU boundary, non-square conversion, malformed geometry, empty success, refusal, budget exhaustion and timeout.
 - [ ] Commit: `vision: logo recall measured and detector chosen`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
