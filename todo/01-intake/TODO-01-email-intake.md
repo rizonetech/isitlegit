@@ -402,6 +402,8 @@ Forwarding to `check@` takes at least three actions (forward, type the address, 
 
 ## 11. Acceptance acknowledgement for a forward
 
+> **Started:** 2026-11-02T21:20Z
+
 After a forward, the member hears nothing until the verdict reply (D01 T02 §3), so a forward that was accepted and one that was lost look the same for up to a minute or more (D01 T01 §3 completion review, Part 2 item 2). A short acknowledgement can say the forward was received and give the case reference within seconds of admission. Silent refusal stays for senders intake does not admit (spec 4.1: no backscatter).
 
 **Phase:** 7
