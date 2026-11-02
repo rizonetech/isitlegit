@@ -50,19 +50,25 @@ describe("rdap contacts", () => {
     );
     expect(bare.unavailable).toContain("registrar-abuse-contact");
     // Malformed RDAP shapes state themselves, never throw.
-    let deep: Record<string, unknown> = { roles: ["abuse"] };
-    for (let i = 0; i < 5000; i++) deep = { entities: [deep] };
+    // Built as JSON text: serialising a 5000-deep object throws before the lookup runs.
+    let deepJson = '{"roles":["abuse"]}';
+    for (let i = 0; i < 5000; i++) deepJson = `{"entities":[${deepJson}]}`;
+    const deep = JSON.parse(deepJson) as Record<string, unknown>;
     for (const bad of [
       { entities: {} },
       { entities: [null] },
       { entities: [{ roles: {}, vcardArray: ["vcard", {}] }] },
       { entities: [{ roles: ["registrar"], vcardArray: ["vcard", [null]] }] },
+      { entities: [{ roles: ["registrar"], handle: { toString: null, valueOf: null } }] },
       deep,
     ]) {
-      const gotBad = await rdapContacts((async () => new Response(JSON.stringify(bad))) as unknown as typeof fetch, {
-        domain: "fake.example",
-        bootstrap: [[["example"], ["https://rdap.example/"]]],
-      });
+      const gotBad = await rdapContacts(
+        (async () => new Response(bad === deep ? deepJson : JSON.stringify(bad))) as unknown as typeof fetch,
+        {
+          domain: "fake.example",
+          bootstrap: [[["example"], ["https://rdap.example/"]]],
+        },
+      );
       expect(gotBad.registrarAbuse).toBeNull();
       expect(gotBad.unavailable).toContain("registrar-abuse-contact");
     }
