@@ -204,9 +204,13 @@ Three fictional suppliers (a courier, a stationery wholesaler, a cleaning servic
 
 - [ ] Write `scripts/fixtures/make-invoices.ts` producing PDFs with a small PDF writer (no network, fictional banks only, each stamped "SYNTHETIC TEST DOCUMENT"). Done when: the script and outputs are committed.
 - [ ] Write `test/fixtures/invoices/labels.json` with the expected rule hits per file. Done when: the rules test (§3) reads it.
+- [ ] Build the fixture adapter `readingOf` in `test/invoice/invoice-fixture.ts` (plan review gap 3): it decodes a fixture PDF with the production text reader (`pdfText` in `src/checks/pdf-text.ts`, the same text the invoice step sends) and parses the printed supplier, domain, bank, account, branch, amount and reference into an `InvoiceFields` validated by the §1 schema, failing on a missing field, so changing a printed account or domain in the PDF changes what the rules judge. Done when: `test/invoice/fixtures.test.ts` proves the genuine readings equal the labels' expected fields and each tampered reading differs from its genuine twin in exactly the labelled field.
+- [ ] Carry the change-of-bank letter as its production input (plan review gap 1): each letter twin's label holds the accompanying message text, and the rules test passes it to `invoiceRules` as `visibleText`, exactly as `src/invoice/step.ts` passes the case's stored visible text; the letter PDF alone, passed as a reading with no message, yields no `invoice.change_language`. Done when: the rules test proves both.
+- [ ] Prove exact corpus coverage (plan review gap 2): `test/invoice/fixtures.test.ts` asserts exactly 3 genuine and 9 tampered files, 3 distinct suppliers, every label naming an existing file, every genuine file yielding no rule finding, and every tampered file yielding exactly its labelled check. Done when: deleting or relabelling a file fails the test.
+- [ ] Widen the §1 live measurement on this set (plan review gap 4; §1 correction 3 assigns it here): `labels.json` carries each file's expected extraction fields, and a live run in the §1 live test's shape (`INVOICE_LIVE=1`, allowance reserved before the call) extracts all 12, records per-document field accuracy and cost in `docs/frontier-log.md`, and stops inside the spend stated in the run file before the call. Done when: the frontier log entry names accuracy per field over the 12 and the measured cost, or records why the run could not run.
 - [ ] Commit: `invoice: synthetic genuine and tampered invoice set`
 
-**Test checkpoint:** `pnpm exec vitest run test/invoice/fixtures.test.ts` passes, checking each PDF opens and every label names an existing file.
+**Test checkpoint:** `pnpm exec vitest run test/invoice/fixtures.test.ts test/invoice/rules.test.ts` passes, checking each PDF opens, every label names an existing file, and the labelled rule hits (including none for genuine files) hold.
 
 ## 6. Mark invoices verified, with undo
 

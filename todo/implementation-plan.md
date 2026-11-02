@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 167 | Checklist items: 699
+Sections: 167 | Checklist items: 703
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -472,7 +472,7 @@ Sections: 167 | Checklist items: 699
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action          | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact              | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                      | cloudflare           | 5     |
-| [ ]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 3     |
+| [ ]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 3     |
@@ -599,4 +599,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 317/521 verified sections, 132 ready to run now.
 
-Checklist: 2529/3276 items completed (includes Commit items).
+Checklist: 2529/3280 items completed (includes Commit items).
