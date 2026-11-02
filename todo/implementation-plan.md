@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 181 | Checklist items: 761
+Sections: 181 | Checklist items: 762
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -425,7 +425,7 @@ Sections: 181 | Checklist items: 761
 | [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
-| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 2     |
+| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -617,4 +617,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 331/539 verified sections, 137 ready to run now.
 
-Checklist: 2619/3373 items completed (includes Commit items).
+Checklist: 2619/3374 items completed (includes Commit items).
