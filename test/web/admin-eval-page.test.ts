@@ -213,8 +213,8 @@ describe("the admin eval runs page", () => {
     expect(t).toContain("Not measured");
     expect(t).toContain("Median to reply Not measured");
     // The board's two links and the CLI guidance that replaces the Start a run button.
-    expect(html).toContain("eval/RESULTS.md");
-    expect(html).toContain("blob/abcdef1234567/eval/RESULTS.md");
+    expect(html).toContain("eval/RESULTS.md is not written yet");
+    expect(html).not.toContain("/eval/RESULTS.md");
     expect(html).toContain("docs/frontier-log.md");
     expect(t).toContain("pnpm eval:run");
     expect(t).toContain("US$13.00");

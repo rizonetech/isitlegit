@@ -21,7 +21,6 @@ const TD = "text-14 px-16 py-12 border-b border-line align-top";
 const NUM = "text-right";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
-export const resultsUrl = (commit: string) => `https://github.com/rizonetech/isitlegit/blob/${commit}/eval/RESULTS.md`;
 export const frontierUrl = (commit: string) =>
   `https://github.com/rizonetech/isitlegit/blob/${commit}/docs/frontier-log.md`;
 
@@ -297,13 +296,7 @@ export function AdminEvalPage(props: AdminEvalProps) {
               <p class="type-small text-muted">{headerLine}</p>
             </div>
             <div class="flex flex-wrap gap-8">
-              {props.latest ? (
-                <Button href={resultsUrl(commit)} variant="ghost" size="small">
-                  Open eval/RESULTS.md
-                </Button>
-              ) : (
-                <span class="text-13 text-muted">eval/RESULTS.md is not written yet (D08 T02 §5).</span>
-              )}
+              <span class="text-13 text-muted">eval/RESULTS.md is not written yet (D08 T02 §5).</span>
               <Button href={frontierUrl(commit)} variant="dark" size="small">
                 Frontier log
               </Button>
