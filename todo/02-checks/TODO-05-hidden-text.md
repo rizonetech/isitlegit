@@ -317,6 +317,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 
 **Corrected 2026-11-02** (at build): the run was not retained that far to begin with: the reader kept only the first 2,000 decoded characters (`MAX_DECODED` in `src/checks/invisible-unicode.ts`, a memory bound against a hostile run) and the phrase log sliced to the same. Both now keep 8,000, the section's bound, so the state stays bounded exactly where the finding's bound is.
 
+**Corrected 2026-11-03** (coordinator gate-fix, CI 41545140407): the two retentions are different quantities and are now named apart: the run record's excerpt stays at §3's 2,000 (`MAX_DECODED`, the reader's and log's bounded state against a hostile run, restored), and the run's text for this section's `detail.run` is accumulated as it streams at its own 8,000 (`MAX_RUN_TEXT` in `src/checks/instruction-phrases.ts`, carried on the logged run as `runText`). Neither proof moved: §3's bounded-memory suite reads a 2,000-character record, and this section's read-back still holds 8,000 of run text.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
