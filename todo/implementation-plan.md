@@ -563,7 +563,7 @@ Sections: 176 | Checklist items: 727
 | [ ]    | D07 T09 §9  | Complete decoded run on the card                 | none                 | 5     |
 | [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
 | [x]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
-| [ ]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
+| [x]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
 | [ ]    | D07 T09 §13 | A fresh walk from a reused card                  | none                 | 4     |
 | [ ]    | D07 T09 §14 | Abandoned preview response during a retry        | none                 | 3     |
 | [ ]    | D07 T09 §15 | Detection data freshness beside the version      | none                 | 4     |
@@ -606,6 +606,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 322/530 verified sections, 132 ready to run now.
+Progress: 323/530 verified sections, 132 ready to run now.
 
-Checklist: 2546/3305 items completed (includes Commit items).
+Checklist: 2547/3305 items completed (includes Commit items).

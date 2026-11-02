@@ -45,7 +45,7 @@ track: day-2
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
-| 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
+| 12 | §12 | Detection data beside each version | D07 T03 §39 | [x] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
 | 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
 | 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
@@ -348,9 +348,12 @@ Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence 
 - [x] Extend `design/SPEC.md` M3 with the detection-data provenance beside each version and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: drawing the provenance with no SPEC entry.
 - [x] Carry `data` through the report's `Coverage` view type (`src/web/pages/report-live.tsx`) and draw the stored data revision, identity and source beside the Worker version in the Check versions disclosure in `src/web/components/evidence/cards.tsx`, "data not recorded" where none was stored, drawn as text. The provenance applies only to the checks whose producer reads the brand table (`domain.lookalike`, `sender.display_brand`, `reputation.counter_signal`); every other check's line carries no data claim, however its stored row was written. Done when: `test/web/report-status.test.ts`, reading back from storage, lists two runs under one Worker version with different data revisions read differently, the same revision with different content identities, `kv` and `bundled` sources, an applicable outcome with no provenance as "data not recorded", an unrelated check with no data drawn, and an earlier run's provenance still its own after a newer run is stored; and a hostile stored identity renders as text.
 - [x] Prove the lines at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-browser.test.tsx` opens the disclosure by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open, with provenance-bearing fixtures whose revision, full content identity and source are visible inside the opened disclosure.
-- [ ] Commit: `web: detection data beside each version`
+- [x] Commit: `web: detection data beside each version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with data provenance read from storage.
+
+> **Verified:** 2026-11-02 | §12 | 5e10fc3b302e467f1a5d2f87ce51bcdfe574ffbd
+> **Review:** `docs/reviews/d07-t09-s12.json`
 
 ## 13. A fresh walk from a reused card
 
