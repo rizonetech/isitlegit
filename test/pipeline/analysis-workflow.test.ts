@@ -1024,6 +1024,14 @@ describe("the checks step and the event writer", () => {
           disposition: "attachment",
           bytes: 10,
         },
+        {
+          key: `raw/${mid}/attachments/cc-third.ogg`,
+          filename: "third.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
       ],
       truncated: [],
       omitted: 0,
@@ -1042,20 +1050,38 @@ describe("the checks step and the event writer", () => {
       mid,
       "audio",
       "transcript-2.json",
-      new TextEncoder().encode("not json"),
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-3.json",
+      new TextEncoder().encode(JSON.stringify({ text: "no turns here" })),
+      "application/json",
+    );
+    // The mail case's aggregate transcript holds no turns and is excluded, never a fourth item.
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript.json",
+      new TextEncoder().encode(JSON.stringify({ text: "joined words", complete: true })),
       "application/json",
     );
     // The claim extraction failed; the transcripts were still stored and must still become evidence.
     await storeVoice(store, mid, { state: "not_checked", reason: "the reading did not finish" });
     await checks(store, mid, parsedKey(mid), { orgId: "org-transcript-mail", channel: "email" }, async () => []);
     const items = (await readEvidence(env.DB, mid)).filter((e) => e.check === "voice.transcript");
-    expect(items).toHaveLength(2);
-    expect(items[0]?.detail).toMatchObject({
-      filename: "first.ogg",
+    expect(items).toHaveLength(3);
+    const byName = (name: string) => items.find((i) => i.detail.filename === name);
+    expect(byName("first.ogg")?.detail).toMatchObject({
       recording: `raw/${mid}/attachments/aa-first.ogg`,
-      segments: [{ text: "Please pay today." }],
+      segments: [{ text: "Please pay today.", startMs: 0, endMs: 1000, chunk: 1, speaker: "A" }],
     });
-    expect(items[1]?.detail).toMatchObject({ filename: "second.ogg", malformed: true });
+    expect(byName("second.ogg")?.detail).toMatchObject({ complete: true });
+    expect(byName("third.ogg")?.detail).toMatchObject({ malformed: true });
 
     const up = await createCase(env.DB, {
       orgId: "org-transcript-up",

@@ -218,6 +218,63 @@ export function voiceLureEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   return items;
 }
 
+type TranscriptSegment = { chunk: number; speaker: string | null; startMs: number; endMs: number; text: string };
+
+// The transcript's own fitting (D01 T03 §16, completion review): the generic detail helper clips every string
+// to 255 code points and every list to 20, which would lose most of a routine monologue inside a 64 KiB
+// budget. Here the whole transcript is kept while it fits the evidence detail budget (60,000 bytes, the
+// store's own margin), segments in order; what does not fit is cut from the end, a last segment's text cut at
+// a code-point boundary when part of it fits, and every omission (segments, gaps, speaker entries) counted.
+const TRANSCRIPT_BUDGET = 60_000;
+const byteSize = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+
+function fitTranscript(meta: {
+  transcript: string;
+  recording: string | null;
+  filename: string | null;
+  complete: boolean;
+  gaps: unknown[];
+  speakers: unknown[];
+  unlabelled: number;
+  segments: TranscriptSegment[];
+}): Record<string, unknown> {
+  const { segments, ...rest } = meta;
+  const detail: Record<string, unknown> & { segments: TranscriptSegment[] } = { ...rest, segments: [] };
+  let trimmed = false;
+  while (byteSize(detail) > TRANSCRIPT_BUDGET && Array.isArray(detail.gaps) && detail.gaps.length) {
+    detail.gaps = (detail.gaps as unknown[]).slice(0, -1);
+    detail.gapsOmitted = meta.gaps.length - (detail.gaps as unknown[]).length;
+    trimmed = true;
+  }
+  while (byteSize(detail) > TRANSCRIPT_BUDGET && Array.isArray(detail.speakers) && detail.speakers.length) {
+    detail.speakers = (detail.speakers as unknown[]).slice(0, -1);
+    detail.speakersOmitted = meta.speakers.length - (detail.speakers as unknown[]).length;
+    trimmed = true;
+  }
+  for (const [index, segment] of segments.entries()) {
+    const whole = { ...detail, segments: [...detail.segments, segment] };
+    if (byteSize(whole) <= TRANSCRIPT_BUDGET) {
+      detail.segments.push(segment);
+      continue;
+    }
+    // Part of this segment's text may still fit: keep what does, at a code-point boundary.
+    let low = 0;
+    let high = segment.text.length;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      const trial = { ...detail, segments: [...detail.segments, { ...segment, text: segment.text.slice(0, mid) }] };
+      if (byteSize(trial) <= TRANSCRIPT_BUDGET) low = mid;
+      else high = mid - 1;
+    }
+    if (low > 0) detail.segments.push({ ...segment, text: segment.text.slice(0, low) });
+    detail.segmentsOmitted = segments.length - detail.segments.length;
+    trimmed = true;
+    break;
+  }
+  if (trimmed) detail.trimmed = true;
+  return detail;
+}
+
 // One item per stored transcript (D01 T03 §16): what was heard, so the report can show the words themselves.
 // Speaker labels are scoped to their chunk (the transcription contract), so they are kept per chunk and never
 // counted as people; the segments ride in the detail under its bound, every cut marked.
@@ -253,7 +310,7 @@ function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
       endMs: turn.endMs,
       text: turn.text,
     }));
-    const detail = fittedDetail({
+    const detail = fitTranscript({
       transcript: t.transcriptKey,
       recording: t.recordingKey,
       filename: t.filename,
@@ -263,14 +320,6 @@ function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
       unlabelled,
       segments,
     });
-    const kept = Array.isArray(detail.segments) ? detail.segments : [];
-    const cut =
-      kept.length < segments.length ||
-      kept.some(
-        (s, i) =>
-          typeof (s as { text?: unknown }).text === "string" && (s as { text: string }).text !== segments[i]?.text,
-      );
-    if (cut) detail.trimmed = true;
     return {
       check: "voice.transcript",
       severity: "info",

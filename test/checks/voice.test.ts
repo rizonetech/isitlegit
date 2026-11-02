@@ -307,7 +307,7 @@ describe("the transcript item (D01 T03 §16)", () => {
     expect(outcome("voice.transcript")?.summary).toBe("the words of the recording, as transcribed");
   });
 
-  it("marks every cut in a long turn and keeps the metadata", async () => {
+  it("keeps a long turn whole while it fits, and cuts only past the budget", async () => {
     const long = "é".repeat(4000);
     const { voice } = await run(
       withTranscripts([
@@ -322,11 +322,47 @@ describe("the transcript item (D01 T03 §16)", () => {
       ]),
     );
     const item = voice.find((i) => i.check === "voice.transcript");
-    expect(item?.detail.trimmed).toBe(true);
+    // 4,000 multibyte characters fit the byte budget whole: nothing is cut or marked.
     const segments = item?.detail.segments as { text: string }[];
-    expect(segments[0]?.text.length).toBeLessThan(long.length);
+    expect(segments[0]?.text).toBe(long);
+    expect(item?.detail.trimmed).toBeUndefined();
     expect(item?.detail).toMatchObject({ complete: true, speakers: [{ chunk: 1, labels: ["A"] }] });
-    expect(JSON.stringify(item?.detail).length).toBeLessThan(65_000);
+  });
+
+  it("keeps what fits the byte budget and counts what it omits (completion review)", async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      chunk: 1,
+      speaker: "A",
+      startMs: i * 1000,
+      endMs: i * 1000 + 900,
+      text: "é".repeat(1500),
+    }));
+    const gaps = Array.from({ length: 25 }, (_, i) => ({ chunk: 1, startMs: i * 10, endMs: i * 10 + 5 }));
+    const { voice } = await run(
+      withTranscripts([
+        {
+          transcriptKey: "art/c/audio/t-transcript.json",
+          recordingKey: null,
+          filename: null,
+          turns: many,
+          gaps,
+          complete: false,
+        },
+      ]),
+    );
+    const item = voice.find((i) => i.check === "voice.transcript");
+    const detail = item?.detail as {
+      segments: unknown[];
+      gaps: unknown[];
+      segmentsOmitted?: number;
+      trimmed?: boolean;
+    };
+    expect(detail.trimmed).toBe(true);
+    expect(detail.segmentsOmitted).toBeGreaterThan(0);
+    expect(detail.segments.length + (detail.segmentsOmitted ?? 0)).toBe(30);
+    // The gaps are small enough to stand whole, so none is omitted or silently lost.
+    expect(detail.gaps).toHaveLength(25);
+    expect(new TextEncoder().encode(JSON.stringify(item?.detail)).length).toBeLessThanOrEqual(65_536);
   });
 
   it("names a malformed transcript beside a valid one, and states none stored apart", async () => {

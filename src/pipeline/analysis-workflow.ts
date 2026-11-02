@@ -840,7 +840,29 @@ async function storedTranscripts(
         gaps?: unknown;
         complete?: unknown;
       };
-      if (!Array.isArray(parsed.turns)) continue;
+      // The mail aggregate holds no turns and is left out; any other transcript without a valid turns
+      // list (or with a turn that is not a turn) is malformed, named beside its valid siblings, never
+      // silently skipped and never left to throw inside the evidence mapping (completion review).
+      const validTurns =
+        Array.isArray(parsed.turns) &&
+        parsed.turns.every(
+          (turn) =>
+            turn !== null &&
+            typeof turn === "object" &&
+            typeof (turn as { chunk?: unknown }).chunk === "number" &&
+            typeof (turn as { startMs?: unknown }).startMs === "number" &&
+            typeof (turn as { endMs?: unknown }).endMs === "number" &&
+            typeof (turn as { text?: unknown }).text === "string" &&
+            ((turn as { speaker?: unknown }).speaker === undefined ||
+              (turn as { speaker?: unknown }).speaker === null ||
+              typeof (turn as { speaker?: unknown }).speaker === "string"),
+        );
+      if (!validTurns) {
+        const aggregate = !numbered && !(read.source.kind === "upload" && read.source.fileKind === "audio");
+        if (aggregate) continue;
+        out.push({ ...base, turns: [], gaps: [], complete: false, malformed: true });
+        continue;
+      }
       out.push({
         ...base,
         turns: parsed.turns as NonNullable<CaseView["transcripts"]>[number]["turns"],
