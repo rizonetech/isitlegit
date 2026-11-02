@@ -896,12 +896,12 @@ Added by D07 T04 §29 (operator decision 2026-11-01: option A, brief at `2512b42
 
 Controls:
 
-- verifier detail: a native disclosure on the proved wording of a verified domain, in the Domains table and the phone list. (Domains)
+- verifier detail: a native disclosure on the proved wording of a verified domain, in the Domains table and the phone list; and on the "Why it is allowed" wording of a verified single address, in the Addresses table and the phone list. "Anyone @domain" rows keep "The whole domain is verified" with no disclosure. (Domains)
 
 States:
 
 - closed: the proved wording unchanged (§28).
-- open: "Proved by <full name> (<email>), <date> at <time> SAST." A former member reads "a former member" with the date only.
+- open: "Proved by <full name> (<email>), <date> at <time> SAST." A member with no name reads "Proved by <email>, <date> at <time> SAST." A former member reads "a former member" with the date only. No disclosure is drawn when no verifier was recorded.
 - loading: Not drawn. Server-rendered; not drawn.
 - error: App error page (E5). (Error-500)
 
