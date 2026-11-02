@@ -157,7 +157,7 @@ SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent w
 
 SAM's logo quality on rendered email is unknown (risks table). This section measures recall on 20 synthetic branded emails and, if SAM finds fewer than 16 of 20 logos, switches detection to Muse Spark perception grounding (boxes from the vision model), recording why.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** meta-api
 **Surface:** no
 
@@ -174,13 +174,13 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
 
-## 5. Logos for blocked brands and variants
+## 5. Logos for blocked brands
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The store holds 20 of the 23 brands plus the fictional ones; the `--check --local` line printed today therefore reads 20 real brands and the checkpoint's 23 is the target after the three are captured. (2) The `capture --only` flag and the selector table live in `scripts/load-reference-logos.ts`; read them before relying on the section's wording. (3) This section stays last: it needs §4's labelled set.
 
 Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 

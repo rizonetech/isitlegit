@@ -58,12 +58,12 @@ track: day-6
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
 | 21 | §21 | Downloads that beat aria2c outright | §20 | [x] |
 | 22 | §22 | Several healthy mirrors at once | §21 | [ ] |
-| 23 | §23 | A start-up-inclusive, repeatable win over aria2c | §21 | [ ] |
+| 23 | §23 | A start-up-inclusive, repeatable win | §21 | [ ] |
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
-| 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
+| 25 | §25 | The signals rubric in the | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [x] |
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
-| 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
+| 28 | §28 | Converter limits and item lineage | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [x] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [x] |
@@ -79,6 +79,10 @@ track: day-6
 | 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
 | 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
+| 44 | §44 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
+| 45 | §45 | Confidence escalation from Loupe to Spark | §1 | [x] |
+| 46 | §46 | Every screened page captured and labelled | §45 | [x] |
+| 47 | §47 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -889,7 +893,7 @@ Filed 2026-10-29, split out of D03 T04 §21 by its plan review (completion revie
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_fetch_bench` passes with the concurrent-source cases, and `python3 scripts/glimmer/fetch_bench.py` exits 0 with `docs/glimmer/fetch-bench.json` recording the `two-sources` scenario: a raw launch-to-verified median ratio strictly under 1.00, both hosts transferring at the same time for each tool, at most four connections, every run whole.
 
-## 23. A start-up-inclusive, repeatable win over aria2c
+## 23. A start-up-inclusive, repeatable win
 
 Filed 2026-10-29 from D03 T04 §21's completion review (items 9 to 12). §21 beat aria2c 1.37.0 with each tool's own start-up taken off its time (cut 0.998, mirror 0.70, gigabyte 0.99), a choice recorded in §21 with its reversal cost. The review's point stands: a user pays the start-up, and a Python interpreter's start (about 0.12 seconds: imports, argument checks) against a C program's (about 0.01) leaves `fetch.py` about 3 percent slower raw on the 96 MiB cut scenario; §21's breakdown shows no more than 0.02 seconds of that can be cut inside the script. A narrow median win is also not a repeatable one: the gigabyte runs' times overlap.
 
@@ -954,7 +958,7 @@ Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phis
 > **Verified:** 2026-10-29 | §24 | b36d132e91c72f98dd80eeee7f5b7f17015c09b8
 > **Review:** `docs/reviews/d03-t04-s24.json`
 
-## 25. The signals rubric in the prompts, measured
+## 25. The signals rubric in the
 
 Filed 2026-10-29, split out of D03 T04 §24 by its plan review (gaps 4 to 10): §24 writes the phishing-signals rubric; this section puts it into the screener's instructions and the Spark teacher's prompt and keeps it only if it measurably helps, on held-out pages, without the measurement being able to flatter it.
 
@@ -1058,7 +1062,7 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 > **Verified:** 2026-11-01 | §27 | c536ae8523ebc0d7a348b6be53958b24b35f4fa0
 > **Review:** `docs/reviews/d03-t04-s27.json`
 
-## 28. Converter limits and item lineage for Loupe 1.1
+## 28. Converter limits and item lineage
 
 Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and G6, `docs/reviews/03-vision/D03-T04-s18.md`). §18 bound every source to its inputs and receipts and fixed what changes Loupe 1.0's training set; these five need deeper converter and importer work than fits before 1.0's collection freeze (2026-10-31 00:00 SAST), and none changes a page 1.0 trains on: each converter already ran under §18's limits on its published, digest-checked inputs, ScamFerret's import is bound to its manifest after its clean re-import, and the import records count every item. Decision (unattended): file for 1.1; reversing it means doing this section before the freeze and re-running every conversion.
 
@@ -1268,17 +1272,26 @@ Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local c
 
 ## 36. One-command release and rollback through production
 
+> **Started:** 2026-11-02T16:32:18Z
+
 Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32 switches the active version in this checkout and leaves the Worker deploy to the build session (docs/operations.md), so a release takes two commands and two sessions. The operator asked that replacing the deployed version take minutes; this section closes the second half.
 
 **Phase:** 3
 **Needs:** cloudflare
 **Surface:** no
 
+> **Plan corrected 2026-11-02 (vision lane, on START WAVE 1):** the Worker has no public screening endpoint (`src/vision/page-screen.ts`'s `PageScreen` names only its screener, and the monitor workflow is internal), so the fixture page is screened by the Worker's own screening code (`screenPage` in `src/vision/screen.ts`) configured with the production environment, and the version read back is the screener (`glimmer`) plus the active version the deployed commit carries (`DEPLOYED_VERSION` in `src/vision/glimmer-caps.ts`); a Spark-served fixture fails the release. The recorded live promotion and rollback runs need a second Loupe version to promote to, which does not exist until §47's candidate is trained and gated, so those two recorded runs are §47's promotion and rollback cycle read back here; this section builds and tests the release step now and stamps after §47 records both runs in `docs/glimmer/training.md`. Reversing this costs one public screening endpoint on the Worker.
+
 **Build order:**
 
-1. Run the release end to end and time it. Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
+1. Build the timed release step with injected stages. Done when: its tests pass.
+2. Run the release end to end and time it (with §47's cycle). Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
 
-- [ ] Add the release step the build session runs after `promote` (and after `rollback`): it deploys the Worker through the repository's deploy (D00 T01 §5, coordinated with that section's owner), waits for `/health` to report the commit, runs `node scripts/smoke.ts`, screens one fixture page through the Worker's own path and reads back the version it was served by. Done when: a recorded promotion and a recorded rollback each show preparation, probe, Worker activation and first screened page timed separately, and `docs/glimmer/training.md` names the figures.
+- [x] Add `release(deps)` to `scripts/glimmer/promote.ts` with every stage injected (`preflight`, `deployWorker`, `waitHealth`, `smoke`, `screenFixture`, `servingState`, `now`) under one shared 7-minute deadline (`BUDGET_MINUTES`): preflight refuses a dirty tree, an uncommitted active-version file or a pending remote migration (read back through `wrangler d1 migrations list DB --remote`) before any deploy; it then deploys the Worker through the repository's deploy (`pnpm exec wrangler deploy --var COMMIT_SHA:<commit>`, D00 T01 §5 in `docs/operations.md`), waits for `/health` to report that commit, runs `node scripts/smoke.ts` for it, then screens one fixture page through the deployed Worker (next item) and requires it served by `glimmer` at the active version. Done when: `test/node/glimmer-promote.test.ts` shows preparation (deploy), Worker activation (`/health`), probe (smoke) and first screened page timed separately, a failure or a hanging stage at any stage stops the later stages and names the stage, the deadline expiring is reported as a timeout, a wrong `/health` commit fails, a Spark-served or wrong-version fixture fails, and a refused preflight never invokes the deploy. Cheaper substitute: trusting the deploy's exit code leaves a Worker serving the old commit or Spark silently in place of Loupe.
+- [x] Prove screening on the deployed Worker, not beside it (plan review gap 1): add a `SCREEN` check to `src/smoke.ts`'s token-protected `/internal/smoke`, run only when the release asks for it (a query the plain smoke run never sends, so no other deploy pays Loupe or Spark spend), that screens one built-in fixture page through the Worker's own `screenPage` session and answers its screener and `DEPLOYED_VERSION`; the release reads that check back through `runSmoke` and fails when it is absent, Spark-served or on another version. Done when: the smoke test shows a broken Worker screening configuration failing the `SCREEN` check while a local screen would pass, and the release test refuses on each of absent, Spark-served and wrong-version answers. Cheaper substitute: screening locally with the vault's keys proves the keys, never the deployed Worker's bindings or secrets.
+- [x] Say what is serving after any failure (plan review gap 3): `release` records the serving Worker version before the deploy, and on failure, timeout or interruption reads it back and reports `changed`, `unchanged` or `uncertain` with the recovery command from `docs/operations.md` (redeploy the previous commit), never success. Done when: a fresh-invocation test covers a deploy that switched traffic then failed health, one that changed nothing, and one whose state cannot be read. Cheaper substitute: naming only the failed stage leaves an operator guessing whether production moved.
+- [x] Wire `node scripts/glimmer/deploy.ts release` to the real stages: wrangler deploy of this checkout, `/health` on `https://isitlegit.derick-f5a.workers.dev`, `runSmoke` from `scripts/smoke.ts` (including its `SCREEN` check), the migration and tree preflight, and the serving-state read-back through wrangler. Done when: usage and a bad argument refuse before any deploy, and the command prints the stage timings and the version read back. Cheaper substitute: a shell script joining the four commands loses the per-stage timing and the read-back checks.
+- [ ] With §47, record one promotion release and one rollback release run live, each inside the 7-minute budget, in `docs/glimmer/training.md` with preparation, probe, Worker activation and first screened page timed separately. Done when: both records name their commit, their active version before and after, and their figures. Cheaper substitute: recording only the promotion leaves the rollback path, the one an incident uses, unproven live.
 - [ ] Commit: `glimmer: a release and a rollback carried through to the live Worker`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the release step's cases, and the recorded runs are in `docs/glimmer/training.md`.
@@ -1368,7 +1381,7 @@ Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordi
 > **Verified:** 2026-11-01 | §40 | d6d2055912d0da279487b68bda7638a91692e262
 > **Review:** `docs/reviews/d03-t04-s40.json`
 
-## 41. Day-zero case capture into the training store
+## 41. Day-zero case capture
 
 > **Started:** 2026-10-31T20:26:27Z
 
@@ -1457,6 +1470,104 @@ Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope
 - [ ] Commit: `glimmer: one command to rebuild a Loupe version`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes with the rebuild cases.
+
+## 44. Twelve to seventeen thousand more training pages
+
+Operator, 2026-11-02: grow the training store from its frozen 172,987 pages (1.1 freeze, 2026-11-02) by 12,000 to 17,000 source pages, to a total of 180,000 to 190,000 pages for the next Loupe version. Same rules as every earlier sweep: sources with a recorded licence in `docs/glimmer/sources.md`, collected through `scripts/astra-collect.py` under the collection brief, no sample-derived pages to any teacher, and the store stays outside the repository (`GLIMMER_DATA_DIR`).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Collect, label and freeze the new pages. Done when: the store's frozen total reads between 180,000 and 190,000 pages with every new source's licence recorded.
+
+- [ ] Name the new sources in `docs/glimmer/sources.md` with licence and expected yield before collecting. Done when: each source has a licence row. Cheaper substitute: collecting first and licensing later, refused.
+- [ ] Collect through `scripts/astra-collect.py` into `~/isitlegit-data/glimmer` until the frozen total (the 1.1 freeze plus this sweep) reads 180,000 to 190,000 pages. Done when: the freeze record prints the total. Cheaper substitute: counting raw captures before deduplication, refused (the freeze count is after exact screenshot deduplication, as in 1.1).
+- [ ] Label the new pages by the 1.1 pipeline's own rules (trusted source lure labels first, the pinned judge for disputes), never a sample-derived page to a teacher. Done when: the build-side completeness recount shows no unlabelled new page unaccounted for.
+- [ ] Rebuild through §43's one command and record the new version's counts in `docs/glimmer/training.md`. Done when: the record names pages, sources and the split.
+- [ ] Commit: `glimmer: twelve to seventeen thousand more training pages`
+
+**Test checkpoint:** the freeze record's total is between 180,000 and 190,000 and `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes.
+
+## 45. Confidence escalation from Loupe to Spark
+
+> **Started:** 2026-11-02T16:45:45Z
+
+Operator, 2026-11-02: a page Loupe is unsure about escalates to Muse Spark 1.3, and a page Spark is unsure about escalates to a second Spark pass, so a borderline page is never settled by the weakest answer. Section 1's failover already sends a page to Spark when Loupe cannot answer; this section adds escalation when Loupe answers but is unsure. Muse Wonder 1.0 is not a tier: it is the Muse Code reviewer on the operator's subscription, not a Meta Model API product model, and the product provider rule (Meta Model API plus Fireworks only) stands, so Wonder's part is offline judging in §46. Owning layer: the screening route in `src/vision/screen.ts`.
+
+**Phase:** 6
+**Needs:** meta-api
+**Surface:** no
+
+> **Plan corrected 2026-11-02 (vision lane):** the escalation is recorded without a D1 migration (migration numbers are the coordinator's): `screenPage`'s result gains `tier` (`glimmer`, `spark`, `spark-second`), `escalation` (`loupe-unsure`, `spark-unsure` or none) and every Spark call reference, and the monitor's existing `glimmer_reason` column stores `unsure` for a Loupe answer that did not settle the page, so D05 T04 §3's stored record and the eval read the same fact from what §1 already stores. The band measurement is computed from the monitor set's recorded Loupe and Spark answer lines (`eval/glimmer/monitor-pages/runs/`), with the second pass's pages counted and priced at Spark's recorded mean cost; no new paid run is needed to measure tier one, and a band that raises false alarms on that set does not stay at its default.
+
+**Build order:**
+
+1. Escalate on a confidence band, then prove each tier in tests. Done when: a stubbed unsure Loupe answer reaches Spark, an unsure Spark answer reaches the second pass, and a sure answer at either tier stops.
+
+- [x] Add an unsure band to `screenPage` in `src/vision/screen.ts`: a Loupe answer whose `confidence` falls inside `ESCALATION_BAND` (a named constant, defaults 0.35 to 0.65) escalates to Spark through the same `structured(PageAnswer, ...)` call §1 uses, and the returned `PageScreen` names the tier that settled it. Confidence is `P(lure)` everywhere (the screener prompt's definition): a sure lure answer is 0.9, a sure benign answer 0.1, and both stop. Done when: `test/vision/screen.test.ts` shows a sure Loupe answer (0.9, 0.1) never calling Spark and a band answer (0.5) always calling it, with the band read from the one constant. Cheaper substitute: escalating on every answer doubles Spark spend for no measured gain.
+- [x] Teach the same confidence in `answerOf` in `scripts/glimmer/build-dataset.ts` (plan review gap 1): a lure teaches 0.95 (0.7 when unverified), a benign page 0.05 (0.3 when unverified), so a trained Loupe's confidence can fall in the band at all; today it teaches 0.95 or 0.7 whatever the label, and 1,000 recorded held-out answers hold no band value. Done when: `test/node/glimmer-dataset.test.ts` reads a benign page's taught confidence below the band and a lure's above it. Cheaper substitute: routing on a confidence the training never taught asserts a signal that does not exist.
+- [x] Add the second Spark pass in `src/vision/screen.ts`: when Spark's own answer also falls inside `ESCALATION_BAND`, ask once more and take the second answer, recording both call references in the result. Done when: the test's unsure-then-sure Spark script settles on the second answer and a sure first Spark answer is never re-asked. Cheaper substitute: averaging the two answers invents a confidence neither model gave.
+- [x] Define the terminal outcomes (plan review gap 3): a second Spark answer still in the band settles the page (tier `spark-second`); a Spark failure at either pass (budget, timeout, invalid output, provider) returns the typed failure with `glimmer_reason: unsure` and every Spark call reference preserved, and no page ever takes more than two Spark calls through escalation. Done when: tests cover two unsure Spark answers settling, a failing second pass, and the two-call bound. Cheaper substitute: retrying until sure spends without bound on the pages least likely to settle.
+- [x] Record the escalation in the screening result (`screener`, the tier, and why the page escalated) where §1 records the failover reason, so the monitor's stored record (D05 T04 §3) and the eval's ablation read the same fact. Done when: `test/vision/screen.test.ts` reads the tier and reason back from the result for an escalated and a non-escalated page. Cheaper substitute: logging the escalation only loses it to the ablation.
+- [x] Persist the tier in the monitor's stored record (plan review gap 2; migration number from the coordinator, requested 2026-11-02 in `vision-outbox.md`): `monitor_screens` gains the settling tier and the first Spark call reference, written by `src/monitor/screen.ts` beside the settling call it already stores. Done when: a monitor test reads the tier, the escalation and both call references back from D1 for a two-pass page, and a plain failover page reads back distinct from an escalated one. Cheaper substitute: result-only recording loses the fact where the ablation and the monitor actually read.
+- [x] Measure the band on recorded answers with exercised coverage (plan review gap 4): from the held-out set's recorded Loupe and Spark answer lines (1,000 pages, `runs/eval-1.0/`) and the §1 monitor set's (40 pages), record Loupe alone, Loupe plus escalation, Spark alone, accuracy, lure recall, false alarms and Spark cost per page in `docs/frontier-log.md`, counting escalations exercised at each tier. Done when: the rows state their coverage, a tier with zero exercised pages is recorded as unmeasured (never as passing), and the band stays at its default only if escalation raises neither false alarms nor lowers recall where it was exercised. Cheaper substitute: pricing hypothetical second passes asserts an accuracy no run measured.
+- [x] Commit: `vision: escalate unsure Loupe answers to Spark`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes, and fails if a sure Loupe answer reaches Spark or an unsure one settles without escalating.
+
+> **Verified:** 2026-11-02 | §45 | 7e9103a13c6bad19aac3bd14a75fb6503f4f7fa1
+> **Review:** `docs/reviews/d03-t04-s45.json`
+
+## 46. Every screened page captured and labelled
+
+> **Started:** 2026-11-02T17:25:54Z
+
+Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next training set and labelled immediately. The capture half already exists privately in §41 (day-zero case capture, its own schema, a separately authorised consent and redaction gate before any model pipeline); this section is the admission half for pages: every page `screenPage` settles, in the monitor and in a case, is copied into the page store under a new origin, labelled at once by Spark (the §9 teacher), and queued for offline judging when the label is disputed. Muse Wonder 1.0's part is that offline judging (with Astra, as §9's queue already does), never a production call. No page trains until the §41 gate admits it. Owning layer: offline ingestion in `scripts/glimmer/`, with the copy made where the page is labelled (the D05 T04 §10 flow for monitor findings).
+
+**Phase:** 6
+**Needs:** meta-api
+**Surface:** no
+
+> **Plan corrected 2026-11-02 (vision lane):** §41's gate has no record file of its own for pages, so this section names it: `<store>/production-admission.json` (`admitted` page ids, written only by the authorised admission action §41 requires) is the one record the dataset builder reads for origin `production`. The settling provenance (tier, settling answer, Loupe's answer when it escalated) rides on the page record as an optional `capture` field, so no second store is invented. The monitor and case callers that hand settled pages to `captureScreenedPage` are D05 T04 §10's flow (trust lane); this section builds the store, labelling, queue and admission it calls. A page with recipient identifiers (the `EMAIL`, `PHONE` and `LONG_NUMBER` shapes in `scripts/glimmer/redact.ts`) in its host or text is withheld at build time and counted in the build's dropped figures, never silently dropped and never redacted into training by this section.
+
+**Build order:**
+
+1. Copy each settled page at labelling time, label it, queue disputes. Done when: a labelled page is in the store with its label and provenance, a disputed one is in the review queue, and neither trains before admission.
+
+- [x] Write `captureScreenedPage` in `scripts/glimmer/store.ts`: for a settled screening (the full `Screened` result of §45, its tier and call references, plus the page's screenshot, text and host), store the screenshot and visible text under origin `production` with host, settle time, settling tier and the settling and Loupe answers when escalated, deduplicated by screenshot hash as §10 does; it makes no model call. A settled page with no screenshot (text-only mode) is not stored and is returned counted as `no-screenshot`, never silently missing. Done when: `test/node/glimmer-store.test.ts` stores one copy per page, none for a page already stored, reads the tier and answers back, and counts a text-only page. Cheaper substitute: recapturing the page later gets a changed or deleted page, not the one that was judged.
+- [x] Clear a captured page before any model pipeline touches it (plan review gap 1): labelling and judging refuse a page `<store>/production-clearance.json` does not name by id with its screenshot and text hashes (the §41 authorised consent and redaction clearance, content-bound so a changed page loses it), and a page whose host or text carries recipient identifiers (`EMAIL`, `PHONE`, `LONG_NUMBER` in `scripts/glimmer/redact.ts`) cannot be cleared until redacted, its raster withheld meanwhile. Done when: the store test shows an uncleared capture causing zero labeller calls, and a capture whose bytes changed after clearance refused. Cheaper substitute: checking identifiers at build time sends uncleared production content to Spark and the judges first.
+- [x] Label each cleared captured page at once with Spark through the §9 teacher path (`scripts/glimmer/teacher-label.ts`), the label written as `label_source: spark-teacher` beside the settling answers, as a production-label mode that writes complete validated labels and never touches a ground-truth page; a failed or refused labelling leaves the page counted unlabelled and a rerun labels the backlog without repeating a successful call. Done when: the store test reads a Spark label on every cleared captured page, a failed labelling leaves the page counted unlabelled, never guessed, and a rerun makes no second successful call. Cheaper substitute: taking Loupe's own answer as the label trains Loupe on itself.
+- [x] Queue a captured page for offline judging in the store's `review-queue.jsonl` when Spark's label disagrees with the settling answer or Spark's confidence falls inside `ESCALATION_BAND` (§45), judged by Astra and Wonder offline before admission, as §9 queues disputes; judged labels come back through a validated import (`applyJudgements`) that refuses a judgement whose page hashes no longer match, and only an imported judgement takes a page out of the queue. Done when: the test's disagreeing page lands in the queue unchanged, a judged page carries the judge's label as its own `label_source`, and a stale judgement is refused with the page still queued. Cheaper substitute: admitting disputed labels unjudged imports the teacher's errors at scale.
+- [x] Admit captured pages to a training build only through §41's consent and redaction gate: `admitProductionPages` writes `<store>/production-admission.json` atomically for cleared, labelled, undisputed (or judged) pages only, with withdrawal by the same writer; the dataset builder takes origin `production` pages only when that record names them, and a page with recipient identifiers in its URL or text is withheld and counted in the dropped figures, as §41 rules. Done when: `test/node/glimmer-capture.test.ts` shows an unadmitted production page in no training line, an admitted eligible page in a training line through the real build, and a withheld page counted, never silently dropped. Cheaper substitute: importing captures directly bypasses the consent the capture was taken under.
+- [x] Report the flywheel in `docs/glimmer/training.md`: captured, labelled, queued, judged, admitted and withheld counts per version. Done when: the counts reconcile with the store manifest for one run. Cheaper substitute: a captured total alone hides the unlabelled and disputed backlog.
+- [x] Commit: `glimmer: capture and label every screened page`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-store.test.ts test/node/glimmer-capture.test.ts` passes, and fails if a settled page is missing, unlabelled without being counted, or admitted unjudged after a dispute.
+
+> **Verified:** 2026-11-02 | §46 | e8cb34aaa5ecce16f893629b627d3e202310dd56
+> **Review:** `docs/reviews/d03-t04-s46.json`
+
+## 47. Loupe 1.1 promoted on a better-than-1.0 gate
+
+Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is that it is better than Loupe 1.0; if it is, 1.1 ships before submission. This supersedes the 2026-11-01 note pausing 1.1 until after the event for promotion only (§42 to §44 stay Phase 7). Better means, on the §13 held-out set with its stratified grouped split (§39): higher lure recall at no more false alarms, or fewer false alarms at no less recall, each with its denominator printed. Owning layer: the promotion gate in `scripts/glimmer/version-gate.py` and the one stored active-version file §32 built.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Compare 1.1 against 1.0 on the held-out set and promote on the one gate. Done when: the gate prints both versions' recall, false alarms and denominators, and 1.1 is the active version exactly when it is better.
+
+- [ ] Amend `decide()` in `scripts/glimmer/version-gate.py` to the operator's one gate: on the same held-out file with complete records, pass exactly when lure recall is higher with false alarms no higher, or false alarms lower with recall no lower; the more-training-lines rule and the separate South African slice rule stop being gates (the slice still prints). Done when: `tests/scripts/test_version_gate.py` passes a strictly-better candidate, refuses an equal one, refuses a recall gain bought with more false alarms, and promotes a candidate trained on fewer lines that is strictly better. Cheaper substitute: keeping the extra rules lets a better 1.1 stay undeployed on a technicality, which the operator's decision forbids.
+- [ ] Promote a passing 1.1 through §32's stored active-version file and §36's release path, recording both versions' figures in `docs/glimmer/training.md` and the model card (§17). Done when: the active version reads 1.1 after a passing gate and 1.0 after a failing one, with the figures recorded either way. Cheaper substitute: deploying the new weights by hand leaves the stored version and the running deployment disagreeing.
+- [ ] Close §36's live proof in this section's cycle (plan review gap 5 on §36): on a passing gate, record §36's timed promotion release (1.0 to 1.1), then its timed rollback release (back to 1.0), then promote and release 1.1 again as the final serving state; on a failing gate no promotion or rollback is run, the gate is never bypassed, §36's live records stay unwritten and §36 stays unstamped until a later passing candidate. Done when: `docs/glimmer/training.md` holds both timed records and the final active version, or the failing gate's figures with 1.0 still active. Cheaper substitute: leaving the rollback unrecorded leaves §36 unprovable and the incident path untested live.
+- [ ] Commit: `glimmer: promote Loupe 1.1 on a better-than-1.0 gate`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_version_gate` passes, and fails if an equal or worse candidate promotes.
 
 ## Verification
 

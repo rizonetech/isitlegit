@@ -25,9 +25,12 @@ import { sweepRetries } from "./pipeline/retry";
 import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
+import { screenSmokePage } from "./vision/smoke-screen.ts";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
 import { adminRoutes } from "./web/pages/admin";
+import { adminFeedbackRoutes } from "./web/pages/admin-feedback";
+import { adminOrgRoutes } from "./web/pages/admin-org";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
@@ -90,7 +93,9 @@ app.use(
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
 // Every binding exercised on the deployed Worker; 404 without the run's token (D00 T01 §5, scripts/smoke.ts).
-app.get("/internal/smoke", (c) => smoke(c.env, c.req.raw, c.executionCtx));
+app.get("/internal/smoke", (c) =>
+  smoke(c.env, c.req.raw, c.executionCtx, 30_000, (runId) => screenSmokePage(c.env, runId)),
+);
 // The sign-in link's confirm page, and the old verify URL sent to it (D07 T02 §10, src/auth/confirm.tsx): before
 // Better Auth's routes, so a GET of its verify URL never signs in.
 app.route("/", confirmRoutes);
@@ -137,6 +142,10 @@ app.route("/", evalRoutes);
 app.route("/", invitationRoutes);
 // The admin console (D07 T05 §2), src/web/pages/admin.tsx: behind `requireAccess` above.
 app.route("/", adminRoutes);
+// The feedback queue (D07 T08 §5), src/web/pages/admin-feedback.tsx: behind `requireAccess` above.
+app.route("/", adminFeedbackRoutes);
+// The organisation detail (D07 T08 §5), src/web/pages/admin-org.tsx: behind `requireAccess` above.
+app.route("/", adminOrgRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

@@ -7,10 +7,18 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
 import { MAX_LABELS_BYTES } from "../../eval/load.ts";
-import { computeMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
+import { computeMetrics, coverageMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
 import { publishProblems } from "../../eval/publish.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
-import { hashFile, MAX_SAMPLE_BYTES, type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
+import {
+  type BaselineManifest,
+  hashFile,
+  MAX_SAMPLE_BYTES,
+  type ManifestEntry,
+  type Outcome,
+  type RunSample,
+  selectSamples,
+} from "../../eval/run-core.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const dirs: string[] = [];
@@ -538,5 +546,75 @@ describe("the command", () => {
     expect((await go2()).code).toBe(0);
     expect(hashFile(big, 100)).toMatch(/^[0-9a-f]{64}$/);
     expect(() => hashFile(big, 5)).toThrow(/larger than 5 bytes/);
+  });
+});
+
+describe("the coverage metrics from a baseline manifest", () => {
+  const entry = (
+    sampleId: string,
+    outcome: Outcome,
+    verdict: ResultRow["verdict"],
+    over: Partial<ManifestEntry> = {},
+  ): ManifestEntry => ({
+    sample: sampleId,
+    set: sampleId.slice(0, sampleId.indexOf("/")),
+    runId: "run-1",
+    deployment: "abc123",
+    outcome,
+    verdict,
+    ms: 1000,
+    costUsd: 0.02,
+    ...over,
+  });
+  it("scores pooled denominators with no double count, challenge apart", () => {
+    const samples = [
+      sample("synthetic-sa", "a1.eml", "attack"),
+      sample("synthetic-sa", "g1.eml", "genuine"),
+      sample("synthetic-sa", "a2.eml", "attack"),
+      sample("synthetic-challenge", "c1.eml", "attack"),
+    ];
+    const manifest: BaselineManifest = {
+      id: "base-1",
+      sets: ["synthetic-sa", "synthetic-challenge"],
+      setVersions: { "synthetic-sa": "v1", "synthetic-challenge": "v2" },
+      deployment: "abc123",
+      caps: { "synthetic-sa": 13, "synthetic-challenge": 5 },
+      expected: samples.map((s) => s.id),
+      entries: [
+        entry("synthetic-sa/a1.eml", "done", "suspicious"),
+        entry("synthetic-sa/g1.eml", "done", "safe"),
+        entry("synthetic-sa/a2.eml", "partial", null),
+        entry("synthetic-challenge/c1.eml", "done", "malicious"),
+      ],
+      unmeasured: ["synthetic-sa/a2.eml"],
+    };
+    const c = coverageMetrics(manifest, samples);
+    expect(c.main.detection).toEqual({ n: 2, hits: 1, rate: 0.5 });
+    expect(c.main.falsePositives).toEqual({ n: 1, hits: 0, rate: 0 });
+    expect(c.unmeasured).toEqual(["synthetic-sa/a2.eml"]);
+    expect(c.challenge?.detection).toEqual({ n: 1, hits: 1, rate: 1 });
+    expect(c.pooled).toBe(0);
+  });
+  it("counts a hand-pooled repeat once, and a null verdict never counts", () => {
+    const samples = [sample("nazario-2025", "p1.eml", "attack", "model"), sample("nazario-2025", "p2.eml", "attack")];
+    const manifest: BaselineManifest = {
+      id: "base-2",
+      sets: ["nazario-2025"],
+      setVersions: { "nazario-2025": "v3" },
+      deployment: "abc123",
+      caps: { "nazario-2025": 5 },
+      expected: ["nazario-2025/p1.eml", "nazario-2025/p2.eml"],
+      entries: [
+        entry("nazario-2025/p1.eml", "stale-repeat", null, { runId: "run-2", pooledFrom: "run-1" }),
+        entry("nazario-2025/p1.eml", "done", "suspicious", { runId: "run-1" }),
+        entry("nazario-2025/p2.eml", "partial", null),
+      ],
+      unmeasured: ["nazario-2025/p2.eml"],
+    };
+    const c = coverageMetrics(manifest, samples);
+    expect(c.main.detection).toEqual({ n: 2, hits: 1, rate: 0.5 });
+    expect(c.pooled).toBe(1);
+    expect(c.bySample["nazario-2025/p1.eml"]?.outcome).toBe("done");
+    expect(c.bySample["nazario-2025/p2.eml"]?.outcome).toBe("partial");
   });
 });

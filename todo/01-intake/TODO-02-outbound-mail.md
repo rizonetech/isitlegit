@@ -47,7 +47,7 @@ track: day-1
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [ ] |
 | 11 | §11 | Authentication results in the reply | §3 | [x] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
-| 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
+| 13 | §13 | Destination trace linked | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
 | 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [x] |
@@ -384,7 +384,7 @@ Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check
 
 **Corrected 2026-10-31** (at start, checked against the graph): the item waits for D07 T03 §20's "Retry the check" control on the report (the app lane's, open), but the section named only D01 T01 §17 as its dependency, so `query ready` listed it as runnable. D07 T03 §20 is now a dependency in the Implementation Order row; the section waits for it to be stamped and merged into `checks-lane`. Before: Depends On `D01 T01 §17`.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -452,7 +452,7 @@ Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first re
 > **Verified:** 2026-10-31 | §12 | 4897c378f1c4237e0dcbce3d330dfba4e44def95
 > **Review:** `docs/reviews/d01-t02-s12.json`
 
-## 13. Destination trace linked from the alert
+## 13. Destination trace linked
 
 **Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
@@ -506,7 +506,7 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 
 Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward within five minutes needs an alert before the grace that ties the refusal to its forward has passed, so the first alert would name the destination's domain and the time but not yet the alias, and a second (or none, when the first already said all) follow once it is tied. Whether two alerts for one refusal are wanted, and which mailbox gets the first, is the operator's call.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 

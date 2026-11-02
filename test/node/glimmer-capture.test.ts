@@ -1373,3 +1373,81 @@ describe("rules that change", () => {
     expect(JSON.parse(readFileSync(join(revision, "manifest.json"), "utf-8")).policy).toBe("genuine");
   });
 });
+
+describe("production admission to a training build (§46)", () => {
+  const jpeg = async (seed: number) =>
+    new Uint8Array(
+      await (await import("sharp"))
+        .default({ create: { width: 64, height: 64, channels: 3, background: { r: seed * 40, g: 20, b: 30 } } })
+        .jpeg()
+        .toBuffer(),
+    );
+  const LABELS = {
+    brand: null,
+    has_login_form: true,
+    has_payment_form: false,
+    lure: true,
+    lure_type: "credential" as const,
+  };
+  const put = async (store: ReturnType<typeof openStore>, seed: number, text: string) =>
+    store.putPage("production", {
+      screenshot: await jpeg(seed),
+      text,
+      origin: "production",
+      licence: "private",
+      host: "lure.example",
+      template: null,
+      south_africa: false,
+      labels: LABELS,
+      label_source: Object.fromEntries(Object.keys(LABELS).map((k) => [k, "ground-truth"])),
+      redacted: false,
+    });
+
+  it("trains only admitted production pages, and counts the unadmitted and the withheld", async () => {
+    const { buildDataset, NO_FLOORS } = await import("../../scripts/glimmer/build-dataset.ts");
+    const store = openStore(fresh());
+    const admitted = await put(store, 1, "Sign in to your account now");
+    const benignIds: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const id = await store.putPage("production", {
+        screenshot: await jpeg(10 + i),
+        text: `A plain company page number ${i} with opening hours and directions`,
+        origin: "production",
+        licence: "private",
+        host: "plain.example",
+        template: null,
+        south_africa: false,
+        labels: { brand: null, has_login_form: false, has_payment_form: false, lure: false, lure_type: "none" },
+        label_source: Object.fromEntries(
+          ["brand", "has_login_form", "has_payment_form", "lure", "lure_type"].map((k) => [k, "ground-truth"]),
+        ),
+        redacted: false,
+      });
+      benignIds.push(id);
+    }
+    const unadmitted = await put(store, 2, "Sign in to your account today");
+    const withheld = await put(store, 3, "Contact derick@example.com to sign in");
+    writeFileSync(
+      join(store.dir, "production-admission.json"),
+      JSON.stringify({ admitted: [admitted, ...benignIds, withheld], by: "test", at: "2026-11-02T17:40:00Z" }),
+    );
+    const built = await buildDataset({
+      store,
+      version: "9.1",
+      mode: "text-only",
+      seed: 3,
+      floors: NO_FLOORS,
+      referenceSize: 0,
+      protectedTerms: [],
+    });
+    expect(built.dropped.unadmitted).toBe(1);
+    expect(built.dropped.withheldProduction).toBe(1);
+    const meta = readFileSync(join(built.dir, "train.meta.jsonl"), "utf-8");
+    const evalMeta = readFileSync(join(built.dir, "eval.meta.jsonl"), "utf-8");
+    expect([admitted, ...benignIds].some((id) => meta.includes(id))).toBe(true);
+    expect(meta).not.toContain(unadmitted);
+    expect(meta).not.toContain(withheld);
+    expect(evalMeta).not.toContain(unadmitted);
+    expect(evalMeta).not.toContain(withheld);
+  });
+});

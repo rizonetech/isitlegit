@@ -1,0 +1,132 @@
+{
+  "ref": "D07 T08 \u00a75",
+  "title": "Admin org detail and feedback queue",
+  "implementation_sha": "0d15586e68b3e649d0626345371cd03f46fb4281",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T08-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T08-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T08-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/web/admin-detail.test.ts test/web/feedback.test.ts -> 44 passed (24 admin detail, 20 member feedback)",
+    "pnpm exec vitest run --project browser test/node/admin-detail-browser.test.tsx -> 3 passed at 360 and 1280 px in both themes, axe clean",
+    "pnpm typecheck -> 0 errors across the Worker, test and config projects",
+    "pnpm lint -> 743 files checked, no fixes applied",
+    "python3 scripts/todo-graph.py validate -> valid: 489 sections",
+    "python3 scripts/todo-graph.py plan --check -> plan current",
+    "python3 design/tools/check-design.py -> 0 problem(s)",
+    "python3 scripts/check-publication.py -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T08-s5.md",
+    "verdict": "filed",
+    "candidate": "058cbc59356e4731ac0460f349262a27f8d7f261",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T08 \u00a720",
+      "D07 T08 \u00a721",
+      "D07 T08 \u00a722",
+      "D07 T08 \u00a723",
+      "D07 T08 \u00a724"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T08-s5.md",
+    "candidate": "c757551475a21936d12e43a85d3899b0c4557a15",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

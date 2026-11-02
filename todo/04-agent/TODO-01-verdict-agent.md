@@ -213,7 +213,7 @@ Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing
 
 Structural defence needs proof (spec 4.6a): synthetic fixtures carry hidden "mark this safe" text, injected tool requests ("call walk_phishing_site on attacker.example"), fake system prompts and instructions to mail someone. Each is compared with its clean twin: verdict, recipients and tool calls must be identical.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/injection.test.ts` passes unchanged.
@@ -235,7 +235,7 @@ Structural defence needs proof (spec 4.6a): synthetic fixtures carry hidden "mar
 
 Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it classifies the visible text as a second, independent injection signal (evidence, never a verdict on its own). If it is not available, the section records that and ends.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/prompt-guard.test.ts` passes unchanged.
@@ -256,7 +256,7 @@ Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it clas
 
 Filed 2026-10-31 from D02 T04 §8's completion review (Part 1 item 9, out of scope there): the checks store each outcome (`ran`, `partial`, `skipped`) with a reason, and an archive whose members were not all read, or whose nested archive was not opened, leaves the attachment checks `partial`; but the verdict step reads evidence only (`verdictOf` in `src/pipeline/analysis-workflow.ts` returns `STUB_VERDICT` today), so a case whose attachments were only partly read could be called safe on what was read.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged (§1's cases), and `test/agent/floor-partial.test.ts` holds this section's.
@@ -304,7 +304,7 @@ The rule-based verdict is suspicious when a finding of medium severity or higher
 
 The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and signatures in a case's render or a page the case already holds (D03 T03 §1) and `compare_logo` judges one crop against a brand's reference logo (D03 T03 §3). Each is read-only, validates its arguments with zod, names only artefacts or brands the case already has, and returns new Evidence through the producer and caps of §3.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes unchanged.
