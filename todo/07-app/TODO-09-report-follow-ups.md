@@ -97,6 +97,8 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inc
 
 ## 3. Dispute from inside the mailbox
 
+> **Started:** 2026-11-02T21:13:35Z
+
 Filed 2026-11-01 from D07 T03 §22's completion review: Outlook's Report and Not junk flow lets a reader dispute a classification inside the mailbox, in its existing session, where IsItLegit sends the reader to a browser report and perhaps through sign-in first. A mailbox-native action needs an integration no section owns yet (an Outlook add-in or a mail-client action), so it is recorded here rather than improvised.
 
 **Phase:** 7
