@@ -4,14 +4,7 @@
 // judging; anything less is stated as unconfirmed, in the same evidence name, so a lookup failure
 // never invents a match or a mismatch and never discards the reading it rides on.
 import { z } from "zod";
-import {
-  type Brand,
-  type BrandTable,
-  brandForDomain,
-  brandForMailbox,
-  getBrand,
-  registrable,
-} from "../checks/brands";
+import { type Brand, type BrandTable, brandForDomain, brandForMailbox, getBrand, registrable } from "../checks/brands";
 import type { EvidenceDraft } from "../checks/evidence";
 import { type MetaContext, ModelError, metaResponses } from "../meta/client";
 import { untrusted, untrustedInstructions } from "../meta/untrusted";
@@ -357,7 +350,8 @@ export function brandItem(
   const official =
     resolution.kind === "table"
       ? (entry: (typeof seen)[number]) => {
-          const match = entry.kind === "sender" ? brandForMailbox(table, entry.host) : brandForDomain(table, entry.host);
+          const match =
+            entry.kind === "sender" ? brandForMailbox(table, entry.host) : brandForDomain(table, entry.host);
           return !!match && match.brand.name === resolution.brand.name && match.official;
         }
       : (entry: (typeof seen)[number]) => entry.domain !== null && resolution.domains.includes(entry.domain);

@@ -220,9 +220,12 @@ describe("brandItem against the table", () => {
     // Pay Co hosts other people's invoices under payco.example/invoice/: that says nothing
     // about its own mail, so service@payco.example is its domain, while a landing on the same
     // host without a path is not cleared by the website classifier.
-    expect(brandItem(table, "Pay Co", image, [{ host: "payco.example", kind: "sender" }], tableResolution("Pay Co"))).toBeNull();
     expect(
-      brandItem(table, "Pay Co", image, [{ host: "payco.example", kind: "landing" }], tableResolution("Pay Co"))?.severity,
+      brandItem(table, "Pay Co", image, [{ host: "payco.example", kind: "sender" }], tableResolution("Pay Co")),
+    ).toBeNull();
+    expect(
+      brandItem(table, "Pay Co", image, [{ host: "payco.example", kind: "landing" }], tableResolution("Pay Co"))
+        ?.severity,
     ).toBe("high");
   });
 

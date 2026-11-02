@@ -675,7 +675,10 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
       head: (key: string) => real.head(key),
       get: async (key: string, options?: unknown) => {
         // The render reads the summary first; only the brand stage's later read stalls.
-        if (key.endsWith("/parsed.json") && (parsedReads += 1) > 1) await new Promise((r) => setTimeout(r, 30_000));
+        if (key.endsWith("/parsed.json")) {
+          parsedReads += 1;
+          if (parsedReads > 1) await new Promise((r) => setTimeout(r, 30_000));
+        }
         return (real.get as (...a: unknown[]) => unknown)(key, options);
       },
     } as unknown as R2Bucket;
