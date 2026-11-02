@@ -42,6 +42,7 @@ track: day-6
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
 | 10 | §10 | Findings exported to | §5 | [ ] |
 | 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §46 | [ ] |
+| 12 | §12 | Monitor case allowance and quality | §4 | [ ] |
 
 ## 1. Lookalike candidate generator
 
@@ -343,6 +344,24 @@ Every settled monitor page (§3 and §4's screens) and every settled case page (
 - [ ] Commit: `monitor: settled pages handed to Loupe capture`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts` passes, and fails if a settled page is stored twice or an unsettled one is stored.
+
+## 12. Monitor case allowance and quality
+
+Monitor investigations must not consume the member's own checking allowance, and the pipeline's quality (destination, form and confirmation accuracy, latency, cost, and each model's measured contribution) needs a corpus before any superiority claim (D05 T04 §4 completion review, filed 2026-11-02).
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Separate the allowances. Done when: a monitor investigation never refuses or consumes a member check.
+
+- [ ] Give monitor cases their own case-limit accounting in `src/db/cases.ts` (the system uploader's cases bounded per organisation per day, separately from member traffic). Done when: `test/monitor/pipeline.test.ts` proves a member at their daily limit still gets investigations, and monitor cases stop at their own bound.
+- [ ] Measure the pipeline on the labelled monitor corpus: destination and form decisions, confirmation accuracy, latency, cost per investigation, and the Spark, SAM and walkthrough contributions by ablation. Done when: the frontier entry names each rate with its denominator and the measured cost, with the spend cap stated before any paid call.
+- [ ] Commit: `monitor: investigation allowance and quality measurement`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/pipeline.test.ts` passes with the allowance cases.
 
 ## Verification
 

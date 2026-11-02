@@ -71,6 +71,16 @@ async function investigate(
     .bind(orgId, page.capture_key)
     .first<{ state: string; case_id: string | null }>();
   if (existing && existing.state !== "investigating") return existing.state as InvestigationState;
+  // The row lands before the case, so an interruption at any later point is recoverable and
+  // settleable (completion review gaps 4 and 8).
+  await db
+    .prepare(
+      `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, state, evidence_refs, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, 'investigating', NULL, ?, ?)
+       ON CONFLICT (org_id, capture_key) DO NOTHING`,
+    )
+    .bind(orgId, page.domain, page.capture_key, now().toISOString(), now().toISOString())
+    .run();
   let caseId = existing?.case_id ?? null;
   if (!caseId) {
     const made = await createCase(db, {
@@ -101,7 +111,11 @@ async function investigate(
   const shot = await bucket.get(`${page.capture_key}screenshot.jpg`).catch(() => null);
   const textObj = await bucket.get(`${page.capture_key}text.txt`).catch(() => null);
   if (!shot) {
-    await addEvidence(db, caseId, "vision", [notCheckedItem("the settled capture is missing")], now);
+    refs.push(
+      ...(await addEvidence(db, caseId, "vision", [notCheckedItem("the settled capture is missing")], now)).map(
+        (e) => e.id,
+      ),
+    );
     return finish("partial");
   }
   const screenshot = new Uint8Array(await shot.arrayBuffer());
@@ -126,14 +140,36 @@ async function investigate(
   try {
     reading = await readMail(ctx, [image], visibleText, true);
   } catch {
-    await addEvidence(db, caseId, "vision", [notCheckedItem("the page could not be read")], now);
+    refs.push(
+      ...(await addEvidence(db, caseId, "vision", [notCheckedItem("the page could not be read")], now)).map(
+        (e) => e.id,
+      ),
+    );
     return finish("partial");
   }
   const items: EvidenceDraft[] = [...readingItems(reading, [image])];
-  refs.push(...items.map((i) => i.check));
   // The registered logo, resolved by organisation: the business's own identity logo, never a
   // shared brand index. Every state that cannot compare is stated, never a match.
   const brand = reading.readings[0]?.claimed_brand ?? page.domain;
+  // The captured final URL's host, assessed against the business's own verified domains before
+  // any impersonation claim (completion review gap 2): its own host is official, anything else
+  // is a mismatch.
+  const hostRow = await db
+    .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ?")
+    .bind(orgId, page.domain)
+    .first<{ capture_url: string | null }>();
+  const finalHost = hostRow?.capture_url ? new URL(hostRow.capture_url).hostname : page.domain;
+  const ownDomains = (
+    await db
+      .prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'")
+      .bind(orgId)
+      .all<{ domain: string }>()
+  ).results.map((r) => r.domain);
+  const domainJudgement: "official" | "mismatch" = ownDomains.some(
+    (d) => finalHost === d || finalHost.endsWith(`.${d}`),
+  )
+    ? "official"
+    : "mismatch";
   const identity = await getIdentity(db, orgId).catch(() => null);
   let logoCompared = false;
   if (!identity?.logo) {
@@ -158,20 +194,29 @@ async function investigate(
           const cropImage: LogoImage = crop;
           const judgement = await compareLogo(ctx, cropImage, referenceImage);
           logoCompared = true;
-          items.push(logoMatchItem(judgement, brand, artefactKey, "mismatch"));
-          refs.push("vision.logo_match");
+          items.push(logoMatchItem(judgement, brand, artefactKey, domainJudgement));
         }
       } catch {
         items.push(logoNotComparedItem(brand, artefactKey, "logo-comparison-failed"));
       }
     }
   }
-  await addEvidence(db, caseId, "vision", items, now);
+  refs.push(...(await addEvidence(db, caseId, "vision", items, now)).map((e) => e.id));
   // The walkthrough bridge: the reading's form becomes the trigger evidence walkTarget requires,
   // stored through the checks producer that owns link.* items.
-  const action = reading.readings[0]?.requested_action;
+  let action = reading.readings[0]?.requested_action;
+  if (action !== "log_in" && action !== "pay") {
+    // The capture's own form signals are an observation too (completion review gap 3): a page
+    // with password or form fields walks even when the reading named no action.
+    const signalsObj = await bucket.get(`${page.capture_key}signals.json`).catch(() => null);
+    const signals = signalsObj
+      ? ((await signalsObj.json().catch(() => null)) as { passwords?: number; forms?: number } | null)
+      : null;
+    if ((signals?.passwords ?? 0) > 0) action = "log_in";
+    else if ((signals?.forms ?? 0) > 0) action = "pay";
+  }
   if (action === "log_in" || action === "pay") {
-    await saveEvidence(
+    const savedTrigger = await saveEvidence(
       db,
       caseId,
       [
@@ -186,7 +231,7 @@ async function investigate(
       undefined,
       now,
     );
-    refs.push(action === "log_in" ? "link.credential_form" : "link.card_form");
+    refs.push(...savedTrigger.map((e) => e.id));
   }
   if (action === "log_in" || action === "pay") {
     await deps.walk(caseId).catch(() => null);
@@ -201,7 +246,27 @@ async function investigate(
 export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: string): Promise<PipelineSummary> {
   const now = deps.now ?? (() => new Date());
   const summary: PipelineSummary = { investigated: 0, skipped: 0, failed: 0 };
-  for (const page of await flaggedForWalkthrough(deps.db, orgId, since)) {
+  // Outstanding investigations are recovered whatever their age or whether a newer capture
+  // replaced them (completion review gap 5): their rows, not the run's window, name the work.
+  const outstanding = (
+    await deps.db
+      .prepare("SELECT domain, capture_key FROM monitor_investigations WHERE org_id = ? AND state = 'investigating'")
+      .bind(orgId)
+      .all<{ domain: string; capture_key: string }>()
+  ).results;
+  const pages: Flagged[] = [...(await flaggedForWalkthrough(deps.db, orgId, since))];
+  for (const row of outstanding)
+    if (!pages.some((p) => p.capture_key === row.capture_key))
+      pages.push({
+        domain: row.domain,
+        capture_key: row.capture_key,
+        lure_type: "credential",
+        confidence: 0,
+        screener: "glimmer",
+        second_look: null,
+        screened_at: "",
+      });
+  for (const page of pages) {
     const existing = await deps.db
       .prepare("SELECT state FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
       .bind(orgId, page.capture_key)
