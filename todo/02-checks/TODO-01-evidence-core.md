@@ -260,7 +260,11 @@ Filed 2026-10-31 at the app lane's request, through the coordinator (D07 T03 §1
 
 ## 8. Examined set stored for a clean check
 
+> **Started:** 2026-11-02T21:12Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a check that finds nothing stores its outcome but not what it examined, so a clean result cannot show its targets. This section stores, per clean check, the examined set: the targets as stored text, bounded, with omissions named.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) storage is one nullable text column `examined` on `check_outcomes` (the targets as a JSON list with the omitted count), under a migration number the coordinator gives before the build, asked for in the lane's outbox at this start (the second number this lane awaits, after D02 T06 §9's); (2) the mechanism is an optional `examined` hook on a registered check in `src/checks/registry.ts`, read by the runner (`src/checks/runner.ts`) only when the check ran over all its input and found nothing, its targets bounded as stored text with the omitted count named; a check with findings, a partial or skipped check stores none; (3) which checks name targets is settled by a registry audit at build: every check that can list its targets from the case view without a new read implements the hook in this section, and the audit's list is recorded in the section when built.
 
 **Phase:** 7
 **Needs:** none
