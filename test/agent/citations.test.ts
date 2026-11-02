@@ -210,8 +210,21 @@ describe("validateCitations", () => {
     }
     // A name spelled in initials is one sentence, and the quoted fragment still continues.
     expect(
+      validateCitations({ cited_evidence_ids: ["E1"], explanation: "The sender claims to be J. A. Smith [E1]." }, CASE),
+    ).toEqual([]);
+  });
+
+  it("ends a sentence after a chain across its marker whatever follows, and keeps a marker inside a quote whole", () => {
+    for (const explanation of [
+      "The sender is based in the U.S. [E1] 100 customers verified the account.",
+      "The sender is based in the U.S. [E1] paypal.example is verified.",
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    expect(
       validateCitations(
-        { cited_evidence_ids: ["E1"], explanation: "The sender claims to be J. A. Smith [E1]." },
+        { cited_evidence_ids: ["E1"], explanation: 'The button reads "Continue. [E1]" and submits credentials.' },
         CASE,
       ),
     ).toEqual([]);

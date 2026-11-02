@@ -19,8 +19,31 @@ const JOINING = new Set(["and", "or", "but", "nor", "yet", "so", "then", "which"
 // Words that open a sentence rather than continue a name: after an initial chain or honorific (U.S.
 // Bank, Dr. Smith) they still mark the boundary.
 const OPENERS = new Set([
-  "The", "A", "An", "It", "This", "That", "These", "Those", "He", "She", "They", "We", "You", "I",
-  "But", "However", "Then", "There", "In", "On", "For", "If", "When", "After", "Before",
+  "The",
+  "A",
+  "An",
+  "It",
+  "This",
+  "That",
+  "These",
+  "Those",
+  "He",
+  "She",
+  "They",
+  "We",
+  "You",
+  "I",
+  "But",
+  "However",
+  "Then",
+  "There",
+  "In",
+  "On",
+  "For",
+  "If",
+  "When",
+  "After",
+  "Before",
 ]);
 
 function splitText(text: string): string[] {
@@ -69,7 +92,7 @@ function splitText(text: string): string[] {
     const next = text.slice(k, n);
     // A joining word continues only where the stop itself closes a quoted fragment ("Continue."
     // and ...): an earlier quoted word, or a plain sentence, makes the "but ..." a new sentence.
-    if (/^[a-z]+$/.test(next) && JOINING.has(next) && "\"”".includes(text.charAt(i + 1))) continue;
+    if (/^[a-z]+$/.test(next) && JOINING.has(next) && /["”]/.test(text.slice(i + 1, j))) continue;
     // No whitespace is no boundary either, unless the next sentence starts right against the marker
     // (any word but a joining one) or against a closing quote (a capital, digit or opening quote).
     if (k === j && !absorbedMarker && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
@@ -86,10 +109,9 @@ function splitText(text: string): string[] {
       const following = text.slice(s, e);
       // A single letter ending in a stop is another initial (J. A. Smith), never the article "A".
       const followingInitial = following.length === 1 && text.charAt(e) === ".";
-      // A chain or honorific continues a name (U.S. Bank, Dr. Smith). It ends the sentence where a
-      // marker absorbed at the stop is followed by a capital, or where an opener word follows.
-      const nameEnds =
-        (absorbedMarker && /^[A-Z]/.test(text.charAt(s))) || (OPENERS.has(following) && !followingInitial);
+      // A chain or honorific continues a name (U.S. Bank, Dr. Smith). A marker absorbed at the stop
+      // ends it whatever follows (a capital, a number, a domain), and so does an opener word.
+      const nameEnds = absorbedMarker || (OPENERS.has(following) && !followingInitial);
       if ((initialChain || HONORIFICS.has(before)) && !nameEnds) continue;
       // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
       // after it starts the next sentence.
