@@ -290,13 +290,13 @@ Sections: 15 | Checklist items: 128
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 91 | Checklist items: 592
+Sections: 91 | Checklist items: 595
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
-| [ ]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 5     |
+| [ ]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 8     |
 | [ ]    | D03 T04 §46 | Every screened page captured and labelled    | meta-api              | 6     |
 | [ ]    | D03 T04 §47 | Loupe 1.1 promoted on a better-than-1.0 gate | none                  | 4     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence     | none                  | 4     |
@@ -598,4 +598,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 316/520 verified sections, 130 ready to run now.
 
-Checklist: 2510/3262 items completed (includes Commit items).
+Checklist: 2510/3265 items completed (includes Commit items).
