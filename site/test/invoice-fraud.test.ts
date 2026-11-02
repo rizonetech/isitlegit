@@ -13,6 +13,7 @@ import {
   SABRIC_QUOTE,
   SABRIC_STAY_SAFE,
   SAPS_REPORT_CRIME,
+  STANDARD_BANK_DETAILS_SCAM,
 } from "../src/lib/sources.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
 import { proven, provenIds } from "./lib/proven.ts";
@@ -104,9 +105,9 @@ describe("Invoice fraud", () => {
     assert.equal(steps.length, 4, "the recovery steps are not four list items");
     const expected: [string, string][] = [
       ["Phone your bank's fraud line now", SABRIC_STAY_SAFE.url],
-      ["Keep the email and the documents", SAPS_REPORT_CRIME.url],
+      ["Keep the email and the documents", SABRIC_STAY_SAFE.url],
       ["nearest South African Police Service station", SAPS_REPORT_CRIME.url],
-      ["Warn the real supplier", SABRIC_2025.url],
+      ["Warn the real supplier", STANDARD_BANK_DETAILS_SCAM.url],
     ];
     for (const [i, [words, url]] of expected.entries()) {
       assert.ok(text(steps[i] ?? "").includes(words), `step ${i + 1} is not "${words}"`);
@@ -114,7 +115,7 @@ describe("Invoice fraud", () => {
     }
     has(recovery, "keep the case (CAS) reference", "the SAPS step");
     has(recovery, "ask your bank to contact the receiving bank at once", "the bank step");
-    has(recovery, "unchanged, and take them to your bank and the police station", "the keep step");
+    has(recovery, "unchanged; your bank and the police will ask for them", "the keep step");
     has(recovery, "never the one in the email", "the supplier step");
   });
 
