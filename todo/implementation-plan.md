@@ -261,7 +261,7 @@ Sections: 68 | Checklist items: 321
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 17 | Checklist items: 128
+Sections: 17 | Checklist items: 131
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -270,7 +270,7 @@ Sections: 17 | Checklist items: 128
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
-| [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 7     |
+| [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 10    |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
@@ -572,4 +572,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 303/501 verified sections, 90 ready to run now.
 
-Checklist: 2435/3147 items completed (includes Commit items).
+Checklist: 2435/3150 items completed (includes Commit items).
