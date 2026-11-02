@@ -1076,6 +1076,28 @@ document.addEventListener("keydown", (event) => {
   openViewer(opener);
 });
 
+// Stepping through a filtered run from a report (D07 T04 §9): `j` to the next case, `k` to the previous, `u` back
+// to the list, as Gmail's keys do. Never while typing, never with a modifier, and the addresses are the ones the
+// page drew, so a disabled end simply has no key.
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+  const target = event.target as Element | null;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const steps = document.querySelector<HTMLElement>("[data-case-steps]");
+  if (!steps) return;
+  const to =
+    event.key === "j"
+      ? steps.dataset.next
+      : event.key === "k"
+        ? steps.dataset.previous
+        : event.key === "u"
+          ? steps.dataset.back
+          : undefined;
+  if (!to) return;
+  event.preventDefault();
+  window.location.assign(to);
+});
+
 // A page whose state changes at a known time (`data-reload-at`, epoch seconds: a lock that ends, D07 T04 §27) loads
 // itself again then, a plain read of the same address, so what is drawn is what is stored. Without this script the page
 // carries a "Check again" link for the same.

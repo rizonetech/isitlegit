@@ -1288,3 +1288,75 @@ describe("previous and next case (D07 T04 §9)", () => {
     expect(html).toContain('href="/cases?verdict=safe&amp;period=all"');
   });
 });
+
+describe("previous and next case, the run kept (D07 T04 §9 completion)", () => {
+  const at = async (id: string, when: string) =>
+    db.prepare("UPDATE cases SET created_at = ? WHERE id = ?").bind(when, id).run();
+  const page = async (path: string, cookie: string) => {
+    const res = await get(path, cookie);
+    expect(res.status, path).toBe(200);
+    return res.text();
+  };
+
+  it("names an ignored malformed bound and the case's place in the run", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const two = await stored(a, "two", "done", "safe");
+    await at(one, "2026-10-09T10:00:00Z");
+    await at(two, "2026-10-08T10:00:00Z");
+    const { cookie } = await member(a);
+    const html = await page(`/r/${two}?list=1&period=all&verdict=safe&from=2026-02-30`, cookie);
+    expect(html).toContain("The From date was not a real date, so it was left out of this run.");
+    expect(html).toContain("Case 2 of 2");
+  });
+
+  it("steps only within a combined verdict, channel, range and search run", async () => {
+    const a = await org("Karoo Couriers");
+    const keep1 = await stored(a, "keep one", "done", "safe");
+    const keep2 = await stored(a, "keep two", "done", "safe");
+    const wrongVerdict = await stored(a, "keep three", "done", "malicious");
+    await at(keep1, "2026-10-09T10:00:00Z");
+    await at(keep2, "2026-10-08T10:00:00Z");
+    await at(wrongVerdict, "2026-10-10T10:00:00Z");
+    await db
+      .prepare("UPDATE cases SET original_subject = ? WHERE id IN (?, ?)")
+      .bind("Invoice keep", keep1, keep2)
+      .run();
+    await db.prepare("UPDATE cases SET search_text = ? WHERE id IN (?, ?)").bind("invoice keep", keep1, keep2).run();
+    const { cookie } = await member(a);
+    const q = "list=1&verdict=safe&channel=email&from=2026-10-01&to=2026-10-31&q=invoice";
+    const html = await page(`/r/${keep2}?${q}`, cookie);
+    expect(html).toContain(`/r/${keep1}?`);
+    expect(html).not.toContain(wrongVerdict);
+  });
+
+  it("keeps the run through a retry refusal's redirect", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const { cookie } = await member(a);
+    const res = await call(`/r/${one}/retry?list=1&period=all&verdict=safe`, {
+      method: "POST",
+      headers: { cookie, origin: "http://localhost" },
+    });
+    expect(res.status).toBe(303);
+    expect(target(res)).toContain("list=1");
+    expect(target(res)).toContain("verdict=safe");
+  });
+
+  it("answers a failed neighbour read with the error page, its retry keeping the run", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const { cookie } = await member(a);
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/created_at > \?/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await get(`/r/${one}?list=1&period=all&verdict=safe`, cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain("list=1");
+    expect(html).toContain("verdict=safe");
+  });
+});

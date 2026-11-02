@@ -108,6 +108,9 @@ export type LiveProps = {
   // it changed (`headerKey`).
   meta?: unknown;
   headerKey?: string;
+  // The filtered list the member came from, as a query string (D07 T04 §9): the retry keeps it, so its answer
+  // lands back in the same run.
+  navQuery?: string;
 };
 
 const clock = new Intl.DateTimeFormat("en-GB", {
@@ -517,7 +520,7 @@ export function ReportLive(props: LiveProps) {
                 <>
                   <form
                     method="post"
-                    action={`/r/${caseId}/retry`}
+                    action={`/r/${caseId}/retry${props.navQuery ?? ""}`}
                     class="flex flex-wrap gap-12"
                     data-busy
                     data-busy-check={`/r/${caseId}`}

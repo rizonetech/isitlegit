@@ -14,7 +14,7 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
-import { type CaseFilters, filtersFrom, PAGE_SIZE } from "../../db/case-filters";
+import { type CaseFilters, filtersFrom, ignoredDates, PAGE_SIZE } from "../../db/case-filters";
 import { caseNeighbours, checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
@@ -113,6 +113,9 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           url.searchParams.get("run"),
           url.searchParams.get("dispute") === "1",
           navFiltersOf(url),
+          ignoredDates(url.searchParams)
+            .map((name) => `The ${name} date was not a real date, so it was left out of this run.`)
+            .join(" "),
         );
         if (out) return answer(out);
       }
@@ -186,6 +189,8 @@ async function render(
   dispute = false,
   // The filtered list the member came from (D07 T04 §9), or null: its steps are a member's, on the full page only.
   navFilters: CaseFilters | null = null,
+  // A date bound the address named but did not give as a real date, in words (D07 T04 §9).
+  navNotice = "",
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -270,12 +275,23 @@ async function render(
           uploadName={found.value.uploadName}
           meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
+          {...(view === "member" && navFilters ? { navQuery: navQuery(navFilters, id) } : {})}
         />,
       ) +
         // The header out of band when it differs from the one the page holds, so a report opened before its message
         // was parsed shows the subject and sender once they are stored, and a reader's focus or selection in the
         // header survives every poll that changes nothing.
-        (held === headerKey(facts, view) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
+        (held === headerKey(facts, view)
+          ? ""
+          : String(
+              <ReportHeader
+                facts={facts}
+                view={view}
+                copy={copy}
+                oob
+                {...(view === "member" && navFilters ? { backHref: casesHref(navFilters) } : {})}
+              />,
+            )),
       { headers: HEADERS },
     );
   // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
@@ -285,13 +301,26 @@ async function render(
     const neighbours = await caseNeighbours(db, orgId, navFilters, id);
     if (!neighbours.ok) throw new Error(neighbours.error.message);
     const back = (page: number) => casesHref({ ...navFilters, page });
+    const notice = navNotice;
+    const orgChanged = activeOrgId !== null && activeOrgId !== orgId;
     steps = neighbours.value
       ? {
           previous: neighbours.value.previous ? reportHref(navFilters, neighbours.value.previous) : null,
           next: neighbours.value.next ? reportHref(navFilters, neighbours.value.next) : null,
           back: back(Math.max(1, Math.ceil(neighbours.value.position / PAGE_SIZE))),
+          position: neighbours.value.position,
+          matching: neighbours.value.matching,
+          ...(notice ? { notice } : {}),
+          ...(orgChanged ? { orgChanged: true } : {}),
         }
-      : { previous: null, next: null, back: back(1), unmatched: true };
+      : {
+          previous: null,
+          next: null,
+          back: back(1),
+          unmatched: true,
+          ...(notice ? { notice } : {}),
+          ...(orgChanged ? { orgChanged: true } : {}),
+        };
   }
   const shell =
     view === "member"
@@ -318,6 +347,7 @@ async function render(
         traceOpen={traceOpen}
         {...(dispute ? { dispute: true } : {})}
         {...(steps ? { steps } : {})}
+        {...(view === "member" && navFilters ? { navQuery: navQuery(navFilters, id) } : {})}
       />,
     ),
     { headers: HEADERS },
