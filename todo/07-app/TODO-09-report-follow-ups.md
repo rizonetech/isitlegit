@@ -327,6 +327,8 @@ Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence 
 
 ## 12. Detection data beside each version
 
+> **Started:** 2026-11-02T20:54:51Z
+
 Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item, against VirusTotal's engine version plus signature-update date): the Worker version alone cannot explain a changed finding when the detection data changed without a deployment. The stored provenance already exists (each outcome's data revision, identity and source, D02 T01 §6, read by `readCheckOutcomes`); this section draws it beside the Worker version, for the checks it applies to, with an explicit unknown when none was stored, never today's dataset.
 
 **Phase:** 7
