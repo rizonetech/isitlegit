@@ -30,6 +30,13 @@ const logoEntry = z.strictObject({
   slug: z.string().min(1).max(120),
   brand: z.string().min(1).max(200),
   key: z.string().startsWith("ref/logos/").max(300),
+  // The publisher's full entry (scripts/load-reference-logos.ts, D03 T03 §2): provenance beside
+  // the fields this reader uses, all required so a different shape is refused, not half-read.
+  page_url: z.string().min(1).max(2000),
+  source_url: z.string().min(1).max(2000),
+  source_kind: z.enum(["header", "icon", "og", "fictional"]),
+  use: z.literal("detection-reference"),
+  fetched_at: z.iso.datetime(),
   media_type: z.enum(["image/png", "image/jpeg", "image/webp"]),
   width: z.int().positive(),
   height: z.int().positive(),

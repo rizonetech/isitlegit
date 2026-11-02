@@ -255,7 +255,7 @@ Sections: 12 | Checklist items: 115
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [x]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 12    |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
+| [x]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
 | [x]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 10    |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 183 | Checklist items: 769
+Sections: 183 | Checklist items: 771
 
 | Status | Reference   | Deliverable                                        | Needs                | Items |
 | ------ | ----------- | -------------------------------------------------- | -------------------- | ----- |
@@ -447,7 +447,7 @@ Sections: 183 | Checklist items: 769
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus               | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                      | cloudflare           | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                            | attended             | 4     |
-| [ ]    | D03 T03 §4  | Logo recall check and detector choice              | meta-api             | 5     |
+| [ ]    | D03 T03 §4  | Logo recall check and detector choice              | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                           | cloudflare           | 5     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads               | none                 | 14    |
 | [x]    | D03 T04 §19 | Sample redaction beyond the dictionary             | none                 | 8     |
@@ -617,6 +617,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 329/541 verified sections, 137 ready to run now.
+Progress: 330/541 verified sections, 140 ready to run now.
 
-Checklist: 2620/3381 items completed (includes Commit items).
+Checklist: 2621/3383 items completed (includes Commit items).
