@@ -491,7 +491,9 @@ function Filters(props: { filters: CaseFilters }) {
         To
       </label>
       <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} aria-describedby="case-range-hint" />
-      <span id="case-range-hint" class="type-small text-muted">SAST dates, both included.</span>
+      <span id="case-range-hint" class="type-small text-muted">
+        SAST dates, both included.
+      </span>
       <span id="case-range-state" class="contents">
         {rangeWords(filters) !== null ? (
           <span class="flex items-center gap-8 type-small text-muted">
