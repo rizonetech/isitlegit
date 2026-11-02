@@ -677,7 +677,11 @@ Filed 2026-10-31 from D02 T04 §8's completion review (Part 2 item 2, out of sco
 
 ## 22. Replay-scoped claims for the eval organisation
 
+> **Started:** 2026-11-02T18:38Z
+
 Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval replays the same deliveries to measure the pipeline, but the intake claim (`src/intake/admit.ts`) answers a repeat within a day as a duplicate of the first case, so a replay can never re-run. Mechanism agreed by the coordinator: a replay-scoped claim key for the eval organisation only, the replay run id carried for attribution, ordinary duplicates untouched. Eval D08 T02 §12 unblocks when this gates to main.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) no schema change: the scoped claim key itself carries the run id (`replay:<run id>:` before the door key in `intake_messages.message_key`), so the claim row the case is linked from is the attribution record; (2) the server names the eval organisation in a Worker variable `EVAL_ORG_ID` (an identifier, not a secret; the coordinator sets its value at the gate from the eval runner's organisation, and an unset variable disables replay scoping, never silently widens it); (3) the upload route reads the run id from the multipart field `replayRunId` the eval runner sends, and `admitDelivery` honours it only when the delivery's organisation is the named eval organisation, so a member naming a run id for their own organisation is admitted as an ordinary delivery; (4) the email door takes no replay id (the eval runner submits by upload with its session), and ordinary duplicates on both doors are untouched.
 
 **Phase:** 7
 **Needs:** none
@@ -687,8 +691,8 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval re
 
 1. Scope a claim to its replay run, for the eval organisation only. Done when: the same delivery admitted twice under two replay run ids makes two cases, and twice under one run id stays one case.
 
-- [ ] Carry an optional replay run id on `Delivery` in `src/intake/admit.ts`, set only by the eval organisation's admitted submissions (the organisation named in the eval runner's configuration, never a caller-chosen organisation). Done when: a non-eval delivery carrying a replay id is admitted as an ordinary delivery, its id ignored.
-- [ ] Scope the claim key with the replay run id (`claimKey` in `src/intake/admit.ts`) only when a replay id is carried, and record the run id on the case for attribution. Done when: `test/intake/admit.test.ts` (or its owning suite) shows two run ids making two cases, one run id replayed staying a duplicate, and an ordinary duplicate untouched.
+- [ ] Carry an optional replay run id on `Delivery` in `src/intake/admit.ts`, read by the upload route from the multipart field `replayRunId`, honoured only when the delivery's organisation equals the `EVAL_ORG_ID` Worker variable (declared in `wrangler.jsonc`, unset until the coordinator sets it at the gate). Done when: a non-eval delivery carrying a replay id is admitted as an ordinary delivery, its id ignored, and an eval delivery with no variable set is ordinary too.
+- [ ] Scope the claim key with the replay run id (`claimKey` in `src/intake/admit.ts`) only when a replay id is honoured, the scoped key itself carrying the run id for attribution. Done when: the owning intake suites show two run ids making two cases, one run id replayed staying a duplicate, and an ordinary duplicate untouched.
 - [ ] Commit: `intake: replay-scoped claims for the eval organisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts` passes, and fails if a second replay run answers the first run's case.
