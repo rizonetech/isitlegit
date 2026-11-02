@@ -259,6 +259,8 @@ Filed 2026-11-01 from D08 T02 §1 (the coordinator's split: production migration
 
 ## 8. Component measurements
 
+> **Started:** 2026-11-02T15:52Z
+
 Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data a stored run does not hold; they were §2's trailing items): the result cache, intake time, the content and attachment checks, the retry and invisible characters, each measured on its own and written into the results file. Also the median cost with a walkthrough and each reputation provider's false-positive rate on our data (spec 4.3a), which need each case's evidence and walkthrough flag.
 
 **Phase:** 6
