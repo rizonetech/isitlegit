@@ -35,4 +35,9 @@ interface Env {
   // (docs/operations.md, Bank keys); without it, matching refuses rather than reporting mismatches.
   BANK_KEY?: string;
   BANK_MATCH_KEY?: string;
+  // The previous pair at a rotation (D05 T01 §4): set by the coordinator from the vault only while a re-key
+  // runs, read by the admin action only when present, and removed again straight after (docs/operations.md,
+  // Bank keys). Never set through code or an argument.
+  BANK_KEY_PREVIOUS?: string;
+  BANK_MATCH_KEY_PREVIOUS?: string;
 }
