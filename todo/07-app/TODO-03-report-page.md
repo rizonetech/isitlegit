@@ -1649,6 +1649,10 @@ Filed 2026-10-31 from D07 T03 §40's completion review: §40 words a file that n
 
 ## 49. A real voice note through the report
 
+> **Started:** 2026-11-02T11:12Z
+
+> **Corrected 2026-11-02 (validation before build):** D01 T03 §3 is stamped; the dependency edge already names it (resolve: met). The drive exists: `test/voice/transcribe-step.test.ts` runs the whole Workflow (`env.ANALYSIS`, Meta stubbed at `fetch`) over an uploaded voice note and reads the stored events; this section reuses that drive in `test/web/report-status.test.ts` with the report harness's own org, then reads both report routes, so the events the producer writes (not fixtures) carry §38's words.
+
 Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's transcribe step from stored events, and no Workflow step writes them on this branch (D01 T03 §3, the checks lane's Muse Voice Transcribe client with chunking, records `transcribe` and the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`). This section proves the real producer's events through both report routes once §3 reaches this branch, so §38's words are shown to meet what the producer stores. Its dependency on D01 T03 §3 is added then, since that row does not resolve here yet.
 
 **Phase:** 3
@@ -1663,7 +1667,7 @@ Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's trans
 
 1. Join the producer to the report. Done when: a real voice note's stored events read through both routes with §38's steps and words.
 
-- [ ] Add D01 T03 §3 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §49'` names D01 T03 §3 as met.
+- [x] Add D01 T03 §3 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §49'` names D01 T03 §3 as met. (2026-11-02: resolve names it, unmet empty.)
 - [ ] Add a test in `test/web/report-status.test.ts` that runs the Workflow's own transcribe step (the producer, not hand-set events) on a good, a damaged, an overlong and an unsupported recording, and reads each case through `/r/:caseId` and `/r/:caseId/status` with §38's step and words. Done when: the test passes on the producer's events and fails when the step is not recorded. Cheaper substitute: hand-set events, which is §38's fixture and leaves the producer unproven.
 - [ ] Commit: `test: a real voice note through the report`
 
