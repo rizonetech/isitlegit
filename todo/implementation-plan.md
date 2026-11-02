@@ -446,7 +446,7 @@ Sections: 143 | Checklist items: 754
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
 | [x]    | D08 T02 §7  | Live eval runs                            | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §8  | Component measurements                    | meta-api, cloudflare  | 9     |
-| [ ]    | D08 T02 §9  | Admin eval runs page                      | none                  | 6     |
+| [x]    | D08 T02 §9  | Admin eval runs page                      | none                  | 6     |
 | [ ]    | D08 T02 §10 | Public run history                        | none                  | 3     |
 | [x]    | D08 T02 §11 | Baseline orchestration                    | cloudflare            | 6     |
 | [ ]    | D08 T02 §12 | Eval replay after deploy                  | cloudflare            | 4     |
@@ -570,6 +570,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 305/501 verified sections, 88 ready to run now.
+Progress: 306/501 verified sections, 87 ready to run now.
 
-Checklist: 2449/3153 items completed (includes Commit items).
+Checklist: 2450/3153 items completed (includes Commit items).

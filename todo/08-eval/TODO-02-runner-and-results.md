@@ -39,7 +39,7 @@ track: day-6
 | 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 | 7 | §7 | Live eval runs | §1 | [x] |
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
-| 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [ ] |
+| 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
 | 10 | §10 | Public run history | §4 | [ ] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
@@ -307,9 +307,12 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 - [x] Keep every tile honest: each of the five tiles carries its target's state in words (met, missed, not measured or incomplete) with its figure, threshold, denominator and note from `PublishedReport.targets`; the median-to-reply and 95th percentile tiles read the forward-to-reply target, which is `not measured` until D09 T01 §1 measures it, and the analysis median and p95 are never shown as reply times. Done when: the test seeds a report whose forward-to-reply target is not measured and an incomplete report, and finds no tile reading Target met for either. Cheaper substitute: none (a figure the report does not hold is a false claim).
 - [x] Prove the gate and the states in `test/web/admin-eval-page.test.ts` through the Worker entrypoint: without Access the page is refused; with Access a seeded database renders every run (complete, incomplete and aborted rows included), the five tiles, the ablation rows, the CLI guidance and the two links (the RESULTS.md link pointing at the GitHub blob URL of the published report's commit, on the pattern of `src/web/pages/eval-view.tsx`, with the not-yet-written state shown before any publication because `eval/RESULTS.md` is D08 T02 §5's to write); an empty database renders the placeholder; runs with no published report render their rows without figures; a database failure renders the error page with its retry; a damaged published report never renders a figure. Done when: the checkpoint passes and a mutation of the runs query or the Access mount fails a test. Cheaper substitute: none (the section's checkpoint).
 - [x] Prove the surface in `test/node/admin-eval-page-browser.test.tsx` on the §4 precedent (`test/node/eval-page-browser.test.tsx`): axe clean in both themes at 360 and 1280 px, the wide tables reachable by keyboard with a visible focus ring and no sideways scroll at 200% text, table captions and headers read by name. Done when: the browser test passes on the seeded page. Cheaper substitute: none (a table the operator cannot reach by keyboard is not built).
-- [ ] Commit: `web: admin eval runs page`
+- [x] Commit: `web: admin eval runs page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes, and `pnpm exec vitest run --project browser test/node/admin-eval-page-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-02 | §9 | e96958dce5dc9efbde3d5873c96742e3aca91bb7
+> **Review:** `docs/reviews/d08-t02-s9.json`
 
 ## 10. Public run history
 
