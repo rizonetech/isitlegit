@@ -41,3 +41,37 @@ OVERALL: needs-attention
 
 - Implemented (round 1 P1): the rule no longer classifies an ordinary payment request as suspicious. Suspicion on content now requires handing over sign-in details, signing in through a supplied link or page, paying into new or changed bank details, or following a link or domain the evidence ties to harm. A routine ask the evidence does not tie to harm, such as a payment to the bank details already on file, is expressly protected alongside the missing-evidence clause.
 - Implemented (round 1 P3): the regression test now asserts the substantive phrases in every request body the agent sends, not only the headline in the aggregate. Proven to fail on the v2 wording (1 failed, 11 skipped) and pass on v3 (12 passed).
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-11-02T12:52:26Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: ce29c18a398871b473c634630dbf588c04ec5ef2
+- Lines: 6
+- Digest: bd786b583db7db08
+
+### adversarial: approve
+
+No concrete adversarial defect introduced by this candidate was identified through static review. Live model resistance to hostile prompts was not tested.
+
+HIGHEST: none
+OVERALL: approve
+
+## Round 3: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-11-02T12:53:07Z
+- Effort: low
+- Lenses: adversarial
+- Pin: ce29c18a398871b473c634630dbf588c04ec5ef2
+- Lines: 6
+- Digest: b3c709fd0d45d8c9
+
+### adversarial: approve
+
+No concrete new adversarial defect found in `0fbcc49b..2c2ca6cb`. Static review only; resistance to model-level manipulation was not live-tested.
+
+HIGHEST: none
+OVERALL: approve
