@@ -116,10 +116,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     const bandFrame = preview(p, "state verdict-band/complete-malicious");
     await bandFrame.scrollIntoViewIfNeeded();
     const bandDoc = await (await bandFrame.elementHandle())?.contentFrame();
-    const bandWidth = await bandDoc?.evaluate(
-      () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
-    );
-    expect(bandWidth).toBeGreaterThan(900);
+    await expect
+      .poll(() =>
+        bandDoc?.evaluate(
+          () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
+        ),
+      )
+      .toBeGreaterThan(900);
     const plant = async (label: string, html: string) => {
       const frame = preview(p, label);
       await frame.scrollIntoViewIfNeeded();
@@ -197,7 +200,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     await context.close();
   });
 
-  it("restores a preview that navigated away and bounds a stalled axe download", async () => {
+  it("restores a preview that navigated away", async () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const p = await context.newPage();
     await openGallery(p);
@@ -214,6 +217,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
         { timeout: 30_000 },
       )
       .toContain("/dev/components/state/");
+    await context.close();
+  });
+
+  it("bounds a stalled axe download and leaves the controls ready to retry", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p = await context.newPage();
+    await p.route("**/dev/axe.min.js", async (route) => {
+      await new Promise((done) => setTimeout(done, 30_000));
+      await route.abort().catch(() => {});
+    });
+    await openGallery(p);
+    await p.getByRole("button", { name: "Run accessibility checks" }).click();
+    await expect.poll(() => p.locator("[data-a11y-status]").textContent(), { timeout: 60_000 }).toContain("failed");
+    expect(await p.getByRole("button", { name: "Run accessibility checks" }).isEnabled()).toBe(true);
     await context.close();
   });
 
