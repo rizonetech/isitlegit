@@ -114,13 +114,17 @@ describe("findings outcomes", () => {
           return (sql: string) => {
             const stmt = t.prepare(sql);
             if (!sql.includes("monitor_screens")) return stmt;
-            return new Proxy(stmt, {
-              get(s, prop) {
-                if (prop === "first") return () => Promise.reject(new Error("read failed"));
-                const value = Reflect.get(s, prop);
-                return typeof value === "function" ? value.bind(s) : value;
-              },
-            });
+            const wrap = (s: D1PreparedStatement): unknown =>
+              new Proxy(s, {
+                get(target, prop) {
+                  if (prop === "first") return () => Promise.reject(new Error("read failed"));
+                  if (prop === "bind")
+                    return (...args: unknown[]) => wrap(target.bind(...(args as never[])));
+                  const value = Reflect.get(target, prop);
+                  return typeof value === "function" ? value.bind(target) : value;
+                },
+              });
+            return wrap(stmt);
           };
         const value = Reflect.get(t, key);
         return typeof value === "function" ? value.bind(t) : value;
