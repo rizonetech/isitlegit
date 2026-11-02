@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { app, CHECK_ADDRESS, site } from "../src/lib/links.ts";
+import { app, CHECK_ADDRESS, contact, HELLO_ADDRESS, site } from "../src/lib/links.ts";
 import { claims } from "../src/lib/claims.ts";
 import { DIST, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
 
@@ -45,7 +45,7 @@ describe("500", () => {
   it("depends on nothing: no script, stylesheet link, web font, image or external request", () => {
     assert.doesNotMatch(html, /<script|<link|\ssrc=|url\(|@import|@font-face|<img|<iframe/i);
     const external = hrefs(html).filter((h) => /^[a-z]+:/i.test(h));
-    assert.deepEqual(external, [app.signup], "a link leaves the site other than the sign-up");
+    assert.deepEqual(external, [app.signup, contact], "a link leaves the site other than the sign-up and the help mailto");
   });
 
   it("says what happened, offers Try again and Home, the check@ address, the qualification and its reference", () => {
@@ -58,6 +58,11 @@ describe("500", () => {
     assert.ok(body.includes(`Forward it as an attachment to ${CHECK_ADDRESS}.`));
     assert.ok(body.includes("Sign up first: we answer mail from the address or domain you verify."));
     assert.ok(body.includes("Reference 500-site"));
+  });
+
+  it("offers a person: the help link is the contact mailto and the address is visible to copy", () => {
+    linkTo(html, contact, HELLO_ADDRESS, "500 help");
+    assert.ok(text(html).includes(HELLO_ADDRESS), "the contact address is not visible as selectable text");
   });
 
   it("defines every class it uses in its own inline CSS, so it needs no stylesheet", () => {

@@ -1,0 +1,50 @@
+{
+  "fictional": true,
+  "note": "Synthetic judge demo fixtures for D07 T07 §2. Every address is under .example, every company is fictional (registration year 2099, fictional Protea Bank), and mail carries X-IsItLegit-Synthetic: true. Expected verdicts are what the live pipeline must produce; checkJudges compares them.",
+  "cases": [
+    {
+      "name": "walkthrough-phishing",
+      "file": "walkthrough-phishing.eml",
+      "kind": "mail",
+      "sender": "alerts@karoomutual-online.example",
+      "subject": "Urgent: Confirm your sign-in details to restore access",
+      "expectedVerdict": "malicious",
+      "prerequisite": "The credential page linked in the mail (karoomutual.demo.isitlegit.co.za, a controlled demo subdomain) must serve the controlled phishing page the walkthrough visits (coordinator hosts it, live run)."
+    },
+    {
+      "name": "tampered-invoice",
+      "file": "tampered-invoice.eml",
+      "kind": "mail",
+      "sender": "accounts@capecoldchain.example",
+      "subject": "Invoice INV-2099-041 and updated banking details",
+      "expectedVerdict": "suspicious",
+      "prerequisite": "The supplier's previously registered bank account as the comparison baseline (coordinator, live run)."
+    },
+    {
+      "name": "fynbos-impersonation",
+      "file": "fynbos-impersonation.eml",
+      "kind": "mail",
+      "sender": "accounts@fynbosfreight-payments.example",
+      "subject": "Fynbos Freight: please update our bank account for your next payment",
+      "expectedVerdict": "suspicious",
+      "prerequisite": "Fynbos Freight's protected identity and registered account, seeded by D07 T07 §1, as the impersonation comparison (already live)."
+    },
+    {
+      "name": "genuine-supplier",
+      "file": "genuine-supplier.eml",
+      "kind": "mail",
+      "sender": "accounts@capecoldchain.example",
+      "subject": "Statement for September 2026 and invoice INV-2099-038",
+      "expectedVerdict": "safe",
+      "prerequisite": "None: ordinary supplier mail with no change asked."
+    },
+    {
+      "name": "director-voice-note",
+      "file": "director-voice-note.ogg",
+      "kind": "upload",
+      "uploadName": "director-voice-note.ogg",
+      "expectedVerdict": "suspicious",
+      "prerequisite": "Intelligible synthetic speech asking for an urgent payment (copied from test/fixtures/audio/director-urgent-payment.ogg, a synthetic eval fixture)."
+    }
+  ]
+}

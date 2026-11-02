@@ -199,11 +199,19 @@ export type WalkPage = {
   began: number;
   asksPassword: boolean | null;
   failure: boolean | null;
+  // Text that specifically refuses the credentials (not a generic error or challenge); absent on older records.
+  refusal?: boolean | null;
   withheld?: true;
 };
 // `asksPassword` and `failure` are null when the read was cut short by a bound and found nothing: a "no" from a read
 // that stopped early is not a "no".
-type PageSnapshot = { url: string; asksPassword: boolean | null; failure: boolean | null; echo: boolean };
+type PageSnapshot = {
+  url: string;
+  asksPassword: boolean | null;
+  failure: boolean | null;
+  refusal: boolean | null;
+  echo: boolean;
+};
 export type Submission = {
   seq: number;
   fromPage: number | null;
@@ -233,6 +241,9 @@ const MAX_PAGE_TEXT = 1_000_000;
 const MAX_SPAN_TEXT = 300;
 // A page that answers a sign-in with one of these said no, or asked again.
 const FAILURE_WORDS = /\b(incorrect|invalid|wrong|try again|failed|error|captcha|verify you are human)\b/i;
+// Words that specifically refuse the submitted credentials, as distinct from a generic error or an anti-bot
+// challenge: a 403 corroborated only by these is a credential refusal (D04 T02 §8).
+const REFUSAL_WORDS = /\b(incorrect|invalid|wrong|not confirmed|does not match|not recognised|not recognized)\b/i;
 
 // What the page shows now (D04 T02 §4): its screenshot when asked for, and its visible text; the hidden text found on it
 // is stored as an artefact before the view returns (`hiddenKey`), never handed on.
@@ -818,6 +829,7 @@ export class Driver {
         began,
         asksPassword: consistent ? (after?.asksPassword ?? null) : null,
         failure: consistent ? (after?.failure ?? null) : null,
+        refusal: consistent ? (after?.refusal ?? null) : null,
         ...(withheld ? { withheld: true } : {}),
       });
     else this.walkRecord.omitted.pages++;
@@ -864,6 +876,7 @@ export class Driver {
     const password = this.o.canary.password;
     let asksPassword = false;
     let saysFailure = false;
+    let saysRefusal = false;
     let echo = false;
     // The read was cut short by a bound (too many fields, too much text): nothing is certified clear.
     let uncertified = false;
@@ -903,6 +916,7 @@ export class Driver {
     // A failure phrase split by markup (`Try <strong>again</strong>`) is still the phrase: tested on the texts joined
     // with a space and with none.
     if (failure.test(texts.join(" ")) || failure.test(texts.join(""))) saysFailure = true;
+    if (REFUSAL_WORDS.test(texts.join(" ")) || REFUSAL_WORDS.test(texts.join(""))) saysRefusal = true;
     const page = squash(texts.join(""));
     if (page.includes(squash(password)) || page.includes(squash(encodeURIComponent(password)))) echo = true;
     // A field that is not a password field yet holds the password shows it in clear (a page can change a field's type).
@@ -926,6 +940,7 @@ export class Driver {
       url: result.value,
       asksPassword: asksPassword || !uncertified ? asksPassword : null,
       failure: saysFailure || !uncertified ? saysFailure : null,
+      refusal: saysRefusal || !uncertified ? saysRefusal : null,
       echo: echo || uncertified,
     };
   }

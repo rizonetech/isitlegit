@@ -11,7 +11,7 @@ export const CHECK_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
 export const SYSTEM_CHECKS = ["not_checked"] as const;
 // Producers that add evidence after the checks step (D02 T01 §5), each a family: its items are named `<family>.<name>`
 // (`walkthrough.chain`) and written by `addEvidence`, never by a registered check, so no check may take the family.
-export const LATER_PRODUCERS = ["walkthrough", "agent", "vision"] as const;
+export const LATER_PRODUCERS = ["walkthrough", "agent", "vision", "invoice"] as const;
 export type LaterProducer = (typeof LATER_PRODUCERS)[number];
 export const familyOf = (name: string) => name.split(".")[0] ?? name;
 // A check's largest budget: the runner's checks all run inside one attempt of the Workflow's `checks` step, at most 30
