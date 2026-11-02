@@ -548,6 +548,10 @@ Icon button labels: yes (2026-10-30)
 
 ## 14. One-press copy on a phone
 
+> **Started:** 2026-11-02T19:36:19Z
+
+**Validated 2026-11-02:** the placement this section builds already exists: `FirstRun` in `src/web/pages/cases-view.tsx` (D07 T04 §1) carries the `data-copy-group` with the dark Copy address button inside the first-run `EmptyState`. What is missing is this section's proof: one press at 360 px on that page, without opening Menu, in both themes. The build is that test, plus any fix it exposes.
+
 On a phone the check address and its copy button sit in the sidebar behind Menu, so copying takes two presses where the desktop takes one (D07 T01 §9 completion review, 2026-10-30). Bringing the copy onto the phone page itself changes the approved phone shell (`Report-Mobile`, P1), so it is a design amendment the operator approves first.
 
 **Phase:** 7
