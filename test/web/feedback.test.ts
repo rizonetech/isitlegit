@@ -205,6 +205,32 @@ describe("posting feedback", () => {
     expect(await rows(id)).toEqual([]);
   });
 
+  // D07 T09 §3: the reply mail's signed dispute link, followed from the mailbox to the stored dispute.
+  it("stores a dispute sent from the reply mail's dispute link, once, with one operator notice", async () => {
+    const orgId = await org("Mailbox Co");
+    const mine = await member(orgId);
+    const id = await finished(orgId);
+    const mail = stubSmtp2go();
+    // The address the reply mail carries (src/mail/templates/reply.ts): the signed report link, with the intent.
+    const signed = await signReportLink(SECRET, id, orgId);
+    const dispute = `${signed}${signed.includes("?") ? "&" : "?"}dispute=1`;
+    const path = new URL(dispute, "http://localhost").pathname + new URL(dispute, "http://localhost").search;
+    // Opening it, signed out or signed in, saves nothing: a mail scanner following the link disputes nothing.
+    await call(path);
+    await call(path, { headers: { cookie: mine.cookie } });
+    expect(await rows(id)).toEqual([]);
+    // Signed in, the report opens with the dispute line the board draws for a member who came from the email.
+    const page = await (await call(`/r/${id}?dispute=1`, { headers: { cookie: mine.cookie } })).text();
+    expect(page).toContain("You came here from the email to say this verdict is wrong.");
+    // The one press, with the member's own session: stored once, and the operator is told once.
+    expect((await post(id, { kind: "false_alarm" }, mine.cookie)).status).toBe(200);
+    await sendPendingFeedbackNotices(authEnv as Env);
+    await sendPendingFeedbackNotices(authEnv as Env);
+    expect(await rows(id)).toHaveLength(1);
+    const told = mail.sends.filter((s) => s.text.includes("Organisation: Mailbox Co"));
+    expect(told).toHaveLength(1);
+  });
+
   it("answers a membership read that fails with 503, writing nothing", async () => {
     const orgId = await org();
     const { cookie } = await member(orgId);
