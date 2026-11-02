@@ -672,8 +672,10 @@ export function readReviewQueue(store: Store): QueueEntry[] {
   let raw: string;
   try {
     raw = readFileSync(queueFile(store), "utf-8");
-  } catch {
-    return [];
+  } catch (error) {
+    // Only a missing queue is an empty queue; an unreadable one refuses, never reads as no disputes.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw new Error(`the review queue ${queueFile(store)} cannot be read (${(error as Error).message})`);
   }
   return raw
     .split("\n")
@@ -688,9 +690,23 @@ export function readReviewQueue(store: Store): QueueEntry[] {
       }
     });
 }
+// Durable append: the dispute is on disk, file and directory flushed, before the label it guards is committed.
 const appendQueue = (store: Store, entry: QueueEntry) => {
   mkdirSync(store.dir, { recursive: true });
-  appendFileSync(queueFile(store), `${JSON.stringify(entry)}\n`);
+  const file = queueFile(store);
+  const fd = openSync(file, "a");
+  try {
+    writeSync(fd, `${JSON.stringify(entry)}\n`);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  const folder = openSync(store.dir, "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
 };
 const rewriteQueue = (store: Store, entries: QueueEntry[]) => {
   const file = queueFile(store);

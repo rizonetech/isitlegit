@@ -56,7 +56,15 @@ import {
 import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
 import type { EntityConfig } from "./redact.ts";
 import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
-import { freezeFile, hasRecipientIdentifiers, openStore, readAdmission, type StoredPage, storeDir } from "./store.ts";
+import {
+  freezeFile,
+  hasRecipientIdentifiers,
+  openStore,
+  productionCounts,
+  readAdmission,
+  type StoredPage,
+  storeDir,
+} from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, receiptProblem, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -1632,7 +1640,7 @@ export async function buildDataset(options: {
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
       brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
     });
-    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, production: productionCounts(store), floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
     write(join(staging, "summary.json"), summary);
     // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
     // in them are the figures of the files that were just read back.

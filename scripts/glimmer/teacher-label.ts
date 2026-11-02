@@ -856,10 +856,12 @@ export function teacherArgs(
 ):
   | { command: "check" }
   | { command: "production" }
+  | { command: "judge"; file: string }
   | { command: "run"; max: number; retryFailed: boolean }
   | { error: string } {
   if (argv.length === 1 && argv[0] === "check") return { command: "check" };
   if (argv.length === 1 && argv[0] === "production") return { command: "production" };
+  if (argv.length === 2 && argv[0] === "judge" && argv[1]) return { command: "judge", file: argv[1] };
   let max = 500;
   let retryFailed = false;
   for (let i = 0; i < argv.length; i++) {
@@ -876,7 +878,9 @@ export function teacherArgs(
 const cli = import.meta.filename === process.argv[1] ? teacherArgs(process.argv.slice(2)) : null;
 if (cli && "error" in cli) {
   console.error(`teacher-label: ${cli.error}`);
-  console.error("usage: node scripts/glimmer/teacher-label.ts check | production | [--max <n>] [--retry-failed]");
+  console.error(
+    "usage: node scripts/glimmer/teacher-label.ts check | production | judge <judgements.jsonl> | [--max <n>] [--retry-failed]",
+  );
   process.exit(2);
 }
 
@@ -936,6 +940,18 @@ if (cli?.command === "production") {
   } finally {
     release();
   }
+}
+
+if (cli?.command === "judge") {
+  // The offline judging import (D03 T04 §46): Astra and Wonder judge the queue outside this repository and hand
+  // back one JSON object a line ({id, screenshot, text, answer, source}); each is validated and hash-checked here.
+  const { applyJudgements } = await import("./store.ts");
+  const { readFileSync } = await import("node:fs");
+  const lines = readFileSync(cli.file, "utf-8").split("\n").filter(Boolean);
+  const judgements = lines.map((line) => JSON.parse(line));
+  const outcomes = applyJudgements(openStore(storeDir()), judgements);
+  console.log(JSON.stringify(outcomes));
+  process.exit(outcomes.every((outcome) => outcome.accepted) ? 0 : 1);
 }
 
 if (cli?.command === "run") {
