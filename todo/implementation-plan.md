@@ -279,7 +279,7 @@ Sections: 15 | Checklist items: 142
 | [x]    | D06 T01 §1  | Invoice detection and Muse Spark field extraction  | meta-api | 14    |
 | [x]    | D06 T01 §2  | Supplier ledger model and queries                  | none     | 11    |
 | [x]    | D06 T02 §1  | PDF forensics                                      | none     | 14    |
-| [ ]    | D06 T02 §2  | POP and bank letter extraction, layout comparison  | meta-api | 10    |
+| [x]    | D06 T02 §2  | POP and bank letter extraction, layout comparison  | meta-api | 10    |
 | [ ]    | D06 T02 §4  | Muse Image doctored document pairs                 | meta-api | 4     |
 | [x]    | D07 T08 §8  | A plan tier sets its organisation's daily case cap | none     | 8     |
 | [x]    | D05 T02 §1  | Counterparty intake path with rate limits          | none     | 5     |
@@ -598,6 +598,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 318/522 verified sections, 132 ready to run now.
+Progress: 319/522 verified sections, 134 ready to run now.
 
-Checklist: 2545/3289 items completed (includes Commit items).
+Checklist: 2546/3289 items completed (includes Commit items).

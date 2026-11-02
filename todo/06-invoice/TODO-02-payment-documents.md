@@ -33,7 +33,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
-| 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [ ] |
+| 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [x] |
 | 3 | §3 | Standalone document path with the fixed | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
@@ -104,9 +104,12 @@ Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank
 - [x] State extraction failures as evidence, never as a clean result (plan review gap 4): a refused, invalid, budget-exhausted, provider-failed or unreadable document writes a `document.not_checked` draft with `checked: false` and the reason kind, which §3's verdict path reads as a partial report; a retry that succeeds replaces it. Done when: the stubbed test drives each failure kind and reads the draft back.
 - [x] Shape the drafts for their report owner (plan review gap 5): the card owner for extracted document fields and layout findings is D07 T03 §15 (not §30, which holds only the five forensic cards); each draft's detail carries the attachment key, the document type, masked beneficiary (`***<last3>`), the layout differences and the limit wording, so §15's cards read only the draft. Done when: the test asserts each draft's detail keys and that no full account number appears.
 - [x] Prove the contrasts (plan review gap 6): genuine versus changed documents, ledger match versus no-match, PDF and image requests, no-reference suppression, each failure kind, the untrusted-text boundary (document text only inside its untrusted block), and layout wording that keeps its limit and never claims an edit. Done when: removing or inverting any of those behaviours fails `test/invoice/payment-doc.test.ts`.
-- [ ] Commit: `invoice: payment document extraction and layout comparison`
+- [x] Commit: `invoice: payment document extraction and layout comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/payment-doc.test.ts` passes.
+
+> **Verified:** 2026-11-02 | §2 | 51ff256a594ddaa085e380d7534defee155a4f72
+> **Review:** `docs/reviews/d06-t02-s2.json`
 
 ## 3. Standalone document path with the fixed
 
