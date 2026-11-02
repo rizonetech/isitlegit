@@ -498,5 +498,114 @@ class Import(Fixture):
         self.assertFalse((self.dest / "Board.dc.html").exists())
 
 
+@unittest.skipUnless(chromium(), "needs headless Chromium")
+class Diff(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.approved_src = self.root / "approved" / "source"
+        self.approved_src.mkdir(parents=True)
+        self.diff_out = self.root / "diff"
+        self.tokens = self.root / "colors.json"
+        self.tokens.write_text(json.dumps({"roles": {"ink": "body text"}}))
+        self.todo = self.root / "todo" / "07-app"
+        self.todo.mkdir(parents=True)
+        (self.todo / "TODO-01-fixture.md").write_text(
+            "# TODO-01\n\n## 1. Fixture\n\n**Fidelity:** boards `Board`, values from `ui.css`\n")
+        ui = ":root{--ink:#181519}\nbody{color:#181519;font-family:'Exo 2',sans-serif} button,input,select,textarea{font-family:inherit}"
+        for name in ("Part.dc.html", "Board.dc.html", "pic.svg"):
+            shutil.copy2(self.src / name, self.approved_src / name)
+        (self.approved_src / "ui.css").write_text(ui)
+        shutil.copy2(self.src / "canvas.json", self.approved_src / "canvas.json")
+        run = self.run_tool("export", "--source", str(self.approved_src), "--out", str(self.out),
+                            "--png", str(self.png), "--asset-root", str(self.approved_src))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        canvas = json.loads((self.approved_src / "canvas.json").read_text())
+        boards = {}
+        for fname, rec in canvas["boards"].items():
+            data = (self.approved_src / fname).read_bytes()
+            boards[fname[:-8]] = {"title": rec.get("title", ""), "w": rec["w"], "h": rec["h"],
+                                  "sha256": hashlib.sha256(data).hexdigest()}
+        approved = {"approved": "2026-10-26",
+                    "ui_css_sha256": hashlib.sha256((self.approved_src / "ui.css").read_bytes()).hexdigest(),
+                    "boards": boards}
+        (self.root / "approved" / "approved.json").write_text(json.dumps(approved))
+        self.candidate = self.root / "candidate"
+        shutil.copytree(self.approved_src, self.candidate)
+
+    def diff(self, *extra):
+        return self.run_tool("diff", str(self.candidate), "--source", str(self.approved_src), "--png", str(self.png),
+                             "--out", str(self.diff_out), "--tokens", str(self.tokens), "--todo", str(self.root / "todo"),
+                             "--asset-root", str(self.candidate), *extra)
+
+    def summary(self):
+        return (self.diff_out / "summary.md").read_text()
+
+    def test_unchanged_canvas_lists_nothing(self):
+        run = self.diff()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("(none)", self.summary())
+        self.assertEqual([p.name for p in self.diff_out.iterdir()], ["summary.md"])
+
+    def test_a_changed_part_lists_every_importer(self):
+        (self.candidate / "Part.dc.html").write_text(PART.replace("One", "Uno"))
+        run = self.diff()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        text = self.summary()
+        self.assertIn("| Board |", text)
+        self.assertIn("D07 T01 §1", text)
+        self.assertTrue((self.diff_out / "Board.before.png").exists())
+        self.assertTrue((self.diff_out / "Board.after.png").exists())
+        self.assertTrue((self.diff_out / "Board.diff.png").exists())
+        from PIL import Image
+        before = Image.open(self.diff_out / "Board.before.png").convert("RGB")
+        after = Image.open(self.diff_out / "Board.after.png").convert("RGB")
+        diff = Image.open(self.diff_out / "Board.diff.png").convert("RGB")
+        changed = sum(1 for a, b in zip(before.getdata(), after.getdata()) if a != b)
+        share = f"{changed / (before.width * before.height) * 100:.1f}%"
+        self.assertIn(share, text)
+        self.assertGreater(changed, 0)
+        magenta = [p for p in diff.getdata() if p == (255, 0, 255)]
+        self.assertEqual(len(magenta), changed)
+
+    def test_a_token_change_affects_every_board_and_is_named(self):
+        (self.candidate / "ui.css").write_text(
+            ":root{--ink:#000000}\nbody{color:#000000;font-family:'Exo 2',sans-serif} button,input,select,textarea{font-family:inherit}")
+        run = self.diff()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("Tokens changed: ink", self.summary())
+        self.assertIn("| Board |", self.summary())
+        self.assertIn("| Part |", self.summary())
+
+    def test_new_removed_and_resized_boards(self):
+        (self.candidate / "Extra.dc.html").write_text(BOARD.replace("<title>Board</title>", "<title>Extra</title>"))
+        canvas = json.loads((self.candidate / "canvas.json").read_text())
+        canvas["boards"]["Extra.dc.html"] = {"w": 400, "h": 300, "title": "Extra"}
+        del canvas["boards"]["Part.dc.html"]
+        canvas["boards"]["Board.dc.html"] = {"w": 401, "h": 300, "title": "Board"}
+        (self.candidate / "canvas.json").write_text(json.dumps(canvas))
+        run = self.diff()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        text = self.summary()
+        self.assertIn("new board", text)
+        self.assertIn("removed board", text)
+        self.assertTrue((self.diff_out / "Extra.after.png").exists())
+        self.assertTrue((self.diff_out / "Part.before.png").exists())
+
+    def test_a_stale_baseline_is_refused(self):
+        (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))
+        run = self.diff()
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("approved baseline", run.stderr)
+
+    def test_a_failed_diff_keeps_the_previous_one(self):
+        (self.candidate / "Part.dc.html").write_text(PART.replace("One", "Uno"))
+        self.assertEqual(self.diff().returncode, 0)
+        before = self.summary()
+        (self.candidate / "Board.dc.html").write_text(BOARD.replace('name="Part" active="two"', 'name="Missing"'))
+        run = self.diff()
+        self.assertEqual(run.returncode, 1)
+        self.assertEqual(self.summary(), before)
+
+
 if __name__ == "__main__":
     unittest.main()
