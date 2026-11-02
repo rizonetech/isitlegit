@@ -738,11 +738,15 @@ const placeWords = (location: string | null) =>
         ? "In the message's plain-text version"
         : location === "body"
           ? "Part of the message body"
-          : location?.startsWith("attachment-hidden:")
-            ? `In text hidden inside the attachment ${location.slice(18)}`
-            : location?.startsWith("attachment:")
-              ? `In the attachment ${location.slice(11)}`
-              : null;
+          : location === "subject"
+            ? "In the subject"
+            : location === "subject-hidden"
+              ? "In text hidden in the subject"
+              : location?.startsWith("attachment-hidden:")
+                ? `In text hidden inside the attachment ${location.slice(18)}`
+                : location?.startsWith("attachment:")
+                  ? `In the attachment ${location.slice(11)}`
+                  : null;
 // Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
 // or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
 // runs not listed one by one. The producer stores the run's opening (the detail bounds clip a quote past 255 characters
