@@ -75,12 +75,18 @@ uploadRoutes.post("/", async (c) => {
     typeof file === "string" ||
     !file
   )
-    return problem(400, "Send exactly one file, in a field named file, and nothing else.");
+    return problem(
+      400,
+      "Send exactly one file in a field named file, and at most one replayRunId field, and nothing else.",
+    );
   // A replay run id (D01 T01 §22): at most one textual field, a bounded identifier; anything else is refused
   // before anything is admitted, so an invalid request creates no claim, case, object or Workflow.
   const replayValue = replays[0]?.[1];
   if (replays.length === 1 && (typeof replayValue !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(replayValue)))
-    return problem(400, "The replay run id is not a valid identifier.");
+    return problem(
+      400,
+      "The replay run id is not valid: use 1 to 64 characters of letters, digits, - and _.",
+    );
   const replayRunId = typeof replayValue === "string" ? replayValue : null;
   if (file.size > MAX_UPLOAD_BYTES) return tooLarge();
   // What the file claims to be is kept for the type-mismatch check (D02 T04 §4), whole: a name cut short could lose the

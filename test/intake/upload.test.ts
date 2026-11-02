@@ -788,6 +788,22 @@ describe("an upload whose browser leaves", () => {
     expect(await plainRepeat.json()).toEqual({ caseId: plainCase, repeat: true });
   });
 
+  it("expires a replay claim like an ordinary one, then admits the run again (D01 T01 §22)", async () => {
+    const { cookie, orgId } = await member();
+    const evalEnv = { ...(env as unknown as Env), EVAL_ORG_ID: orgId } as Env;
+    const first = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], evalEnv);
+    const one = ((await first.json()) as { caseId: string }).caseId;
+    await db
+      .prepare("UPDATE intake_messages SET claimed_at = ? WHERE org_id = ?")
+      .bind(new Date(Date.now() - 25 * 60 * 60_000).toISOString(), orgId)
+      .run();
+    await sweepIntake(env as unknown as Parameters<typeof sweepIntake>[0]);
+    expect(await claimsOf(orgId)).toHaveLength(0);
+    const again = await upload(cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], evalEnv);
+    expect(again.status).toBe(201);
+    expect(((await again.json()) as { caseId: string }).caseId).not.toBe(one);
+  });
+
   it("keeps replay claims inside their own organisation (D01 T01 §22)", async () => {
     const a = await member();
     const b = await member();
