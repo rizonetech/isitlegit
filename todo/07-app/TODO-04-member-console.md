@@ -503,6 +503,10 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 **Phase:** 7
 **Operator decision 2026-11-02:** Approve the provider help entry; written steps for Cloudflare, Hetzner, xneelo and Afrihost first, generic TXT instructions for every other provider.
 
+> **Started:** 2026-11-02T21:20:00Z
+
+**Corrected 2026-11-02 (validation before build):** the help lives in the DNS card (`DnsCard` in `src/web/pages/domains-view.tsx`) as native disclosures, one per provider, so it opens in one action with no JavaScript and works by keyboard. Each provider's Name is derived from the claim: `_isitlegit` where the provider wants the sub-domain part only (Cloudflare, Hetzner, xneelo), the whole record name where it wants that (Afrihost), and both forms named in the generic steps. Steps were checked against each provider's own help (xneelo's Manage DNS and its quoted Destination, Afrihost's ClientZone DNS Editor, Cloudflare's and Hetzner's record forms) on 2026-11-02. Every provider's steps end with the same propagation troubleshooting: wait, check the name was not doubled, check the value has no pasted quotes where the provider adds its own.
+
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A5 Verify a domain, once the operator approves a board change adding the help entry
