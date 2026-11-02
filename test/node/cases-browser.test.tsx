@@ -282,8 +282,9 @@ const expected = (org: keyof typeof ORGS, f: Partial<CaseFilters>) =>
     q: "",
     from: "",
     to: "",
+    checker: "",
     ...f,
-  }).cases.map((c) => c.id);
+  } as CaseFilters).cases.map((c) => c.id);
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium", { timeout: 120_000 }, () => {
   it("redraws the results on a filter change, pushes the address, and Back reloads the earlier list", async () => {
