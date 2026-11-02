@@ -259,11 +259,11 @@ Sections: 66 | Checklist items: 303
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 17 | Checklist items: 121
+Sections: 17 | Checklist items: 126
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
-| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 7     |
+| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 12    |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
@@ -553,4 +553,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 285/482 verified sections, 92 ready to run now.
 
-Checklist: 2325/3046 items completed (includes Commit items).
+Checklist: 2325/3051 items completed (includes Commit items).
