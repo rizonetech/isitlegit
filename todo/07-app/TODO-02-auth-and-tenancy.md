@@ -61,6 +61,7 @@ track: day-1
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
 | 25 | §25 | Same-device other-browser | §12 | [ ] |
 | 26 | §26 | Export and fresh sign-in before closure | §9 | [ ] |
+| 27 | §27 | Close account control on the Account board | §9 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -945,6 +946,29 @@ Closing an organisation is irreversible, and two things a member may want first 
 - [ ] Commit: `app: export and fresh sign-in before closure`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts` passes with the export and step-up cases, and the browser journey passes.
+
+## 27. Close account control on the Account board
+
+The Close account control is built on the Account page and named in `design/SPEC.md` M9, but it is not drawn on the Account board (`design/mockups/source/Account.dc.html`), which the Fidelity contract requires before the surface is final (D07 T02 §9 completion and round reviews, 2026-11-02; a Deviation is recorded in M9 meanwhile). Drawing on a board needs the operator's approval of the drawn change.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (Account), board `Account`
+**Job:** the board the build is checked against shows the control the page has
+**Treatment:** the drawn Close account control and its confirmation on the Account board, matching the built page
+**Chrome:** the Account board (D07 T08 §3's page)
+
+**Build order:**
+
+1. Draw the control with the operator's approval. Done when: the approved drawing is on the board and re-exported.
+
+- [ ] Draw the Close account control and its confirmation state on `design/mockups/source/Account.dc.html`, matching the built Account page (owner only, the organisation named, the 30-day deletion). Done when: the operator has approved the drawn change and `design/tools/export-mockups.py import --approve` has taken it. Cheaper substitute: leaving the board without the control the page ships.
+- [ ] Re-export the Account board and remove the Deviation from `design/SPEC.md` M9. Done when: `python3 design/tools/check-design.py` passes and the page matches the board in the gallery.
+- [ ] Prove it in `test/node/gallery.test.tsx`: the Account board's fingerprint is current and the gallery's Account frame shows the control. Done when: the test passes.
+- [ ] Commit: `design: close account control on the Account board`
+
+**Test checkpoint:** `python3 design/tools/check-design.py` passes and `pnpm exec vitest run test/node/gallery.test.tsx` passes.
 
 ## Verification
 
