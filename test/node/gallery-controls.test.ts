@@ -89,17 +89,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     const frame = preview(p, "state button/primary");
     await frame.scrollIntoViewIfNeeded();
     const doc = await (await frame.elementHandle())?.contentFrame();
+    await expect
+      .poll(() => doc?.evaluate(() => document.location.pathname + ":" + document.readyState).catch(() => ""))
+      .toBe("/dev/components/state/state-button-primary:complete");
     await doc?.evaluate(() => {
       const b = document.createElement("button");
       b.innerHTML = '<svg aria-hidden="true" width="20" height="20"></svg>';
       document.querySelector("main")?.appendChild(b);
     });
-    await p.getByRole("button", { name: "Run accessibility checks" }).click();
+    await p
+      .locator('section[data-a11y-label="state button/primary"]')
+      .getByRole("button", { name: "Scan this preview" })
+      .click();
     const box = p.locator('section[data-a11y-label="state button/primary"] [data-a11y-results]');
     await expect.poll(() => box.getAttribute("data-a11y-state"), { timeout: 120_000 }).toBe("findings");
     expect(await box.textContent()).toContain("button-name");
     await box.getByRole("button", { name: "Highlight" }).first().click();
-    const highlighted = await doc?.evaluate(() => document.querySelector("[data-gallery-highlight]")?.tagName ?? "");
+    const highlighted = await doc?.evaluate(() => document.querySelector("[data-gallery-mark]")?.tagName ?? "");
     expect(highlighted).toBe("BUTTON");
     // Changing a setting invalidates the findings.
     await p.getByRole("button", { name: "Light", exact: true }).click();
@@ -116,17 +122,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     const bandFrame = preview(p, "state verdict-band/complete-malicious");
     await bandFrame.scrollIntoViewIfNeeded();
     const bandDoc = await (await bandFrame.elementHandle())?.contentFrame();
+    await bandDoc?.locator("section[aria-label='Verdict']").waitFor({ timeout: 30_000 });
     await expect
-      .poll(() =>
-        bandDoc?.evaluate(
-          () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
-        ),
+      .poll(
+        () =>
+          bandDoc?.evaluate(
+            () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
+          ),
+        { timeout: 30_000 },
       )
       .toBeGreaterThan(900);
     const plant = async (label: string, html: string) => {
       const frame = preview(p, label);
       await frame.scrollIntoViewIfNeeded();
       const doc = await (await frame.elementHandle())?.contentFrame();
+      await expect.poll(() => doc?.evaluate(() => document.readyState).catch(() => "")).toBe("complete");
       await doc?.evaluate((h) => {
         const div = document.createElement("div");
         div.innerHTML = h;
@@ -146,7 +156,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
       "state button/dark",
       '<p style="background-image: linear-gradient(90deg, var(--color-ink), var(--color-surface)); color: var(--color-ink)">Gradient text</p>',
     );
-    await p.getByRole("button", { name: "Run accessibility checks" }).click();
+    for (const label of ["state button/primary", "frame member-cases", "state button/dark"])
+      await p.locator(`section[data-a11y-label="${label}"]`).getByRole("button", { name: "Scan this preview" }).click();
     for (const label of ["state button/primary", "frame member-cases"]) {
       const box = p.locator(`section[data-a11y-label="${label}"] [data-a11y-results]`);
       await expect.poll(() => box.getAttribute("data-a11y-state"), { timeout: 120_000 }).toBe("findings");
@@ -173,6 +184,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     const frame = preview(p, "state button/primary");
     await frame.scrollIntoViewIfNeeded();
     const doc = await (await frame.elementHandle())?.contentFrame();
+    await expect
+      .poll(() => doc?.evaluate(() => document.location.pathname + ":" + document.readyState).catch(() => ""))
+      .toBe("/dev/components/state/state-button-primary:complete");
     await doc?.evaluate(() => {
       const b = document.createElement("button");
       b.innerHTML = '<svg aria-hidden="true" width="20" height="20"></svg>';
