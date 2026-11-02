@@ -224,6 +224,7 @@ export function OrgDetailPage(props: OrgDetailProps) {
   return (
     <Document title={`${props.header.name} · IsItLegit admin`}>
       <AppShell variant="admin" active="orgs" feedbackOpen={props.shell.feedbackOpen} operator={props.shell.operator}>
+        <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
         <nav aria-label="Breadcrumb">
           <a href="/admin" class={cx("small text-orange-text underline", FOCUS)}>
             Organisations
@@ -306,6 +307,7 @@ export function OrgDetailPage(props: OrgDetailProps) {
           </section>
         </div>
         <p class="tiny muted">Sample data on fictional companies.</p>
+        </div>
       </AppShell>
     </Document>
   );

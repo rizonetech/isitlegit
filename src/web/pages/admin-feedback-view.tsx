@@ -75,7 +75,7 @@ function Tabs(props: { tabs: Record<Triage, number>; tab: Triage }) {
           aria-current={props.tab === t.key ? "page" : undefined}
           class={cx(
             "btn btn-sm no-underline",
-            props.tab === t.key ? "bg-ink text-surface" : "bg-surface text-ink",
+            props.tab === t.key ? "bg-dark text-on-dark" : "bg-surface text-ink",
             FOCUS,
           )}
         >
@@ -230,6 +230,7 @@ export function FeedbackQueuePage(props: FeedbackQueueProps) {
         feedbackOpen={props.shell.feedbackOpen}
         operator={props.shell.operator}
       >
+        <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
         <div class="flex justify-between items-center gap-16 flex-wrap">
           <div>
             <h1 class="type-h1">Feedback</h1>
@@ -265,6 +266,7 @@ export function FeedbackQueuePage(props: FeedbackQueueProps) {
           </nav>
         )}
         <p class="tiny muted">Sample data on fictional companies.</p>
+        </div>
       </AppShell>
     </Document>
   );
