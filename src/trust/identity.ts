@@ -133,7 +133,8 @@ export function eventStatement(
     | "identity.logo_orphaned"
     | "bank.added"
     | "bank.removed"
-    | "bank.matched",
+    | "bank.matched"
+    | "bank.rekeyed",
   detail: Record<string, unknown>,
   at: string,
   ifChanged = false,
