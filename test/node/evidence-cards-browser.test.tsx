@@ -402,6 +402,43 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       await context.close();
     });
 
+  // D07 T09 §7: the refusal and reuse cards at phone width.
+  it("draws the walkthrough refusal and reuse cards at 360 px with no overflow or accessibility violations", async () => {
+    const cards: ReportEvidence[] = [
+      {
+        id: "E1",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
+        detail: { reason: "budget", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "A form sends credentials elsewhere.",
+        detail: {
+          url: "https://lure.example/in",
+          domain: "collect.example",
+          method: "POST",
+          fields: ["password"],
+          state: "delivered",
+          outcome: "accepted",
+          reused: { at: "2026-11-01T08:30:00.000Z" },
+        },
+        artefacts: [],
+      },
+    ];
+    const { p, context } = await open(360, "light", "", cards);
+    await expect.poll(() => p.getByText("The walkthrough could not run").isVisible()).toBe(true);
+    await expect.poll(() => p.getByText(/From an earlier walk of the same page/).isVisible()).toBe(true);
+    expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    await p.addScriptTag({ path: AXE });
+    expect(problems(await scan(p))).toEqual([]);
+    await context.close();
+  });
+
   // D07 T03 §12: the review link by keyboard, a long listed address wrapping, both themes at phone width.
   for (const theme of ["light", "dark"] as const)
     it(`draws the reputation cards and reaches the review link by keyboard (${theme}, 360 px)`, async () => {
@@ -728,6 +765,126 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       });
       return { gate, go };
     };
+
+    // D07 T09 §8: a preview transfer that stalls is given up after its deadline, on every attempt.
+    it("gives up a stalled preview transfer after its deadline, twice, then Try again loads it", async () => {
+      shotMode = "png";
+      const { p, context } = await open(1280, "light", "", cards);
+      try {
+        await expect.poll(() => loaded(p)).toEqual([true, true]);
+        await p.evaluate(() => {
+          for (const opener of document.querySelectorAll("#e1 a[data-evidence-open]"))
+            opener.setAttribute("data-deadline-ms", "300");
+        });
+        const stall = async () => {
+          const slow = release();
+          holdShot = slow.gate;
+          await p.evaluate(() => {
+            const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+            img.setAttribute("src", `${img.getAttribute("src")}&stall=${Date.now()}`);
+            // A reader looking at the card: the transfer is under way in view.
+            img.scrollIntoView();
+          });
+          const note = p.locator("#e1 [data-evidence-failed]");
+          await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 10_000 }).toBe("temporary");
+          expect(await note.getByRole("button", { name: "Try again" }).count()).toBe(1);
+          return slow;
+        };
+        // The first failure is announced through the figure's live status.
+        const first = await stall();
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("This screenshot could not be loaded.");
+        // The abandoned answer arriving after the deadline changes nothing: the failure state stands.
+        holdShot = null;
+        first.go();
+        await p.waitForTimeout(700);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(1);
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("This screenshot could not be loaded.");
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
+        await expect
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        // A second stall is given up by its own fresh deadline, then Try again loads it.
+        const second = await stall();
+        holdShot = null;
+        second.go();
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
+        await expect
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        // A preview that loaded stays loaded past any old deadline.
+        await p.waitForTimeout(700);
+        expect(
+          await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+        ).toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
+
+    // D07 T09 §8: a lazy preview the browser has not begun loading is never timed out.
+    it("does not time out a preview still waiting in a closed disclosure, then loads it when opened", async () => {
+      shotMode = "png";
+      const dormant: ReportEvidence[] = [
+        ...cards,
+        {
+          id: "E3",
+          check: "walkthrough.credential_target",
+          severity: "critical",
+          summary: "The test credentials would go to a site that is not NimbusMail's.",
+          detail: {
+            url: `https://${LONG}/post`,
+            domain: LONG,
+            method: "POST",
+            fields: ["username", "password"],
+            state: "delivered",
+            outcome: "accepted",
+            brand: "NimbusMail",
+            brandEvidence: "E4",
+          },
+          artefacts: [WALK_SHOT],
+        },
+      ];
+      const { p, context } = await open(360, "light", "", dormant);
+      try {
+        // E3 is uncited, so a phone keeps it in the closed "more findings" disclosure, its preview not begun.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = false;
+          document.querySelector("#e3 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
+          const img = document.querySelector("#e3 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&dormant=1`);
+        });
+        await p.waitForTimeout(900);
+        expect(await p.locator("#e3 [data-evidence-failed]").count()).toBe(0);
+        // Opening the disclosure and reaching the preview starts it, and it loads.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = true;
+          document.querySelector("#e3 img[data-evidence-image]")?.scrollIntoView();
+        });
+        await expect
+          .poll(() =>
+            p.locator("#e3 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e3 [data-evidence-failed]").count()).toBe(0);
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
 
     it("repairs an image that failed before the app script ran, when the script arrives late", async () => {
       shotMode = "404";

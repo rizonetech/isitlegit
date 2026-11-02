@@ -59,9 +59,17 @@ export async function memberOfSender(
   return byDomain ? { orgId: byDomain.org_id, by: "domain" } : null;
 }
 
-// The organisation alone, for the allowlist and the claim routes.
-export const findMemberBySender = async (db: D1Database, sender: string) =>
-  (await memberOfSender(db, sender))?.orgId ?? null;
+// The organisation alone, for the allowlist and the claim routes. A closed organisation's senders resolve to no
+// member (D07 T02 §9): forwarded mail for it takes the ordinary not-a-member answer, never a new case.
+export const findMemberBySender = async (db: D1Database, sender: string) => {
+  const orgId = (await memberOfSender(db, sender))?.orgId ?? null;
+  if (!orgId) return null;
+  const closed = await db
+    .prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
+    .bind(orgId)
+    .first<{ closedAt: string | null }>();
+  return closed?.closedAt ? null : orgId;
+};
 
 // What an organisation accepts mail from, for the Cases list's first-run line (D07 T04 §1): its verified domains and
 // its verified addresses, each sorted.

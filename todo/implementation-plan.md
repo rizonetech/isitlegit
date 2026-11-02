@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 183 | Checklist items: 768
+Sections: 189 | Checklist items: 804
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -494,12 +494,12 @@ Sections: 183 | Checklist items: 768
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction         | meta-api             | 3     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
-| [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 3     |
+| [x]    | D07 T01 §4  | Design change comparison                         | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
-| [ ]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
-| [ ]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 3     |
+| [x]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
+| [x]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 8     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
@@ -544,6 +544,7 @@ Sections: 183 | Checklist items: 768
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page              | none                 | 5     |
+| [ ]    | D07 T04 §30 | Phone forwarding guidance on the Cases page      | none                 | 4     |
 | [ ]    | D07 T05 §3  | Service health tiles on                          | none                 | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                         | none                 | 4     |
@@ -568,16 +569,21 @@ Sections: 183 | Checklist items: 768
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page        | operator             | 4     |
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
-| [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 3     |
-| [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 3     |
+| [x]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 4     |
+| [x]    | D07 T09 §4  | Measured phone attribution                       | none                 | 4     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
-| [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 4     |
-| [ ]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 2     |
+| [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
+| [x]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 3     |
 | [ ]    | D07 T09 §9  | Complete decoded run on the card                 | none                 | 5     |
 | [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
-| [ ]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
-| [ ]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
+| [x]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
+| [x]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
+| [ ]    | D07 T09 §13 | A fresh walk from a reused card                  | none                 | 4     |
+| [ ]    | D07 T09 §14 | Abandoned preview response during a retry        | none                 | 3     |
+| [ ]    | D07 T09 §15 | Detection data freshness beside the version      | none                 | 4     |
+| [ ]    | D07 T09 §16 | Two activations for a signed-out member          | owner-decision       | 4     |
+| [ ]    | D07 T09 §17 | Human and Defender attribution comparison        | owner-decision       | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -617,6 +623,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 334/541 verified sections, 136 ready to run now.
+Progress: 343/547 verified sections, 131 ready to run now.
 
-Checklist: 2627/3380 items completed (includes Commit items).
+Checklist: 2675/3416 items completed (includes Commit items).

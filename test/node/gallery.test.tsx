@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { anchorOf, GALLERY_FRAMES, GALLERY_STATES, GalleryFrame, GalleryPage } from "../../src/web/dev/gallery";
+import {
+  anchorOf,
+  GALLERY_FRAMES,
+  GALLERY_STATES,
+  GalleryFrame,
+  GalleryPage,
+  GalleryState,
+} from "../../src/web/dev/gallery";
 
 // The component gallery (D07 T01 §10) shows every state of every shared component and every frame of the shell. The
 // lists below are this test's own, written from §6 to §9 and §3, so a state dropped from the gallery fails here even
@@ -109,12 +116,8 @@ const DESTINATION: Record<string, string> = {
 };
 
 const page = html(<GalleryPage />);
-const item = (id: string) => {
-  const open = page.indexOf(`data-gallery-state="${id}"`);
-  if (open < 0) return "";
-  const end = page.indexOf("data-gallery-state=", open + 20);
-  return page.slice(open, end < 0 ? page.indexOf("data-gallery-frame=") : end);
-};
+const stateDocs = new Map(GALLERY_STATES.map((s) => [s.id, html(GalleryState(anchorOf("state", s.id)))]));
+const item = (id: string) => stateDocs.get(id) ?? "";
 const ids = (markup: string) => [...markup.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
 
 describe("the component gallery", () => {
@@ -151,7 +154,9 @@ describe("the component gallery", () => {
       expect(page, frame.id).toContain(`<section id="${anchorOf("frame", frame.id)}"`);
     }
     // Frames load as they near the screen.
-    expect((page.match(/<iframe\b[^>]*loading="lazy"/g) ?? []).length).toBe(GALLERY_FRAMES.length);
+    expect((page.match(/<iframe\b[^>]*loading="lazy"/g) ?? []).length).toBe(
+      GALLERY_FRAMES.length + GALLERY_STATES.length,
+    );
   });
 
   it("repeats no id on the gallery page", () => {
