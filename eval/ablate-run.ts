@@ -53,7 +53,7 @@ export async function runAblation(clients: AblateClients): Promise<AblateResult>
   let manifest = clients.manifest;
   const reports: AblationArmReport[] = [];
   for (;;) {
-    let next;
+    let next: ReturnType<typeof nextAblationArm>;
     try {
       next = nextAblationArm(manifest);
     } catch (e) {
