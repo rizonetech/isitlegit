@@ -290,6 +290,10 @@ Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console,
 **Needs:** none
 **Surface:** yes
 
+> **Started:** 2026-11-02T18:45:00Z
+
+**Corrected 2026-11-02 (validation before build):** the checklist as written cannot deliver the Job: no item builds the console page itself (the client list, one action into a client's cases), the branding settings page, or the MSP brand carried in a client's pages and mail, so those items are added below. Two gates stand before the surface work: the boards for two new pages go to the operator for approval (AGENTS.md, Interface rules), and the MSP relation migration takes a number from the coordinator. The relation store, its reads and the feature gates do not wait for the boards.
+
 **Fidelity:** none yet: the console and branding pages need their `design/SPEC.md` rows and boards first.
 **Job:** an MSP's staff open one console listing their client organisations, open any client's cases in one action, and the clients see the MSP's name and logo in their mail and pages.
 **Treatment:** the member console's list and shell (§1, D07 T01), scoped to the MSP's clients.
@@ -303,6 +307,8 @@ Spec 2b prices an MSP tier for IT providers ("wholesale per client, MSP console,
 - [ ] Add the MSP console and the branding settings to `design/SPEC.md`'s page inventory, with their boards. Done when: both rows name their owning section (this one) and their states.
 - [ ] Store which organisations an MSP manages (a migration and its reads), the MSP's staff reaching a client only through it. Done when: a test finds an MSP's staff reading their client's cases and refused another organisation's.
 - [ ] Gate the console on `msp-console` and the branding on `msp-branding` (`requireFeature`, D07 T02 §8). Done when: a Protect organisation is refused both, an MSP or trial organisation passes, and removing a gate fails the test.
+- [ ] Build the console page from its approved board: the MSP's client organisations, each opening that client's cases in one action, scoped by the stored relation. Done when: `test/web/msp-console.test.ts` reads only the MSP's clients and opens a client's cases, and the browser checkpoint drives it at phone width in both themes. Cheaper substitute: reusing the member Cases page unscoped, which reads every organisation the staff member belongs to rather than the managed clients.
+- [ ] Build the branding settings page from its approved board and carry the MSP's name and logo in a managed client's pages and reply mail. Done when: `test/web/msp-console.test.ts` reads the MSP's brand on a client's page and in its mail, and the client's own brand where no MSP manages it. Cheaper substitute: branding the console only, which leaves the client's own surfaces carrying IsItLegit's brand.
 - [ ] Commit: `web: MSP console and own branding`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/msp-console.test.ts` passes and fails if an MSP reads a client it does not manage or a non-MSP plan reaches the console.
