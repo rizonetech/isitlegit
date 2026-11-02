@@ -152,3 +152,9 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 - SPEC M1 names the date range (operator decision 2026-11-02); the board source drawing follows the next canvas import (approved.json is canvas-fed), recorded in the section. check-design 0.
 - Built: `from`/`to` in CaseFilters/filtersFrom (bad date unset, reversed kept as typed), SAST-inclusive bounds in listCases replacing the period, From/To inputs beside the period, period disabled under a range with Clear dates (keeps other filters), Swap them for a reversed pair, range named in the filtered-empty heading, OOB redraw of the period and range state.
 - Gates: cases-page 34/34, case-list db 6/6, browser 31/32 in one full run (the network-failure test timed out under load and passes alone in 0.6s, the known browser starvation), typecheck 0. Lint: my files clean after biome format; `src/web/client/app.ts` (app lane, untouched here) carries 2 lint findings on the merged tree, raised for the coordinator/app lane.
+
+## Resume 21:40 SAST: D07 T04 §8 STAMPED and pushed
+- §8 (chosen date range in the Cases list) built at 2373c410, completion gaps G1-G5 implemented (c240aed9), round 1 P2/P3 fixed (e2ea0b8b), round 2 repeated the round 1 finding on the stale candidate named in the prompt, round 3 clean, round 4 clean (f2690153). Final review off in the pin.
+- Gates on the tip: page + db 40/40, browser 35/35, typecheck 0, validate 529, check-design 0, pre-push typecheck and lint passed.
+- Stamped 8b74303d (receipt docs/reviews/d07-t04-s8.json), pushed console-lane at 731e6353. Deploy: /cases gains From and To dates.
+- Still parked: D07 T04 §5 (operator board approval and real-provider onboarding), D07 T04 §6 (coordinator migration number and operator boards for the MSP surfaces). Next ready row: D07 T04 §9.
