@@ -42,6 +42,7 @@ REQUIRED = {
     "privacy.summary": {"D00 T01 §5", "D01 T01 §2", "D03 T01 §1"},
     "privacy.what.mail": {"D01 T01 §3", "D01 T03 §1"},
     "privacy.what.account": {"D07 T02 §3"},
+    "privacy.closure": {"D07 T02 §9"},
     "privacy.what.ledger": {"D06 T01 §1", "D06 T01 §3", "D06 T01 §4"},
     "privacy.what.feedback": {"D07 T03 §6"},
     "privacy.what.security": {"D07 T02 §6"},

@@ -149,6 +149,10 @@ export const claims = {
     text: "Your account: your name, work email, organisation and role, so you can sign in and see your cases.",
     owners: ["D07 T02 §3"],
   },
+  "privacy.closure": {
+    text: "When an owner closes an organisation, it refuses new cases at once, and its stored mail, cases and history are deleted within 30 days of closing.",
+    owners: ["D07 T02 §9"],
+  },
   "privacy.what.ledger": {
     text: "Your supplier ledger: supplier names, domains and bank details you add, to catch changed bank accounts.",
     owners: ["D06 T01 §1", "D06 T01 §3", "D06 T01 §4"],
