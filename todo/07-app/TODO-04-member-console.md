@@ -644,6 +644,10 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 
 A member presses `/` anywhere on the Cases list, outside a text field, and lands in the search box, as Gmail and GitHub let them. Filed 2026-10-31 from D07 T04 §7's completion review (G5): the board shows no shortcut or its hint, so the shortcut and how it is discovered are a design decision first.
 
+> **Started:** 2026-11-02T22:51:03Z
+
+**Corrected 2026-11-02:** the 2026-11-01 deferral is superseded by the operator decision of 2026-11-02 recorded below approving the shortcut, so the section builds now.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Approve slash to focus the Cases search, the key named in the placeholder or a hint, never firing while typing in a field (recorded in SPEC M1 first).
 

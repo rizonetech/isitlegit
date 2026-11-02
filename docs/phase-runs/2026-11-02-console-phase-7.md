@@ -188,3 +188,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 
 ## Resume 22:05 SAST: D07 T04 §12 parked on cross-lane needs
 - Plan review: 2 P1s (in-flight write fencing is checks-lane storage; mutation authorization proof) and 4 P2s, all folded into the section. The tombstone needs a coordinator migration number; both asks are in the outbox. Next: D07 T04 §13.
+
+## Resume 2026-11-03 00:20 SAST (console lane): §13 built, stamp waits on trust
+
+§13 implementation, completion fix (current-run flags) and round 1 (approve, no findings) are pushed at a316ca6d. The stamp is refused only by its open prerequisite D06 T02 §3 (trust lane, in progress; its document step writes the classification this section reads). §13 stamps as soon as that row stamps and merges. Coordinator also allocated migration 0088 for §12's tombstone and routed the checks-lane fencing; §12 builds its own side and gates on the checks ref. Next buildable ready row: D07 T04 §15.
