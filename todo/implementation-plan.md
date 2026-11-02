@@ -471,7 +471,7 @@ Sections: 181 | Checklist items: 758
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
 | [x]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 5     |
 | [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
-| [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
+| [x]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
 | [ ]    | D05 T02 §3  | Registry comparison evidence that                | none                 | 7     |
@@ -615,6 +615,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 331/539 verified sections, 139 ready to run now.
+Progress: 332/539 verified sections, 138 ready to run now.
 
-Checklist: 2630/3370 items completed (includes Commit items).
+Checklist: 2631/3370 items completed (includes Commit items).
