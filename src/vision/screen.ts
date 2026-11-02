@@ -246,6 +246,7 @@ export async function screenPage(
       const answer = await structured(PageAnswer, sparkRequest(request), {
         ...spark,
         maxAttempts: 1,
+        transportAttempts: 1,
         owner: { kind: "monitor", run, host, step: "screen" },
       });
       const call = { callId: answer.callId, logId: answer.logId };
@@ -255,6 +256,9 @@ export async function screenPage(
       // A failed attempt's references are preserved too, so every paid call is findable from the result.
       if (error instanceof ModelOutputError)
         for (const call of error.calls) if (!calls.some((c) => c.callId === call.callId)) calls.push(call);
+      if (error instanceof ModelError && error.details.callId)
+        if (!calls.some((c) => c.callId === error.details.callId))
+          calls.push({ callId: error.details.callId, logId: error.details.logId ?? null });
       throw error;
     }
   };

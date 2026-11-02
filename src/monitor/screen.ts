@@ -198,6 +198,11 @@ export async function screenOwed(
     }
     if (!result.ok) {
       failed(counts, `${result.glimmer_reason}/${result.spark_reason}`);
+      // The failed page's paid calls stay findable in the run's stored errors, though the page stays owed (§45).
+      if (result.spark_calls.length) {
+        const entry = `screen-calls:${page.domain}:${result.spark_calls.map((c) => c.callId).join(",")}`;
+        if (!counts.errors.includes(entry)) counts.errors.push(entry);
+      }
       await countFailure(deps.db, orgId, page.domain, page.capture_key);
       continue;
     }

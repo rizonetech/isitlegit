@@ -353,6 +353,22 @@ describe("the run's screening", () => {
     ]);
   });
 
+  it("keeps a failed escalation's call references in the run's errors, the page still owed (§45)", async () => {
+    const b = await business();
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.10"));
+    w.deps.screen = async () => ({
+      ok: false,
+      glimmer_reason: "unsure",
+      spark_reason: "model-server",
+      spark_calls: [{ callId: "call-9", logId: "log-9" }],
+    });
+    const summary = await monitorOrg(w.deps, b.orgId, "s45f");
+    expect(summary.errors).toContain(`screen-calls:${site}:call-9`);
+    expect(await rows(b.orgId, site)).toEqual([]);
+  });
+
   it("writes nothing twice: a rerun with nothing new asks no one", async () => {
     const b = await business();
     const w = world(START);

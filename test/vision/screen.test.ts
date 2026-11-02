@@ -363,9 +363,25 @@ describe("confidence escalation (§45)", () => {
     expect(!got.ok && new Set(got.spark_calls.map((c) => c.callId)).size).toBe(2);
   });
 
+  it("never retries the transport inside a pass either: one 500 ends the pass with its call reference", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(
+      () => new Response(JSON.stringify({ error: { message: "boom" } }), { status: 500 }),
+      () => metaText(JSON.stringify(LURE)),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ ok: false, glimmer_reason: "unsure", spark_reason: "model-server" });
+    expect(meta.bodies).toHaveLength(1);
+    expect(!got.ok && got.spark_calls).toHaveLength(1);
+    expect(!got.ok && got.spark_calls[0]?.callId).toEqual(expect.any(String));
+  });
+
   it("never spends a schema repair inside a pass: the two-call ceiling counts attempts", async () => {
     const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
-    const meta = spark(() => metaText('{"lure": "maybe"}'), () => metaText(JSON.stringify(LURE)));
+    const meta = spark(
+      () => metaText('{"lure": "maybe"}'),
+      () => metaText(JSON.stringify(LURE)),
+    );
     const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
     expect(got).toMatchObject({ ok: false, spark_reason: "output-invalid" });
     expect(meta.bodies).toHaveLength(1);
