@@ -472,6 +472,8 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 ## 12. Pricing terms: VAT and commitment
 
+> **Started:** 2026-11-02T19:23Z
+
 What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -490,7 +492,11 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 
 1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`.
+- [x] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`. (Recorded: prices include VAT, month-to-month, cancel anytime; R499 up to 5 members, R999 above, operator decision in the header; the SPEC entry is the next item.)
+- [ ] Add the terms block and the member scope to `design/SPEC.md` S5 (VAT-included and month-to-month as Q&A controls, Protect's up-to-5-members scope, R999 above) with a recorded Deviation (the board draws neither). Done when: S5 names them and this section's Fidelity no longer reads board-open.
+- [ ] Build it on `/pricing` in `site/src/pages/pricing.astro`: the member-scope line on the Protect tier ("up to 5 members; larger organisations R999") and two Questions answers ("What does the price include?" prices include VAT; "Am I locked in?" month-to-month, cancel anytime, keeps Free check), in tokens only. Done when: the built page shows them and `pnpm --filter site build` exits 0. Cheaper substitute: a terms page, refused (the decision puts the terms on the pricing page).
+- [ ] Test in `site/test/pricing.test.ts`: the VAT and commitment answers and the member scope are found on the built page. Done when: the test fails when any is removed.
+- [ ] Run `article-check` on the built page, fix every FAIL and answer every WARN, recorded in the run file. Done when: the output is recorded.
 - [ ] Commit: `site: pricing terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.

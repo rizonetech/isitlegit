@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 602
 
 ### Phase 7: After the event
 
-Sections: 175 | Checklist items: 729
+Sections: 175 | Checklist items: 733
 
 | Status | Reference   | Deliverable                                        | Needs                | Items |
 | ------ | ----------- | -------------------------------------------------- | -------------------- | ----- |
@@ -535,7 +535,7 @@ Sections: 175 | Checklist items: 729
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID                 | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                           | none                 | 4     |
 | [x]    | D07 T06 §11 | Already paid: what to do now                       | none                 | 7     |
-| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                  | none                 | 2     |
+| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                  | none                 | 6     |
 | [ ]    | D07 T06 §13 | On-site invite request                             | none                 | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards                            | none                 | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice                    | none                 | 2     |
@@ -607,4 +607,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 322/529 verified sections, 130 ready to run now.
 
-Checklist: 2550/3313 items completed (includes Commit items).
+Checklist: 2551/3317 items completed (includes Commit items).
