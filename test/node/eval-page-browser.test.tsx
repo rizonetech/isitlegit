@@ -229,6 +229,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the results page in a brows
       expect(names).toContain("Sign in");
       expect(names).toContain("eval/DATASETS.md");
       expect(names.some((n) => n.startsWith("Ablation table"))).toBe(true);
+      expect(names.some((n) => n.startsWith("Run history table"))).toBe(true);
       await context.close();
     }
   });
@@ -253,7 +254,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the results page in a brows
   it("names its tables with captions and column headers, and every link by its words", async () => {
     const { p, context } = await open("/eval", 1280, "light");
     const tables = await p.locator("table").count();
-    expect(tables).toBe(3);
+    expect(tables).toBe(4);
     for (let i = 0; i < tables; i++) {
       expect(await p.locator("table").nth(i).locator("caption").count()).toBe(1);
       expect(await p.locator("table").nth(i).locator('thead th[scope="col"]').count()).toBeGreaterThan(0);
