@@ -27,7 +27,7 @@ export function seededSample<T>(items: T[], n: number, seed = CORPUS_SEED): T[] 
   };
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j] as string, out[i] as string];
+    [out[i], out[j]] = [out[j] as T, out[i] as T];
   }
   return out.slice(0, n);
 }
@@ -138,7 +138,7 @@ if (import.meta.filename === process.argv[1]) {
       login: page.labels?.has_login_form === true,
       payment: page.labels?.has_payment_form === true,
       kind: page.kind ?? "home",
-      brand: page.labels?.brand ?? undefined,
+      ...(page.labels?.brand ? { brand: page.labels.brand } : {}),
     });
   }
   const journal = readFileSync(join(dir, "raw", "benign", "progress.jsonl"), "utf-8")
@@ -163,13 +163,13 @@ if (import.meta.filename === process.argv[1]) {
   type Candidate = { url: string; entry: { kind: string; brand?: string; also: string[] } };
   const fromStored = (p: (typeof stored)[number]): Candidate => ({
     url: p.url,
-    entry: { kind: p.kind, brand: p.brand, also: [] },
+    entry: { kind: p.kind, ...(p.brand ? { brand: p.brand } : {}), also: [] },
   });
   const fromSa = (p: string[]): Candidate => ({
     url: p[1] as string,
     entry: {
       kind: p[0] as string,
-      brand: p[2],
+      ...(p[2] ? { brand: p[2] } : {}),
       also: (p[3] ?? "")
         .split(",")
         .map((s) => s.trim())
@@ -272,7 +272,7 @@ if (import.meta.filename === process.argv[1]) {
             overlays: capture.overlays,
             finalUrl: capture.finalUrl,
             url,
-            brand: candidate.entry.brand,
+            ...(candidate.entry.brand ? { brand: candidate.entry.brand } : {}),
             also: candidate.entry.also,
             has_login_form: frameForms.has_login_form,
             has_payment_form: frameForms.has_payment_form,

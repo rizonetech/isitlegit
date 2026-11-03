@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT, shingles } from "./build-dataset.ts";
+import type { ListEntry } from "./render.ts";
 
 // The Wilson 95 percent interval for k of n; (0, 1) for no observations.
 export function wilson(k: number, n: number, z = 1.96): { low: number; high: number } {
@@ -922,8 +923,8 @@ export async function compareBenign(
                     admitted:
                       unusable(capture, {
                         url: page.url,
-                        kind: (entry.kind as "home") ?? "home",
-                        brand: entry.brand,
+                        kind: entry.kind as ListEntry["kind"],
+                        ...(entry.brand ? { brand: entry.brand } : {}),
                         also: entry.also ?? [],
                       }) === null,
                   };
