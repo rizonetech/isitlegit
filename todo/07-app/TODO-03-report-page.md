@@ -478,6 +478,8 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 
 ## 10. Stored verdict sentence, reasons
 
+> **Started:** 2026-11-03T02:19:37Z
+
 The verdict banner's third line is one sentence on what the verdict means for this message (`design/SPEC.md` M3, board `Main`: "The link leads to a lookalike login page that sends your password to someone else. Do not use it."). Filed 2026-10-31 from §2's validation: the stored verdict holds a headline but no such sentence, so §2 draws a fixed sentence per verdict until the verdict carries one (asked of the checks lane through the coordinator for D04 T01 §2's VerdictView change).
 
 **Phase:** 7
