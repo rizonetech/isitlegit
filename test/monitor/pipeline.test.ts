@@ -432,6 +432,40 @@ describe("the monitor allowance (D05 T04 §12)", () => {
     expect(failSummary.failed).toBe(1);
     void failingKey;
 
+    // An invocation interrupted after case creation (`state = 'investigating'`) and retried when R2 attachment storage
+    // fails also records `RawMissing` and releases the 50th slot despite `caseId` having been adopted on recovery.
+    const recoveredFailKey = await flagged(a.orgId, a.domain, "raw-missing-recovered.example");
+    const preCreated = await createCase(
+      db,
+      {
+        orgId: a.orgId,
+        channel: "upload",
+        headersAvailable: false,
+        uploadedBy: "monitor",
+        sourceKind: "image",
+        uploadName: `raw-missing-recovered.example@${recoveredFailKey.replace(/\/$/, "").split("/").at(-1) ?? ""}`,
+        uploadMediaType: "image/jpeg",
+      },
+      beforeMidnightSast,
+    );
+    expect(preCreated.ok).toBe(true);
+    if (!preCreated.ok) throw new Error("expected preCreated case");
+    await db
+      .prepare(
+        `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, state, evidence_refs, created_at, updated_at)
+         VALUES (?, 'raw-missing-recovered.example', ?, ?, 'investigating', NULL, ?, ?)`,
+      )
+      .bind(
+        a.orgId,
+        recoveredFailKey,
+        preCreated.value.id,
+        beforeMidnightSast.toISOString(),
+        beforeMidnightSast.toISOString(),
+      )
+      .run();
+    const recoveredFailSummary = await monitorPipeline(failingStoreDeps, a.orgId, "2026-11-01T00:00:00.000Z");
+    expect(recoveredFailSummary.failed).toBe(1);
+
     // Because the failed admission released its slot, two concurrent callers racing for the 50th slot still see 1 open slot:
     // exactly one succeeds and one is capped; retrying the winning id returns the existing case.
     const [race1, race2] = await Promise.all([

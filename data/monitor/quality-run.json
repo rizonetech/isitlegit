@@ -13,9 +13,9 @@
       "evaluatedCases": 40,
       "totalCorpusCases": 40,
       "destinationAccuracy": {
-        "numerator": 40,
+        "numerator": 34,
         "denominator": 40,
-        "rate": 1
+        "rate": 0.85
       },
       "formRecall": {
         "numerator": 15,
@@ -23,9 +23,9 @@
         "rate": 1
       },
       "formSpecificity": {
-        "numerator": 19,
+        "numerator": 17,
         "denominator": 25,
-        "rate": 0.76
+        "rate": 0.68
       },
       "readingFormRecall": {
         "numerator": 14,
@@ -33,9 +33,9 @@
         "rate": 0.9333
       },
       "readingFormSpecificity": {
-        "numerator": 19,
+        "numerator": 17,
         "denominator": 25,
-        "rate": 0.76
+        "rate": 0.68
       },
       "confirmationRecall": {
         "numerator": 17,
@@ -637,9 +637,9 @@
       "evaluatedCases": 40,
       "totalCorpusCases": 40,
       "destinationAccuracy": {
-        "numerator": 40,
+        "numerator": 35,
         "denominator": 40,
-        "rate": 1
+        "rate": 0.875
       },
       "formRecall": {
         "numerator": 15,
@@ -647,9 +647,9 @@
         "rate": 1
       },
       "formSpecificity": {
-        "numerator": 25,
+        "numerator": 20,
         "denominator": 25,
-        "rate": 1
+        "rate": 0.8
       },
       "readingFormRecall": {
         "numerator": 0,
@@ -657,9 +657,9 @@
         "rate": 0
       },
       "readingFormSpecificity": {
-        "numerator": 25,
+        "numerator": 20,
         "denominator": 25,
-        "rate": 1
+        "rate": 0.8
       },
       "confirmationRecall": {
         "numerator": 16,
@@ -1261,29 +1261,29 @@
       "evaluatedCases": 40,
       "totalCorpusCases": 40,
       "destinationAccuracy": {
-        "numerator": 40,
+        "numerator": 14,
         "denominator": 40,
-        "rate": 1
+        "rate": 0.35
       },
       "formRecall": {
-        "numerator": 15,
+        "numerator": 13,
         "denominator": 15,
-        "rate": 1
+        "rate": 0.8667
       },
       "formSpecificity": {
-        "numerator": 19,
+        "numerator": 0,
         "denominator": 25,
-        "rate": 0.76
+        "rate": 0
       },
       "readingFormRecall": {
-        "numerator": 14,
+        "numerator": 12,
         "denominator": 15,
-        "rate": 0.9333
+        "rate": 0.8
       },
       "readingFormSpecificity": {
-        "numerator": 19,
+        "numerator": 0,
         "denominator": 25,
-        "rate": 0.76
+        "rate": 0
       },
       "confirmationRecall": {
         "numerator": 14,
@@ -1885,9 +1885,9 @@
       "evaluatedCases": 40,
       "totalCorpusCases": 40,
       "destinationAccuracy": {
-        "numerator": 40,
+        "numerator": 35,
         "denominator": 40,
-        "rate": 1
+        "rate": 0.875
       },
       "formRecall": {
         "numerator": 15,
@@ -1895,9 +1895,9 @@
         "rate": 1
       },
       "formSpecificity": {
-        "numerator": 19,
+        "numerator": 17,
         "denominator": 25,
-        "rate": 0.76
+        "rate": 0.68
       },
       "readingFormRecall": {
         "numerator": 14,
@@ -1905,9 +1905,9 @@
         "rate": 0.9333
       },
       "readingFormSpecificity": {
-        "numerator": 19,
+        "numerator": 17,
         "denominator": 25,
-        "rate": 0.76
+        "rate": 0.68
       },
       "confirmationRecall": {
         "numerator": 14,
@@ -2506,18 +2506,18 @@
   "ablationDeltas": {
     "no_reading": {
       "formRecallDelta": 0,
-      "formSpecificityDelta": 0.24,
+      "formSpecificityDelta": 0.12,
       "readingFormRecallDelta": -0.9333,
-      "readingFormSpecificityDelta": 0.24,
+      "readingFormSpecificityDelta": 0.12,
       "confirmationRecallDelta": -0.05,
       "falsePositiveRateDelta": 0,
       "partialRateDelta": -0.025
     },
     "no_logo": {
-      "formRecallDelta": 0,
-      "formSpecificityDelta": 0,
-      "readingFormRecallDelta": 0,
-      "readingFormSpecificityDelta": 0,
+      "formRecallDelta": -0.1333,
+      "formSpecificityDelta": -0.68,
+      "readingFormRecallDelta": -0.1333,
+      "readingFormSpecificityDelta": -0.68,
       "confirmationRecallDelta": -0.15,
       "falsePositiveRateDelta": 0,
       "partialRateDelta": 0.5

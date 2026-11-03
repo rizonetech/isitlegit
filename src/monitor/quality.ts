@@ -265,18 +265,19 @@ export function computeArmMetrics(
     const state = obs?.state ?? "partial";
     if (state === "partial") partialCount++;
     if (obs?.refusedByAllowance) refusedCount++;
+    const settled = state !== "partial" && !obs?.refusedByAllowance;
 
-    // Unavailable or unevaluated cases receive no accuracy credit while remaining in denominators.
-    if (obs?.destinationAssessed === item.groundTruth.destination) destMatched++;
+    // Partial, unavailable, refused, or unevaluated cases receive no accuracy credit while remaining in denominators.
+    if (settled && obs?.destinationAssessed === item.groundTruth.destination) destMatched++;
 
     if (item.groundTruth.form === "log_in" || item.groundTruth.form === "pay") {
       sensitiveFormsTotal++;
-      if (obs?.formDetected === item.groundTruth.form) sensitiveFormsDetected++;
-      if (obs?.readingFormDetected === item.groundTruth.form) readingSensitiveFormsDetected++;
+      if (settled && obs?.formDetected === item.groundTruth.form) sensitiveFormsDetected++;
+      if (settled && obs?.readingFormDetected === item.groundTruth.form) readingSensitiveFormsDetected++;
     } else {
       noneFormsTotal++;
-      if (obs?.formDetected === "none") noneFormsCorrect++;
-      if (obs?.readingFormDetected === "none") readingNoneFormsCorrect++;
+      if (settled && obs?.formDetected === "none") noneFormsCorrect++;
+      if (settled && obs?.readingFormDetected === "none") readingNoneFormsCorrect++;
     }
 
     if (item.groundTruth.lure) {
@@ -721,10 +722,6 @@ export async function evaluateMonitorArm(
     const replayedCostUsd = round6(replayedUsd);
     const deltaUsd = round6(paidCostUsd + replayedCostUsd);
 
-    if (budgetStopped) {
-      return computeArmMetrics(arm, parsed.cases, observations, false, "budget_exhausted");
-    }
-
     const inv = await storage.db
       .prepare("SELECT state, case_id, evidence_refs FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
       .bind(orgId, captureKey)
@@ -734,7 +731,7 @@ export async function evaluateMonitorArm(
         evidence_refs: string | null;
       }>();
 
-    const state = inv?.state ?? "partial";
+    const state = budgetStopped ? "partial" : (inv?.state ?? "partial");
     const refusedByAllowance = parseAllowanceRefusal(inv?.evidence_refs ?? null) !== null;
     const ev = inv?.case_id ? await readEvidence(storage.db, inv.case_id) : [];
 
@@ -783,6 +780,10 @@ export async function evaluateMonitorArm(
       paidCostUsd,
       replayedCostUsd,
     });
+
+    if (budgetStopped) {
+      return computeArmMetrics(arm, parsed.cases, observations, false, "budget_exhausted");
+    }
   }
 
   return computeArmMetrics(arm, parsed.cases, observations, true, "completed");

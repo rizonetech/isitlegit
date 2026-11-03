@@ -287,9 +287,15 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     // Without Spark reading (`no_reading`), isolated reading form recall drops to 0 while `signals.json` remains intact.
     expect(report.arms.no_reading.readingFormRecall.rate).toBe(0);
     expect(report.arms.no_reading.formRecall.rate).toBe(0.5);
-    // Without logo comparison (`no_logo`), the non-form impersonation lure (`mini-lure-impersonation`) is missed.
+    // Without logo comparison (`no_logo`), the non-form impersonation lure (`mini-lure-impersonation`) is missed,
+    // and the 3 unconfirmed cases settle `partial` and receive zero credit in destination and form numerators.
     expect(report.arms.no_logo.confirmationRecall).toEqual({ numerator: 1, denominator: 2, rate: 0.5 });
-    expect(report.arms.no_logo.partialRate.numerator).toBeGreaterThan(0);
+    expect(report.arms.no_logo.partialRate).toEqual({ numerator: 3, denominator: 4, rate: 0.75, refusedCount: 0 });
+    expect(report.arms.no_logo.destinationAccuracy).toEqual({ numerator: 1, denominator: 4, rate: 0.25 });
+    expect(report.arms.no_logo.formRecall).toEqual({ numerator: 1, denominator: 2, rate: 0.5 });
+    expect(report.arms.no_logo.formSpecificity).toEqual({ numerator: 0, denominator: 2, rate: 0 });
+    expect(report.arms.no_logo.readingFormRecall).toEqual({ numerator: 1, denominator: 2, rate: 0.5 });
+    expect(report.arms.no_logo.readingFormSpecificity).toEqual({ numerator: 0, denominator: 2, rate: 0 });
 
     expect(median([10, 20, 30, 40])).toBe(25);
     expect(percentileNearestRank([10, 20, 30, 40, 100], 95)).toBe(100);
@@ -365,6 +371,24 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     );
     expect(exhausted.complete).toBe(false);
     expect(exhausted.stopReason).toBe("budget_exhausted");
+
+    // Mid-case budget exhaustion (cap permits Spark reading/logo comparison on case 1, then refuses walkthrough)
+    // retains the interrupted case's already-paid cost and elapsed time in the arm summary.
+    const midExhaustedDeps = makeDeps({ orgPrefix: "qual-mid-exhausted", maxSpendUsd: 0.05 });
+    const midExhausted = await evaluateMonitorArm(
+      "full",
+      { version: "1.0", licence: "CC0-1.0", cases: MINI_CASES },
+      midExhaustedDeps,
+    );
+    expect(midExhausted.complete).toBe(false);
+    expect(midExhausted.stopReason).toBe("budget_exhausted");
+    expect(midExhausted.evaluatedCases).toBe(1);
+    expect(midExhausted.costUsd.paidUsd).toBeGreaterThan(0);
+    expect(midExhausted.costUsd.paidUsd).toBe(Number(midExhaustedDeps.budget.spentUsd().toFixed(6)));
+    expect(midExhausted.costUsd.totalUsd).toBe(midExhausted.costUsd.paidUsd);
+    expect(midExhausted.latencyMs.medianMs).toBeGreaterThan(0);
+    expect(midExhausted.cases[0]?.state).toBe("partial");
+    expect(midExhausted.destinationAccuracy).toEqual({ numerator: 0, denominator: 4, rate: 0 });
 
     // Schema-repair retry regression: if a cached reading response is invalid, attempt 1 consumes it locally (0 paid reservations/settlements) and attempt 2 repairs it via exactly 1 paid reservation, 1 transport request, and 1 settlement without replaying the broken response again.
     let repairReserves = 0;

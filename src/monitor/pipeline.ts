@@ -156,7 +156,7 @@ async function investigate(
     // creating an orphan beside it.
     const orphan = await db
       .prepare(
-        `SELECT id FROM cases WHERE org_id = ? AND uploaded_by = 'monitor' AND upload_name = ?
+        `SELECT id FROM cases WHERE org_id = ? AND uploaded_by = 'monitor' AND upload_name = ? AND status = 'received'
          ORDER BY created_at LIMIT 1`,
       )
       .bind(orgId, `${page.domain}@${page.capture_key.replace(/\/$/, "").split("/").at(-1) ?? ""}`)
@@ -169,7 +169,6 @@ async function investigate(
         .run();
     }
   }
-  let createdHere = false;
   if (!caseId) {
     const made = await createCase(
       db,
@@ -192,7 +191,6 @@ async function investigate(
       throw new Error(`monitor case refused: ${made.error.message}`);
     }
     caseId = made.value.id;
-    createdHere = true;
     await db
       .prepare(
         `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, state, evidence_refs, created_at, updated_at)
@@ -262,9 +260,21 @@ async function investigate(
   try {
     stored = await putAttachment(deps.store, caseId, "screenshot.jpg", screenshot, "image/jpeg");
   } catch (error) {
-    // If raw attachment admission fails before any evidence is written, record the `admit` RawMissing
-    // event so `COUNTS_TOWARD_CAP` releases its daily monitor allowance slot.
-    if (createdHere) {
+    // If raw attachment admission fails before any evidence is written (including on a recovered
+    // case adopted after an earlier interruption), record the `admit` RawMissing event so
+    // `COUNTS_TOWARD_CAP` releases its daily monitor allowance slot.
+    const alreadyStartedOrReleased = await db
+      .prepare(
+        `SELECT 1 AS hit FROM cases WHERE id = ? AND (
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = cases.id)
+           OR EXISTS (SELECT 1 FROM case_events ev WHERE ev.case_id = cases.id AND ev.step = 'admit' AND ev.status = 'failed' AND ev.error = 'RawMissing')
+         )`,
+      )
+      .bind(caseId)
+      .first<{ hit: number }>()
+      .then((row) => row !== null)
+      .catch(() => false);
+    if (!alreadyStartedOrReleased) {
       await db
         .batch([
           eventStatement(
@@ -279,7 +289,7 @@ async function investigate(
             },
             true,
           ),
-          unstartedPartial(db, orgId, caseId),
+          unstartedPartial(db, orgId, caseId, now()),
         ])
         .catch(() => null);
     }
