@@ -31,7 +31,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Experiment: edited invoice digits | D03 T01 §5 | [x] |
-| 2 | §2 | Experiment: SAM and Spark on stamps | §1, D03 T03 §1 | [ ] |
+| 2 | §2 | Experiment: SAM and Spark on stamps | §1, D03 T03 §1 | [x] |
 | 3 | §3 | Experiment: Wonder on a multi-step lure | §2, D04 T02 §4 | [ ] |
 | 4 | §4 | Experiment: transcribing SA languages | §3, D01 T03 §4 | [ ] |
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
@@ -106,6 +106,9 @@ Does segmenting the stamp and signature with SAM 3.1 and sending the crops with 
 - [x] Commit: `frontier: SAM and Spark chain on stamps and signatures`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-frontier-stamps.test.ts` passes (stubbed arms, payload and completeness refusals) and `node eval/frontier/stamps.ts score --check docs/frontier-log.md` exits 0 on the stored results.
+
+> **Verified:** 2026-11-04 | §2 | 2e3478ee80cea9110c466e538af448f1a4b7c846
+> **Review:** `docs/reviews/d08-t03-s2.json`
 
 ## 3. Experiment: Wonder on a multi-step lure
 
