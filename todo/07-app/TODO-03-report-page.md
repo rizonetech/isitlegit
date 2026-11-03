@@ -602,6 +602,8 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 
 ## 14. Vision and brand cards
 
+> **Started:** 2026-11-03T02:54:22Z
+
 A vision finding shows the rendered page or the logo crop beside its reference, and a brand finding the claimed brand against its real domains (M3, board `Main`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
 **Phase:** 7
