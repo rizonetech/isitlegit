@@ -1,13 +1,17 @@
-// The replay command (D08 T02 section 12): `pnpm eval:replay --run <id>` replays an incomplete run's failed
-// cases under the deployment in place when it starts. Each replayed case is resubmitted with the multipart
-// replayRunId field (D01 T01 section 22), so the eval organisation's claim is scoped to the replay run and the
-// original run's stored queue is untouched. Metrics then report the original run and each replay run, a replay
-// result replacing its original only when complete (see mergeReplayResults in eval/metrics.ts).
+// The replay orchestration (D08 T02 section 12): a replay remeasures a stored run's whole population under
+// the deployment in place when it starts. Each replayed case is resubmitted with the multipart replayRunId
+// field (D01 T01 section 22) carrying the replay run's own fresh id, so the eval organisation's claim is
+// scoped to this replay and the original run's stored queue is untouched. Metrics then report the original
+// run and each replay run, a terminal replay result replacing its original (see mergeReplayResults in
+// eval/metrics.ts). The live command is `pnpm eval:run --replay <run id>`; this module is the orchestration
+// its tests drive, with injected clients and no spend.
 import { randomUUID } from "node:crypto";
 import type { ResultRow, RunRow } from "./run.ts";
 
+// The whole stored population is replayed, measured cases included: a replay after a deploy compares the
+// same population, not only its failures.
 export function replayableResults(results: ResultRow[]): ResultRow[] {
-  return results.filter((r) => r.outcome !== "done");
+  return [...results];
 }
 
 export type ReplayClients = {
@@ -45,7 +49,7 @@ export async function runReplay(originalId: string, clients: ReplayClients): Pro
       replayRunId: null,
       replayed: 0,
       stillIncomplete: 0,
-      problems: [`run ${originalId} has no incomplete case to replay`],
+      problems: [`run ${originalId} stored no results to replay`],
     };
   const replayRunId = clients.newId();
   await clients.createRun({

@@ -21,7 +21,6 @@ import { inlineLong, type Statement, spentStatement } from "../src/meta/budget-s
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
 import { isAblateFlag } from "./ablate.ts";
-import { replayableResults } from "./replay.ts";
 
 import {
   EXIT,
@@ -67,7 +66,13 @@ export type CaseState = {
 export type UploadAnswer = { status: number; caseId?: string; repeat?: boolean };
 export type Api = {
   commit(): Promise<string>;
-  upload(sample: RunSample, bytes: Uint8Array, mode: string): Promise<UploadAnswer>;
+  // The replay identity is the replay run's own id (D08 T02 section 12): never the source run's, so a second
+  // remeasurement of one source opens its own cases instead of reusing the first replay's claims.
+  upload(
+    sample: RunSample,
+    bytes: Uint8Array,
+    opts: { mode: string; replayRunId: string | null },
+  ): Promise<UploadAnswer>;
   // The signed-in user the session belongs to, null when it is not signed in.
   whoami(): Promise<string | null>;
 };
@@ -484,7 +489,9 @@ export async function runEval(args: {
         let answer: UploadAnswer | null = null;
         for (let attempt = 0; attempt <= UPLOAD_RETRIES; attempt++) {
           try {
-            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () => api.upload(s, bytes, mode));
+            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () =>
+              api.upload(s, bytes, { mode, replayRunId: mode.startsWith("replay:") ? runId : null }),
+            );
           } catch {
             answer = { status: 503 };
           }
@@ -695,14 +702,15 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
       const body = (await res.json().catch(() => null)) as { user?: { id?: string } } | null;
       return body?.user?.id ?? null;
     },
-    async upload(sample, bytes, mode) {
+    async upload(sample, bytes, opts) {
       const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
       const form = new FormData();
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
       // A replay (D08 T02 section 12, D01 T01 section 22): the upload door admits at most one replayRunId field,
-      // honoured only for the eval organisation, scoping the claim so the replay admits its own case. Ablation
-      // arm modes stay held at this boundary until the D01 flag admit lands (D08 T02 section 3).
-      if (mode.startsWith("replay:")) form.set("replayRunId", mode.slice("replay:".length));
+      // honoured only for the eval organisation, scoping the claim so the replay admits its own case. The id is
+      // the replay run's own, never the source run's. Ablation arm modes stay held at this boundary until the
+      // D01 flag admit lands (D08 T02 section 3).
+      if (opts.replayRunId) form.set("replayRunId", opts.replayRunId);
       const res = await fetchImpl(new URL("/api/upload", base), {
         method: "POST",
         headers: { cookie },
@@ -887,6 +895,28 @@ export async function resolveSelection(
   return { sets: stored.run.sets, limit: stored.run.sampleLimit };
 }
 
+// A replay's population (D08 T02 section 12): the source run's stored selection restored and verified against
+// the files on disk. A drifted population (a missing, changed or re-labelled sample, a changed set version)
+// is an error before anything is uploaded.
+export function replayPopulation(
+  stored: { run: RunRow; results: ResultRow[] },
+  select: (sets: readonly string[], limit: number | null) => { samples: RunSample[]; setVersion: string },
+): { samples: RunSample[]; setVersion: string } | { error: string } {
+  if (stored.results.length === 0) return { error: `run ${stored.run.id} stored no results to replay` };
+  const restored = select(stored.run.sets, stored.run.sampleLimit);
+  if (restored.setVersion !== stored.run.setVersion)
+    return {
+      error: `the sets on disk (version ${restored.setVersion}) are not those of run ${stored.run.id} (version ${stored.run.setVersion})`,
+    };
+  const ids = new Set(restored.samples.map((s) => s.id));
+  const missing = stored.results.filter((r) => !ids.has(r.sample));
+  if (restored.samples.length !== stored.run.selected || missing.length > 0)
+    return {
+      error: `the restored selection (${restored.samples.length} samples) is not the population of run ${stored.run.id} (${stored.run.selected} selected, ${missing.length} missing)`,
+    };
+  return restored;
+}
+
 // ---- the command ------------------------------------------------------------------------------------------------------------
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -927,7 +957,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     console.error(`eval:run: ${picked.error}`);
     return EXIT.refused;
   }
-  const { sets, limit } = picked;
+  let { sets, limit } = picked;
   const selectedAll = selectSamples(join(ROOT, "eval/sets"), sets, limit);
   let { samples, setVersion } = selectedAll;
   if (options.replay) {
@@ -936,12 +966,15 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
       console.error(`eval:run: no stored run ${options.replay} to replay`);
       return EXIT.refused;
     }
-    const wanted = new Set(replayableResults(stored.results).map((r) => r.sample));
-    if (wanted.size === 0) {
-      console.error(`eval:run: run ${options.replay} has no incomplete case to replay`);
+    const restored = replayPopulation(stored, (s, l) => selectSamples(join(ROOT, "eval/sets"), s, l));
+    if ("error" in restored) {
+      console.error(`eval:run: ${restored.error}; nothing sent`);
       return EXIT.refused;
     }
-    samples = selectedAll.samples.filter((s) => wanted.has(s.id));
+    sets = stored.run.sets;
+    limit = stored.run.sampleLimit;
+    samples = restored.samples;
+    setVersion = restored.setVersion;
   }
   const api = liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
   const env: Env = {

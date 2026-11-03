@@ -263,6 +263,28 @@ describe("publication against the real schema", () => {
     });
   });
 
+  it("publishes a complete replay as the latest full measurement, provenance kept (section 12)", async () => {
+    const db = database();
+    seed(db, "run-00000001");
+    seed(db, "run-00000009");
+    const pub = livePublishDb(exec(db));
+    const root = temp();
+    const at = (iso: string) => () => new Date(iso);
+    await publishRun({ report: report({ id: "run-00000001" }), db: pub, root, now: at("2026-11-02T06:00:00.000Z") });
+    const replayed = await publishRun({
+      report: report({ id: "run-00000009", mode: "replay:run-00000001" }),
+      db: pub,
+      root,
+      now: at("2026-11-03T06:00:00.000Z"),
+    });
+    expect(replayed.code).toBe(0);
+    expect(parseResults(readFileSync(join(root, SUMMARY_PATH), "utf-8"), "f").runId).toBe("run-00000009");
+    expect((await pub.latestFull())?.runId).toBe("run-00000009");
+    const stored = await pub.readPublished("run-00000009");
+    expect(stored?.mode).toBe("full");
+    expect(JSON.parse(stored?.reportJson ?? "{}").run.mode).toBe("replay:run-00000001");
+  });
+
   it("publishes through the command: --publish and --republish-summary, with their refusals", async () => {
     const db = database();
     seed(db, "run-00000001");

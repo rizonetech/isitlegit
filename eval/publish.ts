@@ -216,11 +216,14 @@ export async function publishRun(args: {
         code: 3,
         message: `run ${report.run.id} is already published; its summary file is repaired with --republish-summary`,
       };
-    await db.insertPublished(report.run.id, report.run.mode, JSON.stringify(report), args.now().toISOString());
+    // A complete replay of a full run is a full measurement (D08 T02 section 12): it publishes as one, with
+    // its replay provenance kept in the stored report's run mode.
+    const publishedMode = report.run.mode.startsWith("replay:") ? "full" : report.run.mode;
+    await db.insertPublished(report.run.id, publishedMode, JSON.stringify(report), args.now().toISOString());
   } catch (error) {
     return { code: 1, message: `nothing was published: the database failed (${(error as Error).message})` };
   }
-  if (report.run.mode !== "full")
+  if (report.run.mode !== "full" && !report.run.mode.startsWith("replay:"))
     return {
       code: 0,
       message: `run ${report.run.id} published (mode ${report.run.mode}); no summary file for an ablation`,

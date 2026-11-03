@@ -1097,13 +1097,13 @@ describe("what round 1 found", () => {
   it("logs progress while an upload or a read is still pending, driven by a timer, not a result (R3)", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     const upload = t.api.upload;
-    t.api.upload = async (sample, bytes, mode) => {
+    t.api.upload = async (sample, bytes, opts) => {
       // A 30 second upload: the timer fires while nothing has finished.
       for (let i = 0; i < 6; i++) {
         await t.env.sleep(5_000);
         t.tick();
       }
-      return upload(sample, bytes, mode);
+      return upload(sample, bytes, opts);
     };
     await go(t, opts());
     const during = t.logs.filter((l) => /^eval:run: 0 of 2 ended, 2 in flight, \d+ s, spend/.test(l));
@@ -1309,12 +1309,15 @@ describe("the replay identity", () => {
         old: { status: "done", verdict: "safe", createdAt: "2026-11-01T08:00:00.000Z" },
       },
     });
+    const replayIds: (string | null)[] = [];
     const api: Api = {
       ...t.api,
-      upload: async (sample, bytes, mode) =>
-        mode.startsWith("replay:")
+      upload: async (sample, bytes, opts) => {
+        replayIds.push(opts.replayRunId);
+        return opts.replayRunId
           ? { status: 201, caseId: `case-${t.samples.findIndex((s) => s.id === sample.id)}` }
-          : { status: 200, caseId: "old", repeat: true },
+          : { status: 200, caseId: "old", repeat: true };
+      },
     };
     const base = {
       samples: t.samples.slice(0, 2),
@@ -1327,10 +1330,24 @@ describe("the replay identity", () => {
     };
     const ordinary = await runEval({ ...base, api });
     expect(ordinary.results.every((r) => r.outcome === "stale-repeat")).toBe(true);
-    const replayed = await runEval({ ...base, api, mode: "replay:run-00000009" });
+    // Distinct run ids per run, as the live entry's randomUUID gives: the harness id is constant.
+    let seq = 100;
+    const env = { ...t.env, id: () => `run-${String(++seq).padStart(8, "0")}` };
+    const replayed = await runEval({ ...base, api, env, mode: "replay:run-00000009" });
     expect(replayed.exit).toBe(0);
     expect(replayed.results.every((r) => r.outcome === "done")).toBe(true);
     expect(t.runs.get(replayed.runId ?? "")?.mode).toBe("replay:run-00000009");
+    // The identity on the wire is the replay run's own id, never the source run's (section 12).
+    const sent = replayIds.filter((x) => x !== null);
+    expect(sent.length).toBe(2);
+    expect(new Set(sent)).toEqual(new Set([replayed.runId]));
+    expect(sent).not.toContain("run-00000009");
+    // A second replay of the same source opens its own cases under a different identity.
+    const again = await runEval({ ...base, api, env, mode: "replay:run-00000009" });
+    expect(again.exit).toBe(0);
+    expect(again.runId).not.toBe(replayed.runId);
+    const sentAgain = replayIds.filter((x) => x !== null).slice(2);
+    expect(new Set(sentAgain)).toEqual(new Set([again.runId]));
   });
 });
 
@@ -1340,9 +1357,9 @@ describe("the ablation flag transport", () => {
     const modes: string[] = [];
     const api: Api = {
       ...t.api,
-      upload: async (sample, bytes, mode) => {
-        modes.push(mode);
-        return t.api.upload(sample, bytes, mode);
+      upload: async (sample, bytes, opts) => {
+        modes.push(opts.mode);
+        return t.api.upload(sample, bytes, opts);
       },
     };
     const out = await runEval({
@@ -1374,9 +1391,9 @@ describe("the ablation flag transport", () => {
     const modes: string[] = [];
     const api: Api = {
       ...t.api,
-      upload: async (sample, bytes, mode) => {
-        modes.push(mode);
-        return t.api.upload(sample, bytes, mode);
+      upload: async (sample, bytes, opts) => {
+        modes.push(opts.mode);
+        return t.api.upload(sample, bytes, opts);
       },
     };
     const goMode = (extra: { api?: Api; resume?: string; mode?: string } = {}) =>

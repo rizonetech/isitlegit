@@ -714,12 +714,15 @@ export function mergeReplayResults(
   original: ResultRow[],
   replays: ResultRow[][],
 ): { results: ResultRow[]; consentLines: number } {
-  const complete = new Map<string, ResultRow>();
-  for (const run of replays) for (const r of run) if (r.outcome === "done") complete.set(r.sample, r);
+  // A replay remeasures the whole population (D08 T02 section 12): a terminal replay line replaces its
+  // original from either state, and a non-terminal one never does.
+  const measured = new Map<string, ResultRow>();
+  for (const run of replays)
+    for (const r of run) if (r.outcome === "done" || r.outcome === "partial") measured.set(r.sample, r);
   let consentLines = 0;
   const results = original.map((r) => {
-    const replay = complete.get(r.sample);
-    if (replay && r.outcome !== "done") {
+    const replay = measured.get(r.sample);
+    if (replay) {
       consentLines++;
       return replay;
     }

@@ -1,8 +1,13 @@
 // The replay orchestration and merging (D08 T02 section 12): injected clients, no spend.
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { mergeReplayResults } from "../../eval/metrics.ts";
 import { parseReplayArgs, replayableResults, runReplay } from "../../eval/replay.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
+import { liveApi, replayPopulation } from "../../eval/run.ts";
+import { selectSamples } from "../../eval/run-core.ts";
 
 const run = (over: Partial<RunRow> = {}): RunRow => ({
   id: "orig",
@@ -36,24 +41,28 @@ const row = (sample: string, outcome: ResultRow["outcome"], over: Partial<Result
 });
 
 describe("eval replay", () => {
-  it("replays only incomplete cases under a replay-scoped run and refuses an unknown or complete run", async () => {
-    expect(replayableResults([row("a", "done"), row("b", "timeout")]).map((r) => r.sample)).toEqual(["b"]);
+  it("replays the whole population under a fresh replay identity and refuses an unknown run", async () => {
+    expect(replayableResults([row("a", "done"), row("b", "timeout")]).map((r) => r.sample)).toEqual(["a", "b"]);
     const stored = { run: run(), results: [row("a", "done"), row("b", "timeout")] };
     const sent: string[] = [];
-    const out = await runReplay("orig", {
+    const clients = {
       readRun: async () => stored,
       createRun: async () => {},
-      resubmit: async (r, replayRunId) => {
+      resubmit: async (r: ResultRow, replayRunId: string) => {
         sent.push(replayRunId);
         return row(r.sample, "done", { runId: replayRunId, verdict: "malicious" });
       },
       putResult: async () => {},
       finishRun: async () => {},
-      newId: () => "replay-1",
       now: () => "2026-11-02T12:00:00.000Z",
-    });
-    expect(out).toMatchObject({ status: "complete", replayRunId: "replay-1", replayed: 1, stillIncomplete: 0 });
-    expect(sent).toEqual(["replay-1"]);
+    };
+    const out = await runReplay("orig", { ...clients, newId: () => "replay-1" });
+    expect(out).toMatchObject({ status: "complete", replayRunId: "replay-1", replayed: 2, stillIncomplete: 0 });
+    expect(sent).toEqual(["replay-1", "replay-1"]);
+    // A complete source run replays too, under a different fresh identity (section 12).
+    const complete = { run: run({ status: "complete" }), results: [row("a", "done"), row("b", "done")] };
+    const second = await runReplay("orig", { ...clients, readRun: async () => complete, newId: () => "replay-2" });
+    expect(second).toMatchObject({ status: "complete", replayRunId: "replay-2", replayed: 2 });
     const refused = await runReplay("nope", {
       readRun: async () => null,
       createRun: async () => {},
@@ -68,12 +77,77 @@ describe("eval replay", () => {
     expect(parseReplayArgs(["--run", "orig"])).toEqual({ runId: "orig" });
   });
 
-  it("merges a complete replay over its original and counts the replaced line apart", () => {
+  it("restores the source population whole and refuses drift before any upload (section 12)", () => {
+    const root = mkdtempSync(join(tmpdir(), "eval-replay-"));
+    try {
+      const dir = join(root, "synthetic-sa");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "a.eml"), "attack one");
+      writeFileSync(join(dir, "g.eml"), "genuine one");
+      const labels = [
+        { path: "a.eml", label: "attack", category: "credential-phishing", expected: [], source: "x", basis: "model" },
+        { path: "g.eml", label: "genuine", category: "genuine-business", expected: [], source: "x" },
+      ];
+      writeFileSync(join(dir, "labels.json"), JSON.stringify(labels));
+      const select = (sets: readonly string[], limit: number | null) => selectSamples(root, sets, limit);
+      const first = select(["synthetic-sa"], null);
+      const stored = {
+        run: run({ setVersion: first.setVersion, selected: 2, status: "complete" }),
+        results: [row("synthetic-sa/a.eml", "done"), row("synthetic-sa/g.eml", "done")],
+      };
+      // A complete source run restores whole: both samples, measured ones included.
+      const restored = replayPopulation(stored, select);
+      expect("error" in restored).toBe(false);
+      if (!("error" in restored))
+        expect(restored.samples.map((s) => s.id)).toEqual(["synthetic-sa/a.eml", "synthetic-sa/g.eml"]);
+      // A re-labelled set changes the version and refuses.
+      writeFileSync(
+        join(dir, "labels.json"),
+        JSON.stringify(labels.map((l) => (l.label === "attack" ? { ...l, category: "invoice-bank-change" } : l))),
+      );
+      expect(replayPopulation(stored, select)).toMatchObject({ error: expect.stringMatching(/not those of run/) });
+      // A stored result the disk no longer holds refuses as a different population.
+      const second = select(["synthetic-sa"], null);
+      const foreign = {
+        run: run({ setVersion: second.setVersion, selected: 2, status: "complete" }),
+        results: [row("synthetic-sa/a.eml", "done"), row("synthetic-sa/gone.eml", "done")],
+      };
+      expect(replayPopulation(foreign, select)).toMatchObject({
+        error: expect.stringMatching(/is not the population/),
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("serializes the replay run's own id as the replayRunId multipart field", async () => {
+    const bodies: FormData[] = [];
+    const fetchImpl = (async (_url: unknown, init?: { body?: FormData }) => {
+      bodies.push(init?.body as FormData);
+      return { status: 201, json: async () => ({ caseId: "case-1" }) };
+    }) as unknown as typeof fetch;
+    const api = liveApi("https://example.test", "cookie", fetchImpl);
+    const sample = { id: "synthetic-sa/a.eml", path: "a.eml" } as Parameters<typeof api.upload>[0];
+    const bytes = new TextEncoder().encode("attack one");
+    await api.upload(sample, bytes, { mode: "replay:source-run", replayRunId: "replay-run-own-id" });
+    expect(bodies[0]?.get("replayRunId")).toBe("replay-run-own-id");
+    // No replay identity, no field: an ordinary upload stays an ordinary duplicate.
+    await api.upload(sample, bytes, { mode: "full", replayRunId: null });
+    expect(bodies[1]?.get("replayRunId")).toBeNull();
+  });
+
+  it("merges a terminal replay over its original from either state and counts replaced lines apart", () => {
     const original = [row("a", "timeout"), row("b", "done", { verdict: "safe" })];
-    const merged = mergeReplayResults(original, [[row("a", "done", { runId: "replay-1", verdict: "malicious" })]]);
+    const merged = mergeReplayResults(original, [
+      [
+        row("a", "done", { runId: "replay-1", verdict: "malicious" }),
+        row("b", "partial", { runId: "replay-1", verdict: "suspicious" }),
+      ],
+    ]);
     expect(merged.results[0]?.verdict).toBe("malicious");
-    expect(merged.results[1]?.verdict).toBe("safe");
-    expect(merged.consentLines).toBe(1);
+    // A measured original is replaced too: the replay is the newer measurement of the same population.
+    expect(merged.results[1]?.verdict).toBe("suspicious");
+    expect(merged.consentLines).toBe(2);
     const kept = mergeReplayResults(original, [[row("a", "timeout", { runId: "replay-1" })]]);
     expect(kept.results[0]?.outcome).toBe("timeout");
     expect(kept.consentLines).toBe(0);
