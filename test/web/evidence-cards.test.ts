@@ -1125,7 +1125,8 @@ describe("the evidence cards", () => {
     expect(html).toContain("Cloudflare</strong>: Not listed by this provider");
     expect(html).toContain("from cache");
     expect(html).toContain("Well-known list</strong>: Not on the well-known list");
-    expect(html).toContain("Could not be checked (provider timed out)");
+    expect(html).toContain("Could not be checked (the provider timed out)");
+    expect(html).toContain("obtained 2026-10-27T08:00:00Z");
     // Only answered providers count, per exact subject: the listing's subject has one answered row.
     expect(html).toContain("1 provider answered: 1 listed, 0 not listed");
     // A subject no card names is drawn in its own block, and a hostile subject stays text.
@@ -1144,6 +1145,18 @@ describe("the evidence cards", () => {
     expect(hostile).toContain("&lt;script&gt;");
     // No stored rows: no provider block is invented.
     expect(draw(items([listing]))).not.toContain("providers answered");
+    // Two cards naming one subject draw its rows once, and a failed read says so.
+    const twice = drawWithReputation(items([listing, listing]), rows);
+    expect(twice.match(/Google Web Risk<\/strong>: Listed/g)).toHaveLength(1);
+    const failed = String(
+      jsx(EvidenceCards, {
+        items: items([listing]),
+        cited: [],
+        file: (key: string) => `/a/case/${encodeURIComponent(key)}`,
+        reputation: null,
+      }),
+    );
+    expect(failed).toContain("The provider answers for this report could not be loaded.");
   });
 
   // D07 T09 §6: the stored transcript, its player, the request marked, and its incomplete states.

@@ -216,7 +216,7 @@ async function render(
   const progress = progressOf(events);
   const confirming = found.value.status === "received" && found.value.runId !== null && events.length === 0;
   const coverage = await readCheckOutcomes(db, id, run);
-  const reputation = (await readReputationResults(db, id, run)) ?? [];
+  const reputation = await readReputationResults(db, id, run);
   const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;

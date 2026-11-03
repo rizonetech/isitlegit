@@ -1094,6 +1094,14 @@ describe("the status poll", () => {
       .run();
     const again = await (await poll(id, cookie)).text();
     expect(again).not.toContain("other.example");
+    // Rows stored under another run of this same case never join this run's report.
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, 'another-run', 'cloudflare', 'stale.example', 'listed', '2026-10-27T08:00:00Z', 0, NULL)",
+      )
+      .bind(id)
+      .run();
+    expect(await (await poll(id, cookie)).text()).not.toContain("stale.example");
   });
 
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);

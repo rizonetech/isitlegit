@@ -84,7 +84,7 @@ export type LiveProps = {
   verdict: ReportVerdict | null;
   sourceKind: string;
   evidence: readonly CardItem[];
-  reputation?: readonly ReputationRow[];
+  reputation?: readonly ReputationRow[] | null | undefined;
   progress: Progress;
   coverage: Coverage;
   view: "member" | "public";
@@ -354,7 +354,7 @@ function Found(props: LiveProps) {
         items={props.evidence}
         cited={[]}
         file={(key) => artefactUrl(props.caseId, key, props.view === "public" ? props.link : undefined)}
-        reputation={props.reputation ?? []}
+        reputation={props.reputation}
         columns={1}
       />
       <section aria-labelledby="wait-heading" class="flex flex-col gap-8 p-24 bg-subtle rounded-card-large">
@@ -553,7 +553,7 @@ export function ReportLive(props: LiveProps) {
               items={props.evidence}
               cited={[]}
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
-              reputation={props.reputation ?? []}
+              reputation={props.reputation}
               intro={evidenceCount(props.evidence, props.coverage)}
               versions={props.coverage}
               empty="Nothing was found before the check stopped."
@@ -602,7 +602,7 @@ export function ReportLive(props: LiveProps) {
             items={props.evidence}
             cited={cited(verdict as ReportVerdict)}
             file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
-            reputation={props.reputation ?? []}
+            reputation={props.reputation}
             columns={(verdict as ReportVerdict).verdict === "safe" ? 3 : 2}
             intro={evidenceCount(props.evidence, props.coverage)}
             versions={props.coverage}

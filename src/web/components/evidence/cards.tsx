@@ -461,6 +461,14 @@ const REPUTATION_STATE: Record<string, string> = {
   known: "On the well-known list",
   unknown: "Not on the well-known list",
 };
+// A stored unavailable reason in plain words; a code nothing here knows is said as the provider not answering.
+function reasonWords(note: string): string {
+  if (note === "no_key") return "no provider key is configured";
+  if (note === "rate_limited") return "the provider limited the rate of asks";
+  if (note.startsWith("capped:")) return "the provider's limit for this run was reached";
+  if (note.includes("timed out") || note.includes("timeout")) return "the provider timed out";
+  return "the provider did not answer";
+}
 // One subject's stored provider answers (D07 T09 §5): every provider asked, its own state, when the answer was
 // obtained and whether it came from the cache. The count line counts only providers that answered, keeps the
 // well-known list apart, and never reads as a verdict.
@@ -474,13 +482,15 @@ export function ProviderRows(props: { rows: readonly ReputationRow[] }) {
           <li class="text-14 wrap-anywhere">
             <strong>{PROVIDER_WORDS[r.provider] ?? r.provider}</strong>
             {`: ${REPUTATION_STATE[r.state] ?? r.state}`}
-            {r.state === "unavailable" && r.note ? ` (${r.note})` : ""}
-            {` · ${r.obtainedAt}${r.cached ? " · from cache" : ""}`}
+            {r.note ? ` (${r.state === "unavailable" ? reasonWords(r.note) : r.note})` : ""}
+            {` · obtained ${r.obtainedAt}${r.cached ? " · from cache" : ""}`}
           </li>
         ))}
       </ul>
-      {answered.length > 0 && (
+      {answered.length > 0 ? (
         <p class="text-14 text-muted">{`${answered.length} provider${answered.length === 1 ? "" : "s"} answered: ${listed} listed, ${answered.length - listed} not listed`}</p>
+      ) : (
+        <p class="text-14 text-muted">No provider answered for this subject.</p>
       )}
     </div>
   );
@@ -504,6 +514,11 @@ const reputation: Renderer = (item, file, _quote, reputation) => {
           {domains.length > 0 ? (
             <>
               <Bullets items={domains} />
+              {domains.map((domain) =>
+                reputation && reputation.filter((r) => r.subject === domain).length > 0 ? (
+                  <ProviderRows rows={reputation.filter((r) => r.subject === domain)} />
+                ) : null,
+              )}
               {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
                 <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
               )}
@@ -1823,8 +1838,9 @@ export function EvidenceCards(props: {
         data?: { revision: string; id: string; source: "kv" | "bundled" };
       }[]
     | null;
-  // The run's stored per-provider reputation answers (D07 T09 §5), drawn on their subject's card.
-  reputation?: readonly ReputationRow[];
+  // The run's stored per-provider reputation answers (D07 T09 §5), drawn on their subject's card; null when
+  // the read itself failed, which the block says rather than drawing nothing.
+  reputation?: readonly ReputationRow[] | null | undefined;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
   const namedSubjects = new Set<string>();
@@ -1837,6 +1853,25 @@ export function EvidenceCards(props: {
     }
   }
   const uncovered = new Map<string, ReputationRow[]>();
+  // One card per subject draws its rows: the first card that names the subject, so a stored answer is never
+  // repeated on every card that mentions the same subject.
+  const claimed = new Map<string, ReputationRow[]>();
+  const seenSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    const subjects = new Set<string>();
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) subjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) subjects.add(s);
+    }
+    for (const s of subjects) {
+      if (seenSubjects.has(s)) continue;
+      seenSubjects.add(s);
+      const rows = (props.reputation ?? []).filter((r) => r.subject === s);
+      if (rows.length > 0) claimed.set(item.id, [...(claimed.get(item.id) ?? []), ...rows]);
+    }
+  }
   for (const r of props.reputation ?? []) {
     if (namedSubjects.has(r.subject)) continue;
     uncovered.set(r.subject, [...(uncovered.get(r.subject) ?? []), r]);
@@ -1870,7 +1905,12 @@ export function EvidenceCards(props: {
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>
               {(all ? rest : cited).map((item) => (
-                <Card item={item} file={props.file} requestQuote={requestQuote} reputation={props.reputation ?? []} />
+                <Card
+                  item={item}
+                  file={props.file}
+                  requestQuote={requestQuote}
+                  reputation={claimed.get(item.id) ?? []}
+                />
               ))}
             </div>
           )}
@@ -1892,12 +1932,20 @@ export function EvidenceCards(props: {
               </summary>
               <div class={grid}>
                 {rest.map((item) => (
-                  <Card item={item} file={props.file} requestQuote={requestQuote} reputation={props.reputation ?? []} />
+                  <Card
+                    item={item}
+                    file={props.file}
+                    requestQuote={requestQuote}
+                    reputation={claimed.get(item.id) ?? []}
+                  />
                 ))}
               </div>
             </details>
           )}
         </>
+      )}
+      {props.reputation === null && (
+        <p class="text-14 text-muted">The provider answers for this report could not be loaded.</p>
       )}
       {[...uncovered.entries()].map(([subject, rows]) => (
         <div class="flex flex-col gap-8">
