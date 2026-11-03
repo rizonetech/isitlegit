@@ -24,6 +24,18 @@ const RENDERED = new Set(["render", "crop", "page"]);
 // segments to a frame and a scan ending in its end marker, a GIF's blocks to an image and its trailer, a WebP's RIFF
 // size and its one image chunk's header. A file that is cut short, padded or merely starts like an image fails, and
 // stays a download, never a broken image.
+// A recording's media type from its bytes, never its name (D07 T09 §6, round 1): intake takes audio by signature
+// (src/intake/sniff.ts), so a WAV named without an extension, or misleadingly, still plays with its true type.
+export function passiveAudio(body: Uint8Array): string | null {
+  if (ascii(body, 0, 4) === "RIFF" && ascii(body, 8, 4) === "WAVE") return "audio/wav";
+  if (ascii(body, 0, 4) === "OggS") {
+    const segments = body[26] ?? 0;
+    return ascii(body, 27 + segments, 8) === "OpusHead" ? "audio/ogg" : null;
+  }
+  if (ascii(body, 0, 3) === "ID3") return "audio/mpeg";
+  if ((body[0] ?? 0) === 0xff && ((body[1] ?? 0) & 0xe0) === 0xe0 && ((body[1] ?? 0) & 0x06) !== 0) return "audio/mpeg";
+  return null;
+}
 export function passiveImage(body: Uint8Array): string | null {
   if (png(body)) return "image/png";
   if (jpeg(body)) return "image/jpeg";
@@ -292,15 +304,8 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
     // Only a preview peeks without the body, and it has answered above.
     if (!("body" in file)) return answer(errorPage(404, id));
     const image = inline && RENDERED.has(file.stored.kind) ? passiveImage(file.body) : null;
-    // A recording played in the report (D07 T09 §6): an inline ask for an audio file, under the checks above.
-    const AUDIO: Record<string, string> = {
-      ogg: "audio/ogg",
-      opus: "audio/ogg",
-      wav: "audio/wav",
-      mp3: "audio/mpeg",
-      m4a: "audio/mp4",
-    };
-    const audio = inline ? (AUDIO[key.split(".").pop()?.toLowerCase() ?? ""] ?? null) : null;
+    // A recording played in the report (D07 T09 §6): an inline ask for a file whose bytes are audio, under the checks above.
+    const audio = inline ? passiveAudio(file.body) : null;
     const headers: Record<string, string> = {
       ...HEADERS,
       "x-content-type-options": "nosniff",
