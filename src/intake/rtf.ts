@@ -282,6 +282,11 @@ function walkRtf(
         // The document's default font, which text without a font switch reads in.
         frame().font = arg;
         break;
+      case "bin":
+        // \binN's payload is raw bytes, never text: consumed whole, so braces or escapes inside it can
+        // neither change the group scope nor reach the body.
+        if (arg !== null && arg > 0) k += arg;
+        break;
       case "ansicpg":
         if (arg !== null)
           frame().label = arg === 932 ? "shift_jis" : arg === 936 ? "gbk" : arg === 950 ? "big5" : `windows-${arg}`;

@@ -150,6 +150,8 @@ describe("scoped state and syntax", () => {
     // A group delimiter is never fallback, and a \bin payload is one fallback character, not body text.
     expect(rtfToText(enc("{\\rtf1{\\u945}Pay now}"), "windows-1252")).toBe("αPay now");
     expect(rtfToText(enc("{\\rtf1\\uc1\\u945\\bin3 abcX}"), "windows-1252")).toBe("αX");
+    // A \bin payload outside any fallback is consumed whole too: its braces change no group scope.
+    expect(rtfToText(enc("{\\rtf1{\\pict\\bin6 }{EVIL}Pay}"), "windows-1252")).toBe("Pay");
   });
 
   it("keeps the Unicode fallback count and the font inside their group", () => {
