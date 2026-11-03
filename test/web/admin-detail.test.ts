@@ -369,7 +369,7 @@ describe("the feedback queue page", () => {
     if (!href) throw new Error("the selected report carries no signed link");
     const opened = await get(href);
     expect(opened.status).toBe(200);
-    const tampered = await get(`${href.slice(0, -1)}${href.endsWith("A") ? "B" : "A"}`);
+    const tampered = await get(`${href.slice(0, -2)}${href.slice(-2, -1) === "A" ? "B" : "A"}${href.slice(-1)}`);
     expect(tampered.status).toBe(404);
   });
 
