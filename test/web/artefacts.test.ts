@@ -117,7 +117,9 @@ describe("the reference logo beside a crop (D07 T03 s14)", () => {
     const stranger = await call(`/a/${id}/${encodeURIComponent("ref-logo:NimbusMail")}?inline=1`);
     expect(stranger.status).toBe(303);
     const link = await signReportLink(SECRET, id, orgId);
-    const holder = await call(`/a/${id}/${encodeURIComponent("ref-logo:NimbusMail")}${link.slice(link.indexOf("?"))}&inline=1`);
+    const holder = await call(
+      `/a/${id}/${encodeURIComponent("ref-logo:NimbusMail")}${link.slice(link.indexOf("?"))}&inline=1`,
+    );
     expect(holder.status).toBe(200);
     expect(new Uint8Array(await holder.arrayBuffer())).toEqual(PNG);
     const none = await call(`/a/${id}/${encodeURIComponent("ref-logo:UnknownBrand")}?inline=1`, {

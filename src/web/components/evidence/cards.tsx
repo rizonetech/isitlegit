@@ -1851,7 +1851,8 @@ const vision: Renderer = (item, file) => {
           />
           <Bullets
             items={compared.map(
-              (entry) => `${DOMAIN_KIND[text(entry.kind) ?? ""] ?? "Seen at"} ${text(entry.host) ?? "an unknown address"}`,
+              (entry) =>
+                `${DOMAIN_KIND[text(entry.kind) ?? ""] ?? "Seen at"} ${text(entry.host) ?? "an unknown address"}`,
             )}
           />
           <p class="text-14 text-muted">No match and no clearance: the brand's real domains were not confirmed.</p>

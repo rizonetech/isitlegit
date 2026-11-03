@@ -942,7 +942,15 @@ const FIXTURES: Fixture[] = [
       visible_sender: "NimbusMail Support",
     },
     artefacts: ["derived/case/render-1.png"],
-    shows: ["What a picture claims", "Brand it shows", "NimbusMail", "Sender it shows", "NimbusMail Support", "How sure the reading is", "90%"],
+    shows: [
+      "What a picture claims",
+      "Brand it shows",
+      "NimbusMail",
+      "Sender it shows",
+      "NimbusMail Support",
+      "How sure the reading is",
+      "90%",
+    ],
   },
   {
     check: "vision.requested_action",
