@@ -1,4 +1,4 @@
-import { cx, FOCUS, ids, type PassThrough, passThrough } from "./attrs";
+import { cx, FIELD_FOCUS, ids, type PassThrough, passThrough } from "./attrs";
 
 // A labelled text field (design/SPEC.md 1, ui.css `.field`, `.input`): label, optional hint, optional error. The error
 // state sets aria-invalid and both hint and error describe the input, by ids derived from the required, page-unique id.
@@ -27,12 +27,15 @@ export type FieldProps = PassThrough & {
   class?: string;
 };
 
-// Focus is the shared outline (attrs.ts FOCUS) over the board's orange border, and an invalid field keeps its red border
-// under it (the board's 25% ring measured about 1.4:1; a SPEC deviation, design/SPEC.md 1).
-const INPUT = cx(
-  "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface box-border w-full placeholder:text-muted focus:border-orange aria-invalid:border-mal aria-invalid:focus:border-mal",
-  FOCUS,
+// One-border focus (attrs.ts FIELD_FOCUS, D07 T01 §16; design/SPEC.md 1): the 1 px border switches to `orange-text` on
+// `:focus` and `:focus-visible` with no separate outline ring, and an invalid field shows `mal` at rest and switches to
+// `orange-text` while focused. `INLINE_INPUT` is shared by compact filter-bar date and search inputs.
+export const INLINE_INPUT = cx(
+  "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface box-border min-w-0 placeholder:text-muted",
+  FIELD_FOCUS,
 );
+
+const INPUT = cx(INLINE_INPUT, "w-full");
 
 const TEXTAREA = INPUT.replace("h-control", "py-12 leading-normal");
 

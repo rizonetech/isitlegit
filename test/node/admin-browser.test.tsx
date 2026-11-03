@@ -240,9 +240,22 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the admin console in Chromi
         expect(reached, `${name} ${width}`).toBe(true);
         const ring = await target.evaluate((el) => {
           const style = getComputedStyle(el);
-          return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth), shadow: style.boxShadow };
+          return {
+            style: style.outlineStyle,
+            width: Number.parseFloat(style.outlineWidth),
+            shadow: style.boxShadow,
+            borderStyle: style.borderTopStyle,
+            borderWidth: Number.parseFloat(style.borderTopWidth),
+          };
         });
-        expect(ring.style !== "none" || ring.shadow !== "none", `${name} ${width}`).toBe(true);
+        if (role === "textbox") {
+          expect(
+            ring.style === "none" && ring.borderStyle === "solid" && ring.borderWidth >= 1,
+            `${name} ${width}`,
+          ).toBe(true);
+        } else {
+          expect(ring.style !== "none" || ring.shadow !== "none", `${name} ${width}`).toBe(true);
+        }
       }
       for (const theme of ["light", "dark"] as const) {
         await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);

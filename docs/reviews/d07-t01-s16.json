@@ -1,0 +1,111 @@
+{
+  "ref": "D07 T01 \u00a716",
+  "title": "One-border focus and an inset combobox chevron",
+  "implementation_sha": "db49e22ba3d830bdcbcd7eabee1fcf7e2ef34543",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T01-s16.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 8 pnpm exec vitest run test/node/controls.test.tsx test/node/controls-browser.test.tsx test/node/gallery.test.tsx test/node/cases-browser.test.tsx -> 80 passed",
+    "taskset -c 8 env A11Y=1 pnpm exec vitest run --project a11y test/node/a11y.test.tsx -> 18 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s16.md",
+    "verdict": "completed",
+    "candidate": "4aef8f2a153e19c4fecf23b45229152a541f00f5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 2,
+  "round_cap": 3,
+  "cap_outcome": "Round 2 reached HIGHEST: P3 only (Evidence paragraph hex wording in todo/07-app/TODO-01-design-system.md corrected alongside the stamp)",
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s16.md",
+    "candidate": "4689cdfabb7083a9f820828bc977486ac8a80c26",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
