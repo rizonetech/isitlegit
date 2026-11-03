@@ -521,7 +521,7 @@ Wrong-device link: b (2026-10-30)
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass: the link opened in another browser does what the decision records, and the asking browser's code still signs it in. **Corrected 2026-11-01 (at start):** the code store's test file is `sign-in-code.test.ts`; the browser state added.
 
-> **Deferred:** the wording for a different browser on the same device -> XREF: D07 T02 §25
+> **Resolved:** the wording for a different browser on the same device -> XREF: D07 T02 §25. Resolved 2026-11-02 by D07 T02 §25 in `357ad030` and `3f678251`.
 
 > **Verified:** 2026-11-01 | §12 | e8b281807694a59db1b9b348541fbd56b53b93df
 > **Review:** `docs/reviews/d07-t02-s12.json`
