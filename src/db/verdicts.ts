@@ -22,6 +22,8 @@ export const FloorApplied = z.strictObject({
   from: Verdict,
   to: Verdict,
   evidenceIds: z.array(z.string().regex(EVIDENCE_ID)).min(1).max(10),
+  // The floor rule revision that produced the record (D04 T01 §13); absent on records stored before it.
+  revision: z.string().min(1).max(40).optional(),
 });
 export type FloorApplied = z.infer<typeof FloorApplied>;
 export const VerdictView = z.object({
@@ -50,6 +52,10 @@ export type StoredVerdict = Omit<VerdictView, "reasons"> & {
   reasons: { text: string; evidenceIds: string[] }[];
   caseId: string;
   createdAt: string;
+  // Whether the floor was evaluated for this verdict (D04 T01 §13): `raised` (a floor record is stored),
+  // `measured` (stored since the floor outcome was recorded, with no raise), or `unrecorded` (stored
+  // before migration 0081, so nothing about the floor was kept). Always set on a read row.
+  floorCoverage?: "raised" | "measured" | "unrecorded" | undefined;
 };
 
 export type VerdictError = { code: "invalid" | "conflict" | "database"; message: string };
@@ -68,6 +74,17 @@ type Row = {
   ablated: string | null;
   created_at: string;
 };
+// The stored floor outcome (D04 T01 §11 and §13): a JSON record is a raise; the JSON null written since
+// §13 is a measured no-raise; SQL null is a row stored before the outcome was kept at all.
+const floorOf = (
+  stored: string | null,
+): { floorApplied: FloorApplied | null; floorCoverage: StoredVerdict["floorCoverage"] } =>
+  stored === null
+    ? { floorApplied: null, floorCoverage: "unrecorded" }
+    : stored === "null"
+      ? { floorApplied: null, floorCoverage: "measured" }
+      : { floorApplied: JSON.parse(stored) as FloorApplied, floorCoverage: "raised" };
+
 const toVerdict = (row: Row): StoredVerdict => ({
   caseId: row.case_id,
   verdict: row.verdict,
@@ -79,7 +96,7 @@ const toVerdict = (row: Row): StoredVerdict => ({
   actions: JSON.parse(row.actions),
   meaning: row.meaning,
   source: row.source,
-  floorApplied: row.floor_applied ? (JSON.parse(row.floor_applied) as FloorApplied) : null,
+  ...floorOf(row.floor_applied),
   // A legacy row's SQL null, and anything outside eval's four flags, reads as absent.
   ablated: (ABLATE_FLAGS as readonly string[]).includes(row.ablated ?? "") ? (row.ablated as AblateFlag) : null,
   createdAt: row.created_at,
@@ -141,7 +158,8 @@ export async function saveVerdict(
         JSON.stringify(v.actions),
         v.meaning,
         v.source,
-        v.floorApplied ? JSON.stringify(v.floorApplied) : null,
+        // A no-raise verdict stores the JSON null, so its floor reads as measured, never unrecorded (§13).
+        JSON.stringify(v.floorApplied ?? null),
         v.ablated ?? null,
         new Date().toISOString(),
       )
@@ -200,7 +218,7 @@ export async function storeVerdict(
           JSON.stringify(v.actions),
           v.meaning,
           v.source,
-          v.floorApplied ? JSON.stringify(v.floorApplied) : null,
+          JSON.stringify(v.floorApplied ?? null),
           v.ablated ?? null,
           now,
           caseId,

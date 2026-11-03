@@ -179,6 +179,47 @@ describe("saveVerdict", () => {
     expect(await getVerdict(env.DB, old)).toMatchObject({ ok: true, value: { floorApplied: null } });
   });
 
+  it("reads the floor coverage states apart, and a record's revision (D04 T01 §13)", async () => {
+    // Stored before the floor outcome was kept: unrecorded, never confused with a measured no-raise.
+    const old = await newCase("org-verdicts", 0);
+    await env.DB.prepare(
+      "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at) VALUES (?, 'suspicious', 'h', 0.5, '[]', '[]', 'stub', 'now')",
+    )
+      .bind(old)
+      .run();
+    expect(await getVerdict(env.DB, old)).toMatchObject({
+      ok: true,
+      value: { floorApplied: null, floorCoverage: "unrecorded" },
+    });
+    // A verdict stored now with no raise: measured.
+    const plain = await newCase();
+    expect(await saveVerdict(env.DB, plain, view)).toMatchObject({
+      ok: true,
+      value: { floorApplied: null, floorCoverage: "measured" },
+    });
+    // A raise: raised, with the revision of the rules that produced it.
+    const raised = await newCase();
+    const floored = {
+      ...view,
+      floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"], revision: "1" },
+    };
+    expect(await saveVerdict(env.DB, raised, floored)).toMatchObject({
+      ok: true,
+      value: { floorApplied: floored.floorApplied, floorCoverage: "raised" },
+    });
+    // A record stored before revisions were named (no revision field) still parses and reads raised.
+    const legacy = await newCase("org-verdicts", 0);
+    await env.DB.prepare(
+      "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, floor_applied, created_at) VALUES (?, 'malicious', 'h', 0.5, '[]', '[]', 'agent', ?, 'now')",
+    )
+      .bind(legacy, JSON.stringify({ from: "safe", to: "malicious", evidenceIds: ["E1"] }))
+      .run();
+    expect(await getVerdict(env.DB, legacy)).toMatchObject({
+      ok: true,
+      value: { floorCoverage: "raised", floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"] } },
+    });
+  });
+
   it("persists the ablation marker through save, the Workflow store, and replay (D04 T01 §14)", async () => {
     const ablated = { ...view, ablated: "no-agent-reasoning" as const };
     const id = await newCase();

@@ -11,7 +11,10 @@ const RANK: Record<Verdict, number> = { safe: 0, suspicious: 1, malicious: 2 };
 export const MAX_FLOOR_IDS = 10;
 
 export type Floor = { verdict: Verdict; evidenceIds: string[] };
-export type FloorApplied = { from: Verdict; to: Verdict; evidenceIds: string[] };
+// The revision of these floor rules (weights and triggers above), changed with any change to them, so a
+// stored floor record names the rules that produced it and an old decision can be reproduced (D04 T01 §13).
+export const FLOOR_REVISION = "1";
+export type FloorApplied = { from: Verdict; to: Verdict; evidenceIds: string[]; revision?: string };
 
 // What an item weighs: a reputation listing marked `cap = "suspicious"` (D02 T06 §4) weighs the lower of its own
 // severity and high, so a listing alone never floors at malicious (spec 4.3a) and a weak listing (medium or low) never
@@ -44,6 +47,11 @@ export function applyFloor(
   if (RANK[modelVerdict] >= RANK[floor.verdict]) return { verdict: modelVerdict, floorApplied: null };
   return {
     verdict: floor.verdict,
-    floorApplied: { from: modelVerdict, to: floor.verdict, evidenceIds: [...floor.evidenceIds] },
+    floorApplied: {
+      from: modelVerdict,
+      to: floor.verdict,
+      evidenceIds: [...floor.evidenceIds],
+      revision: FLOOR_REVISION,
+    },
   };
 }

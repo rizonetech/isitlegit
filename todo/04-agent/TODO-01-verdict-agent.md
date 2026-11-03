@@ -395,8 +395,8 @@ Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there
 
 1. Make each floor record reproducible and its coverage readable. Done when: a stored record names its rule revision, and a reader can tell a pre-§11 case from a measured no-raise case.
 
-- [ ] Name the floor rule revision beside `floorFor` in `src/agent/floor.ts` (a constant changed with any weight or trigger change) and carry it in the `floorApplied` record the loop stores. Done when: `test/agent/floor.test.ts` reads the revision from a raised record and an older decision is reproduced after a revision change in the same suite.
-- [ ] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
+- [x] Name the floor rule revision beside `floorFor` in `src/agent/floor.ts` (a constant changed with any weight or trigger change) and carry it in the `floorApplied` record the loop stores. Done when: `test/agent/floor.test.ts` reads the revision from a raised record and an older decision is reproduced after a revision change in the same suite.
+- [x] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
 - [ ] Commit: `agent: floor record provenance and coverage state`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.

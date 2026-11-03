@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFloor, type Floor, floorFor, MAX_FLOOR_IDS } from "../../src/agent/floor";
+import { applyFloor, FLOOR_REVISION, type Floor, floorFor, MAX_FLOOR_IDS } from "../../src/agent/floor";
 import type { Evidence } from "../../src/checks/evidence";
 
 // D04 T01 §1: the lowest verdict the evidence allows, whatever a model says.
@@ -115,12 +115,12 @@ describe("applyFloor", () => {
   it("raises a model's safe over critical evidence to the floor and records the ids", () => {
     expect(applyFloor("safe", malicious)).toEqual({
       verdict: "malicious",
-      floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E2", "E5"] },
+      floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E2", "E5"], revision: FLOOR_REVISION },
     });
     expect(applyFloor("suspicious", malicious).verdict).toBe("malicious");
     expect(applyFloor("safe", suspicious)).toEqual({
       verdict: "suspicious",
-      floorApplied: { from: "safe", to: "suspicious", evidenceIds: ["E3"] },
+      floorApplied: { from: "safe", to: "suspicious", evidenceIds: ["E3"], revision: FLOOR_REVISION },
     });
   });
 
@@ -136,6 +136,14 @@ describe("applyFloor", () => {
     for (const model of ["safe", "suspicious", "malicious"] as const)
       for (const floor of [safe, suspicious, malicious])
         expect(rank[applyFloor(model, floor).verdict]).toBeGreaterThanOrEqual(rank[floor.verdict]);
+  });
+
+  it("names its rule revision in the record, so an older decision can be reproduced (D04 T01 §13)", () => {
+    // A record stored before revisions were named still reproduces its decision from its ids.
+    const older = { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E2", "E5"] };
+    expect(floorFor([item("attachment.executable", "critical"), item("x", "info")]).verdict).toBe(older.to);
+    expect(applyFloor("safe", malicious).floorApplied?.revision).toBe(FLOOR_REVISION);
+    expect(FLOOR_REVISION).toBe("1");
   });
 
   it("does not share the floor's id list with the record", () => {

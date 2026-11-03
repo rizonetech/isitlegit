@@ -216,10 +216,13 @@ describe("runAgent", () => {
     expect(view.actions).toEqual(rules.actions);
     expect(view.reasons[0]?.evidenceIds).toEqual(["E1"]);
     // The floor outcome is persisted with the verdict (D04 T01 §11), so the eval can measure it per case.
-    expect(view.floorApplied).toEqual({ from: "safe", to: "malicious", evidenceIds: ["E1"] });
+    expect(view.floorApplied).toEqual({ from: "safe", to: "malicious", evidenceIds: ["E1"], revision: "1" });
     expect(await getVerdict(env.DB, caseId)).toMatchObject({
       ok: true,
-      value: { floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"] } },
+      value: {
+        floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"], revision: "1" },
+        floorCoverage: "raised",
+      },
     });
   });
 
