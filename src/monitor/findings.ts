@@ -5,6 +5,7 @@
 // flagging settles taken offline.
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { identityContact } from "../trust/identity";
+import { isDemoOrg } from "./seeds";
 import {
   copyForTraining,
   encodeFindingDecision,
@@ -209,8 +210,16 @@ export async function alertNewFindings(
   now: () => Date = () => new Date(),
 ): Promise<number> {
   if (!deps.mail) return 0;
-  const contact = await identityContact(db, orgId);
-  if (!contact) return 0;
+  const rawContact = await identityContact(db, orgId);
+  if (!rawContact) return 0;
+  // A demo organisation whose verified finance contact is under `<slug>.demo.isitlegit.co.za`
+  // routes its impersonation alerts to the shared demo alerts alias `alerts@demo.isitlegit.co.za`
+  // (docs/live-checks.md; D07 T07 §1), which passes the mail allowlist and forwards through
+  // Cloudflare Email Routing without altering the demo business's identity contact.
+  const contact =
+    rawContact.toLowerCase().endsWith(".demo.isitlegit.co.za") && (await isDemoOrg(db, orgId))
+      ? "alerts@demo.isitlegit.co.za"
+      : rawContact;
   const pending = (
     await db
       .prepare(

@@ -4,21 +4,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex,nofollow">
-<title>Fynbos Freight: sign in</title>
+<meta name="description" content="Test fixture for IsItLegit, not a real service">
+<meta name="contact" content="accounts@fynbosfreight.demo.isitlegit.co.za">
+<title>Fynbos Freight: Urgent Account &amp; Parcel Verification</title>
 </head>
-<body style="margin:0;font:16px sans-serif">
-<h1 style="position:absolute;left:0;top:0;margin:0">Fynbos Freight</h1>
-<p style="position:absolute;left:0;top:60px">Road freight · Western Cape. Sign in to track your parcel.</p>
-<form action="../collect" method="post">
-<input type="hidden" name="fixture" value="fynbos-lookalike">
-<label style="position:absolute;left:0;top:120px">Email address
-<input id="email" name="email" type="email" style="width:300px;height:30px">
-</label>
-<label style="position:absolute;left:0;top:180px">Password
-<input id="password" name="password" type="password" style="width:300px;height:30px">
-</label>
-<button style="position:absolute;left:0;top:240px;width:120px;height:32px">Sign in</button>
-</form>
-<footer style="position:absolute;left:0;top:320px;color:#666">Test fixture for IsItLegit, not a real service. Fynbos Freight (Pty) Ltd, registration 2099/000001/07.</footer>
+<body style="margin:0;padding:24px;background:#F6F4EF;color:#17332A;font:16px Manrope,'Helvetica Neue',Arial,sans-serif">
+<div style="max-width:560px;background:#fff;border:2px solid #B83A5E;border-radius:8px;padding:24px">
+  <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="56" height="56" role="img" aria-label="Fynbos Freight: a king protea in bloom">
+      <g transform="translate(60 94)">
+        <path d="M0 0 C-14 4 -30 2 -40 -8 C-28 -12 -12 -10 0 0 Z" fill="#17332A"/>
+        <path d="M0 0 C14 4 30 2 40 -8 C28 -12 12 -10 0 0 Z" fill="#2E5A47"/>
+        <g fill="#B83A5E">
+          <path transform="rotate(-62) scale(0.72)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+          <path transform="rotate(-42) scale(0.86)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+          <path transform="rotate(-21) scale(0.97)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+          <path transform="rotate(21) scale(0.97)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+          <path transform="rotate(42) scale(0.86)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+          <path transform="rotate(62) scale(0.72)" d="M0 0 C11 -12 13 -40 0 -62 C-13 -40 -11 -12 0 0 Z"/>
+        </g>
+        <g fill="#E58BA4">
+          <path transform="rotate(-31) scale(0.8)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+          <path transform="rotate(-10) scale(0.9)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+          <path transform="rotate(10) scale(0.9)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+          <path transform="rotate(31) scale(0.8)" d="M0 0 C10 -12 12 -38 0 -58 C-12 -38 -10 -12 0 0 Z"/>
+        </g>
+        <ellipse cx="0" cy="-30" rx="13" ry="16" fill="#F6E3E8"/>
+        <g fill="#B83A5E">
+          <circle cx="0" cy="-42" r="1.8"/><circle cx="-5" cy="-37" r="1.8"/><circle cx="5" cy="-37" r="1.8"/>
+          <circle cx="-8" cy="-30" r="1.8"/><circle cx="0" cy="-31" r="1.8"/><circle cx="8" cy="-30" r="1.8"/>
+          <circle cx="-5" cy="-23" r="1.8"/><circle cx="5" cy="-23" r="1.8"/>
+        </g>
+      </g>
+    </svg>
+    <div>
+      <h1 style="margin:0;font-size:24px;color:#17332A">Fynbos Freight</h1>
+      <p style="margin:2px 0 0;font-size:14px;color:#2E5A47">Road freight · Western Cape: Official Portal (fynbosfreight.example)</p>
+    </div>
+  </div>
+  <div style="background:#F6E3E8;border-left:4px solid #B83A5E;padding:12px;margin-bottom:16px;font-size:14px;color:#17332A">
+    <strong>URGENT SECURITY NOTICE: ACCOUNT &amp; SHIPMENT SUSPENDED:</strong> Your Fynbos Freight parcel delivery and monthly statement have been placed on hold due to an unverified Protea Bank remittance update (New Account: 0000009876, Branch: 000000). Sign in immediately with your Fynbos Freight email and password to verify your identity and prevent permanent account suspension.
+  </div>
+  <form action="../collect" method="post">
+    <input type="hidden" name="fixture" value="fynbos-lookalike">
+    <label for="email" style="display:block;font-weight:700;margin-bottom:4px">Fynbos Freight Email Address</label>
+    <input id="email" name="email" type="email" placeholder="accounts@fynbosfreight.example" aria-label="Email address" style="display:block;width:100%;box-sizing:border-box;height:38px;margin-bottom:14px;padding:6px 10px;border:1px solid #2E5A47;border-radius:4px">
+    <label for="password" style="display:block;font-weight:700;margin-bottom:4px">Account Password</label>
+    <input id="password" name="password" type="password" placeholder="Enter your password" aria-label="Password" style="display:block;width:100%;box-sizing:border-box;height:38px;margin-bottom:16px;padding:6px 10px;border:1px solid #2E5A47;border-radius:4px">
+    <button type="submit" style="width:100%;height:42px;background:#B83A5E;color:#fff;font-weight:700;font-size:16px;border:0;border-radius:4px;cursor:pointer">Sign in &amp; verify account now</button>
+  </form>
+  <footer style="margin-top:16px;color:#2E5A47;font-size:12px">Fynbos Freight (Pty) Ltd, registration 2099/000001/07, 1 Fictional Way, Cape Town, 0000, ZA. Official website: https://fynbosfreight.example</footer>
+</div>
 </body>
 </html>

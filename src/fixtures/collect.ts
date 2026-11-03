@@ -71,7 +71,7 @@ const rejectedPage = (fixture: string) =>
         403,
       )
     : page(
-        `<h1>Incorrect details, try again</h1><form method="post"><input type="hidden" name="fixture" value="nimbusmail"><input name="email" placeholder="Email address"><input name="password" type="password" placeholder="Password"><button>Sign in</button></form>`,
+        `<h1>Incorrect details, try again</h1><form method="post"><input type="hidden" name="fixture" value="${fixture === "fynbos-lookalike" ? "fynbos-lookalike" : "nimbusmail"}"><input name="email" placeholder="Email address"><input name="password" type="password" placeholder="Password"><button>Sign in</button></form>`,
         403,
       );
 
@@ -140,7 +140,9 @@ export async function collectSubmission(request: Request, deps: FixtureDeps): Pr
   const fields: { name: string; value: string }[] = [];
   for (const [name, value] of form.entries()) if (typeof value === "string") fields.push({ name, value });
   if (fields.length > MAX_FIELDS) return page("<h1>That submission is too large</h1>", 413);
-  const fixture = fields.find((f) => f.name === "fixture")?.value === "proteabank" ? "proteabank" : "nimbusmail";
+  const rawFixture = fields.find((f) => f.name === "fixture")?.value;
+  const fixture =
+    rawFixture === "proteabank" ? "proteabank" : rawFixture === "fynbos-lookalike" ? "fynbos-lookalike" : "nimbusmail";
   const username = fields.find((f) => isCanaryUsername(f.value))?.value;
   const password = fields.find((f) => isCanaryPassword(f.value))?.value;
   if (!username || !password) return rejectedPage(fixture);

@@ -8,6 +8,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import puppeteer from "@cloudflare/puppeteer";
 import { brandTableRead, registrable } from "../checks/brands";
 import { ulid } from "../db/ulid";
+import { fixturesResponse } from "../fixtures/redirects";
 import { d1Budget } from "../meta/budget";
 import { DETECTOR, groundLogos } from "../vision/detector";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
@@ -34,7 +35,7 @@ import {
 import { secondLook } from "./second-look";
 import { type Cdp, collectEvidence } from "./signals";
 
-export type MonitorParams = { orgId: string; day: string };
+export type MonitorParams = { orgId: string; day: string; runId?: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
 const LOOKUP_MS = 5_000;
 const CAPTURE_MS = 20_000;
@@ -142,13 +143,12 @@ export function monitorDeps(
     capture: (host) => browserCapture(env.BROWSER, host),
     // A seeded host's page (D05 T04 §6): the fixtures prefix is the Worker's own secret,
     // applied here and never stored in the seed.
-    captureSeed: (host: string, path: string) =>
-      browserCapture(
-        env.BROWSER,
-        host,
-        undefined,
-        `${(env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX ?? ""}/${path}`,
-      ),
+    captureSeed: (host: string, path: string) => {
+      const cleanPrefix = ((env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX ?? "").replace(/^\/+|\/+$/g, "");
+      const cleanPath = path.replace(/^\/+/, "");
+      const fullPath = cleanPrefix ? `${cleanPrefix}/${cleanPath}` : cleanPath;
+      return browserCapture(env.BROWSER, host, undefined, fullPath);
+    },
     // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
     // settles it again to the same cutoff.
     open: (calls) => openGlimmer(wakeCtx(calls)),
@@ -261,6 +261,11 @@ export function pipelineDeps(env: Env): PipelineDeps {
           cache: kvCache(env.CACHE),
           launch: () => puppeteer.launch(env.BROWSER),
           walk,
+          fetch: async (input, init) =>
+            (await fixturesResponse(new Request(input, init), (env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX, {
+              db: env.DB,
+              kv: env.CACHE,
+            })) ?? fetch(input, init),
           resolve: dohResolve(),
           meta: { env, budget: d1Budget(env.DB, { caller: "walkthrough", caseId }) },
           table: walkTable,
@@ -435,7 +440,7 @@ export async function runMonitor(
 
 export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
-    const runId = `monitor-${event.payload.orgId}-${event.payload.day}`;
+    const runId = event.payload.runId ?? `monitor-${event.payload.orgId}-${event.payload.day}`;
     const since = new Date(Date.parse(event.payload.day) - 7 * 24 * 60 * 60_000).toISOString();
     return runMonitor(
       step,

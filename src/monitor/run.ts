@@ -26,7 +26,7 @@ import { candidatesForBusiness, MAX_CANDIDATES } from "./candidates";
 import { brandTokens, type CtResult } from "./ct";
 import type { Signals } from "./parked";
 import { MAX_SCREENS_PER_RUN, newScreenCounts, owedDomains, type ScreenDeps, screenOwed } from "./screen";
-import { seedsFor } from "./seeds";
+import { inactiveSeedHosts, seedsFor } from "./seeds";
 
 export const DNS_CONCURRENCY = 20;
 export const MAX_CAPTURES_PER_RUN = 50;
@@ -211,6 +211,7 @@ const noteError = (s: RunSummary, entry: string) => {
 function choose(
   now: number,
   looked: { host: string; dnsHash: string; row: HostRow | undefined }[],
+  seedHosts: ReadonlySet<string> = new Set(),
 ): { hosts: string[]; deferred: number; blocked: Set<string> } {
   type Waiting = { host: string; age: number };
   const wanted: Waiting[] = [];
@@ -237,7 +238,8 @@ function choose(
     }
     if (age >= DAY_MS - EARLY_MS) due.push({ host, age });
   }
-  const longest = (a: Waiting, b: Waiting) => b.age - a.age || a.host.localeCompare(b.host);
+  const longest = (a: Waiting, b: Waiting) =>
+    Number(seedHosts.has(b.host)) - Number(seedHosts.has(a.host)) || b.age - a.age || a.host.localeCompare(b.host);
   wanted.sort(longest);
   due.sort(longest);
   const takeWanted = Math.min(
@@ -322,27 +324,31 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     }
     const own = new Set(domains);
     const isOwn = (host: string) => domains.some((d) => host === d || host.endsWith(`.${d}`));
-    const knownCt = [...known.keys()].filter((host) => tokens.some((token) => host.includes(token)) && !isOwn(host));
-    // Inside the shared cap, the least recently observed go first (new discoveries have no
-    // observation yet), so each day spends the whole cap on the hosts waiting longest and a
-    // saturated list defers the rest visibly instead of starving the same hosts forever.
     const seeds = await seedsFor(deps.db, orgId).catch(() => []);
-    const seedPaths = new Map(seeds.map((s) => [s.host, s.path]));
-    const merged = [
-      ...new Set([...seeds.map((s) => s.host), ...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated]),
-    ].filter((h) => !own.has(h));
+    const inactiveSeeds = await inactiveSeedHosts(deps.db, orgId, seeds).catch(() => new Set<string>());
+    for (const host of inactiveSeeds) known.delete(host);
+    const seedPaths = new Map(seeds.filter((s) => !own.has(s.host)).map((s) => [s.host, s.path]));
+    const seedHostSet = new Set(seedPaths.keys());
+    const knownCt = [...known.keys()].filter(
+      (host) => tokens.some((token) => host.includes(token)) && !isOwn(host) && !inactiveSeeds.has(host),
+    );
+    // Inside the shared cap, active demo seeds stay pinned at the front so the rotating daily
+    // window never drops a seeded fixture host when the candidate list exceeds 300.
+    const rotatable = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])].filter(
+      (h) => !own.has(h) && !seedHostSet.has(h) && !inactiveSeeds.has(h),
+    );
     // The window advances by a full cap each day, so a saturated list covers every host in
     // turn (a 5,000-host list in 17 days) instead of rechecking the same first 300; hosts
     // whose lookups fail rotate with everyone else.
     const dayIndex = Math.floor(started.getTime() / 86_400_000);
-    const offset = merged.length ? (dayIndex * MAX_CANDIDATES) % merged.length : 0;
-    const ordered = [...merged.slice(offset), ...merged.slice(0, offset)];
+    const offset = rotatable.length ? (dayIndex * MAX_CANDIDATES) % rotatable.length : 0;
+    const ordered = [...seedHostSet, ...rotatable.slice(offset), ...rotatable.slice(0, offset)];
     const candidates = ordered.slice(0, MAX_CANDIDATES);
     summary.candidatesDeferred = ordered.length - candidates.length;
     if (summary.candidatesDeferred > 0) noteError(summary, `ct:deferred:${summary.candidatesDeferred}`);
     // A CT discovery persists before any lookup (D05 T04 §7): a failed lookup today and an
     // empty CT answer tomorrow never lose it.
-    const discovered = ctNames.filter((h) => !isOwn(h) && !known.has(h));
+    const discovered = ctNames.filter((h) => !isOwn(h) && !inactiveSeeds.has(h) && !known.has(h));
     if (discovered.length)
       await deps.db.batch(
         discovered.map((host) =>
@@ -386,7 +392,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     }
     // The observations are committed before any capture: a run stopped after this leaves the captures owed (gap 5).
     if (writes.length) await deps.db.batch(writes);
-    const { hosts, deferred, blocked } = choose(started.getTime(), live);
+    const { hosts, deferred, blocked } = choose(started.getTime(), live, seedHostSet);
     summary.deferred = deferred;
     // The hosts at the failure limit as the run ends, not as it began: a fifth failure today enters, a recovery leaves.
     const failuresBefore = new Map(
@@ -395,7 +401,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const hashes = new Map(live.map((l) => [l.host, l.dnsHash]));
     // Loupe's warm-up overlaps the captures, sized by the screening workload (§3, correction 13): the hosts to capture
     // and the backlog already owed a screening, each once; nothing to capture and nothing owed wakes nothing.
-    const workload = new Set([...hosts, ...(await owedDomains(deps.db, orgId))]);
+    const owed = (await owedDomains(deps.db, orgId)).filter((d) => !inactiveSeeds.has(d));
+    const workload = new Set([...hosts, ...owed]);
     calls = Math.min(workload.size, SCREEN_CALLS_PER_RUN);
     if (workload.size) session = await deps.open(calls);
     // The pages already captured and owed a screening go first, while the session is warm and before the slow captures:
@@ -406,7 +413,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     if (session)
       await screenOwed(deps, orgId, runId, session, clock, {
         into: screening,
-        skip: new Set(hosts),
+        skip: new Set([...hosts, ...inactiveSeeds]),
         limit: SCREEN_BACKLOG_SHARE,
       });
     for (const host of hosts) {
@@ -465,6 +472,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     // Any backlog still owed, with what is left of the 50 a run; then what a model call left to write.
     await screenOwed(deps, orgId, runId, session, clock, {
       into: screening,
+      skip: inactiveSeeds,
       limit: MAX_SCREENS_PER_RUN - screening.tried.size,
     });
     await deps.flush?.();
