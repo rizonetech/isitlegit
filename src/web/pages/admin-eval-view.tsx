@@ -18,7 +18,8 @@ const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-car
 const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden min-w-0";
 const TH = "text-left text-13 text-muted weight-text-strong px-16 py-12 border-b border-line";
 const TD = "text-14 px-16 py-12 border-b border-line align-top";
-const STICKY = "sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere";
+const STICKY =
+  "sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere";
 const NUM = "text-right tabular-nums";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 

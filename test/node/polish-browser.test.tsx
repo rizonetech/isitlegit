@@ -664,9 +664,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const wrap = table.closest(".overflow-x-auto") as HTMLElement;
           const headFirst = table.querySelector("thead th:first-child") as HTMLElement;
           const firstCell = table.querySelector("tbody td, tbody th") as HTMLElement;
-          const otherCells = [
-            ...table.querySelectorAll("tbody tr:first-child > td, tbody tr:first-child > th"),
-          ].slice(1) as HTMLElement[];
+          const otherCells = [...table.querySelectorAll("tbody tr:first-child > td, tbody tr:first-child > th")].slice(
+            1,
+          ) as HTMLElement[];
           const lastCell = otherCells[otherCells.length - 1] as HTMLElement;
           const beforeLeft = firstCell.getBoundingClientRect().left;
           lastCell.scrollIntoView({ block: "center" });
@@ -685,10 +685,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const firstRect = firstCell.getBoundingClientRect();
           const lastRect = lastCell.getBoundingClientRect();
           const wrapRect = wrap.getBoundingClientRect();
-          const hit = document.elementFromPoint(
-            lastRect.left + lastRect.width / 2,
-            lastRect.top + lastRect.height / 2,
-          );
+          const hit = document.elementFromPoint(lastRect.left + lastRect.width / 2, lastRect.top + lastRect.height / 2);
           const link = firstCell.querySelector("a") as HTMLAnchorElement | null;
           return {
             overflowX: getComputedStyle(wrap).overflowX,
@@ -703,7 +700,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
             allOtherCellsUncovered,
             lastCellVisible: lastRect.left >= firstRect.right && lastRect.right <= wrapRect.right + 2,
             lastCellUncovered: Boolean(hit && lastCell.contains(hit)),
-            linkTruncated: link ? getComputedStyle(link).textOverflow === "ellipsis" && link.scrollWidth > link.clientWidth : true,
+            linkTruncated: link
+              ? getComputedStyle(link).textOverflow === "ellipsis" && link.scrollWidth > link.clientWidth
+              : true,
             linkTitle: link ? link.getAttribute("title") : null,
           };
         });
@@ -738,7 +737,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await page.locator("#feedback-queue .overflow-x-auto").focus();
       await page.keyboard.press("ArrowRight");
       expect(
-        await page.evaluate(() => (document.querySelector("#feedback-queue .overflow-x-auto") as HTMLElement).scrollLeft),
+        await page.evaluate(
+          () => (document.querySelector("#feedback-queue .overflow-x-auto") as HTMLElement).scrollLeft,
+        ),
       ).toBeGreaterThan(0);
       await page.keyboard.press("Tab");
       const prodLinkFocus = await page.evaluate(() => {
@@ -938,7 +939,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       });
       await page.focus("#nav summary");
       await page.keyboard.press("Enter");
-      expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(false);
+      expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(
+        false,
+      );
       await page.keyboard.press("Enter");
       expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(true);
 
@@ -1093,7 +1096,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         document.getElementById("case-filters")?.setAttribute("hx-request", '{"timeout":150}');
       });
       serverState.delayMs = 800;
-      await page.locator("fieldset label").filter({ hasText: /^Suspicious$/ }).click();
+      await page
+        .locator("fieldset label")
+        .filter({ hasText: /^Suspicious$/ })
+        .click();
       await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
       expect(await page.locator("#case-loading").isVisible()).toBe(false);
       expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
@@ -1106,7 +1112,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         document.getElementById("case-filter-error")?.remove();
       });
       await context.setOffline(true);
-      await page.locator("fieldset label").filter({ hasText: /^Malicious$/ }).click();
+      await page
+        .locator("fieldset label")
+        .filter({ hasText: /^Malicious$/ })
+        .click();
       await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
       expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
       await context.setOffline(false);
@@ -1120,7 +1129,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       });
       expect(await page.evaluate(() => navigator.onLine)).toBe(true);
       serverState.dropConnection = true;
-      await page.locator("fieldset label").filter({ hasText: /^Suspicious$/ }).click();
+      await page
+        .locator("fieldset label")
+        .filter({ hasText: /^Suspicious$/ })
+        .click();
       await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
       expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
       expect(await page.locator("#case-filter-retry").getAttribute("href")).toContain("verdict=suspicious");
@@ -1132,10 +1144,16 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       // 5e. Delayed recovery fetch is cancelled when a newer filter request starts, so stale recovery never overwrites newer filter results or URL
       serverState.dropHtmxOnly = true;
       serverState.recoveryDelayMs = 350;
-      await page.locator("fieldset label").filter({ hasText: /^Malicious$/ }).click();
+      await page
+        .locator("fieldset label")
+        .filter({ hasText: /^Malicious$/ })
+        .click();
       await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
       serverState.dropHtmxOnly = false;
-      await page.locator("fieldset label").filter({ hasText: /^Safe$/ }).click();
+      await page
+        .locator("fieldset label")
+        .filter({ hasText: /^Safe$/ })
+        .click();
       await expect
         .poll(async () => page.locator("#case-results").textContent(), { timeout: 5000 })
         .toContain("No cases match Safe");
@@ -1155,6 +1173,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       expect(serverState.seenOrgHeaders).toContain("org-long");
       serverState.dropHtmxOnly = false;
       serverState.activeOrgId = "org-long";
+
+      // 5g. Automatic recovery initialises HTMX on the swapped #case-results subtree so pagination links (#case-next) stay wired to HTMX and in-place offline handling
+      await page.goto(`${origin}/cases`, { waitUntil: "load" });
+      serverState.dropHtmxOnly = true;
+      await page
+        .locator("fieldset label")
+        .filter({ hasText: /^Malicious$/ })
+        .click();
+      await expect.poll(async () => page.url(), { timeout: 5000 }).toContain("verdict=malicious");
+      serverState.dropHtmxOnly = false;
+      await context.setOffline(true);
+      await page.locator("#case-next").click();
+      await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
+      await context.setOffline(false);
 
       // 6. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
       serverState.pollFinished = false;

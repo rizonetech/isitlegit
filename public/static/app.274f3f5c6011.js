@@ -414,7 +414,9 @@ const casesFailure = (name        , event       ) => {
         const nextResults = doc.getElementById("case-results");
         const curResults = document.getElementById("case-results");
         if (nextResults && curResults) {
+          const htmx = (window                                                             ).htmx;
           curResults.replaceWith(nextResults);
+          htmx?.process?.(nextResults);
           for (const id of [
             "case-count",
             "case-stats",
@@ -424,7 +426,10 @@ const casesFailure = (name        , event       ) => {
           ]) {
             const nextEl = doc.getElementById(id);
             const curEl = document.getElementById(id);
-            if (nextEl && curEl) curEl.replaceWith(nextEl);
+            if (nextEl && curEl) {
+              curEl.replaceWith(nextEl);
+              htmx?.process?.(nextEl);
+            }
           }
           document.getElementById("case-filter-error")?.remove();
           history.replaceState(history.state, "", href);
@@ -460,13 +465,7 @@ document.addEventListener("keydown", (event) => {
   ) {
     event.preventDefault();
     target.scrollLeft += event.key === "ArrowRight" ? 64 : -64;
-    return;
   }
-  if (event.key !== "Enter" && event.key !== " ") return;
-  const reveal = target?.closest?.("[data-org-reveal]")                      ;
-  if (!reveal) return;
-  event.preventDefault();
-  toggleOrgReveal(reveal);
 });
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
