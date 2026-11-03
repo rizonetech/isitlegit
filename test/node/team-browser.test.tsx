@@ -74,6 +74,8 @@ const shell = () => {
   return rest;
 };
 
+let turn = 0;
+
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/probe") {
@@ -83,11 +85,13 @@ async function answer(req: IncomingMessage): Promise<Response> {
     return new Response(null, { status: 204 });
   }
   if (url.pathname === "/team" && req.method === "POST") {
+    const myTurn = turn;
     state.posts++;
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const form = new URLSearchParams(Buffer.concat(chunks).toString());
     await new Promise((done) => setTimeout(done, state.delay));
+    if (myTurn !== turn) return new Response(null, { status: 204 });
     // As src/web/pages/team.tsx answers a reader who is now a member: the notice as a redirect for htmx, else 403.
     if (state.reader.role === "member")
       return req.headers["hx-request"] === "true"
@@ -225,6 +229,7 @@ afterAll(async () => {
   await new Promise<void>((done) => server?.close(() => done()));
 });
 afterEach(() => {
+  turn++;
   Object.assign(state, {
     members: fresh(),
     reader: { userId: "u-thandi", role: "owner" },
