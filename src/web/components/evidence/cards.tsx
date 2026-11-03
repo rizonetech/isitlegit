@@ -513,12 +513,14 @@ const reputation: Renderer = (item, file, _quote, reputation) => {
           <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
           {domains.length > 0 ? (
             <>
-              <Bullets items={domains} />
-              {domains.map((domain) =>
-                reputation && reputation.filter((r) => r.subject === domain).length > 0 ? (
-                  <ProviderRows rows={reputation.filter((r) => r.subject === domain)} />
-                ) : null,
-              )}
+              {domains.map((domain) => (
+                <div class="flex flex-col gap-4">
+                  <p class="text-14 wrap-anywhere">{domain}</p>
+                  {reputation && reputation.filter((r) => r.subject === domain).length > 0 ? (
+                    <ProviderRows rows={reputation.filter((r) => r.subject === domain)} />
+                  ) : null}
+                </div>
+              ))}
               {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
                 <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
               )}

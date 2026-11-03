@@ -1102,6 +1102,38 @@ describe("the status poll", () => {
       .bind(id)
       .run();
     expect(await (await poll(id, cookie)).text()).not.toContain("stale.example");
+    // A retry's new run replaces the answers: the old run's rows go, the new run's rows arrive.
+    await db.prepare("UPDATE cases SET run_id = 'run-b' WHERE id = ?").bind(id).run();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "reputation.listing",
+          severity: "high",
+          summary: "A reputation provider lists this address.",
+          detail: {
+            provider: "Web Risk",
+            listed: "https://new.example/reset",
+            granularity: "url",
+            corroborated: false,
+          },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [{ check: "reputation.listing", outcome: "ran", reason: null, findings: 1 }],
+    );
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, 'run-b', 'google-web-risk', 'https://new.example/reset', 'clear', '2026-10-27T09:00:00Z', 0, NULL)",
+      )
+      .bind(id)
+      .run();
+    const retried = await (await poll(id, cookie)).text();
+    expect(retried).not.toContain("pay.example");
+    expect(retried).toContain("Not listed by this provider");
   });
 
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
