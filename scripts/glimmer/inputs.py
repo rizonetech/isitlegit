@@ -15,6 +15,7 @@ parts held, seconds); a converter stopped by one raises before its rows file is 
 whole.
 """
 import hashlib
+import io
 import json
 import re
 import os
@@ -44,10 +45,14 @@ def stage_json(path, value):
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     expected = json.loads(json.dumps(value))
     try:
-        with temporary.open("w", encoding="utf-8") as sink:
-            json.dump(value, sink, indent=1, sort_keys=True)
-            sink.write("\n")
-            sink.flush()
+        buf = io.StringIO()
+        json.dump(value, buf, indent=1, sort_keys=True)
+        buf.write("\n")
+        payload = buf.getvalue().encode("utf-8")
+        with temporary.open("wb", buffering=0) as sink:
+            offset = 0
+            while offset < len(payload):
+                offset += sink.write(payload[offset:])
             os.fsync(sink.fileno())
         with temporary.open(encoding="utf-8") as source:
             if json.load(source) != expected:
@@ -319,9 +324,16 @@ class Receipt:
 
     def _stage_jsonl_streamed(self, path, records_fn, label, check_space=None):
         temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        expected_total = 0
+        if check_space is not None:
+            for record in records_fn():
+                if self.limits is not None:
+                    self.limits.check_deadline()
+                expected_total += self._serialized_record_bytes(record, expected_total, f"{label} serialization")
+            check_space(max(1, expected_total))
         total_bytes = 0
         try:
-            with open(temporary, "wb") as handle:
+            with open(temporary, "wb", buffering=0) as handle:
                 for record in records_fn():
                     if self.limits is not None:
                         self.limits.check_deadline()
@@ -333,14 +345,15 @@ class Receipt:
                             self.limits.charge_retained(held_line)
                         raw = (json.dumps(record) + "\n").encode("utf-8")
                         if check_space is not None:
-                            check_space(len(raw))
+                            check_space(max(len(raw), expected_total - total_bytes))
                         total_bytes += len(raw)
-                        handle.write(raw)
+                        offset = 0
+                        while offset < len(raw):
+                            offset += handle.write(raw[offset:])
                     finally:
                         raw = b""
                         if self.limits is not None:
                             self.limits.release_retained(held_line)
-                handle.flush()
                 os.fsync(handle.fileno())
             read_total = 0
             with open(temporary, "rb") as handle:
@@ -372,7 +385,7 @@ class Receipt:
             temporary.unlink(missing_ok=True)
             raise
 
-    def stage_items(self, folder, inputs_digest, rows_digest, inventory=None, check_space=None):
+    def stage_items(self, folder, inputs_digest, rows_digest, inventory=None, check_space=None, extra_reserve=0):
         """Reconciles, writes and reads back the item and inventory ledgers into temporary files without replacing
         existing published files yet."""
         if self.limits is not None:
@@ -436,18 +449,40 @@ class Receipt:
                 for entry in self.items:
                     yield entry
 
-            staged.append((self._stage_jsonl_streamed(path, iter_items, ITEMS, check_space=check_space), path))
             inv_items = external_inv_list if keep_external_inv else self.inventory
+
+            def iter_inventory():
+                yield {"inputs": inputs_digest}
+                for item_id in inv_items:
+                    yield {"item": item_id}
+
+            inv_expected = 0
+            if check_space is not None and inv_items:
+                items_probe = 0
+                for record in iter_items():
+                    if self.limits is not None:
+                        self.limits.check_deadline()
+                    items_probe += self._serialized_record_bytes(record, items_probe, f"{ITEMS} serialization")
+                for record in iter_inventory():
+                    if self.limits is not None:
+                        self.limits.check_deadline()
+                    inv_expected += self._serialized_record_bytes(record, inv_expected, f"{INVENTORY_ITEMS} serialization")
+
+            items_check = (
+                (lambda n: check_space(n + inv_expected + max(0, int(extra_reserve))))
+                if check_space is not None
+                else None
+            )
+            staged.append((self._stage_jsonl_streamed(path, iter_items, ITEMS, check_space=items_check), path))
             if inv_items:
                 inv_path = Path(folder) / INVENTORY_ITEMS
-
-                def iter_inventory():
-                    yield {"inputs": inputs_digest}
-                    for item_id in inv_items:
-                        yield {"item": item_id}
-
+                inv_check = (
+                    (lambda n: check_space(n + max(0, int(extra_reserve))))
+                    if check_space is not None
+                    else None
+                )
                 staged.append(
-                    (self._stage_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS, check_space=check_space), inv_path)
+                    (self._stage_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS, check_space=inv_check), inv_path)
                 )
             return staged
         except BaseException:
@@ -512,13 +547,19 @@ class Receipt:
         if self.exported + self.sampled_out + rejected != self.met:
             raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
         rows_digest = file_digest(staged_rows)
+        receipt = self._build_receipt(out_rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
+        export_bytes = len((json.dumps(receipt, indent=1, sort_keys=True) + "\n").encode("utf-8"))
         staged_ledgers = self.stage_items(
-            folder, inputs_digest, rows_digest, inventory=inventory, check_space=check_space
+            folder,
+            inputs_digest,
+            rows_digest,
+            inventory=inventory,
+            check_space=check_space,
+            extra_reserve=export_bytes,
         )
         try:
-            receipt = self._build_receipt(out_rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
             if check_space is not None:
-                check_space(len((json.dumps(receipt, indent=2) + "\n").encode("utf-8")))
+                check_space(export_bytes)
             staged_export = stage_json(folder / EXPORT, receipt)
         except BaseException:
             for tmp, _ in staged_ledgers:

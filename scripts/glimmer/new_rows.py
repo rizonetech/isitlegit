@@ -157,20 +157,25 @@ class Rows:
         self.min_free = min_free
         self.usage_fn = usage_fn
         self.by_label = {"phish": 0, "benign": 0}
+        self.written_bytes = 0
+        self.initial_free = int(usage_fn(folder).free) if min_free and min_free > 0 else 0
         self.check_space(4096)
         self.temporary = folder / f".rows.jsonl.{os.getpid()}.tmp"
-        self.sink = self.temporary.open("w", encoding="utf-8")
+        self.sink = self.temporary.open("wb", buffering=0)
 
     def publication_reserve_bytes(self):
         return (self.receipt.met + 1) * 512 + 8192
 
     def check_space(self, needed_bytes=1):
-        check_free_space(
-            self.folder,
-            self.min_free,
-            needed_bytes=max(1, int(needed_bytes)) + self.publication_reserve_bytes(),
-            usage_fn=self.usage_fn,
-        )
+        if not self.min_free or self.min_free <= 0:
+            return
+        current_free = int(self.usage_fn(self.folder).free)
+        effective_free = min(current_free, self.initial_free - self.written_bytes)
+        pending = max(1, int(needed_bytes)) + self.publication_reserve_bytes()
+        if effective_free - pending < self.min_free:
+            raise inputs_module.Refused(
+                f"only {effective_free} bytes free under {self.folder}; writing {pending} bytes would breach the {self.min_free} byte reserve ({self.min_free} bytes must stay free)"
+            )
 
     def add(self, item, url, html, label, target=None, screenshot=None):
         self.limits.check_deadline()
@@ -178,9 +183,12 @@ class Rows:
         row = {"sha256": item, "url": url, "html": html, "label": label, "target": target}
         if screenshot is not None:
             row["screenshot"] = base64.b64encode(screenshot).decode("ascii")
-        line_text = json.dumps(row, ensure_ascii=False) + "\n"
-        self.check_space(inputs_module._utf8_len(line_text))
-        self.sink.write(line_text)
+        line_bytes = (json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8")
+        self.check_space(len(line_bytes))
+        offset = 0
+        while offset < len(line_bytes):
+            offset += self.sink.write(line_bytes[offset:])
+        self.written_bytes += len(line_bytes)
         self.by_label[label] = self.by_label.get(label, 0) + 1
         self.receipt.export(item)
 
@@ -497,8 +505,12 @@ def convert_ares(folder, receipt, limits, out, max_per_label=None, seed=20261101
                 out.check_space(db_info.file_size)
                 temporary = folder / f".ares-{root}.db"
                 try:
-                    with temporary.open("wb") as handle:
-                        handle.write(archive.read(db_info))
+                    db_bytes = archive.read(db_info)
+                    out.check_space(len(db_bytes))
+                    with temporary.open("wb", buffering=0) as handle:
+                        offset = 0
+                        while offset < len(db_bytes):
+                            offset += handle.write(db_bytes[offset:])
                     out.check_space(1)
                     connection = sqlite3.connect(temporary)
                     try:

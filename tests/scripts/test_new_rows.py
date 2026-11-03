@@ -288,6 +288,37 @@ class FreeSpaceAndCoverageGuardTest(unittest.TestCase):
             self.assertFalse((folder / "rows.jsonl").exists())
             self.assertFalse((folder / "EXPORT.json").exists())
 
+    def test_stage_jsonl_streamed_accounts_for_cumulative_bytes_without_buffered_flush_breach(self):
+        from collections import namedtuple
+        import inputs as inputs_module
+
+        Usage = namedtuple("Usage", ["total", "used", "free"])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            receipt = Receipt(Limits())
+            # 100 records of 82 bytes each = 8,200 bytes total, with 4,096 bytes of headroom above MIN_FREE_BYTES.
+            records = [{"item": f"{i:044d}", "outcome": "exported"} for i in range(100)]
+            peak_disk_bytes = {"max": 0}
+
+            def disk_usage(_):
+                used_in_dir = sum(p.stat().st_size for p in folder.iterdir() if p.is_file())
+                peak_disk_bytes["max"] = max(peak_disk_bytes["max"], used_in_dir)
+                free = new_rows.MIN_FREE_BYTES + 4096 - used_in_dir
+                return Usage(500 * 10**9, 500 * 10**9 - free, free)
+
+            with self.assertRaises(inputs_module.Refused) as ctx:
+                receipt._stage_jsonl_streamed(
+                    folder / "ITEMS.jsonl",
+                    lambda: iter(records),
+                    "ITEMS.jsonl",
+                    check_space=lambda n: new_rows.check_free_space(
+                        folder, new_rows.MIN_FREE_BYTES, needed_bytes=n, usage_fn=disk_usage
+                    ),
+                )
+            self.assertIn("would breach", str(ctx.exception))
+            self.assertEqual(peak_disk_bytes["max"], 0)
+            self.assertEqual(list(folder.iterdir()), [])
+
 
 if __name__ == "__main__":
     unittest.main()
