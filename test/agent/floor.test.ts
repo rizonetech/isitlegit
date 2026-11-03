@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFloor, FLOOR_REVISION, type Floor, floorFor, MAX_FLOOR_IDS } from "../../src/agent/floor";
+import { applyFloor, FLOOR_REVISION, type Floor, floorFor, MAX_FLOOR_IDS, replayFloor } from "../../src/agent/floor";
 import type { Evidence } from "../../src/checks/evidence";
 
 // D04 T01 §1: the lowest verdict the evidence allows, whatever a model says.
@@ -139,11 +139,14 @@ describe("applyFloor", () => {
   });
 
   it("names its rule revision in the record, so an older decision can be reproduced (D04 T01 §13)", () => {
-    // A record stored before revisions were named still reproduces its decision from its ids.
-    const older = { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E2", "E5"] };
-    expect(floorFor([item("attachment.executable", "critical"), item("x", "info")]).verdict).toBe(older.to);
     expect(applyFloor("safe", malicious).floorApplied?.revision).toBe(FLOOR_REVISION);
     expect(FLOOR_REVISION).toBe("1");
+    // The stored decision replays under its own revision, from the evidence it cites.
+    const evidence = [item("attachment.executable", "critical"), item("sender.first_time", "info")];
+    expect(replayFloor(FLOOR_REVISION, evidence)).toEqual(floorFor(evidence));
+    expect(replayFloor(FLOOR_REVISION, evidence)?.verdict).toBe("malicious");
+    // A revision these rules do not know replays as unknown, never as today's rules.
+    expect(replayFloor("99", evidence)).toBeNull();
   });
 
   it("does not share the floor's id list with the record", () => {

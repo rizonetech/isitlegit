@@ -25,6 +25,23 @@ function weight(item: Pick<Evidence, "check" | "severity" | "detail">): Verdict 
   return item.severity === "high" ? "suspicious" : "safe";
 }
 
+// The floor rules by revision, kept so a stored record's decision can be reproduced after the rules
+// change (D04 T01 §13): when the weights or triggers change, the old implementation stays here under its
+// revision and FLOOR_REVISION names the new one. An unknown revision replays as null, never as today's.
+const FLOOR_RULES: Readonly<
+  Record<string, (evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]) => Floor>
+> = {
+  [FLOOR_REVISION]: (evidence) => floorFor(evidence),
+};
+
+export function replayFloor(
+  revision: string,
+  evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[],
+): Floor | null {
+  const rules = FLOOR_RULES[revision];
+  return rules ? rules(evidence) : null;
+}
+
 export function floorFor(evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]): Floor {
   const weighed = evidence.map((item) => ({ id: item.id, verdict: weight(item) }));
   const verdict = weighed.reduce<Verdict>((top, w) => (RANK[w.verdict] > RANK[top] ? w.verdict : top), "safe");

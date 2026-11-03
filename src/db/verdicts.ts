@@ -133,6 +133,13 @@ async function citesUnknown(db: D1Database, caseId: string, v: VerdictView): Pro
   return missing.length ? `a reason cites evidence the case does not have: ${missing.slice(0, 5).join(", ")}` : null;
 }
 
+// A newly stored raise must name its floor rule revision (D04 T01 §13); records stored before revisions
+// were named are read, never written, so the schema itself keeps the field optional.
+const unnamedRevision = (v: VerdictView): VerdictResult | null =>
+  v.floorApplied && !v.floorApplied.revision
+    ? fail("invalid", "a floor record names no rule revision")
+    : null;
+
 export async function saveVerdict(
   db: D1Database,
   caseId: string,
@@ -140,6 +147,8 @@ export async function saveVerdict(
 ): Promise<VerdictResult> {
   const parsed = VerdictView.safeParse(view);
   if (!parsed.success) return fail("invalid", parsed.error.issues.map((i) => i.message).join("; "));
+  const unnamed = unnamedRevision(parsed.data);
+  if (unnamed) return unnamed;
   if (!caseId) return fail("invalid", "a verdict needs its case id");
   const v = parsed.data;
   try {
@@ -197,6 +206,8 @@ export async function storeVerdict(
 ): Promise<VerdictResult | { ok: false; error: { code: "transition"; message: string } }> {
   const parsed = VerdictView.safeParse(view);
   if (!parsed.success) return fail("invalid", parsed.error.issues.map((i) => i.message).join("; "));
+  const unnamed = unnamedRevision(parsed.data);
+  if (unnamed) return unnamed;
   if (!caseId || !orgId) return fail("invalid", "a verdict needs its case and organisation");
   const v = parsed.data;
   const now = new Date().toISOString();

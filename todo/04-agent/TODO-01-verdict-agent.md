@@ -388,6 +388,8 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 
 Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there): a stored floor record names the transition and its evidence but not which revision of the floor rules produced it, so after the rules change an old decision cannot be reproduced from its record; and a null record reads the same for a case stored before §11 (never recorded) as for one evaluated with no raise (measured), so floor metrics cannot tell coverage from outcome.
 
+**Corrected 2026-11-03** (plan review, `docs/reviews/04-agent/D04-T01-s13.md`): (1) reproducibility is a replay capability, not only a label: `replayFloor` in `src/agent/floor.ts` replays a stored decision under its revision, the old rules stay under their revision when the rules change, and an unknown revision replays as null; (2) the coverage boundary is honest about history: any row stored without the marker (§11-era no-raise rows included) reads `unrecorded`, and only a verdict stored since this section (its JSON null written at save) reads `measured`, no migration needed; (3) the consumer contract for the eval (D08 T02 §8) is the read's three states, `raised`, `measured` and `unrecorded`, with unrecorded cases reported apart from measured negatives, handed to the eval lane through the coordinator at this stamp.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no

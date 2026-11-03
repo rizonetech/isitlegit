@@ -147,7 +147,7 @@ describe("saveVerdict", () => {
   it("persists the floor outcome through save, the Workflow store, and replay (D04 T01 §11)", async () => {
     const floored = {
       ...view,
-      floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"] },
+      floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"], revision: "1" },
     };
     const id = await newCase();
     await setStatus(env.DB, "org-verdicts", id, "running");
@@ -206,6 +206,27 @@ describe("saveVerdict", () => {
     expect(await saveVerdict(env.DB, raised, floored)).toMatchObject({
       ok: true,
       value: { floorApplied: floored.floorApplied, floorCoverage: "raised" },
+    });
+    // Identical replay through the Workflow store keeps the record; a changed revision conflicts.
+    await setStatus(env.DB, "org-verdicts", raised, "running");
+    expect(await storeVerdict(env.DB, "org-verdicts", raised, floored)).toMatchObject({ ok: true });
+    const revised = {
+      ...floored,
+      floorApplied: { ...floored.floorApplied, revision: "2" },
+    };
+    expect(await saveVerdict(env.DB, raised, revised)).toMatchObject({ ok: false, error: { code: "conflict" } });
+    // A new raise that names no revision is refused at both stores.
+    const unnamed = { ...floored, floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"] } };
+    const fresh = await newCase();
+    expect(await saveVerdict(env.DB, fresh, unnamed)).toMatchObject({ ok: false, error: { code: "invalid" } });
+    await setStatus(env.DB, "org-verdicts", fresh, "running");
+    expect(await storeVerdict(env.DB, "org-verdicts", fresh, unnamed)).toMatchObject({
+      ok: false,
+      error: { code: "invalid" },
+    });
+    expect(await getVerdict(env.DB, raised)).toMatchObject({
+      ok: true,
+      value: { floorApplied: floored.floorApplied },
     });
     // A record stored before revisions were named (no revision field) still parses and reads raised.
     const legacy = await newCase("org-verdicts", 0);
