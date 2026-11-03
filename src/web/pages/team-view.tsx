@@ -653,7 +653,9 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
               </li>
             ))}
           </ul>
-          {history.more && !history.next && <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>}
+          {history.more && !history.next && (
+            <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>
+          )}
           {history.next && (
             <p class="px-24 py-12">
               <a
