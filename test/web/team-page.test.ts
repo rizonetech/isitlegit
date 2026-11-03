@@ -1081,3 +1081,21 @@ describe("inviting several colleagues at once (D07 T04 §22)", () => {
     smtp.restore();
   });
 });
+
+describe("inviting several: uncertain delivery (D07 T04 §22)", () => {
+  it("names a lost answer Unknown from the stored delivery and keeps it out of Retry", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    let calls = 0;
+    const smtp = stubSmtp2go(() => (++calls === 1 ? "silent" : "sent"));
+    const lost = `lost-${tag()}@example.com`;
+    const fine = `fine-${tag()}@example.com`;
+    const res = await post(owner.cookie, { action: "invite", org: orgId, email: `${lost}\n${fine}`, role: "member" });
+    expect(res.status).toBe(200);
+    const html = text(await res.text());
+    expect(html).toMatch(new RegExp(`${lost.replace(/[.]/g, "\\.")} : Unknown`));
+    expect(html).toMatch(new RegExp(`${fine.replace(/[.]/g, "\\.")} : Sent`));
+    expect(html).not.toContain("Retry the ones that did not go");
+    smtp.restore();
+  });
+});
