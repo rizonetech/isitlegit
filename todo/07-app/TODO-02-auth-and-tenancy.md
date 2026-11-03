@@ -939,10 +939,10 @@ Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-
 1. Record the operator's wording for a different browser on the same device. Done when: the A1 state in `design/SPEC.md` names it and `owner-decision` is removed from Needs.
 2. Build the corrected wording. Done when: the other-browser page reads as the SPEC says for both journeys and the asking browser's code still works.
 
-- [ ] Record the operator's decision on the wording (browser, not device; whether the page can say anything more) as a `Browser wording:` line and remove `owner-decision` from Needs. Done when: the line is recorded and the Needs line reads `none`.
-- [ ] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
-- [ ] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
-- [ ] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
+- [x] Record the operator's decision on the wording (browser, not device; whether the page can say anything more) as a `Browser wording:` line and remove `owner-decision` from Needs. Done when: the line is recorded and the Needs line reads `none`.
+- [x] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
+- [x] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
+- [x] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
 - [ ] Commit: `auth: the other-browser link page names the browser`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass with the recorded wording.
