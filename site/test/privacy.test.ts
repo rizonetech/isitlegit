@@ -33,9 +33,10 @@ describe("Privacy and POPIA", () => {
 
   it("lists the proven purposes and the training statement, apart from production screening", () => {
     const what = region(html, "what");
-    const purposes: ["privacy.what.mail" | "privacy.what.account" | "privacy.what.ledger" | "privacy.what.feedback" | "privacy.what.security", string][] = [
+    const purposes: ["privacy.what.mail" | "privacy.what.account" | "privacy.closure" | "privacy.what.ledger" | "privacy.what.feedback" | "privacy.what.security", string][] = [
       ["privacy.what.mail", "Mail you forward or upload"],
       ["privacy.what.account", "Your account"],
+      ["privacy.closure", "When an owner closes an organisation"],
       ["privacy.what.ledger", "Your supplier ledger"],
       ["privacy.what.feedback", "Feedback when you tell us a verdict was wrong"],
       ["privacy.what.security", "Sign-in and security records"],
