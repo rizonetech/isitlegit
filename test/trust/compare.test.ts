@@ -338,9 +338,34 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     expect(genuineItems.map((i) => i.check)).toEqual(["trust.verified_sender"]);
     expect(genuineItems[0]?.severity).toBe("info");
     expect(genuineItems[0]?.summary).toContain("registered with IsItLegit, with DMARC aligned");
+    expect(genuineItems[0]?.summary).toContain("and the payment details match what Fynbos Freight registered");
+    expect(genuineItems[0]?.detail.bankMatched).toBe(true);
     expect(genuineItems[0]?.summary.toLowerCase()).not.toContain("verified by");
     expect(genuineItems[0]?.summary.toLowerCase()).not.toContain("bank confirmed");
     expect(genuineItems[0]?.summary.toLowerCase()).not.toContain("account holder confirmed");
+
+    // 1b. Partially failed bank comparison on authenticated mail (first account matches, second throws AccountRefused):
+    //     suppresses `bankMatched: true` and the "payment details match" clause in `trust.verified_sender`.
+    const partialBankGenuineCmp = await prepareRegistryComparison({ db, keys }, genuineCaseId, genuineView, undefined, [
+      {
+        number: FYNBOS_REGISTERED_ACCOUNT,
+        branchCode: FYNBOS_REGISTERED_BRANCH,
+        bankName: "Protea Bank",
+        supplierName: "Fynbos Freight",
+        role: "payee",
+      },
+      {
+        number: "123",
+        branchCode: "99",
+        bankName: "Protea Bank",
+        supplierName: "Fynbos Freight",
+        role: "payee",
+      },
+    ]);
+    const partialBankGenuineItems = comparisonEvidence(partialBankGenuineCmp);
+    expect(partialBankGenuineItems.map((i) => i.check)).toEqual(["trust.verified_sender"]);
+    expect(partialBankGenuineItems[0]?.detail.bankMatched).toBeUndefined();
+    expect(partialBankGenuineItems[0]?.summary).not.toContain("payment details match");
 
     // 2. Genuine partner-logo mail: Hadeda Couriers (verified sender) sends DMARC-aligned mail from
     //    `ops@hadedacouriers.co.za` that also includes Fynbos Freight's matching partner logo crop (`same: true`).

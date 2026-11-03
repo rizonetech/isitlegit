@@ -847,7 +847,10 @@ export function verifiedSenderEvidence(input: RegistryComparisonInput): Evidence
     const hasLogoMismatch = hasIdentityLogoMismatch(business);
     if (hasBankMismatch || hasLogoMismatch) continue;
 
-    const hasBankMatch = business.bankMatches.some((m) => m.matched);
+    const hasBankMatch =
+      business.bankMatches.length > 0 &&
+      business.bankMatches.every((m) => m.matched) &&
+      business.bankUnavailable.length === 0;
     const observed = input.fromDomain ?? input.fromAddress ?? "a registered domain";
     const bankClause = hasBankMatch
       ? `, and the payment details match what ${plain(business.name, 45)} registered with IsItLegit`
