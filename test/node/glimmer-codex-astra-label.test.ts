@@ -175,7 +175,7 @@ describe("codex-astra-label", () => {
     });
     expect(secondExec).not.toHaveBeenCalled();
 
-    // A stale lock left by a killed worker (dead PID) is recovered on retry.
+    // A stale lock left by a killed worker (dead PID) is recovered on retry, while an aged live-owner lock is kept.
     const dirStale = mkdtempSync(join(tmpdir(), "astra-stale-"));
     writeFileSync(
       join(dirStale, "p1.json.lock"),
@@ -194,6 +194,17 @@ describe("codex-astra-label", () => {
     });
     expect(recovered.page).toBe("p1");
     expect(existsSync(join(dirStale, "p1.json.lock"))).toBe(false);
+
+    const dirAgedLive = mkdtempSync(join(tmpdir(), "astra-aged-"));
+    writeFileSync(
+      join(dirAgedLive, "p1.json.lock"),
+      JSON.stringify({ pid: process.pid, nonce: "live", startedAt: Date.now() - 60 * 60 * 1000 }),
+    );
+    const agedExec = vi.fn(() => ({ jsonl: "" }));
+    expect(() =>
+      labelPageAstra({ page: page(), screenshot: shot, text: "Sign in", outDir: dirAgedLive, exec: agedExec }),
+    ).toThrow(/already exists or is in progress/);
+    expect(agedExec).not.toHaveBeenCalled();
 
     const dir2 = mkdtempSync(join(tmpdir(), "astra-"));
     expect(() =>

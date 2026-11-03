@@ -113,7 +113,12 @@ export function parseTerraUsage(jsonl: string): Record<string, unknown> | null {
 export type TerraExec = (argv: string[], prompt: string, outFile: string) => { jsonl: string };
 
 export const codexExec: TerraExec = (argv, prompt) => {
-  const run = spawnSync("codex", argv, { encoding: "utf-8", input: prompt, maxBuffer: 32 * 1024 * 1024 });
+  const run = spawnSync("codex", argv, {
+    encoding: "utf-8",
+    input: prompt,
+    maxBuffer: 32 * 1024 * 1024,
+    timeout: 10 * 60 * 1000,
+  });
   if (run.error) throw run.error;
   if (run.status !== 0) throw new Error(`codex exec exited ${run.status}: ${(run.stderr ?? "").slice(0, 500)}`);
   return { jsonl: run.stdout ?? "" };

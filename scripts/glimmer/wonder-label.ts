@@ -18,6 +18,7 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   unlinkSync,
@@ -132,7 +133,7 @@ export function parseWonderAnswer(output: string): WonderLabel {
 export type WonderExec = (argv: string[], screenshot: string, promptFile: string) => string;
 
 export const museExec: WonderExec = (argv) => {
-  const run = spawnSync("muse", argv, { encoding: "utf-8", maxBuffer: 16 * 1024 * 1024 });
+  const run = spawnSync("muse", argv, { encoding: "utf-8", maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 });
   if (run.error) throw run.error;
   if (run.status !== 0) throw new Error(`muse exec exited ${run.status}: ${(run.stderr ?? "").slice(0, 300)}`);
   return run.stdout ?? "";
@@ -234,8 +235,6 @@ export function validateExistingWonderRecord(file: string, page: StoredPage): Wo
   return { ...parsed, test: parsed.test ?? null };
 }
 
-const STALE_LOCK_MAX_AGE_MS = 15 * 60 * 1000;
-
 function isProcessAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   if (pid === process.pid) return true;
@@ -247,17 +246,65 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-function isLockActive(lockFile: string, nowMs: number): { active: boolean; ino: number | null } {
+function readProcStartTime(pid: number): string | null {
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf-8");
+    const closeParen = stat.lastIndexOf(")");
+    if (closeParen < 0) return null;
+    const fields = stat
+      .slice(closeParen + 1)
+      .trim()
+      .split(/\s+/);
+    return fields[19] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function isLockActive(lockFile: string): { active: boolean; ino: number | null } {
   try {
     const stat = statSync(lockFile);
     const raw = readFileSync(lockFile, "utf-8");
-    const parsed = JSON.parse(raw) as { pid?: unknown; nonce?: unknown; startedAt?: unknown };
+    const parsed = JSON.parse(raw) as { pid?: unknown; nonce?: unknown; startedAt?: unknown; procStart?: unknown };
     const pid = typeof parsed.pid === "number" ? parsed.pid : -1;
     const startedAt = typeof parsed.startedAt === "number" ? parsed.startedAt : 0;
-    const fresh = startedAt > 0 && nowMs - startedAt < STALE_LOCK_MAX_AGE_MS;
-    return { active: fresh && isProcessAlive(pid), ino: stat.ino };
+    if (startedAt <= 0 || !isProcessAlive(pid)) {
+      return { active: false, ino: stat.ino };
+    }
+    if (typeof parsed.procStart === "string" && parsed.procStart.length > 0) {
+      const currentProcStart = readProcStartTime(pid);
+      if (currentProcStart !== null && currentProcStart !== parsed.procStart) {
+        return { active: false, ino: stat.ino };
+      }
+    }
+    return { active: true, ino: stat.ino };
   } catch {
     return { active: false, ino: null };
+  }
+}
+
+function tryAcquireReclaimGuard(reclaimGuard: string, nonce: string, nowMs: number): boolean {
+  const tempGuard = `${reclaimGuard}.${nonce}.tmp`;
+  const procStart = readProcStartTime(process.pid);
+  writeFileSync(tempGuard, `${JSON.stringify({ pid: process.pid, nonce, startedAt: nowMs, procStart })}\n`, {
+    flag: "wx",
+  });
+  try {
+    try {
+      linkSync(tempGuard, reclaimGuard);
+      return true;
+    } catch {
+      const guardStatus = isLockActive(reclaimGuard);
+      if (guardStatus.active || guardStatus.ino === null) return false;
+      try {
+        renameSync(tempGuard, reclaimGuard);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  } finally {
+    rmSync(tempGuard, { force: true });
   }
 }
 
@@ -267,7 +314,10 @@ export function claimExclusiveLabelSlot(file: string, teacherName: string): { re
   const nonce = `${process.pid}.${randomBytes(6).toString("hex")}`;
   const tempLock = `${lockFile}.${nonce}.tmp`;
   const nowMs = Date.now();
-  writeFileSync(tempLock, `${JSON.stringify({ pid: process.pid, nonce, startedAt: nowMs })}\n`, { flag: "wx" });
+  const procStart = readProcStartTime(process.pid);
+  writeFileSync(tempLock, `${JSON.stringify({ pid: process.pid, nonce, startedAt: nowMs, procStart })}\n`, {
+    flag: "wx",
+  });
   let claimedIno: number | null = null;
   try {
     try {
@@ -277,22 +327,30 @@ export function claimExclusiveLabelSlot(file: string, teacherName: string): { re
       if (existsSync(file)) {
         throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
       }
-      const status = isLockActive(lockFile, nowMs);
-      if (status.active) {
+      const status = isLockActive(lockFile);
+      if (status.active || status.ino === null) {
         throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
       }
-      if (status.ino !== null) {
-        try {
-          if (statSync(lockFile).ino === status.ino) unlinkSync(lockFile);
-        } catch {
-          // another contender already removed or replaced the stale lock
-        }
+      const reclaimGuard = `${lockFile}.reclaim-${status.ino}`;
+      if (!tryAcquireReclaimGuard(reclaimGuard, nonce, nowMs)) {
+        throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
       }
       try {
-        linkSync(tempLock, lockFile);
+        let currentIno: number | null = null;
+        try {
+          currentIno = statSync(lockFile).ino;
+        } catch {
+          currentIno = null;
+        }
+        if (currentIno !== status.ino || isLockActive(lockFile).active) {
+          throw new Error(
+            `${teacherName} label already exists or is in progress for this page and is never overwritten`,
+          );
+        }
+        renameSync(tempLock, lockFile);
         claimedIno = statSync(lockFile).ino;
-      } catch {
-        throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
+      } finally {
+        rmSync(reclaimGuard, { force: true });
       }
     }
   } finally {

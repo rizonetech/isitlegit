@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -151,11 +151,24 @@ describe("wonder-label", () => {
     expect(firstRecord.page).toBe("p1");
     expect(secondExec).not.toHaveBeenCalled();
 
-    // A stale lock left by a killed worker (dead PID) is recovered on retry without blocking new work.
+    // A stale lock left by a killed worker (dead PID) is recovered on retry without blocking new work,
+    // and concurrent contenders attempting to reclaim the same stale lock are serialized.
     const dirStale = mkdtempSync(join(tmpdir(), "wonder-stale-"));
+    const staleLockPath = join(dirStale, "p1.json.lock");
+    writeFileSync(staleLockPath, JSON.stringify({ pid: 99999999, nonce: "dead", startedAt: Date.now() }));
+    const staleIno = statSync(staleLockPath).ino;
     writeFileSync(
-      join(dirStale, "p1.json.lock"),
-      JSON.stringify({ pid: 99999999, nonce: "dead", startedAt: Date.now() }),
+      `${staleLockPath}.reclaim-${staleIno}`,
+      JSON.stringify({ pid: process.pid, nonce: "reclaiming", startedAt: Date.now() }),
+    );
+    const blockedByReclaimExec = vi.fn(() => VALID);
+    expect(() =>
+      labelPage({ page: page(), screenshot: shot, text: "Sign in", outDir: dirStale, exec: blockedByReclaimExec }),
+    ).toThrow(/already exists or is in progress/);
+    expect(blockedByReclaimExec).not.toHaveBeenCalled();
+    writeFileSync(
+      `${staleLockPath}.reclaim-${staleIno}`,
+      JSON.stringify({ pid: 99999999, nonce: "dead-reclaimer", startedAt: Date.now() }),
     );
     const recovered = labelPage({
       page: page(),
@@ -166,7 +179,19 @@ describe("wonder-label", () => {
       now: () => 1000,
     });
     expect(recovered.page).toBe("p1");
-    expect(existsSync(join(dirStale, "p1.json.lock"))).toBe(false);
+    expect(existsSync(staleLockPath)).toBe(false);
+
+    // An aged lock (>1 hour old) held by a live worker is preserved and never reclaimed by another worker.
+    const dirAgedLive = mkdtempSync(join(tmpdir(), "wonder-aged-"));
+    writeFileSync(
+      join(dirAgedLive, "p1.json.lock"),
+      JSON.stringify({ pid: process.pid, nonce: "still-running", startedAt: Date.now() - 60 * 60 * 1000 }),
+    );
+    const agedExec = vi.fn(() => VALID);
+    expect(() =>
+      labelPage({ page: page(), screenshot: shot, text: "Sign in", outDir: dirAgedLive, exec: agedExec }),
+    ).toThrow(/already exists or is in progress/);
+    expect(agedExec).not.toHaveBeenCalled();
 
     const dir2 = mkdtempSync(join(tmpdir(), "wonder-"));
     expect(() =>
