@@ -16,11 +16,13 @@ import {
 } from "../../db/case-filters";
 import { unmatchedQuote } from "../../db/search-fold";
 import { AppShell, CHECK_ADDRESS, type MemberShellProps } from "../components/AppShell";
-import { cx, FOCUS } from "../components/attrs";
+import { cx, FIELD_FOCUS, FOCUS } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
 import { Document } from "../components/Document";
+import { INLINE_INPUT } from "../components/Field";
 // The board draws the search box's glass with the Monitor link's glyph.
 import { MonitorIcon as SearchIcon } from "../components/icons";
+import { Select } from "../components/Select";
 import { EmptyState } from "../components/States";
 import { VerdictBadge } from "../components/Verdict";
 import { shownState } from "./report-view";
@@ -421,14 +423,10 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
 const SEGMENT = cx(
   "inline-flex items-center px-16 min-h-control-small text-14 weight-text-strong text-ink cursor-pointer has-checked:bg-dark has-checked:text-on-dark has-focus-visible:outline-2 has-focus-visible:outline-orange-text has-focus-visible:outline-offset-2",
 );
-const SELECT = cx(
-  "h-control px-16 border border-control-border rounded-control text-16 weight-text-strong text-ink bg-surface",
-  FOCUS,
-);
 
 const SEARCH = cx(
-  "h-control w-full pl-40 pr-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface placeholder:text-muted focus:border-orange",
-  FOCUS,
+  "h-control w-full pl-40 pr-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface placeholder:text-muted",
+  FIELD_FOCUS,
 );
 
 function Filters(props: { filters: CaseFilters; members?: { id: string; label: string }[] }) {
@@ -488,20 +486,20 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
       <label for="case-channel" class="sr-only">
         Channel
       </label>
-      <select id="case-channel" name="channel" class={SELECT}>
+      <Select id="case-channel" name="channel">
         {(Object.keys(CHANNEL_WORDS) as (keyof typeof CHANNEL_WORDS)[]).map((v) => (
           <option value={v} selected={filters.channel === v}>
             {CHANNEL_WORDS[v]}
           </option>
         ))}
-      </select>
+      </Select>
       {/* Who checked (D07 T04 §10): Everyone, then each current member. A checker who has left keeps the
           restrictive filter as a disabled selected option, with Clear filters the way back to Everyone. */}
       <span id="case-checker-state" class="contents">
         <label for="case-checker" class="type-small weight-text-strong text-ink">
           Checked by
         </label>
-        <select id="case-checker" name="checker" class={cx(SELECT, "max-w-full min-w-0")}>
+        <Select id="case-checker" name="checker" class="max-w-full min-w-0">
           <option value="" selected={filters.checker === ""}>
             Everyone
           </option>
@@ -515,7 +513,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
               Member no longer available
             </option>
           ) : null}
-        </select>
+        </Select>
         {unavailable ? <input type="hidden" name="checker" value={filters.checker} /> : null}
       </span>
       <span id="case-period-state" class="contents">
@@ -526,13 +524,13 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
         <label for="case-period" class="sr-only">
           Period
         </label>
-        <select id="case-period" name="period" class={SELECT} disabled={rangeWords(filters) !== null}>
+        <Select id="case-period" name="period" disabled={rangeWords(filters) !== null}>
           {(Object.keys(PERIOD_WORDS) as (keyof typeof PERIOD_WORDS)[]).map((v) => (
             <option value={v} selected={filters.period === v}>
               {PERIOD_WORDS[v]}
             </option>
           ))}
-        </select>
+        </Select>
       </span>
       {/* A chosen date range beside the period (D07 T04 §8): setting a date makes the range the date filter. */}
       <label for="case-from" class="type-small weight-text-strong text-ink">
@@ -543,13 +541,20 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
         type="date"
         name="from"
         value={filters.from}
-        class={SELECT}
+        class={INLINE_INPUT}
         aria-describedby="case-range-hint"
       />
       <label for="case-to" class="type-small weight-text-strong text-ink">
         To
       </label>
-      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} aria-describedby="case-range-hint" />
+      <input
+        id="case-to"
+        type="date"
+        name="to"
+        value={filters.to}
+        class={INLINE_INPUT}
+        aria-describedby="case-range-hint"
+      />
       <span id="case-range-hint" class="type-small text-muted">
         SAST dates, both included.
       </span>
@@ -735,11 +740,11 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
               <input type="hidden" name="org" value={props.orgId} />
               <label class="flex flex-col gap-4">
                 <span class="text-muted">From</span>
-                <input id="case-export-from" type="date" name="from" class={SELECT} />
+                <input id="case-export-from" type="date" name="from" class={INLINE_INPUT} />
               </label>
               <label class="flex flex-col gap-4">
                 <span class="text-muted">To</span>
-                <input id="case-export-to" type="date" name="to" class={SELECT} />
+                <input id="case-export-to" type="date" name="to" class={INLINE_INPUT} />
               </label>
               <button type="submit" class={cx("underline underline-offset-4 text-orange-text", FOCUS)}>
                 Export period

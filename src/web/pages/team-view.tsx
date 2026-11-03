@@ -5,11 +5,12 @@
 import { isProtectedAccount } from "../../auth/protected";
 import { fold } from "../../db/search-fold";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
-import { cx, FOCUS } from "../components/attrs";
+import { cx } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
 import { Document } from "../components/Document";
-import { Field } from "../components/Field";
+import { Field, INLINE_INPUT } from "../components/Field";
 import { Pill } from "../components/Pill";
+import { Select } from "../components/Select";
 
 export type Role = "owner" | "admin" | "member";
 export type TeamMember = {
@@ -198,11 +199,6 @@ function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
   }
 }
 
-const SELECT = cx(
-  "h-control px-12 border border-control-border rounded-control text-16 text-ink bg-surface min-w-0",
-  FOCUS,
-);
-
 // `layout` keeps ids unique: the table (wide screens) and the cards (phones) each draw a row's controls.
 function RoleCell(props: {
   reader: Reader;
@@ -242,13 +238,13 @@ function RoleCell(props: {
       <label for={id} class="sr-only">
         Role of {member.name || member.email}
       </label>
-      <select id={id} name="role" class={SELECT}>
+      <Select id={id} name="role">
         {choices.map((role) => (
           <option value={role} selected={member.role === role}>
             {ROLE_WORDS[role]}
           </option>
         ))}
-      </select>
+      </Select>
       {/* Only without JavaScript: htmx posts the change as it is made. */}
       <noscript>
         <Button type="submit" variant="ghost" size="small">
@@ -374,13 +370,13 @@ function InvitePanel(props: { reader: Reader; orgId: string; draft: InviteDraft 
           <label for="invite-role" class="type-small weight-text-strong">
             Role
           </label>
-          <select id="invite-role" name="role" class={cx(SELECT, "md:min-w-[160px]")}>
+          <Select id="invite-role" name="role" class="md:min-w-[160px]">
             {roles.map((role) => (
               <option value={role} selected={chosen === role}>
                 {ROLE_WORDS[role]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div class="md:pt-24">
           <Button type="submit" variant="primary" data-busy-label="Sending…">
@@ -550,19 +546,19 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
       </h2>
       <form method="get" action="/team" class="flex flex-wrap items-end gap-12 px-24 pb-16">
         {props.find ? <input type="hidden" name="find" value={props.find} /> : null}
-        <label class="flex flex-col gap-4">
+        <label for="history-action" class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">Action</span>
-          <select id="history-action" name="action" class={SELECT}>
+          <Select id="history-action" name="action">
             {HISTORY_ACTIONS.map(([value, word]) => (
               <option value={value} selected={history.action === value}>
                 {word}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <label class="flex flex-col gap-4">
+        <label for="history-person" class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">Person</span>
-          <select id="history-person" name="person" class={SELECT}>
+          <Select id="history-person" name="person">
             <option value="" selected={!history.person}>
               Anyone
             </option>
@@ -571,15 +567,15 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
                 {person.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">From</span>
-          <input id="history-from" type="date" name="from" value={history.from} class={SELECT} />
+          <input id="history-from" type="date" name="from" value={history.from} class={INLINE_INPUT} />
         </label>
         <label class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">To</span>
-          <input id="history-to" type="date" name="to" value={history.to} class={SELECT} />
+          <input id="history-to" type="date" name="to" value={history.to} class={INLINE_INPUT} />
         </label>
         <Button type="submit" variant="dark">
           Apply
@@ -774,7 +770,7 @@ export function TeamPage(props: {
                 value={find ?? ""}
                 placeholder="Name or email"
                 autocomplete="off"
-                class={SELECT}
+                class={INLINE_INPUT}
                 {...((find !== undefined || findFocus) && !outcome && !lost ? { autofocus: true } : {})}
               />
             </label>

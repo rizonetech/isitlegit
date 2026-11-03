@@ -20,6 +20,7 @@ describe("wrangler.jsonc's hosts", () => {
       { pattern: "isitlegit.co.za/v/*", zone_name: "isitlegit.co.za" },
       { pattern: "isitlegit.co.za/s/*", zone_name: "isitlegit.co.za" },
       { pattern: "isitlegit.co.za/b/*", zone_name: "isitlegit.co.za" },
+      { pattern: "isitlegit.co.za/static/*", zone_name: "isitlegit.co.za" },
       { pattern: "www.isitlegit.co.za", custom_domain: true },
       { pattern: "fixtures.isitlegit.co.za", custom_domain: true },
     ]);
