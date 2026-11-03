@@ -406,10 +406,20 @@ describe("visionStep with a stubbed model", () => {
         missing: [],
       }),
     );
+    const comparedReferenceBytes: string[] = [];
     const fetchStub = (async (_input: unknown, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as { text?: { format?: { name?: string } } };
-      if (body.text?.format?.name === "logo_comparison")
+      const body = JSON.parse(String(init?.body)) as {
+        text?: { format?: { name?: string } };
+        input?: { content?: { type: string; image_url?: string }[] }[];
+      };
+      if (body.text?.format?.name === "logo_comparison") {
+        const images = (body.input ?? [])
+          .flatMap((entry) => entry.content ?? [])
+          .filter((part) => part.type === "input_image");
+        const second = images[1]?.image_url?.split(",")[1] ?? "";
+        comparedReferenceBytes.push(atob(second));
         return reply({ same_brand: true, brand_seen: "Protea Bank", differences: [], confidence: 0.9 });
+      }
       return reply(reading("Protea Bank"));
     }) as typeof fetch;
     try {
@@ -420,7 +430,13 @@ describe("visionStep with a stubbed model", () => {
       // One logo crop per picture (the render and the PDF page), each compared and read back.
       expect(matches).toHaveLength(2);
       expect(matches.every((e) => e.detail.same_brand === true && e.detail.checked === true)).toBe(true);
+      expect(matches.every((e) => e.detail.reference_key === referenceKey && e.detail.reference_sha256 === sha)).toBe(
+        true,
+      );
       expect(matches.every((e) => e.artefacts.some((key) => key.includes("-logo-")))).toBe(true);
+      // The image actually compared is the seeded reference, byte for byte.
+      expect(comparedReferenceBytes.length).toBeGreaterThan(0);
+      expect(comparedReferenceBytes.every((bytes) => bytes === "protea-bank-reference-logo-for-step-test")).toBe(true);
 
       // A replay with a different judgement replaces the logo results instead of accumulating
       // them, and the negative judgement reads back as a statement, never a clearance. The
@@ -428,18 +444,19 @@ describe("visionStep with a stubbed model", () => {
       const changedReference = new TextEncoder().encode("protea-bank-reference-logo-changed-for-replay");
       const changedDigest = await crypto.subtle.digest("SHA-256", changedReference.buffer as ArrayBuffer);
       const changedSha = [...new Uint8Array(changedDigest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-      await env.ARTEFACTS.put(referenceKey, changedReference);
+      const changedKey = "ref/logos/20260202T000000Z/protea-bank.png";
+      await env.ARTEFACTS.put(changedKey, changedReference);
       await env.ARTEFACTS.put(
         "ref/logos/index.json",
         JSON.stringify({
           version: 1,
-          generation: "20260101T000000Z",
-          generated_at: "2026-01-01T00:00:00Z",
+          generation: "20260202T000000Z",
+          generated_at: "2026-02-02T00:00:00Z",
           logos: [
             {
               slug: "protea-bank",
               brand: "Protea Bank",
-              key: referenceKey,
+              key: changedKey,
               page_url: "https://proteabank.example/",
               source_url: "https://proteabank.example/logo.png",
               source_kind: "fictional",
@@ -466,11 +483,20 @@ describe("visionStep with a stubbed model", () => {
           });
         return reply(reading("Protea Bank"));
       }) as typeof fetch;
+      // The index has advanced, but stored evidence still names the generation it was compared
+      // against; only a replay compares against the new generation.
+      const retained = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
+      expect(retained.every((e) => e.detail.reference_key === referenceKey && e.detail.reference_sha256 === sha)).toBe(
+        true,
+      );
       const replay = await visionStep(deps(caseId, differentStub), caseId);
       expect(replay.outcome).toBe("read");
       const replaced = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
       expect(replaced).toHaveLength(2);
       expect(replaced.every((e) => e.detail.same_brand === false && e.severity === "info")).toBe(true);
+      expect(
+        replaced.every((e) => e.detail.reference_key === changedKey && e.detail.reference_sha256 === changedSha),
+      ).toBe(true);
     } finally {
       samResponder = samEmpty;
     }

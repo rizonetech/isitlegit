@@ -739,7 +739,12 @@ async function runVision(
                 { bytes: crop.body, mediaType: "image/png", label: cropKey },
                 { bytes: reference.bytes, mediaType: reference.mediaType, label: reference.slug },
               );
-              logoItems.push(logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged"));
+              logoItems.push(
+                logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged", {
+                  key: reference.key,
+                  sha256: reference.sha256,
+                }),
+              );
             } catch (error) {
               const reason =
                 error instanceof LogoReferenceError || error instanceof Error ? error.name : "comparison-failed";

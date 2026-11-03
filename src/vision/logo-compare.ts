@@ -156,6 +156,7 @@ export function logoMatchItem(
   brand: string,
   cropKey: string,
   domain: "official" | "mismatch" | "unjudged",
+  reference: { key: string; sha256: string },
 ): EvidenceDraft {
   const detail = {
     brand,
@@ -165,6 +166,8 @@ export function logoMatchItem(
     confidence: judgement.confidence,
     domain,
     checked: true,
+    reference_key: reference.key,
+    reference_sha256: reference.sha256,
   };
   if (!judgement.same_brand)
     return {
@@ -191,6 +194,50 @@ export function logoMatchItem(
     detail,
     artefacts: [cropKey],
   };
+}
+
+const referenceIdentity = {
+  reference_key: z.string().min(1).max(300),
+  reference_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+};
+const comparedDetail = {
+  brand: z.string().min(1).max(200),
+  same_brand: z.boolean(),
+  brand_seen: z.string().min(1).max(120).nullable(),
+  differences: z.array(z.string().min(1).max(200)).max(8),
+  confidence: z.number().min(0).max(1),
+  domain: z.enum(["official", "mismatch", "unjudged"]),
+  checked: z.literal(true),
+};
+
+// The validated consumer contract for the detail above: a compared item carries both identity
+// fields or neither. Both present and well formed reads as compared; neither (an item written
+// before reference identity was recorded) reads as historical, never as compared; one field, a
+// malformed hash, or a reference field on a not-compared item is refused, never half-accepted.
+export const logoMatchDetailSchema = z.strictObject({ ...comparedDetail, ...referenceIdentity });
+export const logoNotComparedDetailSchema = z.strictObject({
+  brand: z.string().min(1).max(200),
+  checked: z.literal(false),
+  reason: z.string().min(1).max(200),
+});
+const historicalDetailSchema = z.strictObject(comparedDetail);
+
+export type LogoMatchReading =
+  | { kind: "compared"; detail: z.infer<typeof logoMatchDetailSchema> }
+  | { kind: "not-compared"; detail: z.infer<typeof logoNotComparedDetailSchema> }
+  | { kind: "historical"; detail: z.infer<typeof historicalDetailSchema> };
+
+export function readLogoMatchDetail(detail: unknown): LogoMatchReading {
+  if (typeof detail === "object" && detail !== null && "checked" in detail && detail.checked === false)
+    return { kind: "not-compared", detail: logoNotComparedDetailSchema.parse(detail) };
+  if (
+    typeof detail === "object" &&
+    detail !== null &&
+    !("reference_key" in detail) &&
+    !("reference_sha256" in detail)
+  )
+    return { kind: "historical", detail: historicalDetailSchema.parse(detail) };
+  return { kind: "compared", detail: logoMatchDetailSchema.parse(detail) };
 }
 
 // A comparison that could not run (no reference, a failed call, a spent budget): stated on the
