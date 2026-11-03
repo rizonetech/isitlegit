@@ -98,6 +98,9 @@ function ReportBody(props: {
   confirming?: boolean;
   trace?: LiveProps["trace"];
   traceOpen?: boolean;
+  // Stepping through the filtered list the member came from (D07 T04 §9); a member's only.
+  steps?: ReportSteps;
+  navQuery?: string;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -106,7 +109,17 @@ function ReportBody(props: {
   const orphan = !props.verdict && (shown.state === "complete" || shown.state === "partial");
   return (
     <article class="flex flex-col gap-24 px-16 py-24 md:px-48 md:py-40">
-      <ReportHeader facts={facts} view={view} copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`} />
+      <ReportHeader
+        facts={facts}
+        view={view}
+        copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`}
+        {...(props.steps ? { backHref: props.steps.back } : {})}
+      />
+      {props.steps && <StepsNav steps={props.steps} />}
+      {props.steps?.notice && <p class="type-small text-muted">{props.steps.notice}</p>}
+      {props.steps?.orgChanged && (
+        <p class="type-small text-muted">You switched organisations, so Cases opens the one you are in now.</p>
+      )}
       {orphan && (
         <>
           <MetaLine facts={facts} view={view} />
@@ -151,8 +164,10 @@ function ReportBody(props: {
           {...(props.link ? { link: props.link } : {})}
           meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
+          {...(props.navQuery ? { navQuery: props.navQuery } : {})}
         />
       )}
+      {props.steps && <StepsNav steps={props.steps} />}
       <footer class="flex flex-col gap-8 type-small text-muted border-t border-line pt-16">
         <p>
           {view === "member"
@@ -180,6 +195,63 @@ function ReportBody(props: {
 }
 
 // The report as a whole document: the member frame for a member (its shell data given), the public frame for a link.
+export type ReportSteps = {
+  // The neighbouring reports' addresses, null at either end of the run; the list to go back to; and whether this
+  // case has fallen out of the run the filters describe (D07 T04 §9).
+  previous: string | null;
+  next: string | null;
+  back: string;
+  unmatched?: boolean;
+  // This case's place in the run and the run's size, when it is in the run.
+  position?: number;
+  matching?: number;
+  // A date bound the address named but did not give as a real date, said rather than silently dropped.
+  notice?: string;
+  // The member's active organisation is no longer this case's, so Cases opens the one they are in now.
+  orgChanged?: boolean;
+};
+
+// The step controls, drawn at the report's head and again at its foot, so a long report ends where the next case
+// begins (D07 T04 §9). The addresses ride in data attributes for the app script's j, k and u keys.
+function StepsNav(props: { steps: ReportSteps }) {
+  const { steps } = props;
+  if (steps.unmatched) return <p class="type-small text-muted">This case is not in that filtered list any more.</p>;
+  return (
+    <nav
+      aria-label="Other cases in this list"
+      data-case-steps
+      data-previous={steps.previous ?? undefined}
+      data-next={steps.next ?? undefined}
+      data-back={steps.back}
+      class="flex flex-wrap items-center gap-12 print:hidden"
+    >
+      {steps.previous ? (
+        <a href={steps.previous} class="type-small weight-text-strong text-orange-text">
+          ← Previous case
+        </a>
+      ) : (
+        <span aria-disabled="true" class="type-small text-muted">
+          ← Previous case
+        </span>
+      )}
+      {steps.next ? (
+        <a href={steps.next} class="type-small weight-text-strong text-orange-text">
+          Next case →
+        </a>
+      ) : (
+        <span aria-disabled="true" class="type-small text-muted">
+          Next case →
+        </span>
+      )}
+      {steps.position && steps.matching ? (
+        <span class="type-small text-muted">
+          Case {steps.position} of {steps.matching}
+        </span>
+      ) : null}
+    </nav>
+  );
+}
+
 export function ReportDocument(props: {
   stored: ReportCase;
   verdict?: ReportVerdict | null;
@@ -200,6 +272,8 @@ export function ReportDocument(props: {
   confirming?: boolean;
   trace?: LiveProps["trace"];
   traceOpen?: boolean;
+  steps?: ReportSteps;
+  navQuery?: string;
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -221,6 +295,8 @@ export function ReportDocument(props: {
       confirming={props.confirming ?? false}
       trace={props.trace ?? null}
       traceOpen={props.traceOpen ?? false}
+      {...(props.steps ? { steps: props.steps } : {})}
+      {...(props.navQuery ? { navQuery: props.navQuery } : {})}
     />
   );
   return (

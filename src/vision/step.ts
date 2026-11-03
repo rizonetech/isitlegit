@@ -21,13 +21,14 @@ import {
   resolveBrand,
   shownDomain,
 } from "./brand";
+import { detectBoxes } from "./detector";
 import { compareLogo, logoMatchItem, logoNotComparedItem } from "./logo-compare";
-import { LogoReferenceError, referenceLogo } from "./logo-reference";
+import { LogoReferenceError, referenceLogos } from "./logo-reference";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
-import { CROP_TIMEOUT_MS, cropBoxes, imageSize, segmentImage, selectBoxes, storeCrops } from "./sam";
+import { CROP_TIMEOUT_MS, cropBoxes, imageSize, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
   db: D1Database;
@@ -450,9 +451,16 @@ async function runVision(
           continue;
         }
         try {
-          const { boxes, failures } = await segmentImage(
-            { ...deps.meta, owner, expired: segmentExpired },
+          // Each browser operation is capped at its own bound as well as the phase's remainder,
+          // so one stalled image cannot spend every later image's allowance.
+          const opLeft = () => Math.max(1, Math.min(CROP_TIMEOUT_MS, segmentBy - Date.now()));
+          const size = await imageSize(browser, source.bytes, opLeft());
+          // The chosen detector (D03 T03 §4): grounding needs the decoded size up front, SAM
+          // ignores it; both return the same boxes and typed failures.
+          const { boxes, failures } = await detectBoxes(
+            { ...deps.meta, owner, expired: segmentExpired, waitUntil: deps.waitUntil },
             image.dataUrl,
+            size,
             segmentBy,
           );
           if (failures.length) losses.push(`segmentation was unavailable for ${source.name}`);
@@ -465,10 +473,6 @@ async function runVision(
             continue;
           }
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          // Each browser operation is capped at its own bound as well as the phase's remainder,
-          // so one stalled image cannot spend every later image's allowance.
-          const opLeft = () => Math.max(1, Math.min(CROP_TIMEOUT_MS, segmentBy - Date.now()));
-          const size = await imageSize(browser, source.bytes, opLeft());
           const selected = selectBoxes(boxes, size);
           if (!selected.length) {
             if (!failures.length && !segmentExpired())
@@ -677,7 +681,7 @@ async function runVision(
             if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
           }
         }
-        const references = new Map<string, Awaited<ReturnType<typeof referenceLogo>> | LogoReferenceError>();
+        const references = new Map<string, Awaited<ReturnType<typeof referenceLogos>> | LogoReferenceError>();
         const byImage = new Map(images.map((image) => [image.id, image]));
         for (const claim of claims) {
           const image = byImage.get(claim.image);
@@ -704,7 +708,7 @@ async function runVision(
           let reference = references.get(brand);
           if (reference === undefined) {
             reference = await withinLogo(
-              referenceLogo(deps.store.bucket, brand).catch((error: unknown) =>
+              referenceLogos(deps.store.bucket, brand).catch((error: unknown) =>
                 error instanceof LogoReferenceError
                   ? error
                   : new LogoReferenceError("missing-image", "the reference logo could not be read"),
@@ -728,21 +732,44 @@ async function runVision(
                 logoItems.push(logoNotComparedItem(brand, cropKey, "missing-crop"));
                 continue;
               }
-              const judgement = await compareLogo(
-                {
-                  meta: { ...deps.meta, owner },
-                  kv: deps.kv,
-                  owner,
-                  waitUntil: deps.waitUntil,
-                  deadline: logoDeadline,
-                },
-                { bytes: crop.body, mediaType: "image/png", label: cropKey },
-                { bytes: reference.bytes, mediaType: reference.mediaType, label: reference.slug },
-              );
+              // Each variant in turn (D03 T03 §5): a match on any is the brand's; when none
+              // matches, the wordmark judgement speaks for the crop. A variant that fails loses
+              // only itself; every variant failing states the crop not compared. The evidence
+              // records the variant that produced the judgement (D03 T03 §7).
+              let judgement: Awaited<ReturnType<typeof compareLogo>> | null = null;
+              let compared: (typeof reference)[number] | null = null;
+              let firstError: unknown = null;
+              for (const variant of reference) {
+                try {
+                  const judged = await compareLogo(
+                    {
+                      meta: { ...deps.meta, owner },
+                      kv: deps.kv,
+                      owner,
+                      waitUntil: deps.waitUntil,
+                      deadline: logoDeadline,
+                    },
+                    { bytes: crop.body, mediaType: "image/png", label: cropKey },
+                    { bytes: variant.bytes, mediaType: variant.mediaType, label: `${variant.slug}-${variant.variant}` },
+                  );
+                  if (judged.same_brand) {
+                    judgement = judged;
+                    compared = variant;
+                    break;
+                  }
+                  if (!judgement) {
+                    judgement = judged;
+                    compared = variant;
+                  }
+                } catch (error) {
+                  firstError ??= error;
+                }
+              }
+              if (!judgement || !compared) throw firstError ?? new Error("comparison-failed");
               logoItems.push(
                 logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged", {
-                  key: reference.key,
-                  sha256: reference.sha256,
+                  key: compared.key,
+                  sha256: compared.sha256,
                 }),
               );
             } catch (error) {

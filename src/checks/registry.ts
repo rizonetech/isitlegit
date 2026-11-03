@@ -48,6 +48,10 @@ export type Check = {
   // items only, holding nothing of the message its card does not show; null when it has nothing to say. A summary that
   // throws, is empty, runs past MAX_OUTCOME_SUMMARY characters or is not plain is stored as null, the outcome kept.
   summary?: (view: Readonly<CaseView>, items: readonly EvidenceDraft[]) => string | null;
+  // The targets the check examined, as stored text (D02 T01 §8): read by the runner only when the check ran
+  // over all its input and found nothing, so a clean outcome can show what was looked at. From the view only,
+  // never a new read. A hook that throws or returns a malformed entry loses only its examined set.
+  examined?: (view: Readonly<CaseView>) => string[];
 };
 
 export const MAX_OUTCOME_SUMMARY = 120;

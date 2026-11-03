@@ -10,6 +10,10 @@ interface Env {
   // The HMAC key of the reply's report links (src/web/report-link.ts): 32 random bytes as base64url, kept in the vault
   // as "IsItLegit report link secret". Replacing it invalidates every link already sent.
   REPORT_LINK_SECRET?: string;
+  // The Domain Connect signing key (src/auth/domain-connect.ts, D07 T04 §5): an RSA private key as PKCS8 PEM, kept
+  // in the vault and published only as its public half at _domainconnect.isitlegit.co.za. Unset, Connect is never
+  // offered and every domain verifies by the manual and emailed ways.
+  DOMAIN_CONNECT_PRIVATE_KEY?: string;
   // SMTP2GO's API key for outbound mail (src/mail/smtp2go.ts), sender restricted to isitlegit.co.za; kept in the vault.
   SMTP2GO_API_KEY?: string;
   // Google Web Risk's API key for the link reputation lookup (src/checks/webrisk.ts, D02 T06 §1), restricted to

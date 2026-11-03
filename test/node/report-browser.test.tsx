@@ -63,6 +63,15 @@ function html(view: "member" | "public", count = 3, verdict: ReportVerdict | nul
       shell={view === "member" ? shell : null}
       {...(coverage ? { coverage } : {})}
       {...(view === "public" ? { linkExpires: Date.UTC(2026, 10, 3) / 1000 } : {})}
+      {...(view === "member"
+        ? {
+            steps: {
+              previous: "/r/prev?list=1&period=all",
+              next: "/r/next?list=1&period=all",
+              back: "/cases?period=all",
+            },
+          }
+        : {})}
     />,
   );
 }
@@ -80,7 +89,7 @@ async function open(body: string, width: number, theme: "light" | "dark") {
   const p: Page = await context.newPage();
   await p.route(`${APP}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
+    if (path.startsWith("/r/")) return route.fulfill({ status: 200, contentType: "text/html", body });
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });
@@ -151,6 +160,45 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
         expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
         await context.close();
       });
+
+  it("reaches Previous and Next by keyboard on a member report, and a link holder has neither (D07 T04 §9)", async () => {
+    for (const width of [360, 1280]) {
+      const { p, context } = await open(html("member"), width, "light");
+      expect(await p.getByRole("link", { name: "← Previous case" }).first().getAttribute("href")).toBe(
+        "/r/prev?list=1&period=all",
+      );
+      expect(await p.getByRole("link", { name: "Next case →" }).first().getAttribute("href")).toBe(
+        "/r/next?list=1&period=all",
+      );
+      let reached = false;
+      for (let i = 0; i < 30 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = (await p.evaluate(() => document.activeElement?.textContent?.trim())) === "Next case →";
+      }
+      expect(reached, "Tab never reached Next case").toBe(true);
+      await context.close();
+    }
+    const pub = await open(html("public"), 360, "light");
+    expect(await pub.p.getByRole("link", { name: "Next case →" }).count()).toBe(0);
+    await pub.context.close();
+  });
+
+  it("activates Next and returns by the u key (D07 T04 §9)", async () => {
+    const { p, context } = await open(html("member"), 1280, "light");
+    await p.getByRole("link", { name: "Next case →" }).first().click();
+    await expect.poll(() => p.url()).toContain("/r/next");
+    expect(await p.getByRole("link", { name: "← Previous case" }).first().getAttribute("href")).toContain("/r/prev");
+    // The keys live on the step controls (WCAG 2.1.4): Tab into them, then u returns to the list.
+    for (
+      let i = 0;
+      i < 30 && !(await p.evaluate(() => document.activeElement?.closest("[data-case-steps]") !== null));
+      i++
+    )
+      await p.keyboard.press("Tab");
+    await p.keyboard.press("u");
+    await expect.poll(() => p.url()).toContain("/cases?period=all");
+    await context.close();
+  });
 
   it("gives a member on a phone a back link to Cases, reached by keyboard, and a link holder none", async () => {
     const { p, context } = await open(html("member"), 360, "light");

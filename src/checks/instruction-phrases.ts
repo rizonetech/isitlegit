@@ -6,7 +6,7 @@
 import { decodeEntities } from "./entities";
 import { IgnorableStripper, kept } from "./ignorable";
 import { hasInstruction, INSTRUCTION } from "./instruction-words";
-import { type InvisibleRun, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
+import { type InvisibleRun, MAX_DECODED, MAX_INVISIBLE_RUNS, RunReader } from "./invisible-unicode";
 
 // An invisible run as the log keeps it (D02 T05 §3): where it was read, and how strongly it weighs: high when its
 // decoded text reads as an instruction, medium for other tag text, low for a run of other invisible characters.
@@ -18,7 +18,14 @@ export type LoggedRun = InvisibleRun & {
   severity: "high" | "medium" | "low";
   key?: string;
   instruction?: RunInstruction;
+  // The run's whole decoded text as it streamed (D02 T05 §11), kept apart from the run record's bounded
+  // excerpt above: up to MAX_RUN_TEXT characters, `runTextCut` when the run held more.
+  runText?: string;
+  runTextCut?: boolean;
 };
+// The decoded run text kept for the report's run detail (D02 T05 §11), a different quantity from the run
+// record's MAX_DECODED excerpt (D02 T05 §3): the state stays bounded at each section's own bound.
+export const MAX_RUN_TEXT = 8_000;
 const RANK = { high: 0, medium: 1, low: 2 } as const;
 // The runs the view carries: the strongest MAX_INVISIBLE_RUNS, then a count with the highest severity among the rest.
 export type InvisibleText = { runs: LoggedRun[]; more: number; moreSeverity: LoggedRun["severity"] | null };
@@ -189,6 +196,8 @@ export class PhraseLog {
     nth: number,
     steering: boolean,
     instruction: RunInstruction | null = null,
+    runText: string | null = null,
+    runTextCut = false,
   ): void {
     const key = `${source}\u0000${location}\u0000${run.kind}\u0000${run.fingerprint ?? run.decoded ?? run.length}\u0000${nth}`;
     if (this.runsSeen.has(key)) {
@@ -199,18 +208,26 @@ export class PhraseLog {
         if (instruction) kept.instruction = instruction;
         this.invisible.sort((a, b) => RANK[a.severity] - RANK[b.severity]);
       }
+      if (kept && runText !== null && kept.runText === undefined) {
+        kept.runText = runText;
+        if (runTextCut) kept.runTextCut = true;
+      }
       return;
     }
     if (this.runsSeen.size < 64 * MAX_INVISIBLE_RUNS) this.runsSeen.add(key);
     // The decoded words kept for the view are bounded; the phrases have read them whole.
     const logged: LoggedRun = {
       ...run,
-      decoded: run.decoded === null ? null : run.decoded.slice(0, 2_000),
+      decoded: run.decoded === null ? null : run.decoded.slice(0, MAX_DECODED),
       location,
       key,
       severity: run.decoded === null ? "low" : steering ? "high" : "medium",
     };
     if (steering && instruction) logged.instruction = instruction;
+    if (runText !== null) {
+      logged.runText = runText;
+      if (runTextCut) logged.runTextCut = true;
+    }
     let dropped: LoggedRun | null = logged;
     if (this.invisible.length < MAX_INVISIBLE_RUNS) {
       this.invisible.push(logged);
@@ -260,6 +277,9 @@ export class PhraseStream {
   // instruction is (D02 T05 §6).
   private nested: PhraseStream | null = null;
   private spot: InstructionSpot | null = null;
+  // The open run's decoded text kept for the report (D02 T05 §11), bounded at MAX_RUN_TEXT as it streams.
+  private runText = "";
+  private runTextCut = false;
   // Matches this stream found, counted before the log's de-duplication, and whether §1's instruction words appeared
   // anywhere in what it read (round 2: words past a decoded run's bounded excerpt were missed).
   matched = 0;
@@ -340,6 +360,8 @@ export class PhraseStream {
       this.nested = new PhraseStream(this.log, hidden, this.source, false);
       this.spot = new InstructionSpot();
     }
+    if (this.runText.length + text.length > MAX_RUN_TEXT) this.runTextCut = true;
+    if (this.runText.length < MAX_RUN_TEXT) this.runText += text.slice(0, MAX_RUN_TEXT - this.runText.length);
     this.nested.feed(text);
     this.spot?.feed(text);
   }
@@ -347,8 +369,12 @@ export class PhraseStream {
   private foundRun(run: InvisibleRun): void {
     const nested = this.nested;
     const spot = this.spot;
+    const runText = this.runText;
+    const runTextCut = this.runTextCut;
     this.nested = null;
     this.spot = null;
+    this.runText = "";
+    this.runTextCut = false;
     nested?.end();
     const steering =
       run.decoded !== null && ((nested?.matched ?? 0) > 0 || (nested?.words ?? false) || hasInstruction(run.decoded));
@@ -357,7 +383,7 @@ export class PhraseStream {
     const which = `${run.kind}\u0000${run.fingerprint ?? run.decoded ?? run.length}`;
     const nth = (this.runCounts.get(which) ?? 0) + 1;
     this.runCounts.set(which, nth);
-    this.log.addRun(run, this.location, this.source, nth, steering, instruction);
+    this.log.addRun(run, this.location, this.source, nth, steering, instruction, runText || null, runTextCut);
   }
 
   private scan(text: string, final: boolean): void {

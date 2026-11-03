@@ -351,7 +351,13 @@ describe("capture", () => {
     expect(reasons.Gamma).toMatch(/not a PNG, JPEG or WebP/);
     expect(reasons.Delta).toMatch(/not one of the brand's domains/);
     expect(reasons.Zeta).toMatch(/no entry/);
-    expect(made.logos.map((l) => l.brand)).toEqual(["Epsilon", "Protea Bank", "NimbusMail"]);
+    expect(made.logos.map((l) => l.brand)).toEqual([
+      "Epsilon",
+      "Protea Bank",
+      "NimbusMail",
+      "Protea Bank",
+      "NimbusMail",
+    ]);
     // What is on disk is what the index says.
     const stored = LogoIndex.parse(JSON.parse(readFileSync(join(dir, "index.json"), "utf8")));
     expect(stored).toEqual(made);
@@ -359,13 +365,18 @@ describe("capture", () => {
       const bytes = new Uint8Array(readFileSync(join(dir, l.key.slice(l.key.lastIndexOf("/") + 1))));
       expect(sha256(bytes)).toBe(l.sha256);
     }
-    expect(stored.logos.filter((l) => l.fictional).map((l) => l.slug)).toEqual(["protea-bank", "nimbusmail"]);
+    expect(stored.logos.filter((l) => l.fictional).map((l) => l.slug)).toEqual([
+      "protea-bank",
+      "nimbusmail",
+      "protea-bank",
+      "nimbusmail",
+    ]);
     expect(
       coverage(
         stored,
         brands.map((b) => b.name),
       ),
-    ).toEqual({ real: 1, fictional: 2, missing: 5 });
+    ).toEqual({ real: 1, fictional: 4, missing: 5 });
   });
 
   it("finishes a generation: only its missing brands are tried again, and nothing it holds is touched", async () => {
@@ -400,7 +411,14 @@ describe("capture", () => {
     expect(second.dir).toBe(first.dir);
     expect(second.index.generation).toBe(GEN);
     expect(second.index.missing).toEqual([]);
-    expect(second.index.logos.map((l) => l.slug).sort()).toEqual(["alpha", "beta", "nimbusmail", "protea-bank"]);
+    expect(second.index.logos.map((l) => l.slug).sort()).toEqual([
+      "alpha",
+      "beta",
+      "nimbusmail",
+      "nimbusmail",
+      "protea-bank",
+      "protea-bank",
+    ]);
     expect(readFileSync(join(first.dir, "beta.png"))).toEqual(betaBefore);
     expect(LogoIndex.parse(JSON.parse(readFileSync(join(first.dir, "index.json"), "utf8")))).toEqual(second.index);
   });
@@ -430,9 +448,9 @@ describe("capture", () => {
     expect(lines).toEqual([
       "[1/2] Alpha: try 1",
       "[1/2] Alpha: try 2 (a bot check)",
-      "[1/2] Alpha: missing, a bot check",
+      "[1/2] Alpha: missing wordmark, a bot check",
       "[2/2] Beta: try 1",
-      "[2/2] Beta: stored 600 by 120 px",
+      "[2/2] Beta: stored wordmark 600 by 120 px",
     ]);
     // A page that never answers: the second try shares the first one's deadline, so the brand ends at about 300 ms.
     let tries = 0;

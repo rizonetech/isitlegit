@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 142
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 96 | Checklist items: 619
+Sections: 97 | Checklist items: 627
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -306,7 +306,7 @@ Sections: 96 | Checklist items: 619
 | [x]    | D04 T01 §4  | Verdict agent loop on the Responses API      | meta-api              | 11    |
 | [x]    | D04 T01 §5  | Citation validator with fallback             | none                  | 5     |
 | [x]    | D04 T01 §9  | Impersonation family in rule verdict         | none                  | 3     |
-| [ ]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
+| [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
 | [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
 | [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
 | [ ]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
@@ -373,7 +373,8 @@ Sections: 96 | Checklist items: 619
 | [x]    | D08 T02 §9  | Admin eval runs page                         | none                  | 6     |
 | [x]    | D08 T02 §10 | Public run history                           | none                  | 5     |
 | [x]    | D08 T02 §11 | Baseline orchestration                       | cloudflare            | 6     |
-| [ ]    | D08 T02 §12 | Eval replay after deploy                     | cloudflare            | 4     |
+| [x]    | D08 T02 §12 | Eval replay after deploy                     | cloudflare            | 8     |
+| [ ]    | D08 T02 §13 | Source-versus-replay comparison              | cloudflare            | 4     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video            | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost        | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls           | meta-api, cloudflare  | 5     |
@@ -393,197 +394,208 @@ Sections: 96 | Checklist items: 619
 
 ### Phase 7: After the event
 
-Sections: 187 | Checklist items: 794
+Sections: 198 | Checklist items: 863
 
-| Status | Reference   | Deliverable                                      | Needs                | Items |
-| ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
-| [ ]    | D00 T01 §9  | Red CI refused when a section starts             | none                 | 6     |
-| [x]    | D00 T01 §15 | Review schedule by section risk                  | none                 | 5     |
-| [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none                 | 6     |
-| [ ]    | D00 T01 §17 | Light against full review, measured              | none                 | 4     |
-| [x]    | D00 T01 §21 | Pre-push excerpt from the tools' error output    | none                 | 5     |
-| [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard                 | none                 | 6     |
-| [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none                 | 5     |
-| [ ]    | D00 T01 §29 | Stamp recovery after a killed process            | none                 | 3     |
-| [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator             | 2     |
-| [x]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 4     |
-| [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none                 | 8     |
-| [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended             | 6     |
-| [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none                 | 4     |
-| [ ]    | D01 T01 §12 | Several originals in one forward                 | none                 | 5     |
-| [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none                 | 4     |
-| [ ]    | D01 T01 §14 | Near-limit forward, live                         | operator, live-mail  | 3     |
-| [ ]    | D01 T01 §15 | Second inbound mail route                        | operator             | 7     |
-| [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
-| [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
-| [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
-| [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
-| [ ]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
-| [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
-| [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
-| [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
-| [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator             | 6     |
-| [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
-| [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
-| [ ]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 2     |
-| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 2     |
-| [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
-| [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
-| [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
-| [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured          | none                 | 5     |
-| [ ]    | D02 T03 §6  | Right-to-left lookalike labels                   | none                 | 4     |
-| [ ]    | D02 T03 §8  | Repeated-name lookalikes                         | none                 | 3     |
-| [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured            | none                 | 3     |
-| [ ]    | D02 T04 §10 | Attachment content                               | none                 | 3     |
-| [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
-| [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
-| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
-| [ ]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
-| [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
-| [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
-| [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
-| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 2     |
-| [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
-| [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
-| [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
-| [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
-| [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
-| [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
-| [ ]    | D03 T03 §5  | Logos for blocked brands                         | cloudflare           | 5     |
-| [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none                 | 14    |
-| [x]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none                 | 8     |
-| [x]    | D03 T04 §20 | Faster and mirrored dataset downloads            | none                 | 11    |
-| [x]    | D03 T04 §21 | Downloads that beat aria2c outright              | none                 | 9     |
-| [ ]    | D03 T04 §22 | Several healthy mirrors at once                  | none                 | 7     |
-| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win             | none                 | 13    |
-| [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none                 | 5     |
-| [ ]    | D03 T04 §25 | The signals rubric in the                        | meta-api             | 7     |
-| [x]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none                 | 11    |
-| [ ]    | D03 T04 §28 | Converter limits and item lineage                | none                 | 10    |
-| [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none                 | 4     |
-| [x]    | D03 T04 §41 | Day-zero case capture                            | cloudflare           | 9     |
-| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py              | none                 | 3     |
-| [ ]    | D03 T04 §43 | One command to rebuild a Loupe version           | none                 | 2     |
-| [ ]    | D03 T04 §44 | Twelve to seventeen thousand more training pages | none                 | 5     |
-| [ ]    | D04 T01 §6  | Prompt-injection fixture suite                   | none                 | 5     |
-| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier              | cloudflare           | 4     |
-| [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
-| [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
-| [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
-| [x]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 5     |
-| [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
-| [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
-| [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
-| [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
-| [ ]    | D05 T02 §3  | Registry comparison evidence that                | none                 | 7     |
-| [ ]    | D05 T02 §4  | Impersonation alert to the protected business    | none                 | 5     |
-| [ ]    | D05 T02 §5  | Counterparty reply with the protected line       | none                 | 4     |
-| [ ]    | D05 T02 §8  | Copied-badge detection and alerts                | none                 | 4     |
-| [ ]    | D05 T02 §9  | Domain-locked website seal                       | none                 | 7     |
-| [ ]    | D05 T04 §4  | Full pipeline on                                 | meta-api, cloudflare | 3     |
-| [ ]    | D05 T04 §5  | Monitor alerts and takedown pack                 | none                 | 4     |
-| [ ]    | D05 T04 §6  | Demo lookalike site found by                     | cloudflare           | 4     |
-| [ ]    | D05 T04 §7  | Certificate-transparency search for              | none                 | 2     |
-| [ ]    | D05 T04 §10 | Findings exported to                             | cloudflare           | 7     |
-| [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture            | cloudflare           | 4     |
-| [ ]    | D06 T01 §3  | Bank-change rules with the fixed action          | none                 | 12    |
-| [ ]    | D05 T03 §1  | Verification request to the contact              | none                 | 6     |
-| [ ]    | D05 T03 §2  | Reply capture into the case                      | cloudflare           | 5     |
-| [x]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 7     |
-| [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
-| [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction         | meta-api             | 3     |
-| [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
-| [x]    | D07 T01 §4  | Design change comparison                         | none                 | 7     |
-| [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended             | 4     |
-| [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
-| [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
-| [x]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
-| [x]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 8     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
-| [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
-| [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
-| [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
-| [ ]    | D07 T02 §25 | Same-device other-browser                        | none                 | 5     |
-| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                 | none                 | 4     |
-| [ ]    | D07 T03 §11 | Follow-up question from                          | none                 | 3     |
-| [ ]    | D07 T03 §14 | Vision and brand cards                           | none                 | 2     |
-| [ ]    | D07 T03 §15 | Invoice and document cards                       | none                 | 2     |
-| [ ]    | D07 T03 §17 | Trust and verification cards                     | none                 | 2     |
-| [ ]    | D07 T03 §23 | Feedback outcome to the member                   | none                 | 2     |
-| [ ]    | D07 T03 §25 | Reply checked in mail clients                    | attended             | 2     |
-| [ ]    | D07 T03 §27 | Reply and report in your language                | none                 | 4     |
-| [ ]    | D07 T03 §33 | Highlighted page for a forensic finding          | none                 | 2     |
-| [ ]    | D07 T03 §44 | Clean checks with their result summary           | none                 | 4     |
-| [ ]    | D07 T03 §47 | Previous attempt of a                            | none                 | 4     |
-| [ ]    | D07 T03 §50 | Mail refusal reason in the trace                 | none                 | 3     |
-| [ ]    | D07 T03 §51 | Walkthrough action to its                        | none                 | 4     |
-| [ ]    | D07 T03 §52 | Report address from a                            | none                 | 4     |
-| [ ]    | D07 T03 §53 | One-action copy of the                           | none                 | 3     |
-| [ ]    | D07 T03 §54 | All stored headers read in place                 | none                 | 3     |
-| [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none                 | 5     |
-| [ ]    | D07 T04 §6  | MSP console and own branding                     | none                 | 4     |
-| [ ]    | D07 T04 §8  | A chosen date range in the                       | none                 | 3     |
-| [ ]    | D07 T04 §9  | Next and previous case                           | none                 | 3     |
-| [ ]    | D07 T04 §10 | A Checked by filter in the                       | none                 | 3     |
-| [ ]    | D07 T04 §11 | DNS help per provider                            | none                 | 3     |
-| [ ]    | D07 T04 §12 | Remove a case checked by mistake                 | none                 | 4     |
-| [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none                 | 4     |
-| [x]    | D07 T04 §14 | Multi-word search in the Cases list              | none                 | 6     |
-| [ ]    | D07 T04 §15 | Slash shortcut to the                            | none                 | 3     |
-| [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended             | 3     |
-| [ ]    | D07 T04 §17 | Money at risk caught tile                        | none                 | 4     |
-| [ ]    | D07 T04 §18 | Threat kinds by verdict                          | none                 | 4     |
-| [ ]    | D07 T04 §19 | Reporting period choice                          | none                 | 3     |
-| [ ]    | D07 T04 §20 | Opt-in weekly counts                             | none                 | 4     |
-| [ ]    | D07 T04 §22 | Invite several colleagues at once                | none                 | 3     |
-| [ ]    | D07 T04 §23 | Team history for owners                          | none                 | 3     |
-| [ ]    | D07 T04 §24 | Team history by person                           | none                 | 2     |
-| [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none                 | 5     |
-| [ ]    | D07 T04 §26 | Find a person on the Team page                   | none                 | 3     |
-| [x]    | D07 T04 §27 | Add a single address and verify it by code       | none                 | 9     |
-| [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none                 | 5     |
-| [x]    | D07 T04 §29 | Verifier detail on the Domains page              | none                 | 5     |
-| [ ]    | D07 T04 §30 | Phone forwarding guidance on the Cases page      | none                 | 4     |
-| [ ]    | D07 T05 §3  | Service health tiles on                          | none                 | 4     |
-| [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none                 | 4     |
-| [ ]    | D07 T05 §5  | Filter the organisations                         | none                 | 4     |
-| [ ]    | D07 T06 §11 | Already paid: what to do now                     | none                 | 7     |
-| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                | none                 | 2     |
-| [ ]    | D07 T06 §13 | On-site invite request                           | none                 | 2     |
-| [ ]    | D07 T06 §14 | Cross-border safeguards                          | none                 | 2     |
-| [ ]    | D07 T06 §15 | Privacy request handling notice                  | none                 | 2     |
-| [ ]    | D07 T06 §16 | Protect outcome case study                       | none                 | 2     |
-| [ ]    | D07 T06 §19 | Security assurance evidence link                 | none                 | 2     |
-| [ ]    | D07 T06 §20 | Deploy the site and read it back                 | cloudflare           | 9     |
-| [ ]    | D07 T07 §3  | Production demo seed                             | cloudflare, operator | 2     |
-| [ ]    | D07 T08 §7  | Renew an expired report link                     | operator             | 6     |
-| [ ]    | D07 T08 §16 | Name a passkey's provider from                   | operator             | 4     |
-| [ ]    | D07 T08 §18 | Measure setup and first-verdict time             | attended             | 4     |
-| [x]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 3     |
-| [ ]    | D07 T08 §20 | Feedback to eval set                             | none                 | 2     |
-| [ ]    | D07 T08 §21 | Operator TODO from feedback                      | none                 | 2     |
-| [ ]    | D07 T08 §22 | Suspend an organisation                          | none                 | 2     |
-| [ ]    | D07 T08 §23 | Money-at-risk aggregation                        | none                 | 2     |
-| [ ]    | D07 T08 §24 | Feedback queue search and step                   | none                 | 8     |
-| [ ]    | D07 T08 §25 | Support availability on the site 500 page        | operator             | 4     |
-| [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
-| [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
-| [x]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 4     |
-| [x]    | D07 T09 §4  | Measured phone attribution                       | none                 | 4     |
-| [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
-| [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
-| [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
-| [x]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 3     |
-| [ ]    | D07 T09 §9  | Complete decoded run on the card                 | none                 | 5     |
-| [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
-| [x]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
-| [x]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
-| [ ]    | D07 T09 §13 | A fresh walk from a reused card                  | none                 | 4     |
-| [ ]    | D07 T09 §14 | Abandoned preview response during a retry        | none                 | 3     |
-| [ ]    | D07 T09 §15 | Detection data freshness beside the version      | none                 | 4     |
-| [ ]    | D07 T09 §16 | Two activations for a signed-out member          | owner-decision       | 4     |
-| [ ]    | D07 T09 §17 | Human and Defender attribution comparison        | owner-decision       | 4     |
-| [ ]    | D99 T01 §5  | WhatsApp test number                             | operator             | 5     |
+| Status | Reference   | Deliverable                                                 | Needs                | Items |
+| ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
+| [ ]    | D00 T01 §9  | Red CI refused when a section starts                        | none                 | 6     |
+| [x]    | D00 T01 §15 | Review schedule by section risk                             | none                 | 5     |
+| [ ]    | D00 T01 §16 | A returned review kept when its record fails                | none                 | 6     |
+| [ ]    | D00 T01 §17 | Light against full review, measured                         | none                 | 4     |
+| [x]    | D00 T01 §21 | Pre-push excerpt from the tools' error output               | none                 | 5     |
+| [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard                            | none                 | 6     |
+| [x]    | D00 T01 §27 | Waiting lanes woken by main's push                          | none                 | 5     |
+| [ ]    | D00 T01 §29 | Stamp recovery after a killed process                       | none                 | 3     |
+| [ ]    | D00 T01 §31 | Wake acceptance on live sessions                            | operator             | 2     |
+| [x]    | D00 T01 §32 | Wake dispatched after each                                  | none                 | 4     |
+| [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
+| [ ]    | D01 T01 §10 | Outlook report button for check@                            | attended             | 6     |
+| [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward                    | none                 | 4     |
+| [ ]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
+| [ ]    | D01 T01 §13 | Compressed-RTF message bodies                               | none                 | 4     |
+| [ ]    | D01 T01 §14 | Near-limit forward, live                                    | operator, live-mail  | 3     |
+| [ ]    | D01 T01 §15 | Second inbound mail route                                   | operator             | 7     |
+| [ ]    | D01 T01 §18 | Authorised mailbox checking, designed                       | operator             | 3     |
+| [ ]    | D01 T01 §20 | Earlier attempts readable on                                | none                 | 3     |
+| [ ]    | D01 T01 §21 | Mail checked                                                | none                 | 3     |
+| [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation              | none                 | 5     |
+| [x]    | D01 T01 §23 | Auth outcomes stored before slower checks                   | none                 | 2     |
+| [ ]    | D01 T01 §24 | Pipeline writes fenced across a case removal                | none                 | 3     |
+| [ ]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
+| [ ]    | D01 T02 §13 | Destination trace linked                                    | operator             | 3     |
+| [ ]    | D01 T02 §15 | Early refusal alert before attribution                      | none                 | 3     |
+| [ ]    | D01 T03 §10 | M4A with libxaac                                            | operator             | 6     |
+| [ ]    | D01 T03 §14 | Voice extraction measured on                                | meta-api             | 3     |
+| [ ]    | D01 T03 §15 | Figures read out of a transcript by code                    | none                 | 3     |
+| [x]    | D01 T03 §16 | Transcript stored as its own evidence item                  | none                 | 3     |
+| [x]    | D02 T01 §8  | Examined set stored for a clean check                       | none                 | 3     |
+| [ ]    | D02 T01 §9  | Protected-identity candidate for the trust match            | none                 | 3     |
+| [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
+| [ ]    | D02 T02 §8  | Familiarity from consented mail                             | none                 | 3     |
+| [ ]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 3     |
+| [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
+| [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
+| [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
+| [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured                       | none                 | 3     |
+| [ ]    | D02 T04 §10 | Attachment content                                          | none                 | 3     |
+| [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
+| [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
+| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
+| [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
+| [ ]    | D02 T06 §6  | Well-known sites in KV                                      | cloudflare           | 3     |
+| [ ]    | D02 T06 §7  | Well-known list provenance kept for reports                 | none                 | 3     |
+| [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated                | none                 | 4     |
+| [x]    | D02 T06 §9  | One reputation result stored per provider                   | none                 | 4     |
+| [ ]    | D02 T07 §4  | QR code decoding from images                                | cloudflare           | 4     |
+| [ ]    | D02 T07 §5  | Automatic and click-time                                    | none                 | 3     |
+| [ ]    | D02 T07 §6  | Link extraction measured on a corpus                        | none                 | 3     |
+| [ ]    | D02 T07 §7  | Redirect fixtures proven live                               | cloudflare           | 3     |
+| [ ]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
+| [ ]    | D03 T02 §5  | Recipient-client render                                     | attended             | 4     |
+| [x]    | D03 T03 §4  | Logo recall check and detector choice                       | meta-api             | 7     |
+| [ ]    | D03 T03 §5  | Logos for blocked brands                                    | cloudflare           | 5     |
+| [x]    | D03 T04 §16 | Resumable verified dataset downloads                        | none                 | 14    |
+| [x]    | D03 T04 §19 | Sample redaction beyond the dictionary                      | none                 | 8     |
+| [x]    | D03 T04 §20 | Faster and mirrored dataset downloads                       | none                 | 11    |
+| [x]    | D03 T04 §21 | Downloads that beat aria2c outright                         | none                 | 9     |
+| [ ]    | D03 T04 §22 | Several healthy mirrors at once                             | none                 | 7     |
+| [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win                        | none                 | 13    |
+| [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance              | none                 | 5     |
+| [ ]    | D03 T04 §25 | The signals rubric in the                                   | meta-api             | 7     |
+| [x]    | D03 T04 §27 | A second source sweep for Loupe 1.1                         | none                 | 11    |
+| [ ]    | D03 T04 §28 | Converter limits and item lineage                           | none                 | 10    |
+| [ ]    | D03 T04 §29 | Names in running text the entity model misses               | none                 | 4     |
+| [x]    | D03 T04 §41 | Day-zero case capture                                       | cloudflare           | 9     |
+| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 3     |
+| [ ]    | D03 T04 §43 | One command to rebuild a Loupe version                      | none                 | 2     |
+| [ ]    | D03 T04 §44 | Twelve to seventeen thousand more training pages            | none                 | 5     |
+| [x]    | D04 T01 §6  | Prompt-injection fixture suite                              | none                 | 5     |
+| [x]    | D04 T01 §7  | Prompt Guard as a second classifier                         | cloudflare           | 4     |
+| [ ]    | D04 T01 §8  | Partial checks weigh on the verdict                         | none                 | 2     |
+| [ ]    | D04 T01 §10 | Logo tools for the agent                                    | none                 | 3     |
+| [x]    | D04 T01 §11 | Floor outcome persisted with the verdict                    | none                 | 4     |
+| [x]    | D04 T01 §12 | Bank-change action with the ledger phone                    | none                 | 5     |
+| [x]    | D04 T01 §13 | Floor record provenance and coverage state                  | none                 | 3     |
+| [ ]    | D04 T01 §15 | Fixed action on every critical invoice item                 | none                 | 3     |
+| [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
+| [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
+| [ ]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
+| [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
+| [ ]    | D05 T02 §4  | Impersonation alert to the protected business               | none                 | 5     |
+| [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
+| [ ]    | D05 T02 §8  | Copied-badge detection and alerts                           | none                 | 4     |
+| [ ]    | D05 T02 §9  | Domain-locked website seal                                  | none                 | 7     |
+| [ ]    | D05 T04 §4  | Full pipeline on                                            | meta-api, cloudflare | 3     |
+| [ ]    | D05 T04 §5  | Monitor alerts and takedown pack                            | none                 | 4     |
+| [ ]    | D05 T04 §6  | Demo lookalike site found by                                | cloudflare           | 4     |
+| [ ]    | D05 T04 §7  | Certificate-transparency search for                         | none                 | 2     |
+| [ ]    | D05 T04 §10 | Findings exported to                                        | cloudflare           | 7     |
+| [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 4     |
+| [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
+| [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
+| [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
+| [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
+| [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
+| [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
+| [ ]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
+| [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
+| [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
+| [ ]    | D07 T01 §12 | Searchable organisation switcher                            | attended             | 3     |
+| [ ]    | D07 T01 §13 | Labels for icon-only buttons                                | none                 | 4     |
+| [x]    | D07 T01 §14 | One-press copy on a phone                                   | none                 | 3     |
+| [x]    | D07 T01 §15 | Gallery theme, width and                                    | none                 | 8     |
+| [ ]    | D07 T02 §9  | Account closure and coordinated purge                       | none                 | 8     |
+| [ ]    | D07 T02 §17 | Correct a mistyped                                          | none                 | 3     |
+| [ ]    | D07 T02 §18 | Passkey-first sign-in                                       | none                 | 3     |
+| [ ]    | D07 T02 §19 | Passkey on another device                                   | none                 | 3     |
+| [ ]    | D07 T02 §25 | Same-device other-browser                                   | none                 | 5     |
+| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 4     |
+| [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
+| [ ]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 2     |
+| [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 2     |
+| [ ]    | D07 T03 §17 | Trust and verification cards                                | none                 | 2     |
+| [ ]    | D07 T03 §23 | Feedback outcome to the member                              | none                 | 2     |
+| [ ]    | D07 T03 §25 | Reply checked in mail clients                               | attended             | 2     |
+| [ ]    | D07 T03 §27 | Reply and report in your language                           | none                 | 4     |
+| [ ]    | D07 T03 §33 | Highlighted page for a forensic finding                     | none                 | 2     |
+| [ ]    | D07 T03 §44 | Clean checks with their result summary                      | none                 | 4     |
+| [ ]    | D07 T03 §47 | Previous attempt of a                                       | none                 | 4     |
+| [ ]    | D07 T03 §50 | Mail refusal reason in the trace                            | none                 | 3     |
+| [ ]    | D07 T03 §51 | Walkthrough action to its                                   | none                 | 4     |
+| [ ]    | D07 T03 §52 | Report address from a                                       | none                 | 4     |
+| [ ]    | D07 T03 §53 | One-action copy of the                                      | none                 | 3     |
+| [ ]    | D07 T03 §54 | All stored headers read in place                            | none                 | 3     |
+| [ ]    | D07 T04 §5  | Registrar-assisted domain verification                      | none                 | 9     |
+| [ ]    | D07 T04 §6  | MSP console and own branding                                | none                 | 6     |
+| [x]    | D07 T04 §8  | A chosen date range in the                                  | none                 | 7     |
+| [x]    | D07 T04 §9  | Next and previous case                                      | none                 | 8     |
+| [x]    | D07 T04 §10 | A Checked by filter in the                                  | none                 | 7     |
+| [x]    | D07 T04 §11 | DNS help per provider                                       | none                 | 7     |
+| [ ]    | D07 T04 §12 | Remove a case checked by mistake                            | third-party          | 4     |
+| [ ]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
+| [x]    | D07 T04 §14 | Multi-word search in the Cases list                         | none                 | 6     |
+| [ ]    | D07 T04 §15 | Slash shortcut to the                                       | none                 | 4     |
+| [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                          | attended             | 3     |
+| [ ]    | D07 T04 §17 | Money at risk caught tile                                   | none                 | 4     |
+| [x]    | D07 T04 §18 | Threat kinds by verdict                                     | none                 | 4     |
+| [x]    | D07 T04 §19 | Reporting period choice                                     | none                 | 4     |
+| [ ]    | D07 T04 §20 | Opt-in weekly counts                                        | none                 | 4     |
+| [x]    | D07 T04 §22 | Invite several colleagues at once                           | none                 | 4     |
+| [x]    | D07 T04 §23 | Team history for owners                                     | none                 | 4     |
+| [ ]    | D07 T04 §24 | Team history by person                                      | none                 | 3     |
+| [x]    | D07 T04 §25 | Protected accounts refused on the Team page                 | none                 | 5     |
+| [x]    | D07 T04 §26 | Find a person on the Team page                              | none                 | 4     |
+| [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
+| [x]    | D07 T04 §28 | Verifier's name on the Domains page                         | none                 | 5     |
+| [x]    | D07 T04 §29 | Verifier detail on the Domains page                         | none                 | 5     |
+| [ ]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 3     |
+| [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
+| [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
+| [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
+| [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 3     |
+| [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
+| [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
+| [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
+| [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 4     |
+| [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
+| [ ]    | D07 T06 §11 | Already paid: what to do now                                | none                 | 7     |
+| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                           | none                 | 2     |
+| [ ]    | D07 T06 §13 | On-site invite request                                      | none                 | 2     |
+| [ ]    | D07 T06 §14 | Cross-border safeguards                                     | none                 | 2     |
+| [ ]    | D07 T06 §15 | Privacy request handling notice                             | none                 | 2     |
+| [ ]    | D07 T06 §16 | Protect outcome case study                                  | none                 | 2     |
+| [ ]    | D07 T06 §19 | Security assurance evidence link                            | none                 | 2     |
+| [ ]    | D07 T06 §20 | Deploy the site and read it back                            | cloudflare           | 9     |
+| [ ]    | D07 T07 §3  | Production demo seed                                        | cloudflare, operator | 2     |
+| [ ]    | D07 T08 §7  | Renew an expired report link                                | operator             | 6     |
+| [ ]    | D07 T08 §16 | Name a passkey's provider from                              | operator             | 4     |
+| [ ]    | D07 T08 §18 | Measure setup and first-verdict time                        | attended             | 4     |
+| [x]    | D07 T08 §19 | Help route on the site 500 page                             | none                 | 3     |
+| [ ]    | D07 T08 §20 | Feedback to eval set                                        | none                 | 2     |
+| [ ]    | D07 T08 §21 | Operator TODO from feedback                                 | none                 | 2     |
+| [ ]    | D07 T08 §22 | Suspend an organisation                                     | none                 | 2     |
+| [ ]    | D07 T08 §23 | Money-at-risk aggregation                                   | none                 | 2     |
+| [ ]    | D07 T08 §24 | Feedback queue search and step                              | none                 | 8     |
+| [ ]    | D07 T08 §25 | Support availability on the site 500 page                   | operator             | 4     |
+| [ ]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
+| [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 3     |
+| [x]    | D07 T09 §3  | Dispute from inside the mailbox                             | none                 | 4     |
+| [x]    | D07 T09 §4  | Measured phone attribution                                  | none                 | 4     |
+| [ ]    | D07 T09 §5  | Per-provider reputation results                             | none                 | 3     |
+| [x]    | D07 T09 §6  | The voice note's player and transcript                      | none                 | 5     |
+| [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards                         | none                 | 5     |
+| [x]    | D07 T09 §8  | Bounded preview image transfer                              | none                 | 3     |
+| [ ]    | D07 T09 §9  | Complete decoded run on the card                            | none                 | 5     |
+| [ ]    | D07 T09 §10 | Every target a clean check examined                         | none                 | 5     |
+| [x]    | D07 T09 §11 | Outcome and reason beside each version                      | none                 | 4     |
+| [x]    | D07 T09 §12 | Detection data beside each version                          | none                 | 4     |
+| [ ]    | D07 T09 §13 | A fresh walk from a reused card                             | none                 | 4     |
+| [ ]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
+| [ ]    | D07 T09 §15 | Detection data freshness beside the version                 | none                 | 4     |
+| [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
+| [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
+| [ ]    | D07 T09 §18 | Playback failure, retry and follow-along for the voice note | none                 | 3     |
+| [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
@@ -622,6 +634,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 337/546 verified sections, 136 ready to run now.
+Progress: 360/558 verified sections, 129 ready to run now.
 
-Checklist: 2666/3412 items completed (includes Commit items).
+Checklist: 2796/3489 items completed (includes Commit items).

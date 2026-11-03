@@ -118,6 +118,7 @@ export function registerIntakeChecks(registry: CheckRegistry): void {
     needs: ["truncated", "omitted"],
     timeoutMs: 1_000,
     run: truncatedEvidence,
+    examined: (view) => view.truncated.map((part) => `${part.mediaType} part, ${part.fullBytes} bytes`),
     summary: (_, items) => (items.length ? "part of the message was not read whole" : "read whole"),
   });
 }

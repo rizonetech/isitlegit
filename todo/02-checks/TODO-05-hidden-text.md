@@ -43,7 +43,7 @@ track: day-2
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 | 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [ ] |
-| 11 | §11 | Whole decoded run kept in the finding | §3 | [ ] |
+| 11 | §11 | Whole decoded run kept in the finding | §3 | [x] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -307,7 +307,17 @@ Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measuremen
 
 ## 11. Whole decoded run kept in the finding
 
+> **Started:** 2026-11-02T20:44Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first asked by the app lane 2026-11-02 08:56): a tag run's decoded text is quoted only in part in `content.hidden_text`, so the report cannot show the whole decoded run a finding rests on. This section retains it, bounded: `detail.run` (`{text, truncated}`) beside the existing `detail.instruction`, cut marked when bounded.
+
+**Corrected 2026-11-02** (at start, checked against the tree): the finding is `invisibleEvidence` in `src/checks/hidden-content.ts`, whose detail quotes `run.decoded` at 120 characters; the bound is the detail's own string bound (255 code points, what `fittedDetail` keeps), so `detail.run.text` holds the decoded run up to that bound and `truncated` says whether the run ran past it, and a run within the bound reads back whole.
+
+**Corrected 2026-11-02** (plan review, `docs/reviews/02-checks/D02-T05-s11.md`): that bound would add nothing, since the existing quote already reaches it and D07 T09 §9 needs the text past the opening, a later instruction included. The bound is 8,000 code points, attached after `fittedDetail` so the generic string clip cannot cut it first, and cut further only to keep the whole detail inside its 60,000-byte budget, `truncated` true whenever the stored text is shorter than the run. Persisted read-back proves a run whose instruction sits past character 255 and a run past the new bound.
+
+**Corrected 2026-11-02** (at build): the run was not retained that far to begin with: the reader kept only the first 2,000 decoded characters (`MAX_DECODED` in `src/checks/invisible-unicode.ts`, a memory bound against a hostile run) and the phrase log sliced to the same. Both now keep 8,000, the section's bound, so the state stays bounded exactly where the finding's bound is.
+
+**Corrected 2026-11-03** (coordinator gate-fix, CI 41545140407): the two retentions are different quantities and are now named apart: the run record's excerpt stays at §3's 2,000 (`MAX_DECODED`, the reader's and log's bounded state against a hostile run, restored), and the run's text for this section's `detail.run` is accumulated as it streams at its own 8,000 (`MAX_RUN_TEXT` in `src/checks/instruction-phrases.ts`, carried on the logged run as `runText`). Neither proof moved: §3's bounded-memory suite reads a 2,000-character record, and this section's read-back still holds 8,000 of run text.
 
 **Phase:** 7
 **Needs:** none
@@ -318,10 +328,13 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 
 1. Keep the whole decoded run with its finding. Done when: a decoded run reads back whole under its bound, and a longer one reads back cut with `truncated` true.
 
-- [ ] Carry the decoded run in `src/checks/hidden-content.ts` (from the runs `src/checks/invisible-unicode.ts` classifies) into the `content.hidden_text` item's `detail.run` as `{text, truncated}`, bounded at the detail's own limit with the cut marked. Done when: `test/checks/hidden-text.test.ts` reads a short run back whole and a long one back with `truncated` true and its end cut.
-- [ ] Commit: `checks: whole decoded run kept in the finding`
+- [x] Carry the decoded run in `src/checks/hidden-content.ts` (from the runs `src/checks/invisible-unicode.ts` classifies) into the `content.hidden_text` item's `detail.run` as `{text, truncated}`, bounded at 8,000 code points and attached after the detail fitting so it survives, cut further only to the detail's byte budget with the cut marked. Done when: `test/checks/hidden-text.test.ts` reads a short run back whole, a run whose instruction sits past character 255 with that instruction in the stored text, and a run past the bound with `truncated` true and its end cut.
+- [x] Commit: `checks: whole decoded run kept in the finding`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a decoded run is missing or its cut unmarked.
+
+> **Verified:** 2026-11-02 | §11 | 8715af32b7f116eacf9eb00420b2a587fb3da02f
+> **Review:** `docs/reviews/d02-t05-s11.json`
 
 ## Verification
 

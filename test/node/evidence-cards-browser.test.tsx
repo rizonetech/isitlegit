@@ -310,6 +310,25 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",
 );
+// One second of silence as a WAV the browser can actually play (D07 T09 §6).
+const WAV = (() => {
+  const samples = 8000;
+  const buf = Buffer.alloc(44 + samples * 2);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + samples * 2, 4);
+  buf.write("WAVEfmt ", 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(8000, 24);
+  buf.writeUInt32LE(16000, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(samples * 2, 40);
+  return buf;
+})();
+let audioGone = false;
 async function open(width: number, theme: "light" | "dark" = "light", hash = "", cards: ReportEvidence[] = evidence) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
@@ -319,6 +338,10 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
     if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
     if (path.startsWith("/static/") && path.endsWith(".js") && holdScript) await holdScript;
     if (path.startsWith("/a/")) {
+      if (path.endsWith(".ogg")) {
+        if (audioGone) return route.fulfill({ status: 404, contentType: "text/plain", body: "gone" });
+        return route.fulfill({ status: 200, contentType: "audio/wav", body: WAV });
+      }
       if (holdShot) await holdShot;
       if (shotMode === "png") return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
       if (shotMode === "html")
@@ -391,6 +414,66 @@ const REPUTATION: ReportEvidence[] = [
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chromium", { timeout: 120_000 }, () => {
+  // D07 T09 §6: the transcript card's player loads, plays by keyboard, and its words are marked, at 360 px.
+  for (const theme of ["light", "dark"] as const)
+    it(`plays a stored voice note and marks the request in its transcript (${theme}, 360 px)`, async () => {
+      const recording = "art/01JCASE0000000000000000000/recording.ogg";
+      const cards: ReportEvidence[] = [
+        {
+          id: "E1",
+          check: "voice.request",
+          severity: "high",
+          summary: "The caller asks for payment.",
+          detail: { request: "pay", quote: "the new account today" },
+          artefacts: [],
+        },
+        {
+          id: "E2",
+          check: "voice.transcript",
+          severity: "info",
+          summary: "What the recording says.",
+          detail: {
+            transcript: "art/01JCASE0000000000000000000/transcript.json",
+            recording,
+            filename: "voice-note.ogg",
+            complete: true,
+            gaps: [],
+            segments: [
+              { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 4000, text: "Hello, this is accounts." },
+              { chunk: 0, speaker: "Speaker 1", startMs: 4000, endMs: 9000, text: "Please pay the new account today." },
+            ],
+          },
+          artefacts: [recording],
+        },
+      ];
+      const { p, context } = await open(360, theme, "", cards);
+      const audio = p.locator("audio");
+      await audio.scrollIntoViewIfNeeded();
+      await audio.focus();
+      await expect.poll(() => audio.evaluate((a) => document.activeElement === a)).toBe(true);
+      await p.keyboard.press("Space");
+      await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => !a.paused)).toBe(true);
+      await expect
+        .poll(() => audio.evaluate((a: HTMLAudioElement) => Number.isFinite(a.duration) && a.duration > 0))
+        .toBe(true);
+      expect(await p.locator("mark").textContent()).toContain("the new account today");
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+      // The recording gone: the player reports its error and the download stays named.
+      audioGone = true;
+      try {
+        const gone = await open(360, theme, "", cards);
+        await gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.load());
+        await expect.poll(() => gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.error !== null)).toBe(true);
+        expect(await gone.p.locator('audio a[href*="recording.ogg"]').count()).toBe(1);
+        await gone.context.close();
+      } finally {
+        audioGone = false;
+      }
+    });
+
   // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
   for (const theme of ["light", "dark"] as const)
     it(`draws the voice lure card (${theme}, 1280 px)`, async () => {
