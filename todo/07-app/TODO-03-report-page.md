@@ -88,7 +88,7 @@ track: day-2
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
-| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [x] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
 | 47 | §47 | Previous attempt of a | §20 | [ ] |
@@ -716,7 +716,7 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 - [x] Prove the refreshed region carries both: in `test/web/report-status.test.ts` (**Corrected 2026-10-31 (build):** named `report-access.test.ts`; the status route's own tests and their member and link setup live in `report-status.test.ts`), a case stored running is read through `GET /r/:caseId/status` (no count line, no list), then its outcomes and safe verdict are stored and the same route returns the count line and the clean list, for a signed-in member and for a signed-link reader (`?t=`). Done when: both readers get the finished count and list from the status route alone, without loading the page. Cheaper substitute: rendering in `report-view.tsx` only fails this test.
 - [x] Check the clean list in the browser in `test/node/report-verdict-browser.test.tsx`'s safe variant: at 360 and 1280 px, light and dark, a list holding a retired check's long stored name (100 characters, the column's limit) and the count line pass the accessibility gate's rules with no sideways scroll, and the list reads as a heading and a list. Done when: the variant's matrix passes with the long name present and fails when the list overflows (a `whitespace-nowrap` on its items fails it). **Planned 2026-10-31 (plan review P2).**
 - [x] Record the board's per-check result words as a SPEC deviation: `Report-Safe` follows each clean check with what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), which the outcomes do not store; the list draws "<check words>: nothing found". Add the `Deviation` bullet under `design/SPEC.md` M3 and ask the checks lane, through the coordinator, for a per-check result summary in the stored outcome. Done when: the bullet is in the SPEC with the reason, and the ask is sent and its section ref recorded here as a `Deferred:` line. **Corrected 2026-10-31 (completion review):** the checks lane filed its half as D02 T01 §7 (on checks-lane at 7dbb51f8), which does not resolve on this branch yet; the Deferred owner is D07 T03 §44, filed here, which draws the stored summary, removes the deviation and takes D02 T01 §7 as its dependency once that row reaches this branch.
-> **Deferred:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44
+> **Resolved:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44. Resolved 2026-11-03 by D07 T03 §44 in `50c72859` and `69e3f29b`: `CleanChecks` (`src/web/pages/report-live.tsx`) draws each clean check's stored summary; the lookalike check's words naming the domains it compared follow in D02 T03 §12.
 
 - [x] Commit: `web: the report counts its checks`
 
@@ -1536,6 +1536,9 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 > **Deferred:** the lookalike check's clean words naming the domains it compared -> XREF: D02 T03 §12
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
+
+> **Verified:** 2026-11-03 | §44 | 69e3f29bbddc1e7a61f90c9fa940effcf20da240
+> **Review:** `docs/reviews/d07-t03-s44.json`
 
 ## 45. Unverified receiving chain on the auth card
 
