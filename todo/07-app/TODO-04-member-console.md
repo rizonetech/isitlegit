@@ -759,6 +759,10 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 
 An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
 
+> **Started:** 2026-11-03T00:11:38Z
+
+**Corrected 2026-11-02 (the control and granularity the operator decision leaves to record):** beside the one-press 12-week export, the stats panel carries From and To SAST date fields with an Export period button, plus This month and This quarter links that carry the current calendar month's and quarter's dates. The export endpoint takes `from` and `to`, returns one row per week for the weeks overlapping the range (the CSV's own week rows, unchanged), and refuses a reversed range, a range over 2 years, or an unreadable date with the 400 page. SPEC M1 records this.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Calendar month and calendar quarter beside the one-press 12-week export, which stays the default (recorded in SPEC M1 first).
 
