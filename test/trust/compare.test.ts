@@ -15,7 +15,7 @@
 //   registered address list, account number fragment, or finance contact, and fails on a planted leak.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { BUNDLED_BRANDS } from "../../src/checks/brands";
+import { bundled as BUNDLED_BRANDS } from "../../src/checks/brands";
 import { boundProtectedCandidates, type CaseView, caseViewOf } from "../../src/checks/case-view";
 import { type EvidenceDraft, readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { CheckRegistry } from "../../src/checks/registry";
