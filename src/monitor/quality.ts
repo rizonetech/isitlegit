@@ -428,61 +428,91 @@ export async function evaluateMonitorArm(
     if (deps.stageCache && cacheEntry) {
       deps.stageCache.set(item.id, cacheEntry);
     }
-    let nextPipelineStage: "reading" | "logoCompare" = "reading";
-    let pendingSettleStage: "reading" | "logoCompare" | null = null;
-    const localReservations = new Set<string>();
+    type PendingCall = {
+      model: Parameters<Budget["reserve"]>[0];
+      estimateUsd: number;
+      attempt: number;
+      id: string | undefined;
+      call: Parameters<Budget["reserve"]>[4];
+      realId: string | null;
+      local: boolean;
+      candidateStage: "reading" | "logoCompare" | null;
+      candidateRecord: { body: string; status: number; costUsd: number; ms: number } | null;
+    };
+    let resSeq = 0;
+    let activeResId: string | null = null;
+    let readingReplayConsumed = false;
+    let logoCompareReplayConsumed = false;
+    const pendingByResId = new Map<string, PendingCall>();
+    const localCallIds = new Set<string>();
+    const cachedStageByCallId = new Map<string, "reading" | "logoCompare">();
 
     const guardedBudget: Budget = {
       ...deps.budget,
       reserve: async (model, estimateUsd, attempt, id, call) => {
-        const step = (call?.owner as { step?: string } | undefined)?.step;
-        const isLocalReading =
-          step === "pipeline" &&
-          nextPipelineStage === "reading" &&
-          (arm === "no_reading" || Boolean(cacheEntry?.reading));
-        const isLocalLogoCompare =
-          step === "pipeline" &&
-          nextPipelineStage === "logoCompare" &&
-          arm !== "no_logo" &&
-          Boolean(cacheEntry?.logoCompare);
-        if (isLocalReading || isLocalLogoCompare) {
-          const reservationId = id ?? "local-res";
-          localReservations.add(reservationId);
-          return reservationId;
-        }
-        if (deps.budget.spentUsd() + estimateUsd > deps.maxSpendUsd) {
-          budgetStopped = true;
-          throw new Error("quality budget cap reached");
-        }
-        return deps.budget.reserve(model, estimateUsd, attempt, id, call);
+        const localResId = id ?? `qual-res-${++resSeq}`;
+        pendingByResId.set(localResId, {
+          model,
+          estimateUsd,
+          attempt,
+          id,
+          call,
+          realId: null,
+          local: false,
+          candidateStage: null,
+          candidateRecord: null,
+        });
+        activeResId = localResId;
+        return localResId;
       },
       settle: async (id, actualUsd, meta) => {
-        if (localReservations.delete(id)) return;
-        if (cacheEntry && arm === "full" && pendingSettleStage) {
-          const target = cacheEntry[pendingSettleStage];
-          if (target) target.costUsd = round6(target.costUsd + actualUsd);
-          pendingSettleStage = null;
+        const pending = pendingByResId.get(id);
+        pendingByResId.delete(id);
+        if (pending?.local || !pending?.realId) return;
+        if (cacheEntry && arm === "full" && pending.candidateStage && pending.candidateRecord) {
+          pending.candidateRecord.costUsd = round6(actualUsd);
+          cacheEntry[pending.candidateStage] = pending.candidateRecord;
+          if (pending.call?.callId) {
+            cachedStageByCallId.set(pending.call.callId, pending.candidateStage);
+          }
         }
-        return deps.budget.settle(id, actualUsd, meta);
+        return deps.budget.settle(pending.realId, actualUsd, meta);
       },
       uncertain: async (id, meta) => {
-        if (localReservations.delete(id)) return;
-        return deps.budget.uncertain(id, meta);
+        const pending = pendingByResId.get(id);
+        pendingByResId.delete(id);
+        if (pending?.local || !pending?.realId) return;
+        return deps.budget.uncertain(pending.realId, meta);
       },
-      outputFailed: async (id, meta) => {
-        if (localReservations.delete(id)) return;
-        return deps.budget.outputFailed(id, meta);
+      outputFailed: async (callId, meta) => {
+        const stage = cachedStageByCallId.get(callId);
+        if (stage && cacheEntry) {
+          delete cacheEntry[stage];
+          cachedStageByCallId.delete(callId);
+        }
+        if (localCallIds.delete(callId)) return;
+        return deps.budget.outputFailed(callId, meta);
       },
     };
 
     const guardedFetch: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const pending = activeResId ? pendingByResId.get(activeResId) : undefined;
       const rawBody = typeof init?.body === "string" ? init.body : "";
       const isReadingCall = rawBody.includes("mail_reading");
       const isLogoCompareCall = rawBody.includes("logo_comparison");
-      if (isReadingCall) {
-        nextPipelineStage = "logoCompare";
+      if (arm === "no_reading" && isReadingCall) {
+        if (pending) {
+          pending.local = true;
+          if (pending.call?.callId) localCallIds.add(pending.call.callId);
+        }
+        return emptyReadingFetch(deps.fetch)(input, init);
       }
-      if (arm !== "no_reading" && isReadingCall && cacheEntry?.reading) {
+      if (arm !== "no_reading" && isReadingCall && cacheEntry?.reading && !readingReplayConsumed) {
+        readingReplayConsumed = true;
+        if (pending) {
+          pending.local = true;
+          if (pending.call?.callId) localCallIds.add(pending.call.callId);
+        }
         replayedUsd += cacheEntry.reading.costUsd;
         replayedMs += cacheEntry.reading.ms;
         return new Response(cacheEntry.reading.body, {
@@ -490,7 +520,12 @@ export async function evaluateMonitorArm(
           headers: { "content-type": "application/json", "cf-aig-log-id": "log-cached", "x-request-id": "req-cached" },
         });
       }
-      if (arm !== "no_logo" && isLogoCompareCall && cacheEntry?.logoCompare) {
+      if (arm !== "no_logo" && isLogoCompareCall && cacheEntry?.logoCompare && !logoCompareReplayConsumed) {
+        logoCompareReplayConsumed = true;
+        if (pending) {
+          pending.local = true;
+          if (pending.call?.callId) localCallIds.add(pending.call.callId);
+        }
         replayedUsd += cacheEntry.logoCompare.costUsd;
         replayedMs += cacheEntry.logoCompare.ms;
         return new Response(cacheEntry.logoCompare.body, {
@@ -498,30 +533,31 @@ export async function evaluateMonitorArm(
           headers: { "content-type": "application/json", "cf-aig-log-id": "log-cached", "x-request-id": "req-cached" },
         });
       }
-      if (deps.budget.spentUsd() >= deps.maxSpendUsd) {
+      const estimateUsd = pending?.estimateUsd ?? 0;
+      if (deps.budget.spentUsd() + estimateUsd > deps.maxSpendUsd) {
         budgetStopped = true;
         throw new Error("quality budget cap reached");
       }
-      const callBeforeUsd = deps.budget.spentUsd();
+      if (pending && !pending.realId) {
+        pending.realId = await deps.budget.reserve(
+          pending.model,
+          pending.estimateUsd,
+          pending.attempt,
+          pending.id,
+          pending.call,
+        );
+      }
       const callStartMs = clockMs();
-      const targetFetch = arm === "no_reading" ? emptyReadingFetch(deps.fetch) : deps.fetch;
-      const res = await targetFetch(input, init);
-      if (cacheEntry && arm === "full" && (isReadingCall || isLogoCompareCall)) {
+      const res = await deps.fetch(input, init);
+      if (cacheEntry && arm === "full" && res.ok && pending && (isReadingCall || isLogoCompareCall)) {
         const cloned = await res.clone().text();
-        const stageRecord = {
+        pending.candidateStage = isReadingCall ? "reading" : "logoCompare";
+        pending.candidateRecord = {
           body: cloned,
           status: res.status,
-          costUsd: Math.max(0, deps.budget.spentUsd() - callBeforeUsd),
+          costUsd: 0,
           ms: Math.max(0.001, clockMs() - callStartMs),
         };
-        if (isReadingCall) {
-          cacheEntry.reading = stageRecord;
-          pendingSettleStage = "reading";
-        }
-        if (isLogoCompareCall) {
-          cacheEntry.logoCompare = stageRecord;
-          pendingSettleStage = "logoCompare";
-        }
       }
       return res;
     }) as typeof fetch;

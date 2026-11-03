@@ -365,5 +365,72 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     );
     expect(exhausted.complete).toBe(false);
     expect(exhausted.stopReason).toBe("budget_exhausted");
+
+    // Schema-repair retry regression: if a cached reading response is invalid, attempt 1 consumes it locally (0 paid reservations/settlements) and attempt 2 repairs it via exactly 1 paid reservation, 1 transport request, and 1 settlement without replaying the broken response again.
+    let repairReserves = 0;
+    let repairSettles = 0;
+    let repairTransportCalls = 0;
+    let repairSpent = 0;
+    const baseDeps = makeDeps({ orgPrefix: "qual-repair" });
+    const repairCase = MINI_CASES[1];
+    if (!repairCase) throw new Error("missing repair case");
+    const stageCache = new Map([
+      [
+        repairCase.id,
+        {
+          reading: {
+            body: JSON.stringify({
+              id: "r-bad-cached",
+              object: "response",
+              status: "completed",
+              output: [
+                {
+                  type: "message",
+                  role: "assistant",
+                  content: [{ type: "output_text", text: '{"readings":"broken"}' }],
+                },
+              ],
+              usage: { input_tokens: 100, output_tokens: 10 },
+            }),
+            status: 200,
+            costUsd: 0.003,
+            ms: 12,
+          },
+        },
+      ],
+    ]);
+    const repairedSummary = await evaluateMonitorArm(
+      "no_logo",
+      { version: "1.0", licence: "CC0-1.0", cases: [repairCase] },
+      {
+        ...baseDeps,
+        stageCache,
+        fetch: (async (input, init) => {
+          repairTransportCalls++;
+          return baseDeps.fetch(input, init);
+        }) as typeof fetch,
+        budget: {
+          reserve: async (_model, _est) => {
+            repairReserves++;
+            return `rep-${repairReserves}`;
+          },
+          settle: async (_id, actual) => {
+            repairSettles++;
+            repairSpent += actual;
+          },
+          uncertain: async () => {},
+          refused: async () => {},
+          outputFailed: async () => {},
+          cached: async () => {},
+          spentUsd: () => repairSpent,
+        },
+      },
+    );
+    expect(repairedSummary.complete).toBe(true);
+    expect(repairTransportCalls).toBe(1);
+    expect(repairReserves).toBe(1);
+    expect(repairSettles).toBe(1);
+    expect(repairedSummary.cases[0]?.destinationAssessed).toBe("mismatch");
+    expect(repairedSummary.cases[0]?.readingFormDetected).toBe("none");
   });
 });
