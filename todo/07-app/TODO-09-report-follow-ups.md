@@ -52,6 +52,7 @@ track: day-2
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
 | 18 | §18 | Playback failure, retry and follow-along | §6 | [ ] |
+| 19 | §19 | Diagnostic detail on the early card | §1 | [ ] |
 
 ## 1. Early results first
 
@@ -522,6 +523,27 @@ Filed 2026-11-02 from D07 T09 §6's completion review: the shipped player delega
 - [ ] Commit: `web: voice note playback states`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the failure wording, the retry and the follow-along mark.
+
+## 19. Diagnostic detail on the early authentication card
+
+Filed 2026-11-03 from D07 T09 §1's completion review: Microsoft Defender's authentication view shows the supporting detail beside each result (the SPF addresses, the DKIM failure reason, the composite authentication), where the early card shows a status and a summary only, so a member checking why a result happened must leave the compact view.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the early authentication card, `Report-Running-Early`)
+**Job:** a member sees why each authentication result happened without leaving the card
+**Treatment:** the stored detail beside each method's result, in plain words
+**Chrome:** the early card (D07 T03 §37)
+
+**Build order:**
+
+1. Show the stored detail. Done when: each method's result carries its recorded reason on the card.
+
+- [ ] Draw the stored supporting detail in `src/web/pages/report-live.tsx` (the addresses and identifiers the auth items already store, and the composite result when one is stored), each as text. Done when: `test/web/report-status.test.ts` draws a failed result with its recorded reason and a passed one without inventing one. Cheaper substitute: the summary alone, which is what ships today.
+- [ ] Commit: `web: diagnostic detail on the early card`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the recorded detail drawn.
 
 ## Verification
 
