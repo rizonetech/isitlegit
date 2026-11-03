@@ -7,7 +7,6 @@
 // Registered domains (other than the public domain observed on the message itself), registered
 // addresses, finance contacts, and registered account numbers or fragments never enter any evidence
 // summary, detail, or check outcome.
-import { addressParser } from "postal-mime";
 import { claimable, registrable } from "../auth/senders";
 import {
   aligned,
@@ -15,7 +14,6 @@ import {
   bounded,
   dkimIdentifier,
   fittedDetail,
-  fromDomain,
   plain,
   spfIdentifier,
   stateOf,
@@ -25,7 +23,6 @@ import type { CaseView } from "../checks/case-view";
 import type { EvidenceDraft } from "../checks/evidence";
 import { CheckRegistry, MAX_OUTCOME_SUMMARY } from "../checks/registry";
 import type { CheckOutcome } from "../checks/runner";
-import { mailbox } from "../checks/sender";
 import { oneLine, originalHeaderOf } from "../intake/original-header";
 import { type BankKeys, bankKeys, canonicalAccount, type MatchCaller, matchBankAccount } from "./bank";
 import {
@@ -139,6 +136,7 @@ export type RegistryComparisonDeps = {
   db: D1Database;
   keys?: BankKeys | null;
   env?: { BANK_KEY?: string; BANK_MATCH_KEY?: string };
+  caller?: MatchCaller;
   now?: Date;
 };
 
@@ -325,14 +323,9 @@ function parseSenderFromView(view: Readonly<CaseView>): {
   }
   const headerLine = oneLine(`${fromHeaders[0]?.name ?? "From"}: ${fromHeaders[0]?.value ?? ""}`);
   const orig = originalHeaderOf(view.headers);
-  const domain = fromDomain(view.headers);
-  const parsed = addressParser((fromHeaders[0]?.value ?? "").replace(/\r?\n[ \t]*/g, " "), { flatten: true }).filter(
-    (a) => a.address,
-  );
-  const singleAddress = parsed.length === 1 && parsed[0]?.address ? mailbox(parsed[0].address.trim()) : null;
-  const address = orig.fromAddress ?? singleAddress;
-  const effectiveDomain = domain ?? (address ? asciiDomain(address.slice(address.lastIndexOf("@") + 1)) : null);
-  const displayName = orig.fromName ?? (parsed.length === 1 && parsed[0]?.name ? parsed[0].name.trim() || null : null);
+  const address = orig.fromAddress;
+  const effectiveDomain = address ? asciiDomain(address.slice(address.lastIndexOf("@") + 1)) : null;
+  const displayName = orig.fromName;
 
   if (!address || !effectiveDomain) {
     return {
@@ -569,9 +562,29 @@ export async function prepareRegistryComparison(
 
   // Attribute beneficiary bank accounts to claimed businesses and run matchBankAccount.
   if (beneficiaryAccounts.length > 0 && businessRecords.length > 0) {
-    const caller: MatchCaller = view.tenant.orgId
-      ? { orgId: view.tenant.orgId }
-      : { sender: sender.fromAddress ?? `case@${caseId}.local` };
+    let resolvedCaller: MatchCaller | null = deps.caller ?? null;
+    let callerUnavailableReason: string | null = null;
+    if (!resolvedCaller) {
+      try {
+        const caseRow = await deps.db
+          .prepare("SELECT origin, forwarded_by FROM cases WHERE id = ? LIMIT 1")
+          .bind(caseId)
+          .first<{ origin: "counterparty" | null; forwarded_by: string | null }>();
+        if (caseRow?.origin === "counterparty") {
+          if (caseRow.forwarded_by?.trim()) {
+            resolvedCaller = { sender: caseRow.forwarded_by.trim() };
+          } else {
+            callerUnavailableReason = "the forwarding sender could not be read for this counterparty check";
+          }
+        } else if (view.tenant.orgId) {
+          resolvedCaller = { orgId: view.tenant.orgId };
+        } else {
+          callerUnavailableReason = "the checking organisation could not be identified";
+        }
+      } catch {
+        callerUnavailableReason = "the registered-account comparison could not be read right now";
+      }
+    }
 
     for (const account of beneficiaryAccounts) {
       const evaluations = businessRecords.map((b) => ({
@@ -604,6 +617,14 @@ export async function prepareRegistryComparison(
 
       if (!target) continue;
 
+      if (callerUnavailableReason || !resolvedCaller) {
+        pushUnique(
+          target.business.bankUnavailable,
+          callerUnavailableReason ?? "the checking organisation could not be identified",
+        );
+        continue;
+      }
+
       if (keysError) {
         pushUnique(target.business.bankUnavailable, refusalReasonOf(keysError));
         continue;
@@ -621,7 +642,7 @@ export async function prepareRegistryComparison(
         const res = await matchBankAccount(
           deps.db,
           resolvedKeys,
-          caller,
+          resolvedCaller,
           target.claim.orgId,
           canonical,
           deps.now ?? new Date(),

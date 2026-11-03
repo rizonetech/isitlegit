@@ -989,6 +989,35 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
       findings: 0,
     });
 
+    // 3b. Malformed From headers with control characters or trailing garbage rejected by originalHeaderOf:
+    //     never reconstructed into a registered address; recorded as unreadable From coverage.
+    for (const badFrom of [
+      "Fynbos <bill\u0007ing@fynbosfreight.co.za>",
+      "Fynbos <billing@fynbosfreight.co.za> extra@garbage",
+    ]) {
+      const badFromView = buildView({
+        caseId: `${caseId}-badfrom`,
+        orgId: checkerOrgId,
+        protectedCandidates: candidates,
+        headers: [
+          { name: "Received", value: "by mx.google.com with ESMTPS id bf1; Tue, 03 Nov 2026 12:00:00 +0200" },
+          {
+            name: "Authentication-Results",
+            value:
+              "mx.google.com; spf=pass smtp.mailfrom=fynbosfreight.co.za; dkim=pass header.d=fynbosfreight.co.za; dmarc=pass",
+          },
+          { name: "From", value: badFrom },
+        ],
+        text: "Kind regards,\nFynbos Freight",
+      });
+      const badFromCmp = await prepareRegistryComparison({ db, keys }, `${caseId}-badfrom`, badFromView);
+      expect(badFromCmp.fromAddress).toBeNull();
+      expect(comparisonEvidence(badFromCmp)).toEqual([]);
+      expect(badFromCmp.businesses[0]?.senderUnavailable).toContain(
+        "the original message's From address could not be read",
+      );
+    }
+
     // 4. Registry lookup failure during per-business identity read: records "the sender's registration could not be read right now".
     const brokenRegistryDb = new Proxy(db, {
       get(target, prop, receiver) {
@@ -1026,6 +1055,68 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
       reason: "the sender's registration could not be read right now",
       findings: 0,
     });
+
+    // 5. Counterparty checks from the same forwarder across different protected businesses share the forwarder's
+    //    per-sender bank-check rate limit bucket (`caller:sender:...`) rather than using each protected business's orgId.
+    const hadedaOrgId = await makeOrg("Hadeda Couriers (Pty) Ltd");
+    await addDomain(hadedaOrgId, "hadedacouriers.co.za", "verified");
+    await addAddress(hadedaOrgId, "finance@hadedacouriers.co.za", "verified");
+    await setIdentity(db, hadedaOrgId, "owner-2", {
+      displayNames: ["Hadeda Couriers"],
+      financeContact: "finance@hadedacouriers.co.za",
+      protected: true,
+    });
+    await addAccount(db, keys, hadedaOrgId, "owner-2", {
+      number: "01122334455",
+      branchCode: "198765",
+      bankName: "Protea Bank",
+      holder: "Hadeda Couriers (Pty) Ltd",
+    });
+    const bothCandidates = boundProtectedCandidates(await protectedIdentities(db));
+    const fixedHour = new Date("2026-11-03T15:00:00Z");
+    const forwarder = "buyer-accounts@example.co.za";
+
+    for (let i = 0; i < MATCHES_PER_HOUR; i++) {
+      const targetOrg = i % 2 === 0 ? fynbosOrgId : hadedaOrgId;
+      const targetName = i % 2 === 0 ? "Fynbos Freight" : "Hadeda Couriers";
+      const cpCaseId = ulid();
+      await db
+        .prepare(
+          "INSERT INTO cases (id, org_id, channel, status, forwarded_by, origin, created_at, updated_at) VALUES (?, ?, 'email', 'running', ?, 'counterparty', ?, ?)",
+        )
+        .bind(cpCaseId, targetOrg, forwarder, fixedHour.toISOString(), fixedHour.toISOString())
+        .run();
+      const cpView = buildView({
+        caseId: cpCaseId,
+        orgId: targetOrg,
+        protectedCandidates: bothCandidates,
+        headers: [{ name: "From", value: `"${targetName}" <spoof@gmail.com>` }],
+        text: `Invoice from ${targetName}`,
+      });
+      await prepareRegistryComparison({ db, keys, now: fixedHour }, cpCaseId, cpView, undefined, [
+        { number: "9112233445", branchCode: "250655", supplierName: targetName, role: "payee" },
+      ]);
+    }
+
+    const overCaseId = ulid();
+    await db
+      .prepare(
+        "INSERT INTO cases (id, org_id, channel, status, forwarded_by, origin, created_at, updated_at) VALUES (?, ?, 'email', 'running', ?, 'counterparty', ?, ?)",
+      )
+      .bind(overCaseId, hadedaOrgId, forwarder, fixedHour.toISOString(), fixedHour.toISOString())
+      .run();
+    const overView = buildView({
+      caseId: overCaseId,
+      orgId: hadedaOrgId,
+      protectedCandidates: bothCandidates,
+      headers: [{ name: "From", value: '"Hadeda Couriers" <spoof@gmail.com>' }],
+      text: "Invoice from Hadeda Couriers",
+    });
+    const overCmp = await prepareRegistryComparison({ db, keys, now: fixedHour }, overCaseId, overView, undefined, [
+      { number: "9112233445", branchCode: "198765", supplierName: "Hadeda Couriers", role: "payee" },
+    ]);
+    expect(comparisonEvidence(overCmp).filter((i) => i.check === "trust.bank_mismatch")).toEqual([]);
+    expect(overCmp.businesses[0]?.bankUnavailable).toContain("too many checks this hour");
   });
 
   it("fails the leak detector immediately when a registered domain, address, finance contact, or account fragment is planted", () => {
