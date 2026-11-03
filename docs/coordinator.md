@@ -266,4 +266,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | 0091 | trust | D05 T04 §6 (monitor_seeds, demo businesses only) | 2026-11-03, assigned by gentle-eclipse to the trust lane |
 
-The next free number is 0092. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+| 0092 | checks | D01 T01 §12 | 2026-11-03, assigned by gentle-eclipse to the checks lane |
+
+The next free number is 0093. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
