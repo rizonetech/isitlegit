@@ -490,7 +490,7 @@ Sections: 200 | Checklist items: 882
 | [x]    | D05 T04 §7  | Certificate-transparency search for                         | none                 | 2     |
 | [ ]    | D05 T04 §10 | Findings exported to                                        | cloudflare           | 7     |
 | [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 4     |
-| [ ]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
+| [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
@@ -635,6 +635,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 364/559 verified sections, 132 ready to run now.
+Progress: 365/559 verified sections, 131 ready to run now.
 
 Checklist: 2829/3507 items completed (includes Commit items).

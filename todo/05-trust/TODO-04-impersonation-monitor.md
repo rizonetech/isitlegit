@@ -42,7 +42,7 @@ track: day-6
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
 | 10 | §10 | Findings exported to | §5 | [ ] |
 | 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §46 | [ ] |
-| 12 | §12 | Monitor case allowance and quality | §4 | [ ] |
+| 12 | §12 | Monitor case allowance and quality | §4 | [x] |
 
 ## 1. Lookalike candidate generator
 
@@ -397,6 +397,9 @@ Monitor investigations must not consume the member's own checking allowance, and
 - [x] Commit: `monitor: investigation allowance and quality measurement`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/pipeline.test.ts test/monitor/quality.test.ts` passes with the allowance, refusal-rendering, rollover-recovery, and quality-harness cases.
+
+> **Verified:** 2026-11-03 | §12 | 3ac3b18f94dd4c2131a82d773add2be38c1aff2d
+> **Review:** `docs/reviews/d05-t04-s12.json`
 
 ## Verification
 
