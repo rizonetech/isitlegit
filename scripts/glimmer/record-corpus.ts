@@ -72,12 +72,8 @@ export function harToArchive(har: { log: { entries: HarEntry[] } }): ReplayArchi
     };
     const verb = (entry.request.method ?? "GET").toUpperCase();
     const post = entry.request.postData?.text ?? "";
-    if (verb !== "GET") {
-      if (post) append(`${verb} ${entry.request.url} ${post}`, response);
-      append(`${verb} ${entry.request.url}`, response);
-    } else {
-      append(entry.request.url, response);
-    }
+    const key = verb === "GET" ? entry.request.url : `${verb} ${entry.request.url}${post ? ` ${post}` : ""}`;
+    append(key, response);
   }
   return archive;
 }
@@ -179,7 +175,12 @@ export function parseAnnotations(text: string): { annotations: ViewedAnnotation[
     if (!line.trim()) return;
     let a: Partial<ViewedAnnotation>;
     try {
-      a = JSON.parse(line) as Partial<ViewedAnnotation>;
+      const parsed = JSON.parse(line) as unknown;
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        problems.push(`line ${i + 1} is not a JSON object`);
+        return;
+      }
+      a = parsed as Partial<ViewedAnnotation>;
     } catch {
       problems.push(`line ${i + 1} is not JSON`);
       return;

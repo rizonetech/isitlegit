@@ -17,6 +17,7 @@ import {
   compareBenign,
   compareLabels,
   compareSplit,
+  conventionalReplayMismatches,
   describeInput,
   groupShuffleSplit,
   incompleteIfMissing,
@@ -195,6 +196,10 @@ describe("the benign comparison's evidence (§38, round 1)", () => {
     expect(replayMismatches(viewed, { ...rest, admitted: true })).toContain(
       "the picture differs from the viewed screenshot (no bits)",
     );
+    expect(conventionalReplayMismatches(viewed, { ...rest, dhash: "00000000000000fe" })).toEqual([]);
+    expect(conventionalReplayMismatches(viewed, { ...rest, status: 0, dhash: "00000000000000fe" })).toEqual([
+      "conventional status 0 against viewed 200",
+    ]);
   });
 
   // A file-backed corpus as the recorder writes it: a manifest of page files with their sha256.
@@ -229,6 +234,33 @@ describe("the benign comparison's evidence (§38, round 1)", () => {
     ...Array.from({ length: 20 }, (_, i) => filePage(`g${i}`, "none", true)),
     ...Array.from({ length: 20 }, (_, i) => filePage(`l${i}`, "login", true)),
   ];
+
+  it("excludes a conventional replay failure from both pipelines instead of scoring it as a decision", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-conv-fail-"));
+    try {
+      writeCorpus(dir, covered());
+      const result = await compareBenign(
+        dir,
+        async (p) => ({ ...p.viewed, admitted: true }),
+        async (p) => (p.id === "g0" ? { ...p.viewed, status: 0 } : p.viewed),
+      );
+      expect(result.status).toBe("complete");
+      if (result.status === "complete") {
+        expect(result.figures.replay_failures).toBe(1);
+        expect(result.figures.production.retained).toMatchObject({ k: 39, n: 39 });
+        expect(result.figures.conventional.retained).toMatchObject({ k: 39, n: 39 });
+        expect(result.figures.decisions[0]).toMatchObject({
+          id: "g0",
+          replay_failure: true,
+          replay_reason: "conventional status 0 against viewed 200",
+          production: null,
+          conventional: null,
+        });
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 
   it("refuses a manifest that names a page twice, a page whose file changed and a missing page file", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loupe-benign-files-"));
@@ -332,6 +364,10 @@ describe("recording the benign corpus (§38)", () => {
     expect(body(respond("https://example.com/poll"))).toBe("second");
     expect(body(respond("https://example.com/step", "POST", "step=2"))).toBe("step-two");
     expect(body(respond("https://example.com/step", "POST", "step=1"))).toBe("step-one");
+    // Round 2 finding 2: an unrecorded POST body or method is refused, never answered with another body's response.
+    expect(respond("https://example.com/step", "POST", "step=not-recorded")).toBeNull();
+    expect(respond("https://example.com/step", "POST", "")).toBeNull();
+    expect(respond("https://example.com/step", "GET")).toBeNull();
     expect(respond("https://example.com/never")).toBeNull();
     // A fresh visit starts the sequence again.
     expect(body(replayResponder(archive)("https://example.com/poll"))).toBe("first");
@@ -391,6 +427,8 @@ describe("recording the benign corpus (§38)", () => {
         JSON.stringify(good),
         JSON.stringify({ ...good, id: "x", form: "maybe", reason: "" }),
         "not json",
+        "null",
+        "[]",
       ].join("\n"),
     ).problems;
     expect(bad).toEqual([
@@ -398,6 +436,8 @@ describe("recording the benign corpus (§38)", () => {
       "line 3 (x) has no form",
       "line 3 (x) has no reason",
       "line 4 is not JSON",
+      "line 5 is not a JSON object",
+      "line 6 is not a JSON object",
     ]);
     // A pending label resolves nothing: it enters no rate.
     expect(PENDING_LABEL).toMatchObject({ wall: "unknown", form: "unknown", eligible: "unknown" });

@@ -675,21 +675,15 @@ export type ReplayResponse = { status?: number; headers?: Record<string, string>
 export type ReplayEntry = ReplayResponse & { later?: ReplayResponse[] };
 // A replay archive (§38): every request URL the recorded page made, mapped to its recorded response.
 export type ReplayArchive = Record<string, ReplayEntry>;
-// Answers one replayed visit: each request gets the next recorded response for its method, URL and POST body (falling
-// back to method + URL, then URL), the last one repeating once the recording runs out; an unrecorded request gets null.
+// Answers one replayed visit: each request gets the next recorded response for its exact method, URL and POST body,
+// the last one repeating once the recording runs out; an unrecorded request, method or POST body gets null.
 export function replayResponder(
   archive: ReplayArchive,
 ): (url: string, method?: string, postData?: string) => ReplayResponse | null {
   const served = new Map<string, number>();
   return (url, method = "GET", postData = "") => {
     const verb = method.toUpperCase();
-    const keys = [
-      ...(verb !== "GET" && postData ? [`${verb} ${url} ${postData}`] : []),
-      ...(verb !== "GET" ? [`${verb} ${url}`] : []),
-      url,
-    ];
-    const key = keys.find((k) => archive[k] !== undefined);
-    if (!key) return null;
+    const key = verb === "GET" ? url : `${verb} ${url}${postData ? ` ${postData}` : ""}`;
     const first = archive[key];
     if (!first) return null;
     const n = served.get(key) ?? 0;

@@ -815,6 +815,25 @@ export function replayMismatches(viewed: ViewedCapture, got: ReplayedCapture): s
   }
   return reasons;
 }
+// Where a conventional main-world visit differs from the viewed visit in status, landed URL, title or screenshot:
+// a broken conventional replay is counted as a replay failure, never scored as a pipeline decision.
+export function conventionalReplayMismatches(
+  viewed: ViewedCapture,
+  conv: ViewedCapture & { dhash?: string },
+): string[] {
+  const reasons: string[] = [];
+  if (conv.status !== viewed.status) reasons.push(`conventional status ${conv.status} against viewed ${viewed.status}`);
+  if (viewed.finalUrl !== undefined && conv.finalUrl !== viewed.finalUrl)
+    reasons.push(`conventional landed on ${conv.finalUrl ?? "nothing"} against viewed ${viewed.finalUrl}`);
+  if (viewed.title !== undefined && conv.title !== viewed.title)
+    reasons.push("conventional title differs from the viewed capture");
+  if (viewed.screenshot) {
+    const distance = conv.dhash ? hamming(BigInt(`0x${conv.dhash}`), BigInt(`0x${viewed.screenshot.dhash}`)) : null;
+    if (distance === null || distance > NEAR_BITS)
+      reasons.push(`conventional picture differs from the viewed screenshot (${distance ?? "no"} bits)`);
+  }
+  return reasons;
+}
 export const corpusDir = (dir: string) => join(dir, "runs", "compare", "corpus");
 export const corpusPageFile = (dir: string, id: string) => join(corpusDir(dir), "pages", `${id}.json`);
 // The corpus is a manifest (`corpus.json`, naming each page file and its sha256) plus one file a page: a single
@@ -871,6 +890,7 @@ export function readCorpus(dir: string): {
 export async function compareBenign(
   dir: string,
   renderPage?: (page: CorpusPage) => Promise<ReplayedCapture>,
+  readConventional?: (page: CorpusPage) => Promise<ViewedCapture & { dhash?: string }>,
 ): Promise<
   Result<BenignFigures & { seed: number | null; strata: Record<string, number>; decisions: BenignPipelinePage[] }>
 > {
@@ -904,20 +924,42 @@ export async function compareBenign(
   if (missing) return missing;
   const coverage = benignCoverage(pages);
   if (coverage.insufficient.length) return { status: "incomplete", name, inputs, missing: coverage.insufficient };
-  const { openRenderer, replayResponder, unusable } = await import("./render.ts");
+  const { openRenderer, replayResponder, SETTLE_MS, unusable } = await import("./render.ts");
+  const { normaliseScreenshot } = await import("./source-pages.ts");
+  const { MAX_HEIGHT, MAX_WIDTH } = await import("./store.ts");
   const { dhash } = await import("./build-dataset.ts");
   const { chromium } = await import("playwright-core");
   const { chromiumPath } = await import("../lib/chromium.ts");
   // One production renderer and one plain browser for the whole run. The conventional pipeline reads the main
-  // world itself (its own navigation, text and form reads over the same archive), never the production capture.
+  // world itself (its own navigation, text and form reads over the same archive), never the production capture,
+  // with the same replay containment (service workers and WebSockets blocked, no downloads or non-proxied UDP).
   const executablePath = chromiumPath();
   const browser =
-    renderPage || !executablePath ? null : await chromium.launch({ executablePath, chromiumSandbox: true });
-  const conventionalRead = async (page: CorpusPage): Promise<ViewedCapture & { title?: string }> => {
+    renderPage || !executablePath
+      ? null
+      : await chromium.launch({
+          executablePath,
+          chromiumSandbox: true,
+          args: [
+            "--no-first-run",
+            "--disable-site-isolation-trials",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+          ],
+        });
+  const conventionalRead = async (page: CorpusPage): Promise<ViewedCapture & { title?: string; dhash?: string }> => {
     if (!browser) throw new Error("no browser for the conventional read");
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      viewport: { width: MAX_WIDTH, height: MAX_HEIGHT },
+      acceptDownloads: false,
+      serviceWorkers: "block",
+      permissions: [],
+      ignoreHTTPSErrors: false,
+    });
     const respond = replayResponder(page.archive);
     try {
+      await context.routeWebSocket(/.*/, (socket) => socket.close());
       await context.route("**/*", async (route) => {
         const req = route.request();
         const entry = respond(req.url(), req.method(), req.postData() ?? "");
@@ -929,16 +971,26 @@ export async function compareBenign(
         });
       });
       const tab = await context.newPage();
-      const response = await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch(() => null);
+      let status: number | undefined;
+      tab.on("response", (answer) => {
+        if (answer.request().isNavigationRequest() && answer.frame() === tab.mainFrame()) status = answer.status();
+      });
+      await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch((error: Error) => {
+        if (status !== undefined && status >= 400) return;
+        throw error;
+      });
+      await tab.waitForLoadState("networkidle", { timeout: SETTLE_MS }).catch(() => undefined);
       // Main-world reads in the page and every frame it shows: a sign-in form inside a frame is still shown.
       const read = await tab.evaluate(() => ({
         // biome-ignore lint/performance/useDomNodeTextContent: conventional crawler reads rendered text
         text: document.body?.innerText ?? "",
         title: document.title,
+        height: document.documentElement?.scrollHeight ?? 0,
         has_login_form: false,
         has_payment_form: false,
       }));
       for (const frame of tab.frames()) {
+        if (frame.isDetached()) continue;
         const forms = await frame
           .evaluate(() => {
             const inputs = [...document.querySelectorAll("input")];
@@ -949,11 +1001,28 @@ export async function compareBenign(
               ),
             };
           })
-          .catch(() => ({ has_login_form: false, has_payment_form: false }));
+          .catch((error: Error) => {
+            if (frame.isDetached()) return { has_login_form: false, has_payment_form: false };
+            throw error;
+          });
         read.has_login_form = read.has_login_form || forms.has_login_form;
         read.has_payment_form = read.has_payment_form || forms.has_payment_form;
       }
-      return { status: response?.status() ?? 0, ...read };
+      const shot = await tab.screenshot({
+        type: "png",
+        clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, read.height)) },
+        timeout: 10_000,
+      });
+      const normalised = await normaliseScreenshot(new Uint8Array(shot));
+      return {
+        status: status ?? 0,
+        finalUrl: tab.url(),
+        text: read.text,
+        title: read.title,
+        has_login_form: read.has_login_form,
+        has_payment_form: read.has_payment_form,
+        dhash: (await dhash(normalised)).toString(16).padStart(16, "0"),
+      };
     } finally {
       await context.close();
     }
@@ -1005,11 +1074,22 @@ export async function compareBenign(
               setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000),
             ),
           ]);
-          // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
-          // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
-          // date line, which is a different page in no respect that scoring cares about.
-          const reasons: string[] = [];
-          reasons.push(...replayMismatches(page.viewed, got));
+          const conv = readConventional
+            ? await readConventional(page)
+            : renderPage
+              ? got
+              : await Promise.race([
+                  conventionalRead(page),
+                  new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error("the conventional read passed 60 seconds")), 60_000),
+                  ),
+                ]);
+          // Fidelity: both visits must reproduce the viewed status, landed URL, title and picture, and production
+          // must also reproduce the viewed text, forms, overlays and wall evidence.
+          const reasons: string[] = [
+            ...replayMismatches(page.viewed, got),
+            ...(readConventional || !renderPage ? conventionalReplayMismatches(page.viewed, conv) : []),
+          ];
           const replayFailure = reasons.length > 0;
           rows[index] = {
             id: page.id,
@@ -1017,18 +1097,7 @@ export async function compareBenign(
             replay_failure: replayFailure,
             ...(replayFailure ? { replay_reason: reasons.join("; ") } : {}),
             production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
-            conventional: replayFailure
-              ? null
-              : conventionalBenign(
-                  renderPage
-                    ? got
-                    : await Promise.race([
-                        conventionalRead(page),
-                        new Promise<never>((_, reject) =>
-                          setTimeout(() => reject(new Error("the conventional read passed 60 seconds")), 60_000),
-                        ),
-                      ]),
-                ),
+            conventional: replayFailure ? null : conventionalBenign(conv),
           };
         } catch (error) {
           rows[index] = {
