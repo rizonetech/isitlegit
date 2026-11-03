@@ -264,7 +264,10 @@ describe("AnalysisWorkflow", () => {
     await run(cleared, async (m) => {
       await m.mockStepResult({ name: "checks" }, { evidence: 1 });
     });
-    expect((await readEvidence(env.DB, cleared)).some((e) => e.check === "walkthrough.ablated")).toBe(false);
+    const clearedItems = await readEvidence(env.DB, cleared);
+    expect(clearedItems.some((e) => e.check === "walkthrough.ablated")).toBe(false);
+    // The walk ran its normal path and stated it could not run in this environment, not silently skipped.
+    expect(clearedItems.some((e) => e.check === "walkthrough.not_checked")).toBe(true);
   });
 
   it("hands the verdict this case's stored evidence in its order, not_checked lines included", async () => {
