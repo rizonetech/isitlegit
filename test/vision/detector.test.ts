@@ -219,8 +219,8 @@ describe("groundLogos", () => {
   });
 });
 
-import labelsJson from "../../eval/sets/logo-recall/labels.json";
-import resultsJson from "../../eval/sets/logo-recall/results.json";
+import labelsJson from "./fixtures/logo-recall/labels.json";
+import resultsJson from "./fixtures/logo-recall/results.json";
 import { selectBoxes } from "../../src/vision/sam";
 
 describe("the recorded recall measurement", () => {

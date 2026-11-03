@@ -7,13 +7,13 @@
 //
 //   node scripts/fixtures/make-logo-variants.ts
 //
-// Writes eval/sets/logo-variants/{refs,samples} and labels.json.
+// Writes test/vision/fixtures/logo-variants/{refs,samples} and labels.json.
 import { copyFileSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../lib/chromium.ts";
 
-const OUT = join(import.meta.dirname, "../../eval/sets/logo-variants");
+const OUT = join(import.meta.dirname, "../../test/vision/fixtures/logo-variants");
 const FIXTURES = join(import.meta.dirname, "../../test/fixtures/brands");
 const WIDTH = 1024;
 const HEIGHT = 768;

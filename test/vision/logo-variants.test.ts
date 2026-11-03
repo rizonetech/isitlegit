@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import labelsJson from "../../eval/sets/logo-variants/labels.json";
-import resultsJson from "../../eval/sets/logo-variants/results.json";
+import labelsJson from "./fixtures/logo-variants/labels.json";
+import resultsJson from "./fixtures/logo-variants/results.json";
 
 // D03 T03 §5: the variant decision's numbers, recomputed from the saved per-sample judgements.
 // If the runner's scoring drifts from this recomputation, or a saved judgement is missing, the
