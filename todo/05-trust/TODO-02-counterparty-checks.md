@@ -34,7 +34,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
-| 2 | §2 | Claims found: name, domain, logo, | §1, D03 T03 §3, D02 T01 §9 | [ ] |
+| 2 | §2 | Claims found: name, domain, logo, | §1, D03 T03 §3, D02 T01 §9 | [x] |
 | 3 | §3 | Registry comparison evidence that | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
@@ -97,7 +97,7 @@ A mail "claims" a protected identity through its display name, From or Reply-To 
 
 1. Register `trust.claim`. Done when: each claim route on a fixture yields the claimed identity.
 
-- [x] Detect claims by display name, domain (exact or lookalike from D02 T03 §2), signature text (company name in the last 15 lines), and `voice.claimed_identity`. Done when: `test/trust/claim.test.ts` covers each route.
+- [x] Detect claims by display name, domain (exact or lookalike from D02 T03 §2), signature text (company name in the last 15 lines), and `voice.claimed_identity`. Done when: `test/trust/claim.test.ts` covers each route. Done 2026-11-03: `detectClaims`, `claimInputFromView` and `persistClaimOutcome` in `src/trust/claim.ts`; `test/trust/claim.test.ts` covers display name (including >300-char headers), From and Reply-To exact and lookalike independently, 15-line signature boundary, and `VoiceRead` states.
 - [x] Compare the mail's logo crops with the registered logo using `compareLogo` (D03 T03 §3). Done when: a fixture with the Fynbos Freight logo yields a logo claim. Done 2026-11-03: `compareClaimLogos`, `fitSvgDimensions`, `plainUnavailableReason`, `withClaimLogos` and `runClaimDetectionWithLogos` in `src/trust/claim.ts` read the latest generation of case-owned SAM crop manifests (`art/<caseId>/crop/*-manifest-<n>.json`), distinguish missing crop production from a completed zero-logo manifest, validate registered PNG logos (`pngPixelsProblem`) and sanitise/rasterise registered SVG logos (`sanitiseSvg` + aspect-preserving `rasteriseSvg`) before calling `compareLogo` within a bounded 60-second phase (`MAX_CLAIM_CROPS = 4`, `MAX_CLAIM_LOGO_COMPARISONS = 8`, `MIN_LOGO_CLAIM_CONFIDENCE = 0.5`).
 - [x] Register `trust.claim` (info) with the routes that matched. Done when: the fixture yields it. Done 2026-11-03: `registerClaimCheck`, `claimInputFromView`, `claimEvidence` and `readTrustClaimDetail` in `src/trust/claim.ts`; global wiring into `src/checks/index.ts` and `src/pipeline/analysis-workflow.ts` is filed in D05 T02 §11 once `D07 T03 §17` (`trust` family evidence cards on the app lane) lands.
 - [x] Commit: `trust: claim detection`
@@ -107,6 +107,9 @@ A mail "claims" a protected identity through its display name, From or Reply-To 
 **Corrected 2026-11-03** (after `D02 T01 §9` shipped on `main` at `09816762`): `claimInputFromView` in `src/trust/claim.ts` reads `view.protectedCandidates` (populated by `boundProtectedCandidates(await protectedIdentities(db))` in `src/pipeline/analysis-workflow.ts`, bounded by `MAX_PROTECTED_CANDIDATES = 25`, `MAX_CANDIDATE_NAMES = 10` and `MAX_CANDIDATE_DOMAINS = 10`), `originalHeaderOf(view.headers)` and `Reply-To` headers when `view.tenant.headersAvailable` is true, the last 15 lines of `view.text` (marking truncated plain-text bodies unavailable), `view.voice` (`VoiceRead` in `src/voice/schema.ts`), and `view.claimLogos` (`compareClaimLogos` over `art/<caseId>/crop/*-manifest-<n>.json` and `ident/<orgId>/logo-*`); `readTrustClaimDetail` validates the stored `trust.claim` detail for §3, and global registration in `src/checks/index.ts` waits on `D07 T03 §17` (`trust` family evidence cards).
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/claim.test.ts` passes.
+
+> **Verified:** 2026-11-03 | §2 | 6cebe0b1773f5afb86b72c2fcbeca980d243881a
+> **Review:** `docs/reviews/d05-t02-s2.json`
 
 ## 3. Registry comparison evidence that
 

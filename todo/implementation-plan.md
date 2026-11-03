@@ -491,7 +491,7 @@ Sections: 218 | Checklist items: 972
 | [ ]    | D04 T01 §16 | Message-specific consequence sentences                      | none                 | 5     |
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
-| [ ]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
+| [x]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
 | [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business               | none                 | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
@@ -664,6 +664,6 @@ Sections: 17 | Checklist items: 71
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 394/588 verified sections, 121 ready to run now.
+Progress: 395/588 verified sections, 122 ready to run now.
 
 Checklist: 2960/3656 items completed (includes Commit items).
