@@ -363,6 +363,9 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
       const priorStatusRes = await api(
         `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(priorRunId)}`,
       );
+      if (!priorStatusRes.ok && priorStatusRes.status !== 404) {
+        return { exitCode: 1, reason: `workflow-status-${priorStatusRes.status}`, orgId, instanceId: priorRunId };
+      }
       if (priorStatusRes.ok) {
         const priorStatusBody = await readJsonWithDeadline<{
           result?: {
@@ -374,7 +377,10 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
           };
         }>(priorStatusRes, deadlineMs, clock);
         const priorWorkflowStatus = parseWorkflowStatus(priorStatusBody);
-        if (priorWorkflowStatus && !isTerminalWorkflowStatus(priorWorkflowStatus)) {
+        if (!priorWorkflowStatus) {
+          return { exitCode: 1, reason: "workflow-status-invalid", orgId, instanceId: priorRunId };
+        }
+        if (!isTerminalWorkflowStatus(priorWorkflowStatus)) {
           instanceId = priorRunId;
           pollId = priorStatusBody?.result?.id || priorRunId;
           correlationStart =
@@ -383,7 +389,7 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
               ? priorStatusBody.result.start
               : startedAt);
           joinedActiveInstance = true;
-        } else if (isTerminalWorkflowStatus(priorWorkflowStatus)) {
+        } else {
           instanceId = instanceIdFor(orgId, day, startedAtDate.getTime().toString(36));
         }
       }
@@ -413,18 +419,22 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
         const statusRes = await api(
           `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(instanceId)}`,
         );
-        const statusBody = statusRes.ok
-          ? await readJsonWithDeadline<{
-              result?: {
-                id?: string;
-                status?: string;
-                start?: string | null;
-                end?: string | null;
-                success?: boolean | null;
-              };
-            }>(statusRes, deadlineMs, clock)
-          : null;
+        if (!statusRes.ok) {
+          return { exitCode: 1, reason: `workflow-status-${statusRes.status}`, orgId, instanceId };
+        }
+        const statusBody = await readJsonWithDeadline<{
+          result?: {
+            id?: string;
+            status?: string;
+            start?: string | null;
+            end?: string | null;
+            success?: boolean | null;
+          };
+        }>(statusRes, deadlineMs, clock);
         const existingStatus = parseWorkflowStatus(statusBody);
+        if (!existingStatus) {
+          return { exitCode: 1, reason: "workflow-status-invalid", orgId, instanceId };
+        }
         if (isTerminalWorkflowStatus(existingStatus)) {
           const suffix = startedAtDate.getTime().toString(36);
           instanceId = instanceIdFor(orgId, day, suffix);

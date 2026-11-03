@@ -445,5 +445,47 @@ describe("run-monitor mechanics", () => {
     expect(joinedOutcome.instanceId).toBe(`monitor-${FYNBOS_ORG_ID}-2026-11-03`);
     expect(postCalls).toBe(0);
     expect(dnsResetCalls).toBe(0);
+
+    // 8. When the prior instance's status lookup fails (e.g. 503), the runner fails closed instead of
+    // resetting `captured_dns_hash` or creating an overlapping Workflow instance.
+    let failedStatusPostCalls = 0;
+    let failedStatusDnsResets = 0;
+    const failedStatusOutcome = await executeMonitorRun(
+      {
+        account: "acc-1",
+        now: () => new Date("2026-11-03T10:02:00.000Z"),
+        sleep: async () => {},
+        query: async (sql) => {
+          if (sql.includes("UPDATE monitor_hosts SET captured_dns_hash = NULL")) {
+            failedStatusDnsResets++;
+            return [];
+          }
+          if (sql.includes("FROM monitor_runs")) {
+            return [
+              {
+                run_id: `monitor-${FYNBOS_ORG_ID}-2026-11-03-active1`,
+                started_at: "2026-11-03T10:01:00.000Z",
+                outcome: "completed",
+                finished_at: "2026-11-03T10:01:25.000Z",
+              },
+            ];
+          }
+          return baseQuery(sql);
+        },
+        api: async (_path, init) => {
+          if (init?.method === "POST") {
+            failedStatusPostCalls++;
+            return Response.json({ result: { id: "unexpected" } });
+          }
+          return new Response("unavailable", { status: 503 });
+        },
+      },
+      { orgArg: "demo-fynbos", waitSeconds: 60 },
+    );
+    expect(failedStatusOutcome.exitCode).toBe(1);
+    expect(failedStatusOutcome.reason).toBe("workflow-status-503");
+    expect(failedStatusOutcome.instanceId).toBe(`monitor-${FYNBOS_ORG_ID}-2026-11-03-active1`);
+    expect(failedStatusPostCalls).toBe(0);
+    expect(failedStatusDnsResets).toBe(0);
   });
 });
