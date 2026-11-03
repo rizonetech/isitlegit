@@ -847,7 +847,9 @@ describe("the source-versus-replay comparison (section 13)", () => {
     const c = compareRuns(source, replay);
     expect(c.changed[0]).toMatchObject({ sourceCaseId: "case-synthetic-sa/a1.eml", replayCaseId: null });
     const text = comparisonText(c);
-    expect(text).toMatch(/source report: https:\/\/app\.isitlegit\.co\.za\/cases\/case-synthetic-sa\/a1\.eml; replay report: none recorded/);
+    expect(text).toMatch(
+      /source report: https:\/\/app\.isitlegit\.co\.za\/cases\/case-synthetic-sa\/a1\.eml; replay report: none recorded/,
+    );
     expect(text).toMatch(/paired evidence: each report opens under eval-organisation membership/);
     expect(text).toMatch(/answer the same 404/);
     expect(text).toMatch(/a side with no case recorded has no paired evidence/);
