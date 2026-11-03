@@ -14,6 +14,7 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
+import { readReputationResults } from "../../checks/reputation-results";
 import { checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
@@ -215,6 +216,7 @@ async function render(
   const progress = progressOf(events);
   const confirming = found.value.status === "received" && found.value.runId !== null && events.length === 0;
   const coverage = await readCheckOutcomes(db, id, run);
+  const reputation = (await readReputationResults(db, id, run)) ?? [];
   const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
@@ -253,6 +255,7 @@ async function render(
           delivery={delivery}
           {...feedback}
           evidence={evidence}
+          reputation={reputation}
           progress={progress}
           coverage={coverage}
           view={view}
@@ -282,6 +285,7 @@ async function render(
         stored={found.value}
         verdict={verdict?.value ?? null}
         evidence={evidence}
+        reputation={reputation}
         shell={shell}
         {...(linkExpires ? { linkExpires } : {})}
         {...(link ? { link } : {})}

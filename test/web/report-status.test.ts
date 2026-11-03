@@ -1032,6 +1032,70 @@ describe("the status poll", () => {
     expect(html).toContain("We are investigating this message.");
   });
 
+  // D07 T09 §5: the stored per-provider rows read back through the status route, for a member and a link holder.
+  it("draws the stored per-provider reputation rows through the status route for both views", async () => {
+    const { cookie, id, orgId } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "reputation.listing",
+          severity: "high",
+          summary: "A reputation provider lists this address.",
+          detail: {
+            provider: "Web Risk",
+            listed: "https://pay.example/reset",
+            granularity: "url",
+            corroborated: false,
+          },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [{ check: "reputation.listing", outcome: "ran", reason: null, findings: 1 }],
+    );
+    const run = await db
+      .prepare("SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?")
+      .bind(id)
+      .first<{ run: string }>();
+    for (const [provider, subject, state, cached] of [
+      ["google-web-risk", "https://pay.example/reset", "listed", 0],
+      ["cloudflare", "pay.example", "clear", 1],
+      ["well-known", "pay.example", "known", 0],
+    ] as const)
+      await db
+        .prepare(
+          "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+        )
+        .bind(id, run?.run, provider, subject, state, "2026-10-27T08:00:00Z", cached)
+        .run();
+    const member = await (await poll(id, cookie)).text();
+    expect(member).toContain("Google Web Risk</strong>: Listed");
+    expect(member).toContain("Well-known list</strong>: On the well-known list");
+    expect(member).toContain("from cache");
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    const holder = await (await poll(id, undefined, link)).text();
+    expect(holder).toContain("Google Web Risk</strong>: Listed");
+    // Another case's rows never join this report.
+    const other = await setup();
+    const otherRun = await db
+      .prepare("SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?")
+      .bind(other.id)
+      .first<{ run: string }>();
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, ?, 'cloudflare', 'other.example', 'listed', '2026-10-27T08:00:00Z', 0, NULL)",
+      )
+      .bind(other.id, otherRun?.run)
+      .run();
+    const again = await (await poll(id, cookie)).text();
+    expect(again).not.toContain("other.example");
+  });
+
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
   // the report words it by how the case came and offers that channel's own next step, never a retry that cannot succeed.
   async function failedAdmission(

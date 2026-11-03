@@ -940,6 +940,15 @@ const items = (fixtures: Fixture[]): CardItem[] =>
   }));
 const draw = (list: CardItem[], cited: string[] = []) =>
   String(jsx(EvidenceCards, { items: list, cited, file: (key: string) => `/a/case/${encodeURIComponent(key)}` }));
+const drawWithReputation = (list: CardItem[], reputation: unknown[]) =>
+  String(
+    jsx(EvidenceCards, {
+      items: list,
+      cited: [],
+      file: (key: string) => `/a/case/${encodeURIComponent(key)}`,
+      reputation,
+    }),
+  );
 const card = (html: string, id: string) => {
   const at = html.indexOf(`id="${id.toLowerCase()}"`);
   expect(at, id).toBeGreaterThan(-1);
@@ -1066,6 +1075,75 @@ describe("the evidence cards", () => {
     expect(counter).toContain("a.example");
     expect(counter).toContain("b.example");
     expect(counter).toContain("and 21 more");
+  });
+
+  // D07 T09 §5: one stored row per provider and subject, its state and age, and only the counts they support.
+  it("draws each provider's stored answer for a subject, with its time and cache mark", () => {
+    const listing = {
+      check: "reputation.listing",
+      severity: "high" as const,
+      detail: { provider: "Web Risk", listed: "https://pay.example/reset", granularity: "url", corroborated: false },
+      shows: [],
+    };
+    const rows = [
+      {
+        provider: "google-web-risk",
+        subject: "https://pay.example/reset",
+        state: "listed",
+        obtainedAt: "2026-10-27T08:00:00Z",
+        cached: false,
+        note: null,
+      },
+      {
+        provider: "cloudflare",
+        subject: "pay.example",
+        state: "clear",
+        obtainedAt: "2026-10-27T08:01:00Z",
+        cached: true,
+        note: null,
+      },
+      {
+        provider: "well-known",
+        subject: "pay.example",
+        state: "unknown",
+        obtainedAt: "2026-10-27T08:01:00Z",
+        cached: false,
+        note: null,
+      },
+      {
+        provider: "google-web-risk",
+        subject: "pay.example",
+        state: "unavailable",
+        obtainedAt: "2026-10-27T08:02:00Z",
+        cached: false,
+        note: "provider timed out",
+      },
+    ];
+    const html = drawWithReputation(items([listing]), rows);
+    expect(html).toContain("Google Web Risk</strong>: Listed");
+    expect(html).toContain("2026-10-27T08:00:00Z");
+    expect(html).toContain("Cloudflare</strong>: Not listed by this provider");
+    expect(html).toContain("from cache");
+    expect(html).toContain("Well-known list</strong>: Not on the well-known list");
+    expect(html).toContain("Could not be checked (provider timed out)");
+    // Only answered providers count, per exact subject: the listing's subject has one answered row.
+    expect(html).toContain("1 provider answered: 1 listed, 0 not listed");
+    // A subject no card names is drawn in its own block, and a hostile subject stays text.
+    const hostile = drawWithReputation(items([listing]), [
+      {
+        provider: "cloudflare",
+        subject: "<script>alert(1)</script>",
+        state: "clear",
+        obtainedAt: "2026-10-27T08:03:00Z",
+        cached: false,
+        note: null,
+      },
+    ]);
+    expect(hostile).toContain("What the reputation providers said");
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // No stored rows: no provider block is invented.
+    expect(draw(items([listing]))).not.toContain("providers answered");
   });
 
   // D07 T09 §6: the stored transcript, its player, the request marked, and its incomplete states.
