@@ -592,6 +592,18 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
         text: "Attachment check partial (attachment.executable: the archive is longer than is walked).",
         evidenceIds: ["E1"],
       });
+      const storedFallback = await getVerdict(env.DB, caseId);
+      expect(storedFallback.ok).toBe(true);
+      if (storedFallback.ok) {
+        expect(storedFallback.value).not.toBeNull();
+        expect(storedFallback.value?.source).toBe("rules");
+        expect(storedFallback.value?.verdict).toBe("suspicious");
+        expect(storedFallback.value?.floorApplied).toBeNull();
+        expect(storedFallback.value?.reasons[0]).toEqual({
+          text: "Attachment check partial (attachment.executable: the archive is longer than is walked).",
+          evidenceIds: ["E1"],
+        });
+      }
     }
 
     // 5. Null outcomes do not raise the floor

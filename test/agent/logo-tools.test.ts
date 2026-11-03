@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { verdictToolDeps } from "../../src/agent/loop";
 import { createToolExecutor, type ToolDeps, toolDefinitions } from "../../src/agent/tools";
 import { bundled } from "../../src/checks/brands";
-import { readEvidence } from "../../src/checks/evidence";
+import { addEvidence, readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import { artefactsOf, putArtefact, type Store } from "../../src/intake/store";
@@ -35,21 +35,28 @@ const toBase64 = (bytes: Uint8Array) => {
 // SAM stream helpers from test/vision/sam.test.ts
 const MASK_PAYLOAD = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
 const samStreamResponse = (boxes: { x1: number; y1: number; x2: number; y2: number; c?: number }[]) => {
-  const text = `<0f>${boxes
-    .map(
-      (s, i) =>
-        `${i}<|box;x1=${s.x1};y1=${s.y1};x2=${s.x2};y2=${s.y2};w=320;h=334${s.c === undefined ? "" : `;c=${s.c}`}|><|mask;x=0;y=0;data=27,60,~${MASK_PAYLOAD}|>`,
-    )
-    .join(",")}\n`;
+  const text =
+    boxes.length === 0
+      ? ""
+      : `<0f>${boxes
+          .map(
+            (s, i) =>
+              `${i}<|box;x1=${s.x1};y1=${s.y1};x2=${s.x2};y2=${s.y2};w=320;h=334${s.c === undefined ? "" : `;c=${s.c}`}|><|mask;x=0;y=0;data=27,60,~${MASK_PAYLOAD}|>`,
+          )
+          .join(",")}\n`;
   const events = [
-    {
-      type: "response.output_text.delta",
-      item_id: "m1",
-      output_index: 0,
-      content_index: 0,
-      delta: text,
-      sequence_number: 0,
-    },
+    ...(text
+      ? [
+          {
+            type: "response.output_text.delta",
+            item_id: "m1",
+            output_index: 0,
+            content_index: 0,
+            delta: text,
+            sequence_number: 0,
+          },
+        ]
+      : []),
     {
       type: "response.output_text.done",
       item_id: "m1",
@@ -114,7 +121,9 @@ async function seedCase(): Promise<{ caseId: string; orgId: string }> {
   return { caseId: created.value.id, orgId };
 }
 
-function stubBrowser(options: { cropFail?: boolean; delayCropMs?: number } = {}): () => Promise<Browser> {
+function stubBrowser(
+  options: { cropFail?: boolean; partialCropFail?: boolean; delayCropMs?: number } = {},
+): () => Promise<Browser> {
   return async () =>
     ({
       on: () => undefined,
@@ -169,16 +178,19 @@ function stubBrowser(options: { cropFail?: boolean; delayCropMs?: number } = {})
             if (_fn === "document.readyState") {
               return "complete";
             }
-            if (options.delayCropMs) {
-              await new Promise((r) => setTimeout(r, options.delayCropMs));
-            }
             // imageSize passes 1 argument (b64); cropBoxes passes 3 arguments (b64, boxes, padding).
             if (args.length === 1) {
               return { width: 320, height: 334 };
             }
+            if (options.delayCropMs) {
+              await new Promise((r) => setTimeout(r, options.delayCropMs));
+            }
             const boxes = (args[1] as unknown[]) ?? [];
             if (options.cropFail) {
               return boxes.map(() => null);
+            }
+            if (options.partialCropFail) {
+              return boxes.map((_, idx) => (idx === 0 ? { b64: toBase64(PNG_1X1), width: 60, height: 27 } : null));
             }
             return boxes.map(() => ({ b64: toBase64(PNG_1X1), width: 60, height: 27 }));
           },
@@ -508,7 +520,16 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
       artefacts: [cropKey],
     });
 
-    // 4. Official domain screenshot -> segment -> compare_logo produces info with domain: "official"
+    // 4. Official domain screenshot -> segment -> compare_logo produces info with domain: "official", even when an unrelated FNB mismatch item exists on another image
+    await addEvidence(env.DB, caseId, "vision", [
+      {
+        check: "vision.brand_domain_mismatch",
+        severity: "high",
+        summary: "An unrelated image claimed FNB on a mismatch domain.",
+        detail: { brand: "FNB" },
+        artefacts: [`art/${caseId}/render/unrelated.png`],
+      },
+    ]);
     const officialShot = await executor.call("screenshot_url", { url: officialUrl });
     const officialRenderKey = officialShot.status === "ok" ? officialShot.evidence[0]?.artefacts[0] : undefined;
     const officialSeg = await executor.call("segment_logos", { artefact_key: officialRenderKey, concept: "logo" });
@@ -553,6 +574,21 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     const persisted = await readEvidence(env.DB, unjudgedCase);
     expect(persisted[0]?.check).toBe("agent.compare_logo");
     expect(persisted[0]?.detail.reference_key).toBe("ref/logos/2026-11-01/fnb-icon.png");
+
+    // 6. Shared Meta budget accounting in model_spend across segment_logos and compare_logo
+    const spendRows = await env.DB.prepare(
+      "SELECT caller, model, owner, case_id, step, state FROM model_spend WHERE case_id = ? ORDER BY at",
+    )
+      .bind(caseId)
+      .all<{ caller: string; model: string; owner: string; case_id: string; step: string; state: string }>();
+    expect(spendRows.results.length).toBeGreaterThanOrEqual(4);
+    expect(
+      spendRows.results.every(
+        (r) => r.caller === "verdict-agent" && r.owner === "case" && r.step === "verdict" && r.state === "settled",
+      ),
+    ).toBe(true);
+    expect(spendRows.results.some((r) => r.model === "sam-3.1")).toBe(true);
+    expect(spendRows.results.some((r) => r.model === "muse-spark-1.3")).toBe(true);
   });
 
   it("honours no-sam ablation for both segment_logos and compare_logo and restores operation when cleared", async () => {
@@ -730,6 +766,154 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     expect(missingDepRes.status).toBe("failed");
     if (missingDepRes.status === "failed") {
       expect(missingDepRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "Error" });
+    }
+
+    // 6. Empty segmentation stores empty crop manifest and returns count: 0, crops: []
+    const emptySegDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
+      launch: stubBrowser(),
+      metaFetch: async () => samStreamResponse([]),
+    });
+    const emptySegExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, emptySegDeps);
+    const emptySegRes = await emptySegExec.call("segment_logos", { artefact_key: render.key, concept: "logo" });
+    expect(emptySegRes.status).toBe("ok");
+    if (emptySegRes.status === "ok") {
+      expect(emptySegRes.evidence[0]?.detail).toMatchObject({
+        artefactKey: render.key,
+        concept: "logo",
+        count: 0,
+        crops: [],
+      });
+    }
+    const manifestsAfterEmpty = (await artefactsOf(store, caseId, "crop")).filter((a) =>
+      /-manifest-\d+\.json$/.test(a.key),
+    );
+    expect(manifestsAfterEmpty.length).toBeGreaterThanOrEqual(1);
+
+    // 7. Mixed crop success/failure sets detail.checked: false alongside partialFailures
+    const mixedCropDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
+      launch: stubBrowser({ partialCropFail: true }),
+      metaFetch: async () =>
+        samStreamResponse([
+          { x1: 10, y1: 10, x2: 70, y2: 37, c: 0.95 },
+          { x1: 100, y1: 100, x2: 180, y2: 140, c: 0.9 },
+        ]),
+    });
+    const mixedCropExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, mixedCropDeps);
+    const mixedCropRes = await mixedCropExec.call("segment_logos", { artefact_key: render.key, concept: "logo" });
+    expect(mixedCropRes.status).toBe("ok");
+    if (mixedCropRes.status === "ok") {
+      expect(mixedCropRes.evidence[0]?.detail).toMatchObject({
+        count: 1,
+        partialFailures: 1,
+        checked: false,
+      });
+    }
+
+    // 8. Variant 1 negative + Variant 2 error in compare_logo fails with checked: false instead of emitting complete negative
+    await seedFnbReferenceLogos({ withIcon: true });
+    let variantCalls = 0;
+    const partialVariantDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
+      launch: stubBrowser(),
+      metaFetch: async () => {
+        variantCalls += 1;
+        if (variantCalls === 1) {
+          return logoCompareResponse({
+            same_brand: false,
+            brand_seen: null,
+            differences: ["wordmark does not match"],
+            confidence: 0.88,
+          });
+        }
+        return new Response("upstream failure", { status: 502 });
+      },
+    });
+    const partialVariantExec = createToolExecutor(
+      { db: env.DB, caseId, urls: [], brands: bundled },
+      partialVariantDeps,
+    );
+    const cropForPartialVariant = await putArtefact(
+      store,
+      caseId,
+      "crop",
+      "email-logo-variant-err.png",
+      new Uint8Array([...PNG_1X1, 9]),
+      "image/png",
+    );
+    const partialVariantRes = await partialVariantExec.call("compare_logo", {
+      crop_key: cropForPartialVariant.key,
+      brand: "FNB",
+    });
+    expect(partialVariantRes.status).toBe("failed");
+    if (partialVariantRes.status === "failed") {
+      expect(partialVariantRes.evidence[0]?.detail.checked).toBe(false);
+    }
+
+    // 9. Missing R2 object bytes for registered render and crop artefacts fails with checked: false
+    const missingRender = await putArtefact(
+      store,
+      caseId,
+      "render",
+      "missing-render.png",
+      new Uint8Array([...PNG_1X1, 10]),
+      "image/png",
+    );
+    const missingCrop = await putArtefact(
+      store,
+      caseId,
+      "crop",
+      "missing-crop.png",
+      new Uint8Array([...PNG_1X1, 11]),
+      "image/png",
+    );
+    await env.ARTEFACTS.delete(missingRender.key);
+    await env.ARTEFACTS.delete(missingCrop.key);
+    const missingR2Exec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, emptySegDeps);
+    const missingRenderRes = await missingR2Exec.call("segment_logos", {
+      artefact_key: missingRender.key,
+      concept: "logo",
+    });
+    expect(missingRenderRes.status).toBe("failed");
+    if (missingRenderRes.status === "failed") {
+      expect(missingRenderRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "SegmentError" });
+    }
+    const missingCropRes = await missingR2Exec.call("compare_logo", {
+      crop_key: missingCrop.key,
+      brand: "FNB",
+    });
+    expect(missingCropRes.status).toBe("failed");
+    if (missingCropRes.status === "failed") {
+      expect(missingCropRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "Error" });
+    }
+
+    // 10. Exhausted shared Meta budget refuses both segment_logos and compare_logo and records checked: false
+    await env.DB.prepare(
+      "INSERT INTO model_spend (id, at, day, source, caller, model, attempt, state, estimate_usd, actual_usd, owner, case_id, step) VALUES (?, ?, ?, 'worker', ?, ?, 1, 'settled', 500, 500, 'case', ?, 'verdict')",
+    )
+      .bind(`spend_${ulid()}`, new Date().toISOString(), "2026-11-04", "verdict-agent", "muse-spark-1.3", caseId)
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO model_spend (id, at, day, source, caller, model, attempt, state, estimate_usd, actual_usd, owner, case_id, step) VALUES (?, ?, ?, 'worker', ?, ?, 1, 'settled', 500, 500, 'case', ?, 'verdict')",
+    )
+      .bind(`spend_${ulid()}`, new Date().toISOString(), "2026-11-03", "verdict-agent", "muse-spark-1.3", caseId)
+      .run();
+    const budgetExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, emptySegDeps);
+    const budgetSegRes = await budgetExec.call("segment_logos", { artefact_key: render.key, concept: "logo" });
+    expect(budgetSegRes.status).toBe("failed");
+    if (budgetSegRes.status === "failed") {
+      expect(budgetSegRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "SegmentError" });
+    }
+    const cropForBudget = await putArtefact(
+      store,
+      caseId,
+      "crop",
+      "email-logo-budget.png",
+      new Uint8Array([...PNG_1X1, 12]),
+      "image/png",
+    );
+    const budgetCmpRes = await budgetExec.call("compare_logo", { crop_key: cropForBudget.key, brand: "FNB" });
+    expect(budgetCmpRes.status).toBe("failed");
+    if (budgetCmpRes.status === "failed") {
+      expect(budgetCmpRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "BudgetExceeded" });
     }
   });
 });

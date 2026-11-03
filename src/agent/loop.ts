@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { BrandTable } from "../checks/brand-schema";
 import { brandForDomain, getBrand } from "../checks/brands";
 import { type Evidence, readCheckOutcomes, readEvidence } from "../checks/evidence";
-import { expandLink, livePolicy, type UrlPolicy } from "../checks/expand";
+import { type ExpandDeps, expandLink, livePolicy } from "../checks/expand";
 import { rdapLookup } from "../checks/rdap";
 import { ulid } from "../db/ulid";
 import { saveVerdict, type VerdictView } from "../db/verdicts";
@@ -468,12 +468,16 @@ async function resolveLogoDomainJudgement(
     }
   }
   const caseEvidence = await readEvidence(db, caseId).catch(() => [] as Evidence[]);
-  for (const item of caseEvidence) {
-    if (
-      item.check === "vision.brand_domain_mismatch" &&
-      (item.detail.brand === brandName || (sourceKey && item.artefacts.includes(sourceKey)))
-    ) {
-      return item.severity === "high" ? "mismatch" : "unjudged";
+  if (sourceKey) {
+    for (const item of caseEvidence) {
+      if (
+        item.check === "vision.brand_domain_mismatch" &&
+        item.artefacts.includes(sourceKey) &&
+        typeof item.detail.brand === "string" &&
+        (getBrand(table, item.detail.brand)?.name ?? item.detail.brand) === brandName
+      ) {
+        return item.severity === "high" ? "mismatch" : "unjudged";
+      }
     }
   }
   if (sourceKey) {
@@ -519,12 +523,14 @@ export function verdictToolDeps(
   keys: BankKeys | null,
   overrides: {
     launch?: () => Promise<Browser>;
-    policy?: UrlPolicy;
+    policy?: ExpandDeps["policy"];
     metaFetch?: typeof fetch;
+    waitUntil?: (promise: Promise<unknown>) => void;
   } = {},
 ) {
   const launch = overrides.launch ?? (() => puppeteer.launch(env.BROWSER));
   const policyOf = () => overrides.policy ?? livePolicy();
+  const waitUntil = overrides.waitUntil ?? ((p: Promise<unknown>) => void p.catch(() => undefined));
   const deps: ToolDeps = {
     expand: async (url) => {
       const browser = await launch();
@@ -723,13 +729,16 @@ export function verdictToolDeps(
           {
             check: "agent.segment_logos",
             severity: "info",
-            summary: `Segmented ${cropKeys.length} ${concept} crop${cropKeys.length === 1 ? "" : "s"} from the image.`,
+            summary:
+              failures.length > 0
+                ? `Segmented ${cropKeys.length} ${concept} crop${cropKeys.length === 1 ? "" : "s"} from the image; ${failures.length} crop${failures.length === 1 ? "" : "s"} could not be extracted.`
+                : `Segmented ${cropKeys.length} ${concept} crop${cropKeys.length === 1 ? "" : "s"} from the image.`,
             detail: {
               artefactKey,
               concept,
               count: cropKeys.length,
               crops: cropKeys,
-              ...(failures.length ? { partialFailures: failures.length } : {}),
+              ...(failures.length ? { checked: false, partialFailures: failures.length } : {}),
             },
             artefacts: cropKeys,
           },
@@ -777,6 +786,7 @@ export function verdictToolDeps(
               },
               kv: env.CACHE,
               owner: { kind: "case", caseId, step: "verdict" },
+              waitUntil,
               deadline: logoDeadline,
             },
             {
@@ -799,7 +809,9 @@ export function verdictToolDeps(
           firstError ??= error;
         }
       }
-      if (!judgement || !compared) throw firstError ?? new Error("comparison-failed");
+      if (!judgement || !compared || (!judgement.same_brand && firstError)) {
+        throw firstError ?? new Error("comparison-failed");
+      }
       const item = logoMatchItem(judgement, brand.name, cropKey, domainJudgement, {
         key: compared.key,
         sha256: compared.sha256,

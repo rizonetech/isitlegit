@@ -48,11 +48,15 @@ export const FLOOR_CONSEQUENCES: Readonly<Record<ConsequenceFamily, string>> = {
 };
 
 export function consequenceFamilyOf(item: Pick<Evidence, "check" | "severity" | "detail">): ConsequenceFamily | null {
+  if (item.detail.checked === false) return null;
   if (
     item.check === "walkthrough.credential_target" ||
     item.check === "link.credential_form" ||
-    (item.check === "walkthrough.form_fields" && item.detail.credentialCount !== 0) ||
-    (item.check === "attachment.html" && item.detail.hasPasswordInput !== false) ||
+    (item.check === "walkthrough.form_fields" &&
+      typeof item.detail.credentialCount === "number" &&
+      item.detail.credentialCount > 0) ||
+    (item.check === "attachment.html" &&
+      (item.detail.passwordField === true || item.detail.hasPasswordInput === true)) ||
     (item.check === "vision.requested_action" && item.detail.action === "sign_in")
   ) {
     return "credential";
@@ -60,18 +64,15 @@ export function consequenceFamilyOf(item: Pick<Evidence, "check" | "severity" | 
   if (
     item.check === "invoice.bank_changed" ||
     item.check === "invoice.bank_change" ||
-    (item.check === "agent.ledger_lookup" && (item.detail.match === false || item.detail.matched === false)) ||
-    (item.check === "voice.request" &&
-      (item.detail.request === "change_bank_details" || item.detail.requestType === "change_bank_details"))
+    (item.check === "agent.ledger_lookup" && (item.detail.match === false || item.detail.matched === false))
   ) {
     return "bank";
   }
   if (
-    (item.check === "attachment.executable" ||
-      item.check === "attachment.macro" ||
-      item.check === "attachment.encrypted_archive" ||
-      item.check === "attachment.type_mismatch") &&
-    item.detail.checked !== false
+    item.check === "attachment.executable" ||
+    item.check === "attachment.macro" ||
+    item.check === "attachment.encrypted_archive" ||
+    item.check === "attachment.type_mismatch"
   ) {
     return "malware";
   }
@@ -139,7 +140,7 @@ const wordsOf = (summary: string) => summary.replace(/\s*\[E\d+\]/g, "").trim();
 
 export function ruleVerdict(
   evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "summary" | "detail">[],
-  options: { headersAvailable: boolean; outcomes?: readonly PartialOutcome[] | null },
+  options: { headersAvailable: boolean; outcomes?: readonly PartialOutcome[] | null | undefined },
 ): VerdictView {
   // The floor decides the least the evidence allows; on top of it the rules count one more kind of finding as enough
   // (D04 T01 §9): a medium-or-higher finding from the impersonation checks, or two distinct checks of the family. The

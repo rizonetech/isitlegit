@@ -305,6 +305,34 @@ describe("ruleVerdict", () => {
     expect(brandMismatchOnly.verdict).toBe("suspicious");
     expect(brandMismatchOnly.meaning).toBe(MEANINGS.suspicious);
 
+    // HTML attachment with passwordField === true maps to credential; card-only / smuggling or unchecked HTML falls back
+    const htmlWithPassword = ruleVerdict(
+      [withDetail("attachment.html", "high", { passwordField: true, cardField: false })],
+      WITH_HEADERS,
+    );
+    expect(htmlWithPassword.meaning).toBe(FLOOR_CONSEQUENCES.credential);
+
+    const htmlCardOnly = ruleVerdict(
+      [withDetail("attachment.html", "high", { passwordField: false, cardField: true })],
+      WITH_HEADERS,
+    );
+    expect(htmlCardOnly.meaning).toBe(MEANINGS.suspicious);
+
+    const htmlUncheckedPartial = ruleVerdict([withDetail("attachment.html", "info", { checked: false, unread: 1 })], {
+      headersAvailable: true,
+      outcomes: [{ check: "attachment.html", outcome: "partial", reason: "1 more web-page attachment not read" }],
+    });
+    expect(htmlUncheckedPartial.verdict).toBe("suspicious");
+    expect(htmlUncheckedPartial.meaning).toBe(MEANINGS.suspicious);
+
+    // Voice change_bank_details request alone does not claim a supplier-record mismatch
+    const voiceBankRequestOnly = ruleVerdict(
+      [withDetail("voice.request", "critical", { request: "change_bank_details", quote: "pay into our new account" })],
+      WITH_HEADERS,
+    );
+    expect(voiceBankRequestOnly.verdict).toBe("malicious");
+    expect(voiceBankRequestOnly.meaning).toBe(MEANINGS.malicious);
+
     // 5. Unfloored rule verdicts and safe/partial/noted cases keep their fixed wordings
     const familyOnly = ruleVerdict([withDetail("sender.display_brand", "medium", {})], WITH_HEADERS);
     expect(familyOnly.verdict).toBe("suspicious");

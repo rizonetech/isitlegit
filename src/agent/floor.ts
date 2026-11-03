@@ -5,12 +5,12 @@
 
 import {
   addEvidence,
-  type CheckOutcome,
   type Evidence,
   type EvidenceDraft,
   readEvidence,
   unplain,
 } from "../checks/evidence";
+import type { CheckOutcome } from "../checks/runner";
 import type { Verdict } from "../db/cases";
 
 // Safe < suspicious < malicious.
