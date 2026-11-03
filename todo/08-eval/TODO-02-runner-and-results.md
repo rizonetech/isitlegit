@@ -44,6 +44,7 @@ track: day-6
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
 | 13 | §13 | Source-versus-replay comparison | §12 | [ ] |
+| 14 | §14 | Paired-evidence investigation | §13 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -437,6 +438,25 @@ Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a repla
 - [ ] Commit: `eval: source-versus-replay comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts test/node/eval-replay.test.ts` passes with the pairing, refusal and delta cases.
+
+## 14. Paired-evidence investigation
+
+Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a changed verdict in the comparison names the sample but not the two cases behind it, so investigating why a verdict moved starts with manual retrieval. This section gives each changed sample a documented path to its paired evidence under the existing access controls.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Name the paired cases in the comparison output. Done when: each changed sample prints its source and replay case ids beside the verdict change.
+2. Give one documented action from a changed sample to the paired evidence. Done when: the comparison text names the exact command or view that opens both cases, and a test proves the named target resolves for a stored pair.
+
+- [ ] Print the paired case ids in `comparisonText` in `eval/metrics.ts` for every changed sample. Done when: a comparison test reads back both case ids for a changed sample and none are invented for a missing case. Cheaper substitute: none (the operator retrieves them by hand today).
+- [ ] Name the evidence action in the comparison output (the stored report or case view that shows both cases) and prove the named target resolves from a stored pair. Done when: the test follows the named target from the comparison output to both stored results. Cheaper substitute: none (a pointer that resolves nowhere is decoration).
+- [ ] Commit: `eval: paired-evidence investigation`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the paired-evidence cases.
 
 ## Verification
 

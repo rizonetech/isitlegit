@@ -717,10 +717,34 @@ describe("the source-versus-replay comparison (section 13)", () => {
     expect(c.main.medianMs).toEqual({ source: 1000, replay: 2000, delta: 1000 });
     expect(c.challenge).toBeNull();
     expect(c.changed).toEqual([
-      { sample: "synthetic-sa/a1.eml", sourceVerdict: "malicious", replayVerdict: "safe" },
-      { sample: "synthetic-sa/a2.eml", sourceVerdict: "safe", replayVerdict: "suspicious" },
-      { sample: "synthetic-sa/g1.eml", sourceVerdict: "safe", replayVerdict: "malicious" },
+      {
+        sample: "synthetic-sa/a1.eml",
+        label: "attack",
+        scope: "main",
+        sourceVerdict: "malicious",
+        replayVerdict: "safe",
+        change: "regression",
+      },
+      {
+        sample: "synthetic-sa/a2.eml",
+        label: "attack",
+        scope: "main",
+        sourceVerdict: "safe",
+        replayVerdict: "suspicious",
+        change: "improvement",
+      },
+      {
+        sample: "synthetic-sa/g1.eml",
+        label: "genuine",
+        scope: "main",
+        sourceVerdict: "safe",
+        replayVerdict: "malicious",
+        change: "regression",
+      },
     ]);
+    // Median cost deltas are exact too: every row costs US$0.02 on both sides.
+    expect(c.main.medianCostUsd).toEqual({ source: 0.02, replay: 0.02, delta: 0 });
+    expect(comparisonText(c)).toMatch(/1 improvements, 2 regressions, 0 other changes/);
     expect(comparisonText(c)).toMatch(/detection 50\.0% \(1 of 2\) -> 50\.0% \(1 of 2\) \(\+0\.0 pp\)/);
   });
 
@@ -765,6 +789,46 @@ describe("the source-versus-replay comparison (section 13)", () => {
     expect(
       pairForCompare(base.source, { ...base.replay, run: { ...base.replay.run, setVersion: "b".repeat(64) } }),
     ).toMatch(/different set versions/);
+    // Label drift and a short result count refuse too.
+    const drift = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe")],
+      [row("synthetic-sa/a1.eml", "done", "safe", { label: "genuine" })],
+    );
+    expect(pairForCompare(drift.source, drift.replay)).toMatch(/changed label/);
+    const short = pair([row("synthetic-sa/a1.eml", "done", "safe")], [row("synthetic-sa/a1.eml", "done", "safe")], {
+      source: { selected: 2 },
+    });
+    expect(pairForCompare(short.source, short.replay)).toMatch(/holds 1 results for 2 selected/);
+  });
+
+  it("separates populated main and challenge populations in one pair", () => {
+    const { source, replay } = pair(
+      [
+        row("synthetic-sa/a1.eml", "done", "malicious", { costUsd: 0.01 }),
+        row("synthetic-challenge/a1.eml", "done", "safe", { costUsd: 0.03 }),
+      ],
+      [
+        row("synthetic-sa/a1.eml", "done", "malicious", { costUsd: 0.02 }),
+        row("synthetic-challenge/a1.eml", "done", "suspicious", { costUsd: 0.05 }),
+      ],
+    );
+    const c = compareRuns(source, replay);
+    expect(c.main.detection).toMatchObject({ deltaPp: 0 });
+    expect(c.challenge?.detection).toMatchObject({ deltaPp: 100 });
+    expect(c.main.medianCostUsd).toEqual({ source: 0.01, replay: 0.02, delta: 0.01 });
+    expect(c.challenge?.medianCostUsd.source).toBe(0.03);
+    expect(c.challenge?.medianCostUsd.replay).toBe(0.05);
+    expect(c.challenge?.medianCostUsd.delta).toBeCloseTo(0.02);
+    expect(c.changed).toEqual([
+      {
+        sample: "synthetic-challenge/a1.eml",
+        label: "attack",
+        scope: "challenge",
+        sourceVerdict: "safe",
+        replayVerdict: "suspicious",
+        change: "improvement",
+      },
+    ]);
   });
 
   it("drives --compare through the command entry with persisted read-back and its refusals", async () => {
@@ -780,7 +844,7 @@ describe("the source-versus-replay comparison (section 13)", () => {
     const ok = await runMetrics({ argv: ["--compare", replay.run.id], db, root: ROOT });
     expect(ok.code).toBe(0);
     expect(ok.stdout).toMatch(/comparison: run run-00000001 .* -> replay run-00000002/);
-    expect(ok.stdout).toMatch(/synthetic-sa\/a1\.eml: safe -> malicious/);
+    expect(ok.stdout).toMatch(/synthetic-sa\/a1\.eml \[main, attack, improvement\]: safe -> malicious/);
     expect((await runMetrics({ argv: ["--compare", source.run.id], db, root: ROOT })).code).toBe(3);
     expect((await runMetrics({ argv: ["--compare", "run-99999999"], db, root: ROOT })).code).toBe(3);
     expect(

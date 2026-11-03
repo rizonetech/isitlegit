@@ -543,6 +543,8 @@ export async function runMetrics(args: {
   // Reconciliation of the stored results against their cases before publication. The live command always passes it;
   // a caller without case access (an offline `--from` read) cannot publish.
   verify?: (id: string) => Promise<{ ok: boolean; problems: string[] }>;
+  // Read progress for the operator, on stderr only: stdout stays machine-readable.
+  onProgress?: (line: string) => void;
 }): Promise<Outcome> {
   const refuse = (message: string): Outcome => ({
     code: 3,
@@ -595,6 +597,7 @@ export async function runMetrics(args: {
     let replayStored: Awaited<ReturnType<Db["readRun"]>>;
     let sourceStored: Awaited<ReturnType<Db["readRun"]>>;
     try {
+      args.onProgress?.(`eval:metrics: reading replay run ${compare}`);
       replayStored = await args.db.readRun(compare);
       if (!replayStored) return refuse(`no run ${compare} to compare`);
       const checkedReplay = checkStored(replayStored, compare);
@@ -604,6 +607,7 @@ export async function runMetrics(args: {
         ? replayStored.run.mode.slice("replay:".length)
         : null;
       if (!sourceId) return refuse(`run ${compare} is not a replay (its mode is ${replayStored.run.mode})`);
+      args.onProgress?.(`eval:metrics: reading source run ${sourceId}`);
       sourceStored = await args.db.readRun(sourceId);
       if (!sourceStored) return refuse(`no source run ${sourceId} for replay ${compare}`);
       const checkedSource = checkStored(sourceStored, sourceId);
@@ -736,6 +740,7 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   }
   const out = await runMetrics({
     argv,
+    onProgress: (line) => console.error(line),
     ...(db ? { db } : {}),
     ...(pub ? { pub } : {}),
     ...(db ? { verify: (runId: string) => verifyRun(db, runId) } : {}),
@@ -745,8 +750,8 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   process.exit(out.code);
 }
 
-// Replay merging (D08 T02 section 12): a replay result replaces its original only when complete; the replaced
-// originals are counted apart as replay consent lines and never enter detection, false-alarm, latency or cost.
+// Replay merging (D08 T02 section 12): a terminal replay result replaces its original from either state; the
+// replaced originals are counted apart as replay consent lines.
 export function mergeReplayResults(
   original: ResultRow[],
   replays: ResultRow[][],
@@ -784,7 +789,16 @@ export type RunComparison = {
   replayCommit: string;
   main: ScopeDelta;
   challenge: ScopeDelta | null;
-  changed: { sample: string; sourceVerdict: string | null; replayVerdict: string | null }[];
+  changed: {
+    sample: string;
+    label: "attack" | "genuine";
+    scope: "main" | "challenge";
+    sourceVerdict: string | null;
+    replayVerdict: string | null;
+    // An improvement flags an attack the source missed, or clears a genuine false alarm; a regression is the
+    // inverse. A change between two flagged or two clear verdicts is neither, and reads "changed".
+    change: "improvement" | "regression" | "changed";
+  }[];
 };
 
 // Two stored runs pair for comparison only as a full measured replay of its source: the replay's stored mode
@@ -857,11 +871,20 @@ export function compareRuns(
   const replayBySample = new Map(replay.results.map((r) => [r.sample, r]));
   const changed = source.results
     .filter((r) => replayBySample.get(r.sample)?.verdict !== r.verdict)
-    .map((r) => ({
-      sample: r.sample,
-      sourceVerdict: r.verdict,
-      replayVerdict: replayBySample.get(r.sample)?.verdict ?? null,
-    }))
+    .map((r) => {
+      const replayVerdict = replayBySample.get(r.sample)?.verdict ?? null;
+      const was = flagged(r.verdict);
+      const now = flagged(replayVerdict);
+      const change = was === now ? "changed" : now === (r.label === "attack") ? "improvement" : ("regression" as const);
+      return {
+        sample: r.sample,
+        label: r.label,
+        scope: (r.sample.split("/")[0] === CHALLENGE ? "challenge" : "main") as "main" | "challenge",
+        sourceVerdict: r.verdict,
+        replayVerdict,
+        change: change as "improvement" | "regression" | "changed",
+      };
+    })
     .sort((x, y) => (x.sample < y.sample ? -1 : 1));
   const hasChallenge = source.results.some((r) => r.sample.split("/")[0] === CHALLENGE);
   return {
@@ -887,11 +910,18 @@ export function comparisonText(c: RunComparison): string {
     `  median time ${d.medianMs.source === null ? "not measured" : `${Math.round(d.medianMs.source)} ms`} -> ${d.medianMs.replay === null ? "not measured" : `${Math.round(d.medianMs.replay)} ms`} (${signed(d.medianMs.delta === null ? null : Math.round(d.medianMs.delta), " ms", 0)})`,
     `  median cost ${d.medianCostUsd.source === null ? "not measured" : `US$${d.medianCostUsd.source.toFixed(4)}`} -> ${d.medianCostUsd.replay === null ? "not measured" : `US$${d.medianCostUsd.replay.toFixed(4)}`} (${signed(d.medianCostUsd.delta, "", 4)})`,
   ];
+  const counts = (name: "main" | "challenge") => {
+    const rows = c.changed.filter((x) => x.scope === name);
+    return `${rows.filter((x) => x.change === "improvement").length} improvements, ${rows.filter((x) => x.change === "regression").length} regressions, ${rows.filter((x) => x.change === "changed").length} other changes`;
+  };
   return [
     `comparison: run ${c.sourceId} (${c.sourceCommit}) -> replay ${c.replayId} (${c.replayCommit})`,
     ...scope("main sets", c.main),
     ...(c.challenge ? scope("challenge set", c.challenge) : []),
-    `changed verdicts: ${c.changed.length}`,
-    ...c.changed.map((x) => `  ${x.sample}: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}`),
+    `changed verdicts: ${c.changed.length} (main: ${counts("main")}${c.challenge ? `; challenge: ${counts("challenge")}` : ""})`,
+    ...c.changed.map(
+      (x) =>
+        `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}`,
+    ),
   ].join("\n");
 }
