@@ -548,6 +548,21 @@ describe("the command", () => {
     expect(big.stderr).toMatch(/larger than/);
   });
 
+  it("accepts the component fields a section 8 run stores (providers, walkthrough)", async () => {
+    const { root } = sets();
+    const { r, results } = stored(root);
+    const file = join(root, "components.json");
+    const withComponents = results.map((x, i) =>
+      i === 0
+        ? { ...x, providers: [{ provider: "spamhaus", checked: true, listed: false }], walkthrough: true }
+        : { ...x, walkthrough: null },
+    );
+    writeFileSync(file, JSON.stringify({ run: r, results: withComponents }));
+    const out = await runMetrics({ argv: ["--run", "run-00000001", "--from", file], root });
+    expect(out.code).toBe(0);
+    expect(out.stdout).toMatch(/report: complete/);
+  });
+
   it("bounds the reads of --sets: an oversized labels file or sample is refused before it is read whole (round 3)", async () => {
     const { root, set } = sets();
     const { r, results } = stored(root);

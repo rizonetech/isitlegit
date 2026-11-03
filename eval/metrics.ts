@@ -497,6 +497,12 @@ const ResultSchema = z.strictObject({
   criticalFound: z.boolean(),
   httpStatus: z.number().int().min(100).max(599).nullable(),
   detail: z.string().max(200).nullable(),
+  // The component fields the runner stores since section 8 (migration 0079): a run from before them has neither.
+  providers: z
+    .array(z.strictObject({ provider: z.string().min(1).max(80), checked: z.boolean(), listed: z.boolean() }))
+    .max(50)
+    .optional(),
+  walkthrough: z.boolean().nullable().optional(),
 });
 
 // A stored run (from the database or an export) checked whole: its own results only, one row per sample.

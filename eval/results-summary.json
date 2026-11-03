@@ -1,8 +1,8 @@
 {
-  "detectionRate": 0.1111111111111111,
+  "detectionRate": 0.34444444444444444,
   "falseAlarmRate": 0,
-  "medianSeconds": 7.4605,
+  "medianSeconds": 71.825,
   "samples": 160,
-  "runDate": "2026-11-02",
-  "runId": "f91e2ec2-c171-494c-b1d5-fab69a8510c1"
+  "runDate": "2026-11-03",
+  "runId": "3a6ba571-475c-4114-856e-75b0c650bc58"
 }
