@@ -291,6 +291,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a c
 
 ## 9. Protected-identity candidate for the trust match
 
+> **Started:** 2026-11-03T01:08Z
+
 Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the trust match reads a protected identity's registered facts through a bounded candidate input the checks step fills on the case view, the same form as the document forensics fill trust already takes (D06 T02 §3). This section owns the checks side: the view field, its bound, and the fill; trust builds its matching and claim evidence contract against that input and stamps when the fill gates to main.
 
 **Phase:** 7
