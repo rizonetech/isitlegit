@@ -63,7 +63,7 @@ track: day-6
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [x] |
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
-| 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
+| 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [x] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [x] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [x] |
@@ -1097,6 +1097,9 @@ Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and 
 - [x] Commit: `glimmer: converter limits and item lineage for Loupe 1.1`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_dataset_rows tests.scripts.test_sevendays_rows tests.scripts.test_phreshphish_rows` and `pnpm exec vitest run test/node/glimmer-import.test.ts test/node/glimmer-sources.test.ts` pass, and `node scripts/glimmer/sources.ts check` prints `sources: reconciled`.
+
+> **Verified:** 2026-11-03 | §28 | 7c53075bb1c00ba47028b0684de7e687273b7ad6
+> **Review:** `docs/reviews/d03-t04-s28.json`
 
 ## 29. Names in running text the entity model misses
 

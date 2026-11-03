@@ -469,7 +469,7 @@ Sections: 207 | Checklist items: 908
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance              | none                 | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured                 | meta-api             | 7     |
 | [x]    | D03 T04 §27 | A second source sweep for Loupe 1.1                         | none                 | 11    |
-| [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1             | none                 | 10    |
+| [x]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1             | none                 | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses               | none                 | 4     |
 | [x]    | D03 T04 §41 | Day-zero case capture into the training store               | cloudflare           | 9     |
 | [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 3     |
@@ -646,6 +646,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 374/570 verified sections, 126 ready to run now.
+Progress: 375/570 verified sections, 125 ready to run now.
 
 Checklist: 2844/3544 items completed (includes Commit items).

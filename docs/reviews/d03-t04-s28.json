@@ -1,0 +1,128 @@
+{
+  "ref": "D03 T04 \u00a728",
+  "title": "Converter limits and item lineage for Loupe 1.1",
+  "implementation_sha": "7c53075bb1c00ba47028b0684de7e687273b7ad6",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s28.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T04-s28.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 7,
+      "report": "docs/reviews/03-vision/D03-T04-s28.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 8,
+      "report": "docs/reviews/03-vision/D03-T04-s28.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_dataset_rows tests.scripts.test_sevendays_rows tests.scripts.test_phreshphish_rows tests.scripts.test_scamferret_rows tests.scripts.test_glimmer_inputs tests.scripts.test_new_rows tests.scripts.test_staging -> exit 0, Ran 79 tests in 0.144s, OK (skipped=25)",
+    "pnpm exec vitest run test/node/glimmer-import.test.ts test/node/glimmer-sources.test.ts -> exit 0, Test Files 2 passed (2), Tests 53 passed (53)",
+    "node scripts/glimmer/sources.ts check -> sources: reconciled"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s28.md",
+    "verdict": "filed",
+    "candidate": "e2579005c96c2ac655b1571484a4f14fe301978b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a743"
+    ]
+  },
+  "rounds_spent": 8,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s28.md",
+    "candidate": "c54499c242eaaae3b3ec39fbf4b53f0646cf1118",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
