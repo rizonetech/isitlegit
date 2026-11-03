@@ -100,6 +100,8 @@ export type RunSummary = {
   captureBlocked: number;
   // Brand tokens whose CT query failed today (D05 T04 §7): while any is, the run is partial.
   ctFailed: number;
+  // Candidates the shared cap deferred today (D05 T04 §7): visible, and the run is partial.
+  candidatesDeferred: number;
   errors: string[];
   // A reservation still held because its settlement failed: the Workflow settles it again in its own step.
   // `until` is the cutoff a failed settlement was to land on (D03 T04 §40), so the retry charges the same moment.
@@ -121,6 +123,7 @@ type HostRow = {
   captured_dns_hash: string | null;
   capture_failures: number;
   capture_failed_at: string | null;
+  last_seen?: string | null;
 };
 
 // Whether an organisation is monitored now: protection in effect and `monitor` in its plan.
@@ -274,6 +277,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     secondLookUnavailable: 0,
     captureBlocked: 0,
     ctFailed: 0,
+    candidatesDeferred: 0,
     errors: [],
   };
   await startRun(deps.db, orgId, day, runId, started);
@@ -293,7 +297,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       (
         await deps.db
           .prepare(
-            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures, capture_failed_at FROM monitor_hosts WHERE org_id = ?",
+            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures, capture_failed_at, last_seen FROM monitor_hosts WHERE org_id = ?",
           )
           .bind(orgId)
           .all<HostRow>()
@@ -314,14 +318,17 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const own = new Set(domains);
     const isOwn = (host: string) => domains.some((d) => host === d || host.endsWith(`.${d}`));
     const knownCt = [...known.keys()].filter((host) => tokens.some((token) => host.includes(token)) && !isOwn(host));
-    // Inside the shared cap, the list rotates by day: retained discoveries first in rotation
-    // order, so a saturated list defers coverage to later days instead of starving the same
-    // hosts forever; the run's deferral is visible in the summary counts.
+    // Inside the shared cap, the least recently observed go first (new discoveries have no
+    // observation yet), so each day spends the whole cap on the hosts waiting longest and a
+    // saturated list defers the rest visibly instead of starving the same hosts forever.
     const merged = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])].filter(
       (h) => !own.has(h),
     );
-    const offset = merged.length ? Math.floor(started.getTime() / 86_400_000) % merged.length : 0;
-    const candidates = [...merged.slice(offset), ...merged.slice(0, offset)].slice(0, MAX_CANDIDATES);
+    const lastSeen = (host: string) => known.get(host)?.last_seen ?? "";
+    const ordered = [...merged].sort((a, b) => (lastSeen(a) < lastSeen(b) ? -1 : lastSeen(a) > lastSeen(b) ? 1 : 0));
+    const candidates = ordered.slice(0, MAX_CANDIDATES);
+    summary.candidatesDeferred = ordered.length - candidates.length;
+    if (summary.candidatesDeferred > 0) noteError(summary, `ct:deferred:${summary.candidatesDeferred}`);
     // A CT discovery persists before any lookup (D05 T04 §7): a failed lookup today and an
     // empty CT answer tomorrow never lose it.
     const discovered = ctNames.filter((h) => !isOwn(h) && !known.has(h));
@@ -477,7 +484,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       summary.secondLookUnavailable ||
       summary.screenFailed ||
       summary.screenDeferred ||
-      summary.ctFailed
+      summary.ctFailed ||
+      summary.candidatesDeferred
         ? "partial"
         : "completed";
   } catch (error) {
