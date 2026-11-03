@@ -487,7 +487,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     };
     const deps = verdictToolDeps(metaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser(),
-      policy: async () => ({ ok: true }),
+      policy: async (raw) => ({ ok: true, url: new URL(raw) }),
       metaFetch,
     });
     const phishingUrl = "https://fnb-verify-login.example/signin";
@@ -922,7 +922,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     const changedHostUrl = "https://fnb-redirect-trap.example/start";
     const changedHostDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser({ secondNavUrl: "https://www.fnb.co.za/login" }),
-      policy: async () => ({ ok: true }),
+      policy: async (raw) => ({ ok: true, url: new URL(raw) }),
       metaFetch: async () => samStreamResponse([]),
     });
     const changedHostExec = createToolExecutor(

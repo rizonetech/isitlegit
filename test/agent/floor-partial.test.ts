@@ -17,14 +17,13 @@ import { attachmentRisksOf, MAX_MEMBERS_READ } from "../../src/checks/attachment
 import { bundled } from "../../src/checks/brands";
 import { caseViewOf } from "../../src/checks/case-view";
 import {
-  type CheckOutcome,
   type Evidence,
   type EvidenceDraft,
   readEvidence,
   saveEvidence,
 } from "../../src/checks/evidence";
 import { checks } from "../../src/checks/index";
-import { runChecksWithOutcomes } from "../../src/checks/runner";
+import { type CheckOutcome, runChecksWithOutcomes } from "../../src/checks/runner";
 import { attachmentHeadsOf } from "../../src/checks/sniff";
 import { createCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
@@ -215,9 +214,9 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
         summary,
         {
           orgId,
-          headersAvailable: true,
-          ownDomains: [],
-          supplierDomains: [],
+          channel: "email",
+          receivers: [],
+          trusted: { own: [], suppliers: [] },
         },
         `raw/${caseId}/parsed.json`,
         bundled,
@@ -236,7 +235,7 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
       const saved = await storeVerdict(env.DB, orgId, caseId, result.view);
       expect(saved.ok).toBe(true);
       const readBack = await getVerdict(env.DB, caseId);
-      if (!readBack.ok || !readBack.value) throw new Error("expected stored verdict");
+      if (!readBack || !readBack.ok) throw new Error("expected stored verdict");
       return { caseId, outcomes, verdict: readBack.value, evidence: await readEvidence(env.DB, caseId) };
     };
 
@@ -322,7 +321,8 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
     const saved = await saveVerdict(env.DB, emptyCase, emptyVerdict);
     expect(saved.ok).toBe(true);
     const readBack = await getVerdict(env.DB, emptyCase);
-    expect(readBack.ok && readBack.value?.reasons[0]).toEqual({
+    if (!readBack || !readBack.ok) throw new Error("expected stored verdict");
+    expect(readBack.value.reasons[0]).toEqual({
       text: "Attachment check partial (attachment.macro: 2 archive members not read by content).",
       evidenceIds: ["E1"],
     });
@@ -462,7 +462,8 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
         evidenceIds: ["E1"],
       });
       const stored = await getVerdict(env.DB, caseId);
-      expect(stored.ok && stored.value?.reasons[0]?.text).toBe(
+      if (!stored || !stored.ok) throw new Error("expected stored verdict");
+      expect(stored.value.reasons[0]?.text).toBe(
         "Attachment check partial (attachment.executable: the archive is longer than is walked).",
       );
     }
@@ -527,7 +528,8 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
         evidenceIds: ["E4"],
       });
       const stored = await getVerdict(env.DB, caseId);
-      expect(stored.ok && stored.value?.reasons[2]?.evidenceIds).toEqual(["E4"]);
+      if (!stored || !stored.ok) throw new Error("expected stored verdict");
+      expect(stored.value.reasons[2]?.evidenceIds).toEqual(["E4"]);
     }
 
     // 3. Malicious result alongside partial attachment check stays malicious
@@ -593,17 +595,14 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
         evidenceIds: ["E1"],
       });
       const storedFallback = await getVerdict(env.DB, caseId);
-      expect(storedFallback.ok).toBe(true);
-      if (storedFallback.ok) {
-        expect(storedFallback.value).not.toBeNull();
-        expect(storedFallback.value?.source).toBe("rules");
-        expect(storedFallback.value?.verdict).toBe("suspicious");
-        expect(storedFallback.value?.floorApplied).toBeNull();
-        expect(storedFallback.value?.reasons[0]).toEqual({
-          text: "Attachment check partial (attachment.executable: the archive is longer than is walked).",
-          evidenceIds: ["E1"],
-        });
-      }
+      if (!storedFallback || !storedFallback.ok) throw new Error("expected stored fallback verdict");
+      expect(storedFallback.value.source).toBe("rules");
+      expect(storedFallback.value.verdict).toBe("suspicious");
+      expect(storedFallback.value.floorApplied).toBeNull();
+      expect(storedFallback.value.reasons[0]).toEqual({
+        text: "Attachment check partial (attachment.executable: the archive is longer than is walked).",
+        evidenceIds: ["E1"],
+      });
     }
 
     // 5. Null outcomes do not raise the floor
@@ -614,9 +613,7 @@ describe("D04 T01 §8: partial attachment checks weigh on the verdict", () => {
             id: "E1",
             check: "auth.spf",
             severity: "info",
-            summary: "SPF passed.",
             detail: {},
-            artefacts: [],
           },
         ],
         null,
