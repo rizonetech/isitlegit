@@ -393,7 +393,7 @@ Sections: 96 | Checklist items: 621
 
 ### Phase 7: After the event
 
-Sections: 198 | Checklist items: 863
+Sections: 200 | Checklist items: 876
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -557,14 +557,16 @@ Sections: 198 | Checklist items: 863
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
-| [ ]    | D07 T06 §11 | Already paid: what to do now                                | none                 | 7     |
-| [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                           | none                 | 2     |
+| [x]    | D07 T06 §11 | Already paid: what to do now                                | none                 | 7     |
+| [x]    | D07 T06 §12 | Pricing terms: VAT and commitment                           | none                 | 7     |
 | [ ]    | D07 T06 §13 | On-site invite request                                      | none                 | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards                                     | none                 | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice                             | none                 | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study                                  | none                 | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link                            | none                 | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back                            | cloudflare           | 9     |
+| [ ]    | D07 T06 §22 | Direct bank fraud-line links in the recovery steps          | none                 | 4     |
+| [ ]    | D07 T06 §23 | Billing timing in the pricing terms                         | none                 | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed                                        | cloudflare, operator | 2     |
 | [ ]    | D07 T08 §7  | Renew an expired report link                                | operator             | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from                              | operator             | 4     |
@@ -633,6 +635,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 362/557 verified sections, 126 ready to run now.
+Progress: 364/559 verified sections, 126 ready to run now.
 
-Checklist: 2790/3483 items completed (includes Commit items).
+Checklist: 2799/3496 items completed (includes Commit items).

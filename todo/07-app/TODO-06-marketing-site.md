@@ -42,8 +42,8 @@ track: day-6
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [x] |
-| 11 | §11 | Already paid: what to do now | §3 | [ ] |
-| 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
+| 11 | §11 | Already paid: what to do now | §3 | [x] |
+| 12 | §12 | Pricing terms: VAT and commitment | §4 | [x] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
 | 14 | §14 | Cross-border safeguards | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
@@ -53,6 +53,8 @@ track: day-6
 | 19 | §19 | Security assurance evidence link | §8, D09 T01 §2, D09 T01 §3 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
 | 21 | §21 | Drop the 3 November repository note | §18 | [x] |
+| 22 | §22 | Direct bank fraud-line links in the recovery steps | §11 | [ ] |
+| 23 | §23 | Billing timing in the pricing terms | §12 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -452,7 +454,7 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 1. Record the operator's decision on the surface and the South African sources. Done when: `design/SPEC.md` names the surface and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
+- [x] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** common to §11 to §16 and §19: the operator decision is already recorded in each header, so the "record the operator's choice" step is done; what remains open is the board and `design/SPEC.md` entry (`Fidelity: none yet`), then the build, which the current 1-row build orders do not decompose (no items for the block itself, `article-check`, or browser proof). For this section: the decision is a block on `/invoice-fraud`; no such block, board, or SPEC S3 entry exists yet, no South African recovery sources are in `site/src/lib/sources.ts`, and the checkpoint's one-action test has no counterpart in `site/test/invoice-fraud.test.ts`.
 - [x] Add the recovery block to `design/SPEC.md` S3 (a control: ordered steps with their source links, reachable in one action from the page's opening) with a recorded Deviation (no board draws it). Done when: S3 names the block, its steps and its one-action route. Cheaper substitute: a new page, refused by the operator decision.
@@ -460,11 +462,18 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 - [x] Build the block on `/invoice-fraud` in `site/src/pages/invoice-fraud.astro` (steps in order: phone your own bank's fraud line at once and ask it to contact the receiving bank; keep the mail and documents; open a case at your nearest SAPS station and keep the CAS reference; warn the real supplier on the number you already have), each step beside its source link, in tokens only, reached by an opening anchor to its labelled heading. Done when: the built page shows the block and `pnpm --filter site build` exits 0. Cheaper substitute: unsourced advice, refused (every step sourced).
 - [x] Test it in `site/test/invoice-fraud.test.ts` and `site/test/browser.test.ts`: all four steps in their order, each beside its correct source (the test fails on a deleted step, on bank contact reordered behind reporting, and on a removed or swapped source), and the anchor reached by mouse and keyboard with visible focus and focus continuing into the block's links. Done when: each named failure breaks a test.
 - [x] Run `article-check` on the new guidance and the written-back page, fix every FAIL and answer every WARN, and update the page's review date for the new sources. Done when: the check output is recorded in the run file.
-- [ ] Commit: `site: already paid, what to do now`
+- [x] Commit: `site: already paid, what to do now`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
 
+> **Deferred:** direct bank fraud-line links in step 1 -> XREF: D07 T06 §22
+
+> **Verified:** 2026-11-02 | §11 | f47a53d27e60846e75a232a4b3aea8d9b64fb799
+> **Review:** `docs/reviews/d07-t06-s11.json`
+
 ## 12. Pricing terms: VAT and commitment
+
+> **Started:** 2026-11-02T19:23Z
 
 What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
 
@@ -484,10 +493,20 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 
 1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`.
-- [ ] Commit: `site: pricing terms`
+- [x] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`. (Recorded: prices include VAT, month-to-month, cancel anytime; R499 up to 5 members, R999 above, operator decision in the header; the SPEC entry is the next item.)
+- [x] Add the terms block and the member scope to `design/SPEC.md` S5 (VAT-included and month-to-month as Q&A controls, Protect's up-to-5-members scope, R999 above) with a recorded Deviation (the board draws neither). Done when: S5 names them and this section's Fidelity no longer reads board-open.
+- [x] Build it on `/pricing` in `site/src/pages/pricing.astro`: the member-scope line on the Protect tier ("up to 5 members; larger organisations R999") and two Questions answers ("What does the price include?" prices include VAT; "Am I locked in?" month-to-month, cancel anytime, keeps Free check), in tokens only. Done when: the built page shows them and `pnpm --filter site build` exits 0. Cheaper substitute: a terms page, refused (the decision puts the terms on the pricing page).
+- [x] Test in `site/test/pricing.test.ts`: the VAT and commitment answers sit inside their named Q&A entries and the member scope inside the Protect tier, with both prices, the five-member boundary, the per-organisation unit, VAT, cancellation and Free check retention. Done when: the test fails on a removed, relocated or altered value, not only on removal.
+- [x] Audit the other price surfaces for consistency (`site/src/pages/index.astro`, `site/src/pages/protect.astro`: "from R499" summaries stay, with the applicable terms reachable; `src/web/pages/settings-plan-view.tsx` is the console lane's, routed through the coordinator if it disagrees). Done when: each surface is recorded as consistent or routed.
+- [x] Run `article-check` on the draft terms and on the built page: zero FAILs and every WARN answered, recorded in the run file. Done when: both outputs are recorded.
+- [x] Commit: `site: pricing terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+> **Deferred:** billing timing (member-count changes, cancellation effect) -> XREF: D07 T06 §23
+
+> **Verified:** 2026-11-02 | §12 | 5f4c6523869cb287a3f528637cda5a79f2492f03
+> **Review:** `docs/reviews/d07-t06-s12.json`
 
 ## 13. On-site invite request
 
@@ -729,6 +748,52 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 
 > **Verified:** 2026-11-01 | §21 | 075f2cb74ba5745175b547bf67bdd036869bf81d
 > **Review:** `docs/reviews/d07-t06-s21.json`
+
+## 22. Direct bank fraud-line links in the recovery steps
+
+SABRIC's own guidance lists each bank's fraud hotline on one page; §11's first recovery step sends the reader there and then on to their bank. Filed 2026-11-02 by D07 T06 §11's completion review (out-of-scope excellence item): linking each major bank's own fraud page directly from step 1 would save a navigation, at the cost of keeping a dozen third-party numbers and links current.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S3 (the recovery block §11 added)
+**Job:** a victim reaches their own bank's fraud line in one activation
+**Treatment:** the major banks' own fraud pages linked from step 1, verified on a dated cadence
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Link the banks and keep them current. Done when: step 1 links each listed bank's own fraud page and a dated re-verification is recorded.
+
+- [ ] Add each major South African bank's official fraud-reporting page (read from the bank's own site, dated) to `site/src/lib/sources.ts` and link them from step 1 of the recovery block in `site/src/pages/invoice-fraud.astro`. Done when: every listed link is the bank's own page with its read date. Cheaper substitute: copying SABRIC's hotline numbers onto the page, refused (numbers change; the bank's page is the source).
+- [ ] Record a re-verification cadence in this section (who re-reads the links, and how often). Done when: the cadence and owner are written here.
+- [ ] Test in `site/test/invoice-fraud.test.ts` that step 1 links each bank page beside the SABRIC source. Done when: the test fails when a bank link is removed.
+- [ ] Commit: `site: direct bank fraud-line links`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with step 1 linking each bank's own fraud page.
+
+## 23. Billing timing in the pricing terms
+
+§12 states the price, the VAT reading and the commitment, but not when a member-count change alters the charge or when a cancellation takes effect. Filed 2026-11-02 by D07 T06 §12's completion review (out-of-scope G2): those rules belong to billing, which has not started, so they are defined with the billing build and stated on `/pricing` before any customer is charged.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S5 (the terms answers §12 added)
+**Job:** a buyer knows when a change in members changes the price and when cancelling stops it
+**Treatment:** two plain answers added to the pricing page's terms when billing exists
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. With the billing build (its owning lane, through the coordinator), record the member-count and cancellation timing rules, then state them on `/pricing`. Done when: the rules and their dates are here and the page states them before billing starts.
+
+- [ ] Record the billing rules (when a member added or removed changes the charge, and the date a cancellation takes effect) from the billing build's owner, through the coordinator. Done when: the rules and dates are recorded here.
+- [ ] Add the two answers to the Questions on `/pricing` in `site/src/pages/pricing.astro`, beside the §12 terms. Done when: the built page states both. Cheaper substitute: stating timing before billing defines it, refused (invented terms).
+- [ ] Test in `site/test/pricing.test.ts` that both answers sit in their questions. Done when: the test fails when one is removed.
+- [ ] Commit: `site: billing timing in the pricing terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with both timing answers on `/pricing`, before any customer is charged.
 
 ## Verification
 

@@ -309,6 +309,9 @@ Controls:
 - Free check: R0 tier with Get started free. (Pricing)
 - Protect from R499: Protect tier with Start free during launch. (Pricing)
 - MSP from R199 per client: MSP tier with Talk to us (opens S9). (Pricing)
+- Protect member scope: "up to 5 members; larger organisations R999" on the Protect tier. (Pricing)
+- What the price includes: Q&A answer, prices include VAT. (Pricing)
+- Locked in: Q&A answer, month-to-month, cancel anytime and the organisation keeps Free check. (Pricing)
 
 States:
 
@@ -319,6 +322,7 @@ States:
 - Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 5 checks a day per organisation", `src/auth/plan-sql.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
 - Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
 - Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
+- Deviation (D07 T06 §12): the Pricing board draws no member scope or terms answers; the page also states Protect's member scope (up to 5 members, R999 above, the operator's threshold; design spec 2b supports the R499 to R999 range) and two Questions answers (prices include VAT; month-to-month, cancel anytime). Operator decision 2026-11-02.
 
 ### S6 Privacy and POPIA
 
