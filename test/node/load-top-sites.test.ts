@@ -519,6 +519,31 @@ describe("what a failed publication means", () => {
       expect((error as LoadRefused).published).toBe(false);
       expect(String((error as LoadRefused).message)).toMatch(/list in use is unchanged/);
       expect(store.get(META_KEY)).toBe(metaBefore);
+      // Even when the deadline expires inside getMany on the second settle read (after the for-loop check passed and
+      // after the first read already saw metaBefore), the first read's unchanged verdict stands.
+      vi.restoreAllMocks();
+      let settleClock = 0;
+      let inSettle = false;
+      const error2 = await load(
+        listFile(LIST_B),
+        (args, ms) => {
+          if (args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)) {
+            inSettle = true;
+            return { status: 1, stdout: "", stderr: "no" };
+          }
+          return base.run(args, ms);
+        },
+        {
+          verifyMs: 100,
+          nowMs: () => {
+            if (!inSettle) return 0;
+            settleClock += 20;
+            return settleClock;
+          },
+        },
+      ).catch((e: LoadRefused) => e);
+      expect(error2).toBeInstanceOf(LoadRefused);
+      expect((error2 as LoadRefused).published).toBe(false);
     } finally {
       vi.restoreAllMocks();
     }
