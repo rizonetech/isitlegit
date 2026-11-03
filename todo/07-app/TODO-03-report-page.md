@@ -158,7 +158,7 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 >
 > **Deferred:** the ledger links in the actions ("Open <supplier> in the ledger", the Safe board's "supplier ledger") -> XREF: D06 T01 §6
 >
-> **Deferred:** the stored one-sentence meaning (asked of the checks lane through the coordinator, 2026-10-31); the fixed per-verdict sentence is drawn until it lands -> XREF: D07 T03 §10
+> **Resolved:** the stored one-sentence meaning -> XREF: D07 T03 §10. Resolved 2026-11-03 by D07 T03 §10: the band and both reply bodies draw the stored `meaning`, the fixed sentence only when none is stored.
 
 **Phase:** 2
 **Needs:** none
