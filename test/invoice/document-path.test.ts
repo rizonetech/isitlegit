@@ -10,11 +10,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { floorFor } from "../../src/agent/floor";
 import { createToolExecutor, runAgent } from "../../src/agent/loop";
 import { PARTIAL_HEADLINE, PARTIAL_MEANING } from "../../src/agent/rule-verdict";
-import { evidenceProducers, readEvidence, saveEvidence } from "../../src/checks/evidence";
+import { evidenceProducers, readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { CheckRegistry } from "../../src/checks/registry";
 import { createCase } from "../../src/db/cases";
 import { getVerdict } from "../../src/db/verdicts";
-import { putAttachment, putParsed, type Store } from "../../src/intake/store";
+import { parsedKey, putAttachment, putParsed, type Store } from "../../src/intake/store";
 import {
   DOCUMENT_LIMIT,
   documentStep,
@@ -27,7 +27,7 @@ import { analysePdf, FORENSIC_CHECKS, forensicsEvidence } from "../../src/invoic
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import { invoiceStep, recordInvoiceNotRun } from "../../src/invoice/step";
 import { d1Budget } from "../../src/meta/budget";
-import { parse } from "../../src/pipeline/analysis-workflow";
+import { checks, parse } from "../../src/pipeline/analysis-workflow";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import { EvidenceCards } from "../../src/web/components/evidence/cards";
@@ -665,7 +665,7 @@ describe("the standalone document step (D06 T02 §3)", () => {
     expect(ev1.map((e) => e.check)).toContain("document.proof_of_payment");
     expect(ev1.map((e) => e.check)).toContain("document.limit");
 
-    // 2. Empty-body emailed PNG POP through `parsed.json` -> `invoiceStep`:
+    // 2. Empty-body emailed PNG POP through `parsed.json` -> `checks` -> `invoiceStep` skips mail checks:
     const emailedImg = await caseWithDocument(org, {
       channel: "email",
       sourceKind: "mail",
@@ -674,17 +674,39 @@ describe("the standalone document step (D06 T02 §3)", () => {
       filename: "emailed-pop.png",
     });
     await putParsed(store, emailedImg.caseId, {
-      source: { kind: "message" },
-      forward: { headersAvailable: true },
-      headers: [{ name: "Subject", value: "POP" }],
+      headers: [
+        { name: "Received", value: "from mail.evil.example by mx.google.com; Mon, 02 Nov 2026 10:00:00 +0000" },
+        { name: "Authentication-Results", value: "mx.google.com; spf=fail smtp.mailfrom=evil.example" },
+        { name: "From", value: "Fynbos Bank <alerts@evil.example>" },
+        { name: "Reply-To", value: "attacker@other.example" },
+        { name: "Subject", value: "POP" },
+      ],
       text: "   ",
       html: "<div></div>",
-      attachments: [{ key: emailedImg.artefactKey, filename: "emailed-pop.png", mediaType: "image/png" }],
+      attachments: [
+        {
+          key: emailedImg.artefactKey,
+          filename: "emailed-pop.png",
+          mediaType: "image/png",
+          contentId: null,
+          disposition: "attachment",
+          bytes: PNG_BYTES.length,
+        },
+      ],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
     });
+    await checks(store, emailedImg.caseId, parsedKey(emailedImg.caseId), { orgId: org, channel: "email" }, async () => [
+      "mx.google.com",
+    ]);
     const hEmail = harness([() => answer(POP), () => answer({ layout_differences: [] })]);
     const stepRes2 = await invoiceStep({ ...hEmail.deps, waitUntil: () => {} }, emailedImg.caseId, org);
     expect(stepRes2).toEqual({ outcome: "read", invoices: 1 });
     const ev2 = await readEvidence(db, emailedImg.caseId);
+    expect(ev2.some((e) => e.check.startsWith("auth.") || e.check.startsWith("sender."))).toBe(false);
+    const outcomes2 = await readCheckOutcomes(db, emailedImg.caseId);
+    expect((outcomes2 ?? []).some((o) => o.check.startsWith("auth.") || o.check.startsWith("sender."))).toBe(false);
     expect(ev2.map((e) => e.check)).toContain("document.type");
     expect(ev2.map((e) => e.check)).toContain("document.proof_of_payment");
     expect(ev2.map((e) => e.check)).toContain("document.limit");
@@ -692,9 +714,12 @@ describe("the standalone document step (D06 T02 §3)", () => {
     // 3. `recordInvoiceNotRun` on a standalone document case writes `document.not_checked` + `document.limit`:
     await recordInvoiceNotRun(store, emailedImg.caseId, "error");
     const evAfterFail = await readEvidence(db, emailedImg.caseId);
-    expect(evAfterFail.map((e) => e.check)).toEqual(["document.not_checked", "document.limit"]);
+    expect(evAfterFail.filter((e) => e.check.startsWith("document.")).map((e) => e.check)).toEqual([
+      "document.not_checked",
+      "document.limit",
+    ]);
 
-    // 4. Non-standalone mail case with a doctored PDF attachment runs PDF forensics alongside invoice extraction:
+    // 4. Non-standalone mail case with a doctored PDF attachment runs PDF forensics alongside invoice extraction and retains them on retry:
     const regularMail = await caseWithDocument(org, {
       channel: "email",
       sourceKind: "mail",
@@ -709,22 +734,22 @@ describe("the standalone document step (D06 T02 §3)", () => {
       html: null,
       attachments: [{ key: regularMail.artefactKey, filename: "attached-invoice.pdf", mediaType: "application/pdf" }],
     });
-    const hRegular = harness([
-      () =>
-        answer({
-          is_invoice: true,
-          supplier_name: "Hadeda Couriers",
-          supplier_domain: "hadedacouriers.co.za",
-          bank_name: "Kestrel Bank (fictional)",
-          account_holder: "Hadeda Couriers",
-          account_number: "62004417731",
-          branch_code: "250655",
-          amount_cents: 410000,
-          currency: "ZAR",
-          reference: "INV-9",
-          due_date: "2026-11-30",
-        }),
-    ]);
+    const invoiceReply = () =>
+      answer({
+        is_invoice: true,
+        supplier_name: "Hadeda Couriers",
+        supplier_domain: "hadedacouriers.co.za",
+        bank_name: "Kestrel Bank (fictional)",
+        account_holder: "Hadeda Couriers",
+        account_number: "62004417731",
+        branch_code: "250655",
+        amount_cents: 410000,
+        currency: "ZAR",
+        reference: "INV-9",
+        due_date: "2026-11-30",
+      });
+    const hRegular = harness([invoiceReply, invoiceReply]);
+    await invoiceStep({ ...hRegular.deps, waitUntil: () => {} }, regularMail.caseId, org);
     await invoiceStep({ ...hRegular.deps, waitUntil: () => {} }, regularMail.caseId, org);
     const evRegular = await readEvidence(db, regularMail.caseId);
     expect(evRegular.map((e) => e.check)).toContain("invoice.detected");

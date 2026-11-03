@@ -70,6 +70,7 @@ import {
   type Store,
   StoreError,
 } from "../intake/store";
+import { isStandaloneDocumentCase } from "../invoice/document-step";
 import { invoiceStep, recordInvoiceNotRun } from "../invoice/step";
 import {
   buildGroupedReply,
@@ -844,11 +845,38 @@ export async function checks(
     rawKey(caseId),
     brands,
   );
+  // A standalone document case (D06 T02 §3: an uploaded document or image, or mail whose body is empty and which
+  // carries only a PDF or image) skips the mail checks (authentication, sender, header-domain and body checks).
+  const standaloneDoc =
+    (read.source.kind === "upload" && (read.source.fileKind === "document" || read.source.fileKind === "image")) ||
+    (read.source.kind === "message" &&
+      read.truncated.length === 0 &&
+      read.omitted === 0 &&
+      isStandaloneDocumentCase({
+        sourceKind: "mail",
+        textBody: read.text,
+        htmlBody: read.html,
+        attachments: read.attachments,
+      }));
+  if (standaloneDoc && read.source.kind === "message") {
+    read.tenant.headersAvailable = false;
+    read.headers = [];
+    read.text = null;
+    read.html = null;
+  }
+  const activeRegistry = standaloneDoc
+    ? (() => {
+        const reg = new CheckRegistry();
+        for (const check of fullRegistry.all())
+          if (!check.name.startsWith("auth.") && !check.name.startsWith("sender.")) reg.register(check);
+        return reg;
+      })()
+    : fullRegistry;
   // The intake and authentication prefix, stored before any enrichment (D01 T01 §23): a slow or failed
   // enrichment (Browser Run, RDAP, reputation) then leaves the fast header outcomes already readable, and
   // because the subset is the registry's own prefix in order, its Evidence IDs are the full run's first IDs.
   const prefix = new CheckRegistry();
-  for (const check of fullRegistry.all())
+  for (const check of activeRegistry.all())
     if (check.name.startsWith("intake.") || check.name.startsWith("auth.")) prefix.register(check);
   const early = await runChecksWithOutcomes(read, prefix);
   // The run's reputation results go with its evidence (D02 T06 §9, round 3): a retried step's prefix write
@@ -972,14 +1000,14 @@ export async function checks(
     protectedCandidates: boundProtectedCandidates(await protectedIdentities(store.db)),
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
-  const { items, outcomes } = await runChecksWithOutcomes(view);
+  const { items, outcomes } = await runChecksWithOutcomes(view, activeRegistry);
   // Each provider's own answer beside the evidence it weighed into (D02 T06 §9), in the same batch, so a
   // failed write leaves the previous evidence and results together and the step retries from them.
   const saved = await saveEvidence(
     store.db,
     caseId,
     items,
-    undefined,
+    activeRegistry,
     undefined,
     outcomes,
     revision,

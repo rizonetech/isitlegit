@@ -131,10 +131,24 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
   const allKeys = pdfs.map((a) => a.key);
   const existingProducers = await evidenceProducers(deps.db, caseId).catch(() => []);
   const hadDocumentRows = existingProducers.some((p) => p.producer === "document");
+  const otherRows = await deps.db
+    .prepare("SELECT check_name, data_json FROM evidence WHERE case_id = ? AND producer <> 'document'")
+    .bind(caseId)
+    .all<{ check_name: string; data_json: string }>()
+    .catch(() => ({ results: [] as { check_name: string; data_json: string }[] }));
   const checksForensics = new Set(
-    (await readEvidence(deps.db, caseId).catch(() => []))
-      .filter((e) => e.check.startsWith("document.forensics."))
-      .flatMap((e) => e.artefacts.map((k) => `${k}:${e.check}`)),
+    (otherRows.results ?? [])
+      .filter((r) => r.check_name.startsWith("document.forensics."))
+      .flatMap((r) => {
+        try {
+          const parsed = JSON.parse(r.data_json) as { artefacts?: unknown };
+          return Array.isArray(parsed.artefacts)
+            ? parsed.artefacts.filter((k): k is string => typeof k === "string").map((k) => `${k}:${r.check_name}`)
+            : [];
+        } catch {
+          return [];
+        }
+      }),
   );
   const forensicItems: EvidenceDraft[] = [];
   for (const doc of call) {
