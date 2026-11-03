@@ -417,6 +417,8 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after 
 
 ## 13. Source-versus-replay comparison
 
+> **Started:** 2026-11-03T04:00:00+02:00
+
 Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a replay exists to measure a deployment change, yet comparing its source and replay reports is manual, and the public history marks a different deployed commit as not comparable. This section adds one comparison that pairs a source run with its replay, verifies the populations are equal, and reports what changed.
 
 **Phase:** 6
