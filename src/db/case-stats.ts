@@ -35,16 +35,13 @@ export function median(values: number[]): number | null {
 export async function weeklyCounts(db: D1Database, orgId: string, now: Date, weeks: number): Promise<WeekCounts[]> {
   const current = Date.parse(weekStart(now));
   const from = new Date(current - (weeks - 1) * WEEK_MS).toISOString();
-  const rows = (
-    await db
-      .prepare(
-        `SELECT c.id, c.created_at, c.verdict, c.status, v.created_at AS decided_at
-         FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
-         WHERE c.org_id = ? AND c.created_at >= ?`,
-      )
-      .bind(orgId, from)
-      .all<Row>()
-  ).results;
+  const rowsStatement = db
+    .prepare(
+      `SELECT c.id, c.created_at, c.verdict, c.status, v.created_at AS decided_at
+       FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
+       WHERE c.org_id = ? AND c.created_at >= ?`,
+    )
+    .bind(orgId, from);
   const out: WeekCounts[] = Array.from({ length: weeks }, (_, i) => ({
     weekStart: new Date(current - i * WEEK_MS).toISOString(),
     checked: 0,
@@ -55,6 +52,36 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     medianSecondsToVerdict: null,
   }));
+  // Threat kinds (D07 T04 §18): each flagged case of a week takes at most one kind, from positive evidence on
+  // its current run alone, in invoice, impersonation, phishing order. The flags are read in SQL, one row per
+  // flagged case, so no evidence detail crosses into the Worker. A flagged case with none of these (a
+  // malware-only case) counts in no kind, so the kinds need not sum to the week's flagged total.
+  const flaggedStatement = db
+    .prepare(
+      `SELECT c.id, c.created_at,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND (e."check" = 'invoice.detected'
+               OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') = 'invoice'))) AS inv,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND ((e."check" = 'domain.lookalike' AND e.severity IN ('medium', 'high'))
+               OR (e."check" = 'vision.brand_domain_mismatch' AND json_extract(e.detail_json, '$.confirmed') = 1))) AS imp,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND e."check" IN ('link.credential_form', 'link.card_form', 'link.lure_button', 'walkthrough.credential_target')) AS ph
+         FROM cases c
+         WHERE c.org_id = ? AND c.created_at >= ? AND c.status IN ('done', 'partial')
+           AND c.verdict IN ('malicious', 'suspicious')`,
+    )
+    .bind(orgId, from);
+  // One batch, one snapshot: the totals and the kinds can never disagree about a case decided mid-read.
+  const [rowsResult, flaggedResult] = await db.batch([rowsStatement, flaggedStatement]);
+  const rows = (rowsResult?.results ?? []) as Row[];
+  const flaggedRows = (flaggedResult?.results ?? []) as {
+    id: string;
+    created_at: string;
+    inv: number;
+    imp: number;
+    ph: number;
+  }[];
   const times: number[][] = out.map(() => []);
   // Weeks are counted in milliseconds from the oldest Monday, never by SQLite's floating julianday, so a case at
   // Monday 00:00:00.000 SAST is that week's.
@@ -76,29 +103,6 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     const m = median(times[i] ?? []);
     week.medianSecondsToVerdict = m === null ? null : Math.round(m);
   });
-  // Threat kinds (D07 T04 §18): each flagged case of a week takes at most one kind, from positive evidence on
-  // its current run alone, in invoice, impersonation, phishing order. The flags are read in SQL, one row per
-  // flagged case, so no evidence detail crosses into the Worker. A flagged case with none of these (a
-  // malware-only case) counts in no kind, so the kinds need not sum to the week's flagged total.
-  const flaggedRows = (
-    await db
-      .prepare(
-        `SELECT c.id, c.created_at,
-           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
-             AND (e."check" = 'invoice.detected'
-               OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') = 'invoice'))) AS inv,
-           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
-             AND ((e."check" = 'domain.lookalike' AND e.severity IN ('medium', 'high'))
-               OR (e."check" = 'vision.brand_domain_mismatch' AND json_extract(e.detail_json, '$.confirmed') = 1))) AS imp,
-           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
-             AND e."check" IN ('link.credential_form', 'link.card_form', 'link.lure_button', 'walkthrough.credential_target')) AS ph
-         FROM cases c
-         WHERE c.org_id = ? AND c.created_at >= ? AND c.status IN ('done', 'partial')
-           AND c.verdict IN ('malicious', 'suspicious')`,
-      )
-      .bind(orgId, from)
-      .all<{ id: string; created_at: string; inv: number; imp: number; ph: number }>()
-  ).results;
   for (const row of flaggedRows) {
     const kind = row.inv === 1 ? "invoice" : row.imp === 1 ? "impersonation" : row.ph === 1 ? "phishing" : null;
     if (!kind) continue;
