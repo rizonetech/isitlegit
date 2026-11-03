@@ -114,6 +114,10 @@ const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "a
     verdict: { ...MAIN, verdict: "safe", confidence: 0.95, actions: ["Nothing special. Pay as usual."] },
     sourceKind: "mail",
   },
+  examined: {
+    verdict: { ...MAIN, verdict: "safe", confidence: 0.95, actions: ["Nothing special. Pay as usual."] },
+    sourceKind: "mail",
+  },
 };
 
 // The safe variant's stored outcomes (D07 T03 §18): its clean list holds a retired check's stored name at the column's
@@ -123,6 +127,16 @@ const RETIRED = `retired.${"x".repeat(92)}`;
 // unbroken hostname of 63 characters in it: it must wrap too, and read whole. Asserted to be exactly 120 below.
 const HOST63 = `mail.${"a".repeat(55)}.example`;
 const SUMMARY120 = `No lookalike of ${HOST63} or the page's two other hosts, all.`;
+// A clean check's stored examined set (D07 T09 §10).
+const EXAMINED = [
+  {
+    check: "domain.lookalike",
+    outcome: "ran" as const,
+    reason: null,
+    findings: 0,
+    examined: { targets: ["one.example", "last.example"], omitted: 2 },
+  },
+];
 const COVERAGE = [
   { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0, summary: SUMMARY120 },
   { check: "content.hidden_text", outcome: "ran" as const, reason: null, findings: 0 },
@@ -146,6 +160,7 @@ function html(name: string, traceOpen = true) {
       verdict={verdict}
       evidence={evidence}
       {...(name === "safe" ? { coverage: COVERAGE } : {})}
+      {...(name === "examined" ? { coverage: EXAMINED } : {})}
       {...(trace ? { trace: TRACE, traceOpen } : {})}
       shell={shell}
     />,
@@ -212,6 +227,24 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
         const box = await long.evaluate((el) => el.getBoundingClientRect().right);
         expect(box).toBeLessThanOrEqual(width);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await context.close();
+      });
+
+  // D07 T09 §10: the examined set opens by keyboard at both widths and themes, its targets readable.
+  for (const width of [360, 1280])
+    for (const theme of ["light", "dark"] as const)
+      it(`opens a clean check's examined set by keyboard (${width} px, ${theme})`, async () => {
+        const { p, context } = await open(html("examined"), width, theme);
+        const summary = p.getByText("See what this check examined");
+        await summary.scrollIntoViewIfNeeded();
+        await summary.focus();
+        expect(await summary.evaluate((el) => document.activeElement === el)).toBe(true);
+        await p.keyboard.press("Enter");
+        await expect.poll(() => p.getByText("last.example").isVisible()).toBe(true);
+        expect(await p.getByText("2 more targets were examined but are not listed.").isVisible()).toBe(true);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
         await context.close();
       });
 

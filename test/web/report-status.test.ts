@@ -597,6 +597,29 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T09 §10: a stored examined set reaches the finished report through storage, for both readers.
+  it("reads a clean check's examined set from storage into the finished report", async () => {
+    const { cookie, id, orgId } = await setup();
+    await saveEvidence(db, id, [], undefined, undefined, [
+      {
+        check: "domain.lookalike",
+        outcome: "ran",
+        reason: null,
+        findings: 0,
+        examined: { targets: ["one.example", "last.example"], omitted: 2 },
+      },
+    ]);
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("See what this check examined");
+      expect(html).toContain("one.example");
+      expect(html).toContain("last.example");
+      expect(html).toContain("2 more targets were examined but are not listed.");
+    }
+  });
+
   // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
   // next; if the report drops the summary the clean check falls back to "nothing found" and this fails.
   it("reads a clean check's summary from storage into the report, twice", async () => {

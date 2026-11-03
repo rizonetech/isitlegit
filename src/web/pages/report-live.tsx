@@ -7,7 +7,7 @@
 
 import type { ModelTrace } from "../../db/model-trace-types";
 import { artefactUrl } from "../artefact-url";
-import { cx } from "../components/attrs";
+import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 import { type CardItem, CHECK_WORDS, EvidenceCards, type ReputationRow } from "../components/evidence/cards";
 import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/model-trace";
@@ -32,6 +32,8 @@ export type Coverage =
       revision?: string;
       // The detection data the run judged by (D02 T01 §6), where stored; drawn beside the version (D07 T09 §12).
       data?: { revision: string; id: string; source: "kv" | "bundled" };
+      // What a clean check examined, where stored (D02 T01 §8); drawn under the clean list (D07 T09 §10).
+      examined?: { targets: string[]; omitted: number };
     }[]
   | null;
 
@@ -64,7 +66,27 @@ export function CleanChecks(props: { coverage: Coverage }) {
       </h2>
       <ul class="flex flex-col gap-8 text-14">
         {clean.map((o) => (
-          <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.summary?.trim() ? o.summary : "nothing found"}`}</li>
+          <li class="wrap-anywhere">
+            {`${CHECK_WORDS[o.check] ?? o.check}: ${o.summary?.trim() ? o.summary : "nothing found"}`}
+            {o.examined &&
+              (o.examined.targets.length > 0 ? (
+                <details>
+                  <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>
+                    See what this check examined
+                  </summary>
+                  <ul class="flex flex-col gap-4 mt-8">
+                    {o.examined.targets.map((target) => (
+                      <li class="wrap-anywhere">{target}</li>
+                    ))}
+                  </ul>
+                  {o.examined.omitted > 0 && (
+                    <p class="type-small text-muted mt-8">{`${o.examined.omitted} more target${o.examined.omitted === 1 ? " was" : "s were"} examined but ${o.examined.omitted === 1 ? "is" : "are"} not listed.`}</p>
+                  )}
+                </details>
+              ) : (
+                <span class="block type-small text-muted">No targets were recorded for this check.</span>
+              ))}
+          </li>
         ))}
       </ul>
     </section>

@@ -1784,7 +1784,8 @@ describe("invisible-character cards from the producer's own items", () => {
   it("labels a decoded text past the stored quote's length as its opening", () => {
     const html = drawn(`Hello ${tags("x".repeat(400))} there`);
     expect(html).toContain("Opening of the hidden text");
-    expect(html).toContain("The rest is in the original message.");
+    // The producer stores the whole run now (D02 T05 §11), so the reader is sent to it, not the original (D07 T09 §9).
+    expect(html).toContain("The whole run is below.");
   });
 });
 
@@ -2155,6 +2156,50 @@ describe("the evidence count line and the clean checks", () => {
     // Nothing clean, or no outcomes kept: no list at all.
     expect(String(jsx(CleanChecks, { coverage: [ran("auth.spf", 1)] }))).toBe("");
     expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
+  });
+
+  // D07 T09 §10: every target a clean check examined, whole, with omissions stated and hostile text as text.
+  it("lists every examined target of a clean check whole, with its omissions stated", () => {
+    const long = `https://${"a".repeat(240)}.example/reset`;
+    const html = String(
+      jsx(CleanChecks, {
+        coverage: [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["one.example", long, "last.example"], omitted: 3 },
+          },
+          {
+            check: "auth.spf",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: [], omitted: 0 },
+          },
+          {
+            check: "sender.display_brand",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["<script>alert(1)</script>"], omitted: 1 },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("See what this check examined");
+    expect(html).toContain(long);
+    expect(html).toContain("last.example");
+    expect(html).toContain("3 more targets were examined but are not listed.");
+    expect(html).toContain("1 more target was examined but is not listed.");
+    expect(html).toContain("No targets were recorded for this check.");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+    // No set stored: the list as it was, with no disclosure.
+    expect(String(jsx(CleanChecks, { coverage: [ran("domain.lookalike")] }))).not.toContain(
+      "See what this check examined",
+    );
   });
 
   // The stored result summary (D02 T01 §7; D07 T03 §44): what each clean check saw, or "nothing found" when none
