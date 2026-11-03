@@ -134,10 +134,12 @@ describe("the voice step", () => {
     expect(seen.asked[0]).toContain("<<UNTRUSTED:transcript:");
     expect(seen.asked[0]).toContain("Please pay the invoice today");
     expect((await steps(caseId)).filter((s) => s.step === "voice").map((s) => s.status)).toEqual(["started", "done"]);
+    // One voice.transcript item per recording among them (D01 T03 §16).
     expect((await voiceItems(caseId)).map((i) => [i.check, i.severity])).toEqual([
       ["voice.request", "high"],
       ["voice.claimed_identity", "info"],
       ["voice.urgency", "medium"],
+      ["voice.transcript", "info"],
       ["voice.limits", "info"],
     ]);
     expect(await outcomeOf(caseId, "voice.request")).toMatchObject({ outcome: "ran", summary: "asks for a payment" });

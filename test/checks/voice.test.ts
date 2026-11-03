@@ -267,3 +267,133 @@ describe("the voice checks", () => {
     }
   });
 });
+
+describe("the transcript item (D01 T03 §16)", () => {
+  const turns = [
+    { chunk: 1, speaker: "A", startMs: 0, endMs: 1000, text: "Hello, pay today." },
+    { chunk: 1, speaker: "B", startMs: 1000, endMs: 2000, text: "Who is this?" },
+    { chunk: 2, speaker: "A", startMs: 2000, endMs: 3000, text: "It is Thandi." },
+    { chunk: 2, speaker: null, startMs: 3000, endMs: 4000, text: "..." },
+  ];
+  const withTranscripts = (list: unknown) => ({ ...view(read(claim())), transcripts: list }) as CaseView;
+
+  it("stores one item per transcript with per-chunk speaker labels, never a people count", async () => {
+    const { voice, outcome } = await run(
+      withTranscripts([
+        {
+          transcriptKey: "art/c/audio/t-transcript.json",
+          recordingKey: "art/c/audio/r-rec.ogg",
+          filename: "note.ogg",
+          turns,
+          gaps: [{ chunk: 2, startMs: 3500, endMs: 3600 }],
+          complete: false,
+        },
+      ]),
+    );
+    const item = voice.find((i) => i.check === "voice.transcript");
+    expect(item?.severity).toBe("info");
+    expect(item?.artefacts).toEqual(["art/c/audio/t-transcript.json"]);
+    expect(item?.detail).toMatchObject({
+      transcript: "art/c/audio/t-transcript.json",
+      recording: "art/c/audio/r-rec.ogg",
+      filename: "note.ogg",
+      complete: false,
+      speakers: [
+        { chunk: 1, labels: ["A", "B"] },
+        { chunk: 2, labels: ["A"] },
+      ],
+      unlabelled: 1,
+    });
+    expect(outcome("voice.transcript")?.summary).toBe("the words of the recording, as transcribed");
+  });
+
+  it("keeps a long turn whole while it fits, and cuts only past the budget", async () => {
+    const long = "é".repeat(4000);
+    const { voice } = await run(
+      withTranscripts([
+        {
+          transcriptKey: "art/c/audio/t-transcript.json",
+          recordingKey: null,
+          filename: null,
+          turns: [{ chunk: 1, speaker: "A", startMs: 0, endMs: 9000, text: long }],
+          gaps: [],
+          complete: true,
+        },
+      ]),
+    );
+    const item = voice.find((i) => i.check === "voice.transcript");
+    // 4,000 multibyte characters fit the byte budget whole: nothing is cut or marked.
+    const segments = item?.detail.segments as { text: string }[];
+    expect(segments[0]?.text).toBe(long);
+    expect(item?.detail.trimmed).toBeUndefined();
+    expect(item?.detail).toMatchObject({ complete: true, speakers: [{ chunk: 1, labels: ["A"] }] });
+  });
+
+  it("keeps what fits the byte budget and counts what it omits (completion review)", async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({
+      chunk: 1,
+      speaker: "A",
+      startMs: i * 1000,
+      endMs: i * 1000 + 900,
+      text: "é".repeat(1500),
+    }));
+    const gaps = Array.from({ length: 25 }, (_, i) => ({ chunk: 1, startMs: i * 10, endMs: i * 10 + 5 }));
+    const { voice } = await run(
+      withTranscripts([
+        {
+          transcriptKey: "art/c/audio/t-transcript.json",
+          recordingKey: null,
+          filename: null,
+          turns: many,
+          gaps,
+          complete: false,
+        },
+      ]),
+    );
+    const item = voice.find((i) => i.check === "voice.transcript");
+    const detail = item?.detail as {
+      segments: unknown[];
+      gaps: unknown[];
+      segmentsOmitted?: number;
+      trimmed?: boolean;
+    };
+    expect(detail.trimmed).toBe(true);
+    expect(detail.segmentsOmitted).toBeGreaterThan(0);
+    expect(detail.segments.length + (detail.segmentsOmitted ?? 0)).toBe(30);
+    // The gaps are small enough to stand whole, so none is omitted or silently lost.
+    expect(detail.gaps).toHaveLength(25);
+    expect(new TextEncoder().encode(JSON.stringify(item?.detail)).length).toBeLessThanOrEqual(65_536);
+  });
+
+  it("names a malformed transcript beside a valid one, and states none stored apart", async () => {
+    const { voice } = await run(
+      withTranscripts([
+        {
+          transcriptKey: "art/c/audio/t-transcript-1.json",
+          recordingKey: "raw/c/a.ogg",
+          filename: "a.ogg",
+          turns,
+          gaps: [],
+          complete: true,
+        },
+        {
+          transcriptKey: "art/c/audio/t-transcript-2.json",
+          recordingKey: "raw/c/b.ogg",
+          filename: "b.ogg",
+          turns: [],
+          gaps: [],
+          complete: false,
+          malformed: true,
+        },
+      ]),
+    );
+    const items = voice.filter((i) => i.check === "voice.transcript");
+    expect(items).toHaveLength(2);
+    expect(items[1]?.detail).toMatchObject({ malformed: true, filename: "b.ogg" });
+    const none = await run(view(read(claim())));
+    expect(none.outcome("voice.transcript")).toMatchObject({
+      outcome: "skipped",
+      reason: "the transcript is not stored",
+    });
+  });
+});

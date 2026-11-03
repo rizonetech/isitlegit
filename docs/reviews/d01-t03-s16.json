@@ -1,0 +1,112 @@
+{
+  "ref": "D01 T03 \u00a716",
+  "title": "Transcript stored as its own evidence item",
+  "implementation_sha": "7227f20930bd9ef9a6ba129ca8a564188b9a5f3b",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T03-s16.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/voice.test.ts test/pipeline/analysis-workflow.test.ts -> 65 passed (2 files) before the round fix, transcript tests pass after; typecheck clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T03-s16.md",
+    "verdict": "filed",
+    "candidate": "b1188e18ee409dbdfa520049107740089084085c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T09 \u00a76"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "cap_outcome": "Round 1 stopped at P3 (severity_stop): its one P3, persisted truncation and missing-body read-back, was added in 7227f209; no leftovers filed.",
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T03-s16.md",
+    "candidate": "bc18e026198d8b728765573424307ab55456014e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
