@@ -165,7 +165,7 @@ Upload the fine-tuned Loupe (Muse Glimmer 30B LoRA) adapter weights, evaluation 
 
 1. Create the model repository, upload the adapter weights and model card, and link it in the README. Done when: the public Hugging Face page resolves logged out and is recorded here.
 
-- [ ] Create `https://huggingface.co/rizonetech/isitlegit-loupe`, upload the Loupe LoRA adapter weights and the generated model card (`README.md`) with held-out recall, false-alarm rate, latency, and dataset provenance, and record `Hugging Face: https://huggingface.co/rizonetech/isitlegit-loupe` here. Done when: a logged-out `curl -s -o /dev/null -w '%{http_code}' https://huggingface.co/rizonetech/isitlegit-loupe` prints `200` and the line is written here.
+- [ ] Create `https://huggingface.co/rizonetech/isitlegit-loupe`, publish the initial verified Loupe 1.1 Checkpoint #1 adapter weights and model card after the `08:00 SAST` Wed 4 Nov promotion, and perform the fast 5-minute final update of the LoRA adapter weights and `README.md` model card immediately after the `14:00 SAST` Wed 4 Nov (T-4h) final Checkpoint #2 promotion and evaluation (`D03 T04 §47` / `§50`) with final held-out recall, false-alarm rate, latency, and dataset provenance, then record `Hugging Face: https://huggingface.co/rizonetech/isitlegit-loupe` here. Done when: a logged-out `curl -s -o /dev/null -w '%{http_code}' https://huggingface.co/rizonetech/isitlegit-loupe` prints `200` and the line is written here.
 - [ ] Commit: `todo: record Hugging Face model release`
 
 **Test checkpoint:** `grep -cE '^Hugging Face: https://huggingface\.co/' todo/99-manual/TODO-02-event-operator.md` prints `1`.
