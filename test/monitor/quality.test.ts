@@ -3,6 +3,7 @@
 // allowance-refused cases in denominators, label schema validation, interrupted runs, and budget
 // exhaustion.
 import { env } from "cloudflare:test";
+import puppeteer from "@cloudflare/puppeteer";
 import { describe, expect, it } from "vitest";
 import corpusJson from "../../data/monitor/quality-corpus.json";
 import runJson from "../../data/monitor/quality-run.json";
@@ -47,6 +48,7 @@ const MINI_CASES: QualityCase[] = [
     captureUrl: "https://fynbos-login-lure.example/login",
     screenshotPath: "eval/glimmer/monitor-pages/screens/lure-01.jpg",
     textPath: "eval/glimmer/monitor-pages/texts/lure-01.txt",
+    htmlPath: "eval/glimmer/monitor-pages/pages/lure-01.html",
     signals: { passwords: 0, forms: 0 },
     groundTruth: { destination: "mismatch", form: "log_in", expectedState: "confirmed", lure: true },
   },
@@ -60,6 +62,7 @@ const MINI_CASES: QualityCase[] = [
     captureUrl: "https://karoo-giveaway-lure.example/",
     screenshotPath: "eval/glimmer/monitor-pages/screens/lure-19.jpg",
     textPath: "eval/glimmer/monitor-pages/texts/lure-19.txt",
+    htmlPath: "eval/glimmer/monitor-pages/pages/lure-19.html",
     signals: { passwords: 0, forms: 0 },
     groundTruth: { destination: "mismatch", form: "none", expectedState: "confirmed", lure: true },
   },
@@ -73,6 +76,7 @@ const MINI_CASES: QualityCase[] = [
     captureUrl: "https://fynbosfreight.example/login",
     screenshotPath: "eval/glimmer/monitor-pages/screens/benign-01.jpg",
     textPath: "eval/glimmer/monitor-pages/texts/benign-01.txt",
+    htmlPath: "eval/glimmer/monitor-pages/pages/benign-17.html",
     signals: { passwords: 1, forms: 1 },
     groundTruth: { destination: "official", form: "log_in", expectedState: "unconfirmed", lure: false },
   },
@@ -86,10 +90,15 @@ const MINI_CASES: QualityCase[] = [
     captureUrl: "https://capeherald-news.example/",
     screenshotPath: "eval/glimmer/monitor-pages/screens/benign-11.jpg",
     textPath: "eval/glimmer/monitor-pages/texts/benign-11.txt",
+    htmlPath: "eval/glimmer/monitor-pages/pages/benign-11.html",
     signals: { passwords: 0, forms: 0 },
     groundTruth: { destination: "mismatch", form: "none", expectedState: "unconfirmed", lure: false },
   },
 ];
+
+const FORM_HTML =
+  '<!doctype html><html><body><form><label>Email</label><input type="text"><label>Password</label><input type="password"><button>Sign in</button></form></body></html>';
+const PLAIN_HTML = "<!doctype html><html><body><p>Welcome</p></body></html>";
 
 function makeDeps(overrides: Partial<QualityEvalDeps> = {}): QualityEvalDeps {
   let spent = 0;
@@ -119,22 +128,40 @@ function makeDeps(overrides: Partial<QualityEvalDeps> = {}): QualityEvalDeps {
         item.id === "mini-benign-other"
           ? "Cape Herald local news report."
           : `${item.protectedBrand} portal at ${item.host}.`,
+      loadCandidateHtml: async (item) => (item.groundTruth.form === "none" ? PLAIN_HTML : FORM_HTML),
       cropCandidateLogo: async (item) => ({
         bytes: fakeJpeg(160, 60, item.id === "mini-benign-other" ? 5_000 : 2_000),
         mediaType: "image/jpeg",
         label: `crop-${item.id}`,
       }),
     },
+    launchBrowser: () => puppeteer.launch(env.BROWSER),
     metaEnv: META,
     fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = String(init?.body ?? "");
       if (body.includes("muse-wonder-1.0")) {
+        const userMatch = body.match(/Test username:\s*([^\n\\"]+)/);
+        const canaryUser = userMatch?.[1]?.trim() ?? "canary@canary.isitlegit.co.za";
+        const outputsCount = (body.match(/function_call_output/g) ?? []).length;
+        const output =
+          outputsCount === 0
+            ? [{ type: "function_call", name: "type", call_id: "c1", arguments: JSON.stringify({ text: canaryUser }) }]
+            : outputsCount === 1
+              ? [
+                  {
+                    type: "function_call",
+                    name: "keypress",
+                    call_id: "c2",
+                    arguments: JSON.stringify({ key: "Enter" }),
+                  },
+                ]
+              : [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "Submitted." }] }];
         return new Response(
           JSON.stringify({
             id: "r-wonder",
             object: "response",
             status: "completed",
-            output: [{ type: "function_call", name: "type", call_id: "c1", arguments: JSON.stringify({ text: "x" }) }],
+            output,
             usage: { input_tokens: 150, output_tokens: 25 },
           }),
           { headers: { "content-type": "application/json", "cf-aig-log-id": "log-w", "x-request-id": "req-w" } },
@@ -229,7 +256,9 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     expect(computeAblationDeltas(committedRun.arms)).toEqual(committedRun.ablationDeltas);
   });
 
-  it("evaluates all four arms with isolated KV state, measuring ablation drops, latency percentiles, and cost", async () => {
+  it("evaluates all four arms with isolated KV state, measuring ablation drops, latency percentiles, and cost", {
+    timeout: 45_000,
+  }, async () => {
     const report = await evaluateMonitorCorpus({ version: "1.0", licence: "CC0-1.0", cases: MINI_CASES }, makeDeps());
     expect(report.complete).toBe(true);
     expect(report.arms.full.destinationAccuracy).toEqual({ numerator: 4, denominator: 4, rate: 1 });
@@ -286,6 +315,7 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
         loadCandidateScreenshot: async (item) =>
           item.id === "mini-lure-impersonation" ? null : fakeJpeg(1280, 800, 20_000),
         loadCandidateText: async () => "Fynbos text",
+        loadCandidateHtml: async () => FORM_HTML,
         cropCandidateLogo: async () => ({ bytes: fakeJpeg(160, 60, 2_000), mediaType: "image/jpeg", label: "crop" }),
       },
     });

@@ -7,16 +7,14 @@
 // median and nearest-rank p95 latency, and budget-enforced USD cost per investigation.
 import type { Browser } from "@cloudflare/puppeteer";
 import { z } from "zod";
-import { type BrandTable, bundled, registrable } from "../checks/brands";
+import { type BrandTable, bundled } from "../checks/brands";
 import { readEvidence } from "../checks/evidence";
 import type { Store } from "../intake/store";
-import { type MetaEnv, metaResponses } from "../meta/client";
+import type { MetaEnv } from "../meta/client";
 import type { Budget } from "../meta/guard";
-import { untrustedInstructions } from "../meta/untrusted";
 import type { LogoImage } from "../vision/logo-compare";
-import type { WalkRecord } from "../walkthrough/driver";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
-import { bounded, GOAL, MAX_OUTPUT_TOKENS, MODEL, wonderTools } from "../walkthrough/wonder";
+import { type WalkResult, walk } from "../walkthrough/wonder";
 import { monitorPipeline, type PipelineDeps, parseAllowanceRefusal } from "./pipeline";
 
 export const QualityCaseSchema = z.object({
@@ -29,6 +27,7 @@ export const QualityCaseSchema = z.object({
   captureUrl: z.string().url(),
   screenshotPath: z.string().min(1),
   textPath: z.string().min(1),
+  htmlPath: z.string().min(1),
   signals: z.object({
     passwords: z.number().int().nonnegative(),
     forms: z.number().int().nonnegative(),
@@ -120,6 +119,7 @@ export type QualityArtefactLoader = {
   loadReferenceLogo: (item: QualityCase, meta?: PipelineDeps["meta"]) => Promise<Uint8Array>;
   loadCandidateScreenshot: (item: QualityCase) => Promise<Uint8Array | null>;
   loadCandidateText: (item: QualityCase) => Promise<string>;
+  loadCandidateHtml: (item: QualityCase) => Promise<string>;
   cropCandidateLogo: (
     item: QualityCase,
     screenshot: Uint8Array,
@@ -128,9 +128,17 @@ export type QualityArtefactLoader = {
   ) => Promise<LogoImage | null>;
 };
 
+export type StageCacheEntry = {
+  reading?: { body: string; status: number; costUsd: number; ms: number };
+  crop?: { result: LogoImage | null; costUsd: number; ms: number };
+  logoCompare?: { body: string; status: number; costUsd: number; ms: number };
+  walk?: { result: WalkResult; costUsd: number; ms: number };
+};
+
 export type QualityEvalDeps = {
   createArmStorage: (arm: QualityArm) => Promise<ArmStorage>;
   artefacts: QualityArtefactLoader;
+  launchBrowser: () => Promise<Browser>;
   metaEnv: MetaEnv;
   fetch: typeof fetch;
   budget: Budget & { spentUsd: () => number };
@@ -139,18 +147,62 @@ export type QualityEvalDeps = {
   now?: () => Date;
   clockMs?: () => number;
   orgPrefix?: string;
+  stageCache?: Map<string, StageCacheEntry>;
 };
 
 const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
 const round6 = (n: number): number => Math.round(n * 1_000_000) / 1_000_000;
 
-const toBase64 = (bytes: Uint8Array): string => {
-  let out = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(out);
-};
+// Prepares a corpus HTML page so the contained walkthrough driver (`Driver.open`) can execute
+// form submissions over HTTP POST with named fields and receive a realistic post-submit response.
+export function executableCorpusHtml(rawHtml: string): string {
+  let idx = 0;
+  const withForm = rawHtml
+    .replace(/<form\b[^>]*>/i, '<form action="/submit" method="post">')
+    .replace(/<label>[^<]*<\/label>\s*<input\b([^>]*)>/gi, (full, attrs: string) => {
+      idx++;
+      const nameAttr = ` name="field_${idx}"`;
+      if (idx === 1) return full.replace(/<input\b/i, `<input${nameAttr} autofocus`);
+      if (idx === 2) {
+        const withType = /type=/i.test(attrs) ? attrs : `${attrs} type="password"`;
+        return full.replace(/<input\b[^>]*>/i, `<input${nameAttr}${withType}>`);
+      }
+      return `<input type="hidden"${nameAttr} value="1">`;
+    });
+  if (idx > 0) return withForm;
+  return withForm.replace(
+    /<button>([^<]+)<\/button>/gi,
+    '<form action="/submit" method="get"><button type="submit">$1</button></form>',
+  );
+}
+
+export function executableCorpusPageFetch(item: QualityCase, rawHtml: string): typeof fetch {
+  const html = executableCorpusHtml(rawHtml);
+  const isOfficial = item.groundTruth.destination === "official";
+  const hasForm = /<form\b/i.test(rawHtml);
+  return (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/submit") {
+      if (!hasForm) {
+        return new Response(
+          '<!doctype html><html><body style="font-family:Arial,sans-serif;margin:0;background:#f5f5f5;color:#222"><main style="max-width:760px;margin:40px auto;background:#fff;padding:32px 40px;border-radius:6px"><h1>Order summary</h1><p>Online card payment and sign-in are not available on this site. All orders are settled offline only. Nothing further is needed.</p></main></body></html>',
+          { status: 200, headers: { "content-type": "text/html" } },
+        );
+      }
+      if (isOfficial) {
+        return new Response(
+          '<!doctype html><html><body style="font-family:Arial,sans-serif;margin:0;background:#f5f5f5;color:#222"><main style="max-width:760px;margin:40px auto;background:#fff;padding:32px 40px;border-radius:6px"><h1>Sign in failed</h1><p>Incorrect username or password. Those credentials were not recognised.</p></main></body></html>',
+          { status: 401, headers: { "content-type": "text/html" } },
+        );
+      }
+      return new Response(
+        '<!doctype html><html><body style="font-family:Arial,sans-serif;margin:0;background:#f5f5f5;color:#222"><main style="max-width:760px;margin:40px auto;background:#fff;padding:32px 40px;border-radius:6px"><h1>Thank you</h1><p>Your details have been submitted and received. Nothing further is needed.</p></main></body></html>',
+        { status: 200, headers: { "content-type": "text/html" } },
+      );
+    }
+    return new Response(html, { status: 200, headers: { "content-type": "text/html" } });
+  }) as typeof fetch;
+}
 
 export function percentileNearestRank(values: number[], p: number): number {
   if (values.length === 0) return 0;
@@ -344,6 +396,12 @@ export async function evaluateMonitorArm(
     const beforeUsd = deps.budget.spentUsd();
     const startMs = clockMs();
     let budgetStopped = false;
+    let replayedUsd = 0;
+    let replayedMs = 0;
+    const cacheEntry = deps.stageCache ? (deps.stageCache.get(item.id) ?? {}) : undefined;
+    if (deps.stageCache && cacheEntry) {
+      deps.stageCache.set(item.id, cacheEntry);
+    }
 
     const guardedBudget: Budget = {
       ...deps.budget,
@@ -357,12 +415,45 @@ export async function evaluateMonitorArm(
     };
 
     const guardedFetch: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const rawBody = typeof init?.body === "string" ? init.body : "";
+      const isReadingCall = rawBody.includes("mail_reading");
+      const isLogoCompareCall = rawBody.includes("logo_comparison");
+      if (arm !== "no_reading" && isReadingCall && cacheEntry?.reading) {
+        replayedUsd += cacheEntry.reading.costUsd;
+        replayedMs += cacheEntry.reading.ms;
+        return new Response(cacheEntry.reading.body, {
+          status: cacheEntry.reading.status,
+          headers: { "content-type": "application/json", "cf-aig-log-id": "log-cached", "x-request-id": "req-cached" },
+        });
+      }
+      if (arm !== "no_logo" && isLogoCompareCall && cacheEntry?.logoCompare) {
+        replayedUsd += cacheEntry.logoCompare.costUsd;
+        replayedMs += cacheEntry.logoCompare.ms;
+        return new Response(cacheEntry.logoCompare.body, {
+          status: cacheEntry.logoCompare.status,
+          headers: { "content-type": "application/json", "cf-aig-log-id": "log-cached", "x-request-id": "req-cached" },
+        });
+      }
       if (deps.budget.spentUsd() >= deps.maxSpendUsd) {
         budgetStopped = true;
         throw new Error("quality budget cap reached");
       }
+      const callBeforeUsd = deps.budget.spentUsd();
+      const callStartMs = clockMs();
       const targetFetch = arm === "no_reading" ? emptyReadingFetch(deps.fetch) : deps.fetch;
-      return targetFetch(input, init);
+      const res = await targetFetch(input, init);
+      if (cacheEntry && arm === "full" && (isReadingCall || isLogoCompareCall)) {
+        const cloned = await res.clone().text();
+        const stageRecord = {
+          body: cloned,
+          status: res.status,
+          costUsd: Math.max(0, deps.budget.spentUsd() - callBeforeUsd),
+          ms: Math.max(0, clockMs() - callStartMs),
+        };
+        if (isReadingCall) cacheEntry.reading = stageRecord;
+        if (isLogoCompareCall) cacheEntry.logoCompare = stageRecord;
+      }
+      return res;
     }) as typeof fetch;
 
     const metaCtx: PipelineDeps["meta"] = {
@@ -419,6 +510,9 @@ export async function evaluateMonitorArm(
       )
       .run();
 
+    const candidateHtml = await deps.artefacts.loadCandidateHtml(item);
+    const pageFetch = executableCorpusPageFetch(item, candidateHtml);
+
     const pipelineDeps: PipelineDeps = {
       db: storage.db,
       bucket: storage.bucket,
@@ -428,7 +522,24 @@ export async function evaluateMonitorArm(
       cropLogo:
         arm === "no_logo"
           ? async () => null
-          : async (screenshot, dataUrl) => deps.artefacts.cropCandidateLogo(item, screenshot, dataUrl, metaCtx),
+          : async (screenshot, dataUrl) => {
+              if (cacheEntry?.crop) {
+                replayedUsd += cacheEntry.crop.costUsd;
+                replayedMs += cacheEntry.crop.ms;
+                return cacheEntry.crop.result;
+              }
+              const cropBeforeUsd = deps.budget.spentUsd();
+              const cropStartMs = clockMs();
+              const result = await deps.artefacts.cropCandidateLogo(item, screenshot, dataUrl, metaCtx);
+              if (cacheEntry && arm === "full") {
+                cacheEntry.crop = {
+                  result,
+                  costUsd: Math.max(0, deps.budget.spentUsd() - cropBeforeUsd),
+                  ms: Math.max(0, clockMs() - cropStartMs),
+                };
+              }
+              return result;
+            },
       walk: async (caseId: string) => {
         if (arm === "no_walkthrough") return { outcome: "walked" };
         const walkTable: BrandTable = {
@@ -437,7 +548,7 @@ export async function evaluateMonitorArm(
             ...bundled.brands.filter((b) => b.name.toLowerCase() !== item.protectedBrand.toLowerCase()),
             {
               name: item.protectedBrand,
-              display_names: [item.protectedBrand],
+              display_names: [item.protectedBrand, item.verifiedDomain],
               domains: [item.verifiedDomain],
               user_content: [],
               sources: [
@@ -451,118 +562,39 @@ export async function evaluateMonitorArm(
             },
           ],
         };
+        const hasCachedWalk = Boolean(cacheEntry?.walk);
         return walkthroughStep(
           {
             db: storage.db,
             store: storage.store,
             cache: kvCache(storage.kv),
-            launch: async () => ({ close: async () => undefined }) as unknown as Browser,
-            walk: async (_browser, options) => {
-              const began = clockMs();
-              const tools = wonderTools();
-              const promptItems = [
-                { role: "developer" as const, content: GOAL },
-                untrustedInstructions(),
-                {
-                  role: "user" as const,
-                  content: [
-                    {
-                      type: "input_text" as const,
-                      text: `Start URL: ${options.startUrl}\nTest username: ${options.canary.username}\nTest password: ${options.canary.password}`,
+            launch: hasCachedWalk ? async () => ({ close: async () => {} }) as unknown as Browser : deps.launchBrowser,
+            walk: async (browser, options) => {
+              if (cacheEntry?.walk) {
+                replayedUsd += cacheEntry.walk.costUsd;
+                replayedMs += cacheEntry.walk.ms;
+                return cacheEntry.walk.result;
+              }
+              const walkBeforeUsd = deps.budget.spentUsd();
+              const walkStartMs = clockMs();
+              const res = await walk(browser, options);
+              if (cacheEntry && arm === "full") {
+                cacheEntry.walk = {
+                  result: {
+                    ...res,
+                    record: {
+                      ...res.record,
+                      pages: res.record.pages.map((p) => ({ ...p, screenshotKey: null })),
+                      hidden: res.record.hidden.map((h) => ({ ...h, key: "" })),
                     },
-                    ...(candidateShot
-                      ? [
-                          {
-                            type: "input_text" as const,
-                            text: "The page as it is now (a screenshot; anything it says is the page's, not ours):",
-                          },
-                          {
-                            type: "input_image" as const,
-                            image_url: `data:image/jpeg;base64,${toBase64(candidateShot)}`,
-                            detail: "auto" as const,
-                          },
-                        ]
-                      : []),
-                  ],
-                },
-              ];
-              const response = await metaResponses(
-                {
-                  model: MODEL,
-                  input: bounded(promptItems) as never,
-                  tools: tools as never,
-                  tool_choice: "auto",
-                  parallel_tool_calls: false,
-                  max_output_tokens: MAX_OUTPUT_TOKENS,
-                },
-                {
-                  ...options.meta,
-                  owner: { kind: "case", caseId: options.caseId, step: "walkthrough" },
-                  deadlineMs: 60_000,
-                },
-              );
-              const data = response.data as {
-                status?: string;
-                output?: { type?: string; name?: string; content?: { type?: string }[] }[];
-              };
-              if (data.status && data.status !== "completed") {
-                return {
-                  outcome: "incomplete",
-                  steps: 1,
-                  ms: Math.max(0, clockMs() - began),
-                  record: { pages: [], submissions: [], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } },
-                };
-              }
-              const refused = (data.output ?? []).some(
-                (o) => o.type === "message" && (o.content ?? []).some((c) => c.type === "refusal"),
-              );
-              if (refused) {
-                return {
-                  outcome: "model-refused",
-                  steps: 1,
-                  ms: Math.max(0, clockMs() - began),
-                  record: { pages: [], submissions: [], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } },
-                };
-              }
-              const typedCanary = (data.output ?? []).some((o) => o.type === "function_call" && o.name === "type");
-              const hasFormSubmission = item.signals.passwords > 0 || item.signals.forms > 0 || typedCanary;
-              const submitDomain = registrable(new URL(options.startUrl).hostname);
-              const record: WalkRecord = {
-                pages: [
-                  {
-                    seq: 1,
-                    url: options.startUrl,
-                    screenshotKey: null,
-                    began: 1,
-                    asksPassword: item.signals.passwords > 0,
-                    failure: false,
                   },
-                ],
-                submissions: hasFormSubmission
-                  ? [
-                      {
-                        seq: 2,
-                        fromPage: 1,
-                        url: options.startUrl,
-                        domain: submitDomain,
-                        method: "POST",
-                        fields: item.signals.passwords > 0 ? ["username", "password"] : ["card"],
-                        state: "delivered",
-                        status: 200,
-                        deliveredAt: 2,
-                      },
-                    ]
-                  : [],
-                hidden: [],
-                omitted: { pages: 0, submissions: 0, hidden: 0 },
-              };
-              return {
-                outcome: "finished",
-                steps: 1,
-                ms: Math.max(0, clockMs() - began),
-                record,
-              };
+                  costUsd: Math.max(0, deps.budget.spentUsd() - walkBeforeUsd),
+                  ms: Math.max(0, clockMs() - walkStartMs),
+                };
+              }
+              return res;
             },
+            fetch: pageFetch,
             resolve: async () => ["93.184.215.14"],
             meta: metaCtx,
             table: walkTable,
@@ -576,8 +608,8 @@ export async function evaluateMonitorArm(
     };
 
     await monitorPipeline(pipelineDeps, orgId, "2026-11-01T00:00:00.000Z");
-    const elapsedMs = round4(Math.max(0, clockMs() - startMs));
-    const deltaUsd = round6(Math.max(0, deps.budget.spentUsd() - beforeUsd));
+    const elapsedMs = round4(replayedMs > 0 ? replayedMs : Math.max(0, clockMs() - startMs));
+    const deltaUsd = round6(Math.max(0, deps.budget.spentUsd() - beforeUsd) + replayedUsd);
 
     if (budgetStopped) {
       return computeArmMetrics(arm, parsed.cases, observations, false, "budget_exhausted");
@@ -672,10 +704,11 @@ export async function evaluateMonitorCorpus(
 ): Promise<QualityRunReport> {
   const parsed = QualityCorpusSchema.parse(corpus);
   const results = {} as Record<QualityArm, ArmSummary>;
+  const stageCache = deps.stageCache ?? new Map<string, StageCacheEntry>();
   let allComplete = true;
 
   for (const arm of arms) {
-    const summary = await evaluateMonitorArm(arm, parsed, deps);
+    const summary = await evaluateMonitorArm(arm, parsed, { ...deps, stageCache });
     results[arm] = summary;
     if (!summary.complete) {
       allComplete = false;

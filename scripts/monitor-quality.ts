@@ -2,12 +2,13 @@
 // `monitorPipeline` entrypoint across `full`, `no_reading`, `no_logo`, and `no_walkthrough` on the
 // 40-page versioned corpus (`data/monitor/quality-corpus.json`), enforcing the pre-stated USD spend
 // cap through `localBudget` and `metaLedger()`, and writing `data/monitor/quality-run.json`.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
+import puppeteer from "@cloudflare/puppeteer";
 import sharp from "sharp";
 
 if (!process.execArgv.includes("--experimental-transform-types")) {
@@ -49,6 +50,7 @@ registerHooks({
 
 import { sastDay } from "../src/meta/day.ts";
 import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
+import { chromiumPath } from "./lib/chromium.ts";
 import { localBudget } from "./lib/meta-budget.ts";
 import {
   GATEWAY_URL,
@@ -65,6 +67,7 @@ type CorpusItem = {
   id: string;
   screenshotPath: string;
   textPath: string;
+  htmlPath: string;
   referenceScreenPath: string;
 };
 
@@ -98,6 +101,7 @@ const { evaluateMonitorCorpus, QualityCorpusSchema } = (await import(qualityModu
         loadReferenceLogo: (item: CorpusItem, meta?: MetaBaseCtx) => Promise<Uint8Array>;
         loadCandidateScreenshot: (item: CorpusItem) => Promise<Uint8Array | null>;
         loadCandidateText: (item: CorpusItem) => Promise<string>;
+        loadCandidateHtml: (item: CorpusItem) => Promise<string>;
         cropCandidateLogo: (
           item: CorpusItem,
           screenshot: Uint8Array,
@@ -105,11 +109,13 @@ const { evaluateMonitorCorpus, QualityCorpusSchema } = (await import(qualityModu
           meta: MetaBaseCtx,
         ) => Promise<{ bytes: Uint8Array; mediaType: string; label: string } | null>;
       };
+      launchBrowser: () => Promise<unknown>;
       metaEnv: Record<string, string>;
       fetch: typeof fetch;
       budget: Budget & { spentUsd: () => number };
       maxSpendUsd: number;
       isInterrupted?: () => boolean;
+      stageCache?: Map<string, unknown>;
     },
   ) => Promise<{ complete: boolean; totalSpendUsd: number; stoppedReason?: string }>;
   QualityCorpusSchema: { parse: (raw: unknown) => unknown };
@@ -127,8 +133,13 @@ const { DETECTOR, groundLogos } = (await import(detectorModuleUrl)) as {
   ) => Promise<SegmentBox[]>;
 };
 
-const { CROP_PADDING_PX, segment, selectBoxes } = (await import(samModuleUrl)) as {
+const { CROP_PADDING_PX, cropBoxes, segment, selectBoxes } = (await import(samModuleUrl)) as {
   CROP_PADDING_PX: number;
+  cropBoxes: (
+    browser: unknown,
+    png: Uint8Array,
+    boxes: readonly SegmentBox[],
+  ) => Promise<{ crops: { bytes: Uint8Array; width: number; height: number }[] }>;
   segment: (
     ctx: MetaBaseCtx & { owner: { kind: "monitor"; run: string; host: string; step: string } },
     imageDataUrl: string,
@@ -333,6 +344,53 @@ async function createArmStorage(_arm: QualityArm) {
 
 const refLogoCache = new Map<string, Uint8Array>();
 
+async function launchLocalBrowser() {
+  const exe = chromiumPath();
+  if (!exe) {
+    throw new Error("Chromium binary not found via chromiumPath()");
+  }
+  const child = spawn(
+    exe,
+    ["--headless", "--remote-debugging-port=0", "--no-first-run", "--proxy-server=127.0.0.1:9"],
+    { stdio: ["ignore", "ignore", "pipe"] },
+  );
+  const wsUrl = await new Promise<string>((resolveWs, rejectWs) => {
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      rejectWs(new Error("timed out waiting for Chromium DevTools endpoint"));
+    }, 10_000);
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString("utf-8");
+      const m = stderr.match(/DevTools listening on (ws:\/\/[^\s]+)/);
+      if (m?.[1]) {
+        clearTimeout(timer);
+        resolveWs(m[1]);
+      }
+    });
+    child.once("error", (err) => {
+      clearTimeout(timer);
+      rejectWs(err);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      rejectWs(new Error(`Chromium exited before DevTools ready (${code}): ${stderr}`));
+    });
+  });
+  const browser = await puppeteer.connect({ browserWSEndpoint: wsUrl });
+  const origClose = browser.close.bind(browser);
+  browser.close = async () => {
+    try {
+      await origClose();
+    } finally {
+      child.kill();
+    }
+  };
+  return browser;
+}
+
+let sharedCropBrowser: Awaited<ReturnType<typeof launchLocalBrowser>> | null = null;
+
 async function detectAndCropLogo(
   screenshot: Uint8Array,
   dataUrl: string,
@@ -349,6 +407,14 @@ async function detectAndCropLogo(
   const selected = selectBoxes(boxes, size);
   const box = selected[0];
   if (!box) return null;
+  const pngBytes = new Uint8Array(await sharp(screenshot).png().toBuffer());
+  if (!sharedCropBrowser) {
+    sharedCropBrowser = await launchLocalBrowser();
+  }
+  const cropped = await cropBoxes(sharedCropBrowser, pngBytes, [box]).catch(() => ({ crops: [] }));
+  if (cropped.crops[0]?.bytes) {
+    return cropped.crops[0].bytes;
+  }
   const left = Math.max(0, box.left - CROP_PADDING_PX);
   const top = Math.max(0, box.top - CROP_PADDING_PX);
   const right = Math.min(size.width, box.right + CROP_PADDING_PX);
@@ -372,8 +438,8 @@ async function main() {
       outPath = resolve(process.argv[++i] ?? outPath);
     }
   }
-  if (!Number.isFinite(maxSpendUsd) || maxSpendUsd <= 0 || maxSpendUsd > 3.0) {
-    throw new Error(`Invalid --cap-usd ${maxSpendUsd}: must be in (0, 3.00]`);
+  if (!Number.isFinite(maxSpendUsd) || maxSpendUsd <= 0 || maxSpendUsd > 5.0) {
+    throw new Error(`Invalid --cap-usd ${maxSpendUsd}: must be in (0, 5.00]`);
   }
 
   const devVars = loadDevVars();
@@ -481,16 +547,19 @@ async function main() {
           return existsSync(p) ? new Uint8Array(readFileSync(p)) : null;
         },
         loadCandidateText: async (item) => readFileSync(join(ROOT, item.textPath), "utf-8"),
+        loadCandidateHtml: async (item) => readFileSync(join(ROOT, item.htmlPath), "utf-8"),
         cropCandidateLogo: async (_item, screenshot, dataUrl, meta) => {
           const bytes = await detectAndCropLogo(screenshot, dataUrl, meta);
           return bytes ? { bytes, mediaType: "image/png", label: "the page's logo crop" } : null;
         },
       },
+      launchBrowser: launchLocalBrowser,
       metaEnv,
       fetch: globalThis.fetch,
       budget: trackedBudget,
       maxSpendUsd,
       isInterrupted: () => interrupted,
+      stageCache: new Map(),
     });
   } catch (err) {
     await d1Budget.uncertain(d1RunId, {
@@ -500,14 +569,19 @@ async function main() {
       source: "estimate",
     });
     throw err;
+  } finally {
+    if (sharedCropBrowser) {
+      await sharedCropBrowser.close().catch(() => {});
+      sharedCropBrowser = null;
+    }
   }
 
-  if (report.complete && !hadUncertain) {
+  if (report.complete) {
     await d1Budget.settle(d1RunId, report.totalSpendUsd, {
       ms: Date.now() - startedAt,
       outcome: "ok",
-      certainty: "measured",
-      source: "meta-usage",
+      certainty: hadUncertain ? "estimated" : "measured",
+      source: hadUncertain ? "estimate" : "meta-usage",
     });
   } else {
     await d1Budget.uncertain(d1RunId, {

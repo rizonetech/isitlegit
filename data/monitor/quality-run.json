@@ -1,9 +1,9 @@
 {
   "version": "1.0",
   "corpusVersion": "1.0",
-  "ranAt": "2026-11-03T09:21:15.268Z",
+  "ranAt": "2026-11-03T10:40:23.000Z",
   "maxSpendUsd": 2.5,
-  "totalSpendUsd": 2.377859,
+  "totalSpendUsd": 2.293429,
   "complete": true,
   "arms": {
     "full": {
@@ -23,9 +23,9 @@
         "rate": 1
       },
       "formSpecificity": {
-        "numerator": 21,
+        "numerator": 19,
         "denominator": 25,
-        "rate": 0.84
+        "rate": 0.76
       },
       "readingFormRecall": {
         "numerator": 14,
@@ -33,14 +33,14 @@
         "rate": 0.9333
       },
       "readingFormSpecificity": {
-        "numerator": 21,
+        "numerator": 19,
         "denominator": 25,
-        "rate": 0.84
+        "rate": 0.76
       },
       "confirmationRecall": {
-        "numerator": 19,
+        "numerator": 17,
         "denominator": 20,
-        "rate": 0.95
+        "rate": 0.85
       },
       "falsePositiveRate": {
         "numerator": 0,
@@ -48,18 +48,18 @@
         "rate": 0
       },
       "partialRate": {
-        "numerator": 4,
+        "numerator": 6,
         "denominator": 40,
-        "rate": 0.1,
+        "rate": 0.15,
         "refusedCount": 0
       },
       "latencyMs": {
-        "medianMs": 20727.8305,
-        "p95Ms": 31664.7854
+        "medianMs": 25775.1617,
+        "p95Ms": 54618.3169
       },
       "costUsd": {
-        "totalUsd": 0.856355,
-        "meanUsdPerCase": 0.021409
+        "totalUsd": 2.293429,
+        "meanUsdPerCase": 0.057336
       },
       "cases": [
         {
@@ -70,8 +70,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 28055.7072,
-          "costUsd": 0.031844
+          "latencyMs": 42132.1671,
+          "costUsd": 0.142775
         },
         {
           "id": "lure-02",
@@ -81,8 +81,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 28359.6954,
-          "costUsd": 0.03502
+          "latencyMs": 36510.2558,
+          "costUsd": 0.079874
         },
         {
           "id": "lure-03",
@@ -92,8 +92,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 28685.2817,
-          "costUsd": 0.030767
+          "latencyMs": 28387.748,
+          "costUsd": 0.092971
         },
         {
           "id": "lure-04",
@@ -103,8 +103,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 28335.6056,
-          "costUsd": 0.037155
+          "latencyMs": 47879.1591,
+          "costUsd": 0.111896
         },
         {
           "id": "lure-05",
@@ -114,8 +114,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 25682.1283,
-          "costUsd": 0.028895
+          "latencyMs": 34528.6883,
+          "costUsd": 0.096874
         },
         {
           "id": "lure-06",
@@ -125,8 +125,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 31664.7854,
-          "costUsd": 0.034562
+          "latencyMs": 32706.9086,
+          "costUsd": 0.083632
         },
         {
           "id": "lure-07",
@@ -136,8 +136,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 21252.3278,
-          "costUsd": 0.031955
+          "latencyMs": 31234.2873,
+          "costUsd": 0.09912
         },
         {
           "id": "lure-08",
@@ -147,8 +147,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 21331.5097,
-          "costUsd": 0.031254
+          "latencyMs": 35896.6756,
+          "costUsd": 0.088285
         },
         {
           "id": "lure-09",
@@ -158,8 +158,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 18767.5738,
-          "costUsd": 0.033149
+          "latencyMs": 37666.4985,
+          "costUsd": 0.093763
         },
         {
           "id": "lure-10",
@@ -169,8 +169,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 30645.078,
-          "costUsd": 0.040733
+          "latencyMs": 41969.5475,
+          "costUsd": 0.103656
         },
         {
           "id": "lure-11",
@@ -180,8 +180,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 34461.5295,
-          "costUsd": 0.039057
+          "latencyMs": 59347.5353,
+          "costUsd": 0.144874
         },
         {
           "id": "lure-12",
@@ -191,8 +191,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 28224.7274,
-          "costUsd": 0.032644
+          "latencyMs": 32077.5906,
+          "costUsd": 0.084939
         },
         {
           "id": "lure-13",
@@ -202,8 +202,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 26924.3761,
-          "costUsd": 0.037866
+          "latencyMs": 45904.5739,
+          "costUsd": 0.098655
         },
         {
           "id": "lure-14",
@@ -213,8 +213,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 21645.3828,
-          "costUsd": 0.02487
+          "latencyMs": 54618.3169,
+          "costUsd": 0.186571
         },
         {
           "id": "lure-15",
@@ -224,30 +224,30 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 27370.8819,
-          "costUsd": 0.026655
+          "latencyMs": 24284.4936,
+          "costUsd": 0.048339
         },
         {
           "id": "lure-16",
           "arm": "full",
-          "state": "confirmed",
+          "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 30516.1613,
-          "costUsd": 0.02799
+          "latencyMs": 40021.0264,
+          "costUsd": 0.081174
         },
         {
           "id": "lure-17",
           "arm": "full",
-          "state": "confirmed",
+          "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 33194.3276,
-          "costUsd": 0.02583
+          "latencyMs": 55891.6077,
+          "costUsd": 0.140468
         },
         {
           "id": "lure-18",
@@ -257,8 +257,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16647.7084,
-          "costUsd": 0.011266
+          "latencyMs": 16544.1649,
+          "costUsd": 0.01266
         },
         {
           "id": "lure-19",
@@ -268,8 +268,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 20814.3411,
-          "costUsd": 0.013781
+          "latencyMs": 15594.0308,
+          "costUsd": 0.012834
         },
         {
           "id": "lure-20",
@@ -279,8 +279,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 20641.3198,
-          "costUsd": 0.013485
+          "latencyMs": 15961.9221,
+          "costUsd": 0.011851
         },
         {
           "id": "benign-01",
@@ -290,8 +290,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 15950.1317,
-          "costUsd": 0.011815
+          "latencyMs": 17904.1032,
+          "costUsd": 0.012882
         },
         {
           "id": "benign-02",
@@ -301,8 +301,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16663.8388,
-          "costUsd": 0.011812
+          "latencyMs": 17501.1033,
+          "costUsd": 0.013132
         },
         {
           "id": "benign-03",
@@ -312,8 +312,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17291.7691,
-          "costUsd": 0.0118
+          "latencyMs": 12582.3284,
+          "costUsd": 0.011265
         },
         {
           "id": "benign-04",
@@ -323,19 +323,19 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16775.3052,
-          "costUsd": 0.011028
+          "latencyMs": 17320.5327,
+          "costUsd": 0.013177
         },
         {
           "id": "benign-05",
           "arm": "full",
-          "state": "partial",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 18400.4597,
-          "costUsd": 0.013414
+          "latencyMs": 14110.5694,
+          "costUsd": 0.010925
         },
         {
           "id": "benign-06",
@@ -345,8 +345,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 18926.8757,
-          "costUsd": 0.012917
+          "latencyMs": 20110.2742,
+          "costUsd": 0.012772
         },
         {
           "id": "benign-07",
@@ -354,10 +354,10 @@
           "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
-          "formDetected": "none",
-          "readingFormDetected": "none",
-          "latencyMs": 23620.8381,
-          "costUsd": 0.013505
+          "formDetected": "pay",
+          "readingFormDetected": "pay",
+          "latencyMs": 29649.5454,
+          "costUsd": 0.061725
         },
         {
           "id": "benign-08",
@@ -367,8 +367,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17795.9475,
-          "costUsd": 0.011513
+          "latencyMs": 9413.9709,
+          "costUsd": 0.008593
         },
         {
           "id": "benign-09",
@@ -378,8 +378,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17842.7208,
-          "costUsd": 0.011802
+          "latencyMs": 13352.778,
+          "costUsd": 0.010947
         },
         {
           "id": "benign-10",
@@ -389,8 +389,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16583.0383,
-          "costUsd": 0.010573
+          "latencyMs": 16279.8246,
+          "costUsd": 0.011907
         },
         {
           "id": "benign-11",
@@ -400,8 +400,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 18298.8079,
-          "costUsd": 0.011988
+          "latencyMs": 13886.8526,
+          "costUsd": 0.01091
         },
         {
           "id": "benign-12",
@@ -411,8 +411,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16863.0719,
-          "costUsd": 0.011638
+          "latencyMs": 15268.4431,
+          "costUsd": 0.011253
         },
         {
           "id": "benign-13",
@@ -422,19 +422,19 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 25545.761,
-          "costUsd": 0.01097
+          "latencyMs": 13361.8362,
+          "costUsd": 0.011283
         },
         {
           "id": "benign-14",
           "arm": "full",
-          "state": "unconfirmed",
+          "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
-          "formDetected": "none",
-          "readingFormDetected": "none",
-          "latencyMs": 20540.6954,
-          "costUsd": 0.012249
+          "formDetected": "pay",
+          "readingFormDetected": "pay",
+          "latencyMs": 27265.8298,
+          "costUsd": 0.04213
         },
         {
           "id": "benign-15",
@@ -444,8 +444,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13999.3554,
-          "costUsd": 0.010676
+          "latencyMs": 11892.2595,
+          "costUsd": 0.009147
         },
         {
           "id": "benign-16",
@@ -455,8 +455,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 14447.6196,
-          "costUsd": 0.010225
+          "latencyMs": 14157.9551,
+          "costUsd": 0.011256
         },
         {
           "id": "benign-17",
@@ -466,8 +466,8 @@
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 22800.4171,
-          "costUsd": 0.028989
+          "latencyMs": 28564.0616,
+          "costUsd": 0.091719
         },
         {
           "id": "benign-18",
@@ -477,8 +477,8 @@
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 15274.4231,
-          "costUsd": 0.025738
+          "latencyMs": 31181.8908,
+          "costUsd": 0.101794
         },
         {
           "id": "benign-19",
@@ -488,8 +488,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 20215.2159,
-          "costUsd": 0.013812
+          "latencyMs": 14468.6911,
+          "costUsd": 0.011119
         },
         {
           "id": "benign-20",
@@ -499,8 +499,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13557.0909,
-          "costUsd": 0.011113
+          "latencyMs": 14159.6951,
+          "costUsd": 0.010282
         }
       ]
     },
@@ -536,28 +536,28 @@
         "rate": 1
       },
       "confirmationRecall": {
-        "numerator": 18,
+        "numerator": 16,
         "denominator": 20,
-        "rate": 0.9
+        "rate": 0.8
       },
       "falsePositiveRate": {
-        "numerator": 2,
+        "numerator": 0,
         "denominator": 20,
-        "rate": 0.1
+        "rate": 0
       },
       "partialRate": {
-        "numerator": 6,
+        "numerator": 5,
         "denominator": 40,
-        "rate": 0.15,
+        "rate": 0.125,
         "refusedCount": 0
       },
       "latencyMs": {
-        "medianMs": 13274.9588,
-        "p95Ms": 19718.0282
+        "medianMs": 9998.5763,
+        "p95Ms": 37358.7489
       },
       "costUsd": {
-        "totalUsd": 0.532884,
-        "meanUsdPerCase": 0.013322
+        "totalUsd": 1.620704,
+        "meanUsdPerCase": 0.040518
       },
       "cases": [
         {
@@ -568,8 +568,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 12146.1646,
-          "costUsd": 0.020534
+          "latencyMs": 36585.138,
+          "costUsd": 0.137742
         },
         {
           "id": "lure-02",
@@ -579,8 +579,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 11354.2635,
-          "costUsd": 0.020976
+          "latencyMs": 29713.324,
+          "costUsd": 0.074652
         },
         {
           "id": "lure-03",
@@ -590,8 +590,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 9756.7173,
-          "costUsd": 0.020489
+          "latencyMs": 23102.9429,
+          "costUsd": 0.087591
         },
         {
           "id": "lure-04",
@@ -601,8 +601,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 11597.8352,
-          "costUsd": 0.021759
+          "latencyMs": 39700.3439,
+          "costUsd": 0.107138
         },
         {
           "id": "lure-05",
@@ -612,8 +612,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 13512.0245,
-          "costUsd": 0.019602
+          "latencyMs": 28100.6551,
+          "costUsd": 0.092419
         },
         {
           "id": "lure-06",
@@ -623,8 +623,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 14067.1626,
-          "costUsd": 0.021859
+          "latencyMs": 26618.0269,
+          "costUsd": 0.078914
         },
         {
           "id": "lure-07",
@@ -634,8 +634,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 11771.2301,
-          "costUsd": 0.020781
+          "latencyMs": 25733.2727,
+          "costUsd": 0.095139
         },
         {
           "id": "lure-08",
@@ -645,8 +645,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 12680.172,
-          "costUsd": 0.016474
+          "latencyMs": 29213.971,
+          "costUsd": 0.084157
         },
         {
           "id": "lure-09",
@@ -656,8 +656,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 12733.1746,
-          "costUsd": 0.023883
+          "latencyMs": 30654.3148,
+          "costUsd": 0.087909
         },
         {
           "id": "lure-10",
@@ -667,8 +667,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 19718.0282,
-          "costUsd": 0.026813
+          "latencyMs": 34156.2867,
+          "costUsd": 0.098384
         },
         {
           "id": "lure-11",
@@ -678,8 +678,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 22977.2605,
-          "costUsd": 0.036107
+          "latencyMs": 53502.0129,
+          "costUsd": 0.140389
         },
         {
           "id": "lure-12",
@@ -689,8 +689,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 13356.481,
-          "costUsd": 0.018445
+          "latencyMs": 26105.8659,
+          "costUsd": 0.080227
         },
         {
           "id": "lure-13",
@@ -700,41 +700,41 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 16706.7116,
-          "costUsd": 0.02835
+          "latencyMs": 37358.7489,
+          "costUsd": 0.088496
         },
         {
           "id": "lure-14",
           "arm": "no_reading",
-          "state": "confirmed",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 22461.0668,
-          "costUsd": 0.007949
+          "latencyMs": 7097.7352,
+          "costUsd": 0.008098
         },
         {
           "id": "lure-15",
-          "arm": "no_reading",
-          "state": "confirmed",
-          "refusedByAllowance": false,
-          "destinationAssessed": "mismatch",
-          "formDetected": "none",
-          "readingFormDetected": "none",
-          "latencyMs": 18658.8159,
-          "costUsd": 0.008903
-        },
-        {
-          "id": "lure-16",
           "arm": "no_reading",
           "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 18026.3082,
-          "costUsd": 0.009869
+          "latencyMs": 5200.6457,
+          "costUsd": 0.007034
+        },
+        {
+          "id": "lure-16",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "readingFormDetected": "none",
+          "latencyMs": 10558.9475,
+          "costUsd": 0.010064
         },
         {
           "id": "lure-17",
@@ -744,8 +744,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 3733.906,
-          "costUsd": 0.004685
+          "latencyMs": 9842.1243,
+          "costUsd": 0.005936
         },
         {
           "id": "lure-18",
@@ -755,8 +755,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 15638.6155,
-          "costUsd": 0.008746
+          "latencyMs": 9699.8439,
+          "costUsd": 0.007268
         },
         {
           "id": "lure-19",
@@ -766,8 +766,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 19491.9154,
-          "costUsd": 0.007254
+          "latencyMs": 9142.7803,
+          "costUsd": 0.007387
         },
         {
           "id": "lure-20",
@@ -777,8 +777,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 11757.7735,
-          "costUsd": 0.007879
+          "latencyMs": 9358.4749,
+          "costUsd": 0.007341
         },
         {
           "id": "benign-01",
@@ -788,8 +788,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 10376.3534,
-          "costUsd": 0.007076
+          "latencyMs": 10497.1757,
+          "costUsd": 0.00796
         },
         {
           "id": "benign-02",
@@ -799,8 +799,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 15328.5372,
-          "costUsd": 0.008234
+          "latencyMs": 10260.8969,
+          "costUsd": 0.008455
         },
         {
           "id": "benign-03",
@@ -810,8 +810,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 10673.8617,
-          "costUsd": 0.006919
+          "latencyMs": 7377.0191,
+          "costUsd": 0.007065
         },
         {
           "id": "benign-04",
@@ -821,8 +821,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 14843.8191,
-          "costUsd": 0.007795
+          "latencyMs": 10155.0283,
+          "costUsd": 0.00852
         },
         {
           "id": "benign-05",
@@ -832,8 +832,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16340.4383,
-          "costUsd": 0.008678
+          "latencyMs": 8273.0268,
+          "costUsd": 0.007274
         },
         {
           "id": "benign-06",
@@ -843,19 +843,19 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 10908.7124,
-          "costUsd": 0.006942
+          "latencyMs": 11790.6538,
+          "costUsd": 0.008165
         },
         {
           "id": "benign-07",
           "arm": "no_reading",
-          "state": "partial",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5002.9922,
-          "costUsd": 0.015034
+          "latencyMs": 7822.5878,
+          "costUsd": 0.007553
         },
         {
           "id": "benign-08",
@@ -865,8 +865,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 7938.8219,
-          "costUsd": 0.005775
+          "latencyMs": 4480.1088,
+          "costUsd": 0.004462
         },
         {
           "id": "benign-09",
@@ -876,8 +876,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 12061.1169,
-          "costUsd": 0.007128
+          "latencyMs": 7828.7337,
+          "costUsd": 0.007317
         },
         {
           "id": "benign-10",
@@ -887,8 +887,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 11294.5198,
-          "costUsd": 0.007286
+          "latencyMs": 9544.8612,
+          "costUsd": 0.007794
         },
         {
           "id": "benign-11",
@@ -898,8 +898,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 14495.1182,
-          "costUsd": 0.007885
+          "latencyMs": 8141.8617,
+          "costUsd": 0.006925
         },
         {
           "id": "benign-12",
@@ -909,8 +909,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13193.4367,
-          "costUsd": 0.007663
+          "latencyMs": 8951.8882,
+          "costUsd": 0.007218
         },
         {
           "id": "benign-13",
@@ -920,8 +920,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 11068.6913,
-          "costUsd": 0.006975
+          "latencyMs": 7834.0446,
+          "costUsd": 0.007396
         },
         {
           "id": "benign-14",
@@ -931,8 +931,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 8203.2621,
-          "costUsd": 0.005664
+          "latencyMs": 5839.1138,
+          "costUsd": 0.00662
         },
         {
           "id": "benign-15",
@@ -942,8 +942,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5027.1982,
-          "costUsd": 0.004518
+          "latencyMs": 5659.5263,
+          "costUsd": 0.004868
         },
         {
           "id": "benign-16",
@@ -953,30 +953,30 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13419.748,
-          "costUsd": 0.007906
+          "latencyMs": 8300.8091,
+          "costUsd": 0.007418
         },
         {
           "id": "benign-17",
           "arm": "no_reading",
-          "state": "confirmed",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 16106.2879,
-          "costUsd": 0.020443
+          "latencyMs": 23246.4331,
+          "costUsd": 0.087772
         },
         {
           "id": "benign-18",
           "arm": "no_reading",
-          "state": "confirmed",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "none",
-          "latencyMs": 15259.6777,
-          "costUsd": 0.023357
+          "latencyMs": 25376.9141,
+          "costUsd": 0.097717
         },
         {
           "id": "benign-19",
@@ -986,8 +986,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16019.5664,
-          "costUsd": 0.008078
+          "latencyMs": 8482.9936,
+          "costUsd": 0.00749
         },
         {
           "id": "benign-20",
@@ -997,8 +997,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13955.9616,
-          "costUsd": 0.008171
+          "latencyMs": 8301.8292,
+          "costUsd": 0.00643
         }
       ]
     },
@@ -1019,24 +1019,24 @@
         "rate": 1
       },
       "formSpecificity": {
-        "numerator": 20,
+        "numerator": 19,
         "denominator": 25,
-        "rate": 0.8
+        "rate": 0.76
       },
       "readingFormRecall": {
-        "numerator": 15,
+        "numerator": 14,
         "denominator": 15,
-        "rate": 1
+        "rate": 0.9333
       },
       "readingFormSpecificity": {
-        "numerator": 20,
+        "numerator": 19,
         "denominator": 25,
-        "rate": 0.8
+        "rate": 0.76
       },
       "confirmationRecall": {
-        "numerator": 13,
+        "numerator": 14,
         "denominator": 20,
-        "rate": 0.65
+        "rate": 0.7
       },
       "falsePositiveRate": {
         "numerator": 0,
@@ -1044,18 +1044,18 @@
         "rate": 0
       },
       "partialRate": {
-        "numerator": 27,
+        "numerator": 26,
         "denominator": 40,
-        "rate": 0.675,
+        "rate": 0.65,
         "refusedCount": 0
       },
       "latencyMs": {
-        "medianMs": 8633.7205,
-        "p95Ms": 14535.1893
+        "medianMs": 19990.9572,
+        "p95Ms": 46049.4834
       },
       "costUsd": {
-        "totalUsd": 0.496799,
-        "meanUsdPerCase": 0.01242
+        "totalUsd": 1.937343,
+        "meanUsdPerCase": 0.048434
       },
       "cases": [
         {
@@ -1066,8 +1066,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 8373.4687,
-          "costUsd": 0.017176
+          "latencyMs": 34270.8591,
+          "costUsd": 0.12921
         },
         {
           "id": "lure-02",
@@ -1077,8 +1077,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 8649.1201,
-          "costUsd": 0.018521
+          "latencyMs": 26877.5725,
+          "costUsd": 0.066994
         },
         {
           "id": "lure-03",
@@ -1088,8 +1088,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 8115.0269,
-          "costUsd": 0.01794
+          "latencyMs": 20898.0665,
+          "costUsd": 0.080372
         },
         {
           "id": "lure-04",
@@ -1099,8 +1099,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 8304.1454,
-          "costUsd": 0.0192
+          "latencyMs": 36288.056,
+          "costUsd": 0.097891
         },
         {
           "id": "lure-05",
@@ -1110,8 +1110,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 9630.1814,
-          "costUsd": 0.016682
+          "latencyMs": 25418.8118,
+          "costUsd": 0.083452
         },
         {
           "id": "lure-06",
@@ -1121,8 +1121,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 9640.89,
-          "costUsd": 0.018341
+          "latencyMs": 24077.6814,
+          "costUsd": 0.069662
         },
         {
           "id": "lure-07",
@@ -1132,8 +1132,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 10703.7169,
-          "costUsd": 0.015633
+          "latencyMs": 23438.1915,
+          "costUsd": 0.087541
         },
         {
           "id": "lure-08",
@@ -1143,8 +1143,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 8581.1439,
-          "costUsd": 0.016318
+          "latencyMs": 26425.8762,
+          "costUsd": 0.075759
         },
         {
           "id": "lure-09",
@@ -1154,8 +1154,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 14535.1893,
-          "costUsd": 0.028854
+          "latencyMs": 27728.7579,
+          "costUsd": 0.087219
         },
         {
           "id": "lure-10",
@@ -1165,8 +1165,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 13890.649,
-          "costUsd": 0.026544
+          "latencyMs": 30896.5119,
+          "costUsd": 0.089728
         },
         {
           "id": "lure-11",
@@ -1176,8 +1176,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 14378.0491,
-          "costUsd": 0.023125
+          "latencyMs": 51063.1993,
+          "costUsd": 0.129149
         },
         {
           "id": "lure-12",
@@ -1187,8 +1187,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 12003.2157,
-          "costUsd": 0.022271
+          "latencyMs": 23614.3995,
+          "costUsd": 0.07652
         },
         {
           "id": "lure-13",
@@ -1197,20 +1197,20 @@
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
-          "readingFormDetected": "pay",
-          "latencyMs": 21230.4446,
-          "costUsd": 0.03368
+          "readingFormDetected": "none",
+          "latencyMs": 33793.3406,
+          "costUsd": 0.090085
         },
         {
           "id": "lure-14",
           "arm": "no_logo",
-          "state": "partial",
+          "state": "confirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 13578.151,
-          "costUsd": 0.016245
+          "latencyMs": 47520.5817,
+          "costUsd": 0.178473
         },
         {
           "id": "lure-15",
@@ -1220,8 +1220,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 14308.1334,
-          "costUsd": 0.021743
+          "latencyMs": 19083.8479,
+          "costUsd": 0.041305
         },
         {
           "id": "lure-16",
@@ -1231,8 +1231,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 8247.2536,
-          "costUsd": 0.019056
+          "latencyMs": 29462.0789,
+          "costUsd": 0.07111
         },
         {
           "id": "lure-17",
@@ -1242,8 +1242,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 9039.7333,
-          "costUsd": 0.016646
+          "latencyMs": 46049.4834,
+          "costUsd": 0.134532
         },
         {
           "id": "lure-18",
@@ -1253,8 +1253,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 7037.8824,
-          "costUsd": 0.00493
+          "latencyMs": 6844.321,
+          "costUsd": 0.005392
         },
         {
           "id": "lure-19",
@@ -1264,8 +1264,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 10341.3392,
-          "costUsd": 0.00612
+          "latencyMs": 6451.2505,
+          "costUsd": 0.005447
         },
         {
           "id": "lure-20",
@@ -1275,8 +1275,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 7635.4356,
-          "costUsd": 0.003983
+          "latencyMs": 6603.4472,
+          "costUsd": 0.00451
         },
         {
           "id": "benign-01",
@@ -1286,8 +1286,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 6482.6222,
-          "costUsd": 0.003819
+          "latencyMs": 7406.9275,
+          "costUsd": 0.004922
         },
         {
           "id": "benign-02",
@@ -1297,8 +1297,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17966.7734,
-          "costUsd": 0.004587
+          "latencyMs": 7240.2064,
+          "costUsd": 0.004677
         },
         {
           "id": "benign-03",
@@ -1308,8 +1308,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 6558.6903,
-          "costUsd": 0.004339
+          "latencyMs": 5205.3093,
+          "costUsd": 0.0042
         },
         {
           "id": "benign-04",
@@ -1319,8 +1319,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5560.5498,
-          "costUsd": 0.004047
+          "latencyMs": 7165.5044,
+          "costUsd": 0.004657
         },
         {
           "id": "benign-05",
@@ -1330,8 +1330,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5704.3176,
-          "costUsd": 0.003763
+          "latencyMs": 5837.5426,
+          "costUsd": 0.003652
         },
         {
           "id": "benign-06",
@@ -1341,8 +1341,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 8618.3208,
-          "costUsd": 0.004847
+          "latencyMs": 8319.6204,
+          "costUsd": 0.004607
         },
         {
           "id": "benign-07",
@@ -1350,10 +1350,10 @@
           "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
-          "formDetected": "none",
-          "readingFormDetected": "none",
-          "latencyMs": 12539.2769,
-          "costUsd": 0.006879
+          "formDetected": "pay",
+          "readingFormDetected": "pay",
+          "latencyMs": 21826.9576,
+          "costUsd": 0.054172
         },
         {
           "id": "benign-08",
@@ -1363,8 +1363,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 8045.9875,
-          "costUsd": 0.005368
+          "latencyMs": 4933.8621,
+          "costUsd": 0.004131
         },
         {
           "id": "benign-09",
@@ -1374,8 +1374,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 8300.3618,
-          "costUsd": 0.004776
+          "latencyMs": 5524.0443,
+          "costUsd": 0.00363
         },
         {
           "id": "benign-10",
@@ -1385,8 +1385,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 11029.9684,
-          "costUsd": 0.003563
+          "latencyMs": 6734.9634,
+          "costUsd": 0.004113
         },
         {
           "id": "benign-11",
@@ -1396,8 +1396,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13208.355,
-          "costUsd": 0.007126
+          "latencyMs": 5744.9909,
+          "costUsd": 0.003985
         },
         {
           "id": "benign-12",
@@ -1407,8 +1407,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 8356.7028,
-          "costUsd": 0.004438
+          "latencyMs": 6316.5549,
+          "costUsd": 0.004035
         },
         {
           "id": "benign-13",
@@ -1418,8 +1418,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5481.0713,
-          "costUsd": 0.003612
+          "latencyMs": 5527.7916,
+          "costUsd": 0.003887
         },
         {
           "id": "benign-14",
@@ -1429,8 +1429,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 11665.7032,
-          "costUsd": 0.016978
+          "latencyMs": 21426.716,
+          "costUsd": 0.03551
         },
         {
           "id": "benign-15",
@@ -1440,8 +1440,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 12324.1832,
-          "costUsd": 0.005902
+          "latencyMs": 6232.7332,
+          "costUsd": 0.004279
         },
         {
           "id": "benign-16",
@@ -1451,8 +1451,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5544.5106,
-          "costUsd": 0.003879
+          "latencyMs": 5857.146,
+          "costUsd": 0.003838
         },
         {
           "id": "benign-17",
@@ -1462,8 +1462,8 @@
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 8573.1426,
-          "costUsd": 0.018877
+          "latencyMs": 21027.8624,
+          "costUsd": 0.083353
         },
         {
           "id": "benign-18",
@@ -1473,8 +1473,8 @@
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 12372.8119,
-          "costUsd": 0.017785
+          "latencyMs": 22955.0166,
+          "costUsd": 0.093863
         },
         {
           "id": "benign-19",
@@ -1484,8 +1484,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 5356.5058,
-          "costUsd": 0.004326
+          "latencyMs": 5985.6975,
+          "costUsd": 0.003629
         },
         {
           "id": "benign-20",
@@ -1495,8 +1495,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 8263.4741,
-          "costUsd": 0.00488
+          "latencyMs": 5857.8659,
+          "costUsd": 0.003852
         }
       ]
     },
@@ -1517,9 +1517,9 @@
         "rate": 1
       },
       "formSpecificity": {
-        "numerator": 21,
+        "numerator": 19,
         "denominator": 25,
-        "rate": 0.84
+        "rate": 0.76
       },
       "readingFormRecall": {
         "numerator": 14,
@@ -1527,14 +1527,14 @@
         "rate": 0.9333
       },
       "readingFormSpecificity": {
-        "numerator": 21,
+        "numerator": 19,
         "denominator": 25,
-        "rate": 0.84
+        "rate": 0.76
       },
       "confirmationRecall": {
-        "numerator": 17,
+        "numerator": 14,
         "denominator": 20,
-        "rate": 0.85
+        "rate": 0.7
       },
       "falsePositiveRate": {
         "numerator": 0,
@@ -1548,12 +1548,12 @@
         "refusedCount": 0
       },
       "latencyMs": {
-        "medianMs": 17048.2968,
-        "p95Ms": 22563.9542
+        "medianMs": 14451.8035,
+        "p95Ms": 20110.2742
       },
       "costUsd": {
-        "totalUsd": 0.491821,
-        "meanUsdPerCase": 0.012296
+        "totalUsd": 0.546751,
+        "meanUsdPerCase": 0.013669
       },
       "cases": [
         {
@@ -1565,7 +1565,7 @@
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
           "latencyMs": 13408.3371,
-          "costUsd": 0.011843
+          "costUsd": 0.018598
         },
         {
           "id": "lure-02",
@@ -1575,8 +1575,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 17913.5729,
-          "costUsd": 0.014275
+          "latencyMs": 16429.6151,
+          "costUsd": 0.018102
         },
         {
           "id": "lure-03",
@@ -1586,8 +1586,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 16372.1688,
-          "costUsd": 0.012562
+          "latencyMs": 12774.4866,
+          "costUsd": 0.017979
         },
         {
           "id": "lure-04",
@@ -1598,7 +1598,7 @@
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
           "latencyMs": 19769.9183,
-          "costUsd": 0.012845
+          "costUsd": 0.018763
         },
         {
           "id": "lure-05",
@@ -1608,19 +1608,19 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 16498.5943,
-          "costUsd": 0.011839
+          "latencyMs": 15537.9097,
+          "costUsd": 0.017878
         },
         {
           "id": "lure-06",
           "arm": "no_walkthrough",
-          "state": "partial",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 16989.7557,
-          "costUsd": 0.013747
+          "latencyMs": 14718.1089,
+          "costUsd": 0.018688
         },
         {
           "id": "lure-07",
@@ -1631,7 +1631,7 @@
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
           "latencyMs": 13297.1104,
-          "costUsd": 0.010783
+          "costUsd": 0.01556
         },
         {
           "id": "lure-08",
@@ -1641,8 +1641,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 16916.1505,
-          "costUsd": 0.013203
+          "latencyMs": 16153.504,
+          "costUsd": 0.016654
         },
         {
           "id": "lure-09",
@@ -1652,8 +1652,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 22266.6313,
-          "costUsd": 0.012886
+          "latencyMs": 16949.9243,
+          "costUsd": 0.012399
         },
         {
           "id": "lure-10",
@@ -1663,19 +1663,19 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 19312.4567,
-          "costUsd": 0.014515
+          "latencyMs": 18886.2964,
+          "costUsd": 0.0192
         },
         {
           "id": "lure-11",
           "arm": "no_walkthrough",
-          "state": "partial",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
           "latencyMs": 14129.8584,
-          "costUsd": 0.013403
+          "costUsd": 0.02021
         },
         {
           "id": "lure-12",
@@ -1685,8 +1685,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 15040.6055,
-          "costUsd": 0.012242
+          "latencyMs": 14434.9158,
+          "costUsd": 0.013131
         },
         {
           "id": "lure-13",
@@ -1696,52 +1696,52 @@
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "none",
-          "latencyMs": 27782.8591,
-          "costUsd": 0.017877
+          "latencyMs": 20657.0583,
+          "costUsd": 0.018729
         },
         {
           "id": "lure-14",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "readingFormDetected": "pay",
+          "latencyMs": 12105.9785,
+          "costUsd": 0.014008
+        },
+        {
+          "id": "lure-15",
           "arm": "no_walkthrough",
           "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 12105.9785,
-          "costUsd": 0.010453
-        },
-        {
-          "id": "lure-15",
-          "arm": "no_walkthrough",
-          "state": "confirmed",
-          "refusedByAllowance": false,
-          "destinationAssessed": "mismatch",
-          "formDetected": "pay",
-          "readingFormDetected": "pay",
-          "latencyMs": 22563.9542,
-          "costUsd": 0.013494
+          "latencyMs": 10928.0221,
+          "costUsd": 0.012323
         },
         {
           "id": "lure-16",
           "arm": "no_walkthrough",
-          "state": "confirmed",
+          "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
-          "latencyMs": 22216.1466,
-          "costUsd": 0.015732
+          "latencyMs": 18009.4619,
+          "costUsd": 0.014774
         },
         {
           "id": "lure-17",
           "arm": "no_walkthrough",
-          "state": "confirmed",
+          "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
           "formDetected": "pay",
           "readingFormDetected": "pay",
           "latencyMs": 20681.0764,
-          "costUsd": 0.013819
+          "costUsd": 0.010864
         },
         {
           "id": "lure-18",
@@ -1751,8 +1751,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 19634.105,
-          "costUsd": 0.013267
+          "latencyMs": 16544.1649,
+          "costUsd": 0.01266
         },
         {
           "id": "lure-19",
@@ -1762,8 +1762,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 19047.2275,
-          "costUsd": 0.01261
+          "latencyMs": 15594.0308,
+          "costUsd": 0.012834
         },
         {
           "id": "lure-20",
@@ -1773,8 +1773,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 22208.4216,
-          "costUsd": 0.012359
+          "latencyMs": 15961.9221,
+          "costUsd": 0.011851
         },
         {
           "id": "benign-01",
@@ -1784,8 +1784,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 11535.3797,
-          "costUsd": 0.009305
+          "latencyMs": 17904.1032,
+          "costUsd": 0.012882
         },
         {
           "id": "benign-02",
@@ -1795,8 +1795,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 19237.7472,
-          "costUsd": 0.012609
+          "latencyMs": 17501.1033,
+          "costUsd": 0.013132
         },
         {
           "id": "benign-03",
@@ -1806,8 +1806,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17074.6388,
-          "costUsd": 0.011627
+          "latencyMs": 12582.3284,
+          "costUsd": 0.011265
         },
         {
           "id": "benign-04",
@@ -1817,8 +1817,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 18612.5364,
-          "costUsd": 0.011098
+          "latencyMs": 17320.5327,
+          "costUsd": 0.013177
         },
         {
           "id": "benign-05",
@@ -1828,8 +1828,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 15609.2525,
-          "costUsd": 0.011234
+          "latencyMs": 14110.5694,
+          "costUsd": 0.010925
         },
         {
           "id": "benign-06",
@@ -1839,8 +1839,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17440.5894,
-          "costUsd": 0.010652
+          "latencyMs": 20110.2742,
+          "costUsd": 0.012772
         },
         {
           "id": "benign-07",
@@ -1848,10 +1848,10 @@
           "state": "unconfirmed",
           "refusedByAllowance": false,
           "destinationAssessed": "official",
-          "formDetected": "none",
-          "readingFormDetected": "none",
-          "latencyMs": 25167.4957,
-          "costUsd": 0.013663
+          "formDetected": "pay",
+          "readingFormDetected": "pay",
+          "latencyMs": 13342.2954,
+          "costUsd": 0.012169
         },
         {
           "id": "benign-08",
@@ -1861,8 +1861,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 11464.4677,
-          "costUsd": 0.008655
+          "latencyMs": 9413.9709,
+          "costUsd": 0.008593
         },
         {
           "id": "benign-09",
@@ -1872,8 +1872,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16423.3096,
-          "costUsd": 0.011243
+          "latencyMs": 13352.778,
+          "costUsd": 0.010947
         },
         {
           "id": "benign-10",
@@ -1883,8 +1883,8 @@
           "destinationAssessed": "official",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 15141.6679,
-          "costUsd": 0.010567
+          "latencyMs": 16279.8246,
+          "costUsd": 0.011907
         },
         {
           "id": "benign-11",
@@ -1894,8 +1894,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16048.022,
-          "costUsd": 0.012103
+          "latencyMs": 13886.8526,
+          "costUsd": 0.01091
         },
         {
           "id": "benign-12",
@@ -1905,8 +1905,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17525.6604,
-          "costUsd": 0.01128
+          "latencyMs": 15268.4431,
+          "costUsd": 0.011253
         },
         {
           "id": "benign-13",
@@ -1916,19 +1916,19 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 17090.3344,
-          "costUsd": 0.011289
+          "latencyMs": 13361.8362,
+          "costUsd": 0.011283
         },
         {
           "id": "benign-14",
           "arm": "no_walkthrough",
-          "state": "unconfirmed",
+          "state": "partial",
           "refusedByAllowance": false,
           "destinationAssessed": "mismatch",
-          "formDetected": "none",
-          "readingFormDetected": "none",
-          "latencyMs": 17021.9547,
-          "costUsd": 0.01185
+          "formDetected": "pay",
+          "readingFormDetected": "pay",
+          "latencyMs": 12269.6234,
+          "costUsd": 0.014206
         },
         {
           "id": "benign-15",
@@ -1938,8 +1938,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16235.5598,
-          "costUsd": 0.011728
+          "latencyMs": 11892.2595,
+          "costUsd": 0.009147
         },
         {
           "id": "benign-16",
@@ -1949,8 +1949,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 13896.9842,
-          "costUsd": 0.010352
+          "latencyMs": 14157.9551,
+          "costUsd": 0.011256
         },
         {
           "id": "benign-17",
@@ -1960,8 +1960,8 @@
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 15470.7997,
-          "costUsd": 0.011116
+          "latencyMs": 12853.8277,
+          "costUsd": 0.012313
         },
         {
           "id": "benign-18",
@@ -1971,8 +1971,8 @@
           "destinationAssessed": "official",
           "formDetected": "log_in",
           "readingFormDetected": "log_in",
-          "latencyMs": 18781.0986,
-          "costUsd": 0.012853
+          "latencyMs": 14031.8509,
+          "costUsd": 0.012008
         },
         {
           "id": "benign-19",
@@ -1982,8 +1982,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 18369.6741,
-          "costUsd": 0.01288
+          "latencyMs": 14468.6911,
+          "costUsd": 0.011119
         },
         {
           "id": "benign-20",
@@ -1993,8 +1993,8 @@
           "destinationAssessed": "mismatch",
           "formDetected": "none",
           "readingFormDetected": "none",
-          "latencyMs": 16346.1555,
-          "costUsd": 0.011963
+          "latencyMs": 14159.6951,
+          "costUsd": 0.010282
         }
       ]
     }
@@ -2002,30 +2002,30 @@
   "ablationDeltas": {
     "no_reading": {
       "formRecallDelta": 0,
-      "formSpecificityDelta": 0.16,
+      "formSpecificityDelta": 0.24,
       "readingFormRecallDelta": -0.9333,
-      "readingFormSpecificityDelta": 0.16,
+      "readingFormSpecificityDelta": 0.24,
       "confirmationRecallDelta": -0.05,
-      "falsePositiveRateDelta": 0.1,
-      "partialRateDelta": 0.05
+      "falsePositiveRateDelta": 0,
+      "partialRateDelta": -0.025
     },
     "no_logo": {
       "formRecallDelta": 0,
-      "formSpecificityDelta": -0.04,
-      "readingFormRecallDelta": 0.0667,
-      "readingFormSpecificityDelta": -0.04,
-      "confirmationRecallDelta": -0.3,
+      "formSpecificityDelta": 0,
+      "readingFormRecallDelta": 0,
+      "readingFormSpecificityDelta": 0,
+      "confirmationRecallDelta": -0.15,
       "falsePositiveRateDelta": 0,
-      "partialRateDelta": 0.575
+      "partialRateDelta": 0.5
     },
     "no_walkthrough": {
       "formRecallDelta": 0,
       "formSpecificityDelta": 0,
       "readingFormRecallDelta": 0,
       "readingFormSpecificityDelta": 0,
-      "confirmationRecallDelta": -0.1,
+      "confirmationRecallDelta": -0.15,
       "falsePositiveRateDelta": 0,
-      "partialRateDelta": 0.025
+      "partialRateDelta": -0.025
     }
   }
 }
