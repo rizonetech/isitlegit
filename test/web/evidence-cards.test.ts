@@ -1084,6 +1084,251 @@ const FIXTURES: Fixture[] = [
       "No match and no clearance",
     ],
   },
+  // The trust lane's invoice and payment-document comparisons (D07 T03 §15; producers in src/invoice/):
+  // the submitted account masked, the comparison's source and outcome, never the recorded side.
+  {
+    check: "invoice.detected",
+    severity: "info",
+    detail: {
+      supplier_name: "Karoo Parts",
+      supplier_domain: "karoo.example",
+      bank_name: "Protea Bank",
+      account_holder: "Karoo Parts (Pty) Ltd",
+      account_last3: "678",
+      branch_code: "051001",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      reference: "INV-1042",
+      due_date: "2026-11-30",
+      attachment: "case/invoice.pdf",
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: [
+      "An invoice in the message",
+      "Karoo Parts",
+      "karoo.example",
+      "Protea Bank",
+      "***678",
+      "ZAR 12500.00",
+      "INV-1042",
+      "2026-11-30",
+    ],
+  },
+  {
+    check: "invoice.bank_changed",
+    severity: "critical",
+    detail: {
+      attachment: "case/invoice.pdf",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      account_last3: "678",
+      against: "ledger",
+      supplier_id: "sup-internal-1",
+      phone: "011 555 0142",
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: [
+      "Bank details that differ",
+      "***678",
+      "Your supplier ledger",
+      "It differs from the recorded account",
+      "number in your own records",
+    ],
+  },
+  {
+    check: "invoice.bank_changed",
+    severity: "critical",
+    detail: {
+      attachment: "case/invoice.pdf",
+      amount_cents: 90000,
+      currency: "ZAR",
+      account_last3: "321",
+      against: "registry",
+      supplier_id: null,
+      phone: null,
+      protected_org_id: "org-internal-9",
+      registry_match: false,
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: ["Bank details that differ", "***321", "The supplier&#39;s registered account"],
+  },
+  {
+    check: "invoice.supplier_domain_changed",
+    severity: "critical",
+    detail: {
+      attachment: "case/invoice.pdf",
+      supplier_id: "sup-internal-1",
+      domain: "karoo-billing.example",
+      phone: "011 555 0142",
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: ["A domain the supplier has not used", "karoo-billing.example", "has not sent from this domain before"],
+  },
+  {
+    check: "invoice.change_language",
+    severity: "critical",
+    detail: { attachment: "case/invoice.pdf", amount_cents: 420000, currency: "ZAR", account_last3: "678" },
+    artefacts: ["case/invoice.pdf"],
+    shows: ["The message says bank details changed", "***678", "ZAR 4200.00"],
+  },
+  {
+    check: "invoice.comparison_unavailable",
+    severity: "info",
+    detail: { checked: false, reason: "no-baseline", comparison: "ledger", attachment: "case/invoice.pdf" },
+    artefacts: ["case/invoice.pdf"],
+    shows: [
+      "A bank comparison that could not run",
+      "No recorded account was there to compare with",
+      "No match and no mismatch",
+    ],
+  },
+  {
+    check: "invoice.not_checked",
+    severity: "info",
+    detail: { checked: false, reason: "too-large", attachment: "case/big.pdf" },
+    artefacts: ["case/big.pdf"],
+    shows: ["A document that could not be read as an invoice", "The document is too large to read", "were not checked"],
+  },
+  {
+    check: "document.type",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      issuer: "Protea Bank",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      paid_at: "2026-10-30",
+      issued_at: "2026-10-30",
+      reference: "PAY-88",
+      beneficiary_name: "Karoo Parts",
+      account_last3: "678",
+      beneficiary_masked: "***678",
+      branch_code: "051001",
+      layout_checked: true,
+      limit:
+        "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A proof of payment",
+      "Protea Bank",
+      "***678",
+      "Karoo Parts",
+      "Yes, against the bank&#39;s genuine sample",
+      "cannot prove the document was edited",
+    ],
+  },
+  {
+    check: "document.type",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "invoice",
+      issuer: "Protea Bank",
+      layout_checked: false,
+      layout_reason: "no-reference",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: ["An invoice", "No: It could not be completed"],
+  },
+  {
+    check: "document.layout_mismatch",
+    severity: "medium",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      issuer: "Protea Bank",
+      account_last3: "678",
+      beneficiary_masked: "***678",
+      aspects: ["logo"],
+      differences: ["The logo sits where the bank's does not"],
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "How this document&#39;s layout differs",
+      "The logo sits where the bank&#39;s does not",
+      "cannot prove the document was edited",
+    ],
+  },
+  {
+    check: "document.beneficiary_match",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      against: "ledger",
+      supplier_id: "sup-internal-1",
+      account_last3: "678",
+      beneficiary_masked: "***678",
+      match: true,
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A beneficiary that matches the record",
+      "***678",
+      "Your supplier ledger",
+      "It matches the recorded account",
+    ],
+  },
+  {
+    check: "document.beneficiary_mismatch",
+    severity: "critical",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      issuer: "Protea Bank",
+      against: "registry",
+      supplier_id: "sup-internal-1",
+      account_last3: "321",
+      beneficiary_masked: "***321",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A beneficiary that differs from the record",
+      "***321",
+      "The supplier&#39;s registered account",
+      "It differs from the recorded account",
+    ],
+  },
+  {
+    check: "document.comparison_unavailable",
+    severity: "info",
+    detail: { checked: false, reason: "rate-limited", attachment: "case/pop.pdf" },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A beneficiary comparison that could not run",
+      "The comparison service is at its limit for now",
+      "No match and no mismatch",
+    ],
+  },
+  {
+    check: "document.not_checked",
+    severity: "info",
+    detail: { checked: false, reason: "too-many-documents", attachment: "case/pop.pdf" },
+    artefacts: ["case/pop.pdf"],
+    shows: ["A payment document that could not be read", "more documents than can be read", "No match and no mismatch"],
+  },
+  {
+    check: "document.limit",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      limit: "This check can show a document is likely altered. It cannot prove that a payment was made.",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: ["What this check cannot show", "cannot prove that a payment was made"],
+  },
+  {
+    check: "document.proof_of_payment",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      limit: "This check can show a document is likely altered. It cannot prove that a payment was made.",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: ["A document that says payment was made", "Confirm the money has cleared in your own banking app"],
+  },
 ];
 const items = (fixtures: Fixture[]): CardItem[] =>
   fixtures.map((f, i) => ({
@@ -1140,6 +1385,57 @@ describe("the evidence cards", () => {
     expect(html).not.toContain('href="javascript:');
     expect(html).toContain("javascript:alert(1)");
     expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("maps every invoice and payment-document producer's name to its renderer (D07 T03 s15)", () => {
+    for (const name of [
+      "invoice.detected",
+      "invoice.bank_changed",
+      "invoice.supplier_domain_changed",
+      "invoice.change_language",
+      "invoice.comparison_unavailable",
+      "invoice.not_checked",
+    ])
+      expect(familyOf(name), name).toBe("invoice");
+    expect(FAMILIES).toContain("invoice");
+  });
+
+  it("never draws a full account, an internal id, a phone or an unexpected key (D07 T03 s15)", () => {
+    const html = draw(
+      items([
+        {
+          check: "invoice.bank_changed",
+          severity: "critical",
+          detail: {
+            account_last3: "678",
+            account_number: "998877665544",
+            against: "registry",
+            supplier_id: "sup-internal-1",
+            protected_org_id: "org-internal-9",
+            phone: "011 555 0142",
+            unexpected: "should-not-appear",
+          },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "document.beneficiary_mismatch",
+          severity: "critical",
+          detail: {
+            beneficiary_masked: "***321",
+            account_number: "998877665544",
+            supplier_id: "sup-internal-1",
+            phone: "011 555 0142",
+          },
+          artefacts: [],
+          shows: [],
+        },
+      ]),
+    );
+    for (const banned of ["998877665544", "sup-internal-1", "org-internal-9", "011 555 0142", "should-not-appear"])
+      expect(html, banned).not.toContain(banned);
+    expect(html).toContain("***678");
+    expect(html).toContain("***321");
   });
 
   it("maps every vision producer's name to its family (D07 T03 s14)", () => {
@@ -1605,6 +1901,68 @@ describe("the evidence cards through the report route", () => {
     const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
     for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
     expect(html).toContain("ref-logo%3ANimbusMail");
+  });
+
+  it("reads stored invoice and payment-document findings back masked, through the route (D07 T03 s15)", async () => {
+    const orgId = `org-cards-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Cards Co", orgId, new Date().toISOString())
+      .run();
+    const email = `cards-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const stored = FIXTURES.filter(
+      (f) =>
+        f.check.startsWith("invoice.") ||
+        (f.check.startsWith("document.") && !f.check.startsWith("document.forensics")),
+    );
+    expect(stored.length).toBeGreaterThanOrEqual(14);
+    const drafts = stored.map((f) => ({
+      check: f.check,
+      severity: f.severity,
+      summary: `Summary of ${f.check}`,
+      detail: f.detail as EvidenceDraft["detail"],
+      artefacts: f.artefacts ?? [],
+    }));
+    await saveEvidence(
+      db,
+      id,
+      drafts.filter((f) => f.check.startsWith("invoice.")),
+    );
+    // Stored document rows as the pipeline leaves them (its producer name is not a later producer, so
+    // the rows are put beside the validated entry points, as test/web/stored-verdict.ts does for verdicts).
+    const docs = drafts.filter((f) => f.check.startsWith("document."));
+    for (const [i, f] of docs.entries())
+      await db
+        .prepare(
+          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'document')`,
+        )
+        .bind(
+          id,
+          id,
+          `E${100 + i}`,
+          100 + i,
+          f.check,
+          f.severity,
+          f.summary,
+          JSON.stringify(f.detail),
+          JSON.stringify(f.artefacts),
+          new Date().toISOString(),
+        )
+        .run();
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+    for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
+    for (const banned of ["sup-internal-1", "org-internal-9", "011 555 0142"])
+      expect(html, banned).not.toContain(banned);
   });
 });
 

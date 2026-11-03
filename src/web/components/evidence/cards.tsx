@@ -32,6 +32,7 @@ export const FAMILIES = [
   "walkthrough",
   "voice",
   "document",
+  "invoice",
   "vision",
   "reputation",
   "not_checked",
@@ -1623,8 +1624,131 @@ const FORENSICS: Record<string, (d: Record<string, unknown>) => { title: string;
     ],
   }),
 };
+const DOC_TYPE: Record<string, string> = {
+  invoice: "An invoice",
+  pop: "A proof of payment",
+  bank_letter: "A letter from a bank",
+  other: "A payment document",
+};
+// The payment documents (D07 T03 §15; the producers in src/invoice/payment-doc.ts and document-step.ts),
+// drawn beside the forensic family above under the same masking rule: the submitted beneficiary masked,
+// the comparison's source and outcome, never the recorded side.
+const paymentDocument = (item: CardItem, file: FileLink): { title: string; body: unknown } | null => {
+  const d = item.detail;
+  const limit = text(d.limit) ? (
+    <p class="type-small text-muted wrap-anywhere">
+      <span class="weight-text-strong">What this cannot show: </span>
+      {text(d.limit)}
+    </p>
+  ) : null;
+  if (item.check === "document.type")
+    return {
+      title: DOC_TYPE[text(d.type) ?? ""] ?? "A payment document",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Says it is from", text(d.issuer)],
+              ["Amount", money(d.amount_cents, d.currency)],
+              ["Paid at", text(d.paid_at)],
+              ["Issued at", text(d.issued_at)],
+              ["Reference", text(d.reference)],
+              ["Beneficiary", text(d.beneficiary_name)],
+              ["Account", masked(d.account_last3, d.beneficiary_masked)],
+              ["Branch", text(d.branch_code)],
+              [
+                "Layout compared",
+                d.layout_checked === true
+                  ? "Yes, against the bank's genuine sample"
+                  : d.layout_checked === false
+                    ? `No: ${COMPARE_REASON(text(d.layout_reason))}`
+                    : null,
+              ],
+            ]}
+          />
+          {limit}
+        </>
+      ),
+    };
+  if (item.check === "document.layout_mismatch")
+    return {
+      title: "How this document's layout differs",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Says it is from", text(d.issuer)],
+              ["Account", masked(d.account_last3, d.beneficiary_masked)],
+            ]}
+          />
+          <Bullets items={texts(d.differences)} />
+          <p class="text-14 text-muted">A difference cannot prove the document was edited.</p>
+        </>
+      ),
+    };
+  if (item.check === "document.beneficiary_match" || item.check === "document.beneficiary_mismatch") {
+    const match = item.check === "document.beneficiary_match";
+    return {
+      title: match ? "A beneficiary that matches the record" : "A beneficiary that differs from the record",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Account on the document", masked(d.account_last3, d.beneficiary_masked)],
+              ["Compared against", AGAINST[text(d.against) ?? ""] ?? null],
+              ["Result", match ? "It matches the recorded account" : "It differs from the recorded account"],
+            ]}
+          />
+          {!match && (
+            <p class="text-14 text-muted">
+              Confirm by phoning the supplier on the number in your own records, never one from this document.
+            </p>
+          )}
+        </>
+      ),
+    };
+  }
+  if (item.check === "document.comparison_unavailable" || item.check === "document.not_checked")
+    return {
+      title:
+        item.check === "document.not_checked"
+          ? "A payment document that could not be read"
+          : "A beneficiary comparison that could not run",
+      body: (
+        <>
+          <Facts rows={[["Why", COMPARE_REASON(text(d.reason))]]} />
+          <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
+        </>
+      ),
+    };
+  if (item.check === "document.limit" || item.check === "document.proof_of_payment")
+    return {
+      title: item.check === "document.limit" ? "What this check cannot show" : "A document that says payment was made",
+      body: (
+        <>
+          {item.check === "document.proof_of_payment" && (
+            <p class="text-14">Confirm the money has cleared in your own banking app before releasing goods.</p>
+          )}
+          {limit}
+        </>
+      ),
+    };
+  return null;
+};
+
 const documentCard: Renderer = (item, file) => {
   const d = item.detail;
+  const payment = paymentDocument(item, file);
+  if (payment)
+    return {
+      ...payment,
+      body: (
+        <>
+          {payment.body}
+          <Files owner={item.id} keys={item.artefacts} file={file} name={text(d.filename)} />
+        </>
+      ),
+    } as ReturnType<Renderer>;
   const draw = item.check.startsWith("document.forensics.")
     ? FORENSICS[item.check.slice("document.forensics.".length)]
     : undefined;
@@ -1643,6 +1767,139 @@ const documentCard: Renderer = (item, file) => {
           </p>
         )}
         <Files owner={item.id} keys={item.artefacts} file={file} name={filename} />
+      </>
+    ),
+  };
+};
+
+// The invoice and payment-document comparisons (D07 T03 §15; the producers' stored shapes in
+// src/invoice/rules.ts, extract.ts, payment-doc.ts and document-step.ts). Only an allowlist of stored
+// fields is drawn: the submitted account masked (`***` and its last three), the comparison's source and
+// its outcome. The recorded side is never drawn, no differing field is inferred, a stored phone is never
+// drawn (the reader phones the number in their own records), and internal ids never reach the page. A
+// comparison that could not run says so and is neither a match nor a mismatch.
+const money = (cents: unknown, currency: unknown): string | null => {
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return null;
+  const amount = (cents / 100).toFixed(2);
+  return text(currency) ? `${text(currency)} ${amount}` : amount;
+};
+const masked = (last3: unknown, given: unknown): string | null =>
+  text(given) ?? (text(last3) ? `***${text(last3)}` : null);
+const AGAINST: Record<string, string> = {
+  ledger: "Your supplier ledger",
+  registry: "The supplier's registered account",
+};
+const COMPARE_REASON = (reason: string | null): string => {
+  if (!reason) return "It could not be completed";
+  if (reason === "no-baseline" || reason === "no-account") return "No recorded account was there to compare with";
+  if (reason === "supplier-ambiguous") return "More than one supplier record fits, so none was chosen";
+  if (reason === "keys") return "The comparison could not be read";
+  if (reason === "rate-limited") return "The comparison service is at its limit for now";
+  if (reason === "too-large") return "The document is too large to read";
+  if (reason === "too-many-pages") return "The document has too many pages to read";
+  if (reason === "too-many-documents") return "The message held more documents than can be read";
+  return "It could not be completed";
+};
+const invoiceCard: Renderer = (item, file) => {
+  const d = item.detail;
+  if (item.check === "invoice.detected")
+    return {
+      title: "An invoice in the message",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Supplier", text(d.supplier_name)],
+              ["Its domain", text(d.supplier_domain)],
+              ["Bank", text(d.bank_name)],
+              ["Account holder", text(d.account_holder)],
+              ["Account", masked(d.account_last3, null)],
+              ["Branch", text(d.branch_code)],
+              ["Amount", money(d.amount_cents, d.currency)],
+              ["Reference", text(d.reference)],
+              ["Due", text(d.due_date)],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.bank_changed")
+    return {
+      title: "Bank details that differ",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Account on the invoice", masked(d.account_last3, null)],
+              ["Amount", money(d.amount_cents, d.currency)],
+              ["Compared against", AGAINST[text(d.against) ?? ""] ?? null],
+              ["Result", "It differs from the recorded account"],
+            ]}
+          />
+          <p class="text-14 text-muted">
+            Confirm by phoning the supplier on the number in your own records, never one from this message.
+          </p>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.supplier_domain_changed")
+    return {
+      title: "A domain the supplier has not used",
+      body: (
+        <>
+          <Facts rows={[["It came from", text(d.domain)]]} />
+          <p class="text-14 text-muted">
+            The supplier has not sent from this domain before. Confirm by phoning the supplier on the number in your own
+            records, never one from this message.
+          </p>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.change_language")
+    return {
+      title: "The message says bank details changed",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Account it asks for", masked(d.account_last3, null)],
+              ["Amount", money(d.amount_cents, d.currency)],
+            ]}
+          />
+          <p class="text-14 text-muted">
+            Confirm by phoning the supplier on the number in your own records, never one from this message.
+          </p>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.comparison_unavailable")
+    return {
+      title: "A bank comparison that could not run",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Compared against", AGAINST[text(d.comparison) ?? ""] ?? null],
+              ["Why", COMPARE_REASON(text(d.reason))],
+            ]}
+          />
+          <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+        </>
+      ),
+    };
+  // invoice.not_checked
+  return {
+    title: "A document that could not be read as an invoice",
+    body: (
+      <>
+        <Facts rows={[["Why", COMPARE_REASON(text(d.reason))]]} />
+        <p class="text-14 text-muted">Its bank details were not checked.</p>
+        <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
       </>
     ),
   };
@@ -1901,6 +2158,7 @@ const RENDERERS: Record<Family, Renderer> = {
   walkthrough,
   voice,
   document: documentCard,
+  invoice: invoiceCard,
   vision,
   reputation,
   not_checked: notChecked,

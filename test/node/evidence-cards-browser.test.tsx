@@ -632,6 +632,121 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     shotMode = "png";
   });
 
+  it("draws the invoice and payment-document cards at both widths in both themes (D07 T03 s15)", async () => {
+    const cards: ReportEvidence[] = [
+      {
+        id: "E30",
+        check: "invoice.bank_changed",
+        severity: "high",
+        summary: "Invoice bank details differ from the supplier's recorded account.",
+        detail: {
+          attachment: "case/invoice.pdf",
+          amount_cents: 1250000,
+          currency: "ZAR",
+          account_last3: "678",
+          against: "ledger",
+          supplier_id: "sup-internal-1",
+          phone: "011 555 0142",
+        },
+        artefacts: ["case/invoice.pdf"],
+      },
+      {
+        id: "E31",
+        check: "invoice.detected",
+        severity: "info",
+        summary: "Invoice from Karoo Parts: account ***678.",
+        detail: {
+          supplier_name: "Karoo Parts",
+          supplier_domain: "karoo.example",
+          bank_name: "Protea Bank",
+          account_holder: "Karoo Parts (Pty) Ltd",
+          account_last3: "678",
+          branch_code: "051001",
+          amount_cents: 1250000,
+          currency: "ZAR",
+          reference: "INV-1042",
+          due_date: "2026-11-30",
+        },
+        artefacts: ["case/invoice.pdf"],
+      },
+      {
+        id: "E32",
+        check: "document.type",
+        severity: "info",
+        summary: "Payment document: proof of payment from Protea Bank.",
+        detail: {
+          attachment: "case/pop.pdf",
+          type: "pop",
+          issuer: "Protea Bank",
+          amount_cents: 1250000,
+          currency: "ZAR",
+          beneficiary_name: "Karoo Parts",
+          account_last3: "678",
+          beneficiary_masked: "***678",
+          layout_checked: true,
+          limit:
+            "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
+        },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E33",
+        check: "document.beneficiary_mismatch",
+        severity: "high",
+        summary: "The document's beneficiary does not match the recorded account.",
+        detail: {
+          attachment: "case/pop.pdf",
+          type: "pop",
+          against: "registry",
+          account_last3: "321",
+          beneficiary_masked: "***321",
+          supplier_id: "sup-internal-1",
+        },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E34",
+        check: "invoice.comparison_unavailable",
+        severity: "info",
+        summary: "A bank comparison could not run.",
+        detail: { checked: false, reason: "no-baseline", comparison: "ledger" },
+        artefacts: ["case/invoice.pdf"],
+      },
+    ];
+    for (const width of [360, 1280])
+      for (const theme of ["light", "dark"] as const) {
+        const { p, context } = await open(width, theme, "", cards);
+        const text = (await p.locator("main").textContent())?.replace(/\s+/g, " ") ?? "";
+        for (const words of [
+          "Bank details that differ",
+          "***678",
+          "Your supplier ledger",
+          "An invoice in the message",
+          "Karoo Parts",
+          "A proof of payment",
+          "A beneficiary that differs from the record",
+          "***321",
+          "A bank comparison that could not run",
+          "No match and no mismatch",
+        ])
+          expect(text, `${words} ${width} ${theme}`).toContain(words);
+        for (const banned of ["sup-internal-1", "011 555 0142"]) expect(text, banned).not.toContain(banned);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
+        if (width === 360 && theme === "light") {
+          const download = p.locator("#e30").getByRole("link", { name: "Download the document" });
+          let reached = false;
+          for (let i = 0; i < 120 && !reached; i++) {
+            await p.keyboard.press("Tab");
+            reached = await download.evaluate((el) => el === document.activeElement);
+          }
+          expect(reached, "Download the document by keyboard").toBe(true);
+        }
+        await context.close();
+      }
+  });
+
   it("draws the walkthrough refusal and reuse cards at 360 px with no overflow or accessibility violations", async () => {
     const cards: ReportEvidence[] = [
       {
