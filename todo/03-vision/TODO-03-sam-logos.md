@@ -234,6 +234,10 @@ Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there).
 
 ## 6. Ablation flag in segmentation
 
+> **Started:** 2026-11-03T20:52:00Z
+
+> **Corrected 2026-11-03 (plan validation against the tree):** (1) The vision step segments in `runVision` (`src/vision/step.ts`) by calling `imageSize`, `detectBoxes`, `selectBoxes`, `cropBoxes` and `storeCrops` (there is no function named `segmentPages`), and the Workflow calls `visionStep` in `src/pipeline/analysis-workflow.ts`. `VisionDeps` gains an optional `ablateFlag?: () => Promise<AblateFlag | null>`, wired in `src/pipeline/analysis-workflow.ts` as `() => ablateFlagFor(this.env.CACHE, orgId)` for the case's organisation (a rejected reader treated as null so a KV failure segments as today). (2) When `ablateFlag` returns `"no-sam"` (and only `"no-sam"`), the segmentation block in `src/vision/step.ts` is skipped before `imageSize`, `detectBoxes`, `cropBoxes` and `storeCrops` (no SAM `sam-3.1` request, no logo grounding request, no crop PNG or crop manifest written, and on a replay of a previously segmented case an empty crop manifest is not needed because the logo comparison stage is also skipped when `no-sam` is active so stale crops are never compared), while `readMail` still runs with `complete` reflecting only real picture losses (so `no-sam` does not mark the reading partial or prevent reading cache writes, nor does it emit `checked: false` which would cap a safe verdict as partial in `ruleVerdict`). (3) Instead of a `checked: false` loss, the vision step emits a `vision.coverage` info item with `detail: { ablated: "no-sam", complete: true, losses: [] }` (or if the case also had real picture losses, `coverageItem(losses)` carries `ablated: "no-sam"` alongside `checked: false, complete: false, losses`), summary stating that image segmentation was ablated for measurement.
+
 Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-sam` case the vision step skips SAM segmentation entirely (no SAM call, no crops) and its coverage states the ablation, so the arm measures what the reading and the checks find without segmented crops.
 
 **Phase:** 6
@@ -245,7 +249,7 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 1. Read the flag where the vision step decides to segment. Done when: a flagged case makes no SAM call and stores no crop.
 2. State the ablation in the step's coverage. Done when: the case's evidence names it instead of a SAM failure.
 
-- [ ] Honour `no-sam` in the vision step's segmentation (`src/vision/step.ts`) through `ablateFlagFor` (D04 T01 §14): `segmentPages` is never called, the crop manifest work is skipped, and the coverage item states `ablated: "no-sam"`. Done when: `test/vision/step.test.ts` shows a flagged case with no SAM request in its fetch log, no crop artefacts, and the ablated coverage read back; an unflagged case segments as today.
+- [ ] Honour `no-sam` in the vision step's segmentation (`src/vision/step.ts`, wired in `src/pipeline/analysis-workflow.ts`) through `ablateFlagFor` (D04 T01 §14): `detectBoxes` and `storeCrops` are never called, the crop manifest and logo comparison work are skipped, and the `vision.coverage` item states `ablated: "no-sam"` (without `checked: false` when the picture was otherwise whole, so the reading and verdict are not treated as failed coverage). Done when: `test/vision/step.test.ts` shows a flagged case with no SAM request in its fetch log, no crop artefacts, and the ablated coverage read back, while an unflagged, other-flag or failed-reader case segments as today.
 - [ ] Commit: `vision: ablation flag in segmentation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/step.test.ts` passes, and fails if a flagged case sends a SAM request.

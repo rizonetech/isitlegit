@@ -203,6 +203,10 @@ A synthetic corpus of fictional-brand emails whose client-specific markup (Outlo
 
 ## 6. Ablation flag in page screening
 
+> **Started:** 2026-11-03T20:52:00Z
+
+> **Corrected 2026-11-03 (plan validation against the tree):** (1) `openGlimmer` (`src/vision/screen.ts`) takes an optional `ablateFlag?: () => Promise<AblateFlag | null>` on `WakeCtx` (wired in `monitorDeps` in `src/monitor/workflow.ts` through `ablateFlagFor(env.CACHE, orgId)` from `src/pipeline/ablate.ts` over the run's organisation); when it returns `"no-screening"` (a rejected reader treated as null so a KV failure never stops Loupe), `openGlimmer` returns an ablated session (`burst: null`, `state: { down: "ablated" }`, `reservedUntil: 0`, `lastRequestEnd: null`) without calling `wakeGlimmer`, so no Fireworks request or runtime minutes reservation is made. (2) `screenPage` checks whether `session.state` is `{ down: "ablated" }` (or an optional `ablateFlag` reader on `Page` / `GlimmerSession` returns `"no-screening"`): Loupe is never asked, `glimmer_reason` is `"ablated"`, Muse Spark screens the page (keeping its confidence-escalation pass when unsure), and a successful `Screened` result carries `ablated: "no-screening"` (absent/null when unflagged) alongside `glimmer_reason: "ablated"`. (3) In `src/monitor/screen.ts`, `monitor_screens.glimmer_reason` already stores `result.glimmer_reason` (`"ablated"`), so the persisted screening record in D1 states the ablation without a schema migration.
+
 Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-screening` case, Loupe never screens a page and Muse Spark screens every page instead (eval's contract in `eval/ablate.ts`), with the screening findings marked ablated so the arm measures Spark's unaided screening.
 
 **Phase:** 6
@@ -214,7 +218,7 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 1. Read the flag where the screener chooses Loupe or Spark. Done when: a flagged page never reaches the Loupe endpoint.
 2. Mark the findings of the Spark-only path. Done when: the stored screening states the ablation.
 
-- [ ] Honour `no-screening` in `screenPage` (`src/vision/screen.ts`) through `ablateFlagFor` (D04 T01 §14): the Loupe session is never opened for a flagged organisation, Muse Spark screens every page, and the screening record states `ablated: "no-screening"`. Done when: `test/vision/screen.test.ts` shows a flagged page with no Loupe request in its fetch log, a Spark screening stored, and an unflagged page screened as today.
+- [ ] Honour `no-screening` in `openGlimmer` and `screenPage` (`src/vision/screen.ts`, wired in `src/monitor/workflow.ts` and `src/monitor/run.ts`) through `ablateFlagFor` (D04 T01 §14): the Loupe session is never opened for a flagged organisation (no Fireworks wake or runtime ledger reservation), Muse Spark screens every page, the returned `Screened` states `ablated: "no-screening"` and `glimmer_reason: "ablated"`, and the persisted `monitor_screens` row records `glimmer_reason: "ablated"`. Done when: `test/vision/screen.test.ts` shows a flagged organisation/page with no Loupe request in its fetch log and no `glimmer_runtime` row, a Spark screening returned and stored with `ablated: "no-screening"` and `glimmer_reason: "ablated"`, and an unflagged, other-flag or failed-reader organisation screened on Loupe as today.
 - [ ] Commit: `vision: ablation flag in page screening`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes, and fails if a flagged page is sent to Loupe.
