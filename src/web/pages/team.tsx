@@ -386,6 +386,14 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
             results.push({ email, word: "Refused", detail: "That invitation has a role you cannot give." });
             continue;
           }
+          if (held === "not-sent" && heldRow && heldRow.role !== role) {
+            results.push({
+              email,
+              word: "Refused",
+              detail: `That invitation was made with a different role (${heldRow.role}). Send it again from the list below.`,
+            });
+            continue;
+          }
           const startedAt = new Date().toISOString();
           let res: Response | null = null;
           try {
