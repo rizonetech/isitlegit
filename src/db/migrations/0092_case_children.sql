@@ -6,7 +6,7 @@ CREATE TABLE case_children (
   position INTEGER NOT NULL,
   child_case_id TEXT NOT NULL UNIQUE,
   format TEXT NOT NULL CHECK (format IN ('rfc822', 'eml', 'msg')),
-  state TEXT NOT NULL CHECK (state IN ('admitted', 'refused-cap', 'started')),
+  state TEXT NOT NULL CHECK (state IN ('pending', 'admitted', 'refused-cap', 'started')),
   created_at TEXT NOT NULL,
   PRIMARY KEY (parent_case_id, position)
 );

@@ -180,7 +180,9 @@ async function resendOne(
     if (delivered) {
       if (isGroup) {
         await finishCase(env.DB, row.case_id, report);
-        for (const child of await childrenOf(env.DB, row.case_id)) await finishCase(env.DB, child.childCaseId, report);
+        for (const child of await childrenOf(env.DB, row.case_id))
+          if (child.state !== "refused-cap" && child.state !== "pending")
+            await finishCase(env.DB, child.childCaseId, report);
       } else if (state.status === "ready") {
         await finishCase(env.DB, row.case_id, report);
       }

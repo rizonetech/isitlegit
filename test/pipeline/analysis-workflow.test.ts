@@ -2245,4 +2245,128 @@ describe("several originals in one forward (D01 T01 §12)", () => {
       vi.restoreAllMocks();
     }
   });
+
+  it("recovers an interrupted manifest and retries transient child or verdict read failures (round 2 findings 1, 2, 3)", async () => {
+    const part = (n: number) =>
+      `--b\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename="o${n}.eml"\r\n\r\nFrom: a@bank.example\r\nSubject: Original ${n}\r\n\r\nPay ${n}.\r\n`;
+    const three = new TextEncoder().encode(
+      `From: member@demo.isitlegit.co.za\r\nSubject: Fwd: three check\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n${[1, 2, 3].map(part).join("")}--b--\r\n`,
+    );
+    const parentId = await caseWith(three);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    // Simulate a D1 failure on the second child admission in fanOut, after the expected manifest batch and
+    // the first child's admission have already succeeded, then exhaust parse retries on the parent.
+    let admitCount = 0;
+    const flakyAdmitDb = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "prepare"
+          ? (sql: string) => {
+              if (sql.startsWith("INSERT INTO cases (")) {
+                admitCount += 1;
+                if (admitCount === 2) throw new Error("transient D1 failure on third original admission");
+              }
+              return target.prepare(sql);
+            }
+          : Reflect.get(target, name).bind(target),
+    }) as unknown as D1Database;
+    await expect(
+      parse({ db: flakyAdmitDb, bucket: store.bucket }, parentId, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/transient D1 failure on third original admission/);
+    const { childrenOf } = await import("../../src/intake/children");
+    const recorded = await childrenOf(env.DB, parentId);
+    expect(recorded.map((c) => [c.position, c.state])).toEqual([
+      [2, "admitted"],
+      [3, "pending"],
+    ]);
+    // Also simulate a case where position 3's row was missing before parent parse retries exhausted.
+    await env.DB.prepare("DELETE FROM case_children WHERE parent_case_id = ? AND position = 3").bind(parentId).run();
+    await recordFailure(env.DB, parentId, "parse", "Error");
+
+    const firstChildId = recorded[0]?.childCaseId as string;
+    const secondChildId = recorded[1]?.childCaseId as string;
+    // First groupedReply recovers position 3 (admitting it and storing its raw bytes) and starts/settles unstarted children.
+    // Remove raw bytes for the two children after recovery or before so groupedReply settles unstartable children, or parse and finish them:
+    // First call recovers position 3 and writes its raw bytes; remove raw bytes of firstChildId so firstChildId settles partial,
+    // and let secondChildId start or settle partial when its raw bytes are removed on the next pass.
+    await env.ARTEFACTS.delete(rawKey(firstChildId));
+    await reply(env, parentId, { status: "partial", failedStep: "parse", errorClass: "Error" });
+    const afterRecovery = await childrenOf(env.DB, parentId);
+    expect(afterRecovery).toHaveLength(2);
+    expect(afterRecovery.map((c) => c.position)).toEqual([2, 3]);
+    // Finish the recovered third original with a safe verdict.
+    await parse(store, secondChildId, MAIL, { start: async () => {} });
+    await setStatus(env.DB, ORG, secondChildId, "running");
+    await storeVerdict(env.DB, ORG, secondChildId, {
+      verdict: "safe",
+      headline: "h",
+      meaning: "m",
+      confidence: 0.9,
+      reasons: [],
+      actions: [],
+      source: "rules",
+    });
+    await setStatus(env.DB, ORG, secondChildId, "done");
+
+    // Finding 2: a transient D1 failure reading a child case in groupedReply throws instead of returning waiting.
+    let caseReads = 0;
+    const failChildLookupEnv: Env = {
+      ...env,
+      DB: new Proxy(env.DB, {
+        get: (target, name) =>
+          name === "prepare"
+            ? (sql: string) => {
+                if (sql.includes("FROM cases WHERE id = ?")) {
+                  caseReads += 1;
+                  if (caseReads === 3) throw new Error("child lookup D1 down");
+                }
+                return target.prepare(sql);
+              }
+            : Reflect.get(target, name).bind(target),
+      }) as unknown as D1Database,
+    };
+    await expect(reply(failChildLookupEnv, secondChildId, { status: "ready", verdict: "safe" })).rejects.toThrow(
+      /reading a fan-out child for its grouped reply: database/,
+    );
+
+    // Finding 3: a transient D1 failure in getVerdict throws instead of sending a false "no verdict" reply.
+    const failVerdictEnv: Env = {
+      ...env,
+      DB: new Proxy(env.DB, {
+        get: (target, name) =>
+          name === "prepare"
+            ? (sql: string) => {
+                if (sql.includes("FROM case_verdicts WHERE case_id = ?")) throw new Error("verdict table D1 down");
+                return target.prepare(sql);
+              }
+            : Reflect.get(target, name).bind(target),
+      }) as unknown as D1Database,
+    };
+    await expect(reply(failVerdictEnv, secondChildId, { status: "ready", verdict: "safe" })).rejects.toThrow(
+      /verdict table D1 down/,
+    );
+
+    // Once D1 recovers, the grouped reply sends all 3 originals (none silently dropped, verdict preserved).
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-r2" } });
+    });
+    try {
+      const sent = await reply(env, secondChildId, { status: "ready", verdict: "safe" });
+      expect(sent.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("1. A message with no subject");
+      expect(requests[0]?.text_body).toContain("2. A message with no subject");
+      expect(requests[0]?.text_body).toContain("3. Original 3");
+      expect(requests[0]?.text_body).toContain("Looks legitimate");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });

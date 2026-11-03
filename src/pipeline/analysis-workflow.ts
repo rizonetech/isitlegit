@@ -46,7 +46,14 @@ import {
 } from "../db/cases";
 import { ulid } from "../db/ulid";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
-import { childCaseIdFor, childrenOf, markChildStarted, parentOf, recordChild } from "../intake/children";
+import {
+  childCaseIdFor,
+  childrenOf,
+  markChildStarted,
+  parentOf,
+  recordChild,
+  recordExpectedChildren,
+} from "../intake/children";
 import { extractOriginals, MAX_ORIGINALS, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
 import { NO_HEADER, originalHeaderOf } from "../intake/original-header";
@@ -608,9 +615,9 @@ export async function recordFailure(
 export type Fanout = { start: (childCaseId: string) => Promise<void> };
 
 // Admit, record and start one case per further original (D01 T01 §12), resumable: a child's ID is derived
-// from its forward and position, every manifest row is written before any child starts, and a retry re-enters
-// the same rows. Only a cap refusal is recorded; any other admission failure throws so the step retries
-// instead of telling the member a limit was reached when none was.
+// from its forward and position, the full expected manifest is written in one batch before any child is
+// admitted, and a retry re-enters the same rows. Only a cap refusal is recorded; any other admission failure
+// throws so the step retries instead of telling the member a limit was reached when none was.
 async function fanOut(
   store: Store,
   caseId: string,
@@ -618,7 +625,11 @@ async function fanOut(
   fanout: Fanout,
 ): Promise<void> {
   const parent = must(await getCaseForPipeline(store.db, caseId), "reading the forward's case");
-  const recorded = await childrenOf(store.db, caseId);
+  const recorded = await recordExpectedChildren(
+    store.db,
+    caseId,
+    others.map((o) => o.path),
+  );
   const rows: {
     row: Awaited<ReturnType<typeof recordChild>>;
     other: { original: Uint8Array; format: "eml" | "msg"; path: "rfc822" | "eml" | "msg" };
@@ -626,8 +637,8 @@ async function fanOut(
   for (const [index, other] of others.entries()) {
     const position = index + 2;
     let row = recorded.find((r) => r.position === position);
-    if (!row) {
-      const childCaseId = await childCaseIdFor(caseId, position);
+    if (!row || row.state === "pending") {
+      const childCaseId = row?.childCaseId ?? (await childCaseIdFor(caseId, position));
       const admitted = await admitCase(store.db, {
         id: childCaseId,
         orgId: parent.orgId,
@@ -652,7 +663,7 @@ async function fanOut(
     rows.push({ row, other });
   }
   for (const { row, other } of rows) {
-    if (row.state === "refused-cap") continue;
+    if (row.state === "refused-cap" || row.state === "pending") continue;
     await putRaw(store, row.childCaseId, other.original);
     if (row.state !== "started") {
       await fanout.start(row.childCaseId);
@@ -1380,8 +1391,78 @@ async function groupedReply(
   const db = env.DB;
   const store: Store = { bucket: env.ARTEFACTS, db };
   const parent = must(await getCaseForPipeline(db, parentId), "reading the forward for its grouped reply");
-  const children = await childrenOf(db, parentId);
-  const admitted = children.filter((c) => c.state !== "refused-cap");
+  let children = await childrenOf(db, parentId);
+  const parentTerminal = parentId === callerId || parent.status === "done" || parent.status === "partial";
+  const summaryEarly = await withinDeadline(readArtefact(store, parentId, parsedKey(parentId))).catch(() => null);
+  const summaryOtherOriginals =
+    summaryEarly && "body" in summaryEarly
+      ? Number((JSON.parse(new TextDecoder().decode(summaryEarly.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
+      : null;
+  let extracted: Awaited<ReturnType<typeof extractOriginals>> | null = null;
+  const needExtracted =
+    summaryOtherOriginals === null ||
+    (parentTerminal &&
+      (children.length < Math.min(summaryOtherOriginals, MAX_ORIGINALS - 1) ||
+        children.some((c) => c.state === "pending")));
+  if (needExtracted) {
+    const parentRaw = await withinDeadline(readArtefact(store, parentId, rawKey(parentId))).catch(() => null);
+    if (parentRaw && "body" in parentRaw) {
+      extracted = await extractOriginals(parentRaw.body).catch(() => null);
+    }
+  }
+  const otherOriginals = summaryOtherOriginals ?? extracted?.chosen.otherOriginals ?? null;
+  const expected =
+    otherOriginals !== null ? Math.min(otherOriginals, MAX_ORIGINALS - 1) : parentTerminal ? children.length : null;
+  // If the parent terminated before its manifest was complete or before every pending child was admitted,
+  // recover the missing manifest rows and finish their admission here so no original is silently dropped.
+  if (parentTerminal && expected !== null) {
+    if (children.length < expected) {
+      if (extracted) {
+        children = await recordExpectedChildren(
+          db,
+          parentId,
+          extracted.others.map((o) => o.path),
+        );
+      } else {
+        for (let position = 2; position <= expected + 1; position++) {
+          if (!children.some((c) => c.position === position)) {
+            await recordChild(db, {
+              parentCaseId: parentId,
+              position,
+              childCaseId: await childCaseIdFor(parentId, position),
+              format: "eml",
+              state: "pending",
+            });
+          }
+        }
+        children = await childrenOf(db, parentId);
+      }
+    }
+    for (const child of children) {
+      if (child.state !== "pending") continue;
+      const admittedChild = await admitCase(db, {
+        id: child.childCaseId,
+        orgId: parent.orgId,
+        channel: "email",
+        headersAvailable: false,
+        forwardedBy: parent.forwardedBy,
+        messageId: parent.messageId,
+        ...(parent.origin ? { origin: parent.origin } : {}),
+      });
+      if (!admittedChild.ok && admittedChild.error.code !== "capped")
+        throw new Error(`admitting a fan-out child: ${admittedChild.error.message}`);
+      const updated = await recordChild(db, {
+        ...child,
+        state: admittedChild.ok ? "admitted" : "refused-cap",
+      });
+      child.state = updated.state;
+      if (admittedChild.ok && extracted) {
+        const other = extracted.others[child.position - 2];
+        if (other) await putRaw(store, child.childCaseId, other.original);
+      }
+    }
+  }
+  const admitted = children.filter((c) => c.state !== "refused-cap" && c.state !== "pending");
   const cases = new Map<string, Case>();
   cases.set(parentId, parent);
   const removed = new Set<string>();
@@ -1389,6 +1470,7 @@ async function groupedReply(
     const found = await getCaseForPipeline(db, child.childCaseId);
     if (found.ok) cases.set(child.childCaseId, found.value);
     else if (found.error.code === "not_found") removed.add(child.childCaseId);
+    else must(found, "reading a fan-out child for its grouped reply");
   }
   // The caller counts as terminal: its reply step runs after its verdict or failure is decided and before
   // its finish step writes the status, so a case is never terminal in its own read at this moment.
@@ -1397,13 +1479,9 @@ async function groupedReply(
     const row = cases.get(id);
     return !!row && (row.status === "done" || row.status === "partial");
   };
-  // The group is sealed first: every expected manifest row exists (the parent's parse wrote them all
-  // before any child started), the parent itself is finished, and every admitted child is terminal. A
-  // child finishing early therefore waits instead of sending the parent as "no verdict". Once the parent
-  // is terminal its parse step is over, so the rows on record are the whole group whatever the summary
-  // says, and an admitted child that never started is started here when its raw message exists, or ended
-  // partial when it cannot start, rather than waited on forever.
-  const parentTerminal = terminal(parentId);
+  // The group is sealed first: every expected manifest row exists, the parent itself is finished, and every
+  // admitted child is terminal. An admitted child that never started is started here when its raw message
+  // exists, or ended partial when it cannot start, rather than waited on forever.
   if (parentTerminal) {
     let startedNow = false;
     for (const child of admitted) {
@@ -1444,20 +1522,10 @@ async function groupedReply(
     }
     if (startedNow) return { mail: "waiting" as const, caseId: parentId };
   }
-  const summaryEarly = await withinDeadline(readArtefact(store, parentId, parsedKey(parentId))).catch(() => null);
-  const expected = parentTerminal
-    ? children.length
-    : summaryEarly && "body" in summaryEarly
-      ? Math.min(
-          Number(
-            (JSON.parse(new TextDecoder().decode(summaryEarly.body)) as ParsedSummary).forward?.otherOriginals ?? 0,
-          ),
-          MAX_ORIGINALS - 1,
-        )
-      : null;
   if (
     expected === null ||
     children.length < expected ||
+    children.some((c) => c.state === "pending") ||
     !parentTerminal ||
     !admitted.every((c) => terminal(c.childCaseId))
   )
@@ -1466,24 +1534,25 @@ async function groupedReply(
   const block = async (id: string) => {
     const row = cases.get(id);
     const stored = await getVerdict(db, id);
+    if (stored && !stored.ok) throw new Error(`reading a verdict for the grouped reply: ${stored.error.message}`);
     // A block with no verdict carries its own failure's cause: why its case ended, from its events.
     let failed: { step: string; error: string | null } | null = null;
-    if (!stored?.ok) {
+    if (!stored) {
       failed =
         (await db
           .prepare(
             `SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish') AND ${CURRENT_RUN} ORDER BY id LIMIT 1`,
           )
           .bind(id, id)
-          .first<{ step: string; error: string | null }>()
-          .catch(() => null)) ??
+          .first<{ step: string; error: string | null }>()) ??
         (id === callerId && callerState.status === "partial"
           ? { step: callerState.failedStep, error: callerState.errorClass }
           : null);
     }
     return {
       subject: row?.originalSubject ?? null,
-      verdict: stored?.ok ? stored.value.verdict : null,
+      verdict:
+        stored?.value.verdict ?? (id === callerId && callerState.status === "ready" ? callerState.verdict : null),
       failedStep: failed?.step ?? null,
       errorClass: failed?.error ?? null,
       reportUrl: `${origin}${await signReportLink(env.REPORT_LINK_SECRET, id, parent.orgId)}`,
@@ -1491,18 +1560,7 @@ async function groupedReply(
   };
   const blocks = [await block(parentId)];
   for (const child of admitted) blocks.push(await block(child.childCaseId));
-  const summary =
-    summaryEarly ?? (await withinDeadline(readArtefact(store, parentId, parsedKey(parentId))).catch(() => null));
-  let total: number;
-  if (summary && "body" in summary) {
-    total =
-      Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0) + 1;
-  } else {
-    const parentRaw = await withinDeadline(readArtefact(store, parentId, rawKey(parentId))).catch(() => null);
-    const extracted =
-      parentRaw && "body" in parentRaw ? await extractOriginals(parentRaw.body).catch(() => null) : null;
-    total = extracted ? extracted.chosen.otherOriginals + 1 : blocks.length + (children.length - admitted.length);
-  }
+  const total = otherOriginals !== null ? otherOriginals + 1 : blocks.length + (children.length - admitted.length);
   const head = await withinDeadline(
     env.ARTEFACTS.get(rawKey(parentId), { range: { offset: 0, length: HEADER_RANGE } }).then(async (object) =>
       object ? new Uint8Array(await object.arrayBuffer()) : null,

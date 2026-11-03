@@ -25,7 +25,7 @@ export type ChildRow = {
   position: number;
   childCaseId: string;
   format: "rfc822" | "eml" | "msg";
-  state: "admitted" | "refused-cap" | "started";
+  state: "pending" | "admitted" | "refused-cap" | "started";
 };
 
 type Row = {
@@ -44,11 +44,36 @@ const toRow = (row: Row): ChildRow => ({
   state: row.state,
 });
 
-// Record one child of a forward, keeping the row a retry already wrote (its child case ID is the stable one).
+// Persist the full expected manifest in one batch before any child is admitted (D01 T01 §12): an interrupted
+// admission loop leaves every expected position on record as pending so recovery never drops an original.
+export async function recordExpectedChildren(
+  db: D1Database,
+  parentCaseId: string,
+  formats: ChildRow["format"][],
+): Promise<ChildRow[]> {
+  if (!formats.length) return [];
+  const now = new Date().toISOString();
+  const stmts = await Promise.all(
+    formats.map(async (format, index) => {
+      const position = index + 2;
+      const childCaseId = await childCaseIdFor(parentCaseId, position);
+      return db
+        .prepare(
+          "INSERT INTO case_children (parent_case_id, position, child_case_id, format, state, created_at) VALUES (?, ?, ?, ?, 'pending', ?) ON CONFLICT (parent_case_id, position) DO NOTHING",
+        )
+        .bind(parentCaseId, position, childCaseId, format, now);
+    }),
+  );
+  await db.batch(stmts);
+  return childrenOf(db, parentCaseId);
+}
+
+// Record one child of a forward, keeping the row a retry already wrote (its child case ID is the stable one)
+// and advancing a pending row once its admission outcome is decided.
 export async function recordChild(db: D1Database, child: ChildRow): Promise<ChildRow> {
   await db
     .prepare(
-      "INSERT INTO case_children (parent_case_id, position, child_case_id, format, state, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (parent_case_id, position) DO NOTHING",
+      "INSERT INTO case_children (parent_case_id, position, child_case_id, format, state, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (parent_case_id, position) DO UPDATE SET state = CASE WHEN case_children.state = 'pending' THEN excluded.state ELSE case_children.state END",
     )
     .bind(child.parentCaseId, child.position, child.childCaseId, child.format, child.state, new Date().toISOString())
     .run();
