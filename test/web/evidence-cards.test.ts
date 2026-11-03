@@ -56,6 +56,24 @@ const FIXTURES: Fixture[] = [
     shows: ["The voice note was not checked for a request", "The recording holds no speech to read."],
   },
   {
+    check: "voice.transcript",
+    severity: "info",
+    detail: {
+      transcript: "art/01JCASE0000000000000000000/transcript.json",
+      recording: "art/01JCASE0000000000000000000/recording.ogg",
+      filename: "voice-note.ogg",
+      complete: true,
+      gaps: [],
+      speakers: [{ chunk: 0, labels: ["Speaker 1"] }],
+      unlabelled: 0,
+      segments: [
+        { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 4000, text: "Hello, this is accounts." },
+        { chunk: 0, speaker: "Speaker 1", startMs: 4000, endMs: 9000, text: "Please pay the new account today." },
+      ],
+    },
+    shows: ["What was said", "0:00", "0:04", "Hello, this is accounts.", "Please pay the new account today."],
+  },
+  {
     check: "voice.lure",
     severity: "medium",
     detail: { filename: "voicemail.mp3.html", player: true, linked: true },
@@ -1048,6 +1066,117 @@ describe("the evidence cards", () => {
     expect(counter).toContain("a.example");
     expect(counter).toContain("b.example");
     expect(counter).toContain("and 21 more");
+  });
+
+  // D07 T09 §6: the stored transcript, its player, the request marked, and its incomplete states.
+  it("draws a stored transcript with its player, times, speaker labels and the request marked", () => {
+    const transcript = (detail: Record<string, unknown>, withRequest = true) =>
+      draw(
+        items([
+          ...(withRequest
+            ? [
+                {
+                  check: "voice.request",
+                  severity: "high" as const,
+                  detail: { request: "pay", quote: "the new account today" },
+                  shows: [],
+                },
+              ]
+            : []),
+          { check: "voice.transcript", severity: "info" as const, detail, shows: [] },
+        ]),
+      );
+    const base = {
+      transcript: "art/01JCASE0000000000000000000/transcript.json",
+      recording: "art/01JCASE0000000000000000000/recording.ogg",
+      filename: "voice-note.ogg",
+      complete: true,
+      gaps: [],
+      segments: [
+        { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 4000, text: "Hello, this is accounts." },
+        { chunk: 0, speaker: "Speaker 1", startMs: 4000, endMs: 9000, text: "Please pay the new account today." },
+      ],
+    };
+    const html = transcript(base);
+    expect(html).toContain("<audio");
+    expect(html).toContain("recording.ogg");
+    expect(html).toContain("inline=1");
+    expect(html).toContain("<mark>Please pay the new account today.</mark>");
+    expect(html).not.toContain("<mark>Hello");
+    // A quote spanning segments marks both, and a hostile segment is text.
+    const spanning = transcript(
+      {
+        ...base,
+        segments: [
+          { chunk: 0, speaker: null, startMs: 0, endMs: 2000, text: "pay the new" },
+          { chunk: 0, speaker: null, startMs: 2000, endMs: 4000, text: "account today please" },
+        ],
+      },
+      true,
+    );
+    expect(spanning.match(/<mark>/g)).toHaveLength(2);
+    const hostile = transcript({
+      ...base,
+      segments: [{ chunk: 0, speaker: null, startMs: 0, endMs: 1000, text: "<script>alert(1)</script>" }],
+    });
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // The incomplete states, in their own words.
+    expect(transcript({ ...base, complete: false })).toContain("Part of the recording could not be transcribed.");
+    expect(transcript({ ...base, gaps: [{ chunk: 0, startMs: 4000, endMs: 7000 }] })).toContain(
+      "Speech was cut and not transcribed from 0:04 to 0:07.",
+    );
+    expect(transcript({ ...base, trimmed: true, segmentsOmitted: 2 })).toContain("cut short");
+    const speakersOnly = transcript({ ...base, speakersOmitted: 2 });
+    expect(speakersOnly).toContain("Some speaker labels are not shown.");
+    expect(speakersOnly).not.toContain("cut short");
+    expect(
+      transcript({
+        ...base,
+        segments: [
+          { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 1000, text: "One." },
+          { chunk: 1, speaker: "Speaker 1", startMs: 1000, endMs: 2000, text: "Two." },
+        ],
+      }),
+    ).toContain("the same label in another part may be someone else");
+    const damaged = transcript(
+      { transcript: "k", recording: base.recording, filename: "v.ogg", malformed: true },
+      false,
+    );
+    expect(damaged).toContain("The transcript could not be read");
+    expect(damaged).toContain("<audio");
+    expect(transcript({ transcript: "k", recording: null, malformed: true }, false)).toContain(
+      "The transcript could not be read",
+    );
+    expect(transcript({ ...base, segments: [] }, false)).toContain("No words were transcribed");
+    // No request stored: nothing is marked.
+    expect(transcript(base, false)).not.toContain("<mark>");
+    // An unmatched quote marks nothing, and with two recordings the quote marks neither.
+    const unmatched = draw(
+      items([
+        {
+          check: "voice.request",
+          severity: "high" as const,
+          detail: { request: "pay", quote: "words never said" },
+          shows: [],
+        },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+      ]),
+    );
+    expect(unmatched).not.toContain("<mark>");
+    const two = draw(
+      items([
+        {
+          check: "voice.request",
+          severity: "high" as const,
+          detail: { request: "pay", quote: "the new account today" },
+          shows: [],
+        },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+      ]),
+    );
+    expect(two).not.toContain("<mark>");
   });
 
   it("draws an attachment claiming to be a recording, its player and link said plainly (D07 T03 §16)", () => {

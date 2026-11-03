@@ -39,6 +39,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "voice.urgency": "Pressure to act quickly in the voice note",
   "voice.limits": "What the voice note check cannot tell",
   "voice.lure": "What the attachment claims to be",
+  "voice.transcript": "What the recording says, as transcribed",
   "walkthrough.chain": "Where the contained browser went",
   "walkthrough.credential_target": "Where the test credentials would go",
   "walkthrough.canary_accepted": "A page that took the test credentials",

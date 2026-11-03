@@ -130,7 +130,8 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
 }
 
 type Drawn = { title: string; body: unknown; level?: Severity };
-type Renderer = (item: CardItem, file: FileLink) => Drawn;
+// The third argument is the case's verified request quote, for the one renderer that marks it (voice.transcript).
+type Renderer = (item: CardItem, file: FileLink, requestQuote?: string | null) => Drawn;
 
 const PATH_WORDS: Record<string, string> = {
   rfc822: "Forwarded as an attached message",
@@ -1301,8 +1302,93 @@ const URGENCY: Record<string, string> = {
 };
 // The voice family: every quote is the speaker's own words (a verified substring of the transcript), every other field the
 // model's reading of them, so each card says which is which. Nothing here is markup.
-const voice: Renderer = (item) => {
+// A segment's start, as the board's clock words it.
+const at = (ms: unknown) => {
+  const total = Math.max(0, Math.floor((typeof ms === "number" ? ms : 0) / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+// The stored transcript itself (D01 T03 §16, drawn by D07 T09 §6): the recording through the artefact route,
+// each segment at its time with its chunk's speaker label, the request's segments marked. Nothing here counts
+// speakers: a label is scoped to its chunk and may name someone else in another.
+const voice: Renderer = (item, file, requestQuote) => {
   const d = item.detail;
+  if (item.check === "voice.transcript") {
+    const recording = text(d.recording);
+    const player = recording ? (
+      <figure class="flex flex-col gap-8">
+        {/* biome-ignore lint/a11y/useMediaCaption: the transcript below is this recording's text, segment by segment */}
+        <audio controls preload="none" src={inlineUrl(file(recording))} class="w-full">
+          <a href={file(recording)} class={LINK} rel="nofollow">
+            Download the recording
+          </a>
+        </audio>
+      </figure>
+    ) : null;
+    if (d.malformed === true)
+      return {
+        title: "What was said",
+        body: (
+          <>
+            {player}
+            <p class="text-14">The transcript could not be read, so the words of this recording are not shown.</p>
+          </>
+        ),
+      };
+    const segments = records(d.segments);
+    // The request's place: the verified quote matched across the segments, every segment it spans marked.
+    const joined = segments.map((s) => text(s.text) ?? "").join(" ");
+    const atQuote = requestQuote ? joined.indexOf(requestQuote) : -1;
+    let offset = 0;
+    const marked = segments.map((s) => {
+      const own = text(s.text) ?? "";
+      const hit = atQuote >= 0 && offset + own.length > atQuote && offset < atQuote + (requestQuote as string).length;
+      offset += own.length + 1;
+      return hit;
+    });
+    const wordsOmitted =
+      (typeof d.segmentsOmitted === "number" ? d.segmentsOmitted : 0) +
+      (typeof d.gapsOmitted === "number" ? d.gapsOmitted : 0);
+    const gaps = records(d.gaps);
+    const multiChunk = new Set(segments.map((s) => s.chunk)).size > 1;
+    return {
+      title: "What was said",
+      body: (
+        <>
+          {player}
+          {segments.length === 0 ? (
+            <p class="text-14">No words were transcribed from this recording.</p>
+          ) : (
+            <ol class="m-0 flex list-none flex-col gap-12 p-0">
+              {segments.map((s, i) => (
+                <li class="flex gap-12 text-14">
+                  <span class="text-muted">{at(s.startMs)}</span>
+                  <p class="m-0 wrap-anywhere">
+                    {text(s.speaker) && <span class="text-muted">{`${text(s.speaker)}: `}</span>}
+                    {marked[i] ? <mark>{text(s.text) ?? ""}</mark> : (text(s.text) ?? "")}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+          {d.complete === false && <p class="text-14">Part of the recording could not be transcribed.</p>}
+          {gaps.map((g) => (
+            <p class="text-14">{`Speech was cut and not transcribed from ${at(g.startMs)} to ${at(g.endMs)}.`}</p>
+          ))}
+          {multiChunk && (
+            <p class="text-14">
+              Speaker labels belong to each part of the recording: the same label in another part may be someone else.
+            </p>
+          )}
+          {(d.trimmed === true || wordsOmitted > 0) && (
+            <p class="text-14">The stored transcript is cut short here, so later words are not shown.</p>
+          )}
+          {typeof d.speakersOmitted === "number" && d.speakersOmitted > 0 && (
+            <p class="text-14">Some speaker labels are not shown.</p>
+          )}
+        </>
+      ),
+    };
+  }
   // An attachment claiming to be a recording (D07 T03 §16; D01 T03 §5's shape): its file, and what it carries.
   if (item.check === "voice.lure")
     return {
@@ -1576,10 +1662,10 @@ const RENDERERS: Record<Family, Renderer> = {
   not_checked: notChecked,
 };
 
-export function Card(props: { item: CardItem; file: FileLink }) {
+export function Card(props: { item: CardItem; file: FileLink; requestQuote?: string | null }) {
   const { item, file } = props;
   const family = familyOf(item.check);
-  const drawn = family ? RENDERERS[family](item, file) : null;
+  const drawn = family ? RENDERERS[family](item, file, props.requestQuote) : null;
   return (
     <EvidenceCard
       id={item.id}
@@ -1677,6 +1763,10 @@ export function EvidenceCards(props: {
     | null;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
+  // The quote names no recording, so with two recordings on one case it marks neither: a mark on the wrong one is worse than none.
+  const transcripts = props.items.filter((i) => i.check === "voice.transcript").length;
+  const requestQuote =
+    transcripts === 1 ? text(props.items.find((i) => i.check === "voice.request")?.detail.quote ?? null) : null;
   const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
   const all = cited.length === 0;
   return (
@@ -1702,7 +1792,7 @@ export function EvidenceCards(props: {
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>
               {(all ? rest : cited).map((item) => (
-                <Card item={item} file={props.file} />
+                <Card item={item} file={props.file} requestQuote={requestQuote} />
               ))}
             </div>
           )}
@@ -1724,7 +1814,7 @@ export function EvidenceCards(props: {
               </summary>
               <div class={grid}>
                 {rest.map((item) => (
-                  <Card item={item} file={props.file} />
+                  <Card item={item} file={props.file} requestQuote={requestQuote} />
                 ))}
               </div>
             </details>
