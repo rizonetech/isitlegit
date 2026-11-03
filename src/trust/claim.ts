@@ -817,43 +817,55 @@ async function rasteriseSvgInBrowser(
       page.evaluate(
         async (svgB64: string, maxSide: number) => {
           const g = globalThis as unknown as {
-            createImageBitmap: (blob: Blob) => Promise<{ width: number; height: number; close: () => void }>;
             document: {
-              createElement: (tag: string) => {
-                width: number;
-                height: number;
-                getContext: (kind: string) => { drawImage: (img: unknown, ...args: number[]) => void } | null;
-                toBlob: (cb: (blob: Blob | null) => void, type: string) => void;
-              };
+              createElement: (tag: string) => unknown;
             };
           };
-          const raw = Uint8Array.from(atob(svgB64), (c) => c.charCodeAt(0));
-          const blob = new Blob([raw.buffer as ArrayBuffer], { type: "image/svg+xml;charset=utf-8" });
-          const image = await g.createImageBitmap(blob);
-          try {
-            const bound = Math.max(1, Math.floor(maxSide));
-            const srcW = image.width > 0 ? image.width : bound;
-            const srcH = image.height > 0 ? image.height : bound;
-            const scale = Math.min(1, bound / srcW, bound / srcH);
-            const w = Math.max(1, Math.min(bound, Math.round(srcW * scale)));
-            const h = Math.max(1, Math.min(bound, Math.round(srcH * scale)));
-            const canvas = g.document.createElement("canvas");
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) throw new Error("no-2d-context");
-            ctx.drawImage(image, 0, 0, w, h);
-            const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-            if (!pngBlob) throw new Error("no-png-blob");
-            const buf = new Uint8Array(await pngBlob.arrayBuffer());
-            let encoded = "";
-            for (let i = 0; i < buf.length; i += 0x8000) {
-              encoded += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-            }
-            return btoa(encoded);
-          } finally {
-            image.close();
+          const image = g.document.createElement("img") as {
+            src: string;
+            naturalWidth: number;
+            naturalHeight: number;
+            width: number;
+            height: number;
+            onload: (() => void) | null;
+            onerror: ((err: unknown) => void) | null;
+            decode?: () => Promise<void>;
+          };
+          await new Promise<void>((resolve, reject) => {
+            image.onload = () => resolve();
+            image.onerror = () => reject(new Error("svg-image-load-failed"));
+            image.src = `data:image/svg+xml;base64,${svgB64}`;
+          });
+          if (typeof image.decode === "function") {
+            await image.decode().catch(() => undefined);
           }
+          const bound = Math.max(1, Math.floor(maxSide));
+          const rawW = image.naturalWidth || image.width;
+          const rawH = image.naturalHeight || image.height;
+          const srcW = rawW > 0 ? rawW : bound;
+          const srcH = rawH > 0 ? rawH : bound;
+          const scale = Math.min(1, bound / srcW, bound / srcH);
+          const w = Math.max(1, Math.min(bound, Math.round(srcW * scale)));
+          const h = Math.max(1, Math.min(bound, Math.round(srcH * scale)));
+          const canvas = g.document.createElement("canvas") as {
+            width: number;
+            height: number;
+            getContext: (kind: string) => { drawImage: (img: unknown, ...args: number[]) => void } | null;
+            toBlob: (cb: (blob: Blob | null) => void, type: string) => void;
+          };
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) throw new Error("no-2d-context");
+          ctx.drawImage(image, 0, 0, w, h);
+          const pngBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+          if (!pngBlob) throw new Error("no-png-blob");
+          const buf = new Uint8Array(await pngBlob.arrayBuffer());
+          let encoded = "";
+          for (let i = 0; i < buf.length; i += 0x8000) {
+            encoded += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+          }
+          return btoa(encoded);
         },
         toBase64(svgBytes),
         SVG_RASTER_SIDE,
@@ -1072,6 +1084,8 @@ export async function compareClaimLogos(
   }
 
   let browser: Browser | undefined;
+  let launchPromise: Promise<Browser> | undefined;
+  let phaseSettled = false;
   const logoJudgements: LogoJudgementFor[] = [];
   let comparisonsRun = 0;
   const owner = { kind: "case" as const, caseId, step: "trust-claim" };
@@ -1143,9 +1157,22 @@ export async function compareClaimLogos(
             return deps.rasteriseSvg(sanitisedBytes, left);
           }
           if (!browser && deps.launch) {
-            browser = await deps.launch();
+            const launch = deps.launch;
+            if (!launchPromise) {
+              launchPromise = launch().then((b) => {
+                if (phaseSettled || phaseDeadline.expired()) {
+                  void b.close().catch(() => undefined);
+                  throw new Error("browser-launch-after-deadline");
+                }
+                browser = b;
+                return b;
+              });
+            }
+            browser = await launchPromise;
           }
-          if (!browser) throw new Error("no-browser-for-svg-raster");
+          if (!browser || phaseSettled || phaseDeadline.expired()) {
+            throw new Error("no-browser-for-svg-raster");
+          }
           return rasteriseSvgInBrowser(browser, sanitisedBytes, Math.max(1, phaseAt - now()), now);
         });
         if (!rasterRes.ok) {
@@ -1239,6 +1266,7 @@ export async function compareClaimLogos(
       }
     }
   } finally {
+    phaseSettled = true;
     if (browser) {
       const closeLeft = phaseAt - now();
       if (closeLeft > 0) {

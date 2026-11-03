@@ -733,8 +733,9 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
     expect(noRasteriserRes.unavailable).toEqual(["the registered SVG logo could not be rasterised for comparison"]);
     expect(noRasteriserRes.unavailableCodes).toEqual(["registered-logo-svg-unrasterised"]);
 
-    // 5. Default browser SVG rasteriser (`launch`) preserves aspect ratio for landscape (1024x256 -> 512x128) and portrait (256x1024 -> 128x512).
+    // 5. Default browser SVG rasteriser (`launch`) loads via HTMLImageElement (`img.src = data:image/svg+xml;base64,...`, never `createImageBitmap` on SVG) and preserves aspect ratio for landscape (1024x256 -> 512x128) and portrait (256x1024 -> 128x512).
     const observedCanvasSizes: { width: number; height: number }[] = [];
+    const observedImageSources: string[] = [];
     for (const [srcW, srcH] of [
       [1024, 256],
       [256, 1024],
@@ -767,9 +768,32 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
                   const g = globalThis as Record<string, unknown>;
                   const prevCreateImageBitmap = g.createImageBitmap;
                   const prevDocument = g.document;
-                  g.createImageBitmap = async () => ({ width: srcW, height: srcH, close: () => undefined });
+                  g.createImageBitmap = async () => {
+                    throw new Error("createImageBitmap does not support image/svg+xml in Chromium");
+                  };
                   g.document = {
-                    createElement: () => {
+                    createElement: (tag: string) => {
+                      if (tag === "img") {
+                        let currentSrc = "";
+                        const img = {
+                          naturalWidth: srcW,
+                          naturalHeight: srcH,
+                          width: srcW,
+                          height: srcH,
+                          onload: null as (() => void) | null,
+                          onerror: null as ((err: unknown) => void) | null,
+                          decode: async () => undefined,
+                          get src() {
+                            return currentSrc;
+                          },
+                          set src(val: string) {
+                            currentSrc = val;
+                            observedImageSources.push(val);
+                            queueMicrotask(() => img.onload?.());
+                          },
+                        };
+                        return img;
+                      }
                       const canvas = {
                         width: 0,
                         height: 0,
@@ -801,10 +825,48 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
       );
       expect(res.unavailable).toEqual([]);
     }
+    expect(observedImageSources).toHaveLength(2);
+    expect(observedImageSources[0]).toMatch(/^data:image\/svg\+xml;base64,/);
     expect(observedCanvasSizes).toEqual([
       { width: 512, height: 128 },
       { width: 128, height: 512 },
     ]);
+
+    // 5b. A Browser Run launch that resolves after the phase deadline still has its `close()` called and never starts rasterisation.
+    let lateBrowserClosed = false;
+    let lateNewPageCalled = false;
+    let resolveLateLaunch: ((b: unknown) => void) | undefined;
+    const lateLaunchRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+        },
+        kv,
+        deadlineMs: 15,
+        launch: () =>
+          new Promise((resolve) => {
+            resolveLateLaunch = resolve;
+          }) as never,
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(lateLaunchRes.unavailable).toContain("logo comparison did not finish in time");
+    resolveLateLaunch?.({
+      newPage: async () => {
+        lateNewPageCalled = true;
+        throw new Error("should not open page after deadline");
+      },
+      close: async () => {
+        lateBrowserClosed = true;
+      },
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(lateBrowserClosed).toBe(true);
+    expect(lateNewPageCalled).toBe(false);
 
     // 6. Low-confidence positive (0.3) and low-confidence negative (0.1) logo answers both report inconclusive coverage (G4).
     const lowPosRes = await compareClaimLogos(
