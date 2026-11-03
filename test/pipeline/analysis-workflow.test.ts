@@ -522,11 +522,14 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
     const { id, orgId } = await ablatedCase("no-agent-reasoning", [
       draft("intake.forward", "info", "Forwarded by the member."),
       draft("attachment.executable", "critical", "A program is attached."),
-      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+      draft("invoice.bank_changed", "critical", "The bank account changed.", { phone: "012 555 0100" }),
     ]);
     const { view } = await verdict(env, env.DB, store, id);
     expect(view).toMatchObject({ verdict: "malicious", source: "rules", ablated: "no-agent-reasoning" });
-    expect(view.reasons).toEqual([{ text: "A program is attached.", evidenceIds: ["E2"] }]);
+    expect(view.reasons).toEqual([
+      { text: "A program is attached.", evidenceIds: ["E2"] },
+      { text: "The bank account changed.", evidenceIds: ["E3"] },
+    ]);
     // The deterministic bank-change action, with the ledger's number, comes first as on the agent path.
     expect(view.actions[0]).toContain("012 555 0100");
     // No agent step ran for the case.
@@ -541,7 +544,7 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
   });
 
   it("carries every critical invoice item's action on the rule-only branch (D04 T01 §15)", async () => {
-    const { id } = await ablatedCase("no-agent-reasoning", [
+    const { id, orgId } = await ablatedCase("no-agent-reasoning", [
       draft("intake.forward", "info", "Forwarded by the member."),
       draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
         phone: "+27115550123",
@@ -551,10 +554,15 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
       }),
     ]);
     const { view } = await verdict(env, env.DB, store, id);
-    expect(view.actions.slice(0, 2)).toEqual([
+    const expected = [
       "Confirm by phoning the supplier on +27115550123, the number in your records, never one from this email.",
       "Confirm by phoning the supplier on +27215550124, the number in your records, never one from this email.",
-    ]);
+    ];
+    expect(view.actions.slice(0, 2)).toEqual(expected);
+    await setStatus(env.DB, orgId, id, "running");
+    expect(await storeVerdict(env.DB, orgId, id, view)).toMatchObject({ ok: true });
+    const stored = await getVerdict(env.DB, id);
+    expect(stored?.ok && stored.value.actions.slice(0, 2)).toEqual(expected);
   });
 
   it("keeps the confidence cap without headers and the warning when a check could not run", async () => {
@@ -582,7 +590,7 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
       draft("intake.forward", "info", "Forwarded by the member."),
       draft("voice.request", "info", "The caller asks for a payment.", { request: "pay" }),
       draft("voice.claimed_identity", "info", "The caller claims to be the bank.", { identity: "the bank" }),
-      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+      draft("invoice.bank_changed", "critical", "The bank account changed.", { phone: "012 555 0100" }),
     ]);
     // The document step's own item, as a stored row of its producer.
     await env.DB.prepare(

@@ -483,6 +483,7 @@ describe("caseSummary and finalisation edges", () => {
     ]);
     const m = model([() => message("done"), () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] })]);
     const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.source).toBe("agent");
     expect(view.actions.slice(0, 2)).toEqual([numbered, other]);
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok && stored.value.actions.slice(0, 2)).toEqual([numbered, other]);
@@ -497,6 +498,47 @@ describe("caseSummary and finalisation edges", () => {
     const fallback = await runAgent(agent(fallbackId, model([], 0).fetchStub).ctx, fallbackId);
     expect(fallback.source).toBe("rules");
     expect(fallback.actions.slice(0, 2)).toEqual([numbered, other]);
+    const fallbackStored = await getVerdict(env.DB, fallbackId);
+    expect(fallbackStored?.ok && fallbackStored.value.actions.slice(0, 2)).toEqual([numbered, other]);
+    // Below the cap the order is bank actions, proof of payment, call-back.
+    expect(
+      fixedActionsFor([
+        ev("voice.request", "info", { request: "pay" }),
+        ev("voice.claimed_identity", "info", { identity: "J. Visser" }),
+        ev("invoice.bank_changed", "critical", { phone: "+27115550123" }),
+        ev("document.proof_of_payment", "high"),
+      ]),
+    ).toEqual([numbered, POP_ACTION, callBackAction("J. Visser")]);
+    // Overflow: twelve distinct numbers plus the later fixed actions; the stored verdict keeps the earliest
+    // ten fixed actions, and no model action displaces one.
+    const many = Array.from({ length: 12 }, (_, i) =>
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: `+271155501${String(i).padStart(2, "0")}`,
+      }),
+    );
+    const manyId = await newCase(many);
+    // The document step's own item, as a stored row of its producer.
+    await env.DB.prepare(
+      `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
+       VALUES (?, (SELECT COALESCE(run_id, id) FROM cases WHERE id = ?), 'E13', 13, 'document.proof_of_payment', 'info', 'A proof of payment is attached.', '{}', '[]', 'now', 'document')`,
+    )
+      .bind(manyId, manyId)
+      .run();
+    const manyModel = model([
+      () => message("done"),
+      () =>
+        final({
+          ...ANSWER,
+          verdict: "safe",
+          cited_evidence_ids: ["E1"],
+          recommended_actions: ["Phone the number in the message to confirm."],
+        }),
+    ]);
+    const manyView = await runAgent(agent(manyId, manyModel.fetchStub).ctx, manyId);
+    const earliest = many.slice(0, 10).map((d) => bankChangeAction((d.detail as { phone: string }).phone));
+    expect(manyView.actions).toEqual(earliest);
+    const manyStored = await getVerdict(env.DB, manyId);
+    expect(manyStored?.ok && manyStored.value.actions).toEqual(earliest);
   });
 
   it("reads real stored headers and only visible HTML text", async () => {
