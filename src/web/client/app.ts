@@ -414,7 +414,9 @@ const casesFailure = (name: string, event: Event) => {
         const nextResults = doc.getElementById("case-results");
         const curResults = document.getElementById("case-results");
         if (nextResults && curResults) {
+          const htmx = (window as unknown as { htmx?: { process?: (el: Element) => void } }).htmx;
           curResults.replaceWith(nextResults);
+          htmx?.process?.(nextResults);
           for (const id of [
             "case-count",
             "case-stats",
@@ -424,7 +426,10 @@ const casesFailure = (name: string, event: Event) => {
           ]) {
             const nextEl = doc.getElementById(id);
             const curEl = document.getElementById(id);
-            if (nextEl && curEl) curEl.replaceWith(nextEl);
+            if (nextEl && curEl) {
+              curEl.replaceWith(nextEl);
+              htmx?.process?.(nextEl);
+            }
           }
           document.getElementById("case-filter-error")?.remove();
           history.replaceState(history.state, "", href);

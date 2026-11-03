@@ -1156,6 +1156,18 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       serverState.dropHtmxOnly = false;
       serverState.activeOrgId = "org-long";
 
+      // 5g. Automatic recovery initialises HTMX on the swapped #case-results subtree so pagination links (#case-next) stay wired to HTMX and in-place offline handling
+      await page.goto(`${origin}/cases`, { waitUntil: "load" });
+      serverState.dropHtmxOnly = true;
+      await page.locator("fieldset label").filter({ hasText: /^Malicious$/ }).click();
+      await expect.poll(async () => page.url(), { timeout: 5000 }).toContain("verdict=malicious");
+      serverState.dropHtmxOnly = false;
+      await context.setOffline(true);
+      await page.locator("#case-next").click();
+      await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
+      await context.setOffline(false);
+
       // 6. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
       serverState.pollFinished = false;
       await page.goto(`${origin}/r/01RUNNING`, { waitUntil: "load" });
