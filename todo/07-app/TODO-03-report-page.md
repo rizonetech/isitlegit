@@ -57,7 +57,7 @@ track: day-2
 | 11 | §11 | Follow-up question from | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
-| 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
+| 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [x] |
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [x] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
@@ -629,9 +629,12 @@ A vision finding shows the rendered page or the logo crop beside its reference, 
 - [x] Draw the logo card: the crop as a figure beside the brand's reference logo (served by the artefact route for a `ref-logo:` key, under the report's own access rule, labelled with the brand), the differences named, and the domain state in words (the brand's own domain, not its domain, or not judged). Done when: fixtures draw each state, and the browser test below draws real crop and reference bytes side by side. Cheaper substitute: the crop alone, which proves a logo was found but not what it was compared with.
 - [x] Draw the brand card: `vision.brand_domain_mismatch` with the brand claimed, its real domains, and each compared address with its kind (sent from, leads to, shown) and its judgement, confirmed and unconfirmed apart; a stored `source_url` is drawn as text, never a link. Done when: producer-shaped fixtures (sender, landing and visible kinds; confirmed and unconfirmed) draw them, hostile domains as text.
 - [x] Prove the journey in a browser: stored producer-shaped vision evidence through the member and signed-link report draws in `test/node/evidence-cards-browser.test.tsx` at 360 and 1280 in both themes, the lure (`vision.requested_action`) among them, real image bytes loading, a missing image in the app script's failure state, long hostile text wrapping, keyboard operation and the accessibility gate. Done when: the test passes and fails with the vision dispatch removed.
-- [ ] Commit: `web: vision and brand cards`
+- [x] Commit: `web: vision and brand cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
+
+> **Verified:** 2026-11-03 | §14 | 02b99d1e1e6055ca4767a57745568e66738419f5
+> **Review:** `docs/reviews/d07-t03-s14.json`
 
 ## 15. Invoice and document cards
 
