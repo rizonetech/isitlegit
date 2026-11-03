@@ -1,0 +1,117 @@
+{
+  "ref": "D01 T01 \u00a724",
+  "title": "Pipeline writes fenced across a case removal",
+  "implementation_sha": "8f9a1f1dddf701f461b8234c83000fbe9eac96b2",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T01-s24.md",
+      "verdict": "stopped-low-severity"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T01-s24.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "store.test.ts 27 passed incl. SQL-deadline branch proven by insertRuns=1 (600ms vs 300ms)"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T01-s24.md",
+    "verdict": "filed",
+    "candidate": "aa43043f2ae7d5e6855012487a70eaaccc7eeaab",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T04 \u00a712"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "cap_outcome": "Round 1 stopped on two P3s; both fixed in 8f9a1f1d and verified clean in round 2",
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T01-s24.md",
+    "candidate": "d59247a2bf929cfc70ddb2b38e2eb2b8d9edcae4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

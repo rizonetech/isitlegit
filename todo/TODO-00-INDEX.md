@@ -34,7 +34,6 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 - `03-vision/TODO-03-sam-logos.md`
 - `03-vision/TODO-04-glimmer.md`
 - `04-agent/TODO-01-verdict-agent.md`
-- `04-agent/TODO-02-walkthrough.md`
 - `05-trust/TODO-01-protected-identity.md`
 - `05-trust/TODO-02-counterparty-checks.md`
 - `05-trust/TODO-03-closed-loop-verification.md`
@@ -59,5 +58,6 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 
 ## Completed TODOs
 
+- `04-agent/TODO-02-walkthrough.md` (2026-11-03: the contained Muse Wonder walk, canary credentials, the evidence chain, the trigger and cache, one URL policy, and the no-walkthrough ablation arm)
 - `03-vision/TODO-01-meta-client.md` (2026-10-29: every model call goes through the gateway with a budget reservation, a trace, validated structured output and untrusted blocks)
 - `08-eval/TODO-01-datasets.md` (2026-11-01: a 55-message public sample, a 160-message South African synthetic set and a 60-message challenge set of matched attack and control pairs, each label annotated and read twice, sources and licences recorded in `eval/DATASETS.md`; challenge scoring is D08 T02 §2)

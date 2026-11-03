@@ -10,6 +10,7 @@ import {
   IdentityRefused,
   identityContact,
   normaliseName,
+  protectedIdentities,
   setIdentity,
 } from "../../src/trust/identity";
 import { addAddress, addDomain, events, makeOrg, protectableOrg } from "./helpers";
@@ -303,5 +304,55 @@ describe("round 1", () => {
       ["first", ["displayNames", "financeContact", "protected"]],
       ["admin-b", ["displayNames"]],
     ]);
+  });
+});
+
+describe("protected candidates for the claim match (D02 T01 §9)", () => {
+  it("projects every effectively protected identity, allowlisted, in org-id order", async () => {
+    const b = await protectableOrg("bravo.example", "money@bravo.example", "Bravo (fictional)");
+    const a = await protectableOrg("alpha.example", "money@alpha.example", "Alpha (fictional)");
+    await setIdentity(db, b, "u1", {
+      displayNames: ["Bravo Movers", "Bravo"],
+      financeContact: "money@bravo.example",
+      protected: true,
+    });
+    await setIdentity(db, a, "u1", {
+      displayNames: ["Alpha Freight"],
+      financeContact: "money@alpha.example",
+      protected: true,
+    });
+    const out = await protectedIdentities(db);
+    expect(out.map((c) => c.orgId)).toEqual([a, b].sort());
+    const alpha = out.find((c) => c.orgId === a);
+    expect(alpha).toEqual({
+      orgId: a,
+      names: ["Alpha Freight"],
+      domains: ["alpha.example"],
+      logo: null,
+    });
+    // The allowlist: no finance contact, no bank field, no other registered detail rides along.
+    expect(Object.keys(alpha as object).sort()).toEqual(["domains", "logo", "names", "orgId"]);
+    expect(JSON.stringify(out)).not.toContain("money@");
+  });
+
+  it("excludes an identity whose protection no longer holds", async () => {
+    const off = await protectableOrg("off.example", "money@off.example");
+    await setIdentity(db, off, "u1", { displayNames: ["Off"], financeContact: "money@off.example", protected: false });
+    const lapsed = await protectableOrg("lapsed.example", "money@lapsed.example");
+    await setIdentity(db, lapsed, "u1", {
+      displayNames: ["Lapsed"],
+      financeContact: "money@lapsed.example",
+      protected: true,
+    });
+    // The verified domain goes away, so protection lapses at read time.
+    await db.prepare("DELETE FROM org_domains WHERE org_id = ?").bind(lapsed).run();
+    const unverified = await protectableOrg("unverified.example", "money@unverified.example");
+    await setIdentity(db, unverified, "u1", {
+      displayNames: ["Unverified"],
+      financeContact: "money@unverified.example",
+      protected: true,
+    });
+    await db.prepare("UPDATE org_addresses SET state = 'pending' WHERE org_id = ?").bind(unverified).run();
+    expect(await protectedIdentities(db)).toEqual([]);
   });
 });

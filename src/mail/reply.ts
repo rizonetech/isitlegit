@@ -7,12 +7,14 @@ import { asciiDomain } from "../checks/auth";
 import type { Evidence } from "../checks/evidence";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
+import { MAX_ORIGINALS } from "../intake/forward";
 import { orderedActions } from "../web/pages/report-verdict";
 import { messageIds } from "./rfc5322";
 import {
   type AuthState,
   coverageWords,
   footerWords,
+  groupedReplyDesign,
   headersWords,
   meaningWords,
   moreFindingsWords,
@@ -227,6 +229,85 @@ export function replyHeaders(evidence: readonly Pick<Evidence, "check" | "detail
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
 const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();
 
+// The failure-specific advice for a check that ended with no verdict (design/SPEC.md N1): a ParseError tells the
+// member the message could not be read, a model-budget refusal names when checks resume (D03 T01 §2), and any other
+// failure asks them to forward again in a few minutes.
+export function failureAdvice(failedStep?: string | null, errorClass?: string | null): string {
+  const unreadable = failedStep === "parse" && errorClass === "ParseError";
+  const budget = /^budget:(day|total|reserve):/.exec(errorClass ?? "")?.[1];
+  return unreadable
+    ? "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first."
+    : budget === "day"
+      ? "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply."
+      : budget
+        ? "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply."
+        : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
+}
+
+// One forward's grouped reply (D01 T01 §12; design/SPEC.md N1's grouped variant, not drawn): one block per
+// checked original in attachment order, its subject, its verdict word and its own signed report link, then
+// the originals not checked (past the bound, refused by the cap) named with their counts. No single primary
+// button; each block's link is its report.
+export type GroupedBlock = {
+  subject: string | null;
+  verdict: VerdictView["verdict"] | null;
+  reportUrl: string;
+  failedStep?: string | null;
+  errorClass?: string | null;
+  advice?: string | null;
+};
+
+export function buildGroupedReply(input: {
+  blocks: readonly GroupedBlock[];
+  boundExcluded: number;
+  capRefused: number;
+  organisation: string | null;
+  parentSubject: string | null;
+  appUrl?: string;
+}): { subject: string; text: string; html: string } {
+  const blockWords = (block: GroupedBlock) => ({
+    subject: block.subject ? oneLine(block.subject) : "A message with no subject",
+    verdict: block.verdict ? VERDICT_WORDS[block.verdict] : "Check failed · no verdict",
+    // A block with no verdict carries the failure's advice, as the single reply's no-verdict form does.
+    advice: block.verdict ? null : (block.advice ?? failureAdvice(block.failedStep, block.errorClass)),
+    reportUrl: block.reportUrl,
+  });
+  const notChecked: string[] = [];
+  if (input.boundExcluded > 0)
+    notChecked.push(`${input.boundExcluded} past the limit of ${MAX_ORIGINALS} in one forward`);
+  if (input.capRefused > 0) notChecked.push(`${input.capRefused} over today's check limit`);
+  const totalNotChecked = input.boundExcluded + input.capRefused;
+  const notCheckedNote = totalNotChecked
+    ? `${totalNotChecked} more ${totalNotChecked === 1 ? "message was" : "messages were"} not checked: ${notChecked.join(", ")}. Forward ${totalNotChecked === 1 ? "it" : "each"} on its own to have it checked.`
+    : null;
+  const renderedBlocks = input.blocks.map(blockWords);
+  const reportUrl = input.blocks[0]?.reportUrl ?? "";
+  const text = [
+    "We checked the messages in your forward. Each has its own report:",
+    "",
+    ...renderedBlocks.flatMap((words, index) => [
+      `${index + 1}. ${words.subject}`,
+      `   ${words.verdict}`,
+      ...(words.advice ? [`   ${words.advice}`] : []),
+      `   The full report: ${words.reportUrl}`,
+      "",
+    ]),
+    ...(notCheckedNote ? [notCheckedNote, ""] : []),
+    ...footerWords(input.organisation, reportUrl),
+    "",
+  ].join("\n");
+  const subject = replySubject(input.parentSubject);
+  const { html } = groupedReplyDesign({
+    appUrl: input.appUrl ?? "https://app.isitlegit.co.za",
+    title: subject,
+    organisation: input.organisation,
+    reportUrl,
+    blocks: renderedBlocks,
+    notCheckedNote,
+  });
+  return { subject, text, html };
+}
+
 export function buildReply(input: ReplyInput): { subject: string; text: string; html: string } {
   const notes: string[] = [];
   if (!input.headersAvailable)
@@ -262,19 +343,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
       ...(coverage ? ["", coverage] : []),
     ];
   } else {
-    // The message itself could not be read (the parsers refused it) only on a ParseError; any other failure, the
-    // stored message gone or a service fault included, is ours, and forwarding it again is the advice.
-    const unreadable = input.report.failedStep === "parse" && input.report.errorClass === "ParseError";
-    // The model budget refused the check (D03 T01 §2, `budget:<cap>:<model>`): forwarding again in a few minutes would
-    // be refused too, so the advice names when checks resume.
-    const budget = /^budget:(day|total|reserve):/.exec(input.report.errorClass)?.[1];
-    const advice = unreadable
-      ? "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first."
-      : budget === "day"
-        ? "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply."
-        : budget
-          ? "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply."
-          : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
+    const advice = failureAdvice(input.report.failedStep, input.report.errorClass);
     lines = ["We could not finish checking this message, so we have no verdict on it yet.", "", advice];
   }
 

@@ -204,22 +204,82 @@ export function replyDesign(input: ReplyDesign): { html: string } {
         "0 40px 32px",
       ),
     );
+  return memberFrame({
+    appUrl: input.appUrl,
+    ...(input.title ? { title: input.title } : {}),
+    organisation: input.organisation,
+    reportUrl: input.reportUrl,
+    rows: html,
+  });
+}
+
+// The 600 px member email frame (design/SPEC.md section 8, N1): the logo at top, the caller's rows, and the linked
+// dispute footer. Shared by the single reply and the grouped reply (D01 T01 §12).
+export function memberFrame(input: {
+  appUrl: string;
+  title?: string;
+  organisation: string | null;
+  reportUrl: string;
+  rows: readonly string[];
+}): { html: string } {
+  const asset = (path: string) => new URL(path, input.appUrl).toString();
   const [why, legal] = footerWords(input.organisation, input.reportUrl);
   // The dispute address as a link in the HTML part (D07 T03 §22), its words as in the plain part.
   const whyHtml = escapeHtml(why).replace(
     `Tell us on the report page: ${escapeHtml(disputeUrl(input.reportUrl))}.`,
     `<a href="${escapeHtml(disputeUrl(input.reportUrl))}" style="color: ${C["orange-text"]}">Tell us on the report page</a>.`,
   );
-  html.push(
-    `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(whyHtml, `padding: 0 0 12px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`,
-  );
+  const footer = `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(whyHtml, `padding: 0 0 12px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`;
 
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title ?? "Your IsItLegit verdict")}</title></head><body style="margin: 0; padding: 24px 0 32px; background: ${C.light}">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="width: 600px; max-width: 100%; background: ${C.surface}; border: 1px solid ${C.line}; border-radius: 16px; border-collapse: separate">
 <tr><td style="padding: 28px 40px 20px"><img src="${asset(EMAIL_LOGO)}" width="108" height="32" alt="IsItLegit" style="display: block; height: 32px; width: auto"></td></tr>
-${html.join("\n")}
+${[...input.rows, footer].join("\n")}
 </table></body></html>`;
   return { html: body };
+}
+
+export function groupedReplyDesign(input: {
+  appUrl: string;
+  title?: string;
+  organisation: string | null;
+  reportUrl: string;
+  blocks: readonly { subject: string; verdict: string; advice: string | null; reportUrl: string }[];
+  notCheckedNote: string | null;
+}): { html: string } {
+  const rows: string[] = [
+    row(
+      para(
+        "We checked the messages in your forward. Each has its own report:",
+        `font-size: 15px; line-height: 1.55; color: ${C.ink}`,
+      ),
+      "0 40px 16px",
+    ),
+    row(
+      list(
+        input.blocks.map(
+          (block, index) =>
+            `<td role="none" style="padding: 12px 0; border-top: 1px solid ${C.line}">${para(`${index + 1}. ${escapeHtml(block.subject)}`, `padding: 0 0 4px; font-size: 15px; line-height: 1.55; font-weight: 700; color: ${C.ink}`)}${para(escapeHtml(block.verdict), `padding: 0 0 4px; font-size: 15px; line-height: 1.55; color: ${C.ink}`)}${block.advice ? para(escapeHtml(block.advice), `padding: 0 0 4px; font-size: 14px; line-height: 1.55; color: ${C["ink-2"]}`) : ""}${para(`<a href="${escapeHtml(block.reportUrl)}" style="color: ${C["orange-text"]}">The full report</a>`, `font-size: 14px; line-height: 1.55; color: ${C.muted}`)}</td>`,
+        ),
+      ),
+      "0 40px 20px",
+    ),
+  ];
+  if (input.notCheckedNote) {
+    rows.push(
+      row(
+        para(escapeHtml(input.notCheckedNote), `font-size: 14px; line-height: 1.55; color: ${C["ink-2"]}`),
+        "0 40px 24px",
+      ),
+    );
+  }
+  return memberFrame({
+    appUrl: input.appUrl,
+    ...(input.title ? { title: input.title } : {}),
+    organisation: input.organisation,
+    reportUrl: input.reportUrl,
+    rows,
+  });
 }
 
 // The words both parts say for incomplete coverage, the footer and the authentication results (`buildReply`'s text uses them).

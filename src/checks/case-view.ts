@@ -79,8 +79,54 @@ export type Tenant = {
   trusted: { own: string[]; suppliers: string[] };
 };
 
+// The protected-identity candidates the trust claim match reads (D02 T01 §9): every effectively protected
+// identity's names and verified domains as stored text, with its registered logo reference (artefact key,
+// never bytes), filled by the checks step from `protectedIdentities`. Each list is bounded with its overflow
+// counted, so a cut set never reads as an exhaustive no-match.
+export const MAX_PROTECTED_CANDIDATES = 25;
+export const MAX_CANDIDATE_NAMES = 10;
+export const MAX_CANDIDATE_DOMAINS = 10;
+
+export type ProtectedCandidates = {
+  candidates: {
+    orgId: string;
+    names: string[];
+    namesOmitted: number;
+    domains: string[];
+    domainsOmitted: number;
+    logo: { key: string; mediaType: string } | null;
+  }[];
+  omitted: number;
+};
+
+export function boundProtectedCandidates(
+  list: {
+    orgId: string;
+    names: string[];
+    domains: string[];
+    logo: { key: string; mediaType: string } | null;
+  }[],
+): ProtectedCandidates {
+  const seen = new Set<string>();
+  const unique = list.filter((c) => !seen.has(c.orgId) && seen.add(c.orgId));
+  return {
+    candidates: unique.slice(0, MAX_PROTECTED_CANDIDATES).map((c) => ({
+      orgId: c.orgId,
+      names: c.names.slice(0, MAX_CANDIDATE_NAMES),
+      namesOmitted: Math.max(0, c.names.length - MAX_CANDIDATE_NAMES),
+      domains: c.domains.slice(0, MAX_CANDIDATE_DOMAINS),
+      domainsOmitted: Math.max(0, c.domains.length - MAX_CANDIDATE_DOMAINS),
+      logo: c.logo,
+    })),
+    omitted: Math.max(0, unique.length - MAX_PROTECTED_CANDIDATES),
+  };
+}
+
 export type CaseView = {
   tenant: Tenant & { headersAvailable: boolean };
+  // The protected-identity candidates for the trust claim match (D02 T01 §9), filled by the checks step; absent
+  // from a view built before it, and an empty set when no identity is effectively protected.
+  protectedCandidates?: ProtectedCandidates;
   // The stored raw message the view was read from (`raw/<caseId>/message.eml`): the artefact a header-based item rests
   // on, since a check cannot store one of its own (D02 T02 §2).
   raw: string;

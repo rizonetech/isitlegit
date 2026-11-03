@@ -4,7 +4,7 @@ import { saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus } from "../../src/db/cases";
 
 import { storeVerdict } from "../../src/db/verdicts";
-import { putRaw, type Store } from "../../src/intake/store";
+import { putParsed, putRaw, type Store } from "../../src/intake/store";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { STUB_VERDICT } from "../../src/pipeline/analysis-workflow";
 import { verifyReportLink } from "../../src/web/report-link";
@@ -103,11 +103,23 @@ describe("the reply step", () => {
     expect(await caseStatus(id)).toBe("done");
   });
 
-  it("asks for each of several attached messages on its own", async () => {
+  it("answers a forward of several messages with one grouped reply (D01 T01 §12)", async () => {
     const requests = stubSmtp2go(["sent"]);
     const id = await caseFrom(forwards["two-originals"]);
     await run(id);
-    expect(requests[0]?.text_body).toContain("we checked only the first");
+    // The grouped reply goes when the child case finishes, in its own instance.
+    const { childrenOf } = await import("../../src/intake/children");
+    const childId = (await childrenOf(env.DB, id))[0]?.childCaseId as string;
+    const child = await introspectWorkflowInstance(env.ANALYSIS, childId);
+    try {
+      await child.waitForStatus("complete");
+    } finally {
+      await child.dispose();
+    }
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.text_body).toContain("1. Updated banking details");
+    expect(requests[0]?.text_body).toContain("2. Updated banking details");
+    expect(requests[0]?.text_body).not.toContain("we checked only the first");
   });
 
   it("sends the verdict that is stored, not a stand-in", async () => {
@@ -215,6 +227,7 @@ describe("the reply step", () => {
     for (const bucket of broken) {
       const requests = stubSmtp2go(["sent"]);
       const id = await caseFrom(forwards["inline-forward"]);
+      await putParsed(store, id, { forward: { headersAvailable: false } });
       const result = await reply({ ...env, ARTEFACTS: bucket as unknown as R2Bucket }, id, partial);
       expect(result.mail).toBe("sent");
       expect(requests).toHaveLength(1);
@@ -231,6 +244,7 @@ describe("the reply step", () => {
       const { reply, OPTIONAL_READ_MS } = await import("../../src/pipeline/analysis-workflow");
       const requests = stubSmtp2go(["sent"]);
       const id = await caseFrom(forwards["inline-forward"]);
+      await putParsed(store, id, { forward: { headersAvailable: false } });
       const stalled = { ...env.ARTEFACTS, get: () => new Promise(() => {}) } as unknown as R2Bucket;
       const pending = reply({ ...env, ARTEFACTS: stalled }, id, {
         status: "partial",

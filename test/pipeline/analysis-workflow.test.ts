@@ -1,9 +1,11 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
+import type { ProtectedCandidates } from "../../src/checks/case-view";
 import { SummaryRefused } from "../../src/checks/case-view";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
+import { checks as checkRegistry } from "../../src/checks/index";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import {
@@ -30,6 +32,7 @@ import {
   verdict,
 } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
+import { protectedIdentities, setIdentity } from "../../src/trust/identity";
 import { storeVoice } from "../../src/voice/step";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
@@ -220,6 +223,51 @@ describe("AnalysisWorkflow", () => {
       { id: "E4", check: "reputation.coverage", severity: "info", detail: { checked: false } },
       { id: "E5", check: "vision.not_checked", severity: "info" },
     ]);
+  });
+
+  it("ablates the walkthrough for the case's own organisation flag, and walks again once cleared (D04 T02 §9)", async () => {
+    const page = "https://phish-workflow.example/signin";
+    const flagged = await caseWith(forwards["attached-rfc822"]);
+    await saveEvidence(env.DB, flagged, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page },
+        artefacts: [],
+      },
+    ]);
+    await env.CACHE.put(`ablate:${ORG}`, "no-walkthrough");
+    try {
+      await run(flagged, async (m) => {
+        await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+      });
+    } finally {
+      await env.CACHE.delete(`ablate:${ORG}`);
+    }
+    const items = await readEvidence(env.DB, flagged);
+    expect(items.find((e) => e.check === "walkthrough.ablated")?.detail).toMatchObject({
+      ablated: "no-walkthrough",
+      url: page,
+    });
+    // Cleared: the same organisation's next case is not ablated (its walk states it could not run here).
+    const cleared = await caseWith(forwards["attached-rfc822"]);
+    await saveEvidence(env.DB, cleared, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page },
+        artefacts: [],
+      },
+    ]);
+    await run(cleared, async (m) => {
+      await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+    });
+    const clearedItems = await readEvidence(env.DB, cleared);
+    expect(clearedItems.some((e) => e.check === "walkthrough.ablated")).toBe(false);
+    // The walk ran its normal path and stated it could not run in this environment, not silently skipped.
+    expect(clearedItems.some((e) => e.check === "walkthrough.not_checked")).toBe(true);
   });
 
   it("hands the verdict this case's stored evidence in its order, not_checked lines included", async () => {
@@ -519,11 +567,14 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
     const { id, orgId } = await ablatedCase("no-agent-reasoning", [
       draft("intake.forward", "info", "Forwarded by the member."),
       draft("attachment.executable", "critical", "A program is attached."),
-      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+      draft("invoice.bank_changed", "critical", "The bank account changed.", { phone: "012 555 0100" }),
     ]);
     const { view } = await verdict(env, env.DB, store, id);
     expect(view).toMatchObject({ verdict: "malicious", source: "rules", ablated: "no-agent-reasoning" });
-    expect(view.reasons).toEqual([{ text: "A program is attached.", evidenceIds: ["E2"] }]);
+    expect(view.reasons).toEqual([
+      { text: "A program is attached.", evidenceIds: ["E2"] },
+      { text: "The bank account changed.", evidenceIds: ["E3"] },
+    ]);
     // The deterministic bank-change action, with the ledger's number, comes first as on the agent path.
     expect(view.actions[0]).toContain("012 555 0100");
     // No agent step ran for the case.
@@ -535,6 +586,28 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
       ok: true,
       value: { verdict: "malicious", ablated: "no-agent-reasoning" },
     });
+  });
+
+  it("carries every critical invoice item's action on the rule-only branch (D04 T01 §15)", async () => {
+    const { id, orgId } = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+      draft("invoice.supplier_domain_changed", "critical", "The invoice domain differs from the ledger.", {
+        phone: "+27215550124",
+      }),
+    ]);
+    const { view } = await verdict(env, env.DB, store, id);
+    const expected = [
+      "Confirm by phoning the supplier on +27115550123, the number in your records, never one from this email.",
+      "Confirm by phoning the supplier on +27215550124, the number in your records, never one from this email.",
+    ];
+    expect(view.actions.slice(0, 2)).toEqual(expected);
+    await setStatus(env.DB, orgId, id, "running");
+    expect(await storeVerdict(env.DB, orgId, id, view)).toMatchObject({ ok: true });
+    const stored = await getVerdict(env.DB, id);
+    expect(stored?.ok && stored.value.actions.slice(0, 2)).toEqual(expected);
   });
 
   it("keeps the confidence cap without headers and the warning when a check could not run", async () => {
@@ -562,7 +635,7 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
       draft("intake.forward", "info", "Forwarded by the member."),
       draft("voice.request", "info", "The caller asks for a payment.", { request: "pay" }),
       draft("voice.claimed_identity", "info", "The caller claims to be the bank.", { identity: "the bank" }),
-      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+      draft("invoice.bank_changed", "critical", "The bank account changed.", { phone: "012 555 0100" }),
     ]);
     // The document step's own item, as a stored row of its producer.
     await env.DB.prepare(
@@ -1598,5 +1671,830 @@ describe("a model call the budget refused (D03 T01 §2)", () => {
     expect(output).toMatchObject({
       state: { status: "partial", failedStep: "checks", errorClass: "budget:day:muse-spark-1.3" },
     });
+  });
+});
+
+it("fills the protected candidates across organisations, and fails the step when that read fails (D02 T01 §9)", async () => {
+  // Another business, effectively protected: a member of org A checking mail that claims it must carry it.
+  const other = "org-candidate-other";
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(other, "Other Freight (fictional)", `org-${other}`, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+  )
+    .bind("claim-candidate-other", other, "other-freight.example", "t".repeat(16), now, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+  )
+    .bind("addr-candidate-other", other, "money@other-freight.example", now, now)
+    .run();
+  await setIdentity(env.DB, other, "u1", {
+    displayNames: ["Other Freight"],
+    financeContact: "money@other-freight.example",
+    protected: true,
+  });
+  expect(await protectedIdentities(env.DB)).toContainEqual({
+    orgId: other,
+    names: ["Other Freight"],
+    domains: ["other-freight.example"],
+    logo: null,
+  });
+  // A protected identity whose verified domain is then removed is not a candidate.
+  const lapsed = "org-candidate-lapsed";
+  await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(lapsed, "Lapsed Freight (fictional)", `org-${lapsed}`, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+  )
+    .bind("claim-candidate-lapsed", lapsed, "lapsed-freight.example", "t".repeat(16), now, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+  )
+    .bind("addr-candidate-lapsed", lapsed, "money@lapsed-freight.example", now, now)
+    .run();
+  await setIdentity(env.DB, lapsed, "u1", {
+    displayNames: ["Lapsed Freight"],
+    financeContact: "money@lapsed-freight.example",
+    protected: true,
+  });
+  await env.DB.prepare("DELETE FROM org_domains WHERE org_id = ?").bind(lapsed).run();
+  const org = "org-candidate-case";
+  const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+  if (!made.ok) throw new Error(made.error.message);
+  const id = made.value.id;
+  await putRaw(store, id, new TextEncoder().encode("From: billing@other-freight.example\r\n\r\nPay.\r\n"));
+  await putParsed(store, id, {
+    headers: [{ name: "From", value: "billing@other-freight.example" }],
+    text: "Pay.",
+    html: null,
+    attachments: [],
+    truncated: [],
+    omitted: 0,
+    forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+  });
+  // A probe check (this file's last test, so its registration reaches no other test) reads what a check
+  // receives: protected B present for A's case with its exact keys, the lapsed identity absent.
+  let seen: ProtectedCandidates | undefined;
+  checkRegistry.register({
+    name: "probe.candidates",
+    needs: [],
+    timeoutMs: 1000,
+    run: (view) => {
+      seen = view.protectedCandidates;
+      return [];
+    },
+  });
+  await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => []);
+  expect(((await readCheckOutcomes(env.DB, id)) ?? []).length).toBeGreaterThan(0);
+  expect(seen?.omitted).toBe(0);
+  expect(seen?.candidates).toContainEqual({
+    orgId: other,
+    names: ["Other Freight"],
+    namesOmitted: 0,
+    domains: ["other-freight.example"],
+    domainsOmitted: 0,
+    logo: null,
+  });
+  expect(seen?.candidates.map((c) => c.orgId)).not.toContain(lapsed);
+  expect(Object.keys(seen?.candidates[0] as object).sort()).toEqual([
+    "domains",
+    "domainsOmitted",
+    "logo",
+    "names",
+    "namesOmitted",
+    "orgId",
+  ]);
+  // A failed candidate read fails the step; it never reads as no candidate.
+  const failingDb = new Proxy(env.DB, {
+    get: (target, name) =>
+      name === "prepare"
+        ? (sql: string) => {
+            if (sql.includes("FROM identities")) throw new Error("identity store down");
+            return target.prepare(sql);
+          }
+        : Reflect.get(target, name).bind(target),
+  }) as unknown as D1Database;
+  await expect(
+    checks(
+      { db: failingDb, bucket: store.bucket },
+      id,
+      parsedKey(id),
+      { orgId: org, channel: "email" },
+      async () => [],
+    ),
+  ).rejects.toThrow(/identity store down/);
+});
+
+describe("several originals in one forward (D01 T01 §12)", () => {
+  beforeEach(async () => {
+    await env.DB.prepare("DELETE FROM cases WHERE org_id = ?").bind(ORG).run();
+  });
+
+  it("makes a case of the second original, records it before starting it, and resumes the same child on retry", async () => {
+    const id = await caseWith(forwards["two-originals"]);
+    const started: string[] = [];
+    const fanout = {
+      start: async (childCaseId: string) => {
+        started.push(childCaseId);
+      },
+    };
+    await parse(store, id, MAIL, fanout);
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, id);
+    expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({ position: 2, state: "started" });
+    expect(started).toEqual([children[0]?.childCaseId]);
+    const childId = children[0]?.childCaseId as string;
+    // The child's own message is stored, and its parse reads it as the original itself.
+    const childRaw = await readArtefact(store, childId, rawKey(childId));
+    expect(childRaw && "body" in childRaw).toBe(true);
+    await parse(store, childId, MAIL, fanout);
+    const childSummary = await readArtefact(store, childId, parsedKey(childId));
+    if (!childSummary || !("body" in childSummary)) throw new Error("the child's summary is missing");
+    expect(JSON.parse(new TextDecoder().decode(childSummary.body)).forward.path).not.toBe("inline");
+    // A retried parent parse makes no second child and starts nothing new.
+    await parse(store, id, MAIL, fanout);
+    expect(await childrenOf(env.DB, id)).toHaveLength(1);
+    expect(started).toHaveLength(1);
+  });
+
+  it("resumes an interrupted fan-out on retry with the same derived child", async () => {
+    const id = await caseWith(forwards["two-originals"]);
+    const { childrenOf, childCaseIdFor } = await import("../../src/intake/children");
+    await expect(
+      parse(store, id, MAIL, {
+        start: async () => {
+          throw new Error("workflow create lost");
+        },
+      }),
+    ).rejects.toThrow(/workflow create lost/);
+    const started: string[] = [];
+    await parse(store, id, MAIL, {
+      start: async (childCaseId: string) => {
+        started.push(childCaseId);
+      },
+    });
+    const children = await childrenOf(env.DB, id);
+    expect(children).toHaveLength(1);
+    expect(children[0]?.childCaseId).toBe(await childCaseIdFor(id, 2));
+    expect(children[0]?.state).toBe("started");
+    expect(started).toEqual([children[0]?.childCaseId]);
+  });
+
+  it("sends one grouped reply when every case is terminal, and nothing before", async () => {
+    const parentId = await caseWith(forwards["two-originals"]);
+    const started: string[] = [];
+    await parse(store, parentId, MAIL, {
+      start: async (childCaseId: string) => {
+        started.push(childCaseId);
+      },
+    });
+    const { childrenOf } = await import("../../src/intake/children");
+    const childId = (await childrenOf(env.DB, parentId))[0]?.childCaseId as string;
+    // The child parses its own original, which stores its subject for its block.
+    await parse(store, childId, MAIL, { start: async () => {} });
+    // Both cases need a forwarder for the reply; the parent's case was made without one here.
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id IN (?, ?)")
+      .bind("member@demo.isitlegit.co.za", parentId, childId)
+      .run();
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-1" } });
+    });
+    try {
+      // The child is still running: the parent sends nothing.
+      const waiting = await reply(env, parentId, { status: "ready", verdict: "safe" });
+      expect(waiting.mail).toBe("waiting");
+      expect(requests).toHaveLength(0);
+      // The child finishing first sends nothing either: the parent is not finished.
+      const childWaiting = await reply(env, childId, { status: "ready", verdict: "safe" });
+      expect(childWaiting.mail).toBe("waiting");
+      expect(requests).toHaveLength(0);
+      // Both terminal with verdicts: one grouped reply, each original with its own link.
+      for (const [caseId, verdict] of [
+        [parentId, "suspicious"],
+        [childId, "malicious"],
+      ] as const) {
+        await setStatus(env.DB, ORG, caseId, "running");
+        const stored = await storeVerdict(env.DB, ORG, caseId, {
+          verdict,
+          headline: "h",
+          meaning: "m",
+          confidence: 0.5,
+          reasons: [],
+          actions: [],
+          source: "rules",
+        });
+        expect(stored.ok).toBe(true);
+        await setStatus(env.DB, ORG, caseId, "done");
+      }
+      const sent = await reply(env, childId, { status: "ready", verdict: "malicious" });
+      expect(sent.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("1. Updated banking details");
+      expect(requests[0]?.text_body).toContain("2. Updated banking details");
+      expect(requests[0]?.text_body).toContain("Fraud");
+      // A second attempt under the same group key sends nothing new.
+      const again = await reply(env, parentId, { status: "ready", verdict: "suspicious" });
+      expect(again.mail).toBe("duplicate");
+      expect(requests).toHaveLength(1);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("preserves counterparty origin and isolation on fan-out children (round 1 finding 1)", async () => {
+    const cpOrg = "org-cp-fanout";
+    const now = new Date().toISOString();
+    await env.DB.prepare(`INSERT OR IGNORE INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(cpOrg, "CP Freight (fictional)", `org-${cpOrg}`, now)
+      .run();
+    const { addSupplier } = await import("../../src/invoice/ledger");
+    await addSupplier(env.DB, cpOrg, "owner", {
+      name: "Secret Supplier",
+      domains: ["secretsupplier.example"],
+    });
+    // Set member cap to 0 so a member admission would be refused; counterparty admission uses counterparty limits.
+    await env.DB.prepare("INSERT OR REPLACE INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)")
+      .bind(cpOrg)
+      .run();
+    const { admitCase } = await import("../../src/db/cases");
+    const checker = "outsider@customer-cp.example";
+    const forwardBytes = new TextEncoder().encode(
+      [
+        `From: ${checker}`,
+        "To: check@isitlegit.co.za",
+        "Subject: Fwd: two supplier mails",
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        "Content-Type: message/rfc822",
+        "",
+        "From: Billing <billing@secretsupplier.com>",
+        "Subject: First invoice",
+        "",
+        "Pay 1.",
+        "--b",
+        "Content-Type: message/rfc822",
+        "",
+        "From: Billing <billing@secretsupplier.com>",
+        "Subject: Second invoice",
+        "",
+        "Pay 2.",
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+    const made = await admitCase(env.DB, {
+      orgId: cpOrg,
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: checker,
+      origin: "counterparty",
+    });
+    expect(made.ok).toBe(true);
+    if (!made.ok) throw new Error(made.error.message);
+    const parentId = made.value.id;
+    await putRaw(store, parentId, forwardBytes);
+    await parse(store, parentId, MAIL, { start: async () => {} });
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, parentId);
+    expect(children).toHaveLength(1);
+    expect(children[0]?.state).toBe("started");
+    const childId = children[0]?.childCaseId as string;
+    const childRow = await env.DB.prepare("SELECT origin FROM cases WHERE id = ?")
+      .bind(childId)
+      .first<{ origin: string | null }>();
+    expect(childRow?.origin).toBe("counterparty");
+    await parse(store, childId, MAIL, { start: async () => {} });
+    await checks(store, childId, parsedKey(childId), { orgId: cpOrg, channel: "email" }, async () => []);
+    const childEvidence = await readEvidence(env.DB, childId);
+    expect(JSON.stringify(childEvidence)).not.toContain("secretsupplier.example");
+    const seen = await env.DB.prepare("SELECT COUNT(*) AS n FROM sender_observations WHERE case_id = ?")
+      .bind(childId)
+      .first<{ n: number }>();
+    expect(seen?.n ?? 0).toBe(0);
+  });
+
+  it("settles an unstarted child after exhausted fan-out retries so the group still replies (round 1 finding 2)", async () => {
+    const threeForward = new TextEncoder().encode(
+      [
+        "From: member@demo.isitlegit.co.za",
+        "To: check@isitlegit.co.za",
+        "Subject: Fwd: three originals",
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        "Content-Type: message/rfc822",
+        "",
+        "From: a@bank.example",
+        "Subject: First original",
+        "",
+        "One.",
+        "--b",
+        "Content-Type: message/rfc822",
+        "",
+        "From: b@bank.example",
+        "Subject: Second original",
+        "",
+        "Two.",
+        "--b",
+        "Content-Type: message/rfc822",
+        "",
+        "From: c@bank.example",
+        "Subject: Third original",
+        "",
+        "Three.",
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+    const parentId = await caseWith(threeForward);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    let starts = 0;
+    await expect(
+      parse(store, parentId, MAIL, {
+        start: async () => {
+          starts += 1;
+          if (starts === 2) throw new Error("second child workflow create failed");
+        },
+      }),
+    ).rejects.toThrow(/second child workflow create failed/);
+    // All manifest rows were recorded before the first child started, and the parent then exhausted its parse retries.
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, parentId);
+    expect(children).toHaveLength(2);
+    expect(children.map((c) => c.state)).toEqual(["started", "admitted"]);
+    await recordFailure(env.DB, parentId, "parse", "Error");
+    const firstChildId = children[0]?.childCaseId as string;
+    const secondChildId = children[1]?.childCaseId as string;
+    await parse(store, firstChildId, MAIL, { start: async () => {} });
+    await setStatus(env.DB, ORG, firstChildId, "running");
+    await storeVerdict(env.DB, ORG, firstChildId, {
+      verdict: "safe",
+      headline: "h",
+      meaning: "m",
+      confidence: 0.9,
+      reasons: [],
+      actions: [],
+      source: "rules",
+    });
+    await setStatus(env.DB, ORG, firstChildId, "done");
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-1" } });
+    });
+    const unstartableEnv: Env = {
+      ...env,
+      ANALYSIS: {
+        create: () => Promise.reject(new Error("workflow unavailable")),
+        get: () => Promise.reject(new Error("workflow unavailable")),
+      } as unknown as Env["ANALYSIS"],
+    };
+    try {
+      const sent = await reply(unstartableEnv, firstChildId, { status: "ready", verdict: "safe" });
+      expect(sent.mail).toBe("sent");
+      expect((await caseRow(secondChildId))?.status).toBe("partial");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("2. Second original");
+      expect(requests[0]?.text_body).toContain("Looks legitimate");
+      expect(requests[0]?.text_body).toContain("3. A message with no subject");
+      expect(requests[0]?.text_body).toContain("Check failed · no verdict");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("fans out valid siblings even when the first original is a malformed .msg (round 1 finding 3)", async () => {
+    const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
+    // OLE magic header followed by truncated bytes: extractOriginals recognises it as a .msg, parseMsg throws ParseError.
+    const malformedMsg = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 1, 2, 3, 4]);
+    const validMsg = msgs.full;
+    const forwardBytes = new TextEncoder().encode(
+      [
+        "From: member@demo.isitlegit.co.za",
+        "To: check@isitlegit.co.za",
+        "Subject: Fwd: two msg files",
+        "MIME-Version: 1.0",
+        'Content-Type: multipart/mixed; boundary="b"',
+        "",
+        "--b",
+        'Content-Type: application/vnd.ms-outlook; name="bad.msg"',
+        'Content-Disposition: attachment; filename="bad.msg"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(malformedMsg),
+        "--b",
+        'Content-Type: application/vnd.ms-outlook; name="good.msg"',
+        'Content-Disposition: attachment; filename="good.msg"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(validMsg),
+        "--b--",
+        "",
+      ].join("\r\n"),
+    );
+    const parentId = await caseWith(forwardBytes);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    const started: string[] = [];
+    await expect(
+      parse(store, parentId, MAIL, {
+        start: async (childCaseId) => {
+          started.push(childCaseId);
+        },
+      }),
+    ).rejects.toThrow("ParseError");
+    expect(started).toHaveLength(1);
+    await recordFailure(env.DB, parentId, "parse", "ParseError");
+    const childId = started[0] as string;
+    await parse(store, childId, MAIL, { start: async () => {} });
+    await setStatus(env.DB, ORG, childId, "running");
+    await storeVerdict(env.DB, ORG, childId, {
+      verdict: "suspicious",
+      headline: "h",
+      meaning: "m",
+      confidence: 0.8,
+      reasons: [],
+      actions: [],
+      source: "rules",
+    });
+    await setStatus(env.DB, ORG, childId, "done");
+    const requests: { text_body: string; html_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-1" } });
+    });
+    try {
+      const sent = await reply(env, childId, { status: "ready", verdict: "suspicious" });
+      expect(sent.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain(
+        "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first.",
+      );
+      expect(requests[0]?.text_body).toContain("Suspicious");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("throws ReplyNotSent on a failed grouped send, and resends it under reply:group:<parent> (round 1 findings 4, 5, 6)", async () => {
+    const capOrg = "org-grouped-cap-resend";
+    const now = new Date().toISOString();
+    await env.DB.prepare(`INSERT OR IGNORE INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(capOrg, "Cap & Resend Co", `org-${capOrg}`, now)
+      .run();
+    // Allow 2 cases today (parent + 1 child), refusing a 3rd original by the daily cap.
+    await env.DB.prepare("INSERT OR REPLACE INTO org_limits (org_id, daily_cases_override) VALUES (?, 2)")
+      .bind(capOrg)
+      .run();
+    const { admitCase } = await import("../../src/db/cases");
+    const part = (n: number) =>
+      `--b\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename="o${n}.eml"\r\n\r\nFrom: a@bank.example\r\nSubject: Original ${n}\r\n\r\nPay ${n}.\r\n`;
+    const three = new TextEncoder().encode(
+      `From: member@demo.isitlegit.co.za\r\nSubject: Fwd: batch check\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n${[1, 2, 3].map(part).join("")}--b--\r\n`,
+    );
+    const made = await admitCase(env.DB, {
+      orgId: capOrg,
+      channel: "email",
+      headersAvailable: false,
+      forwardedBy: "member@demo.isitlegit.co.za",
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const parentId = made.value.id;
+    await putRaw(store, parentId, three);
+    await parse(store, parentId, MAIL, { start: async () => {} });
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, parentId);
+    expect(children.map((c) => [c.position, c.state])).toEqual([
+      [2, "started"],
+      [3, "refused-cap"],
+    ]);
+    const childId = children[0]?.childCaseId as string;
+    await parse(store, childId, MAIL, { start: async () => {} });
+    await setStatus(env.DB, capOrg, parentId, "running");
+    await storeVerdict(env.DB, capOrg, parentId, {
+      verdict: "safe",
+      headline: "h",
+      meaning: "m",
+      confidence: 0.9,
+      reasons: [],
+      actions: [],
+      source: "rules",
+    });
+    await setStatus(env.DB, capOrg, parentId, "done");
+    // Child ends partial on the daily model budget so its block carries the budget:day advice.
+    await recordFailure(env.DB, childId, "verdict", "budget:day:muse-spark-1.3");
+
+    let failProvider = true;
+    const requests: { text_body: string; html_body: string; subject: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      if (failProvider)
+        return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-group-1" } });
+    });
+    try {
+      await expect(
+        reply(env, childId, { status: "partial", failedStep: "verdict", errorClass: "budget:day:muse-spark-1.3" }),
+      ).rejects.toThrow("ReplyNotSent");
+
+      // Request a resend of the failed grouped send and run the resend job.
+      const { requeueStatement } = await import("../../src/mail/settle");
+      const { resendRequested } = await import("../../src/mail/resend");
+      await env.DB.prepare(requeueStatement(`reply:group:${parentId}`, new Date().toISOString())).run();
+      failProvider = false;
+      const report = await resendRequested(env);
+      expect(report.done).toBe(1);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.subject).toBe("Re: Fwd: batch check");
+      expect(requests[0]?.text_body).toContain("1. Original 1");
+      expect(requests[0]?.text_body).toContain("2. Original 2");
+      expect(requests[0]?.text_body).toContain(
+        "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply.",
+      );
+      expect(requests[0]?.text_body).toContain("1 more message was not checked: 1 over today's check limit.");
+      // Member frame and linked dispute footer in the HTML body (SPEC N1).
+      expect(requests[0]?.html_body).toContain('<table role="presentation" width="600"');
+      expect(requests[0]?.html_body).toContain('alt="IsItLegit"');
+      expect(requests[0]?.html_body).toMatch(/<a href="[^"]*dispute=1"[^>]*>Tell us on the report page<\/a>\./);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("recovers an interrupted manifest and retries transient child or verdict read failures (round 2 findings 1, 2, 3)", async () => {
+    const part = (n: number) =>
+      `--b\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename="o${n}.eml"\r\n\r\nFrom: a@bank.example\r\nSubject: Original ${n}\r\n\r\nPay ${n}.\r\n`;
+    const three = new TextEncoder().encode(
+      `From: member@demo.isitlegit.co.za\r\nSubject: Fwd: three check\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n${[1, 2, 3].map(part).join("")}--b--\r\n`,
+    );
+    const parentId = await caseWith(three);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    // Simulate a D1 failure on the second child admission in fanOut, after the expected manifest batch and
+    // the first child's admission have already succeeded, then exhaust parse retries on the parent.
+    let admitCount = 0;
+    const flakyAdmitDb = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "prepare"
+          ? (sql: string) => {
+              if (sql.startsWith("INSERT INTO cases (")) {
+                admitCount += 1;
+                if (admitCount === 2) throw new Error("transient D1 failure on third original admission");
+              }
+              return target.prepare(sql);
+            }
+          : Reflect.get(target, name).bind(target),
+    }) as unknown as D1Database;
+    await expect(
+      parse({ db: flakyAdmitDb, bucket: store.bucket }, parentId, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/transient D1 failure on third original admission/);
+    const { childrenOf } = await import("../../src/intake/children");
+    const recorded = await childrenOf(env.DB, parentId);
+    expect(recorded.map((c) => [c.position, c.state])).toEqual([
+      [2, "admitted"],
+      [3, "pending"],
+    ]);
+    // Also simulate a case where position 3's row was missing before parent parse retries exhausted.
+    await env.DB.prepare("DELETE FROM case_children WHERE parent_case_id = ? AND position = 3").bind(parentId).run();
+    await recordFailure(env.DB, parentId, "parse", "Error");
+
+    const firstChildId = recorded[0]?.childCaseId as string;
+    const secondChildId = recorded[1]?.childCaseId as string;
+    await recordFailure(env.DB, firstChildId, "parse", "Error");
+    await reply(env, parentId, { status: "partial", failedStep: "parse", errorClass: "Error" });
+    const afterRecovery = await childrenOf(env.DB, parentId);
+    expect(afterRecovery).toHaveLength(2);
+    expect(afterRecovery.map((c) => c.position)).toEqual([2, 3]);
+    // Finish the recovered third original with a safe verdict.
+    await parse(store, secondChildId, MAIL, { start: async () => {} });
+    await setStatus(env.DB, ORG, secondChildId, "running");
+    await storeVerdict(env.DB, ORG, secondChildId, {
+      verdict: "safe",
+      headline: "h",
+      meaning: "m",
+      confidence: 0.9,
+      reasons: [],
+      actions: [],
+      source: "rules",
+    });
+    await setStatus(env.DB, ORG, secondChildId, "done");
+
+    // Finding 2: a transient D1 failure reading a child case in groupedReply throws instead of returning waiting.
+    let caseReads = 0;
+    const failChildLookupEnv: Env = {
+      ...env,
+      DB: new Proxy(env.DB, {
+        get: (target, name) =>
+          name === "prepare"
+            ? (sql: string) => {
+                if (sql.includes("FROM cases WHERE id = ?")) {
+                  caseReads += 1;
+                  if (caseReads === 3) throw new Error("child lookup D1 down");
+                }
+                return target.prepare(sql);
+              }
+            : Reflect.get(target, name).bind(target),
+      }) as unknown as D1Database,
+    };
+    await expect(reply(failChildLookupEnv, secondChildId, { status: "ready", verdict: "safe" })).rejects.toThrow(
+      /reading a fan-out child for its grouped reply: database/,
+    );
+
+    // Finding 3: a transient D1 failure in getVerdict throws instead of sending a false "no verdict" reply.
+    const failVerdictEnv: Env = {
+      ...env,
+      DB: new Proxy(env.DB, {
+        get: (target, name) =>
+          name === "prepare"
+            ? (sql: string) => {
+                if (sql.includes("FROM case_verdicts WHERE case_id = ?")) throw new Error("verdict table D1 down");
+                return target.prepare(sql);
+              }
+            : Reflect.get(target, name).bind(target),
+      }) as unknown as D1Database,
+    };
+    await expect(reply(failVerdictEnv, secondChildId, { status: "ready", verdict: "safe" })).rejects.toThrow(
+      /verdict table D1 down/,
+    );
+
+    // Once D1 recovers, the grouped reply sends all 3 originals (none silently dropped, verdict preserved).
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-r2" } });
+    });
+    try {
+      const sent = await reply(env, secondChildId, { status: "ready", verdict: "safe" });
+      expect(sent.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("1. A message with no subject");
+      expect(requests[0]?.text_body).toContain("2. A message with no subject");
+      expect(requests[0]?.text_body).toContain("3. Original 3");
+      expect(requests[0]?.text_body).toContain("Looks legitimate");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("recovers from an empty manifest when recordExpectedChildren fails throughout parse (round 3 finding 1)", async () => {
+    const parentId = await caseWith(forwards["two-originals"]);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    const failBatchDb = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "batch"
+          ? () => Promise.reject(new Error("manifest batch D1 down"))
+          : Reflect.get(target, name).bind(target),
+    }) as unknown as D1Database;
+    await expect(
+      parse({ db: failBatchDb, bucket: store.bucket }, parentId, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/manifest batch D1 down/);
+    const { childrenOf } = await import("../../src/intake/children");
+    expect(await childrenOf(env.DB, parentId)).toHaveLength(0);
+    await recordFailure(env.DB, parentId, "parse", "Error");
+
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-r3" } });
+    });
+    try {
+      // With an empty manifest and no summary, reply still inspects the stored raw forward, enters grouped
+      // recovery, records and admits the second original, starts its Workflow and waits instead of sending a
+      // single-case reply that drops original 2.
+      const firstReply = await reply(env, parentId, { status: "partial", failedStep: "parse", errorClass: "Error" });
+      expect(firstReply.mail).toBe("waiting");
+      expect(requests).toHaveLength(0);
+      const children = await childrenOf(env.DB, parentId);
+      expect(children).toHaveLength(1);
+      const childId = children[0]?.childCaseId as string;
+      const childInstance = await introspectWorkflowInstance(env.ANALYSIS, childId);
+      try {
+        await childInstance.waitForStatus("complete");
+      } finally {
+        await childInstance.dispose();
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("1. A message with no subject");
+      expect(requests[0]?.text_body).toContain("Check failed · no verdict");
+      expect(requests[0]?.text_body).toContain("2. Updated banking details");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("retries failed raw discovery and restores missing raw bytes for admitted unstarted children (round 4 findings 1, 2)", async () => {
+    const parentId = await caseWith(forwards["two-originals"]);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    const brokenReadBucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "get" ? () => Promise.reject(new Error("R2 read down")) : Reflect.get(target, name).bind(target),
+    }) as unknown as R2Bucket;
+    // Finding 1: R2 reads fail through parse exhaustion and the first reply attempt. With no manifest or summary,
+    // reply throws so discovery retries instead of sending a single-case reply that drops original 2.
+    await expect(
+      parse({ db: env.DB, bucket: brokenReadBucket }, parentId, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/R2 read down/);
+    await recordFailure(env.DB, parentId, "parse", "StoreError");
+    await expect(
+      reply({ ...env, ARTEFACTS: brokenReadBucket }, parentId, {
+        status: "partial",
+        failedStep: "parse",
+        errorClass: "StoreError",
+      }),
+    ).rejects.toThrow(/R2 read down/);
+
+    // Finding 2: child admission succeeds in fanOut, then child raw put fails throughout parse retries;
+    // when storage recovers before reply, groupedReply restores the admitted child's raw bytes from the parent forward.
+    const parent2Id = await caseWith(forwards["two-originals"]);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parent2Id)
+      .run();
+    const brokenPutBucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "put" ? () => Promise.reject(new Error("R2 put down")) : Reflect.get(target, name).bind(target),
+    }) as unknown as R2Bucket;
+    await expect(
+      parse({ db: env.DB, bucket: brokenPutBucket }, parent2Id, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/R2 put down/);
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, parent2Id);
+    expect(children).toHaveLength(1);
+    expect(children[0]?.state).toBe("admitted");
+    const childId = children[0]?.childCaseId as string;
+    expect(await readArtefact(store, childId, rawKey(childId))).toBeNull();
+    await recordFailure(env.DB, parent2Id, "parse", "StoreError");
+
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-r4" } });
+    });
+    try {
+      const firstReply = await reply(env, parent2Id, {
+        status: "partial",
+        failedStep: "parse",
+        errorClass: "StoreError",
+      });
+      expect(firstReply.mail).toBe("waiting");
+      expect(await readArtefact(store, childId, rawKey(childId))).toMatchObject({ body: expect.any(Uint8Array) });
+      const childInstance = await introspectWorkflowInstance(env.ANALYSIS, childId);
+      try {
+        await childInstance.waitForStatus("complete");
+      } finally {
+        await childInstance.dispose();
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("2. Updated banking details");
+      expect(requests[0]?.text_body).toContain("Looks legitimate");
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

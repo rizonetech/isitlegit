@@ -309,7 +309,7 @@ Sections: 100 | Checklist items: 637
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
 | [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
 | [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
-| [ ]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
+| [x]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks           | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs           | meta-api              | 2     |
@@ -397,7 +397,7 @@ Sections: 100 | Checklist items: 637
 
 ### Phase 7: After the event
 
-Sections: 211 | Checklist items: 932
+Sections: 212 | Checklist items: 937
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -414,8 +414,8 @@ Sections: 211 | Checklist items: 932
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                            | attended             | 6     |
 | [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward                    | none                 | 4     |
-| [ ]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
-| [ ]    | D01 T01 §13 | Compressed-RTF message bodies                               | none                 | 4     |
+| [x]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
+| [x]    | D01 T01 §13 | Compressed-RTF message bodies                               | none                 | 4     |
 | [ ]    | D01 T01 §14 | Near-limit forward, live                                    | operator, live-mail  | 3     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                                   | operator             | 7     |
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed                       | operator             | 3     |
@@ -423,7 +423,7 @@ Sections: 211 | Checklist items: 932
 | [ ]    | D01 T01 §21 | Mail checked                                                | none                 | 3     |
 | [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation              | none                 | 5     |
 | [x]    | D01 T01 §23 | Auth outcomes stored before slower checks                   | none                 | 2     |
-| [ ]    | D01 T01 §24 | Pipeline writes fenced across a case removal                | none                 | 3     |
+| [x]    | D01 T01 §24 | Pipeline writes fenced across a case removal                | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                                    | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution                      | none                 | 3     |
@@ -432,7 +432,7 @@ Sections: 211 | Checklist items: 932
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code                    | none                 | 3     |
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item                  | none                 | 3     |
 | [x]    | D02 T01 §8  | Examined set stored for a clean check                       | none                 | 3     |
-| [ ]    | D02 T01 §9  | Protected-identity candidate for the trust match            | none                 | 3     |
+| [x]    | D02 T01 §9  | Protected-identity candidate for the trust match            | none                 | 3     |
 | [ ]    | D02 T01 §10 | Every examined target kept past the stored bound            | none                 | 5     |
 | [ ]    | D02 T01 §11 | Relation of each examined target to the message             | none                 | 4     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
@@ -482,7 +482,8 @@ Sections: 211 | Checklist items: 932
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict                    | none                 | 4     |
 | [x]    | D04 T01 §12 | Bank-change action with the ledger phone                    | none                 | 5     |
 | [x]    | D04 T01 §13 | Floor record provenance and coverage state                  | none                 | 3     |
-| [ ]    | D04 T01 §15 | Fixed action on every critical invoice item                 | none                 | 3     |
+| [x]    | D04 T01 §15 | Fixed action on every critical invoice item                 | none                 | 3     |
+| [ ]    | D04 T01 §16 | Message-specific consequence sentences                      | none                 | 5     |
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
@@ -650,6 +651,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 381/574 verified sections, 123 ready to run now.
+Progress: 387/575 verified sections, 118 ready to run now.
 
-Checklist: 2873/3568 items completed (includes Commit items).
+Checklist: 2891/3573 items completed (includes Commit items).

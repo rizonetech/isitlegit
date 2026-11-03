@@ -6,6 +6,7 @@
 // did not go, then drains every request within its time budget.
 import { CURRENT_RUN, completeStored, getCaseForPipeline } from "../db/cases";
 import { getVerdict } from "../db/verdicts";
+import { childrenOf } from "../intake/children";
 import { type ReportState, reply } from "../pipeline/analysis-workflow";
 import { type MailDeps, sendMail } from "./smtp2go";
 
@@ -140,7 +141,8 @@ async function resendOne(
     // and this one's content would be the old run's (D01 T01 §17's completion review).
     const current = await getCaseForPipeline(env.DB, row.case_id);
     if (!current.ok) throw new ResendError("ResendCaseUnreadable");
-    if (row.send_key !== `reply:${current.value.runId ?? row.case_id}`) {
+    const isGroup = row.send_key === `reply:group:${row.case_id}`;
+    if (!isGroup && row.send_key !== `reply:${current.value.runId ?? row.case_id}`) {
       // While the retry's start is unresolved (`received`), it may yet be rolled back and this run be current again:
       // the request waits, its count unchanged (round 2).
       if (current.value.status === "received") {
@@ -151,17 +153,40 @@ async function resendOne(
       report.done += 1;
       return true;
     }
+    if (isGroup && current.value.status === "received") {
+      await finish("requested", row.resend_runs, "waiting: the check's retry has not started yet");
+      return true;
+    }
     // Sent, refused (the allowlist), a duplicate, no forwarder, or uncertain: final here, an uncertain or pending send
     // settled by the reconciler and never sent again here. A failed send throws (ReplyNotSent) and is tried again.
-    const state = await rebuildState(env.DB, row.case_id);
+    const state = isGroup
+      ? await rebuildState(env.DB, row.case_id).catch(() => ({
+          status: "partial" as const,
+          failedStep: "reply" as const,
+          errorClass: "ReplyNotSent",
+        }))
+      : await rebuildState(env.DB, row.case_id);
     const result = await reply(env, row.case_id, state, row.send_key);
+    if (result.mail === "waiting") {
+      await finish("requested", row.resend_runs, "waiting: the forward's other cases have not finished yet");
+      return true;
+    }
     // A partial case whose verdict has now reached the member is finished, as the workflow's own finish step would have
     // done (final review); a failure here leaves it as it was and is logged.
     const delivered =
       result.mail !== "none" &&
       (result.outcome.status === "sent" ||
         (result.outcome.status === "duplicate" && result.outcome.previous === "sent"));
-    if (delivered && state.status === "ready") await finishCase(env.DB, row.case_id, report);
+    if (delivered) {
+      if (isGroup) {
+        await finishCase(env.DB, row.case_id, report);
+        for (const child of await childrenOf(env.DB, row.case_id))
+          if (child.state !== "refused-cap" && child.state !== "pending")
+            await finishCase(env.DB, child.childCaseId, report);
+      } else if (state.status === "ready") {
+        await finishCase(env.DB, row.case_id, report);
+      }
+    }
     outcome =
       result.mail === "none"
         ? "with no one to reply to (no forwarder)"

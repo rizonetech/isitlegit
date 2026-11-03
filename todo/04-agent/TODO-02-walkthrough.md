@@ -2,7 +2,7 @@
 schema_version: 1
 id: walkthrough
 domain: 04-agent
-status: active
+status: done
 title: "TODO-02 -- Muse Wonder Phishing-Site Walkthrough"
 frozen: true
 track: day-4
@@ -45,7 +45,7 @@ track: day-4
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [x] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
-| 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [ ] |
+| 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [x] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -329,6 +329,8 @@ Filed 2026-11-02 from §1's completion review (G6): a fixture collector that ans
 
 ## 9. Ablation flag in the walkthrough
 
+> **Started:** 2026-11-03T02:05Z
+
 Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-walkthrough` case the walkthrough step skips the Muse Wonder walk entirely and stores the same evidence shape with the step marked ablated, so an ablation arm measures the case exactly as if the walk had found nothing to follow, with the reason named.
 
 **Phase:** 6
@@ -341,10 +343,15 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 1. Read the flag where the trigger decides to walk. Done when: a flagged case starts no browser and calls no model.
 2. Store the walkthrough evidence with the ablation named. Done when: the case's report shows the walk was ablated, not absent.
 
-- [ ] Honour `no-walkthrough` in `src/walkthrough/trigger.ts` through `ablateFlagFor` (D04 T01 §14): no `Driver.open`, no Wonder call, and the walkthrough evidence stored through the usual producer with `ablated: "no-walkthrough"` in its detail. Done when: `test/walkthrough/trigger.test.ts` shows a flagged case with no browser launched, no model spend row, and the ablated evidence read back; an unflagged case walks as today.
-- [ ] Commit: `walkthrough: ablation flag in the walkthrough`
+- [x] Honour `no-walkthrough` in `src/walkthrough/trigger.ts` through `ablateFlagFor` (D04 T01 §14): no `Driver.open`, no Wonder call, and the walkthrough evidence stored through the usual producer with `ablated: "no-walkthrough"` in its detail. Done when: `test/walkthrough/trigger.test.ts` shows a flagged case with no browser launched, no model spend row, and the ablated evidence read back; an unflagged case walks as today.
+- [x] Commit: `walkthrough: ablation flag in the walkthrough`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes, and fails if a flagged case launches a browser.
+
+**Corrected 2026-11-03** (plan review, 2 P2 and 1 P3, `docs/reviews/04-agent/D04-T02-s9.md`): (1) the marker is exact: one item `walkthrough.ablated` at info, summary naming the ablation, `detail: { ablated: "no-walkthrough", url, revision }`, no artefacts and no `checked` field (missing coverage is `walkthrough.not_checked`'s statement, never this one's), stored through `addEvidence` as the walkthrough producer so a retry replaces rather than duplicates. (2) `StepDeps` gains an optional flag reader, read after the target is chosen and before the cache key, cache, canary and launch; the Workflow builds it from `ablateFlagFor` over the case's own organisation, and tests prove a populated cache is neither read nor written for a flagged case, no target reads no flag, and absent, null, other-flag and failed readers all walk as today. (3) `StepResult` gains `{ outcome: "ablated", url, items: 1 }`, returned only after the marker is stored; a failed marker write propagates to the Workflow's existing step failure handling.
+
+> **Verified:** 2026-11-03 | §9 | 30ea8cb0f0b0daa458083245d194f55695e76bac
+> **Review:** `docs/reviews/d04-t02-s9.json`
 
 ## Verification
 

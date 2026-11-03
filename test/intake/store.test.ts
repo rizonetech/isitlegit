@@ -427,20 +427,137 @@ describe("a case removed mid-write (D01 T01 §24)", () => {
         expect.objectContaining({ code: "storage", message: expect.stringContaining("was fenced: its case is gone") }),
       );
       expect(await rows(id), name).toEqual([]);
-      // The other case's artefacts are untouched.
+      // The other case's artefacts are untouched, its object and bytes included.
       expect(await rows(other), name).toHaveLength(1);
+      const untouched = await readArtefact(store, other, rawKey(other));
+      expect(untouched && "body" in untouched && new TextDecoder().decode(untouched.body), name).toBe("untouched");
     }
   });
 
-  it("leaves no object behind for the fenced fixed-key writes, and lands the same write whole without a removal", async () => {
-    for (const [name, write, keyOf] of writes) {
+  it("leaves no object behind for every fenced write, and lands the same write whole without a removal", async () => {
+    const bodies: Record<string, Uint8Array> = {
+      putAttachment: bytes("%PDF"),
+      putArtefact: bytes("PNG"),
+    };
+    const realKey: Record<string, (id: string) => Promise<string>> = {
+      putRaw: async (id) => rawKey(id),
+      putParsed: async (id) => parsedKey(id),
+      putAttachment: async (id) => attachmentKey(id, await hexOf(bodies.putAttachment!), "a.pdf"),
+      putArtefact: async (id) => artefactKey(id, "render", await hexOf(bodies.putArtefact!), "page.png"),
+      putVisible: async (id) => visibleKey(id),
+    };
+    for (const [name, write] of writes) {
       const id = await newCase();
       await expect(write(removing(id), id), name).rejects.toMatchObject({ code: "storage" });
-      if (!name.startsWith("putA")) expect(await env.ARTEFACTS.head(keyOf(id)), name).toBeNull();
+      expect(await env.ARTEFACTS.head(await realKey[name]!(id)), name).toBeNull();
       const landed = await newCase();
-      await write(store, landed);
+      const stored = (await write(store, landed)) as { key: string };
       expect(await rows(landed), name).toHaveLength(1);
+      const read = await readArtefact(store, landed, stored.key ?? (await realKey[name]!(landed)));
+      expect(read && "body" in read, name).toBe(true);
     }
+  });
+
+  it("fences an overlapping writer whose object the removal sweeps between put and head", async () => {
+    const id = await newCase();
+    const body = bytes("overlapping");
+    const key = rawKey(id);
+    await env.ARTEFACTS.put(key, body, { sha256: await hexOf(body) });
+    const sweeping: Store = {
+      bucket: new Proxy(env.ARTEFACTS, {
+        get(target, prop) {
+          if (prop === "head")
+            return async (k: string) => {
+              await env.ARTEFACTS.delete(k);
+              await removeCase(id);
+              return target.head(k);
+            };
+          const value = Reflect.get(target, prop);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as R2Bucket,
+      db: env.DB,
+    };
+    await expect(putRaw(sweeping, id, body)).rejects.toEqual(
+      expect.objectContaining({ message: expect.stringContaining("was fenced: its case is gone") }),
+    );
+    expect(await rows(id)).toEqual([]);
+  });
+
+  it("fences removal under both deadline checks, and a deadline alone keeps its object for the retry", async () => {
+    const body = bytes("PNG");
+    const keyOf = async (id: string) => artefactKey(id, "render", await hexOf(body), "page.png");
+    // The Worker deadline check, with the case removed during the object write.
+    const workerId = await newCase();
+    await expect(
+      putArtefact(removing(workerId), workerId, "render", "page.png", body, "image/png", Date.now() - 1),
+    ).rejects.toEqual(expect.objectContaining({ message: expect.stringContaining("was fenced: its case is gone") }));
+    expect(await env.ARTEFACTS.head(await keyOf(workerId))).toBeNull();
+    // The insert's own SQL deadline: the statement is delayed past it after the Worker check passed,
+    // and the counter proves the SQL branch, not the Worker branch, did the fencing (round 1).
+    const sqlId = await newCase();
+    let insertRuns = 0;
+    const slowDb = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.includes("INSERT INTO artefacts")) return statement;
+            return {
+              bind: (...values: unknown[]) => ({
+                run: async () => {
+                  insertRuns++;
+                  await new Promise((resolve) => setTimeout(resolve, 600));
+                  return statement.bind(...(values as never[])).run();
+                },
+              }),
+            };
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    await expect(
+      putArtefact(
+        { bucket: removing(sqlId).bucket, db: slowDb },
+        sqlId,
+        "render",
+        "page.png",
+        body,
+        "image/png",
+        Date.now() + 300,
+      ),
+    ).rejects.toEqual(expect.objectContaining({ message: expect.stringContaining("was fenced: its case is gone") }));
+    expect(insertRuns).toBe(1);
+    expect(await env.ARTEFACTS.head(await keyOf(sqlId))).toBeNull();
+    // A deadline alone, the case still there: the object stays for the retry, which then lands.
+    const alive = await newCase();
+    await expect(putArtefact(store, alive, "render", "page.png", body, "image/png", Date.now() - 1)).rejects.toEqual(
+      expect.objectContaining({ message: expect.stringContaining("was fenced after its deadline") }),
+    );
+    expect(await env.ARTEFACTS.head(await keyOf(alive))).not.toBeNull();
+    await putArtefact(store, alive, "render", "page.png", body, "image/png");
+    expect(await rows(alive)).toHaveLength(1);
+  });
+
+  it("names an unchecked case explicitly when the recheck itself fails, leaving its object for the sweep", async () => {
+    const id = await newCase();
+    const blindDb = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            if (sql === "SELECT id FROM cases WHERE id = ?") throw new Error("D1 unavailable");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    await expect(putRaw({ bucket: removing(id).bucket, db: blindDb }, id, bytes("uncheckable"))).rejects.toEqual(
+      expect.objectContaining({ message: expect.stringContaining("could not be checked") }),
+    );
+    expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
+    await env.ARTEFACTS.delete(rawKey(id));
   });
 
   it("names cleanup pending when the fenced object cannot be removed, and the prefix sweep recovers it", async () => {

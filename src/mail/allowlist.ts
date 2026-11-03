@@ -47,9 +47,13 @@ async function isInvitee(db: D1Database, address: string, now: Date) {
 // under that reply's own key (the reply step's `reply:<case id>` for a case's first run). A retry of that reply reuses
 // the key, so it is admitted again; any other mail to them, this case's under another key included, is not.
 export const counterpartyReplyKey = (caseId: string) => `reply:${caseId}`;
-async function isCounterpartyForwarder(db: D1Database, caseId: string, address: string) {
+async function isCounterpartyForwarder(db: D1Database, caseId: string, address: string, grouped = false) {
   const row = await db
-    .prepare("SELECT 1 FROM cases WHERE id = ? AND origin = 'counterparty' AND forwarded_by = ? LIMIT 1")
+    .prepare(
+      grouped
+        ? "SELECT 1 FROM cases WHERE id = ? AND origin = 'counterparty' AND forwarded_by = ? AND EXISTS (SELECT 1 FROM case_children WHERE parent_case_id = cases.id) LIMIT 1"
+        : "SELECT 1 FROM cases WHERE id = ? AND origin = 'counterparty' AND forwarded_by = ? LIMIT 1",
+    )
     .bind(caseId, address)
     .first();
   return row !== null;
@@ -96,8 +100,8 @@ export async function isAllowedRecipient(
     case "reply":
       if (
         send?.caseId &&
-        send.sendKey === counterpartyReplyKey(send.caseId) &&
-        (await isCounterpartyForwarder(db, send.caseId, address))
+        (send.sendKey === counterpartyReplyKey(send.caseId) || send.sendKey === `reply:group:${send.caseId}`) &&
+        (await isCounterpartyForwarder(db, send.caseId, address, send.sendKey === `reply:group:${send.caseId}`))
       )
         return true;
       return demo || operator || (await isMember(db, address)) || (await findMemberBySender(db, address)) !== null;
