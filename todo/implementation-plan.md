@@ -532,7 +532,7 @@ Sections: 186 | Checklist items: 799
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                  | attended             | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                           | none                 | 4     |
 | [x]    | D07 T04 §18 | Threat kinds by verdict                             | none                 | 4     |
-| [ ]    | D07 T04 §19 | Reporting period choice                             | none                 | 4     |
+| [x]    | D07 T04 §19 | Reporting period choice                             | none                 | 4     |
 | [ ]    | D07 T04 §20 | Opt-in weekly counts                                | none                 | 4     |
 | [ ]    | D07 T04 §22 | Invite several colleagues at once                   | none                 | 3     |
 | [ ]    | D07 T04 §23 | Team history for owners                             | none                 | 3     |
@@ -620,6 +620,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 333/544 verified sections, 138 ready to run now.
+Progress: 334/544 verified sections, 138 ready to run now.
 
 Checklist: 2660/3411 items completed (includes Commit items).

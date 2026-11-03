@@ -49,7 +49,7 @@ track: day-6
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
 | 18 | §18 | Threat kinds under Malicious | §2 | [x] |
-| 19 | §19 | Chosen reporting period for the | §2 | [ ] |
+| 19 | §19 | Chosen reporting period for the | §2 | [x] |
 | 20 | §20 | Opt-in weekly counts | §2 | [ ] |
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
@@ -789,6 +789,9 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 > **Deferred:** exact calendar-date totals -> XREF: D07 T04 §34
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
+
+> **Verified:** 2026-11-03 | §19 | 6231086ad6f80ce66f47980bcf62315f4c831629
+> **Review:** `docs/reviews/d07-t04-s19.json`
 
 ## 20. Opt-in weekly counts
 
