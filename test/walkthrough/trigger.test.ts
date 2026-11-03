@@ -205,3 +205,65 @@ describe("walkthroughStep", () => {
     expect(CACHE_TTL_SECONDS).toBe(86_400);
   });
 });
+
+describe("the ablated walk (D04 T02 §9)", () => {
+  it("stores the ablation marker and starts no browser, model or cache read", async () => {
+    const url = urlFor();
+    const id = await newCase([draft("link.credential_form", "high", url)]);
+    // A populated cache for the same page: an ablated case must not reuse the walk it removes.
+    const first = deps();
+    await walkthroughStep(first.d, await newCase([draft("link.credential_form", "high", url)]));
+    let cacheReads = 0;
+    let cacheWrites = 0;
+    const counting = {
+      get: async (key: string) => {
+        cacheReads += 1;
+        return cache.get(key);
+      },
+      put: async (key: string, value: never, ttl: number) => {
+        cacheWrites += 1;
+        return cache.put(key, value, ttl);
+      },
+    };
+    const flagged = deps({ cache: counting as never, ablateFlag: async () => "no-walkthrough" });
+    expect(await walkthroughStep(flagged.d, id)).toEqual({ outcome: "ablated", url, items: 1 });
+    expect(flagged.calls).toEqual({ launch: 0, walk: 0, closed: 0 });
+    expect(cacheReads).toBe(0);
+    expect(cacheWrites).toBe(0);
+    const items = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("walkthrough."));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      check: "walkthrough.ablated",
+      severity: "info",
+      detail: { ablated: "no-walkthrough", url },
+      artefacts: [],
+    });
+    expect(items[0]?.summary).toContain("ablated");
+    expect(items[0]?.detail).not.toHaveProperty("checked");
+    // A retry replaces the marker, never duplicates it.
+    await walkthroughStep(flagged.d, id);
+    expect((await readEvidence(env.DB, id)).filter((e) => e.check === "walkthrough.ablated")).toHaveLength(1);
+  });
+
+  it("reads no flag without a target, and walks as today for any other flag state", async () => {
+    let flagReads = 0;
+    const reader = (value: "no-walkthrough" | "no-sam" | null) => async () => {
+      flagReads += 1;
+      return value;
+    };
+    const none = deps({ ablateFlag: reader("no-walkthrough") });
+    expect(await walkthroughStep(none.d, await newCase([]))).toEqual({ outcome: "none" });
+    expect(flagReads).toBe(0);
+    for (const value of ["no-sam", null] as const) {
+      const { d, calls } = deps({ ablateFlag: reader(value) });
+      const result = await walkthroughStep(d, await newCase([draft("link.credential_form", "high", urlFor())]));
+      expect(result.outcome).toBe("walked");
+      expect(calls.launch).toBe(1);
+    }
+    // No reader at all walks as today.
+    const plain = deps();
+    expect(
+      (await walkthroughStep(plain.d, await newCase([draft("link.credential_form", "high", urlFor())]))).outcome,
+    ).toBe("walked");
+  });
+});

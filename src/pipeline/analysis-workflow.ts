@@ -414,6 +414,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               table,
               revision: this.env.CF_VERSION_METADATA?.id ?? null,
               walkId: () => ulid(),
+              ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
             },
             caseId,
           );
