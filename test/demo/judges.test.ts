@@ -3,7 +3,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import manifest from "../../data/demo/judge/fixtures.json";
-import { checkJudges, JUDGE_CODE_LABEL, type JudgeCaseSpec, markJudgeOrg } from "../../src/demo/judges";
+import { checkJudges, JUDGE_CODE_LABEL, type JudgeCaseSpec, markJudgeOrg, seedJudgePack } from "../../src/demo/judges";
 import { call, stubSmtp2go } from "../auth/helpers";
 
 const db = env.DB;
@@ -169,5 +169,58 @@ describe("judge signup hook and pack", () => {
       .bind(ordinaryOrg?.id ?? "")
       .all();
     expect(ordinaryCases.results).toHaveLength(0);
+  });
+
+  it("resumes and admits a new voice case on retry when the first attempt failed storage and left a partial RawMissing row", async () => {
+    const orgId = `judge-retry-${crypto.randomUUID().slice(0, 8)}`;
+    const userId = `user-${crypto.randomUUID().slice(0, 8)}`;
+    const at = new Date().toISOString();
+    await db
+      .prepare('INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)')
+      .bind(orgId, "Retry Judge Org", orgId, at)
+      .run();
+
+    const realBucket = env.ARTEFACTS;
+    let failVoice = true;
+    const flakyBucket = new Proxy(realBucket, {
+      get(target, prop, receiver) {
+        if (prop === "put") {
+          return async (key: string, ...rest: unknown[]) => {
+            if (failVoice && key.includes("director-voice-note.ogg")) {
+              throw new Error("simulated R2 outage on voice attachment");
+            }
+            return (target.put as (...a: unknown[]) => unknown).call(target, key, ...rest);
+          };
+        }
+        const val = Reflect.get(target, prop, receiver);
+        return typeof val === "function" ? val.bind(target) : val;
+      },
+    });
+    const fakeAnalysis = { create: async () => ({ id: "ok" }) } as unknown as Env["ANALYSIS"];
+
+    await expect(
+      seedJudgePack({ DB: db, ARTEFACTS: flakyBucket, ANALYSIS: fakeAnalysis }, orgId, userId),
+    ).rejects.toThrow(/the delivery could not be stored/);
+
+    const partialRow = await db
+      .prepare("SELECT id, status FROM cases WHERE org_id = ? AND upload_name = ?")
+      .bind(orgId, "director-voice-note.ogg")
+      .first<{ id: string; status: string }>();
+    expect(partialRow?.status).toBe("partial");
+
+    failVoice = false;
+    const ids = await seedJudgePack({ DB: db, ARTEFACTS: flakyBucket, ANALYSIS: fakeAnalysis }, orgId, userId);
+    expect(ids).toHaveLength(5);
+    expect(ids[4]).not.toBe(partialRow?.id);
+
+    const voiceRows = await db
+      .prepare("SELECT id, status FROM cases WHERE org_id = ? AND upload_name = ? ORDER BY created_at ASC")
+      .bind(orgId, "director-voice-note.ogg")
+      .all<{ id: string; status: string }>();
+    expect(voiceRows.results.map((r) => r.status)).toEqual(["partial", "received"]);
+
+    const checks = await checkJudges(db, orgId, specs);
+    expect(checks.find((c) => c.name === "director-voice-note")?.caseId).toBe(ids[4]);
+    expect(checks.find((c) => c.name === "director-voice-note")?.status).toBe("received");
   });
 });

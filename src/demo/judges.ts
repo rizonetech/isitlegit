@@ -75,12 +75,12 @@ export async function seedJudgePack(env: JudgePackEnv, orgId: string, userId: st
     const existing =
       spec.kind === "mail"
         ? await env.DB.prepare(
-            "SELECT id FROM cases WHERE org_id = ? AND original_subject = ? ORDER BY created_at DESC LIMIT 1",
+            "SELECT id FROM cases WHERE org_id = ? AND original_subject = ? AND status IN ('running', 'done') ORDER BY created_at DESC, id DESC LIMIT 1",
           )
             .bind(orgId, spec.subject ?? "")
             .first<{ id: string }>()
         : await env.DB.prepare(
-            "SELECT id FROM cases WHERE org_id = ? AND upload_name = ? ORDER BY created_at DESC LIMIT 1",
+            "SELECT id FROM cases WHERE org_id = ? AND upload_name = ? AND status IN ('running', 'done') ORDER BY created_at DESC, id DESC LIMIT 1",
           )
             .bind(orgId, spec.uploadName ?? file)
             .first<{ id: string }>();
@@ -104,12 +104,12 @@ export async function seedJudgePack(env: JudgePackEnv, orgId: string, userId: st
       headersAvailable: sniffed.kind === "mail" && sniffed.headersAvailable,
       store: async (caseId) => {
         if (sniffed.kind === "mail") {
-          await putRaw(store, caseId, bytes, mediaType);
           await setOriginalHeader(env.DB, caseId, {
             subject: spec.subject ?? null,
             fromName: null,
             fromAddress: spec.sender ?? null,
           });
+          await putRaw(store, caseId, bytes, mediaType);
         } else {
           await putAttachment(store, caseId, uploadName, bytes, mediaType);
         }
@@ -144,13 +144,13 @@ export async function checkJudges(
       spec.kind === "mail"
         ? await db
             .prepare(
-              "SELECT id, status, verdict FROM cases WHERE org_id = ? AND original_subject = ? ORDER BY created_at DESC",
+              "SELECT id, status, verdict FROM cases WHERE org_id = ? AND original_subject = ? ORDER BY CASE WHEN status = 'done' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'received' THEN 2 ELSE 3 END, created_at DESC, id DESC",
             )
             .bind(orgId, spec.subject ?? "")
             .first<CaseRow>()
         : await db
             .prepare(
-              "SELECT id, status, verdict FROM cases WHERE org_id = ? AND upload_name = ? ORDER BY created_at DESC",
+              "SELECT id, status, verdict FROM cases WHERE org_id = ? AND upload_name = ? ORDER BY CASE WHEN status = 'done' THEN 0 WHEN status = 'running' THEN 1 WHEN status = 'received' THEN 2 ELSE 3 END, created_at DESC, id DESC",
             )
             .bind(orgId, spec.uploadName ?? "")
             .first<CaseRow>();
