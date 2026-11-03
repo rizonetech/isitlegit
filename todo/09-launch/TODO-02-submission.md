@@ -167,9 +167,10 @@ The README a judge reads first: the problem, the demo video link (added by the o
 
 1. Rewrite the README sections. Done when: every section above exists with working links.
 
-- [ ] Replace the status note with the launch state and results summary. Done when: the note names the final eval numbers and date.
+- [ ] Replace the status note with the launch state, results summary, and a single structured Quick Links & Media hub at the top (linking the 3-Minute Demo Video, the 60-90s Judge Getting-Started Video `D10 T01 §8` and `docs/JUDGE-GETTING-STARTED.md`, the live `isitlegit.co.za` / `app.isitlegit.co.za` app and `/eval` dashboard, the Hugging Face `huggingface.co/rizonetech/isitlegit-loupe` model card and LoRA weights, the `IsItLegit` YouTube playlist with Videos 01 to 04, `CONTRIBUTIONS.md`, `NOTICE.md`, and `eval/RESULTS.md`). Done when: the note names the final eval numbers and date and the top hub links every surface cleanly in one place.
+- [ ] Write `docs/JUDGE-GETTING-STARTED.md` (linked from the top of `README.md`) as a concise, step-by-step judge guide covering: (1) the 60-second live web path (`isitlegit.co.za`, `app.isitlegit.co.za`, forwarding/uploading a fixture, toggling `?trace=1` `#model-trace` and `?clock=1`, and inspecting `/eval`), (2) the zero-account local replay path (`pnpm judge:demo` with no API keys or external accounts), and (3) where to see each of the 5 Meta models (`muse-spark-1.3`, `muse-wonder-1.0`, `sam-3.1`, `Loupe 1.1` on `Muse Glimmer 30B`, and `muse-voice-transcribe-1.0`) in action. Done when: `test -f docs/JUDGE-GETTING-STARTED.md` passes.
 - [ ] Add the architecture diagram (Mermaid or the Remotion still) and the Meta model table with ablation results. Done when: both render on GitHub.
-- [ ] Add "Verify it yourself" (eval command, dashboard URL, judge demo sign-in steps). Done when: the section exists.
+- [ ] Add "Verify it yourself" (eval command, dashboard URL, `pnpm judge:demo`, judge demo sign-in steps, and a single link to `docs/JUDGE-GETTING-STARTED.md`), and apply disciplined, non-repetitive cross-linking across `README.md`, `docs/JUDGE-GETTING-STARTED.md`, the Hugging Face model card (`D99 T02 §7`), and the YouTube video descriptions (`media/scripts/*.md`): one structured cross-link block per document rather than scattered duplicate links. Done when: the section exists and cross-links are clean and verified.
 - [ ] Check every link and figure has a source (`AGENTS.md`, manifesto: evidence over assertion). Done when: a link check script passes.
 - [ ] Commit: `launch: final README`
 

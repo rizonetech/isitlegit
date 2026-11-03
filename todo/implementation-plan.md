@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 142
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 108 | Checklist items: 678
+Sections: 108 | Checklist items: 679
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -392,7 +392,7 @@ Sections: 108 | Checklist items: 678
 | [ ]    | D09 T02 §3  | Demo script and model-trace demo mode        | none                  | 5     |
 | [ ]    | D09 T02 §4  | Remotion title cards and animation           | none                  | 4     |
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
-| [ ]    | D09 T02 §6  | Final README                                 | none                  | 5     |
+| [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
 | [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
 | [ ]    | D10 T01 §2  | Remotion licence basis                       | operator              | 3     |
@@ -666,4 +666,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 387/588 verified sections, 119 ready to run now.
 
-Checklist: 2912/3629 items completed (includes Commit items).
+Checklist: 2912/3630 items completed (includes Commit items).
