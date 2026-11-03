@@ -662,7 +662,9 @@ export function TeamPage(props: {
   const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history, find, findFocus } = props;
   const findTooLong = (find ?? "").length > 200;
   const visible =
-    find && !findTooLong ? members.filter((m) => fold(`${m.name} ${m.email}`).includes(fold(find))) : members;
+    find && !findTooLong
+      ? members.filter((m) => fold(m.name).includes(fold(find)) || fold(m.email).includes(fold(find)))
+      : members;
   const mayInvite = reader.role !== "member";
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
@@ -743,7 +745,7 @@ export function TeamPage(props: {
                 placeholder="Name or email"
                 autocomplete="off"
                 class={SELECT}
-                {...((find || findFocus) && !outcome && !lost ? { autofocus: true } : {})}
+                {...((find !== undefined || findFocus) && !outcome && !lost ? { autofocus: true } : {})}
               />
             </label>
             <Button type="submit" variant="dark">

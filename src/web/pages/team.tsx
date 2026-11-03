@@ -339,15 +339,16 @@ teamRoutes.get(
       ]);
       const member = members.find((m) => m.memberId === c.req.param("memberId"));
       // Not a member of this organisation (removed meanwhile, or another's): the page says so, nothing asked.
-      if (!member) return back(secret, who.org.id, { r: "gone" });
+      if (!member) return back(secret, who.org.id, { r: "gone" }, new URL(c.req.url).searchParams.get("find") ?? "");
       // A removal the reader may not make (a member, an admin and an owner, their own row) is never offered, even by a
       // typed address: the page says so instead.
       const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
-      if (!mayRemove(reader, member)) return back(secret, who.org.id, { r: "no-permission" });
+      if (!mayRemove(reader, member))
+        return back(secret, who.org.id, { r: "no-permission" }, new URL(c.req.url).searchParams.get("find") ?? "");
       // A protected account is not asked about: the page says it cannot be removed (only a reader who could remove
       // anyone else gets here, so nothing is told to those who could not).
       if (isProtectedAccount(member.email))
-        return back(secret, who.org.id, { r: "protected", name: member.name || member.email });
+        return back(secret, who.org.id, { r: "protected", name: member.name || member.email }, new URL(c.req.url).searchParams.get("find") ?? "");
       return html(
         <RemoveConfirm shell={shell} member={member} find={new URL(c.req.url).searchParams.get("find") ?? undefined} />,
       );

@@ -156,6 +156,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
         outcome={outcome}
         lost={lost}
         find={url.searchParams.get("find") ?? undefined}
+        findFocus={url.searchParams.get("focus") === "find"}
         history={
           state.reader.role === "owner"
             ? {
