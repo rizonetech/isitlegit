@@ -584,11 +584,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       });
 
   // D07 T02 §12: the other-device state is read in order, the guidance first and signing in here reached second, by keyboard.
-  it("puts the finish-elsewhere guidance first and reaches Sign in on this device instead by keyboard, posting once", async () => {
+  it("puts the finish-elsewhere guidance first and reaches Sign in in this browser instead by keyboard, posting once", async () => {
     const { p, context } = await open("/signin/confirm-elsewhere", { width: 360 });
-    expect(await p.getByRole("heading", { name: "Finish on the device where you asked" }).isVisible()).toBe(true);
+    expect(await p.getByRole("heading", { name: "Finish in the browser where you asked" }).isVisible()).toBe(true);
     expect(await p.getByText("6-digit code from the same email").isVisible()).toBe(true);
-    const here = p.getByRole("button", { name: "Sign in on this device instead" });
+    const here = p.getByRole("button", { name: "Sign in in this browser instead" });
     await expect.poll(() => here.isVisible()).toBe(true);
     // The heading comes before the button, and the button is the page's only control.
     const order = await p.evaluate(() => [
@@ -597,7 +597,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     ]);
     expect((order[0] ?? 0) < (order[1] ?? 0)).toBe(true);
     // Reached by sequential Tab from the page's start, not by a direct focus.
-    expect(await tabsTo(p, "Sign in on this device instead")).toBe(true);
+    expect(await tabsTo(p, "Sign in in this browser instead")).toBe(true);
     await p.keyboard.press("Enter");
     await expect.poll(() => state.posts.length).toBe(1);
     expect(state.posts[0]?.path).toBe("/signin/confirm");

@@ -918,6 +918,10 @@ Filed 2026-10-31 at the coordinator's request, from the console lane's D07 T04 �
 
 ## 25. Same-device other-browser
 
+> **Started:** 2026-11-03T00:20:11Z
+
+**Browser wording (operator, 2026-11-02):** the page names "the browser where you asked", gives the code instruction, and keeps signing in here as the secondary choice. The heading reads "Finish in the browser where you asked"; the text names another browser, not another device.
+
 Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-T02-s12.md, G3): the other-device state compares browser handles, so a member who asked in Chrome and opens the email link in Edge on the same laptop is told "You asked for this link on another device" and to go back to it, when the original browser is on the same machine. Okta's email authenticator names the original browser or tab, not a device. `design/SPEC.md` A1 (the confirm, link asked for on another device state, built by §12 on the operator's decision b) fixes the device-only wording, so the wording change is the operator's first.
 
 **Phase:** 7

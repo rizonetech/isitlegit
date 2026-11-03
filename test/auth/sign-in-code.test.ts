@@ -685,19 +685,19 @@ describe("a link opened on another device", () => {
     const before = [await rowCount(), await eventCount(), await sessions()];
     const mine = await (await laptop.get(path)).text();
     expect(mine).toContain("Sign in to IsItLegit");
-    expect(mine).not.toContain("Finish on the device where you asked");
+    expect(mine).not.toContain("Finish in the browser where you asked");
     const phone = browser();
     const theirs = await phone.get(path);
     const html = await theirs.text();
     expect(theirs.status).toBe(200);
     expect(sessionCookie(theirs)).toBe("");
-    expect(html).toContain("Finish on the device where you asked");
+    expect(html).toContain("Finish in the browser where you asked");
     expect(html).toContain("6-digit code from the same email");
-    expect(html).toContain("Sign in on this device instead");
+    expect(html).toContain("Sign in in this browser instead");
     expect(html).toContain('<form method="post" action="/signin/confirm"');
     // A scanner has no cookie at all and reads the same page; nothing is created, spent or audited.
     const scanner = await call(path);
-    expect(await scanner.text()).toContain("Finish on the device where you asked");
+    expect(await scanner.text()).toContain("Finish in the browser where you asked");
     expect(sessionCookie(scanner)).toBe("");
     expect([await rowCount(), await eventCount(), await sessions()]).toEqual(before);
     // The one token-free diagnostic stays, apart from the audit trail.
@@ -725,7 +725,7 @@ describe("a link opened on another device", () => {
     for (const device of [phone, laptop, browser()]) {
       const html = await (await device.get(path)).text();
       expect(html).toContain("Sign in to IsItLegit");
-      expect(html).not.toContain("Finish on the device where you asked");
+      expect(html).not.toContain("Finish in the browser where you asked");
     }
     expect(await askedElsewhere(db, undefined, tokenOf(link))).toBe(false);
   });
@@ -751,8 +751,8 @@ describe("a link opened on another device", () => {
     });
     expect(signedUp.status).toBe(201);
     const path = (smtp.sends.at(-1)?.link ?? "").replace(ORIGIN, "");
-    expect(await (await owner.get(path)).text()).not.toContain("Finish on the device where you asked");
-    expect(await (await browser().get(path)).text()).toContain("Finish on the device where you asked");
+    expect(await (await owner.get(path)).text()).not.toContain("Finish in the browser where you asked");
+    expect(await (await browser().get(path)).text()).toContain("Finish in the browser where you asked");
   });
 
   it("shows the plain page once the asking device's code tries are used up, since this device is the way", async () => {
@@ -761,7 +761,7 @@ describe("a link opened on another device", () => {
     for (let i = 0; i < 3; i++) await laptop.post("/signin/code", { code: wrong, email, callbackURL: "/cases/5" });
     const html = await (await browser().get(link.replace(ORIGIN, ""))).text();
     expect(html).toContain("Sign in to IsItLegit");
-    expect(html).not.toContain("Finish on the device where you asked");
+    expect(html).not.toContain("Finish in the browser where you asked");
   });
 
   it("answers a check that could not be made with a retryable page that spends nothing, then works on retry", async () => {
@@ -784,6 +784,6 @@ describe("a link opened on another device", () => {
     expect(sessionCookie(failed)).toBe("");
     vi.restoreAllMocks();
     expect([await rowCount(), await eventCount(), await sessions()]).toEqual(before);
-    expect(await (await call(path)).text()).toContain("Finish on the device where you asked");
+    expect(await (await call(path)).text()).toContain("Finish in the browser where you asked");
   });
 });
