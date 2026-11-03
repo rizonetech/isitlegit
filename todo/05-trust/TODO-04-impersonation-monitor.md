@@ -220,6 +220,8 @@ The business gets an alert with the evidence and a takedown pack: domain, regist
 
 ## 6. Demo lookalike site found by
 
+> **Started:** 2026-11-03T01:02Z
+
 The demo needs the monitor to find a real live page: a lookalike of the fictional demo business, hosted by us on a fixture domain under `fixtures.isitlegit.co.za`, wired into the demo business's candidate list as an extra seed so the daily run finds it (spec 4.11, plan "Demo fixture").
 
 **Phase:** 7
