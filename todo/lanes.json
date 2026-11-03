@@ -8,66 +8,59 @@
         "D02",
         "D04"
       ],
-      "sections": [
-        "D08 T01 §1"
-      ]
-    },
-    "app": {
-      "branch": "app-lane",
-      "worktree": "../isitlegit-app",
-      "domains": [
-        "D07"
-      ],
-      "sections": [
-        "D01 T03 §6",
-        "D02 T07 §2",
-        "D02 T07 §3"
-      ]
-    },
-    "walkthrough": {
-      "branch": "walkthrough-lane",
-      "worktree": "../isitlegit-walkthrough",
-      "sections": [
-        "D04 T02 §1",
-        "D04 T02 §2",
-        "D04 T02 §3",
-        "D04 T02 §4",
-        "D04 T02 §5",
-        "D04 T02 §6",
-        "D03 T03 §1",
-        "D03 T03 §2",
-        "D03 T03 §3",
-        "D03 T03 §4",
-        "D03 T03 §5",
-        "D02 T01 §5",
-        "D03 T02 §1",
-        "D03 T02 §2",
-        "D03 T02 §3",
-        "D03 T02 §4",
-        "D04 T01 §1",
-        "D04 T01 §2",
-        "D04 T01 §3",
-        "D04 T01 §4",
-        "D04 T01 §5",
-        "D04 T01 §6",
-        "D04 T01 §7",
-        "D04 T02 §7",
-        "D04 T02 §8"
-      ]
-    },
-    "trust": {
-      "branch": "trust-lane",
-      "worktree": "../isitlegit-trust",
-      "domains": [
-        "D05",
-        "D06"
+      "files": [
+        "todo/03-vision/TODO-01-meta-client.md",
+        "todo/03-vision/TODO-02-vision-pipeline.md",
+        "todo/03-vision/TODO-03-sam-logos.md"
       ]
     },
     "eval": {
       "branch": "eval-lane",
       "worktree": "../isitlegit-eval",
       "domains": [
-        "D08"
+        "D00",
+        "D08",
+        "D09"
+      ],
+      "files": [
+        "todo/07-app/TODO-07-demo-organisations.md"
+      ],
+      "sections": [
+        "D07 T06 §19"
+      ]
+    },
+    "app": {
+      "branch": "app-lane",
+      "worktree": "../isitlegit-app",
+      "files": [
+        "todo/07-app/TODO-01-design-system.md",
+        "todo/07-app/TODO-03-report-page.md",
+        "todo/07-app/TODO-06-marketing-site.md",
+        "todo/07-app/TODO-08-app-essentials.md",
+        "todo/07-app/TODO-09-report-follow-ups.md"
+      ]
+    },
+    "console": {
+      "branch": "console-lane",
+      "worktree": "../isitlegit-console",
+      "domains": [
+        "D05",
+        "D06"
+      ],
+      "files": [
+        "todo/07-app/TODO-02-auth-and-tenancy.md",
+        "todo/07-app/TODO-04-member-console.md",
+        "todo/07-app/TODO-05-admin-console.md"
+      ],
+      "sections": [
+        "D07 T03 §17"
+      ]
+    },
+    "loupe": {
+      "branch": "loupe-1.1",
+      "worktree": "../isitlegit-loupe",
+      "files": [
+        "todo/03-vision/TODO-04-glimmer.md"
       ]
     },
     "media": {
@@ -79,151 +72,6 @@
       "sections": [
         "D09 T02 §3",
         "D09 T02 §4"
-      ]
-    },
-    "console": {
-      "branch": "console-lane",
-      "worktree": "../isitlegit-console",
-      "sections": [
-        "D07 T04 §2",
-        "D07 T04 §3",
-        "D07 T04 §4",
-        "D07 T04 §5",
-        "D07 T04 §6",
-        "D07 T04 §7",
-        "D07 T04 §8",
-        "D07 T04 §9",
-        "D07 T04 §10",
-        "D07 T04 §11",
-        "D07 T04 §12",
-        "D07 T05 §1",
-        "D07 T05 §2",
-        "D07 T08 §1",
-        "D07 T08 §2",
-        "D07 T08 §3",
-        "D07 T08 §4",
-        "D07 T08 §5",
-        "D07 T08 §6",
-        "D07 T08 §7",
-        "D07 T08 §8",
-        "D07 T08 §10",
-        "D07 T08 §11",
-        "D07 T08 §12",
-        "D07 T08 §13",
-        "D07 T08 §14",
-        "D07 T08 §15",
-        "D07 T04 §13",
-        "D07 T04 §14",
-        "D07 T04 §15",
-        "D07 T04 §16",
-        "D07 T04 §17",
-        "D07 T04 §18",
-        "D07 T04 §19",
-        "D07 T04 §20",
-        "D07 T04 §21",
-        "D07 T04 §22",
-        "D07 T04 §23",
-        "D07 T04 §24",
-        "D07 T04 §25",
-        "D07 T04 §26",
-        "D07 T04 §27",
-        "D07 T04 §28"
-      ]
-    },
-    "site": {
-      "branch": "site-lane",
-      "worktree": "../isitlegit-site",
-      "sections": [
-        "D07 T06 §1",
-        "D07 T06 §2",
-        "D07 T06 §3",
-        "D07 T06 §4",
-        "D07 T06 §5",
-        "D07 T06 §6",
-        "D07 T06 §7",
-        "D07 T06 §8",
-        "D07 T06 §10",
-        "D07 T06 §11",
-        "D07 T06 §12",
-        "D07 T06 §13",
-        "D07 T06 §14",
-        "D07 T06 §15",
-        "D07 T06 §16",
-        "D07 T06 §17",
-        "D07 T06 §18",
-        "D07 T06 §19",
-        "D07 T06 §20",
-        "D07 T06 §21",
-        "D07 T07 §1",
-        "D07 T07 §2",
-        "D07 T07 §3",
-        "D00 T01 §30",
-        "D00 T01 §27",
-        "D00 T01 §31",
-        "D00 T01 §32",
-        "D07 T08 §9",
-        "D07 T08 §19"
-      ],
-      "files": [
-        "todo/09-launch/TODO-01-hardening.md",
-        "todo/09-launch/TODO-02-submission.md"
-      ]
-    },
-    "vision": {
-      "branch": "vision-lane",
-      "worktree": "../isitlegit-vision",
-      "sections": [
-        "D03 T02 §5"
-      ],
-      "domains": [
-        "D03"
-      ]
-    },
-    "report": {
-      "branch": "report-lane",
-      "worktree": "../isitlegit-report",
-      "sections": [
-        "D07 T09 §1",
-        "D07 T09 §2",
-        "D07 T09 §3",
-        "D07 T09 §4",
-        "D07 T09 §5",
-        "D07 T09 §6",
-        "D07 T09 §7",
-        "D07 T09 §8",
-        "D07 T09 §9",
-        "D07 T09 §10",
-        "D07 T09 §11",
-        "D07 T09 §12"
-      ]
-    },
-    "loupe": {
-      "branch": "loupe-1.1",
-      "worktree": "../isitlegit-loupe",
-      "sections": [
-        "D03 T04 §22",
-        "D03 T04 §23",
-        "D03 T04 §25",
-        "D03 T04 §27",
-        "D03 T04 §28",
-        "D03 T04 §29",
-        "D03 T04 §30",
-        "D03 T04 §31",
-        "D03 T04 §33",
-        "D03 T04 §36",
-        "D03 T04 §37",
-        "D03 T04 §38",
-        "D03 T04 §39",
-        "D03 T04 §41",
-        "D03 T04 §42",
-        "D03 T04 §43",
-        "D03 T04 §44",
-        "D03 T04 §45",
-        "D03 T04 §46",
-        "D03 T04 §47",
-        "D03 T04 §48",
-        "D03 T04 §49",
-        "D03 T04 §50"
       ]
     }
   }
