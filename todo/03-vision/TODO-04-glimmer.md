@@ -1491,6 +1491,8 @@ Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope
 
 ## 44. Five new sources for Loupe 1.1
 
+> **Started:** 2026-11-03T15:08:00Z
+
 Filed 2026-11-01 (operator approval, relayed by the coordinator): five CC BY 4.0 sources approved for download, superseding the 11:35 pause for 1.1 dataset work only. Limits: 40 GB a source, about 150 GB in all, at least 300 GB kept free, archives kept after conversion. Owning layer: offline ingestion in `scripts/glimmer/`. Never product code. No 1.1 training in this section.
 
 **Phase:** 7
@@ -1513,6 +1515,8 @@ Filed 2026-11-01 (operator approval, relayed by the coordinator): five CC BY 4.0
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, each converter's test passes, and `df` shows at least 300 GB free with the archives kept.
 
 ## 45. The Loupe 1.1 dataset
+
+> **Started:** 2026-11-03T15:08:01Z
 
 Filed 2026-11-01 from §31's measured findings and §13's miss causes, under the operator's 1.1 approval. Brand labels were wrong on 43 percent of judged pages (§31), so brand is never taught or scored as truth in 1.1; brand or host is a grouping key only. Loupe 1.0 flagged 19 of 20 unseen-brand benign pages in §13's sorting, so 1.1 carries hard benign negatives for unseen brands. Target, measured later by the training writer: false alarms at most 2 percent and lure recall above Muse Wonder's on the same held-out pages. This section builds and gates the dataset; it does not train.
 
@@ -1537,7 +1541,9 @@ Filed 2026-11-01 from §31's measured findings and §13's miss causes, under the
 
 ## 46. Muse Wonder teacher pilot
 
-Filed 2026-11-01 under the operator's 1.1 approval. The teacher is Muse Wonder 1.0 at medium through Muse Code only (`muse exec`), never the Meta Model API. Labels are lure or not, lure type, capture validity and reasons; never brand as truth. Only public or redacted pages go to the teacher; never unredacted client mail, never anything from `samples/`. Spend cap stated before every paid call: the pilot's cap is recorded in the run file before it runs.
+> **Started:** 2026-11-03T15:08:02Z
+
+Filed 2026-11-01 under the operator's 1.1 approval. The teacher is Muse Wonder 1.0 at medium through Muse Code only (`muse exec`), never the Meta Model API. Labels are lure or not, lure type, capture validity and reasons; never brand as truth. Only public or redacted pages go to the teacher; never unredacted client mail, never anything from `samples/`. Spend cap stated before every paid call: the pilot's cap is recorded in the run file before it runs. **Corrected 2026-11-03 (operator):** Muse Code usage is exhausted after the pilot and initial Wonder batches (`raw/wonder/`), so subsequent teacher and judging passes use the headless Codex teacher (`codex exec`, via `scripts/glimmer/codex-astra-label.ts` and `scripts/glimmer/codex-terra-label.ts`, tested in `test/node/glimmer-codex-astra-label.test.ts` and `test/node/glimmer-codex-terra-label.test.ts`) with the same schema, refusals and token-usage accounting.
 
 **Phase:** 7
 **Needs:** none
