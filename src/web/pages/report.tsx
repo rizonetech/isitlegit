@@ -14,7 +14,7 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
-import { type CaseFilters, filtersFrom, PAGE_SIZE } from "../../db/case-filters";
+import { type CaseFilters, filtersFrom, ignoredDates, PAGE_SIZE } from "../../db/case-filters";
 import { caseNeighbours, checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
@@ -116,6 +116,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
           dispute,
+          navFiltersOf(url),
+          ignoredDates(url.searchParams)
+            .map((name) => `The ${name} date was not a real date, so it was left out of this run.`)
+            .join(" "),
         );
         if (out) return answer(out);
       }
