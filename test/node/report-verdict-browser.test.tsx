@@ -38,6 +38,10 @@ const MAIN: ReportVerdict = {
     "Delete the email and warn your team.",
   ],
 };
+// A stored meaning sentence at 300 characters (D07 T03 §10): it must wrap in the band at phone width, whole.
+const SENTENCE300 = `${"The link leads to a lookalike login page that sends your password to someone else. ".repeat(4).slice(0, 299)}.`;
+const MAIN_STORED: ReportVerdict = { ...MAIN, meaning: SENTENCE300 };
+
 // The model trace (D07 T03 §5): a long unbroken model name, a failed and an estimated call, a walk and a send.
 const LONG_MODEL = `muse-wonder-${"x".repeat(70)}`;
 const TRACE = {
@@ -114,6 +118,7 @@ const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "a
     verdict: { ...MAIN, verdict: "safe", confidence: 0.95, actions: ["Nothing special. Pay as usual."] },
     sourceKind: "mail",
   },
+  stored: { verdict: MAIN_STORED, sourceKind: "mail" },
 };
 
 // The safe variant's stored outcomes (D07 T03 §18): its clean list holds a retired check's stored name at the column's
@@ -267,6 +272,28 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
         await context.close();
       }
     });
+
+  it("wraps a 300-character stored sentence in the band at phone and desktop widths (D07 T03 s10)", async () => {
+    expect(SENTENCE300).toHaveLength(300);
+    for (const width of [360, 1280])
+      for (const theme of ["light", "dark"] as const) {
+        const { p, context } = await open(html("stored"), width, theme);
+        const band = p.locator('[aria-label="Verdict"]');
+        await expect.poll(() => band.textContent()).toContain(SENTENCE300.slice(0, 60));
+        const box = await band.evaluate((el) => {
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          let node: Node | null = walker.nextNode();
+          while (node && !node.textContent?.includes("The link leads")) node = walker.nextNode();
+          const parent = node?.parentElement as HTMLElement;
+          const rect = parent.getBoundingClientRect();
+          return { height: rect.height, width: rect.width, text: parent.textContent ?? "" };
+        });
+        expect(box.text).toContain(SENTENCE300);
+        expect(box.height, `${width} ${theme}`).toBeGreaterThan(40);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await context.close();
+      }
+  });
 
   it("moves focus and the view to a reason's evidence when its pill is followed by keyboard", async () => {
     const { p, context } = await open(html("main"), 360);

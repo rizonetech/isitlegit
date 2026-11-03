@@ -11,7 +11,13 @@
 import COLOURS from "../../../design/tokens/colors.json";
 import { EMAIL_ART, EMAIL_LOGO } from "../../web/assets";
 import { CHECK_WORDS } from "../../web/components/evidence/check-words";
-import { cited as citedOf, confidenceWords, MEANING, orderedActions, reasonsOf } from "../../web/pages/report-verdict";
+import {
+  cited as citedOf,
+  confidenceWords,
+  meaningOf,
+  orderedActions,
+  reasonsOf,
+} from "../../web/pages/report-verdict";
 
 const C = COLOURS.themes.light;
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
@@ -26,6 +32,7 @@ export type ReplyDesign = {
     confidence: number;
     reasons: readonly (string | { text: string; evidenceIds: string[] })[];
     actions: readonly string[];
+    meaning?: string | null;
   } | null;
   // The case's evidence, for the pills' colours and the count of findings the reasons do not cite.
   evidence: readonly { id: string; severity: Severity }[];
@@ -109,7 +116,7 @@ export function replyDesign(input: ReplyDesign): { html: string } {
     html.push(
       row(
         table(
-          `<tr><td width="80" valign="top" style="padding: 24px 0 24px 24px">${tile(asset(EMAIL_ART[v.verdict]))}</td><td valign="top" style="padding: 24px 24px 24px 16px">${para(escapeHtml(eyebrowWords), `padding: 0 0 8px; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C["on-band"]}`)}<h1 style="margin: 0; padding: 0 0 8px; ${HEAD}; font-size: 22px; line-height: 1.25; font-weight: 800; color: ${C["on-band"]}; word-break: break-word">${escapeHtml(v.headline)}</h1>${para(escapeHtml(MEANING[v.verdict]), `font-size: 15px; line-height: 1.55; color: ${C["on-band"]}`)}</td></tr>`,
+          `<tr><td width="80" valign="top" style="padding: 24px 0 24px 24px">${tile(asset(EMAIL_ART[v.verdict]))}</td><td valign="top" style="padding: 24px 24px 24px 16px">${para(escapeHtml(eyebrowWords), `padding: 0 0 8px; font-size: 12px; line-height: 1.4; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: ${C["on-band"]}`)}<h1 style="margin: 0; padding: 0 0 8px; ${HEAD}; font-size: 22px; line-height: 1.25; font-weight: 800; color: ${C["on-band"]}; word-break: break-word">${escapeHtml(v.headline)}</h1>${para(escapeHtml(meaningOf(v)), `font-size: 15px; line-height: 1.55; color: ${C["on-band"]}`)}</td></tr>`,
           `background: ${BAND[v.verdict]}; border-radius: 16px`,
         ),
         "0 40px 28px",
@@ -240,7 +247,7 @@ export function moreFindingsWords(
 // The band's confidence and what the verdict means, for the plain text, which names the verdict in its own words.
 export function meaningWords(v: NonNullable<ReplyDesign["verdict"]>): string {
   const level = confidenceWords(v.confidence);
-  return `${level.charAt(0).toUpperCase()}${level.slice(1)} confidence. ${MEANING[v.verdict]}`;
+  return `${level.charAt(0).toUpperCase()}${level.slice(1)} confidence. ${meaningOf(v)}`;
 }
 // The report address carrying the dispute intent (D07 T03 §22): a member opening it, signed in or after signing in,
 // lands on the one-press dispute, focused; the plain report link carries no intent.

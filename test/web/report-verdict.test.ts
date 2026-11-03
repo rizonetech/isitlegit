@@ -116,6 +116,21 @@ describe("the verdict section", () => {
     expect(partial).toContain("Malicious · high confidence · partial check</p>");
   });
 
+  it("draws the verdict's stored sentence in the band, and the fixed one only when none is stored (D07 T03 s10)", () => {
+    const stored = draw({
+      ...MAIN,
+      meaning: "The link leads to a lookalike login page that sends your password to someone else.",
+    });
+    expect(stored).toContain("The link leads to a lookalike login page that sends your password to someone else.");
+    expect(stored).not.toContain("do not click its links, open its attachments or pay anything it asks for.");
+    const older = draw({ ...MAIN, meaning: null });
+    expect(older).toContain("do not click its links, open its attachments or pay anything it asks for.");
+    const hostile = `<script>alert(1)</script> ${"x".repeat(280)}`;
+    const drawn = draw({ ...MAIN, meaning: hostile });
+    expect(drawn).not.toContain("<script>alert(1)</script>");
+    expect(drawn).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+  });
+
   it("draws the band, then the actions, then the reasons", () => {
     const html = draw(MAIN);
     const band = html.indexOf('aria-label="Verdict"');
@@ -256,6 +271,25 @@ describe("the verdict through the report route", () => {
     expect(pills(section(html, "Why we say so"))).toEqual([]);
     expect(section(html, "What to do now")).toContain("<li>A stored action.</li>");
     expect(html).toContain('id="e1"');
+  });
+
+  it("reads a structured reason and the distinctive stored sentence back through the route (D07 T03 s10)", async () => {
+    const { cookie, id } = await member();
+    await putStoredVerdict(db, id, {
+      verdict: "malicious",
+      headline: "A stored headline from the verdict row.",
+      confidence: 0.6,
+      reasons: [{ text: "A structured stored reason.", evidenceIds: ["E1"] }],
+      actions: ["A stored action."],
+      meaning: "This message asks for the mailbox password on a page that is not NimbusMail's.",
+      source: "rules",
+    });
+    const res = await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } });
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("This message asks for the mailbox password on a page that is not NimbusMail&#39;s.");
+    expect(html).not.toContain("do not click its links, open its attachments or pay anything it asks for.");
+    expect(pills(section(html, "Why we say so"))).toEqual([["e1", "E1", "critical"]]);
   });
 
   // Check versions on the verdict-lost finished report (D07 T03 §39, completion review): its count line carries

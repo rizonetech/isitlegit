@@ -17,6 +17,9 @@ export type ReportVerdict = {
   confidence: number;
   reasons: readonly (string | Reason)[];
   actions: readonly string[];
+  // The verdict's own sentence on what it means for this message (D04 T01 §2); a verdict stored before it
+  // existed has none, and the fixed sentence below stands in (D07 T03 §10).
+  meaning?: string | null;
 };
 
 // The stored reasons as `{ text, evidenceIds }`: an old row's plain string cites nothing and is drawn without a pill.
@@ -49,6 +52,10 @@ export function orderedActions(actions: readonly string[], voice: boolean) {
   if (fixed < 0) return { first: voice, actions: actions.slice(0, 3) };
   return { first: true, actions: [actions[fixed] as string, ...actions.filter((_, i) => i !== fixed)].slice(0, 3) };
 }
+
+// The sentence the band and the reply draw: the stored one when the verdict carries it, else the fixed one.
+export const meaningOf = (v: { verdict: VerdictName; meaning?: string | null }): string =>
+  v.meaning?.trim() ? v.meaning : MEANING[v.verdict];
 
 export function VerdictSection(props: {
   state: Extract<CheckState, "complete" | "partial">;
@@ -130,7 +137,7 @@ export function VerdictSection(props: {
         headline={stored.headline}
         {...(kind ? { kind } : {})}
       >
-        {MEANING[stored.verdict]}
+        {meaningOf(stored)}
       </VerdictBand>
       {props.afterBand as never}
       {wide ? (
