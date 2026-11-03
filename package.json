@@ -41,7 +41,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.3",
+    "@biomejs/biome": "2.6.4",
     "@breezystack/lamejs": "1.2.7",
     "@cloudflare/vitest-plugin": "1.4.8",
     "@meta-sam/parser": "0.1.0",
