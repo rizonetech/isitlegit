@@ -6,7 +6,7 @@
 import { ParseError } from "./mime";
 
 const HEADER = 16;
-const TYPE_COMPRESSED = 0x4c5a4675; // "LZFu"
+const TYPE_COMPRESSED = 0x75465a4c; // "LZFu"
 const TYPE_UNCOMPRESSED = 0x414c454d; // "MELA"
 const DICTIONARY_SIZE = 4096;
 
@@ -94,9 +94,9 @@ export function decompressRtf(input: Uint8Array, maxOutput: number): Uint8Array 
       }
     }
   }
-  // The stream ends at its terminator, or exactly at the declared size with nothing left unread.
-  if (!ended && !(out.length === rawSize && at >= payload.length))
-    throw new ParseError("the compressed RTF ends without its terminator");
+  // The stream ends at its terminator ([MS-OXRTFCP]): a reference to the current write position. A stream
+  // that merely runs out of bytes, even at the declared size, never stated it was finished.
+  if (!ended) throw new ParseError("the compressed RTF ends without its terminator");
   if (out.length !== rawSize) throw new ParseError("the compressed RTF ends before the body it declares");
   return new Uint8Array(out);
 }
@@ -278,6 +278,10 @@ function walkRtf(
       case "f":
         frame().font = arg;
         break;
+      case "deff":
+        // The document's default font, which text without a font switch reads in.
+        frame().font = arg;
+        break;
       case "ansicpg":
         if (arg !== null)
           frame().label = arg === 932 ? "shift_jis" : arg === 936 ? "gbk" : arg === 950 ? "big5" : `windows-${arg}`;
@@ -289,11 +293,26 @@ function walkRtf(
         if (arg !== null && active() && !frame().fontTable) {
           sink.unicode(arg < 0 ? arg + 65536 : arg);
         }
-        // Skip the fallback bytes the writer left for readers without Unicode: \'xx runs or plain characters.
+        // Skip the fallback the writer left for readers without Unicode, one whole RTF token at a time
+        // (a \'xx escape, an escaped character, a control word, or one plain character), so a fallback
+        // never eats half a token and the stream stays validated as it is skipped.
         let skip = frame().fallback;
         while (skip > 0 && k < rtf.length) {
-          if (rtf[k] === 0x5c && rtf[k + 1] === 0x27) k += 4;
-          else k++;
+          if (rtf[k] === 0x5c && rtf[k + 1] === 0x27) {
+            const hex = new TextDecoder().decode(rtf.subarray(k + 2, k + 4));
+            if (!/^[0-9a-fA-F]{2}$/.test(hex)) throw new ParseError("the RTF body holds a malformed byte escape");
+            k += 4;
+          } else if (rtf[k] === 0x5c && isLetter(rtf[k + 1] as number)) {
+            k += 2;
+            while (k < rtf.length && isLetter(rtf[k] as number)) k++;
+            if (rtf[k] === 0x2d) k++;
+            while (k < rtf.length && (rtf[k] as number) >= 48 && (rtf[k] as number) <= 57) k++;
+            if (rtf[k] === 0x20) k++;
+          } else if (rtf[k] === 0x5c) {
+            k += 2;
+          } else {
+            k++;
+          }
           skip--;
         }
         break;

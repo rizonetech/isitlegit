@@ -96,6 +96,64 @@ describe("parseMsg", () => {
     expect(native.parsed.text).toContain("Please pay");
   });
 
+  it("routes encapsulated HTML to the HTML body and cuts a long RTF text at the part limit (D01 T01 §13)", async () => {
+    const mela = (rtf: string) => {
+      const body = new TextEncoder().encode(rtf);
+      const out = new Uint8Array(16 + body.length);
+      const view = new DataView(out.buffer);
+      view.setUint32(0, body.length + 12, true);
+      view.setUint32(4, body.length, true);
+      view.setUint32(8, 0x414c454d, true);
+      out.set(body, 16);
+      return out;
+    };
+    const html = await parseMsg(
+      makeMsg({
+        transportHeaders: true,
+        rtfOnly: true,
+        rtf: mela("{\\rtf1\\ansi\\fromhtml1 <html><body>Pay <b>now</b></body></html>}"),
+      }),
+    );
+    expect(html.parsed.html).toContain("Pay <b>now</b>");
+    expect(html.parsed.text).toBeNull();
+    // Over the 1 MiB part limit in UTF-8 (each é is two bytes): the text is cut, the whole kept as a part.
+    // The é bytes are raw in the RTF's code page, so the extracted text is larger than the RTF itself.
+    const melaBytes = (rtf: Uint8Array) => {
+      const out = new Uint8Array(16 + rtf.length);
+      const view = new DataView(out.buffer);
+      view.setUint32(0, rtf.length + 12, true);
+      view.setUint32(4, rtf.length, true);
+      view.setUint32(8, 0x414c454d, true);
+      out.set(rtf, 16);
+      return out;
+    };
+    const longRtf = new Uint8Array(600_025);
+    longRtf.set(new TextEncoder().encode("{\\rtf1\\ansi\\ansicpg1252 "), 0);
+    longRtf.fill(0xe9, 24, 600_024);
+    longRtf[600_024] = 0x7d;
+    const long = await parseMsg(
+      makeMsg({ transportHeaders: true, rtfOnly: true, rtf: melaBytes(longRtf.subarray(0, 600_025)) }),
+    );
+    expect(new TextEncoder().encode(long.parsed.text ?? "").length).toBeLessThanOrEqual(BODY_PART_LIMIT);
+    expect(long.parsed.truncated).toHaveLength(1);
+    expect(long.parsed.truncated[0]).toMatchObject({ mediaType: "text/plain", charset: "utf-8" });
+    // Stored and read back, the summary keeps the cut text.
+    const made = await createCase(env.DB, { orgId: "org-msg-rtf", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    await storeParsed(store, made.value.id, long.parsed, {
+      original: msgs.rtfOnly,
+      format: "msg",
+      headersAvailable: true,
+      path: "msg",
+      otherOriginals: 0,
+    });
+    const read = await readArtefact(store, made.value.id, parsedKey(made.value.id));
+    if (!read || !("body" in read)) throw new Error("the summary is missing");
+    const stored = JSON.parse(new TextDecoder().decode(read.body));
+    expect(stored.text).toBe(long.parsed.text);
+    expect(stored.truncated).toHaveLength(1);
+  });
+
   it("stores the parse with storeParsed, the inline image under its content id", async () => {
     const made = await createCase(env.DB, { orgId: "org-msg", channel: "email", headersAvailable: true });
     if (!made.ok) throw new Error(made.error.message);

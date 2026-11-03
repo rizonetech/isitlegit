@@ -69,7 +69,7 @@ function compress(rtf: string): Uint8Array {
     }
   }
   const bytes = new Uint8Array(payload);
-  return header(bytes.length + 12, input.length, 0x4c5a4675, rtfCrc(bytes), bytes);
+  return header(bytes.length + 12, input.length, 0x75465a4c, rtfCrc(bytes), bytes);
 }
 
 describe("decompressRtf", () => {
@@ -84,7 +84,7 @@ describe("decompressRtf", () => {
     expect(() => decompressRtf(huge, LIMIT)).toThrow(ParseError);
     // Declares four bytes, then writes ten literals.
     const payload = new Uint8Array([0, ...enc("0123456789")]);
-    const lying = header(payload.length + 12, 4, 0x4c5a4675, rtfCrc(payload), payload);
+    const lying = header(payload.length + 12, 4, 0x75465a4c, rtfCrc(payload), payload);
     expect(() => decompressRtf(lying, LIMIT)).toThrow(/past its declared size/);
   });
 
@@ -93,7 +93,7 @@ describe("decompressRtf", () => {
     expect(() => decompressRtf(header(body.length + 12, 3, 0x414c454d, 0, body), LIMIT)).toThrow(ParseError);
     // Eight literals in one control group, the declared body longer, and nothing ends the stream.
     const payload = new Uint8Array([0, ...enc("12345678")]);
-    const unterminated = header(payload.length + 12, 100, 0x4c5a4675, rtfCrc(payload), payload);
+    const unterminated = header(payload.length + 12, 100, 0x75465a4c, rtfCrc(payload), payload);
     expect(() => decompressRtf(unterminated, LIMIT)).toThrow(/terminator|declared size/);
   });
 
@@ -141,6 +141,13 @@ describe("rtfToHtml", () => {
 });
 
 describe("scoped state and syntax", () => {
+  it("reads the default font and skips a Unicode fallback one token at a time", () => {
+    expect(rtfToText(enc("{\\rtf1\\ansi\\deff1{\\fonttbl{\\f1\\fcharset204 Arial;}}\\'f1}"), "windows-1252")).toBe("с");
+    // The fallback is an escaped backslash: skipped whole, the X after it is text.
+    expect(rtfToText(enc("{\\rtf1\\uc1\\u945\\\\X}"), "windows-1252")).toBe("αX");
+    expect(() => rtfToText(enc("{\\rtf1\\u945\\'zz}"), "windows-1252")).toThrow(ParseError);
+  });
+
   it("keeps the Unicode fallback count and the font inside their group", () => {
     expect(rtfToText(enc("{\\rtf1\\uc1 {\\uc0\\u945}\\u946?X}"), "windows-1252")).toBe("αβX");
     expect(rtfToText(enc("{\\rtf1\\ansi\\u-254 ?}"), "windows-1252")).toBe("\uFF02");
