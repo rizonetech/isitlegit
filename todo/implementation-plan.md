@@ -411,7 +411,7 @@ Sections: 193 | Checklist items: 820
 | [ ]    | D01 T01 §10 | Outlook report button for check@                            | attended             | 6     |
 | [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward                    | none                 | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
-| [ ]    | D01 T01 §13 | Compressed-RTF message bodies                               | none                 | 4     |
+| [x]    | D01 T01 §13 | Compressed-RTF message bodies                               | none                 | 4     |
 | [ ]    | D01 T01 §14 | Near-limit forward, live                                    | operator, live-mail  | 3     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                                   | operator             | 7     |
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed                       | operator             | 3     |
@@ -628,6 +628,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 355/552 verified sections, 129 ready to run now.
+Progress: 356/552 verified sections, 128 ready to run now.
 
 Checklist: 2738/3440 items completed (includes Commit items).
