@@ -3,9 +3,14 @@
 // run stated as its own outcome, and no full account number anywhere in the evidence.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { fixedActionsFor } from "../../src/agent/loop";
+import { ruleVerdict } from "../../src/agent/rule-verdict";
+import type { Evidence } from "../../src/checks/evidence";
+import { bankChangeAction, fixedActionOf } from "../../src/invoice/fixed-actions";
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import { invoiceRules, type Reading } from "../../src/invoice/rules";
 import { InvoiceFields } from "../../src/invoice/schema";
+import { buildReply } from "../../src/mail/reply";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import LABELS from "../fixtures/invoices/labels.json";
@@ -97,6 +102,31 @@ describe("the bank-change rules", () => {
     });
     expect(JSON.stringify(items)).not.toContain(TAMPERED);
     expect(items[0]?.summary).toContain("phoning the supplier");
+    const evidence: Evidence[] = items.map((item, idx) => ({ id: `E${idx + 1}`, ...item }));
+    const actions = fixedActionsFor(evidence);
+    expect(actions).toEqual([bankChangeAction("+27 21 555 0100")]);
+    expect(fixedActionOf(actions[0] ?? "")).toBe("bank-change");
+    const rules = ruleVerdict(evidence, { headersAvailable: true });
+    const reply = buildReply({
+      parentSubject: "Fwd: Invoice INV-1042",
+      headersAvailable: true,
+      otherOriginals: 0,
+      reportUrl: "https://isitlegit.test/r/01HZRULESCASE00000000000A?o=org&e=1&s=sig",
+      design: { appUrl: "https://isitlegit.test", evidence },
+      report: {
+        status: "ready",
+        view: {
+          ...rules,
+          actions: [...actions, ...rules.actions.filter((a) => !actions.includes(a))],
+          meaning: null,
+          source: "rules",
+          floorApplied: null,
+          ablated: null,
+        },
+      },
+    });
+    expect(reply.text).toContain(bankChangeAction("+27 21 555 0100"));
+    expect(reply.html).toContain("+27 21 555 0100");
   });
 
   it("resolves the supplier by domain when the printed name differs from the ledger's", async () => {
