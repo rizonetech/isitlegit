@@ -325,6 +325,19 @@ describe("ruleVerdict", () => {
     expect(htmlUncheckedPartial.verdict).toBe("suspicious");
     expect(htmlUncheckedPartial.meaning).toBe(MEANINGS.suspicious);
 
+    // Encrypted archive alone establishes unreadable contents, not executable code -> falls back to generic suspicious meaning
+    const encryptedArchiveOnly = ruleVerdict(
+      [
+        withDetail("attachment.encrypted_archive", "high", {
+          filename: "invoice.zip",
+          findings: [{ kind: "encrypted", where: "invoice.zip", by: "content", how: "encrypted", type: "zip" }],
+        }),
+      ],
+      WITH_HEADERS,
+    );
+    expect(encryptedArchiveOnly.verdict).toBe("suspicious");
+    expect(encryptedArchiveOnly.meaning).toBe(MEANINGS.suspicious);
+
     // Voice change_bank_details request alone does not claim a supplier-record mismatch
     const voiceBankRequestOnly = ruleVerdict(
       [withDetail("voice.request", "critical", { request: "change_bank_details", quote: "pay into our new account" })],

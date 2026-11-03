@@ -122,7 +122,7 @@ async function seedCase(): Promise<{ caseId: string; orgId: string }> {
 }
 
 function stubBrowser(
-  options: { cropFail?: boolean; partialCropFail?: boolean; delayCropMs?: number } = {},
+  options: { cropFail?: boolean; partialCropFail?: boolean; delayCropMs?: number; stallClose?: boolean } = {},
 ): () => Promise<Browser> {
   return async () =>
     ({
@@ -135,7 +135,11 @@ function stubBrowser(
           detach: async () => undefined,
         }),
       }),
-      close: async () => undefined,
+      close: async () => {
+        if (options.stallClose) {
+          await new Promise(() => {});
+        }
+      },
       newPage: async () => {
         let currentUrl = "https://www.fnb.co.za/login";
         const mainFrame = { _id: "f1", url: () => currentUrl };
@@ -883,6 +887,25 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     expect(missingCropRes.status).toBe("failed");
     if (missingCropRes.status === "failed") {
       expect(missingCropRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "Error" });
+    }
+
+    // 9b. Stalled browser.close() after successful segmentation and crop storage still returns ok before the tool deadline
+    const stalledCloseDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
+      launch: stubBrowser({ stallClose: true }),
+      metaFetch: async () => samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.91 }]),
+    });
+    const stalledCloseExec = createToolExecutor(
+      { db: env.DB, caseId, urls: [], brands: bundled },
+      stalledCloseDeps,
+      { budgetMs: 120 },
+    );
+    const stalledCloseRes = await stalledCloseExec.call("segment_logos", {
+      artefact_key: render.key,
+      concept: "logo",
+    });
+    expect(stalledCloseRes.status).toBe("ok");
+    if (stalledCloseRes.status === "ok") {
+      expect(stalledCloseRes.evidence[0]?.detail.count).toBe(1);
     }
 
     // 10. Exhausted shared Meta budget refuses both segment_logos and compare_logo and records checked: false

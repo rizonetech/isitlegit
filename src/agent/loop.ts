@@ -531,6 +531,18 @@ export function verdictToolDeps(
   const launch = overrides.launch ?? (() => puppeteer.launch(env.BROWSER));
   const policyOf = () => overrides.policy ?? livePolicy();
   const waitUntil = overrides.waitUntil ?? ((p: Promise<unknown>) => void p.catch(() => undefined));
+  const closeBounded = async (target: { close: () => Promise<unknown> }, maxMs = 2_000) => {
+    const closing = target.close().catch(() => undefined);
+    waitUntil(closing);
+    if (maxMs <= 0) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      closing,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, maxMs);
+      }),
+    ]).finally(() => clearTimeout(timer));
+  };
   const deps: ToolDeps = {
     expand: async (url) => {
       const browser = await launch();
@@ -548,7 +560,7 @@ export function verdictToolDeps(
           },
         ];
       } finally {
-        await browser.close().catch(() => undefined);
+        await closeBounded(browser);
       }
     },
     screenshot: async (url) => {
@@ -593,7 +605,7 @@ export function verdictToolDeps(
           const stored = await putArtefact(store, caseId, "render", `screenshot-${ulid()}.png`, bytes, "image/png");
           storedKey = stored.key;
         } finally {
-          await page.close().catch(() => undefined);
+          await closeBounded(page);
         }
         return [
           {
@@ -605,7 +617,7 @@ export function verdictToolDeps(
           },
         ];
       } finally {
-        await browser.close().catch(() => undefined);
+        await closeBounded(browser);
       }
     },
     lookupDomain: async (domain) => {
@@ -744,7 +756,7 @@ export function verdictToolDeps(
           },
         ];
       } finally {
-        await browser.close().catch(() => undefined);
+        await closeBounded(browser, Math.max(0, Math.min(2_000, fence.deadlineAt - Date.now() - 25)));
       }
     },
     compareLogo: async ({ cropKey, brand }, fence) => {

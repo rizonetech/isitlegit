@@ -71,8 +71,11 @@ export function consequenceFamilyOf(item: Pick<Evidence, "check" | "severity" | 
   if (
     item.check === "attachment.executable" ||
     item.check === "attachment.macro" ||
-    item.check === "attachment.encrypted_archive" ||
-    item.check === "attachment.type_mismatch"
+    (item.check === "attachment.type_mismatch" &&
+      (!("family" in item.detail) ||
+        item.detail.family === "executable" ||
+        item.detail.family === "script" ||
+        item.detail.family === "shortcut"))
   ) {
     return "malware";
   }
