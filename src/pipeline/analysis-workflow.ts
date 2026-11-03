@@ -36,6 +36,7 @@ import {
   admitCase,
   type Case,
   type CaseResult,
+  CURRENT_RUN,
   getCaseForPipeline,
   type SourceKind,
   setHeadersAvailable,
@@ -46,7 +47,7 @@ import {
 import { ulid } from "../db/ulid";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { childCaseIdFor, childrenOf, markChildStarted, parentOf, recordChild } from "../intake/children";
-import { extractOriginal, extractOriginals, MAX_ORIGINALS, ParseError } from "../intake/forward";
+import { extractOriginals, MAX_ORIGINALS, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
 import { NO_HEADER, originalHeaderOf } from "../intake/original-header";
 import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
@@ -515,8 +516,10 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 
     // The reply hands the report state on; D01 T02 §3 sends it. A reply that fails ends a ready case partial, and on a
     // case already partial its failure is recorded too, the first failure kept as the report's.
+    let replyWaiting = false;
     try {
-      await timed("reply", () => reply(this.env, caseId, state));
+      const sent = await timed("reply", () => reply(this.env, caseId, state));
+      replyWaiting = sent.mail === "waiting";
     } catch (error) {
       const failed = await fail("reply", error);
       if (state.status === "ready") state = failed;
@@ -533,11 +536,12 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     }
     // The last of a forward's cases to finish sends its grouped reply now that its status is written
     // (D01 T01 §12): at its own reply step a concurrent sibling could still read it as running and wait.
-    try {
-      if ((await parentOf(db, caseId)) || (await childrenOf(db, caseId)).length)
+    if (replyWaiting) {
+      try {
         await timed("reply", () => reply(this.env, caseId, state));
-    } catch (error) {
-      await fail("reply", error).catch(() => state);
+      } catch (error) {
+        state = await fail("reply", error).catch(() => state);
+      }
     }
     return { caseId, state };
   }
@@ -604,9 +608,9 @@ export async function recordFailure(
 export type Fanout = { start: (childCaseId: string) => Promise<void> };
 
 // Admit, record and start one case per further original (D01 T01 §12), resumable: a child's ID is derived
-// from its forward and position, its manifest row precedes its start, and a retry re-enters the same rows.
-// Only a cap refusal is recorded; any other admission failure throws so the step retries instead of
-// telling the member a limit was reached when none was.
+// from its forward and position, every manifest row is written before any child starts, and a retry re-enters
+// the same rows. Only a cap refusal is recorded; any other admission failure throws so the step retries
+// instead of telling the member a limit was reached when none was.
 async function fanOut(
   store: Store,
   caseId: string,
@@ -615,6 +619,10 @@ async function fanOut(
 ): Promise<void> {
   const parent = must(await getCaseForPipeline(store.db, caseId), "reading the forward's case");
   const recorded = await childrenOf(store.db, caseId);
+  const rows: {
+    row: Awaited<ReturnType<typeof recordChild>>;
+    other: { original: Uint8Array; format: "eml" | "msg"; path: "rfc822" | "eml" | "msg" };
+  }[] = [];
   for (const [index, other] of others.entries()) {
     const position = index + 2;
     let row = recorded.find((r) => r.position === position);
@@ -627,6 +635,9 @@ async function fanOut(
         headersAvailable: false,
         forwardedBy: parent.forwardedBy,
         messageId: parent.messageId,
+        // The forward's own boundary (D05 T02 §1): an outsider's children are counterparty cases too,
+        // never member cases against the organisation they claim.
+        ...(parent.origin ? { origin: parent.origin } : {}),
       });
       if (!admitted.ok && admitted.error.code !== "capped")
         throw new Error(`admitting a fan-out child: ${admitted.error.message}`);
@@ -638,6 +649,9 @@ async function fanOut(
         state: admitted.ok ? "admitted" : "refused-cap",
       });
     }
+    rows.push({ row, other });
+  }
+  for (const { row, other } of rows) {
     if (row.state === "refused-cap") continue;
     await putRaw(store, row.childCaseId, other.original);
     if (row.state !== "started") {
@@ -731,6 +745,9 @@ export async function parse(store: Store, caseId: string, source: Source, fanout
       return parsedKey(caseId);
     }
     const originals = await extractOriginals(raw.body);
+    // The group is established before original one is read (D01 T01 §12): a malformed first original
+    // ends its own case partial and must not suppress its valid siblings.
+    if (fanout && originals.others.length) await fanOut(store, caseId, originals.others, fanout);
     const forward = originals.chosen;
     const { parsed, headersAvailable, sender } =
       forward.format === "msg"
@@ -751,10 +768,6 @@ export async function parse(store: Store, caseId: string, source: Source, fanout
       "storing the original's header",
     );
     await storeParsed(store, caseId, parsed, { ...forward, headersAvailable });
-    // Every further original becomes a case of its own (D01 T01 §12), under the daily cap, each recorded
-    // in the manifest before it is started so a retried parse resumes the same children. Without a
-    // starter (a step test, the sweep's own reads) nothing fans out.
-    if (fanout && originals.others.length) await fanOut(store, caseId, originals.others, fanout);
     return parsedKey(caseId);
   } catch (error) {
     if (error instanceof ParseError) throw fatal("ParseError");
@@ -1357,7 +1370,13 @@ function withinDeadline<T>(read: Promise<T>): Promise<T> {
 // partial), by whichever of the forward's cases gets there last, under one group send key so exactly one
 // sender wins. Until then it sends nothing and says so. Each original's block carries its own signed link;
 // originals the cap refused and those past the bound are named not checked.
-async function groupedReply(env: Env, parentId: string, callerId: string) {
+async function groupedReply(
+  env: Env,
+  parentId: string,
+  callerId: string | null,
+  callerState: ReportState,
+  sendKey?: string,
+) {
   const db = env.DB;
   const store: Store = { bucket: env.ARTEFACTS, db };
   const parent = must(await getCaseForPipeline(db, parentId), "reading the forward for its grouped reply");
@@ -1365,23 +1384,70 @@ async function groupedReply(env: Env, parentId: string, callerId: string) {
   const admitted = children.filter((c) => c.state !== "refused-cap");
   const cases = new Map<string, Case>();
   cases.set(parentId, parent);
+  const removed = new Set<string>();
   for (const child of admitted) {
     const found = await getCaseForPipeline(db, child.childCaseId);
     if (found.ok) cases.set(child.childCaseId, found.value);
+    else if (found.error.code === "not_found") removed.add(child.childCaseId);
   }
   // The caller counts as terminal: its reply step runs after its verdict or failure is decided and before
   // its finish step writes the status, so a case is never terminal in its own read at this moment.
   const terminal = (id: string) => {
-    if (id === callerId) return true;
+    if (id === callerId || removed.has(id)) return true;
     const row = cases.get(id);
     return !!row && (row.status === "done" || row.status === "partial");
   };
   // The group is sealed first: every expected manifest row exists (the parent's parse wrote them all
   // before any child started), the parent itself is finished, and every admitted child is terminal. A
-  // child finishing early therefore waits instead of sending the parent as "no verdict".
+  // child finishing early therefore waits instead of sending the parent as "no verdict". Once the parent
+  // is terminal its parse step is over, so the rows on record are the whole group whatever the summary
+  // says, and an admitted child that never started is started here when its raw message exists, or ended
+  // partial when it cannot start, rather than waited on forever.
+  const parentTerminal = terminal(parentId);
+  if (parentTerminal) {
+    let startedNow = false;
+    for (const child of admitted) {
+      if (child.state === "started") continue;
+      const current = cases.get(child.childCaseId);
+      if (!current) continue;
+      if (current.status !== "received") {
+        await markChildStarted(db, child.childCaseId);
+        continue;
+      }
+      const raw = await withinDeadline(readArtefact(store, child.childCaseId, rawKey(child.childCaseId))).catch(
+        () => null,
+      );
+      if (raw && "body" in raw) {
+        let running = false;
+        try {
+          await env.ANALYSIS.create({ id: child.childCaseId, params: { caseId: child.childCaseId } });
+          running = true;
+        } catch {
+          try {
+            await env.ANALYSIS.get(child.childCaseId);
+            running = true;
+          } catch {
+            running = false;
+          }
+        }
+        if (running) {
+          await markChildStarted(db, child.childCaseId);
+          startedNow = true;
+          continue;
+        }
+        await recordFailure(db, child.childCaseId, "admit", "Error");
+        cases.set(child.childCaseId, { ...current, status: "partial" });
+      } else {
+        await recordFailure(db, child.childCaseId, "parse", "RawMissing");
+        cases.set(child.childCaseId, { ...current, status: "partial" });
+      }
+    }
+    if (startedNow) return { mail: "waiting" as const, caseId: parentId };
+  }
   const summaryEarly = await withinDeadline(readArtefact(store, parentId, parsedKey(parentId))).catch(() => null);
-  const expected =
-    summaryEarly && "body" in summaryEarly
+  const expected = parentTerminal
+    ? children.length
+    : summaryEarly && "body" in summaryEarly
       ? Math.min(
           Number(
             (JSON.parse(new TextDecoder().decode(summaryEarly.body)) as ParsedSummary).forward?.otherOriginals ?? 0,
@@ -1392,7 +1458,7 @@ async function groupedReply(env: Env, parentId: string, callerId: string) {
   if (
     expected === null ||
     children.length < expected ||
-    !terminal(parentId) ||
+    !parentTerminal ||
     !admitted.every((c) => terminal(c.childCaseId))
   )
     return { mail: "waiting" as const, caseId: parentId };
@@ -1400,28 +1466,43 @@ async function groupedReply(env: Env, parentId: string, callerId: string) {
   const block = async (id: string) => {
     const row = cases.get(id);
     const stored = await getVerdict(db, id);
+    // A block with no verdict carries its own failure's cause: why its case ended, from its events.
+    let failed: { step: string; error: string | null } | null = null;
+    if (!stored?.ok) {
+      failed =
+        (await db
+          .prepare(
+            `SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed' AND step NOT IN ('reply', 'finish') AND ${CURRENT_RUN} ORDER BY id LIMIT 1`,
+          )
+          .bind(id, id)
+          .first<{ step: string; error: string | null }>()
+          .catch(() => null)) ??
+        (id === callerId && callerState.status === "partial"
+          ? { step: callerState.failedStep, error: callerState.errorClass }
+          : null);
+    }
     return {
       subject: row?.originalSubject ?? null,
       verdict: stored?.ok ? stored.value.verdict : null,
+      failedStep: failed?.step ?? null,
+      errorClass: failed?.error ?? null,
       reportUrl: `${origin}${await signReportLink(env.REPORT_LINK_SECRET, id, parent.orgId)}`,
     };
   };
   const blocks = [await block(parentId)];
   for (const child of admitted) blocks.push(await block(child.childCaseId));
-  const summary = await withinDeadline(readArtefact(store, parentId, parsedKey(parentId))).catch(() => null);
-  const total =
-    summary && "body" in summary
-      ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0) + 1
-      : blocks.length;
-  const built = buildGroupedReply({
-    blocks,
-    boundExcluded: Math.max(0, total - MAX_ORIGINALS),
-    capRefused: children.length - admitted.length,
-    organisation:
-      (await db.prepare(`SELECT name FROM "organization" WHERE id = ?`).bind(parent.orgId).first<{ name: string }>())
-        ?.name ?? null,
-    parentSubject: parent.originalSubject,
-  });
+  const summary =
+    summaryEarly ?? (await withinDeadline(readArtefact(store, parentId, parsedKey(parentId))).catch(() => null));
+  let total: number;
+  if (summary && "body" in summary) {
+    total =
+      Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0) + 1;
+  } else {
+    const parentRaw = await withinDeadline(readArtefact(store, parentId, rawKey(parentId))).catch(() => null);
+    const extracted =
+      parentRaw && "body" in parentRaw ? await extractOriginals(parentRaw.body).catch(() => null) : null;
+    total = extracted ? extracted.chosen.otherOriginals + 1 : blocks.length + (children.length - admitted.length);
+  }
   const head = await withinDeadline(
     env.ARTEFACTS.get(rawKey(parentId), { range: { offset: 0, length: HEADER_RANGE } }).then(async (object) =>
       object ? new Uint8Array(await object.arrayBuffer()) : null,
@@ -1433,10 +1514,20 @@ async function groupedReply(env: Env, parentId: string, callerId: string) {
     references: null,
     inReplyTo: null,
   };
+  const built = buildGroupedReply({
+    blocks,
+    boundExcluded: Math.max(0, total - MAX_ORIGINALS),
+    capRefused: children.length - admitted.length,
+    organisation:
+      (await db.prepare(`SELECT name FROM "organization" WHERE id = ?`).bind(parent.orgId).first<{ name: string }>())
+        ?.name ?? null,
+    parentSubject: parentHead.subject ?? parent.originalSubject,
+    appUrl: env.APP_URL,
+  });
   const sent = await sendMail(
     { db, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, timeoutMs: REPLY_SEND_TIMEOUT_MS },
     {
-      sendKey: `reply:group:${parentId}`,
+      sendKey: sendKey ?? `reply:group:${parentId}`,
       kind: "reply",
       to: parent.forwardedBy as string,
       from: REPLY_FROM,
@@ -1450,6 +1541,7 @@ async function groupedReply(env: Env, parentId: string, callerId: string) {
       caseId: parentId,
     },
   );
+  if (sent.status === "failed") throw new Error("ReplyNotSent");
   return { mail: sent.status, outcome: sent, caseId: parentId };
 }
 
@@ -1466,9 +1558,11 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
   const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
   // A fan-out child never replies alone, and a forward with children replies once for all of them (D01 T01
   // §12): both go through the grouped send, which waits until every admitted child is terminal.
+  const activeCaller = sendKey ? null : caseId;
   const childRow = await parentOf(env.DB, caseId);
-  if (childRow) return { ...base, ...(await groupedReply(env, childRow.parentCaseId, caseId)) };
-  if ((await childrenOf(env.DB, caseId)).length) return { ...base, ...(await groupedReply(env, caseId, caseId)) };
+  if (childRow) return { ...base, ...(await groupedReply(env, childRow.parentCaseId, activeCaller, state, sendKey)) };
+  if ((await childrenOf(env.DB, caseId)).length)
+    return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
 
   let report: ReplyReport;
   if (state.status === "ready") {

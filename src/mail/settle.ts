@@ -11,8 +11,9 @@ const CLAIMED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
 const checkKey = (sendKey: string) => {
   if (!SEND_KEY.test(sendKey)) throw new Error(`mail-settle: "${sendKey}" is not a send key`);
 };
-// A reply is the one kind that can be rebuilt from its case (D01 T02 §8); every other kind keeps no content to send.
-const isReply = (sendKey: string) => /^reply:[A-Za-z0-9]{1,64}$/.test(sendKey);
+// A reply is the one kind that can be rebuilt from its case (D01 T02 §8), a grouped forward's reply included (D01 T01
+// §12); every other kind keeps no content to send.
+const isReply = (sendKey: string) => /^reply:(?:group:)?[A-Za-z0-9]{1,64}$/.test(sendKey);
 
 // `resend` (D01 T02 §8): the same statement that settles a reply failed asks for it to be sent again, so a resend is
 // never asked for a row that was not settled.
