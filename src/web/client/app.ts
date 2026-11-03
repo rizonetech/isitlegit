@@ -349,6 +349,130 @@ const ownFailure = (event: Event) => {
   form.dispatchEvent(new Event("busy:release"));
   return true;
 };
+let casesRecoverySeq = 0;
+let casesRecoveryAbort: AbortController | null = null;
+const casesFailure = (name: string, event: Event) => {
+  const el = event.target as Element | null;
+  const inCases = el?.closest?.("#case-filters") ?? (el?.getAttribute?.("hx-target") === "#case-results" ? el : null);
+  if (!inCases) return false;
+  if (name !== "htmx:timeout" && name !== "htmx:sendError") return false;
+  document.getElementById("case-loading")?.classList.remove("htmx-request");
+  const form = document.getElementById("case-filters");
+  if (!form) return true;
+  const href = asked((event as CustomEvent<HtmxDetail>).detail);
+  let alert = document.getElementById("case-filter-error");
+  if (!alert) {
+    alert = document.createElement("p");
+    alert.id = "case-filter-error";
+    alert.setAttribute("role", "alert");
+    alert.className = "flex flex-wrap items-center gap-8 type-small text-mal weight-text-strong";
+    form.appendChild(alert);
+  }
+  alert.textContent = "Could not load cases. Your current list and filters are kept. ";
+  const retry = document.createElement("a");
+  retry.id = "case-filter-retry";
+  retry.href = href;
+  retry.className = "text-orange-text underline underline-offset-4";
+  retry.textContent = "Try again";
+  alert.appendChild(retry);
+  casesRecoveryAbort?.abort();
+  casesRecoveryAbort = null;
+  const seq = ++casesRecoverySeq;
+  if (name === "htmx:sendError" && navigator.onLine !== false) {
+    const ctrl = new AbortController();
+    casesRecoveryAbort = ctrl;
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const hxHeaders = form.closest("[hx-headers]")?.getAttribute("hx-headers") ?? null;
+    const headers: Record<string, string> = {};
+    if (hxHeaders) {
+      try {
+        const parsed = JSON.parse(hxHeaders) as Record<string, string>;
+        if (parsed["x-cases-org"]) headers["x-cases-org"] = parsed["x-cases-org"];
+      } catch {}
+    }
+    void fetch(href, { credentials: "same-origin", headers, signal: ctrl.signal })
+      .then(async (res) => {
+        if (seq !== casesRecoverySeq || ctrl.signal.aborted) return;
+        const redirect = res.headers.get("hx-redirect");
+        if (redirect) {
+          location.assign(redirect);
+          return;
+        }
+        if (res.redirected) {
+          location.assign(res.url);
+          return;
+        }
+        if (!res.ok) return;
+        const text = await res.text();
+        if (seq !== casesRecoverySeq || ctrl.signal.aborted) return;
+        const doc = new DOMParser().parseFromString(text, "text/html");
+        const nextHeaders = doc.querySelector("[hx-headers]")?.getAttribute("hx-headers") ?? null;
+        if (hxHeaders && nextHeaders !== hxHeaders) {
+          location.assign(href);
+          return;
+        }
+        const nextResults = doc.getElementById("case-results");
+        const curResults = document.getElementById("case-results");
+        if (nextResults && curResults) {
+          const htmx = (window as unknown as { htmx?: { process?: (el: Element) => void } }).htmx;
+          curResults.replaceWith(nextResults);
+          htmx?.process?.(nextResults);
+          for (const id of [
+            "case-count",
+            "case-stats",
+            "case-period-state",
+            "case-range-state",
+            "case-checker-state",
+          ]) {
+            const nextEl = doc.getElementById(id);
+            const curEl = document.getElementById(id);
+            if (nextEl && curEl) {
+              curEl.replaceWith(nextEl);
+              htmx?.process?.(nextEl);
+            }
+          }
+          document.getElementById("case-filter-error")?.remove();
+          history.replaceState(history.state, "", href);
+        }
+      })
+      .catch(() => {})
+      .finally(() => clearTimeout(timer));
+  }
+  return true;
+};
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const el = event.target as Element | null;
+  if (el?.closest?.("#case-filters") || el?.getAttribute?.("hx-target") === "#case-results") {
+    casesRecoverySeq++;
+    casesRecoveryAbort?.abort();
+    casesRecoveryAbort = null;
+    document.getElementById("case-filter-error")?.remove();
+  }
+});
+const toggleOrgReveal = (el: HTMLElement) => {
+  const open = el.getAttribute("aria-expanded") === "true";
+  el.setAttribute("aria-expanded", open ? "false" : "true");
+};
+document.addEventListener("click", (event) => {
+  const reveal = (event.target as Element | null)?.closest?.("[data-org-reveal]") as HTMLElement | null;
+  if (reveal) toggleOrgReveal(reveal);
+});
+document.addEventListener("keydown", (event) => {
+  const target = event.target as HTMLElement | null;
+  if (
+    target?.matches?.(".overflow-x-auto[tabindex='0']") &&
+    (event.key === "ArrowRight" || event.key === "ArrowLeft")
+  ) {
+    event.preventDefault();
+    target.scrollLeft += event.key === "ArrowRight" ? 64 : -64;
+    return;
+  }
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const reveal = target?.closest?.("[data-org-reveal]") as HTMLElement | null;
+  if (!reveal) return;
+  event.preventDefault();
+  toggleOrgReveal(reveal);
+});
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
     if (polled(event)) return stale(true);
@@ -356,6 +480,7 @@ for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
     // next interval: it must never take the reader off the page.
     if ((event.target as Element | null)?.closest?.("[data-quiet-poll]")) return;
     if (ownFailure(event)) return;
+    if (casesFailure(name, event)) return;
     if (name === "htmx:timeout") return;
     location.assign(asked((event as CustomEvent<HtmxDetail>).detail));
   });

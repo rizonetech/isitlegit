@@ -135,9 +135,9 @@ function PhoneHeader(props: { home: string; homeLabel: string }) {
   );
 }
 
-// A name from the data (an organisation, a person) wraps inside the 256 px sidebar, breaking a long word if it must.
-const NAME = "min-w-0 wrap-break-word";
-// An organisation to switch to: a row like the navigation links that grows with its name.
+// A name from the data (an organisation, a person) truncates on one line inside the 256 px sidebar, with its full text on title.
+const NAME = "min-w-0 truncate";
+// An organisation to switch to: a row like the navigation links that keeps one line with its full name on title.
 const OPTION =
   "flex items-center gap-12 w-full min-h-40 px-12 py-8 rounded-control-small border-0 bg-transparent text-left text-15 weight-text-strong text-ink-2 cursor-pointer hover:bg-light hover:text-ink";
 
@@ -155,7 +155,20 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
     return (
       <p class="flex items-center gap-12 min-h-48 px-12 py-8 text-15 weight-text-strong text-ink">
         <OrgBadge name={organization.name} />
-        <span class={NAME}>{organization.name}</span>
+        <span
+          tabindex={0}
+          role="button"
+          aria-expanded="false"
+          data-org-reveal
+          class={cx(
+            NAME,
+            "rounded-small cursor-pointer [&[aria-expanded=true]]:whitespace-normal [&[aria-expanded=true]]:overflow-visible [&[aria-expanded=true]]:text-clip [&[aria-expanded=true]]:wrap-anywhere",
+            FOCUS,
+          )}
+          title={organization.name}
+        >
+          {organization.name}
+        </span>
       </p>
     );
   return (
@@ -169,20 +182,30 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
       >
         <span class="flex items-center gap-12 min-w-0">
           <OrgBadge name={organization.name} />
-          <span class={NAME}>{organization.name}</span>
+          <span class={NAME} title={organization.name}>
+            {organization.name}
+          </span>
         </span>
         <ChevronIcon class="text-muted" />
       </summary>
       <ul class="mt-4 p-4 flex flex-col gap-2 bg-surface border border-line rounded-control shadow-card list-none">
+        <li class="px-12 py-8 border-b border-line text-13 text-muted wrap-anywhere" data-full-org-name>
+          {organization.name}
+        </li>
         {others.map((org) => (
-          <li>
+          <li class="flex flex-col gap-2">
             <form method="post" action="/orgs/switch">
               <input type="hidden" name="organizationId" value={org.id} />
               <button type="submit" class={cx(OPTION, FOCUS)}>
                 <OrgBadge name={org.name} />
-                <span class={NAME}>{org.name}</span>
+                <span class={NAME} title={org.name}>
+                  {org.name}
+                </span>
               </button>
             </form>
+            <span class="px-12 pb-4 text-12 text-muted wrap-anywhere" data-full-alt-org-name>
+              {org.name}
+            </span>
           </li>
         ))}
       </ul>
@@ -273,7 +296,9 @@ function MemberNav(props: MemberShellProps) {
           {initials(user.name)}
         </span>
         <span class="flex flex-col min-w-0">
-          <span class={cx("text-14 weight-text-strong", NAME)}>{user.name}</span>
+          <span class={cx("text-14 weight-text-strong", NAME)} title={user.name}>
+            {user.name}
+          </span>
           <span class="text-13 text-muted">{user.role}</span>
         </span>
         <form method="post" action="/auth/sign-out" class="ml-auto">
@@ -325,7 +350,9 @@ function AdminNav(props: AdminShellProps) {
       </div>
       <div class="mt-auto flex flex-col gap-8 px-12 text-13 text-on-dark-muted">
         <span>Signed in through Cloudflare Access</span>
-        <span class={cx("weight-text-strong text-on-dark", NAME)}>{operator}</span>
+        <span class={cx("weight-text-strong text-on-dark", NAME)} title={operator}>
+          {operator}
+        </span>
       </div>
     </nav>
   );

@@ -277,8 +277,8 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                       <span class="text-muted">None</span>
                     )}
                   </td>
-                  <td class={TD}>{r.members}</td>
-                  <td class={cx(TD, "text-right")}>{r.casesWeek}</td>
+                  <td class={cx(TD, "tabular-nums")}>{r.members}</td>
+                  <td class={cx(TD, "text-right tabular-nums")}>{r.casesWeek}</td>
                   <td class={cx(TD, "wrap-anywhere")}>
                     {r.topCheck === null ? (
                       <span class="text-muted">None yet</span>
@@ -286,7 +286,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                       (CHECK_WORDS[r.topCheck] ?? r.topCheck)
                     )}
                   </td>
-                  <td class={cx(TD, "text-right")}>{r.feedbackOpen}</td>
+                  <td class={cx(TD, "text-right tabular-nums")}>{r.feedbackOpen}</td>
                   <td class={TD}>
                     <CapControl row={r} query={query} draft={draft} />
                   </td>
@@ -592,7 +592,7 @@ export function InvitesPage(props: InvitesProps) {
                             {item.tag}
                           </td>
                           <td class={cx(TD, "wrap-anywhere", status === "Revoked" && "text-muted")}>{item.label}</td>
-                          <td class={TD}>
+                          <td class={cx(TD, "tabular-nums")}>
                             {item.uses} of {item.max_uses}
                           </td>
                           <td class={cx(TD, "text-muted")}>{sastShort(item.created)}</td>

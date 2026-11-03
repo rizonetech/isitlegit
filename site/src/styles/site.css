@@ -7,12 +7,52 @@
 @source "../";
 
 /* Every focused link and button shows the SPEC focus ring: a solid 2 px orange-text outline 2 px outside it
-   (design/SPEC.md, the D07 T01 §6 deviation; the app's FOCUS in src/web/components/attrs.ts). */
+   (design/SPEC.md, the D07 T01 §6 deviation; the app's FOCUS in src/web/components/attrs.ts).
+   Browser autofill, text selection and reduced motion (D07 T01 §17): token colours only, both themes. */
 @layer base {
   a:focus-visible,
   button:focus-visible {
     outline: 2px solid var(--color-orange-text);
     outline-offset: 2px;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus,
+  [data-autofilled="true"] {
+    -webkit-text-fill-color: var(--color-ink);
+    color: var(--color-ink);
+    caret-color: var(--color-ink);
+    background-color: var(--color-surface);
+    box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  }
+
+  ::selection {
+    background-color: var(--color-orange-wash);
+    color: var(--color-ink);
+  }
+}
+
+.tabular-nums,
+.type-figure {
+  font-family: var(--font-text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
   }
 }
 
