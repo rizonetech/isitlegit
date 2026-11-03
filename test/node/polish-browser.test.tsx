@@ -665,6 +665,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const link = firstCell.querySelector("a") as HTMLAnchorElement | null;
           return {
             overflowX: getComputedStyle(wrap).overflowX,
+            hasTabIndex: wrap.getAttribute("tabindex") === "0",
+            hasAriaLabel: Boolean(wrap.getAttribute("aria-label")?.trim()),
+            scrollPaddingLeft: getComputedStyle(wrap).scrollPaddingLeft,
             headSticky: getComputedStyle(headFirst).position,
             stickyPosition: getComputedStyle(firstCell).position,
             scrollable: wrap.scrollWidth > wrap.clientWidth,
@@ -682,6 +685,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       for (const item of tableCheck) {
         expect(item).toMatchObject({
           overflowX: "auto",
+          hasTabIndex: true,
+          hasAriaLabel: true,
+          scrollPaddingLeft: "152px",
           headSticky: "sticky",
           stickyPosition: "sticky",
           scrollable: true,
@@ -698,6 +704,29 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         longCaseTitle,
         longCaseTitle,
       ]);
+      const actionFocus = await page.evaluate(() => {
+        const wrap = document.querySelector("#wide-gallery .overflow-x-auto") as HTMLElement;
+        wrap.scrollLeft = 0;
+        const firstCell = wrap.querySelector("tbody td:first-child") as HTMLElement;
+        const action = wrap.querySelector("tbody td:last-child a") as HTMLAnchorElement;
+        action.scrollIntoView({ block: "center", inline: "nearest" });
+        action.focus();
+        const fRect = firstCell.getBoundingClientRect();
+        const aRect = action.getBoundingClientRect();
+        const hit = document.elementFromPoint(aRect.left + aRect.width / 2, aRect.top + aRect.height / 2);
+        return {
+          focused: document.activeElement === action,
+          rightOfSticky: aRect.left >= fRect.right,
+          uncovered: Boolean(hit && action.contains(hit)),
+          href: action.getAttribute("href"),
+        };
+      });
+      expect(actionFocus).toEqual({
+        focused: true,
+        rightOfSticky: true,
+        uncovered: true,
+        href: "/admin/feedback?selected=01CASE",
+      });
       await close();
     });
 
@@ -834,6 +863,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       expect(casesCheck.otherOrgTitle).toBe(
         "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated",
       );
+      const disclosure = await page.evaluate(() => {
+        const details = document.querySelector("#nav details") as HTMLDetailsElement;
+        const fullOrg = document.querySelector("#nav [data-full-org-name]") as HTMLElement;
+        return {
+          openAfterClick: details.open,
+          fullOrgText: fullOrg.textContent?.trim(),
+          fullOrgVisible: fullOrg.getBoundingClientRect().height > 0 && fullOrg.scrollWidth <= fullOrg.clientWidth + 1,
+        };
+      });
+      expect(disclosure).toEqual({
+        openAfterClick: true,
+        fullOrgText: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
+        fullOrgVisible: true,
+      });
+      await page.focus("#nav summary");
+      await page.keyboard.press("Enter");
+      expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(false);
+      await page.keyboard.press("Enter");
+      expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(true);
       await context.close();
     });
 

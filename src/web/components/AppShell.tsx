@@ -178,6 +178,9 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
         <ChevronIcon class="text-muted" />
       </summary>
       <ul class="mt-4 p-4 flex flex-col gap-2 bg-surface border border-line rounded-control shadow-card list-none">
+        <li class="px-12 py-8 border-b border-line text-13 text-muted wrap-anywhere" data-full-org-name>
+          {organization.name}
+        </li>
         {others.map((org) => (
           <li>
             <form method="post" action="/orgs/switch">

@@ -322,7 +322,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
         ) : null}
         <div class={PANEL}>
           <section
-            class="overflow-x-auto"
+            class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
             aria-label="Ablation table, scrolls sideways on a narrow screen"
             tabindex={0}
           >
@@ -446,7 +446,7 @@ function History(props: { rows: HistoryRow[] }) {
       </p>
       <div class={PANEL}>
         <section
-          class="overflow-x-auto"
+          class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
           aria-label="Run history table, scrolls sideways on a narrow screen"
           tabindex={0}
         >

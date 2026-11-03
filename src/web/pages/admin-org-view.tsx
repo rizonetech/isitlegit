@@ -182,7 +182,11 @@ function FeedbackCard(props: { feedback: OrgFeedbackRow[]; href: string }) {
       {props.feedback.length === 0 ? (
         <p class="small muted">No feedback from this organisation.</p>
       ) : (
-        <section class="card overflow-x-auto" tabindex={0} aria-label="Recent feedback">
+        <section
+          class="card overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
+          tabindex={0}
+          aria-label="Recent feedback"
+        >
           <table class="table min-w-[520px] w-full">
             <thead>
               <tr>

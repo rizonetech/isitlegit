@@ -466,7 +466,11 @@ export const GALLERY_STATES: State[] = [
   {
     id: "polish/wide-table",
     render: () => (
-      <section class="border border-line rounded-card overflow-x-auto bg-surface" tabindex={0} aria-label="Wide table">
+      <section
+        class="border border-line rounded-card overflow-x-auto bg-surface scroll-pl-evidence-figure md:scroll-pl-sidebar"
+        tabindex={0}
+        aria-label="Wide table"
+      >
         <table class="w-full min-w-[640px] text-left border-collapse">
           <thead>
             <tr class="type-small text-muted border-b border-line bg-subtle">

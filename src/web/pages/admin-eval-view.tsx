@@ -126,7 +126,11 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
           No ablation run has been published yet, so there is nothing to compare.
         </p>
       ) : null}
-      <section class="overflow-x-auto" tabindex={0} aria-label="Ablation table, scrolls sideways on a narrow screen">
+      <section
+        class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
+        tabindex={0}
+        aria-label="Ablation table, scrolls sideways on a narrow screen"
+      >
         <table class="w-full min-w-[720px] border-collapse">
           <caption class="sr-only">Each model switched off against the full pipeline</caption>
           <thead>
@@ -213,7 +217,11 @@ function RunsTable(props: { runs: EvalRunRow[] }) {
           All runs
         </h2>
       </div>
-      <section class="overflow-x-auto" tabindex={0} aria-label="All runs table, scrolls sideways on a narrow screen">
+      <section
+        class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
+        tabindex={0}
+        aria-label="All runs table, scrolls sideways on a narrow screen"
+      >
         <table class="w-full min-w-[720px] border-collapse">
           <caption class="sr-only">Every eval run, newest first, with its own published figures</caption>
           <thead>

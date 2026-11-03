@@ -98,7 +98,11 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
     );
   }
   return (
-    <section class="card overflow-x-auto min-w-0" tabindex={0} aria-label="Feedback reports">
+    <section
+      class="card overflow-x-auto min-w-0 scroll-pl-evidence-figure md:scroll-pl-sidebar"
+      tabindex={0}
+      aria-label="Feedback reports"
+    >
       <table class="table min-w-[640px] w-full">
         <thead>
           <tr>
