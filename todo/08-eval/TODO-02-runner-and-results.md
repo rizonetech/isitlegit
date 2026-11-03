@@ -384,6 +384,8 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the ru
 
 ## 12. Eval replay after deploy
 
+> **Started:** 2026-11-03T02:05:00+02:00 (the build began 2026-11-02 in cef55a86 without this line; recorded now so the plan review and stamp have their anchor, **Corrected 2026-11-03**)
+
 Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after a deploy, remeasuring the identical population waits almost 24 hours because intake deduplication answers old cases as stale repeats, while picking other messages weakens comparability. This section designs, with the intake owner (D01, which owns `src/intake/admit.ts`), an attributable same-population remeasurement that preserves ordinary upload deduplication, then builds the eval side of it.
 
 **Phase:** 6
