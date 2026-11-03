@@ -80,21 +80,24 @@ describe("monitor seeds", () => {
       .bind(JSON.stringify({ demo: true }), orgId)
       .run();
     await addSeed(db, orgId, { host: "fixtures.isitlegit.co.za", path: "fynbos-lookalike/" });
+    await addSeed(db, orgId, { host: "fynbos-seeded-custom.example", path: "portal/login/" });
     const captured: string[] = [];
     const screened: string[] = [];
     // Give 320 CT names on a day whose rotation offset is non-zero (2026-11-04 -> dayIndex 20762),
     // proving the seed stays pinned at the front of `candidates` and `choose()`.
     const manyCt = Array.from({ length: 320 }, (_, i) => `fynbos-ct-${String(i).padStart(3, "0")}.example`);
-    const makeDeps = (nowIso: string) =>
+    const makeDeps = (nowIso: string, ctNames: string[] = manyCt) =>
       ({
         db,
         bucket: env.ARTEFACTS,
         store: env.ARTEFACTS,
         kv: (env as unknown as { CACHE: KVNamespace }).CACHE,
         now: () => new Date(nowIso),
-        ct: async () => ({ names: manyCt, failed: [] }),
+        ct: async () => ({ names: ctNames, failed: [] }),
         resolve: async (host: string) =>
-          host === "fixtures.isitlegit.co.za" || host.startsWith("fynbos-ct-0")
+          host === "fixtures.isitlegit.co.za" ||
+          host === "fynbos-seeded-custom.example" ||
+          host.startsWith("fynbos-ct-0")
             ? { status: "resolves" as const, answers: ["192.0.2.1"] }
             : { status: "none" as const },
         capture: async (host: string) => {
@@ -112,7 +115,8 @@ describe("monitor seeds", () => {
           return {
             screenshot: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
             text: "Fynbos Freight sign in",
-            url: `https://${host}/secret-prefix/${path}`,
+            url:
+              host === "fixtures.isitlegit.co.za" ? `https://${host}/secret-prefix/${path}` : `https://${host}/${path}`,
             signals: { links: 1, inputs: 2, passwords: 1, forms: 1, frames: 0 },
             parkText: "Fynbos Freight sign in",
           };
@@ -143,12 +147,47 @@ describe("monitor seeds", () => {
 
     await monitorOrg(makeDeps("2026-11-04T02:00:00.000Z"), orgId, `monitor-${orgId}-seed-1`);
     expect(captured[0]).toBe("seed:fixtures.isitlegit.co.za/fynbos-lookalike/");
+    expect(captured[1]).toBe("seed:fynbos-seeded-custom.example/portal/login/");
     expect(screened).toContain("fixtures.isitlegit.co.za");
+    expect(screened).toContain("fynbos-seeded-custom.example");
     const hostRow = await db
       .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = 'fixtures.isitlegit.co.za'")
       .bind(orgId)
       .first<{ capture_url: string }>();
     expect(hostRow?.capture_url).toBe("https://fixtures.isitlegit.co.za/secret-prefix/fynbos-lookalike/");
+
+    // Removing the non-fixture brand-matching seed while keeping demo === true disables its persisted
+    // monitor_hosts row from re-entering via knownCt or resuming unscreened capture work.
+    expect(await removeSeed(db, orgId, "fynbos-seeded-custom.example")).toBe(true);
+    expect(await removeSeed(db, orgId, "fynbos-seeded-custom.example")).toBe(false);
+    await db
+      .prepare(
+        "UPDATE monitor_hosts SET captured_dns_hash = NULL WHERE org_id = ? AND domain = 'fynbos-seeded-custom.example'",
+      )
+      .bind(orgId)
+      .run();
+    await db
+      .prepare("DELETE FROM monitor_screens WHERE org_id = ? AND domain = 'fynbos-seeded-custom.example'")
+      .bind(orgId)
+      .run();
+    captured.length = 0;
+    screened.length = 0;
+    await monitorOrg(makeDeps("2026-11-04T14:00:00.000Z", []), orgId, `monitor-${orgId}-seed-removed`);
+    expect(captured.some((c) => c.includes("fynbos-seeded-custom.example"))).toBe(false);
+    expect(screened).not.toContain("fynbos-seeded-custom.example");
+
+    // Cross-tenant isolation: another organisation whose own CT/generated candidates include
+    // `fynbos-seeded-custom.example` is NOT suppressed by `orgId`'s seed or removed seed.
+    const { orgId: otherTenant } = await business();
+    captured.length = 0;
+    screened.length = 0;
+    await monitorOrg(
+      makeDeps("2026-11-04T15:00:00.000Z", ["fynbos-seeded-custom.example"]),
+      otherTenant,
+      `monitor-${otherTenant}-tenant-isolation`,
+    );
+    expect(captured).toContain("root:fynbos-seeded-custom.example");
+    expect(screened).toContain("fynbos-seeded-custom.example");
 
     // Now revoke the demo flag and leave an unscreened capture row for fixtures.isitlegit.co.za in monitor_hosts:
     // the next run must neither resolve, capture, nor screen the persisted seed host.
@@ -164,7 +203,7 @@ describe("monitor seeds", () => {
     expect(screened).not.toContain("fixtures.isitlegit.co.za");
   });
 
-  it("applies FIXTURES_PREFIX in monitorDeps.captureSeed and preserves the final URL in browserCapture", async () => {
+  it("applies FIXTURES_PREFIX only to FIXTURES_HOST in monitorDeps.captureSeed and preserves the final URL in browserCapture", async () => {
     const visited: string[] = [];
     const fakeLaunch = async () =>
       ({
@@ -198,6 +237,7 @@ describe("monitor seeds", () => {
     expect(direct.url).toBe("https://fixtures.isitlegit.co.za/pfx123/fynbos-lookalike/");
     expect(direct.text).toBe("Fynbos Freight sign in");
 
+    visited.length = 0;
     const deps = monitorDeps(
       {
         DB: db,
@@ -205,8 +245,16 @@ describe("monitor seeds", () => {
         FIXTURES_PREFIX: "/secret-prefix-abc/",
       } as unknown as Env,
       "run-1",
+      { browserLaunch: fakeLaunch },
     );
-    expect(typeof deps.captureSeed).toBe("function");
+    const fixtureCapture = await deps.captureSeed?.("fixtures.isitlegit.co.za", "/fynbos-lookalike/");
+    expect(fixtureCapture?.url).toBe("https://fixtures.isitlegit.co.za/secret-prefix-abc/fynbos-lookalike/");
+    const externalCapture = await deps.captureSeed?.("external-seed.example", "/portal/login/");
+    expect(externalCapture?.url).toBe("https://external-seed.example/portal/login/");
+    expect(visited).toEqual([
+      "https://fixtures.isitlegit.co.za/secret-prefix-abc/fynbos-lookalike/",
+      "https://external-seed.example/portal/login/",
+    ]);
   });
 
   it("routes demo subdomain alerts to alerts@demo.isitlegit.co.za, skips unconfirmed findings, records refusals/failures, and deduplicates repeat runs", async () => {

@@ -65,9 +65,10 @@ export async function seedsFor(db: D1Database, orgId: string): Promise<MonitorSe
   return rows.results.map(normaliseSeed).filter((s): s is MonitorSeed => s !== null);
 }
 
-// Hosts that are seeded in `monitor_seeds` (or the fixtures host itself) but not active for this
-// organisation right now, so an ordinary organisation or one whose demo flag or seed was removed
-// never resolves, captures, or screens a previously persisted seed host.
+// Hosts that were seeded in `monitor_seeds` for this organisation (or the internal fixtures host
+// itself) but are not active for this organisation right now, so an ordinary organisation or one
+// whose demo flag or seed was disabled never resolves, captures, or screens a previously persisted
+// seed host, while never suppressing another organisation's legitimate candidates.
 export async function inactiveSeedHosts(
   db: D1Database,
   orgId: string,
@@ -77,7 +78,7 @@ export async function inactiveSeedHosts(
   const inactive = new Set<string>();
   if (!active.has(FIXTURES_HOST)) inactive.add(FIXTURES_HOST);
   const rows = await db
-    .prepare("SELECT DISTINCT lower(host) AS host FROM monitor_seeds WHERE org_id = ? OR host IS NOT NULL")
+    .prepare("SELECT DISTINCT lower(host) AS host FROM monitor_seeds WHERE org_id = ?")
     .bind(orgId)
     .all<{ host: string }>()
     .catch(() => ({ results: [] as { host: string }[] }));
@@ -110,10 +111,19 @@ export async function addSeed(
   return back?.path === clean.path;
 }
 
+// Disable a seed with read-back while retaining its organisation-scoped tombstone (`path = ''`)
+// so `inactiveSeedHosts` continues to exclude any persisted `monitor_hosts` capture or CT
+// re-admission for this organisation until the seed is re-added.
 export async function removeSeed(db: D1Database, orgId: string, host: string): Promise<boolean> {
+  const cleanHost = host.trim().toLowerCase();
   const done = await db
-    .prepare("DELETE FROM monitor_seeds WHERE org_id = ? AND host = ?")
-    .bind(orgId, host.trim().toLowerCase())
+    .prepare("UPDATE monitor_seeds SET path = '' WHERE org_id = ? AND host = ? AND path != ''")
+    .bind(orgId, cleanHost)
     .run();
-  return (done.meta?.changes ?? 0) > 0;
+  if ((done.meta?.changes ?? 0) === 0) return false;
+  const back = await db
+    .prepare("SELECT path FROM monitor_seeds WHERE org_id = ? AND host = ?")
+    .bind(orgId, cleanHost)
+    .first<{ path: string }>();
+  return back?.path === "";
 }

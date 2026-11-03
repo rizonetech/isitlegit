@@ -8,7 +8,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import puppeteer from "@cloudflare/puppeteer";
 import { brandTableRead, registrable } from "../checks/brands";
 import { ulid } from "../db/ulid";
-import { fixturesResponse } from "../fixtures/redirects";
+import { FIXTURES_HOST, fixturesResponse } from "../fixtures/redirects";
 import { d1Budget } from "../meta/budget";
 import { DETECTOR, groundLogos } from "../vision/detector";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
@@ -112,13 +112,26 @@ export async function browserCapture(
   }
 }
 
+export function seedCapturePath(host: string, path: string, fixturesPrefix?: string): string {
+  const cleanPath = path.replace(/^\/+/, "");
+  if (host.trim().toLowerCase() !== FIXTURES_HOST) return cleanPath;
+  const cleanPrefix = (fixturesPrefix ?? "").replace(/^\/+|\/+$/g, "");
+  return cleanPrefix ? `${cleanPrefix}/${cleanPath}` : cleanPath;
+}
+
 export function monitorDeps(
   env: Env,
   runId: string,
-  opts: { fetcher?: typeof fetch; now?: () => number; sparkFetch?: typeof fetch; ctFetch?: typeof fetch } = {},
+  opts: {
+    fetcher?: typeof fetch;
+    now?: () => number;
+    sparkFetch?: typeof fetch;
+    ctFetch?: typeof fetch;
+    browserLaunch?: typeof puppeteer.launch;
+  } = {},
 ): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
-  const { sparkFetch, ...loupe } = opts;
+  const { sparkFetch, browserLaunch, ...loupe } = opts;
   const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...loupe });
   // Spark's context (D03 T01): the budget over D1, and its record writes held until the step's end, as a Workflow step
   // has no request to keep them alive.
@@ -140,15 +153,16 @@ export function monitorDeps(
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
-    capture: (host) => browserCapture(env.BROWSER, host),
+    capture: (host) => browserCapture(env.BROWSER, host, browserLaunch),
     // A seeded host's page (D05 T04 §6): the fixtures prefix is the Worker's own secret,
-    // applied here and never stored in the seed.
-    captureSeed: (host: string, path: string) => {
-      const cleanPrefix = ((env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX ?? "").replace(/^\/+|\/+$/g, "");
-      const cleanPath = path.replace(/^\/+/, "");
-      const fullPath = cleanPrefix ? `${cleanPrefix}/${cleanPath}` : cleanPath;
-      return browserCapture(env.BROWSER, host, undefined, fullPath);
-    },
+    // applied only when the seed host is `FIXTURES_HOST` and never sent to any external host.
+    captureSeed: (host: string, path: string) =>
+      browserCapture(
+        env.BROWSER,
+        host,
+        browserLaunch,
+        seedCapturePath(host, path, (env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX),
+      ),
     // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
     // settles it again to the same cutoff.
     open: (calls) => openGlimmer(wakeCtx(calls)),
