@@ -43,7 +43,7 @@ track: day-6
 | 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
-| 13 | §13 | Source-versus-replay comparison | §12 | [ ] |
+| 13 | §13 | Source-versus-replay comparison | §12 | [x] |
 | 14 | §14 | Paired-evidence investigation | §13 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -435,9 +435,12 @@ Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a repla
 - [x] Add the pairing check in `eval/metrics.ts` (or a named sibling): two stored runs pair only when the second's mode is `replay:<first id>`, both are complete, and their populations and set versions are equal. Done when: tests refuse a non-replay pair, an incomplete run and a drifted population, each naming why. Cheaper substitute: none (an unequal comparison is a false claim). **Corrected 2026-11-03 (plan review P1):** complete means complete measured coverage too: every selected sample in both runs has a terminal row with a verdict, so an outage cannot masquerade as a detection or false-positive change; a complete run holding a null verdict or a missing result refuses, tested.
 - [x] Print the comparison from the paired reports: detection, false-positive, median cost and median time deltas, plus per-sample verdict changes in both directions. Done when: a test pairs two stored runs and reads back every delta and changed sample. Cheaper substitute: none (the operator assembles this by hand today). **Corrected 2026-11-03 (plan review P2):** main and challenge populations are compared apart (challenge never enters a main figure), rate deltas are percentage points, an absent denominator or median reads `not measured` never zero, and tests pin exact expected values for challenge-only, zero-denominator, unchanged and mixed improvement/regression pairs.
 - [x] Expose it as `pnpm eval:metrics --compare <replay run id>` resolving its source from the stored mode. Done when: the command prints the comparison for a stored replay and refuses a run that is not a replay. Cheaper substitute: none (a library nobody can invoke does not exist for the operator). **Corrected 2026-11-03 (plan review P2):** the command also refuses a missing replay or source record, a malformed argument and any conflict with `--run`, `--publish`, `--republish-summary`, `--check` or `--from` (exit 3, actionable, no publication side effects), and a database read failure exits 1; all exercised through the command entry with persisted read-back.
-- [ ] Commit: `eval: source-versus-replay comparison`
+- [x] Commit: `eval: source-versus-replay comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts test/node/eval-replay.test.ts` passes with the pairing, refusal and delta cases.
+
+> **Verified:** 2026-11-03 | §13 | 3e0d1feb3ad1a3a9ce8ed6b39dce821bfe10e2e8
+> **Review:** `docs/reviews/d08-t02-s13.json`
 
 ## 14. Paired-evidence investigation
 
