@@ -16,12 +16,7 @@ import { createToolExecutor, type ToolDeps } from "../../src/agent/tools";
 import { attachmentRisksOf, MAX_MEMBERS_READ } from "../../src/checks/attachment-risk";
 import { bundled } from "../../src/checks/brands";
 import { caseViewOf } from "../../src/checks/case-view";
-import {
-  type Evidence,
-  type EvidenceDraft,
-  readEvidence,
-  saveEvidence,
-} from "../../src/checks/evidence";
+import { type Evidence, type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { checks } from "../../src/checks/index";
 import { type CheckOutcome, runChecksWithOutcomes } from "../../src/checks/runner";
 import { attachmentHeadsOf } from "../../src/checks/sniff";
