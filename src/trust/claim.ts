@@ -600,6 +600,13 @@ export function readTrustClaimDetail(detail: unknown): TrustClaimReading {
   return { kind: "claim", detail: trustClaimHitDetailSchema.parse(detail) };
 }
 
+const HIDDEN_HEADER_CHARS = /[\p{Cc}\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
+function fullDecodedLine(text: string | null | undefined): string | null {
+  if (text == null) return null;
+  const line = text.replace(HIDDEN_HEADER_CHARS, " ").replace(/\s+/gu, " ").trim();
+  return line || null;
+}
+
 // Extracts `ClaimInput` from a `CaseView`: reads `view.protectedCandidates` (D02 T01 §9), the original message's
 // From and Reply-To headers when `view.tenant.headersAvailable` is true, the plain-text body (`view.text`),
 // the voice reading (`view.voice`), and the bounded logo-comparison result (`view.claimLogos`).
@@ -659,12 +666,14 @@ export function claimInputFromView(view: Readonly<CaseView>): ClaimInput {
     }
     if (fromHeaders.length === 1 && fromHeaders[0]) {
       fromHeader = oneLine(`${fromHeaders[0].name}: ${fromHeaders[0].value}`);
-      if (!fromName && !orig.fromAddress) {
+      const unfolded = fromHeaders[0].value.replace(/\r?\n[ \t]*/g, " ");
+      const parsed = addressParser(unfolded, { flatten: true });
+      if (orig.fromName !== null && parsed.length === 1 && parsed[0]?.name) {
+        fromName = fullDecodedLine(parsed[0].name) ?? orig.fromName;
+      } else if (!fromName && !orig.fromAddress) {
         // Check if a single From header had a display name even when its mailbox was invalid, and record the unread mailbox.
-        const unfolded = fromHeaders[0].value.replace(/\r?\n[ \t]*/g, " ");
-        const parsed = addressParser(unfolded, { flatten: true });
         if (parsed.length === 1 && parsed[0]?.name) {
-          fromName = oneLine(parsed[0].name);
+          fromName = fullDecodedLine(parsed[0].name);
         }
         if (unfolded.trim()) {
           unavailable.push("the From address could not be read");

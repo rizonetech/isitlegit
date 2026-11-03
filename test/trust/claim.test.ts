@@ -340,6 +340,19 @@ describe("claim routes", () => {
     expect(inlineItems[0]?.detail.routes).toEqual(["signature"]);
     expect(inlineItems[1]?.detail.checked).toBe(false);
     expect(inlineItems[1]?.detail.unavailable).toContain("the original's headers were not available");
+
+    // Long From display name (> 300 characters) still matches the claimed business name at the tail and truncates only the evidence excerpt.
+    const longDisplayName = `${"Accounts ".repeat(35)}Fynbos Freight`;
+    const longFromView = buildMessageView({
+      headersAvailable: true,
+      headers: [{ name: "From", value: `"${longDisplayName}" <billing@unrelated.example>` }],
+      text: "No identity claim in body.",
+    });
+    longFromView.protectedCandidates = boundProtectedCandidates([{ ...FYNBOS, logo: null }]);
+    const longFromHits = detectClaims(claimInputFromView(longFromView));
+    expect(longFromHits).toHaveLength(1);
+    expect(longFromHits[0]?.orgId).toBe("org-fynbos");
+    expect(longFromHits[0]?.routes).toEqual(["display-name"]);
   });
 });
 
