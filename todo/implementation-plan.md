@@ -294,7 +294,7 @@ Sections: 97 | Checklist items: 627
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
-| [ ]    | D03 T03 §7  | Compared reference in logo_match detail      | none                  | 5     |
+| [x]    | D03 T03 §7  | Compared reference in logo_match detail      | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
 | [x]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 8     |
@@ -634,6 +634,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 360/558 verified sections, 129 ready to run now.
+Progress: 361/558 verified sections, 128 ready to run now.
 
 Checklist: 2796/3489 items completed (includes Commit items).

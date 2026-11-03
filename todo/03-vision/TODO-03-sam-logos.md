@@ -38,7 +38,7 @@ track: day-4
 | 4 | §4 | Logo recall check and detector choice | §3 | [x] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 | 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
-| 7 | §7 | Compared reference in logo_match detail | §3 | [ ] |
+| 7 | §7 | Compared reference in logo_match detail | §3 | [x] |
 
 ## 1. SAM 3.1 client, parser and crops
 
@@ -279,6 +279,9 @@ Filed 2026-11-03 from the app lane's D07 T03 §14 plan review, relayed by the co
 - [x] Commit: `vision: record compared reference in logo match detail`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts test/vision/step-read.test.ts` passes, and fails if a compared item lacks the reference key it was judged against.
+
+> **Verified:** 2026-11-03 | §7 | d320b61b01f493853cfa63402e2b1cf881017031
+> **Review:** `docs/reviews/d03-t03-s7.json`
 
 ## Verification
 
