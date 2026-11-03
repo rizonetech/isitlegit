@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -328,6 +328,7 @@ const WAV = (() => {
   buf.writeUInt32LE(samples * 2, 40);
   return buf;
 })();
+const PDF_BYTES = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
 let audioGone = false;
 async function open(width: number, theme: "light" | "dark" = "light", hash = "", cards: ReportEvidence[] = evidence) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
@@ -341,6 +342,21 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
       if (path.endsWith(".ogg")) {
         if (audioGone) return route.fulfill({ status: 404, contentType: "text/plain", body: "gone" });
         return route.fulfill({ status: 200, contentType: "audio/wav", body: WAV });
+      }
+      if (decodeURIComponent(path).endsWith(".pdf")) {
+        const name = (decodeURIComponent(path).split("/").pop() ?? "file.pdf")
+          .replace(/[^A-Za-z0-9._-]/g, "_")
+          .slice(-120);
+        return route.fulfill({
+          status: 200,
+          contentType: "application/octet-stream",
+          headers: {
+            "content-disposition": `attachment; filename="${name}"`,
+            "x-content-type-options": "nosniff",
+            "content-security-policy": "sandbox; default-src 'none'",
+          },
+          body: PDF_BYTES,
+        });
       }
       if (holdShot) await holdShot;
       if (shotMode === "png") return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
@@ -633,6 +649,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
   });
 
   it("draws the invoice and payment-document cards at both widths in both themes (D07 T03 s15)", async () => {
+    const maxSupplier = `${"Karoo Parts and Heavy Industrial Engineering Supplies ".repeat(3)}`.slice(0, 120);
+    const maxHolder = `${"Karoo Parts and Industrial Supplies (Pty) Ltd Account ".repeat(3)}`.slice(0, 120);
+    const maxReference = `INV-2026-1042-${"9876543210".repeat(11)}`.slice(0, 120);
+    const maxIssuer = `${"Protea Commercial and Corporate Banking Division ".repeat(3)}`.slice(0, 120);
+    const maxBeneficiary = `${"Karoo Parts Operations and Logistics Division (Pty) Ltd ".repeat(3)}`.slice(0, 120);
     const cards: ReportEvidence[] = [
       {
         id: "E30",
@@ -644,9 +665,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           amount_cents: 1250000,
           currency: "ZAR",
           account_last3: "678",
+          account_number: "998877665544",
           against: "ledger",
           supplier_id: "sup-internal-1",
           phone: "011 555 0142",
+          unexpected: "should-not-appear",
         },
         artefacts: ["case/invoice.pdf"],
       },
@@ -654,17 +677,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         id: "E31",
         check: "invoice.detected",
         severity: "info",
-        summary: "Invoice from Karoo Parts: account ***678.",
+        summary: `Invoice from ${maxSupplier}: account ***678`,
         detail: {
-          supplier_name: "Karoo Parts",
-          supplier_domain: "karoo.example",
+          attachment: "case/invoice.pdf",
+          supplier_name: maxSupplier,
+          supplier_domain: LONG,
           bank_name: "Protea Bank",
-          account_holder: "Karoo Parts (Pty) Ltd",
+          account_holder: maxHolder,
           account_last3: "678",
+          account_number: "998877665678",
           branch_code: "051001",
           amount_cents: 1250000,
           currency: "ZAR",
-          reference: "INV-1042",
+          reference: maxReference,
           due_date: "2026-11-30",
         },
         artefacts: ["case/invoice.pdf"],
@@ -673,16 +698,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         id: "E32",
         check: "document.type",
         severity: "info",
-        summary: "Payment document: proof of payment from Protea Bank.",
+        summary: `Payment document: pop from ${maxIssuer}`.slice(0, 200),
         detail: {
           attachment: "case/pop.pdf",
           type: "pop",
-          issuer: "Protea Bank",
+          issuer: maxIssuer,
           amount_cents: 1250000,
           currency: "ZAR",
-          beneficiary_name: "Karoo Parts",
+          paid_at: "2026-10-30",
+          issued_at: "2026-10-30",
+          reference: maxReference,
+          beneficiary_name: maxBeneficiary,
           account_last3: "678",
           beneficiary_masked: "***678",
+          branch_code: "051001",
           layout_checked: true,
           limit:
             "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
@@ -691,6 +720,28 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       },
       {
         id: "E33",
+        check: "document.layout_mismatch",
+        severity: "medium",
+        summary:
+          "This document differs from the bank's genuine sample. Confirm it with the bank. It cannot prove the document was edited.",
+        detail: {
+          attachment: "case/pop.pdf",
+          type: "pop",
+          issuer: maxIssuer,
+          account_last3: "678",
+          beneficiary_masked: "***678",
+          aspects: ["logo", "bank_details"],
+          differences: [
+            "The logo or header differs from the bank's reference.",
+            "The bank-detail layout differs from the bank's reference.",
+          ],
+          limit:
+            "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
+        },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E34",
         check: "document.beneficiary_mismatch",
         severity: "high",
         summary: "The document's beneficiary does not match the recorded account.",
@@ -700,16 +751,43 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           against: "registry",
           account_last3: "321",
           beneficiary_masked: "***321",
+          account_number: "998877665544",
           supplier_id: "sup-internal-1",
+          protected_org_id: "org-internal-9",
+          phone: "011 555 0142",
         },
         artefacts: ["case/pop.pdf"],
       },
       {
-        id: "E34",
+        id: "E35",
         check: "invoice.comparison_unavailable",
         severity: "info",
-        summary: "A bank comparison could not run.",
-        detail: { checked: false, reason: "no-baseline", comparison: "ledger" },
+        summary: "A bank comparison could not run (no-baseline)",
+        detail: { checked: false, reason: "no-baseline", comparison: "ledger", attachment: "case/invoice.pdf" },
+        artefacts: ["case/invoice.pdf"],
+      },
+      {
+        id: "E36",
+        check: "document.comparison_unavailable",
+        severity: "info",
+        summary: "A payment document comparison could not run (reference-unavailable)",
+        detail: { checked: false, reason: "reference-unavailable", attachment: "case/pop.pdf" },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E37",
+        check: "document.not_checked",
+        severity: "info",
+        summary: "A payment document could not be read (too-many-documents)",
+        detail: { checked: false, reason: "too-many-documents", attachment: "case/pop.pdf" },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E38",
+        check: "invoice.not_checked",
+        severity: "info",
+        summary: "An attached document could not be read as an invoice (too-large)",
+        detail: { checked: false, reason: "too-large", attachment: "case/invoice.pdf" },
         artefacts: ["case/invoice.pdf"],
       },
     ];
@@ -722,27 +800,62 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           "***678",
           "Your supplier ledger",
           "An invoice in the message",
-          "Karoo Parts",
+          maxSupplier,
+          maxHolder,
+          maxReference,
+          LONG,
           "A proof of payment",
+          maxIssuer,
+          maxBeneficiary,
+          "How this document's layout differs",
           "A beneficiary that differs from the record",
           "***321",
           "A bank comparison that could not run",
+          "A layout comparison that could not run",
+          "The bank's genuine sample could not be read",
+          "A payment document that could not be read",
+          "A document that could not be read as an invoice",
           "No match and no mismatch",
         ])
           expect(text, `${words} ${width} ${theme}`).toContain(words);
-        for (const banned of ["sup-internal-1", "011 555 0142"]) expect(text, banned).not.toContain(banned);
+        for (const banned of [
+          "998877665544",
+          "998877665678",
+          "sup-internal-1",
+          "org-internal-9",
+          "011 555 0142",
+          "should-not-appear",
+          "(no-baseline)",
+          "(reference-unavailable)",
+          "(too-many-documents)",
+          "(too-large)",
+        ])
+          expect(text, `${banned} ${width} ${theme}`).not.toContain(banned);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);
-        if (width === 360 && theme === "light") {
-          const download = p.locator("#e30").getByRole("link", { name: "Download the document" });
-          let reached = false;
-          for (let i = 0; i < 120 && !reached; i++) {
-            await p.keyboard.press("Tab");
-            reached = await download.evaluate((el) => el === document.activeElement);
-          }
-          expect(reached, "Download the document by keyboard").toBe(true);
+        const download = p.locator("#e30").getByRole("link", { name: "Download the document" });
+        let reached = false;
+        for (let i = 0; i < 120 && !reached; i++) {
+          await p.keyboard.press("Tab");
+          reached = await download.evaluate((el) => el === document.activeElement);
         }
+        expect(reached, `Download the document by keyboard (${width} ${theme})`).toBe(true);
+        const responsePromise = p.waitForResponse((res) => res.url().includes("/a/") && res.url().endsWith(".pdf"));
+        const fetched = p.waitForEvent("download");
+        await p.keyboard.press("Enter");
+        const [res, dl] = await Promise.all([responsePromise, fetched]);
+        expect(res.status(), `artefact status (${width} ${theme})`).toBe(200);
+        expect(res.headers()["content-type"], `artefact content-type (${width} ${theme})`).toBe(
+          "application/octet-stream",
+        );
+        expect(res.headers()["content-disposition"], `artefact content-disposition (${width} ${theme})`).toBe(
+          'attachment; filename="invoice.pdf"',
+        );
+        expect(dl.suggestedFilename(), `download filename (${width} ${theme})`).toBe("invoice.pdf");
+        const savedPath = await dl.path();
+        expect(savedPath, `download path (${width} ${theme})`).toBeTruthy();
+        expect(readFileSync(savedPath as string).equals(PDF_BYTES), `artefact bytes (${width} ${theme})`).toBe(true);
         await context.close();
       }
   });

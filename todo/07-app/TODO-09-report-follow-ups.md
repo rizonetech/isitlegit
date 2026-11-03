@@ -18,6 +18,7 @@ track: day-2
 - `design/SPEC.md` M3 (the early authentication card, board `Report-Running-Early`)
 - -> XREF: D07 T03 §37 -- the early card these sections extend; its completion review filed both
 - -> XREF: D07 T03 §13 -- the walkthrough card renderer §7 extends
+- -> XREF: D07 T03 §15 -- the invoice and payment-document card renderers §19 and §20 extend
 - -> XREF: D04 T02 §6 -- the walk producer whose refusal and reuse shapes §7 draws
 - The stored check outcomes (D02 T01 §3) the card reads, whose storage order §1 changes
 
@@ -52,6 +53,8 @@ track: day-2
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
 | 18 | §18 | Playback failure, retry and follow-along | §6 | [ ] |
+| 19 | §19 | Masked bank-block preview on invoice cards | D07 T03 §15 | [ ] |
+| 20 | §20 | Baseline provenance on bank comparisons | D07 T03 §15 | [ ] |
 
 ## 1. Early results first
 
@@ -520,6 +523,50 @@ Filed 2026-11-02 from D07 T09 §6's completion review: the shipped player delega
 - [ ] Commit: `web: voice note playback states`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the failure wording, the retry and the follow-along mark.
+
+## 19. Masked bank-block preview on invoice cards
+
+Filed 2026-11-03 from D07 T03 §15's completion review (G6, missing-out-of-scope): the invoice and payment-document cards link the original PDF through the artefact route, but no producer renders an outlined, masked page preview identifying the extracted bank block in place, and drawing the unmasked PDF page directly would expose the full account number. Rendering and masking the page image is the trust lane's producer work, asked through the coordinator; this section draws the preview and its unavailable states on the cards.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 invoice state, board `Report-Invoice`, and the payment document card on S3
+**Job:** a sceptical reader locates and inspects the extracted bank block within one action, without exposing an unmasked account
+**Treatment:** an `EvidenceFigure` preview of the producer's masked page artefact with the bank block outlined, and explicit unavailable or expired states
+**Chrome:** `EvidenceCard`, `EvidenceFigure` (D07 T01 §7)
+
+**Build order:**
+
+1. Store the masked page preview in the producer, then draw it on the cards. Done when: one action opens or shows the masked, outlined bank block, and a full account never reaches the image or DOM.
+
+- [ ] Ask the trust lane (through the coordinator) to render and store an authorised, masked page preview artefact with bank-block coordinates for `invoice.detected`, `invoice.bank_changed`, `document.type` and `document.beneficiary_mismatch`. Done when: the producer stores the preview artefact key with the account masked before storage. Cheaper substitute: rendering the original unmasked PDF inline, which leaks the full account number.
+- [ ] Draw the masked preview figure and its unavailable, expired and failed states in `src/web/components/evidence/cards.tsx` for the invoice and payment-document cards. Done when: `test/web/evidence-cards.test.ts` and `test/node/evidence-cards-browser.test.tsx` verify the preview figure, its keyboard operation and its unavailable states at 360 and 1280 px in both themes. Cheaper substitute: a static fixture image with no unavailable states.
+- [ ] Commit: `web: masked bank-block preview on invoice and payment cards`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the masked preview and its unavailable states drawn.
+
+## 20. Baseline provenance on bank comparisons
+
+Filed 2026-11-03 from D07 T03 §15's completion review (G7, out-of-scope excellence item against EftsureID's verification audit trail): the invoice and payment-document comparison cards name the comparison source (`Your supplier ledger` or `The supplier's registered account`), but the producers in `src/invoice/rules.ts` and `src/invoice/payment-doc.ts` store no verification method, timestamp or baseline revision for that record, so a reader cannot tell a freshly verified baseline from a stale or unverified one. Storing immutable baseline provenance is the trust lane's producer work; this section draws it while keeping registered bank details strictly match or no match.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 invoice state, board `Report-Invoice`, extended before the provenance rows are drawn
+**Job:** a reader sees how and when the compared baseline was verified, or that provenance was not recorded
+**Treatment:** the stored verification method, timestamp and revision beside `Compared against`, or an explicit not-recorded statement, with registry privacy preserved
+**Chrome:** `EvidenceCard` (D07 T01 §7)
+
+**Build order:**
+
+1. Store baseline provenance in the producer, then draw it on the comparison cards. Done when: every comparison card states the stored verification method, date and revision, or says provenance was not recorded.
+
+- [ ] Ask the trust lane (through the coordinator) to store immutable baseline provenance (verification method, verified timestamp and baseline revision) on `invoice.bank_changed`, `document.beneficiary_match` and `document.beneficiary_mismatch`, without exposing registered account details. Done when: the producer stores those fields and a `DNN TNN §N` producer ref is recorded here. Cheaper substitute: inferring verification from the comparison source name alone.
+- [ ] Extend `design/SPEC.md` M3 with the provenance rows and not-recorded wording, then draw them in `src/web/components/evidence/cards.tsx`. Done when: `test/web/evidence-cards.test.ts` and `test/node/evidence-cards-browser.test.tsx` prove both recorded and unrecorded provenance states across viewports and themes while keeping registered account details absent. Cheaper substitute: omitting the not-recorded state when provenance is absent.
+- [ ] Commit: `web: baseline verification provenance on bank comparisons`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with baseline provenance drawn from storage.
 
 ## Verification
 

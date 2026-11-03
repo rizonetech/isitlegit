@@ -9,6 +9,13 @@ import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { PhraseLog, PhraseStream } from "../../src/checks/instruction-phrases";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
+import { notCheckedItem } from "../../src/invoice/extract";
+import {
+  comparisonUnavailableDocument,
+  notCheckedDocument,
+  type PaymentDocument,
+  paymentEvidence,
+} from "../../src/invoice/payment-doc";
 import type { Submission, WalkPage } from "../../src/walkthrough/driver";
 import { type KnownBrand, walkthroughEvidence } from "../../src/walkthrough/evidence";
 import { type CardItem, cardOrder, EvidenceCards, FAMILIES, familyOf } from "../../src/web/components/evidence/cards";
@@ -1230,7 +1237,7 @@ const FIXTURES: Fixture[] = [
       layout_reason: "no-reference",
     },
     artefacts: ["case/pop.pdf"],
-    shows: ["An invoice", "No: It could not be completed"],
+    shows: ["An invoice", "No: No genuine sample is stored to compare its layout with"],
   },
   {
     check: "document.layout_mismatch",
@@ -1308,6 +1315,17 @@ const FIXTURES: Fixture[] = [
     detail: { checked: false, reason: "too-many-documents", attachment: "case/pop.pdf" },
     artefacts: ["case/pop.pdf"],
     shows: ["A payment document that could not be read", "more documents than can be read", "No match and no mismatch"],
+  },
+  {
+    check: "document.comparison_unavailable",
+    severity: "info",
+    detail: { checked: false, reason: "reference-unavailable", attachment: "case/pop.pdf" },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A layout comparison that could not run",
+      "The bank&#39;s genuine sample could not be read",
+      "No match and no mismatch",
+    ],
   },
   {
     check: "document.limit",
@@ -1436,6 +1454,190 @@ describe("the evidence cards", () => {
       expect(html, banned).not.toContain(banned);
     expect(html).toContain("***678");
     expect(html).toContain("***321");
+    // A malformed mask field fails closed: a full number stored where a mask belongs is never drawn.
+    const malformed = draw(
+      items([
+        {
+          check: "invoice.detected",
+          severity: "info",
+          detail: {
+            supplier_name: HOSTILE,
+            account_last3: "998877665544",
+            account_number: "998877665544",
+          },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "invoice.bank_changed",
+          severity: "critical",
+          detail: { account_last3: "998877665544", against: "ledger" },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "document.beneficiary_mismatch",
+          severity: "critical",
+          detail: { beneficiary_masked: "998877665544", account_last3: "678", against: "ledger" },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "document.beneficiary_match",
+          severity: "info",
+          detail: { beneficiary_masked: "***998877665544", account_last3: "998877665544", against: "ledger" },
+          artefacts: [],
+          shows: [],
+        },
+      ]),
+    );
+    expect(malformed).not.toContain("998877665544");
+    expect(malformed).not.toContain("***998877665544");
+    expect(malformed).not.toContain("***678");
+    expect(malformed).not.toContain("<script>alert");
+    expect(malformed).toContain("&lt;script&gt;");
+  });
+
+  it("explains every invoice and payment-document failure state in plain words, with no raw producer reason codes (D07 T03 s15)", () => {
+    const asCard = (draft: EvidenceDraft) =>
+      draw([
+        {
+          id: "E1",
+          check: draft.check,
+          severity: draft.severity as CardItem["severity"],
+          summary: draft.summary,
+          detail: (draft.detail ?? {}) as Record<string, unknown>,
+          artefacts: draft.artefacts ?? [],
+        },
+      ]);
+    for (const [reason, words] of [
+      ["too-large", "The document is too large to read"],
+      ["too-many-pages", "The document has too many pages to read"],
+      ["too-many-documents", "The message held more documents than can be read"],
+      ["unreadable", "The document could not be read"],
+      ["damaged", "The document could not be read"],
+      ["lookup-failed", "The document could not be read"],
+      ["keys-missing", "The comparison could not be read"],
+      ["budget", "The reading service had no capacity left"],
+      ["budget-unavailable", "The reading service had no capacity left"],
+      ["timeout", "It ran out of time"],
+      ["output-schema", "The reading returned an answer that could not be used"],
+      ["model-timeout", "The reading service could not finish"],
+      ["error", "The reading did not finish"],
+    ] as const) {
+      const invoiceNotChecked = asCard(notCheckedItem(reason, "case/invoice.pdf"));
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).toContain(
+        "A document that could not be read as an invoice",
+      );
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).toContain(words);
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).toContain("Its bank details were not checked.");
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).not.toContain(`(${reason})`);
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).not.toContain("It could not be completed");
+
+      const docNotChecked = asCard(notCheckedDocument(reason, "case/pop.pdf"));
+      expect(docNotChecked, `document.not_checked ${reason}`).toContain("A payment document that could not be read");
+      expect(docNotChecked, `document.not_checked ${reason}`).toContain(words);
+      expect(docNotChecked, `document.not_checked ${reason}`).toContain("No match and no mismatch");
+      expect(docNotChecked, `document.not_checked ${reason}`).not.toContain(`(${reason})`);
+      expect(docNotChecked, `document.not_checked ${reason}`).not.toContain("It could not be completed");
+    }
+    // Invoice bank-comparison failures, with the producer's summary carrying the parenthesised code.
+    for (const [reason, comparison, words] of [
+      ["no-baseline", "ledger", "No recorded account was there to compare with"],
+      ["supplier-ambiguous", "ledger", "More than one supplier record fits, so none was chosen"],
+      ["keys", "ledger", "The comparison could not be read"],
+      ["keys-missing", "ledger", "The comparison could not be read"],
+      ["rate-limited", "registry", "The comparison service is at its limit for now"],
+    ] as const) {
+      const html = asCard({
+        check: "invoice.comparison_unavailable",
+        severity: "info",
+        summary: `A bank comparison could not run (${reason})`,
+        detail: { checked: false, reason, comparison, attachment: "case/invoice.pdf" },
+        artefacts: ["case/invoice.pdf"],
+      });
+      expect(html, `invoice.comparison_unavailable ${reason}`).toContain("A bank comparison that could not run");
+      expect(html, `invoice.comparison_unavailable ${reason}`).toContain(words);
+      expect(html, `invoice.comparison_unavailable ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `invoice.comparison_unavailable ${reason}`).not.toContain("It could not be completed");
+    }
+    // Payment-document layout comparison failures vs beneficiary comparison failures under document.comparison_unavailable.
+    for (const [reason, words] of [
+      ["reference-unavailable", "The bank&#39;s genuine sample could not be read"],
+      ["budget", "The reading service had no capacity left"],
+      ["budget-unavailable", "The reading service had no capacity left"],
+      ["timeout", "It ran out of time"],
+      ["output-schema", "The reading returned an answer that could not be used"],
+      ["model-503", "The reading service could not finish"],
+      ["error", "The reading did not finish"],
+    ] as const) {
+      const html = asCard(comparisonUnavailableDocument(reason, "case/pop.pdf"));
+      expect(html, `layout ${reason}`).toContain("A layout comparison that could not run");
+      expect(html, `layout ${reason}`).not.toContain("A beneficiary comparison that could not run");
+      expect(html, `layout ${reason}`).toContain(words);
+      expect(html, `layout ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `layout ${reason}`).not.toContain("It could not be completed");
+    }
+    for (const [reason, words, wrongRemedy] of [
+      [
+        "no-account",
+        "The document stated no usable account (a number and a branch code) to compare",
+        "No recorded account was there",
+      ],
+      ["no-baseline", "No recorded account was there to compare with", "The document stated no usable account"],
+      ["no-supplier", "No supplier record fits this document", "No recorded account"],
+      ["supplier-ambiguous", "More than one supplier record fits, so none was chosen", "No recorded account"],
+      ["keys", "The comparison could not be read", "No recorded account"],
+      ["registry", "The registered-account comparison could not run", "No recorded account"],
+      ["rate-limited", "The comparison service is at its limit for now", "No recorded account"],
+    ] as const) {
+      const html = asCard({
+        check: "document.comparison_unavailable",
+        severity: "info",
+        summary: `A beneficiary comparison could not run (${reason})`,
+        detail: { checked: false, reason, attachment: "case/pop.pdf" },
+        artefacts: ["case/pop.pdf"],
+      });
+      expect(html, `beneficiary ${reason}`).toContain("A beneficiary comparison that could not run");
+      expect(html, `beneficiary ${reason}`).not.toContain("A layout comparison that could not run");
+      expect(html, `beneficiary ${reason}`).toContain(words);
+      expect(html, `beneficiary ${reason}`).not.toContain(wrongRemedy);
+      expect(html, `beneficiary ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `beneficiary ${reason}`).not.toContain("It could not be completed");
+    }
+    // Layout reasons on document.type, built by paymentEvidence with its real summary (`Payment document: pop from ...`).
+    const popFields: PaymentDocument = {
+      type: "pop",
+      issuer: "Protea Bank",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      paid_at: "2026-10-30",
+      issued_at: "2026-10-30",
+      reference: "PAY-88",
+      beneficiary: { name: "Karoo Parts", account_number: "62000123678", branch_code: "051001" },
+      layout_differences: [],
+    };
+    for (const [reason, words] of [
+      ["not-a-pop", "No: It is not a proof of payment, so its layout was not compared"],
+      ["no-reference", "No: No genuine sample is stored to compare its layout with"],
+      ["reference-unavailable", "No: The bank&#39;s genuine sample could not be read"],
+      ["budget", "No: The reading service had no capacity left"],
+      ["timeout", "No: It ran out of time"],
+      ["output-schema", "No: The reading returned an answer that could not be used"],
+      ["model-503", "No: The reading service could not finish"],
+      ["error", "No: The reading did not finish"],
+    ] as const) {
+      const [typeDraft] = paymentEvidence(popFields, {
+        artefactKey: "case/pop.pdf",
+        layout: { checked: false, reason },
+      });
+      const html = asCard(typeDraft as EvidenceDraft);
+      expect(html, `document.type ${reason}`).toContain(words);
+      expect(html, `document.type ${reason}`).not.toContain("Payment document: pop");
+      expect(html, `document.type ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `document.type ${reason}`).not.toContain("It could not be completed");
+      expect(html, `document.type ${reason}`).not.toContain("62000123678");
+    }
   });
 
   it("maps every vision producer's name to its family (D07 T03 s14)", () => {
@@ -1925,13 +2127,40 @@ describe("the evidence cards through the report route", () => {
         (f.check.startsWith("document.") && !f.check.startsWith("document.forensics")),
     );
     expect(stored.length).toBeGreaterThanOrEqual(14);
-    const drafts = stored.map((f) => ({
-      check: f.check,
-      severity: f.severity,
-      summary: `Summary of ${f.check}`,
-      detail: f.detail as EvidenceDraft["detail"],
-      artefacts: f.artefacts ?? [],
-    }));
+    const drafts = [
+      ...stored.map((f) => ({
+        check: f.check,
+        severity: f.severity,
+        summary:
+          f.check === "invoice.not_checked"
+            ? "An attached document could not be read as an invoice (too-large)"
+            : f.check === "document.comparison_unavailable" && f.detail.reason === "reference-unavailable"
+              ? "A payment document comparison could not run (reference-unavailable)"
+              : `Summary of ${f.check}`,
+        detail: {
+          ...f.detail,
+          account_number: "998877665544",
+          unexpected: "should-not-appear",
+        } as EvidenceDraft["detail"],
+        artefacts: f.artefacts ?? [],
+      })),
+      {
+        check: "document.beneficiary_mismatch",
+        severity: "critical" as const,
+        summary: "A beneficiary comparison (998877665544)",
+        detail: {
+          beneficiary_masked: "998877665544",
+          account_last3: "998877665544",
+          account_number: "998877665544",
+          supplier_id: "sup-internal-1",
+          protected_org_id: "org-internal-9",
+          phone: "011 555 0142",
+          unexpected: "should-not-appear",
+          against: "ledger",
+        },
+        artefacts: [],
+      },
+    ];
     await saveEvidence(
       db,
       id,
@@ -1961,7 +2190,16 @@ describe("the evidence cards through the report route", () => {
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
     const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
     for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
-    for (const banned of ["sup-internal-1", "org-internal-9", "011 555 0142"])
+    for (const banned of [
+      "998877665544",
+      "***998877665544",
+      "sup-internal-1",
+      "org-internal-9",
+      "011 555 0142",
+      "should-not-appear",
+      "(too-large)",
+      "(reference-unavailable)",
+    ])
       expect(html, banned).not.toContain(banned);
   });
 });

@@ -393,7 +393,7 @@ Sections: 96 | Checklist items: 621
 
 ### Phase 7: After the event
 
-Sections: 197 | Checklist items: 848
+Sections: 199 | Checklist items: 854
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -593,6 +593,8 @@ Sections: 197 | Checklist items: 848
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
 | [ ]    | D07 T09 §18 | Playback failure, retry and follow-along for the voice note | none                 | 3     |
+| [ ]    | D07 T09 §19 | Masked bank-block preview on invoice cards                  | none                 | 3     |
+| [ ]    | D07 T09 §20 | Baseline provenance on bank comparisons                     | none                 | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -632,6 +634,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 359/556 verified sections, 127 ready to run now.
+Progress: 359/558 verified sections, 127 ready to run now.
 
-Checklist: 2763/3468 items completed (includes Commit items).
+Checklist: 2764/3474 items completed (includes Commit items).

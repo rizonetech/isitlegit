@@ -651,6 +651,8 @@ An invoice finding shows the masked comparison of the invoice's bank details wit
 **Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
 
 > **Corrected 2026-11-03 (plan review):** The producers store only the submitted side masked (`account_last3`, `beneficiary_masked`), the comparison source (`against`: the supplier ledger or the registered account) and the outcome, never the recorded side's masked fields, so the card draws exactly that and never infers which fields differ or what the recorded account ends in; the registered side stays match or no match only (the safety contract). No outlined PDF page is stored either: the card links the document itself through the artefact route (its file states already honest), and an outlined, masked page preview is producer work asked of the coordinator for the trust lane. A stored phone is never drawn, from the ledger or the document: the card tells the reader to phone the number in their own records, so no number from a message or document can become the confirmation contact. Only an allowlist of stored fields is drawn; `supplier_id`, `protected_org_id` and any unexpected key never reach the page.
+> **Deferred:** outlined, masked bank-block page preview on invoice and payment cards -> XREF: D07 T09 §19
+> **Deferred:** baseline verification provenance on invoice and payment comparisons -> XREF: D07 T09 §20
 
 **Build order:**
 
@@ -665,7 +667,7 @@ An invoice finding shows the masked comparison of the invoice's bank details wit
 - [x] State every could-not-run in plain words: `invoice.comparison_unavailable` and `document.comparison_unavailable` (no recorded account, no account stated, an ambiguous supplier, the comparison keys, the rate limit), `invoice.not_checked` and `document.not_checked` (too large, too many pages or documents, a reading that failed), each saying the comparison did not run and is neither a match nor a mismatch. Done when: fixtures of each code draw its sentence.
 - [x] Prove the privacy contract: a fixture whose detail carries a full account number, `supplier_id`, `protected_org_id`, a phone and an unexpected key draws none of them, in the cards and read back through the report route; hostile text draws as text. Done when: `test/web/evidence-cards.test.ts` asserts their absence from the rendered cards and the routed report.
 - [x] Prove the journey in a browser: producer-shaped stored invoice and payment-document findings draw in `test/node/evidence-cards-browser.test.tsx` at 360 and 1280 in both themes (the invoice bank-changed card among them), long text wrapping, the document linked through the artefact route, keyboard operation and the accessibility gate. Done when: the test passes and fails with the invoice dispatch removed.
-- [ ] Commit: `web: invoice and document cards`
+- [x] Commit: `web: invoice and document cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the families' checks drawn, the invoice bank-changed card among them at both widths in both themes.
 

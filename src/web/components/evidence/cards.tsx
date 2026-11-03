@@ -131,7 +131,7 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
   );
 }
 
-type Drawn = { title: string; body: unknown; level?: Severity };
+type Drawn = { title: string; body: unknown; level?: Severity; summary?: string | null };
 // The third argument is the case's verified request quote, for the one renderer that marks it (voice.transcript).
 type Renderer = (item: CardItem, file: FileLink, requestQuote?: string | null) => Drawn;
 
@@ -1708,19 +1708,39 @@ const paymentDocument = (item: CardItem, file: FileLink): { title: string; body:
       ),
     };
   }
-  if (item.check === "document.comparison_unavailable" || item.check === "document.not_checked")
+  if (item.check === "document.comparison_unavailable" || item.check === "document.not_checked") {
+    // The producer writes both operations under this one name; its layout failures carry the payment-document
+    // summary and the reference or reading reasons, its beneficiary failures the account-comparison ones, so
+    // the title names the operation that failed and never blames the account comparison for a layout failure.
+    const reason = text(d.reason);
+    const layout =
+      item.check === "document.comparison_unavailable" &&
+      (d.comparison === "layout" ||
+        item.summary.startsWith("A payment document comparison") ||
+        reason === "reference-unavailable" ||
+        reason === "no-reference" ||
+        reason === "not-a-pop" ||
+        reason === "budget" ||
+        reason === "budget-unavailable" ||
+        reason === "timeout" ||
+        reason === "error" ||
+        reason?.startsWith("model-") === true ||
+        reason?.startsWith("output-") === true);
     return {
       title:
         item.check === "document.not_checked"
           ? "A payment document that could not be read"
-          : "A beneficiary comparison that could not run",
+          : layout
+            ? "A layout comparison that could not run"
+            : "A beneficiary comparison that could not run",
       body: (
         <>
-          <Facts rows={[["Why", COMPARE_REASON(text(d.reason))]]} />
+          <Facts rows={[["Why", COMPARE_REASON(reason)]]} />
           <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
         </>
       ),
     };
+  }
   if (item.check === "document.limit" || item.check === "document.proof_of_payment")
     return {
       title: item.check === "document.limit" ? "What this check cannot show" : "A document that says payment was made",
@@ -1742,6 +1762,7 @@ const documentCard: Renderer = (item, file) => {
   if (payment)
     return {
       ...payment,
+      summary: null,
       body: (
         <>
           {payment.body}
@@ -1783,28 +1804,47 @@ const money = (cents: unknown, currency: unknown): string | null => {
   const amount = (cents / 100).toFixed(2);
   return text(currency) ? `${text(currency)} ${amount}` : amount;
 };
-const masked = (last3: unknown, given: unknown): string | null =>
-  text(given) ?? (text(last3) ? `***${text(last3)}` : null);
+const masked = (last3: unknown, given: unknown): string | null => {
+  const stated = text(given);
+  if (stated) return /^\*{3}[0-9]{3}$/.test(stated) ? stated : null;
+  const tail = text(last3);
+  return tail && /^[0-9]{3}$/.test(tail) ? `***${tail}` : null;
+};
 const AGAINST: Record<string, string> = {
   ledger: "Your supplier ledger",
   registry: "The supplier's registered account",
 };
 const COMPARE_REASON = (reason: string | null): string => {
   if (!reason) return "It could not be completed";
-  if (reason === "no-baseline" || reason === "no-account") return "No recorded account was there to compare with";
+  if (reason === "no-baseline") return "No recorded account was there to compare with";
+  if (reason === "no-account") return "The document stated no usable account (a number and a branch code) to compare";
+  if (reason === "no-supplier") return "No supplier record fits this document";
   if (reason === "supplier-ambiguous") return "More than one supplier record fits, so none was chosen";
-  if (reason === "keys") return "The comparison could not be read";
+  if (reason === "keys" || reason === "keys-missing") return "The comparison could not be read";
+  if (reason === "registry") return "The registered-account comparison could not run";
   if (reason === "rate-limited") return "The comparison service is at its limit for now";
   if (reason === "too-large") return "The document is too large to read";
   if (reason === "too-many-pages") return "The document has too many pages to read";
   if (reason === "too-many-documents") return "The message held more documents than can be read";
+  if (reason === "unreadable" || reason === "damaged" || reason === "lookup-failed")
+    return "The document could not be read";
+  if (reason === "not-a-pop") return "It is not a proof of payment, so its layout was not compared";
+  if (reason === "no-reference") return "No genuine sample is stored to compare its layout with";
+  if (reason === "reference-unavailable") return "The bank's genuine sample could not be read";
+  if (reason === "budget" || reason === "budget-unavailable") return "The reading service had no capacity left";
+  if (reason === "timeout") return "It ran out of time";
+  if (reason.startsWith("output-")) return "The reading returned an answer that could not be used";
+  if (reason.startsWith("model-")) return "The reading service could not finish";
+  if (reason === "error") return "The reading did not finish";
   return "It could not be completed";
 };
 const invoiceCard: Renderer = (item, file) => {
   const d = item.detail;
+  const keys = item.artefacts.filter((k) => k !== "case");
   if (item.check === "invoice.detected")
     return {
       title: "An invoice in the message",
+      summary: null,
       body: (
         <>
           <Facts
@@ -1820,13 +1860,14 @@ const invoiceCard: Renderer = (item, file) => {
               ["Due", text(d.due_date)],
             ]}
           />
-          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
         </>
       ),
     };
   if (item.check === "invoice.bank_changed")
     return {
       title: "Bank details that differ",
+      summary: null,
       body: (
         <>
           <Facts
@@ -1840,13 +1881,14 @@ const invoiceCard: Renderer = (item, file) => {
           <p class="text-14 text-muted">
             Confirm by phoning the supplier on the number in your own records, never one from this message.
           </p>
-          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
         </>
       ),
     };
   if (item.check === "invoice.supplier_domain_changed")
     return {
       title: "A domain the supplier has not used",
+      summary: null,
       body: (
         <>
           <Facts rows={[["It came from", text(d.domain)]]} />
@@ -1854,13 +1896,14 @@ const invoiceCard: Renderer = (item, file) => {
             The supplier has not sent from this domain before. Confirm by phoning the supplier on the number in your own
             records, never one from this message.
           </p>
-          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
         </>
       ),
     };
   if (item.check === "invoice.change_language")
     return {
       title: "The message says bank details changed",
+      summary: null,
       body: (
         <>
           <Facts
@@ -1872,13 +1915,14 @@ const invoiceCard: Renderer = (item, file) => {
           <p class="text-14 text-muted">
             Confirm by phoning the supplier on the number in your own records, never one from this message.
           </p>
-          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
         </>
       ),
     };
   if (item.check === "invoice.comparison_unavailable")
     return {
       title: "A bank comparison that could not run",
+      summary: null,
       body: (
         <>
           <Facts
@@ -1888,18 +1932,19 @@ const invoiceCard: Renderer = (item, file) => {
             ]}
           />
           <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
-          <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
         </>
       ),
     };
   // invoice.not_checked
   return {
     title: "A document that could not be read as an invoice",
+    summary: null,
     body: (
       <>
         <Facts rows={[["Why", COMPARE_REASON(text(d.reason))]]} />
         <p class="text-14 text-muted">Its bank details were not checked.</p>
-        <Files owner={item.id} keys={item.artefacts} file={file} name="the document" />
+        <Files owner={item.id} keys={keys} file={file} name="the document" />
       </>
     ),
   };
@@ -2168,6 +2213,7 @@ export function Card(props: { item: CardItem; file: FileLink; requestQuote?: str
   const { item, file } = props;
   const family = familyOf(item.check);
   const drawn = family ? RENDERERS[family](item, file, props.requestQuote) : null;
+  const summary = drawn ? (drawn.summary !== undefined ? drawn.summary : item.summary) : null;
   return (
     <EvidenceCard
       id={item.id}
@@ -2175,7 +2221,7 @@ export function Card(props: { item: CardItem; file: FileLink; requestQuote?: str
       title={drawn?.title ?? item.summary}
       layout="compact"
     >
-      {drawn ? <p class="text-14 text-muted wrap-anywhere">{item.summary}</p> : null}
+      {summary ? <p class="text-14 text-muted wrap-anywhere">{summary}</p> : null}
       {drawn?.body as never}
     </EvidenceCard>
   );
