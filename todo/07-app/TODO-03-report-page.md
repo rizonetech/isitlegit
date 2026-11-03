@@ -1073,7 +1073,7 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
 
-> **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+> **Resolved:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9. Resolved 2026-11-03 by D07 T09 §9 in `15656175` and `d2f5545e`: the invisible-characters card (`src/web/components/evidence/cards.tsx`) opens the stored decoded run whole under one disclosure, with its cut named.
 
 > **Verified:** 2026-11-02 | §29 | e42119edfe34dc4d752bd58fa2d973c0b3dbbfed
 > **Review:** `docs/reviews/d07-t03-s29.json`

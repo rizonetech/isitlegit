@@ -42,7 +42,7 @@ track: day-2
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [x] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
-| 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
+| 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [x] |
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [x] |
@@ -313,9 +313,12 @@ Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence 
 - [x] Extend `design/SPEC.md` M3 with the full-run view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the truncation sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the run with no SPEC entry.
 - [x] Draw the stored run in `src/web/components/evidence/cards.tsx`'s invisible-characters card, reached by one activation from the card, with the cut stated when the stored text is truncated, and the card as §29 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction continues past the stored excerpt and reads it whole, a truncated run names its cut, and a hostile run text renders as text.
 - [x] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/evidence-cards-browser.test.tsx` opens the full run by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
-- [ ] Commit: `web: the complete decoded run on the card`
+- [x] Commit: `web: the complete decoded run on the card`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the whole run readable.
+
+> **Verified:** 2026-11-03 | §9 | d2f5545eaf3b8fdf57db4e0092136ff083733aec
+> **Review:** `docs/reviews/d07-t09-s9.json`
 
 ## 10. Every target a clean check examined
 
