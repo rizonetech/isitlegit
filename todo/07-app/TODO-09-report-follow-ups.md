@@ -39,7 +39,7 @@ track: day-2
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
-| 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
+| 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [x] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
@@ -51,6 +51,7 @@ track: day-2
 | 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
+| 18 | §18 | Playback failure, retry and follow-along | §6 | [ ] |
 
 ## 1. Early results first
 
@@ -182,6 +183,8 @@ Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards sho
 
 ## 6. The voice note's player and transcript
 
+> **Started:** 2026-11-02T23:38:28Z
+
 Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws a player and a timed transcript with the request highlighted, but no producer stores a transcript or player evidence item, so there is nothing stored to draw. The transcript exists as a case artefact; an evidence item naming its segments is the checks lane's to store first.
 
 **Phase:** 7
@@ -190,17 +193,26 @@ Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws 
 **Fidelity:** `design/SPEC.md` M3 voice note state, board `Report-Voice`
 **Job:** a reader hears the recording and reads what was said, with the request marked
 **Treatment:** the board's player and timed transcript, from a stored transcript item
+
+> **Deferred:** playback failure wording and retry, and follow-along playback -> XREF: D07 T09 §18
 **Chrome:** the voice cards (D07 T03 §16)
 
 **Build order:**
 
 1. Store the transcript as evidence, then draw it. Done when: a stored transcript draws its segments with the request marked.
 
-- [ ] Ask the checks lane (through the coordinator) to store a transcript evidence item (its segments with their times, the recording's artefact key, the speaker count and language). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: reading the artefact in the page, which bypasses the evidence contract every other card follows.
-- [ ] Draw the player and transcript in `src/web/components/evidence/cards.tsx`: the recording through the artefact route, each segment at its time, the request's segment marked, every word as text. Done when: `test/web/evidence-cards.test.ts` draws a stored transcript with its request marked and a hostile segment as text, and `test/node/evidence-cards-browser.test.tsx` plays it at 360 px. Cheaper substitute: the quotes alone, which is what the voice cards already show.
-- [ ] Commit: `web: the voice note's player and transcript`
+- [x] Ask the checks lane (through the coordinator) to store a transcript evidence item (its segments with their times, the recording's artefact key, the speaker count and language). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: reading the artefact in the page, which bypasses the evidence contract every other card follows.
+- [x] Serve the recording for playback in `src/web/pages/artefacts.tsx`: an `inline=1` ask for an audio file answers with its media type, inline, under the route's existing ownership and signed-link checks. Done when: `test/web/artefacts.test.ts` (or the artefact route's own suite) plays the bytes for a member and for a signed-link holder, and refuses everyone else as before. Cheaper substitute: an attachment download, which no player can play in place.
+- [x] Draw the player and transcript in `src/web/components/evidence/cards.tsx`: the recording through the artefact route (`<audio controls>`), each segment at its time with its chunk's speaker label, the request's segments marked, every word as text. The request reaches the card from the case's `voice.request` item's verified quote, matched across the transcript's segments (every segment the quote spans is marked; an absent or unmatched quote marks nothing). `complete: false`, gaps, cut markers (`trimmed` and the omission counts), a malformed transcript and an empty one each draw their own words. Done when: `test/web/evidence-cards.test.ts` draws a stored transcript with its request marked (including across segments), a hostile segment as text, and each incomplete state. Cheaper substitute: the quotes alone, which is what the voice cards already show.
+- [x] Prove the player in `test/node/evidence-cards-browser.test.tsx` at 360 px in both themes: the recording loads through the artefact route, plays by keyboard, shows its duration, and an unavailable recording states its failure with a retry; no overflow and no accessibility violations. Done when: the browser test drives the native controls and reads the played state back. Cheaper substitute: a rendered `<audio>` element alone, which passes with playback broken.
 
-**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with a stored transcript drawn.
+**Corrected 2026-11-02 (coordinator, checks D01 T03 §16 stamped):** the stored shape holds no speaker count and no language. One `voice.transcript` item per recording carries timed segments (`chunk`, per-chunk `speaker` label, `startMs`, `endMs`, `text`), the recording and transcript artefact keys, `complete` and `gaps`, per-chunk speaker labels, and cut markers (`trimmed`, `segmentsOmitted`, `gapsOmitted`, `speakersOmitted`); a malformed transcript carries `malformed: true` and no segments. The first micro-step is shipped by D01 T03 §16 and is ticked on its stamp.
+- [x] Commit: `web: the voice note's player and transcript`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with a stored transcript drawn, and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the recording played at 360 px.
+
+> **Verified:** 2026-11-03 | §6 | e536349894b40d976f0aa0b5376cbcb75ee0aa10
+> **Review:** `docs/reviews/d07-t09-s6.json`
 
 ## 7. Walkthrough refusal and reuse cards
 
@@ -486,6 +498,28 @@ Filed 2026-11-02 from D07 T09 §4's completion review: the scripted readers in `
 - [ ] Commit: `eval: human attribution comparison`
 
 **Test checkpoint:** the study's observations and summary are persisted under `eval/` and cited in `design/SPEC.md` M3.
+
+## 18. Playback failure, retry and follow-along for the voice note
+
+Filed 2026-11-02 from D07 T09 §6's completion review: the shipped player delegates its failure states to the browser's native controls, so a recording that will not load shows no words of its own and offers no retry in the report, and the transcript does not follow playback or let a reader play the marked request directly.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 voice note state, board `Report-Voice`
+**Job:** a reader whose recording will not play is told so in words and can retry, and can follow or replay the marked words
+**Treatment:** the transcript card's own failure wording and retry, with the played segment marked as it sounds
+**Chrome:** the voice cards (D07 T03 §16)
+
+**Build order:**
+
+1. Give the player its own states. Done when: a failed load reads as a failure with a retry, and the playing segment is the marked one.
+
+- [ ] Draw the recording's failure in `src/web/components/evidence/cards.tsx` and its behaviour in `src/web/client/app.ts`: a load error states that the recording could not be played and offers a retry that reloads it; an unsupported recording says so. Done when: `test/node/evidence-cards-browser.test.tsx` drives a failed load to the wording and a retry to a played state. Cheaper substitute: the browser's broken native control, which says nothing.
+- [ ] Follow playback in the transcript: the segment under the playhead is marked while it sounds, and the marked request's segments can be played from their start. Done when: the browser test plays from a marked segment and reads the following mark back. Cheaper substitute: static timestamps the reader must hunt by hand.
+- [ ] Commit: `web: voice note playback states`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the failure wording, the retry and the follow-along mark.
 
 ## Verification
 
