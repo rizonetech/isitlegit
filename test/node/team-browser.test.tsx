@@ -127,10 +127,27 @@ async function answer(req: IncomingMessage): Promise<Response> {
     const lost = url.searchParams.get("unanswered") === "1";
     const historyAction = url.searchParams.get("action") ?? "";
     const allRows = [
-      { at: "2026-10-28T08:00:00.000Z", what: "Member removed", who: "You", whom: "Sipho Mokoena", outcome: "Done, 1 session ended" },
-      { at: "2026-10-27T08:00:00.000Z", what: "Role changed, Member to Admin", who: "You", whom: "Sipho Mokoena", outcome: "Done" },
+      {
+        at: "2026-10-28T08:00:00.000Z",
+        what: "Member removed",
+        who: "You",
+        whom: "Sipho Mokoena",
+        outcome: "Done, 1 session ended",
+      },
+      {
+        at: "2026-10-27T08:00:00.000Z",
+        what: "Role changed, Member to Admin",
+        who: "You",
+        whom: "Sipho Mokoena",
+        outcome: "Done",
+      },
     ];
-    const rows = historyAction === "remove-member" ? allRows.slice(0, 1) : historyAction === "update-member-role" ? allRows.slice(1) : allRows;
+    const rows =
+      historyAction === "remove-member"
+        ? allRows.slice(0, 1)
+        : historyAction === "update-member-role"
+          ? allRows.slice(1)
+          : allRows;
     return html(
       <TeamPage
         shell={shell()}
@@ -140,7 +157,12 @@ async function answer(req: IncomingMessage): Promise<Response> {
         lost={lost}
         history={
           state.reader.role === "owner"
-            ? { rows, action: historyAction, from: url.searchParams.get("from") ?? "", to: url.searchParams.get("to") ?? "" }
+            ? {
+                rows,
+                action: historyAction,
+                from: url.searchParams.get("from") ?? "",
+                to: url.searchParams.get("to") ?? "",
+              }
             : undefined
         }
         now={NOW}
@@ -436,5 +458,4 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
       await context.close();
     }
   });
-
 });

@@ -1101,7 +1101,14 @@ describe("inviting several: uncertain delivery (D07 T04 §22)", () => {
 });
 
 describe("team history for owners (D07 T04 §23)", () => {
-  const event = async (orgId: string, kind: string, actor: string, target: string, at = new Date().toISOString(), detail = "{}") =>
+  const event = async (
+    orgId: string,
+    kind: string,
+    actor: string,
+    target: string,
+    at = new Date().toISOString(),
+    detail = "{}",
+  ) =>
     db
       .prepare(
         `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
@@ -1115,8 +1122,22 @@ describe("team history for owners (D07 T04 §23)", () => {
     const orgId = await organisation(owner);
     const colleague = await person("Colleague");
     await join(orgId, colleague, "member");
-    await event(orgId, "update-member-role", owner.id, colleague.id, "2026-10-27T08:00:00.000Z", JSON.stringify({ from: "member", to: "admin" }));
-    await event(orgId, "remove-member", owner.id, colleague.id, "2026-10-28T08:00:00.000Z", JSON.stringify({ sessionsEnded: true }));
+    await event(
+      orgId,
+      "update-member-role",
+      owner.id,
+      colleague.id,
+      "2026-10-27T08:00:00.000Z",
+      JSON.stringify({ from: "member", to: "admin" }),
+    );
+    await event(
+      orgId,
+      "remove-member",
+      owner.id,
+      colleague.id,
+      "2026-10-28T08:00:00.000Z",
+      JSON.stringify({ sessionsEnded: true }),
+    );
     const html = text((await page(owner.cookie)).html);
     expect(html).toContain("Team history");
     expect(html).toContain("Role changed, Member to Admin");

@@ -21,11 +21,11 @@ import {
   OUTCOMES,
   type Outcome,
   type PendingInvite,
-  type TeamHistory,
-  type TeamHistoryRow,
   type Reader,
   RemoveConfirm,
   type Role,
+  type TeamHistory,
+  type TeamHistoryRow,
   type TeamMember,
   TeamPage,
 } from "./team-view";
@@ -218,12 +218,16 @@ async function historyFor(
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
     if (!m) return false;
     const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-    return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+    return (
+      d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3])
+    );
   };
   if (action && !["update-member-role", "cancel-invitation", "remove-member", "leave-organization"].includes(action))
     return { ...base, error: "Choose one of the listed actions." };
-  if ((from && !dateOk(from)) || (to && !dateOk(to))) return { ...base, error: "Give real calendar dates, or leave a date empty." };
-  if (from && to && from > to) return { ...base, error: "The To date is before the From date. Swap them and try again." };
+  if ((from && !dateOk(from)) || (to && !dateOk(to)))
+    return { ...base, error: "Give real calendar dates, or leave a date empty." };
+  if (from && to && from > to)
+    return { ...base, error: "The To date is before the From date. Swap them and try again." };
   try {
     const { readTeamHistory } = await import("../../auth/audit");
     const { changes, next } = await readTeamHistory(db, orgId, {

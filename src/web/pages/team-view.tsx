@@ -523,7 +523,10 @@ function historyWhen(iso: string): string {
 function TeamHistorySection(props: { history: TeamHistory; now: Date }) {
   const { history } = props;
   return (
-    <section aria-labelledby="team-history-heading" class="bg-surface border border-line rounded-card-large overflow-hidden">
+    <section
+      aria-labelledby="team-history-heading"
+      class="bg-surface border border-line rounded-card-large overflow-hidden"
+    >
       <h2 id="team-history-heading" class="type-h3 px-24 py-16">
         Team history
       </h2>
@@ -575,11 +578,21 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date }) {
           <table class="hidden md:table w-full text-left border-collapse" aria-labelledby="team-history-heading">
             <thead>
               <tr class="type-small text-muted border-y border-line bg-subtle">
-                <th scope="col" class="px-16 py-12 weight-text-strong">When</th>
-                <th scope="col" class="px-16 py-12 weight-text-strong">What</th>
-                <th scope="col" class="px-16 py-12 weight-text-strong">Who</th>
-                <th scope="col" class="px-16 py-12 weight-text-strong">Whom</th>
-                <th scope="col" class="px-16 py-12 weight-text-strong">Outcome</th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  When
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  What
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Who
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Whom
+                </th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">
+                  Outcome
+                </th>
               </tr>
             </thead>
             <tbody>
