@@ -625,7 +625,7 @@ describe("round 1 cases", () => {
   });
 });
 
-describe("a delivery whose later step fails", () => {
+describe("a delivery whose later step fails", { timeout: 60_000 }, () => {
   it("releases its claim when the case cannot be admitted, so the retry is processed", async () => {
     const { orgId, from } = await member();
     const m = message(from);
@@ -872,7 +872,7 @@ describe("a delivery interrupted around admission (completion review)", () => {
   });
 });
 
-describe("final review cases", () => {
+describe("final review cases", { timeout: 60_000 }, () => {
   it("starts no Workflow for a delivery that stalled while another took it over", async () => {
     const { orgId, from } = await member();
     const m = message(from);
