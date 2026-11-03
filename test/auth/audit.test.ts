@@ -670,3 +670,41 @@ describe("final review (2026-10-29)", () => {
     expect(normalizeIp("2001:db8:abcd:12::7")).toBe("2001:0db8:abcd:0012:0000:0000:0000:0000");
   });
 });
+
+
+describe("team history actor and target parameters (D07 T04 §24)", () => {
+  it("filters the endpoint by actor and by target", async () => {
+    const { cookie, orgId } = await owner(`hist24-${unique()}@example.org`);
+    await joiner(cookie, `hist24-m-${unique()}@example.org`, "member");
+    const ownerId = await db
+      .prepare(`SELECT "userId" AS id FROM "member" WHERE "organizationId" = ? AND role = 'owner'`)
+      .bind(orgId)
+      .first<{ id: string }>()
+      .then((r) => r?.id as string);
+    const memberUserId = await db
+      .prepare(`SELECT "userId" AS id FROM "member" WHERE "organizationId" = ? AND role = 'member'`)
+      .bind(orgId)
+      .first<{ id: string }>()
+      .then((r) => r?.id as string);
+    const ev = (actor: string, target: string, at: string) =>
+      db
+        .prepare(
+          `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+           VALUES (?, ?, 'update-member-role', 'changed', ?, ?, ?, ?, 'x', '{}')`,
+        )
+        .bind(crypto.randomUUID(), at, orgId, actor, actor, target)
+        .run();
+    await ev(memberUserId, ownerId, "2026-10-27T08:00:00.000Z");
+    await ev(ownerId, memberUserId, "2026-10-26T08:00:00.000Z");
+    const read = (query: string) =>
+      call(`/api/team/history${query}`, { headers: { cookie } }).then((r) => r.json()) as Promise<{
+        changes: { actor: string; target: string }[];
+      }>;
+    const byActor = await read(`?actor=${memberUserId}`);
+    expect(byActor.changes).toHaveLength(1);
+    expect(byActor.changes[0]?.actor).toBe(memberUserId);
+    const byTarget = await read(`?target=${memberUserId}`);
+    expect(byTarget.changes).toHaveLength(1);
+    expect(byTarget.changes[0]?.target).toBe(memberUserId);
+  });
+});

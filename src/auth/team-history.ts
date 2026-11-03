@@ -15,6 +15,9 @@ const When = z.iso
   .optional();
 const Filter = z.strictObject({
   action: z.enum(TEAM_ACTIONS).optional(),
+  actor: z.string().min(1).max(64).optional(),
+  target: z.string().min(1).max(64).optional(),
+  person: z.string().min(1).max(64).optional(),
   from: When,
   to: When,
   after: z

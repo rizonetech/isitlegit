@@ -145,6 +145,11 @@ export async function readTeamHistory(
     from?: string | undefined;
     to?: string | undefined;
     after?: string | undefined;
+    // One person, as actor, as target, or as either (`person`, D07 T04 §24): predicates at the database layer,
+    // before the page limit, always inside this organisation.
+    actor?: string | undefined;
+    target?: string | undefined;
+    person?: string | undefined;
   } = {},
 ): Promise<{ changes: TeamChange[]; next: string | null }> {
   const actions =
@@ -152,7 +157,7 @@ export async function readTeamHistory(
   const [afterAt, afterId] = filter.after ? filter.after.split("|") : [null, null];
   const rows = await db
     .prepare(
-      `SELECT rowid AS seq, id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND rowid < ?)) ORDER BY at DESC, rowid DESC LIMIT ?`,
+      `SELECT rowid AS seq, id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND rowid < ?)) AND (? IS NULL OR actor_id = ?) AND (? IS NULL OR target_id = ?) AND (? IS NULL OR actor_id = ? OR target_id = ?) ORDER BY at DESC, rowid DESC LIMIT ?`,
     )
     .bind(
       orgId,
@@ -163,6 +168,13 @@ export async function readTeamHistory(
       afterAt ?? null,
       afterAt ?? null,
       afterId === null || afterId === undefined ? null : Number(afterId),
+      filter.actor ?? null,
+      filter.actor ?? null,
+      filter.target ?? null,
+      filter.target ?? null,
+      filter.person ?? null,
+      filter.person ?? null,
+      filter.person ?? null,
       HISTORY_PAGE + 1,
     )
     .all<TeamChange>();

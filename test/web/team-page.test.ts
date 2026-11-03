@@ -1207,11 +1207,12 @@ describe("finding a person on the Team page (D07 T04 §26)", () => {
     const other = await organisation(otherOwner);
     const twin = await person("José Petersen");
     await join(other, twin, "member");
-    const byName = text((await page(owner.cookie, "/team?find=jose")).html);
+    const membersOf = (html: string) => html.slice(0, html.indexOf("Pending invitations"));
+    const byName = membersOf(text((await page(owner.cookie, "/team?find=jose")).html));
     expect(byName).toContain("José Petersen");
     expect(byName).not.toContain("Sipho Mokoena");
-    const byEmail = text(
-      (await page(owner.cookie, `/team?find=${encodeURIComponent(sipho.email.split("@")[0] as string)}`)).html,
+    const byEmail = membersOf(
+      text((await page(owner.cookie, `/team?find=${encodeURIComponent(sipho.email.split("@")[0] as string)}`)).html),
     );
     expect(byEmail).toContain("Sipho Mokoena");
     expect(byEmail).not.toContain("José Petersen");
@@ -1230,5 +1231,52 @@ describe("finding a person on the Team page (D07 T04 §26)", () => {
     const html = text((await page(owner.cookie, "/team?find=Owner One")).html);
     expect(html).toContain("Owner One");
     expect(html).not.toContain("You are the only owner");
+  });
+});
+
+describe("team history by person (D07 T04 §24)", () => {
+  it("filters by actor or target, pages through every match, and refuses a foreign person", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    await join(orgId, colleague, "member");
+    const other = await person("Other");
+    await join(orgId, other, "member");
+    const ev = (kind: string, actor: string, target: string, at: string) =>
+      db
+        .prepare(
+          `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+           VALUES (?, ?, ?, 'changed', ?, ?, ?, ?, 'x', '{}')`,
+        )
+        .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target)
+        .run();
+    await ev("update-member-role", colleague.id, other.id, "2026-10-27T08:00:00.000Z");
+    await ev("update-member-role", owner.id, colleague.id, "2026-10-26T08:00:00.000Z");
+    await ev("remove-member", owner.id, other.id, "2026-10-25T08:00:00.000Z");
+    const html = text((await page(owner.cookie, `/team?person=${colleague.id}`)).html);
+    const section = html.slice(html.indexOf("Team history"));
+    expect(section).toContain("Role changed");
+    expect(section).not.toContain("sessions ended");
+    // Over 100 matches page through all of them, in order, with no More at the end.
+    const stamps: ReturnType<typeof db.prepare>[] = [];
+    void stamps;
+    const inserts = Array.from({ length: 105 }, (_, i) =>
+      db
+        .prepare(
+          `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+           VALUES (?, ?, 'leave-organization', 'left', ?, ?, ?, ?, 'x', '{}')`,
+        )
+        .bind(crypto.randomUUID(), new Date(Date.parse("2026-10-20T00:00:00.000Z") + i * 60_000).toISOString(), orgId, colleague.id, colleague.id, colleague.id),
+    );
+    await db.batch(inserts);
+    const firstPage = await page(owner.cookie, `/team?person=${colleague.id}`);
+    const first = text(firstPage.html);
+    expect(first).toContain("More changes");
+    const more = /href="([^"]*after=[^"]*)"/.exec(firstPage.html)?.[1] as string;
+    const second = text((await page(owner.cookie, more.replaceAll("&amp;", "&"))).html);
+    expect(second).not.toContain("More changes");
+    expect(second).toContain("Member left");
+    const foreign = text((await page(owner.cookie, "/team?person=someone-else")).html);
+    expect(foreign).toContain("Choose a person on this team.");
   });
 });

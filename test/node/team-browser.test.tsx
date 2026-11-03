@@ -142,12 +142,14 @@ async function answer(req: IncomingMessage): Promise<Response> {
         outcome: "Done",
       },
     ];
-    const rows =
+    const personAsked = url.searchParams.get("person") ?? "";
+    const rows = (
       historyAction === "remove-member"
         ? allRows.slice(0, 1)
         : historyAction === "update-member-role"
           ? allRows.slice(1)
-          : allRows;
+          : allRows
+    ).filter((r) => !personAsked || r.whom !== "Sipho Mokoena" || personAsked === "u-sipho");
     return html(
       <TeamPage
         shell={shell()}
@@ -160,6 +162,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
         history={
           state.reader.role === "owner"
             ? {
+                people: state.members.map((m) => ({ id: m.userId, label: m.name || m.email })),
+                person: url.searchParams.get("person") ?? "",
+                next: url.searchParams.get("after") ? null : "2026-10-27T08:00:00.000Z|1",
                 rows,
                 action: historyAction,
                 from: url.searchParams.get("from") ?? "",
@@ -482,4 +487,16 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     expect(await p.locator("#team-find").inputValue()).toBe("");
     await context.close();
   });
+
+  it("filters the history by person and pages with More (D07 T04 §24)", async () => {
+    const { p, context } = await open("/team");
+    await p.locator("#history-person").selectOption("u-sipho");
+    await p.getByRole("button", { name: "Apply" }).click();
+    await expect.poll(() => p.url()).toContain("person=u-sipho");
+    await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+    await p.getByRole("link", { name: "More changes" }).click();
+    await expect.poll(() => p.url()).toContain("after=");
+    await context.close();
+  });
+
 });

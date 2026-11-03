@@ -44,6 +44,9 @@ export type TeamHistory = {
   action: string;
   from: string;
   to: string;
+  person?: string;
+  people?: { id: string; label: string }[];
+  next?: string | null;
   error?: string;
   failed?: boolean;
   more?: boolean;
@@ -557,6 +560,19 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
           </select>
         </label>
         <label class="flex flex-col gap-4">
+          <span class="type-small weight-text-strong">Person</span>
+          <select id="history-person" name="person" class={SELECT}>
+            <option value="" selected={!history.person}>
+              Anyone
+            </option>
+            {(history.people ?? []).map((person) => (
+              <option value={person.id} selected={history.person === person.id}>
+                {person.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">From</span>
           <input id="history-from" type="date" name="from" value={history.from} class={SELECT} />
         </label>
@@ -636,7 +652,17 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
               </li>
             ))}
           </ul>
-          {history.more && <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>}
+          {history.more && !history.next && <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>}
+          {history.next && (
+            <p class="px-24 py-12">
+              <a
+                href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}&person=${encodeURIComponent(history.person ?? "")}&after=${encodeURIComponent(history.next)}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
+                class="type-small text-orange-text underline underline-offset-4"
+              >
+                More changes
+              </a>
+            </p>
+          )}
         </>
       )}
     </section>

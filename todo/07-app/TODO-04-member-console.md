@@ -958,9 +958,9 @@ Filter the team history by one person, as the actor or the target, in one step, 
 
 1. Add `actor` and `target` to `GET /api/team/history` and a person filter to the history. Done when: a rendered test pages through one person's changes.
 
-- [ ] Add `actor` and `target` to `GET /api/team/history` (D07 T02 §6) and a person filter, paging through every match. Done when: a rendered test picks a member and reads every change by and to them across pages, with endpoint tests in `test/auth/audit.test.ts` for the two parameters. Cheaper substitute: filtering one page in the browser. Source: D07 T02 §6 completion review (E2).
-- [ ] Prove the person select and More in the browser: keyboard and scripts-off, retained selection, both layouts, at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
-- [ ] Commit: `web: team history by person`
+- [x] Add `actor` and `target` to `GET /api/team/history` (D07 T02 §6) and a person filter, paging through every match. Done when: a rendered test picks a member and reads every change by and to them across pages, with endpoint tests in `test/auth/audit.test.ts` for the two parameters. Cheaper substitute: filtering one page in the browser. Source: D07 T02 §6 completion review (E2).
+- [x] Prove the person select and More in the browser: keyboard and scripts-off, retained selection, both layouts, at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
+- [x] Commit: `web: team history by person`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run test/auth/audit.test.ts` pass and fail if another person's change appears under the filter.
 
