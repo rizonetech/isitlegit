@@ -98,6 +98,111 @@ function lastCheckLine(check: DomainClaimView["lastCheck"]): string | null {
   return `Last checked ${at(check.at)}: ${what}`;
 }
 
+// One provider's steps (D07 T04 §11): where its DNS lives, what its Name field expects for this claim, and its TTL.
+function ProviderSteps(props: { name: string; steps: string[]; link?: { href: string; label: string } }) {
+  return (
+    <details class="border-t border-line py-8">
+      <summary class="text-14 weight-text-strong cursor-pointer">{props.name}</summary>
+      <ol class="flex flex-col gap-4 pl-20 pt-8 type-small text-ink-2 list-decimal wrap-anywhere min-w-0">
+        {props.steps.map((step) => (
+          <li>{step}</li>
+        ))}
+      </ol>
+      {props.link && (
+        <p class="pl-20 pt-4 type-small">
+          <a href={props.link.href} class="text-orange-text underline underline-offset-4">
+            {props.link.label}
+          </a>
+        </p>
+      )}
+    </details>
+  );
+}
+
+// Adding the record at the owner's own provider (D07 T04 §11): first where the DNS lives at all, then the four
+// providers South African owners use most, then every other provider. Native disclosures: one action, keyboard
+// works, no JavaScript needed. Steps checked against each provider's own help on 2026-11-02.
+function ProviderHelp(props: { view: DomainClaimView }) {
+  const { view } = props;
+  const sub = view.txt.name.split(".")[0] ?? "_isitlegit";
+  const value = view.txt.value;
+  const trouble =
+    "Then come back and press Check now. New records usually show within minutes; some providers take up to a day (xneelo allows 2 to 24 hours), so give it that long before changing anything. If Check now still finds nothing after a day, the record is most likely at the wrong name: it must be exactly " +
+    `${view.txt.name} in your zone. Where your provider asked for only ${sub}, that is the same record; a name saved as ${view.txt.name}.${view.domain} is doubled, so delete that one. You can also use the emailed code below at any time.`;
+  return (
+    <div class="border border-line rounded-card p-16">
+      <h3 class="type-h3">How do I add this at my provider?</h3>
+      <div class="flex flex-col gap-8 pt-12">
+        <p class="type-small text-muted">
+          Your DNS host is whoever your domain's nameservers point to, which is not always the company that sold you the
+          domain. Your registrar's nameservers page shows them: Cloudflare, Hetzner, xneelo or Afrihost nameservers mean
+          the steps for that provider below. If your web designer or IT company manages your DNS, send them the Name and
+          Value above (both copy) and ask them to add the TXT record; then press Check now.
+        </p>
+        <ProviderSteps
+          name="Cloudflare"
+          link={{ href: "https://dash.cloudflare.com", label: "Open Cloudflare" }}
+          steps={[
+            "Open dash.cloudflare.com, choose your domain, then DNS and Records.",
+            "Choose Add record. Type: TXT.",
+            `Name: ${sub} (Cloudflare adds your domain to it).`,
+            `Content: ${value}`,
+            "TTL: leave Auto. Save the record.",
+            trouble,
+          ]}
+        />
+        <ProviderSteps
+          name="Hetzner"
+          link={{ href: "https://console.hetzner.com", label: "Open the Hetzner console" }}
+          steps={[
+            "Open console.hetzner.com, choose DNS and your zone.",
+            "Choose Add record. Type: TXT.",
+            `Name: ${sub} (the part before your domain; Hetzner adds the rest).`,
+            `Value: ${value}`,
+            "TTL: leave the default. Save the record.",
+            trouble,
+          ]}
+        />
+        <ProviderSteps
+          name="xneelo"
+          link={{ href: "https://www.xneelo.co.za", label: "Open the xneelo Control Panel" }}
+          steps={[
+            "Open the xneelo Control Panel, choose your hosting product, then your domain.",
+            "Open Manage DNS under Domain Tools (in konsoleH: Manage Services, Domains, Manage DNS).",
+            "Choose Add Record. Type: TXT.",
+            `Host: ${sub} (just that part, not the whole name).`,
+            `Destination: "${value}" in quotation marks, as xneelo asks for them.`,
+            "TTL: leave the default. Choose Add.",
+            trouble,
+          ]}
+        />
+        <ProviderSteps
+          name="Afrihost"
+          link={{ href: "https://clientzone.afrihost.com", label: "Open ClientZone" }}
+          steps={[
+            "Open ClientZone, then Hosting, your domain, Hosting Settings and DNS Editor.",
+            "Choose Create New Record. Type: TXT.",
+            `Record: ${view.txt.name} (the whole name, not just ${sub}).`,
+            `Content: ${value}`,
+            "TTL: leave the default. Create the record.",
+            trouble,
+          ]}
+        />
+        <ProviderSteps
+          name="Another provider"
+          steps={[
+            "Open wherever your DNS records are edited (your registrar, host or DNS service) and add a TXT record.",
+            `Name: ${sub} if the form wants only the part before your domain, or ${view.txt.name} if it wants the whole name. If the form shows your domain next to the field, use ${sub}.`,
+            `Value: ${value}, without quotation marks (most providers add their own; if the saved record shows two pairs, remove yours).`,
+            "TTL: the smallest offered, or the default. Save the record.",
+            trouble,
+          ]}
+        />
+      </div>
+    </div>
+  );
+}
+
 // `local` is the recipient last chosen, carried by every form so no answer quietly changes it (D07 T02 §15).
 function DnsCard(props: { view: DomainClaimView; org: string; result: Result | null; local: "admin" | "postmaster" }) {
   const { view, result } = props;
@@ -122,6 +227,7 @@ function DnsCard(props: { view: DomainClaimView; org: string; result: Result | n
         <RecordRow label="Name" value={view.txt.name} copyLabel="Copy the record name" />
         <RecordRow label="Value" value={view.txt.value} copyLabel="Copy the record value" />
       </dl>
+      <ProviderHelp view={view} />
       <form method="post" class="flex flex-wrap items-center gap-16" data-busy>
         <input type="hidden" name="org" value={props.org} />
         <input type="hidden" name="action" value="check" />
@@ -356,6 +462,7 @@ export function DomainPage(props: {
   view: DomainClaimView;
   result: Result | null;
   local?: "admin" | "postmaster";
+  connect?: { state: "ready"; providerName: string; href: string } | { state: "unknown"; href: string } | null;
   now: Date;
 }) {
   const { shell, view, result, now } = props;
@@ -392,6 +499,34 @@ export function DomainPage(props: {
             )}
           </header>
           {generalNotice(result, view, org.name)}
+          {view.state === "pending" && props.connect?.state === "ready" && (
+            <section aria-labelledby="connect-heading" class={CARD}>
+              <div class="flex flex-wrap items-center gap-12">
+                <Pill variant="neutral">Fastest</Pill>
+                <h2 id="connect-heading" class="type-h3">
+                  Connect with {props.connect.providerName}
+                </h2>
+              </div>
+              <p class="type-small text-muted">
+                Your registrar can add the record for you. You approve it there, and we check it when you come back: no
+                record to copy.
+              </p>
+              <div>
+                <Button href={props.connect.href} variant="dark">
+                  Connect with {props.connect.providerName}
+                </Button>
+              </div>
+            </section>
+          )}
+          {view.state === "pending" && props.connect?.state === "unknown" && (
+            <Notice tone="info">
+              We could not reach the registrar just now.{" "}
+              <a href={props.connect.href} class={LINK}>
+                Try again
+              </a>
+              , or use one of the ways below.
+            </Notice>
+          )}
           {view.state === "verified" ? (
             <VerifiedPanel view={view} />
           ) : (

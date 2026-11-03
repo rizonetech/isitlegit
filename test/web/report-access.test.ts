@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { type Case, createCase, setStatus } from "../../src/db/cases";
+import { recordEvent } from "../../src/pipeline/events";
 import { shownState } from "../../src/web/pages/report";
 import { signReportLink } from "../../src/web/report-link";
 import { call, redeem, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "../auth/helpers";
@@ -1189,5 +1190,263 @@ describe("signing in from a signed link", () => {
     } finally {
       smtp.restore();
     }
+  });
+});
+
+describe("previous and next case (D07 T04 §9)", () => {
+  const at = async (id: string, when: string) =>
+    db.prepare("UPDATE cases SET created_at = ? WHERE id = ?").bind(when, id).run();
+  const page = async (path: string, cookie: string) => {
+    const res = await get(path, cookie);
+    expect(res.status, path).toBe(200);
+    return res.text();
+  };
+
+  it("steps through the filtered run in list order, with the ends disabled", async () => {
+    const a = await org("Karoo Couriers");
+    const newer = await stored(a, "newer");
+    const middle = await stored(a, "middle");
+    const older = await stored(a, "older");
+    await at(newer, "2026-10-09T10:00:00Z");
+    await at(middle, "2026-10-08T10:00:00Z");
+    await at(older, "2026-10-07T10:00:00Z");
+    const { cookie } = await member(a);
+    const mid = await page(`/r/${middle}?list=1&period=all`, cookie);
+    expect(mid).toContain(`href="/r/${newer}?list=1&amp;period=all"`);
+    expect(mid).toContain(`href="/r/${older}?list=1&amp;period=all"`);
+    expect(mid).toContain("Previous case");
+    expect(mid).toContain("Next case");
+    const top = await page(`/r/${newer}?list=1&period=all`, cookie);
+    expect(top).toMatch(/<span aria-disabled="true"[^>]*>\s*← Previous case/);
+    const followed = await page(`/r/${older}?list=1&period=all`, cookie);
+    expect(followed).toMatch(/<span aria-disabled="true"[^>]*>\s*Next case/);
+    // The plain list entry (all defaults, marker only) steps too; a direct report shows no steps.
+    expect(await page(`/r/${middle}?list=1`, cookie)).toContain("Next case");
+    expect(await page(`/r/${middle}`, cookie)).not.toContain("Next case");
+  });
+
+  it("keeps the verdict filter and never steps to another organisation's case", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    const safeOne = await stored(a, "safe one", "done", "safe");
+    const badOne = await stored(a, "bad one", "done", "malicious");
+    const foreign = await stored(b, "foreign", "done", "malicious");
+    await at(safeOne, "2026-10-09T10:00:00Z");
+    await at(badOne, "2026-10-08T10:00:00Z");
+    await at(foreign, "2026-10-10T10:00:00Z");
+    const { cookie } = await member(a);
+    const html = await page(`/r/${badOne}?list=1&period=all&verdict=malicious`, cookie);
+    expect(html).not.toContain(foreign);
+    expect(html).not.toContain(safeOne);
+    expect(html).toMatch(/<span aria-disabled="true"[^>]*>\s*Next case/);
+  });
+
+  it("shows no steps on a signed link, and says when the case fell out of the run", async () => {
+    const a = await org("Karoo Couriers");
+    const bad = await stored(a, "bad", "done", "malicious");
+    const { cookie } = await member(a);
+    const link = await signReportLink(SECRET, bad, a);
+    const res = await get(link);
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toContain("Next case");
+    const out = await page(`/r/${bad}?list=1&period=all&verdict=safe`, cookie);
+    expect(out).toContain("This case is not in that filtered list any more.");
+    expect(out).not.toContain("Next case →");
+    expect(out).toContain("/cases?verdict=safe&amp;period=all");
+  });
+
+  it("steps past 25 matches and past cases sharing one arrival time", async () => {
+    const a = await org("Karoo Couriers");
+    const ids: string[] = [];
+    for (let i = 0; i < 27; i++) {
+      const id = await stored(a, `bulk ${i}`);
+      await at(id, `2026-10-${String(28 - Math.floor(i / 3)).padStart(2, "0")}T10:00:00Z`);
+      ids.push(id);
+    }
+    const { cookie } = await member(a);
+    // List order is arrival then id, both falling: the order the cases list itself would print.
+    const ordered = ids
+      .map((id, i) => ({ id, at: `2026-10-${String(28 - Math.floor(i / 3)).padStart(2, "0")}T10:00:00Z` }))
+      .sort((x, y) => y.at.localeCompare(x.at) || y.id.localeCompare(x.id))
+      .map((x) => x.id);
+    // The 26th in list order steps to the 27th (past the list's first page), and its breadcrumb names page 2.
+    const twentySixth = await page(`/r/${ordered[25]}?list=1&period=all`, cookie);
+    expect(twentySixth).toContain(`/r/${ordered[26]}?`);
+    expect(twentySixth).toContain("/cases?period=all&amp;page=2");
+    const last = await page(`/r/${ordered[26]}?list=1&period=all`, cookie);
+    expect(last).toMatch(/<span aria-disabled="true"[^>]*>\s*Next case/);
+  });
+
+  it("keeps the run through sign-in and names the breadcrumb's filtered page", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const two = await stored(a, "two", "done", "safe");
+    await at(one, "2026-10-09T10:00:00Z");
+    await at(two, "2026-10-08T10:00:00Z");
+    const res = await get(`/r/${one}?list=1&period=all&verdict=safe`);
+    expect(res.status).toBe(303);
+    expect(target(res)).toBe(`/signin?next=${encodeURIComponent(`/r/${one}?list=1&verdict=safe&period=all`)}`);
+    const { cookie } = await member(a);
+    const html = await page(`/r/${two}?list=1&period=all&verdict=safe`, cookie);
+    expect(html).toContain('href="/cases?verdict=safe&amp;period=all"');
+  });
+});
+
+describe("previous and next case, the run kept (D07 T04 §9 completion)", () => {
+  const at = async (id: string, when: string) =>
+    db.prepare("UPDATE cases SET created_at = ? WHERE id = ?").bind(when, id).run();
+  const page = async (path: string, cookie: string) => {
+    const res = await get(path, cookie);
+    expect(res.status, path).toBe(200);
+    return res.text();
+  };
+
+  it("names an ignored malformed bound and the case's place in the run", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const two = await stored(a, "two", "done", "safe");
+    await at(one, "2026-10-09T10:00:00Z");
+    await at(two, "2026-10-08T10:00:00Z");
+    const { cookie } = await member(a);
+    const html = await page(`/r/${two}?list=1&period=all&verdict=safe&from=2026-02-30`, cookie);
+    expect(html).toContain("The From date was not a real date, so it was left out of this run.");
+    expect(html).toContain("Case 2 of 2");
+  });
+
+  it("steps only within a combined verdict, channel, range and search run", async () => {
+    const a = await org("Karoo Couriers");
+    const keep1 = await stored(a, "keep one", "done", "safe");
+    const keep2 = await stored(a, "keep two", "done", "safe");
+    const wrongVerdict = await stored(a, "keep three", "done", "malicious");
+    await at(keep1, "2026-10-09T10:00:00Z");
+    await at(keep2, "2026-10-08T10:00:00Z");
+    await at(wrongVerdict, "2026-10-10T10:00:00Z");
+    await db
+      .prepare("UPDATE cases SET original_subject = ? WHERE id IN (?, ?)")
+      .bind("Invoice keep", keep1, keep2)
+      .run();
+    await db.prepare("UPDATE cases SET search_text = ? WHERE id IN (?, ?)").bind("invoice keep", keep1, keep2).run();
+    const { cookie } = await member(a);
+    const q = "list=1&verdict=safe&channel=email&from=2026-10-01&to=2026-10-31&q=invoice";
+    const html = await page(`/r/${keep2}?${q}`, cookie);
+    expect(html).toContain(`/r/${keep1}?`);
+    expect(html).not.toContain(wrongVerdict);
+  });
+
+  it("keeps the run through a retry refusal's redirect", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const { cookie } = await member(a);
+    const res = await call(`/r/${one}/retry?list=1&period=all&verdict=safe`, {
+      method: "POST",
+      headers: { cookie, origin: "http://localhost" },
+    });
+    expect(res.status).toBe(303);
+    expect(target(res)).toContain("list=1");
+    expect(target(res)).toContain("verdict=safe");
+  });
+
+  it("answers a failed neighbour read with the error page, its retry keeping the run", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "done", "safe");
+    const { cookie } = await member(a);
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/created_at > \?/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await get(`/r/${one}?list=1&period=all&verdict=safe`, cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBe(503);
+    const html = await res.text();
+    expect(html).toContain("list=1");
+    expect(html).toContain("verdict=safe");
+  });
+});
+
+describe("previous and next case, polls and recovery (D07 T04 §9 round 2)", () => {
+  it("carries the run in the poll address and the retry's see-where-it-stands link", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "running", null);
+    const { cookie } = await member(a);
+    const res = await get(`/r/${one}?list=1&period=all&verdict=safe`, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("/status?list=1");
+    // The poll itself, answered: its header keeps the filtered return, page and all.
+    const poll = await get(`/r/${one}/status?list=1&period=all&verdict=safe`, cookie);
+    expect(poll.status).toBe(200);
+    expect(await poll.text()).toContain('href="/cases?verdict=safe&amp;period=all"');
+    // A retryable report (a failed run, settled) carries the run in its form and see-where-it-stands address.
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const partial = made.value.id;
+    for (const status of ["running", "partial"] as const) await setStatus(db, a, partial, status);
+    await recordEvent(db, partial, "admit", "done");
+    await recordEvent(db, partial, "parse", "failed", { errorClass: "ParseError" });
+    await recordEvent(db, partial, "reply", "done");
+    const retryable = await (await get(`/r/${partial}?list=1&period=all`, cookie)).text();
+    expect(retryable).toContain(`/r/${partial}/retry?list=1`);
+    expect(retryable).toContain(`data-busy-check="/r/${partial}?list=1`);
+  });
+});
+
+describe("previous and next case under a checker filter (D07 T04 §10)", () => {
+  it("steps only within the checker's run and returns to its page", async () => {
+    const a = await org("Karoo Couriers");
+    const first = await stored(a, "first");
+    const other = await stored(a, "other member case");
+    const second = await stored(a, "second");
+    const at = async (id: string, when: string) =>
+      db.prepare("UPDATE cases SET created_at = ? WHERE id = ?").bind(when, id).run();
+    await at(first, "2026-10-09T10:00:00Z");
+    await at(other, "2026-10-08T12:00:00Z");
+    await at(second, "2026-10-08T10:00:00Z");
+    const { cookie, email } = await member(a);
+    const checker = await db
+      .prepare(`SELECT "userId" AS id FROM "member" WHERE "organizationId" = ? LIMIT 1`)
+      .bind(a)
+      .first<{ id: string }>();
+    // Both of the member's cases were forwarded from their address; the middle one was not.
+    await db.prepare("UPDATE cases SET forwarded_by = ? WHERE id IN (?, ?)").bind(email, first, second).run();
+    const res = await get(`/r/${second}?list=1&period=all&checker=${checker?.id}`, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(`/r/${first}?list=1&amp;period=all&amp;checker=${checker?.id}`);
+    expect(html).not.toContain(other);
+    expect(html).toContain(`href="/cases?period=all&amp;checker=${checker?.id}"`);
+    expect(html).toContain("Case 2 of 2");
+  });
+});
+
+describe("previous and next case under a checker filter, across pages (D07 T04 §10)", () => {
+  it("steps past 25 of the checker's cases, with the ends disabled", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, email } = await member(a);
+    const checker = await db
+      .prepare(`SELECT "userId" AS id FROM "member" WHERE "organizationId" = ? LIMIT 1`)
+      .bind(a)
+      .first<{ id: string }>();
+    const ids: string[] = [];
+    for (let i = 0; i < 27; i++) {
+      const id = await stored(a, `run ${i}`);
+      await db
+        .prepare("UPDATE cases SET created_at = ?, forwarded_by = ? WHERE id = ?")
+        .bind(`2026-10-${String(28 - Math.floor(i / 3)).padStart(2, "0")}T10:00:00Z`, email, id)
+        .run();
+      ids.push(id);
+    }
+    const ordered = ids
+      .map((id, i) => ({ id, at: `2026-10-${String(28 - Math.floor(i / 3)).padStart(2, "0")}T10:00:00Z` }))
+      .sort((x, y) => y.at.localeCompare(x.at) || y.id.localeCompare(x.id))
+      .map((x) => x.id);
+    const q = `list=1&period=all&checker=${checker?.id}`;
+    const twentySixth = await (await get(`/r/${ordered[25]}?${q}`, cookie)).text();
+    expect(twentySixth).toContain(`/r/${ordered[26]}?`);
+    expect(twentySixth).toContain("page=2");
+    const last = await (await get(`/r/${ordered[26]}?${q}`, cookie)).text();
+    expect(last).toMatch(/<span aria-disabled="true"[^>]*>\s*Next case/);
+    const first = await (await get(`/r/${ordered[0]}?${q}`, cookie)).text();
+    expect(first).toMatch(/<span aria-disabled="true"[^>]*>\s*← Previous case/);
   });
 });

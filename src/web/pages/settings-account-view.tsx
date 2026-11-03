@@ -38,6 +38,8 @@ export const OUTCOMES = [
   "others-none",
   "passkey-renamed",
   "rename-still",
+  "weekly-on",
+  "weekly-off",
 ] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
@@ -116,6 +118,8 @@ const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
     tone: "done",
   },
   "session-out": { text: "That session was signed out.", tone: "done" },
+  "weekly-on": { text: "Weekly counts on. They arrive on Fridays for this organisation.", tone: "done" },
+  "weekly-off": { text: "Weekly counts off for this organisation.", tone: "done" },
   "others-out": { text: "Every other session was signed out.", tone: "done" },
   gone: { text: "That is no longer on your account. The lists below are as stored now.", tone: "refused" },
   "this-device": {
@@ -288,6 +292,8 @@ export type AccountProps = {
   // The owner's organisation closure (D07 T02 §9): the active organisation and whether it is already closed.
   closure?: { orgId: string; orgName: string; role: string; closedAt: string | null } | undefined;
   user: { name: string; email: string };
+  // The Friday weekly counts for the active organisation (D07 T04 §20): when the member opted in, if they did.
+  weekly?: { orgId: string; orgName: string; optedInAt: string | null } | undefined;
   passkeys: AccountPasskey[];
   sessions: AccountSession[];
   outcome: Outcome | null;
@@ -383,6 +389,39 @@ function AccountBody(props: AccountProps) {
           </div>
         </form>
       </section>
+      {props.weekly && (
+        <section aria-labelledby="weekly-heading" class={cx(CARD, "flex flex-col gap-12")}>
+          <h2 id="weekly-heading" class="type-h3">
+            Weekly counts
+          </h2>
+          <form method="post" action="/settings/account" data-busy>
+            <input type="hidden" name="action" value="weekly-report" />
+            <input type="hidden" name="org" value={props.weekly.orgId} />
+            <label class="flex items-start gap-12">
+              <input
+                type="checkbox"
+                name="weekly"
+                value="on"
+                checked={props.weekly.optedInAt !== null}
+                class="mt-2 h-20 w-20 shrink-0 accent-orange"
+              />
+              <span class="flex flex-col gap-4">
+                <span class="weight-text-strong">Email me this organisation's weekly counts on Fridays</span>
+                <span class="type-small text-muted">
+                  {props.weekly.optedInAt
+                    ? `On since ${dateText(props.weekly.optedInAt)} for ${props.weekly.orgName}. The three Cases numbers, never a case's content.`
+                    : `Off for ${props.weekly.orgName}. Switch on and Save to start them.`}
+                </span>
+              </span>
+            </label>
+            <div class="mt-12">
+              <Button type="submit" variant="dark" data-busy-label="Saving…">
+                Save
+              </Button>
+            </div>
+          </form>
+        </section>
+      )}
       <section aria-labelledby="passkeys-heading" class={cx(CARD, "flex flex-col gap-12")}>
         <div class="flex flex-wrap items-center justify-between gap-12">
           <h2 id="passkeys-heading" class="type-h3">

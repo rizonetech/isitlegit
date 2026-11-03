@@ -36,11 +36,29 @@ const TYPE_WORDS: Record<ListedCase["sourceKind"], string> = {
   audio: "Voice note",
 };
 
+// The Type words with the stored classification (D07 T04 §13): an email carrying an invoice, and an uploaded
+// payment document, as the board draws them; everything else keeps its source words.
+export function typeWord(item: ListedCase): string {
+  if (item.channel === "email" && item.hasInvoice) return "Email, invoice";
+  if (item.channel === "upload" && item.hasPaymentDocument) return "Payment document";
+  return TYPE_WORDS[item.sourceKind];
+}
+
 // The query string for a set of filters, defaults left out so the plain list is plain `/cases`.
+// A report's address from the list (D07 T04 §9): the list's origin marker with the filters, so the report can step
+// through this run and come back to it.
+export function reportHref(filters: CaseFilters, id: string): string {
+  const query = casesHref(filters).replace("/cases", "");
+  return `/r/${id}?list=1${query ? `&${query.slice(1)}` : ""}`;
+}
+
 export function casesHref(filters: CaseFilters): string {
   const query = new URLSearchParams();
   for (const name of ["verdict", "channel", "period"] as const)
     if (filters[name] !== DEFAULT_FILTERS[name]) query.set(name, filters[name]);
+  if (filters.from) query.set("from", filters.from);
+  if (filters.to) query.set("to", filters.to);
+  if (filters.checker) query.set("checker", filters.checker);
   if (filters.q) query.set("q", filters.q);
   if (filters.page !== 1) query.set("page", String(filters.page));
   const text = query.toString();
@@ -115,11 +133,11 @@ export function caseLines(c: ListedCase): { title: string; detail: string | null
   return { title: subject ?? "No subject", detail: sender };
 }
 
-function CaseCell(props: { item: ListedCase; class?: string }) {
+function CaseCell(props: { item: ListedCase; filters: CaseFilters; class?: string }) {
   const { title, detail } = caseLines(props.item);
   return (
     <span class={cx("flex flex-col gap-2 min-w-0", props.class)}>
-      <a href={`/r/${props.item.id}`} class={ROW_LINK}>
+      <a href={reportHref(props.filters, props.item.id)} class={ROW_LINK}>
         {title}
       </a>
       {detail && <span class="type-small text-muted wrap-anywhere">{detail}</span>}
@@ -140,8 +158,9 @@ const RESULTS = {
   "hx-select": "#case-results",
   "hx-swap": "outerHTML",
   "hx-push-url": "true",
-  // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request.
-  "hx-select-oob": "#case-count,#case-stats",
+  // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request, and so does the
+  // period's state beside the date range (D07 T04 §8), which a range disables.
+  "hx-select-oob": "#case-count,#case-stats,#case-period-state,#case-range-state,#case-checker-state",
   "hx-indicator": "#case-loading",
 } as const;
 
@@ -173,7 +192,7 @@ function CheckedBy(props: { item: ListedCase }) {
 
 const ROW_LINK = cx("weight-text-strong text-ink underline-offset-4 hover:underline wrap-anywhere", FOCUS);
 
-function Rows(props: { list: CasePage; now: Date }) {
+function Rows(props: { list: CasePage; filters: CaseFilters; now: Date }) {
   const { list, now } = props;
   return (
     <>
@@ -206,9 +225,9 @@ function Rows(props: { list: CasePage; now: Date }) {
                 <Pill item={item} />
               </td>
               <td class="px-16 py-16 align-middle">
-                <CaseCell item={item} />
+                <CaseCell item={item} filters={props.filters} />
               </td>
-              <td class="px-16 py-16 align-middle">{TYPE_WORDS[item.sourceKind]}</td>
+              <td class="px-16 py-16 align-middle">{typeWord(item)}</td>
               <td class="px-16 py-16 align-middle">
                 <CheckedBy item={item} />
               </td>
@@ -229,9 +248,13 @@ function Rows(props: { list: CasePage; now: Date }) {
                 <When iso={item.createdAt} now={now} />
               </span>
             </div>
-            <CaseCell item={item} class="[&>a]:self-start [&>a]:inline-flex [&>a]:items-center [&>a]:min-h-24" />
+            <CaseCell
+              item={item}
+              filters={props.filters}
+              class="[&>a]:self-start [&>a]:inline-flex [&>a]:items-center [&>a]:min-h-24"
+            />
             <p class="type-small text-muted">
-              {TYPE_WORDS[item.sourceKind]}, checked by <CheckedBy item={item} />
+              {typeWord(item)}, checked by <CheckedBy item={item} />
             </p>
           </li>
         ))}
@@ -292,22 +315,51 @@ function countLine(list: CasePage): string {
 }
 
 // The status line every search redraws: the count (or the no-match words), and the cap notice when the query was cut.
-function countStatus(list: CasePage, filters: CaseFilters, notices: string[]): string {
-  const base = list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list);
-  return notices.length ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}` : base;
+function countStatus(list: CasePage, filters: CaseFilters, notices: string[], checkerName?: string): string {
+  const reversed =
+    filters.from && filters.to && filters.from > filters.to ? " From is after To. Swap them to see that week." : "";
+  const base =
+    list.matching === 0
+      ? `No cases match ${filterWords(filters, checkerName)}.`
+      : filters.checker
+        ? `${countLine(list)}, checked by ${checkerName ?? "Member no longer available"}`
+        : countLine(list);
+  return notices.length
+    ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}${reversed}`
+    : `${base}${reversed}`;
+}
+
+// One range day in words ('3 Oct', or '3 Oct 2026' across years), from its `YYYY-MM-DD` at midday UTC so no zone
+// moves it.
+const rangeDay = (v: string, year = false) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    ...(year ? { year: "numeric" as const } : {}),
+  }).format(new Date(`${v}T12:00:00Z`));
+
+// The chosen range in words ('from 3 Oct to 9 Oct'), or null when no date is set (D07 T04 §8).
+export function rangeWords(f: CaseFilters): string | null {
+  const years = Boolean(f.from && f.to && f.from.slice(0, 4) !== f.to.slice(0, 4));
+  if (f.from && f.to) return `from ${rangeDay(f.from, years)} to ${rangeDay(f.to, years)}`;
+  if (f.from) return `from ${rangeDay(f.from)}`;
+  if (f.to) return `to ${rangeDay(f.to)}`;
+  return null;
 }
 
 // The filters in words, for the filtered-empty heading ('No cases match Malicious, email, last 7 days.').
-function filterWords(f: CaseFilters): string {
+function filterWords(f: CaseFilters, checkerName?: string): string {
   const parts: string[] = [];
   if (f.q) parts.push(`"${f.q}"`);
   if (f.verdict !== "all") parts.push(VERDICT_WORDS[f.verdict]);
   if (f.channel !== "all") parts.push(f.channel === "email" ? "email" : "uploads");
-  parts.push(PERIOD_WORDS[f.period].toLowerCase());
+  if (f.checker) parts.push(`checked by ${checkerName ?? "Member no longer available"}`);
+  parts.push(rangeWords(f) ?? PERIOD_WORDS[f.period].toLowerCase());
   return parts.join(", ");
 }
 
-function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notices: string[] }) {
+function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notices: string[]; checkerName?: string }) {
   const { list, filters, now, notices } = props;
   const cut = notices.length ? (
     <p data-search-cut class="type-small text-muted px-16 pt-16">
@@ -318,10 +370,22 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
     return (
       <div id="case-results">
         {cut}
+        {filters.from && filters.to && filters.from > filters.to ? (
+          <p id="case-range-error" class="type-small text-muted px-16 pt-16">
+            From is after To.{" "}
+            <a
+              href={casesHref({ ...filters, from: filters.to, to: filters.from, page: 1 })}
+              class="weight-text-strong text-orange-text"
+            >
+              Swap them
+            </a>{" "}
+            to see that week.
+          </p>
+        ) : null}
         <EmptyState
           layout="filtered"
           level={2}
-          title={`No cases match ${filterWords(filters)}.`}
+          title={`No cases match ${filterWords(filters, props.checkerName)}.`}
           sentence={`${list.total} ${list.total === 1 ? "case" : "cases"} in total. Try a wider date range or another verdict.`}
           action={
             <Button variant="ghost" href={casesHref({ ...DEFAULT_FILTERS, period: "all" })}>
@@ -335,7 +399,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
   return (
     <div id="case-results" class="bg-surface border border-line rounded-card-large overflow-hidden">
       {cut}
-      <Rows list={list} now={now} />
+      <Rows list={list} filters={filters} now={now} />
       <nav
         aria-label="Pages"
         class="flex flex-wrap items-center justify-between gap-12 px-16 py-16 border-t border-line"
@@ -367,8 +431,10 @@ const SEARCH = cx(
   FOCUS,
 );
 
-function Filters(props: { filters: CaseFilters }) {
+function Filters(props: { filters: CaseFilters; members?: { id: string; label: string }[] }) {
   const { filters } = props;
+  const members = props.members ?? [];
+  const unavailable = filters.checker !== "" && !members.some((m) => m.id === filters.checker);
   return (
     <form
       method="get"
@@ -382,25 +448,33 @@ function Filters(props: { filters: CaseFilters }) {
       class="flex flex-wrap items-center gap-12"
     >
       {/* The board's search box: no visible label, the glass and the placeholder say what it is. */}
-      <div class="relative flex-1 basis-full md:basis-[320px] min-w-0">
+      <div class="flex-1 basis-full md:basis-[320px] min-w-0">
         <label for="case-search" class="sr-only">
           Search cases
         </label>
-        <SearchIcon class="absolute left-12 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-        <input
-          id="case-search"
-          type="search"
-          name="q"
-          value={filters.q}
-          placeholder="Search by sender or subject"
-          autocomplete="off"
-          enterkeyhint="search"
-          hx-get="/cases"
-          hx-trigger="input changed delay:300ms"
-          hx-include="#case-filters"
-          {...RESULTS}
-          class={SEARCH}
-        />
+        <div class="relative">
+          <SearchIcon class="absolute left-12 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input
+            id="case-search"
+            type="search"
+            name="q"
+            value={filters.q}
+            placeholder="Search by sender or subject (press /)"
+            autocomplete="off"
+            enterkeyhint="search"
+            hx-get="/cases"
+            hx-trigger="input changed delay:300ms"
+            hx-include="#case-filters"
+            {...RESULTS}
+            class={SEARCH}
+          />
+        </div>
+        <p class="type-small text-muted mt-4">
+          Press / to search{" "}
+          <button type="button" data-slash-toggle class="underline">
+            Turn off the / shortcut
+          </button>
+        </p>
       </div>
       <fieldset class="flex border border-control-border rounded-control overflow-hidden bg-surface">
         <legend class="sr-only">Verdict</legend>
@@ -421,16 +495,74 @@ function Filters(props: { filters: CaseFilters }) {
           </option>
         ))}
       </select>
-      <label for="case-period" class="sr-only">
-        Period
-      </label>
-      <select id="case-period" name="period" class={SELECT}>
-        {(Object.keys(PERIOD_WORDS) as (keyof typeof PERIOD_WORDS)[]).map((v) => (
-          <option value={v} selected={filters.period === v}>
-            {PERIOD_WORDS[v]}
+      {/* Who checked (D07 T04 §10): Everyone, then each current member. A checker who has left keeps the
+          restrictive filter as a disabled selected option, with Clear filters the way back to Everyone. */}
+      <span id="case-checker-state" class="contents">
+        <label for="case-checker" class="type-small weight-text-strong text-ink">
+          Checked by
+        </label>
+        <select id="case-checker" name="checker" class={cx(SELECT, "max-w-full min-w-0")}>
+          <option value="" selected={filters.checker === ""}>
+            Everyone
           </option>
-        ))}
-      </select>
+          {members.map((m) => (
+            <option value={m.id} selected={filters.checker === m.id}>
+              {m.label}
+            </option>
+          ))}
+          {unavailable ? (
+            <option value={filters.checker} selected disabled>
+              Member no longer available
+            </option>
+          ) : null}
+        </select>
+        {unavailable ? <input type="hidden" name="checker" value={filters.checker} /> : null}
+      </span>
+      <span id="case-period-state" class="contents">
+        {/* A hidden twin carries the preset while the select is disabled under a range, so a submission never
+          defaults it and Clear dates returns to the period the member chose (completion review G1). It rides
+          this out-of-band region so it appears when a range is set by an incremental redraw too. */}
+        {rangeWords(filters) !== null ? <input type="hidden" name="period" value={filters.period} /> : null}
+        <label for="case-period" class="sr-only">
+          Period
+        </label>
+        <select id="case-period" name="period" class={SELECT} disabled={rangeWords(filters) !== null}>
+          {(Object.keys(PERIOD_WORDS) as (keyof typeof PERIOD_WORDS)[]).map((v) => (
+            <option value={v} selected={filters.period === v}>
+              {PERIOD_WORDS[v]}
+            </option>
+          ))}
+        </select>
+      </span>
+      {/* A chosen date range beside the period (D07 T04 §8): setting a date makes the range the date filter. */}
+      <label for="case-from" class="type-small weight-text-strong text-ink">
+        From
+      </label>
+      <input
+        id="case-from"
+        type="date"
+        name="from"
+        value={filters.from}
+        class={SELECT}
+        aria-describedby="case-range-hint"
+      />
+      <label for="case-to" class="type-small weight-text-strong text-ink">
+        To
+      </label>
+      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} aria-describedby="case-range-hint" />
+      <span id="case-range-hint" class="type-small text-muted">
+        SAST dates, both included.
+      </span>
+      <span id="case-range-state" class="contents">
+        {rangeWords(filters) !== null ? (
+          <span class="flex items-center gap-8 type-small text-muted">
+            <span data-active-range>Range {rangeWords(filters)}</span>
+            <a href={casesHref({ ...filters, from: "", to: "", page: 1 })} class="weight-text-strong text-orange-text">
+              Clear dates
+            </a>
+          </span>
+        ) : null}
+      </span>
       {/* Only without JavaScript: htmx applies each change as it is made. */}
       <noscript>
         <Button type="submit" variant="dark">
@@ -547,8 +679,22 @@ export function verdictTime(seconds: number | null): string {
 const TILE = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
 const TILE_NUMBER = "font-heading weight-heading text-40 leading-none";
 
-// The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught and the
-// kinds line under Malicious or suspicious wait on data nothing stores yet (D07 T04 §17 and §18).
+// The board's threat kinds line (D07 T04 §18): kinds present, descending, ties in the board's order.
+export function kindLine(kinds: WeeklyStats["thisWeek"]["kinds"]): string {
+  const words = [
+    ["phishing", kinds.phishing],
+    ["invoice", kinds.invoice],
+    ["impersonation", kinds.impersonation],
+  ] as const;
+  return words
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word, n]) => `${n} ${word}`)
+    .join(", ");
+}
+
+// The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught
+// waits on data nothing stores yet (D07 T04 §17).
 function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
   const { thisWeek, lastWeekChecked } = props.stats;
   const flagged = thisWeek.malicious + thisWeek.suspicious;
@@ -566,6 +712,7 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
         <div class={TILE}>
           <dt class="text-14 text-muted">Malicious or suspicious</dt>
           <dd class={cx(TILE_NUMBER, flagged ? "text-mal" : "text-ink")}>{flagged}</dd>
+          {kindLine(thisWeek.kinds) ? <dd class="text-13 text-muted">{kindLine(thisWeek.kinds)}</dd> : null}
         </div>
         <div class={TILE}>
           <dt class="text-14 text-muted">Median time to verdict</dt>
@@ -583,10 +730,57 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
               Export counts as CSV
             </a>
           </dd>
+          <dd class="text-13">
+            <form method="get" action="/cases/stats.csv" class="flex flex-wrap items-end gap-8 mt-8">
+              <input type="hidden" name="org" value={props.orgId} />
+              <label class="flex flex-col gap-4">
+                <span class="text-muted">From</span>
+                <input id="case-export-from" type="date" name="from" class={SELECT} />
+              </label>
+              <label class="flex flex-col gap-4">
+                <span class="text-muted">To</span>
+                <input id="case-export-to" type="date" name="to" class={SELECT} />
+              </label>
+              <button type="submit" class={cx("underline underline-offset-4 text-orange-text", FOCUS)}>
+                Export period
+              </button>
+            </form>
+            <p class="text-muted mt-4">Whole weeks that overlap your dates.</p>
+            <p class="mt-4 flex gap-12">
+              <a
+                href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${monthRange().from}&to=${monthRange().to}`}
+                class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+              >
+                This month
+              </a>
+              <a
+                href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${quarterRange().from}&to=${quarterRange().to}`}
+                class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+              >
+                This quarter
+              </a>
+            </p>
+          </dd>
         </div>
       </dl>
     </section>
   );
+}
+
+// The current calendar month and quarter as SAST dates, for the period presets (D07 T04 §19).
+function sastToday(): { y: number; m: number; d: number } {
+  const shifted = new Date(Date.now() + 2 * 3_600_000);
+  return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth(), d: shifted.getUTCDate() };
+}
+const ymd = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+function monthRange(): { from: string; to: string } {
+  const { y, m } = sastToday();
+  return { from: ymd(y, m, 1), to: ymd(y, m, new Date(Date.UTC(y, m + 1, 0)).getUTCDate()) };
+}
+function quarterRange(): { from: string; to: string } {
+  const { y, m } = sastToday();
+  const first = Math.floor(m / 3) * 3;
+  return { from: ymd(y, first, 1), to: ymd(y, first + 2, new Date(Date.UTC(y, first + 3, 0)).getUTCDate()) };
 }
 
 export function CasesPage(props: {
@@ -600,9 +794,18 @@ export function CasesPage(props: {
   setup?: { done: number; hidden: boolean } | null;
   // The query asked for was longer than the search keeps (D07 T04 §14).
   searchLong?: boolean;
+  // Date bounds the address named but did not give as real dates, named so leaving them out is said, not silent
+  // (D07 T04 §8, completion review G4).
+  datesIgnored?: string[];
+  // The organisation's current members for the Checked by select (D07 T04 §10).
+  members?: { id: string; label: string }[];
 }) {
   const { shell, list, filters, senders, stats, now, setup } = props;
-  const notices = searchNotices(Boolean(list.searchCut), Boolean(props.searchLong), filters.q);
+  const checkerName = props.members?.find((m) => m.id === filters.checker)?.label;
+  const notices = [
+    ...searchNotices(Boolean(list.searchCut), Boolean(props.searchLong), filters.q),
+    ...(props.datesIgnored ?? []).map((name) => `The ${name} date was not a real date, so it was left out.`),
+  ];
   const orgName = shell.organization.name;
   return (
     <Document title="Cases">
@@ -635,11 +838,17 @@ export function CasesPage(props: {
           ) : (
             <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
               <StatsPanel stats={stats} orgId={shell.organization.id} />
-              <Filters filters={filters} />
+              <Filters filters={filters} members={props.members ?? []} />
               <p id="case-count" role="status" class="sr-only">
-                {countStatus(list, filters, notices)}
+                {countStatus(list, filters, notices, checkerName)}
               </p>
-              <Results list={list} filters={filters} now={now} notices={notices} />
+              <Results
+                list={list}
+                filters={filters}
+                now={now}
+                notices={notices}
+                {...(checkerName ? { checkerName } : {})}
+              />
             </div>
           )}
         </div>

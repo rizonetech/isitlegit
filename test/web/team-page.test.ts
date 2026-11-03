@@ -627,7 +627,7 @@ describe("invitations", () => {
     expect(taken.status).toBe(400);
     const takenHtml = await taken.text();
     expect(text(takenHtml)).toContain("already a member");
-    expect(takenHtml).toContain(`value="${colleague.email}"`);
+    expect(takenHtml).toContain(`>${colleague.email}</textarea>`);
     expect(await stored(orgId, colleague.email)).toBeNull();
     const bad = await send(owner.cookie, orgId, "not an address");
     expect(bad.status).toBe(400);
@@ -1026,5 +1026,275 @@ describe("protected accounts on the Team page (D07 T04 §25)", () => {
     const res = await post(owner.cookie, { action: "remove", org: orgId, member: demo.memberId });
     expect(text(await landed(owner.cookie, res))).toContain(NOTICE("Demo Account"));
     expect(await memberRow(demo.memberId)).toEqual({ role: "member" });
+  });
+});
+
+describe("inviting several colleagues at once (D07 T04 §22)", () => {
+  const stored = (orgId: string, email: string) =>
+    db
+      .prepare(`SELECT role, status FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?)`)
+      .bind(orgId, email)
+      .first<{ role: string; status: string }>();
+  const send = (cookie: string, orgId: string, email: string, role = "member", batch = "") =>
+    post(cookie, { action: "invite", org: orgId, email, role, ...(batch ? { batch } : {}) });
+
+  it("invites ten with one submit, lists ten outcomes, and retries only the one that did not go", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    let calls = 0;
+    const smtp = stubSmtp2go(() => (++calls === 3 ? "refused" : "sent"));
+    const emails = Array.from({ length: 10 }, (_, i) => `bulk-${i}-${tag()}@example.com`);
+    const res = await send(owner.cookie, orgId, emails.join("\n"));
+    expect(res.status).toBe(200);
+    const html = text(await res.text());
+    for (const email of emails) expect(html).toContain(email);
+    expect(html).toContain("Not sent");
+    expect(html).toContain("Retry the ones that did not go");
+    expect(smtp.sends.map((s) => s.to).sort()).toEqual(emails.filter((_, i) => i !== 2).sort());
+    for (const email of emails) expect(await stored(orgId, email)).toMatchObject({ status: "pending" });
+    // Retry: only the failed address is sent again.
+    calls = 0;
+    const beforeRetry = smtp.sends.length;
+    const retry = await send(owner.cookie, orgId, emails[2] as string, "member", "1");
+    expect(retry.status).toBe(200);
+    expect(smtp.sends.slice(beforeRetry).map((s) => s.to)).toEqual([emails[2]]);
+    expect(text(await retry.text())).toContain("Sent");
+    smtp.restore();
+  });
+
+  it("refuses twenty-one without sending any, invites a duplicate once, and keeps a member out", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const many = Array.from({ length: 21 }, (_, i) => `many-${i}-${tag()}@example.com`).join(", ");
+    const refused = await send(owner.cookie, orgId, many);
+    expect(refused.status).toBe(400);
+    expect(text(await refused.text())).toContain("Up to 20 addresses at a time");
+    expect(smtp.sends).toEqual([]);
+    const one = `dup-${tag()}@example.com`;
+    const res = await send(owner.cookie, orgId, `${one}\n${one.toUpperCase()}`);
+    expect(text(await res.text())).toContain("Listed twice, invited once");
+    expect(smtp.sends.map((s) => s.to)).toEqual([one]);
+    const member = await person("Member");
+    await join(orgId, member, "member");
+    expect((await send(member.cookie, orgId, `x-${tag()}@example.com\ny-${tag()}@example.com`)).status).toBe(403);
+    smtp.restore();
+  });
+});
+
+describe("inviting several: uncertain delivery (D07 T04 §22)", () => {
+  it("names a lost answer Unknown from the stored delivery and keeps it out of Retry", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    let calls = 0;
+    const smtp = stubSmtp2go(() => (++calls === 1 ? "silent" : "sent"));
+    const lost = `lost-${tag()}@example.com`;
+    const fine = `fine-${tag()}@example.com`;
+    const res = await post(owner.cookie, { action: "invite", org: orgId, email: `${lost}\n${fine}`, role: "member" });
+    expect(res.status).toBe(200);
+    const html = text(await res.text());
+    expect(html).toMatch(new RegExp(`${lost.replace(/[.]/g, "\\.")} : Unknown`));
+    expect(html).toMatch(new RegExp(`${fine.replace(/[.]/g, "\\.")} : Sent`));
+    expect(html).not.toContain("Retry the ones that did not go");
+    smtp.restore();
+  });
+});
+
+describe("team history for owners (D07 T04 §23)", () => {
+  const event = async (
+    orgId: string,
+    kind: string,
+    actor: string,
+    target: string,
+    at = new Date().toISOString(),
+    detail = "{}",
+  ) =>
+    db
+      .prepare(
+        `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+         VALUES (?, ?, ?, 'changed', ?, ?, ?, ?, 'x', ?)`,
+      )
+      .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target, detail)
+      .run();
+
+  it("draws the history newest first for owners only, filtered by action and date", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    await join(orgId, colleague, "member");
+    await event(
+      orgId,
+      "update-member-role",
+      owner.id,
+      colleague.id,
+      "2026-10-27T08:00:00.000Z",
+      JSON.stringify({ from: "member", to: "admin" }),
+    );
+    await event(
+      orgId,
+      "remove-member",
+      owner.id,
+      colleague.id,
+      "2026-10-28T08:00:00.000Z",
+      JSON.stringify({ sessionsEnded: true }),
+    );
+    const html = text((await page(owner.cookie)).html);
+    expect(html).toContain("Team history");
+    expect(html).toContain("Role changed, Member to Admin");
+    expect(html).toContain("Done, sessions ended");
+    const section = html.slice(html.indexOf("Team history")).split("When")[1] ?? "";
+    expect(section.indexOf("Member removed")).toBeLessThan(section.indexOf("Role changed"));
+    const filtered = text((await page(owner.cookie, "/team?action=update-member-role")).html);
+    expect(filtered).toContain("Role changed, Member to Admin");
+    expect(filtered).not.toContain("sessions ended");
+    const byDate = text((await page(owner.cookie, "/team?from=2026-10-28&to=2026-10-28")).html);
+    expect(byDate).toContain("Member removed");
+    expect(byDate).not.toContain("Role changed, Member to Admin");
+    const reversed = text((await page(owner.cookie, "/team?from=2026-10-29&to=2026-10-28")).html);
+    expect(reversed).toContain("The To date is before the From date");
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    expect(text((await page(admin.cookie)).html)).not.toContain("Team history");
+    const memberPageHtml = text((await page(colleague.cookie)).html);
+    expect(memberPageHtml).not.toContain("Team history");
+  });
+
+  it("draws the empty state, and a failed read as the section's error with the page standing", async () => {
+    const owner = await person("Owner");
+    await organisation(owner);
+    const empty = text((await page(owner.cookie)).html);
+    expect(empty).toContain("No team changes in this period.");
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("FROM auth_events")) throw new Error("D1_ERROR: history down");
+      return prepare(sql);
+    });
+    const failed = await page(owner.cookie);
+    expect(text(failed.html)).toContain("The team history could not be read just now.");
+    expect(text(failed.html)).toContain("Try again");
+    expect(text(failed.html)).toContain("Pending invitations");
+    vi.restoreAllMocks();
+    const again = text((await page(owner.cookie)).html);
+    expect(again).toContain("No team changes in this period.");
+  });
+});
+
+describe("team history after a real change (D07 T04 §23)", () => {
+  it("reads a role change the page itself made, as Done, and refuses a prototype action", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    const memberId = await join(orgId, colleague, "member");
+    await post(owner.cookie, { action: "role", org: orgId, member: memberId, role: "admin" });
+    const html = text((await page(owner.cookie)).html);
+    expect(html).toContain("Role changed, Member to Admin");
+    expect(html).toContain("Done");
+    expect(html).not.toContain("Refused");
+    const proto = text((await page(owner.cookie, "/team?action=constructor")).html);
+    expect(proto).toContain("Choose one of the listed actions.");
+  });
+});
+
+describe("finding a person on the Team page (D07 T04 §26)", () => {
+  it("finds by name part and email part, folded, and never another organisation's member", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const jose = await person("José Petersen");
+    await join(orgId, jose, "member");
+    const sipho = await person("Sipho Mokoena");
+    await join(orgId, sipho, "admin");
+    const otherOwner = await person("Other Owner");
+    const other = await organisation(otherOwner);
+    const twin = await person("José Petersen");
+    await join(other, twin, "member");
+    const membersOf = (html: string) => html.slice(0, html.indexOf("Pending invitations"));
+    const byName = membersOf(text((await page(owner.cookie, "/team?find=jose")).html));
+    expect(byName).toContain("José Petersen");
+    expect(byName).not.toContain("Sipho Mokoena");
+    const byEmail = membersOf(
+      text((await page(owner.cookie, `/team?find=${encodeURIComponent(sipho.email.split("@")[0] as string)}`)).html),
+    );
+    expect(byEmail).toContain("Sipho Mokoena");
+    expect(byEmail).not.toContain("José Petersen");
+    const none = text((await page(owner.cookie, "/team?find=nobody-like-this")).html);
+    expect(none).toContain("No one on the team matches.");
+    const tooLong = text((await page(owner.cookie, `/team?find=${"x".repeat(201)}`)).html);
+    expect(tooLong).toContain("That find is too long");
+    expect(tooLong).toContain("Sipho Mokoena");
+  });
+
+  it("keeps a hidden second owner counting while one is found", async () => {
+    const owner = await person("Owner One");
+    const orgId = await organisation(owner);
+    const second = await person("Owner Two");
+    await join(orgId, second, "owner");
+    const html = text((await page(owner.cookie, "/team?find=Owner One")).html);
+    expect(html).toContain("Owner One");
+    expect(html).not.toContain("You are the only owner");
+  });
+});
+
+describe("team history by person (D07 T04 §24)", () => {
+  it("filters by actor or target, pages through every match, and refuses a foreign person", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    await join(orgId, colleague, "member");
+    const other = await person("Other");
+    await join(orgId, other, "member");
+    const ev = (kind: string, actor: string, target: string, at: string, detail = "{}") =>
+      db
+        .prepare(
+          `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+           VALUES (?, ?, ?, 'changed', ?, ?, ?, ?, 'x', ?)`,
+        )
+        .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target, detail)
+        .run();
+    await ev("update-member-role", colleague.id, other.id, "2026-10-27T08:00:00.000Z");
+    await ev("update-member-role", owner.id, colleague.id, "2026-10-26T08:00:00.000Z");
+    await ev("remove-member", owner.id, other.id, "2026-10-25T08:00:00.000Z", JSON.stringify({ sessionsEnded: true }));
+    const html = text((await page(owner.cookie, `/team?person=${colleague.id}`)).html);
+    const section = html.slice(html.indexOf("Team history"));
+    expect(section).toContain("Role changed");
+    // Both matches are there (one as actor, one as target), each in the table and the cards, plus the action option.
+    expect(section.match(/Role changed/g)).toHaveLength(5);
+    const rows = section.slice(section.indexOf("When What"));
+    expect(rows).not.toContain("Member removed");
+    expect(rows).not.toContain("sessions ended");
+    // Over 100 matches page through all of them, in order, with no More at the end.
+    const stamps: ReturnType<typeof db.prepare>[] = [];
+    void stamps;
+    const inserts = Array.from({ length: 105 }, (_, i) =>
+      db
+        .prepare(
+          `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+           VALUES (?, ?, 'leave-organization', 'left', ?, ?, ?, ?, 'x', '{}')`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          new Date(Date.parse("2026-10-20T00:00:00.000Z") + i * 60_000).toISOString(),
+          orgId,
+          colleague.id,
+          colleague.id,
+          colleague.id,
+        ),
+    );
+    await db.batch(inserts);
+    const firstPage = await page(owner.cookie, `/team?person=${colleague.id}`);
+    const first = text(firstPage.html);
+    expect(first).toContain("More changes");
+    // Page one holds the two role changes and the newest 98 leaves; page two holds exactly the oldest 7 leaves.
+    // Each row is drawn twice, in the table and in the phone cards.
+    const historyOf = (h: string) => h.slice(h.indexOf("Team history"));
+    const rowsOf = (h: string) => historyOf(h).slice(historyOf(h).indexOf("When What"));
+    expect(rowsOf(first).match(/Member left/g)).toHaveLength(196);
+    const more = /href="([^"]*after=[^"]*)"/.exec(firstPage.html)?.[1] as string;
+    const secondPage = await page(owner.cookie, more.replaceAll("&amp;", "&"));
+    const second = text(secondPage.html);
+    expect(second).not.toContain("More changes");
+    expect(rowsOf(second).match(/Member left/g)).toHaveLength(14);
+    expect(rowsOf(second)).not.toContain("Role changed");
+    const foreign = text((await page(owner.cookie, "/team?person=someone-else")).html);
+    expect(foreign).toContain("Choose a person on this team.");
   });
 });

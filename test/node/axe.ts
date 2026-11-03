@@ -13,7 +13,21 @@ export const OPTIONS = {
 };
 
 // Results axe could not decide that a person has checked: rule, a selector fragment of the target, and why it holds.
-export const CHECKED_INCOMPLETE: { rule: string; target: string; reason: string }[] = [];
+export const CHECKED_INCOMPLETE: { rule: string; target: string; reason: string }[] = [
+  {
+    rule: "color-contrast",
+    target: "li:nth-child(7)",
+    reason:
+      "The provider steps' long last item (D07 T04 §11) is ink-2 on the surface in both themes, a token pair the design tokens test for AA contrast; axe cannot decide it inside the open disclosures.",
+  },
+  {
+    rule: "color-contrast",
+    target: "list-decimal",
+    // (the same item also reports under the bare target below when axe cannot make its selector unique)
+    reason:
+      "The provider steps' long last item (D07 T04 §11) is ink-2 on the surface in both themes, a token pair the design tokens test for AA contrast; axe cannot decide it inside the open disclosures.",
+  },
+];
 
 type Finding = {
   id: string;
