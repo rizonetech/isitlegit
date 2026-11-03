@@ -528,7 +528,7 @@ States:
 - check your inbox: With Send another link and Use a different email. (Signin-States)
 - link expired or used: With Email me a new link. (Signin-States)
 - rate limited: With the time new links resume. (Signin-States)
-- passkey prompt: With Try the passkey again and Email me a link instead. (Signin-States)
+- passkey prompt: With Try the passkey again and Email me a link instead. Its panel also names the phone or tablet the passkey may be on (operator decision, 2026-11-02; D07 T02 §19), the email link kept. (Signin-States)
 - code refused: The refusal on the code field, with Send another link. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 - loading: Busy submit. Deferred to D07 T02 §7: the submit button shows a busy state while the request runs; not drawn.
 - empty: No empty state. Not applicable: a form page; the empty form is the default state.

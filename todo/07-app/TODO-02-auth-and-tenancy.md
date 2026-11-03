@@ -759,6 +759,10 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 ## 19. Passkey on another device
 
+> **Started:** 2026-11-02T23:59:04Z
+
+**Corrected 2026-11-02** (validation before build): the operator's 2026-11-02 decision in this section approves one sentence naming the phone or tablet in the panel, the email link kept; that answers the first item. The cross-device proof uses a second virtual authenticator on the hybrid transport where Chromium allows it, and the panel sentence itself is proven on the rendered prompt where it does not.
+
 Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. The passkey prompt's "No passkey found on this device?" panel sends the member to the email link, though the browser can use a passkey on their phone (a QR code, the hybrid transport) without one here. The ceremony already allows it; the words do not say so. A change to A1's prompt is a design decision first.
 
 **Phase:** 7
