@@ -9,12 +9,9 @@
 // answer is `warming` at once, and Muse Spark takes the page (§1).
 
 import type { MailDeps, SendOutcome } from "../mail/smtp2go.ts";
-import { completionsUrl, fireworksHeaders, type GatewayEnv, isCompletion, oneTokenRequest } from "./glimmer-request.ts";
-
-export { completionsUrl, fireworksHeaders, isCompletion, oneTokenRequest };
-
 import { sendMail } from "../mail/smtp2go.ts";
 import { sastDay } from "../meta/day.ts";
+import type { AblateFlag } from "../pipeline/ablate.ts";
 import {
   DEPLOYED_MODEL,
   DEPLOYED_VERSION,
@@ -24,6 +21,9 @@ import {
   WARMUP_MARGIN_SECONDS,
 } from "./glimmer-caps.ts";
 import { burstMinutes, type Exec, findBurst, reserveBurst, settleBurst } from "./glimmer-minutes.ts";
+import { completionsUrl, fireworksHeaders, type GatewayEnv, isCompletion, oneTokenRequest } from "./glimmer-request.ts";
+
+export { completionsUrl, fireworksHeaders, isCompletion, oneTokenRequest };
 
 // Each request's own deadline once warm, and the backoff between cold-start answers: 5 seconds doubling, capped at 30.
 export const REQUEST_MS = 10_000;
@@ -52,6 +52,8 @@ export type WakeCtx = {
   // Keeps the notice's delivery alive after the answer is returned (a Workflow step's or a request's waitUntil), so
   // the page goes to Spark at once and never waits for the mail.
   waitUntil?: (promise: Promise<unknown>) => void;
+  // Eval ablation flag reader (D03 T02 §6): when it returns `"no-screening"`, Loupe is never woken or asked.
+  ablateFlag?: () => Promise<AblateFlag | null>;
 };
 
 export type Burst = { id: string; wakeAt: number; deadline: number };

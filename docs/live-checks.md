@@ -291,3 +291,45 @@ Executed and verified on 2026-11-03 15:39 to 15:43 UTC (17:39 to 17:43 SAST) on 
 2. Capture and screening (`monitor_hosts` and `monitor_screens`): Browser Rendering captured `https://fixtures.isitlegit.co.za/<prefix>/fynbos-lookalike/` under `capture_key` `monitor/ZF5SufztotybeXIWVncExFAVu9GYZ8Fu/fixtures.isitlegit.co.za/2026-11-03T15:39:41.554Z/`; Loupe (`screener: "glimmer"`, `has_login_form: 1`, `lure: 1`, `lure_type: "credential"`, `confidence: 0.7`, `screened_at: "2026-11-03T15:39:45.888Z"`, Glimmer burst settled `true`) flagged the page and Muse Spark second look confirmed it (`second_look: "confirmed"`, `second_look_lure: 1`, `second_look_type: "credential"`, `second_look_call_id: "bfa5ffa2-76e4-4261-9d12-4fd1fef22eae"`, `second_look_log_id: "01a1a213-68d1-738f-8720-5e0dd6850bc5"`).
 3. Full pipeline investigation (`monitor_investigations` and `cases`): case `01M6H174VVB61M88KE1KFFVQ6K` (`uploaded_by: "monitor"`, `verdict: "malicious"`, `status: "done"`) settled `state: "confirmed"` (`created_at: "2026-11-03T15:42:34.334Z"`, `updated_at: "2026-11-03T15:43:04.088Z"`) with `evidence_refs` `["E1","E2","E3","E4","E5","E6","E7","E8","E9"]` (`E1` `domain.lookalike` info, `E2` `link.credential_form` info, `E3` `vision.claimed_brand` info, `E4` `vision.requested_action` high, `E5` `vision.urgency` medium, `E6` `vision.logo_match` info, `E7` `walkthrough.chain` info, `E8` `walkthrough.credential_target` critical, and `E9` `walkthrough.canary_accepted` high after the contained Muse Wonder walkthrough submitted the minted canary pair to `/<prefix>/collect`), and `copyForTraining` stored `training/monitor/ZF5SufztotybeXIWVncExFAVu9GYZ8Fu/fixtures.isitlegit.co.za/2026-11-03T15:39:41.554Z/meta.json` (`label: "lure"`, `source: "pipeline"`).
 4. Finding, alert delivery, and Cloudflare Email Routing forwarding telemetry (`monitor_findings`, `mail_sends`, SMTP2GO activity, and Cloudflare Email Routing; the operator's protected destination mailbox `demo@rizonetech.com` / `derick@rizonetech.com` is not accessed per operator boundary): `monitor_findings` recorded `host: "fixtures.isitlegit.co.za"`, `status: "new"`, `outcome: "confirmed"`, `case_id: "01M6H174VVB61M88KE1KFFVQ6K"`, `alert_state: "sent"`, and `alerted_at: "2026-11-03T15:43:07.662Z"`; `mail_sends` row `01M6H1844BSP96AY43BKCC064Q` (`send_key: "monitor-finding:ZF5SufztotybeXIWVncExFAVu9GYZ8Fu:fixtures.isitlegit.co.za"`, `kind: "alert"`, `status: "sent"`, `provider_id: "1xOGfD-4o5NDgrkNgf-e7aT"`, `attempts: 1`, `created_at: "2026-11-03T15:43:06.379Z"`, `updated_at: "2026-11-03T15:43:07.645Z"`) was confirmed by SMTP2GO `activity/search` (`email_id: "1xOGfD-4o5NDgrkNgf-e7aT"`, `processed: "2026-11-03T15:43:07Z"`, `delivered: "2026-11-03T15:43:16Z"`, `smtp_response: "250 2.0.0 Ok"`, `from: "alerts@isitlegit.co.za"`, `to: "alerts@demo.isitlegit.co.za"`, `subject: "Impersonation found: fixtures.isitlegit.co.za"`) and Cloudflare Email Routing GraphQL `emailRoutingAdaptive` (`datetime: "2026-11-03T15:43:10Z"`, `action: "forward"`, `status: "delivered"`, `isNDR: 0`, `sessionId: "0DsMUf4weHSo"`, `from: "alerts@isitlegit.co.za"`, `to: "alerts@demo.isitlegit.co.za"`, `subject: "Impersonation found: fixtures.isitlegit.co.za"`, arriving `internetMessageId`: `<E1xOGfD-4o5NDgrkNgf-e7aT@message-id.smtpcorp.com>`).
+
+## Judge demo organisation and live sample cases (D07 T07 §2, 2026-11-03)
+
+Executed and verified on 2026-11-03 21:08 to 21:41 UTC (23:08 to 23:41 SAST) against deployed commit `b86b6957d0dfd65040611b01d2221c6475813584` (`GET https://app.isitlegit.co.za/health` -> `200 {"ok":true,"commit":"b86b6957d0dfd65040611b01d2221c6475813584"}`):
+
+1. **Judging window and invite code expiry:** The Meta Global AI Developer Hackathon submission deadline is Wed 4 Nov 2026, live finals are Mon 9 Nov 2026, and community/bonus winner announcements run through Mon 16 Nov 2026 (`docs/hackathon-criteria.md`). A 30-day expiry (`2026-12-03T21:08:55.546Z`) was chosen so the code remains valid well past the entire judging and review window.
+2. **Vault item and production `invite_codes` read-back (code never printed):** The judge invite code was stored in the `Conclave` 1Password vault as item `"IsItLegit judge invite code"` (verified read-back, length 19) and inserted into production D1 `invite_codes`:
+   - `id`: `a2c35ce2-9736-43db-a45c-16f0258a976c`
+   - `tag` (`substr(code_hash, 1, 8)`): `ba00e951`
+   - `label`: `meta-hackathon-2026`
+   - `max_uses`: `50`
+   - `uses`: `0` (reset to `0` after the verification redemption so all 50 redemptions remain available for judges)
+   - `expires_at`: `2026-12-03T21:08:55.546Z`
+   - `revoked_at`: `null`
+   - `created_at`: `2026-11-03T21:08:55.546Z`
+3. **Production judge organisation read-back:** Redeeming the code via `POST https://app.isitlegit.co.za/api/auth/sign-up/invite-code` as `owner@demo.isitlegit.co.za` (`201 Created`, `{"registered":true,"linkSent":true}`) created and marked the judge demo organisation in production D1:
+   - `id`: `Op0nz0NEUvLs35cZdxxWqGiZ5EuPwGSP`
+   - `name`: `Meta Hackathon Judges`
+   - `slug`: `org-d211b4f5-cf36-404d-8692-8acd6390ecef`
+   - `metadata`: `{"demo":true,"judgeDemo":true}`
+   - `createdAt`: `2026-11-03T21:14:56.721Z`
+4. **Fixture-to-case mapping and live pipeline execution:** All five synthetic fixtures in `data/demo/judge/` (`fixtures.json`) were submitted through the live pipeline for `Op0nz0NEUvLs35cZdxxWqGiZ5EuPwGSP` and completed with `status = 'done'` and their expected verdicts:
+
+| Fixture (`data/demo/judge/`) | File | Case ID | Status | Verdict | Headline |
+| --- | --- | --- | --- | --- | --- |
+| `walkthrough-phishing` | `walkthrough-phishing.eml` | `01M6HM8Q1MMT5V7H1SHWHT5GKT` | `done` | `malicious` | Credential-harvesting phish impersonating Karoo Mutual Bank |
+| `tampered-invoice` | `tampered-invoice.eml` | `01M6HM8X2Q0B8YF54RNMGXMB1K` | `done` | `suspicious` | Payment to changed banking details requested |
+| `fynbos-impersonation` | `fynbos-impersonation.eml` | `01M6HM92CPWPFTAJQATY4YRGS8` | `done` | `suspicious` | Unverified request to change Fynbos Freight banking details |
+| `genuine-supplier` | `genuine-supplier.eml` | `01M6HM984ZZMCZBMQN53EB9P9Z` | `done` | `safe` | No warning signs were found, but some checks could not run |
+| `director-voice-note` | `director-voice-note.ogg` | `01M6HM9DST3ATPMD7KQP14YM43` | `done` | `suspicious` | Urgent secret payment request into new account claiming to be director |
+
+5. **`--check-judges --remote` output (exit 0):**
+   ```text
+   $ node scripts/seed-demo.ts --remote --check-judges --org Op0nz0NEUvLs35cZdxxWqGiZ5EuPwGSP
+   seed-demo: target production (remote bindings), read only
+   walkthrough-phishing: done, verdict malicious, case 01M6HM8Q1MMT5V7H1SHWHT5GKT
+   tampered-invoice: done, verdict suspicious, case 01M6HM8X2Q0B8YF54RNMGXMB1K
+   fynbos-impersonation: done, verdict suspicious, case 01M6HM92CPWPFTAJQATY4YRGS8
+   genuine-supplier: done, verdict safe, case 01M6HM984ZZMCZBMQN53EB9P9Z
+   director-voice-note: done, verdict suspicious, case 01M6HM9DST3ATPMD7KQP14YM43
+   ```
+6. **Judge account opening `/cases` and all five reports:** Signed in as `owner@demo.isitlegit.co.za` (`POST https://app.isitlegit.co.za/signin/confirm` -> `303 https://app.isitlegit.co.za/cases`), `GET https://app.isitlegit.co.za/cases` answered `200 OK` containing all five case IDs, and `GET https://app.isitlegit.co.za/r/01M6HM8Q1MMT5V7H1SHWHT5GKT`, `/r/01M6HM8X2Q0B8YF54RNMGXMB1K`, `/r/01M6HM92CPWPFTAJQATY4YRGS8`, `/r/01M6HM984ZZMCZBMQN53EB9P9Z`, and `/r/01M6HM9DST3ATPMD7KQP14YM43` each answered `200 OK` (`<title>Report · IsItLegit</title>`).

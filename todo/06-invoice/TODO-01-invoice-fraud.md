@@ -36,7 +36,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [x] |
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
-| 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
+| 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [x] |
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Synthetic invoices in genuine and | §1 | [x] |
 | 6 | §6 | Mark invoices verified, with undo | §3, §4, D05 T03 §1 | [ ] |
@@ -134,7 +134,7 @@ Rules (spec 4.5): bank details differ from the ledger or the registered account,
 
 - [x] Register `invoice.bank_changed` (critical) when the extracted account does not match the ledger or registry for that supplier. Done when: `test/invoice/rules.test.ts` passes for the pair. Done 2026-11-02: `invoiceRules` in `src/invoice/rules.ts`, run at the end of the invoice step; proven in `test/invoice/rules.test.ts` on the genuine and tampered pair against both baselines.
 - [x] Register `invoice.supplier_domain_changed` (critical) and `invoice.change_language` (critical; phrases such as "new banking details", "changed banks", "updated account", also in Afrikaans "nuwe bankbesonderhede") (plan review gap 1: spec 4.5 line 168 makes all three rules critical with the fixed instruction; the section's `high` was wrong). Done when: fixtures yield each, each with an unchanged account among them. Done 2026-11-02 in `src/invoice/rules.ts`; proven in `test/invoice/rules.test.ts`, English and Afrikaans phrases included.
-- [ ] Attach the fixed action (`bankChangeAction(phone)` from `src/invoice/fixed-actions.ts`, D07 T03 §2) to every critical invoice item and to the verdict's actions, with the ledger phone number when present. Done when: the reply for the tampered fixture contains the action and `fixedActionOf` names it `bank-change`.
+- [x] Attach the fixed action (`bankChangeAction(phone)` from `src/invoice/fixed-actions.ts`, D07 T03 §2) to every critical invoice item and to the verdict's actions, with the ledger phone number when present. Done when: the reply for the tampered fixture contains the action and `fixedActionOf` names it `bank-change`. Done 2026-11-03: `invoiceRules` carries the ledger phone on each critical item, `fixedActionsFor` in `src/agent/loop.ts` turns every critical `invoice.*` item into `bankChangeAction(phone)` (`fixedActionOf` naming it `bank-change`), and `test/invoice/rules.test.ts` proves the reply for the tampered fixture contains the action.
 - [x] Carry the closed-loop trigger (correction 3): when the supplier is a protected identity with a registry no-match, the critical item's detail carries `protected_org_id` and `registry_match: false`, which D05 T03 §1 starts the verification request from. Done when: `test/invoice/rules.test.ts` shows the trigger on the protected fixture and its absence on the genuine twin. Done 2026-11-02; proven in the registry test.
 - [x] Apply the bank-change rules only for organisations with `bank-change` (`hasFeature`, D07 T02 §8); the free check's verdict is unchanged. Done when: an expired organisation's invoice gets no bank-change finding, an entitled one's does, and removing the check fails the test. Source: D07 T02 §8 plan review. Done 2026-11-02: `hasFeature` gates the pass in `src/invoice/rules.ts`; proven in `test/invoice/rules.test.ts` (an entitled organisation yields the finding, the same organisation aged past its trial yields none).
 - [x] Gate each comparison on its own inputs (gap 2): the account comparison runs per document on its sealed account; the domain and language rules run wherever their inputs exist, including an invoice with no usable account and a case whose other attachment failed extraction. Done when: `test/invoice/rules.test.ts` shows an incomplete-account invoice still yielding the domain and language items, and a changed-bank invoice beside an unreadable attachment still yielding its critical item. Done 2026-11-02; the incomplete-account case is proven in the rules test, and per-document gating is the pass's structure (each reading judged alone).
@@ -143,9 +143,12 @@ Rules (spec 4.5): bank details differ from the ledger or the registered account,
 - [x] Write the rules' evidence with the extraction's, never over it (gap 5): the rules pass appends its items to the producer's existing items in one `addEvidence` list, so extraction and rule evidence coexist after read-back and after a retry, with no duplicates. Done when: the rules test reads back both kinds after a replay. Done 2026-11-02: the rules items join the step's single producer write; proven in `test/invoice/step.test.ts` (detected and bank_changed read back together).
 - [x] Prove the chain through the Workflow (gap 6): an attached tampered invoice in the Workflow test yields the critical item persisted before the verdict, the deterministic floor caps the verdict, and the fixed action with the ledger phone (never a phone from the message) reaches the verdict's actions through `fixedActionsFor`, with the missing-phone fallback. Done when: `test/pipeline/analysis-workflow.test.ts` and the agent's fixed-action test fail if the rules wiring or the trigger is removed.
 - [x] Make the fixtures inside this section (gap 7): a minimal synthetic genuine and tampered pair and a protected-supplier fixture in the rules test itself (the §5 set, when it lands, widens them). Done when: the rules test builds its pair in code with fictional suppliers only. Done 2026-11-02 in `test/invoice/rules.test.ts` (fictional Karoo Parts and Hadeda Couriers).
-- [ ] Commit: `invoice: bank-change rules with the fixed action`
+- [x] Commit: `invoice: bank-change rules with the fixed action`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/rules.test.ts` passes and fails if a matching account is flagged.
+
+> **Verified:** 2026-11-03 | §3 | 6680bc23bd0385fdca743a50bd5d423f609c082f
+> **Review:** `docs/reviews/d06-t01-s3.json`
 
 ## 4. Supplier ledger page and CSV import
 

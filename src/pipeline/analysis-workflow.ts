@@ -479,6 +479,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               kv: this.env.CACHE,
               waitUntil: (p) => void p.catch(() => {}),
               policy: (raw) => allowedUrl(raw, dohResolve()),
+              ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
             },
             caseId,
           ),

@@ -307,8 +307,8 @@ Sections: 108 | Checklist items: 680
 | [x]    | D04 T01 §5  | Citation validator with fallback             | none                  | 5     |
 | [x]    | D04 T01 §9  | Impersonation family in rule verdict         | none                  | 3     |
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
-| [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
-| [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
+| [x]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
+| [x]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks           | cloudflare            | 9     |
@@ -346,7 +346,7 @@ Sections: 108 | Checklist items: 680
 | [x]    | D07 T06 §18 | Public repository and advisory read-back     | none                  | 2     |
 | [x]    | D07 T06 §21 | Drop the 3 November repository note          | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                    | cloudflare            | 8     |
-| [ ]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
+| [x]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
 | [x]    | D07 T08 §1  | App and site error pages                     | none                  | 5     |
 | [x]    | D07 T08 §2  | First-run onboarding checklist               | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys                | none                  | 7     |
@@ -498,7 +498,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
 | [x]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
-| [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
+| [x]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business               | none                 | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                           | none                 | 4     |
@@ -513,7 +513,7 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 5     |
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
-| [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
+| [x]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 402/597 verified sections, 119 ready to run now.
+Progress: 407/597 verified sections, 119 ready to run now.
 
-Checklist: 2998/3688 items completed (includes Commit items).
+Checklist: 3016/3688 items completed (includes Commit items).

@@ -10,6 +10,7 @@ import { brandTableRead, registrable } from "../checks/brands";
 import { ulid } from "../db/ulid";
 import { FIXTURES_HOST, fixturesResponse } from "../fixtures/redirects";
 import { d1Budget } from "../meta/budget";
+import { ablateFlagFor } from "../pipeline/ablate";
 import { DETECTOR, groundLogos } from "../vision/detector";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
 import { type Burst, REQUEST_MS, settleGlimmer } from "../vision/glimmer-wake";
@@ -132,7 +133,15 @@ export function monitorDeps(
 ): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
   const { sparkFetch, browserLaunch, ...loupe } = opts;
-  const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...loupe });
+  const wakeCtx = (calls: number, orgId?: string) => ({
+    env,
+    ledger,
+    burstId: runId,
+    calls,
+    callSeconds: CALL_SECONDS,
+    ...(env.CACHE && orgId ? { ablateFlag: () => ablateFlagFor(env.CACHE, orgId) } : {}),
+    ...loupe,
+  });
   // Spark's context (D03 T01): the budget over D1, and its record writes held until the step's end, as a Workflow step
   // has no request to keep them alive.
   const pending: Promise<unknown>[] = [];
@@ -165,7 +174,7 @@ export function monitorDeps(
       ),
     // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
     // settles it again to the same cutoff.
-    open: (calls) => openGlimmer(wakeCtx(calls)),
+    open: (calls, orgId) => openGlimmer(wakeCtx(calls, orgId)),
     close: (session) => closeGlimmer(session),
     screen: (page, session, run) => screenPage(page, session, spark, run),
     second: (page, run) => secondLook(page, run, spark),
