@@ -91,7 +91,7 @@ OBS Studio at 1080p with Derick's voice on a separate track, following `docs/dem
 
 1. Record each beat. Done when: the raw files exist and are listed here.
 
-- [ ] Record the beats from `docs/demo-script.md`, including the uncut forward-to-reply take and the opening built-from-scratch claim ("From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon"). Done when: a line `Footage recorded: YYYY-MM-DD` is written here.
+- [ ] Record the beats from `docs/demo-script.md`, including: (1) the PIP operator intro on the abstract animated background and the opening built-from-scratch claim ("From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon"), (2) the cohesive stakes sequence (SABRIC R2.41 bn -> Hawarden v ENS [2024] ZASCA 90 R5.5m ruling -> 533 caught client phishing emails + 10.8% to 18.8% industry miss rate = ~65 to 123 emails/month or 2 to 4 per day slipping through), (3) the uncut forward-to-verdict take with `?clock=1` and `#model-trace` (`?trace=1`) open showing `muse-spark-1.3`, `muse-wonder-1.0` walkthrough actions, `sam-3.1` side-by-side logo comparison, and `muse-voice-transcribe-1.0`, (4) live Playwright captures of `/monitor`, `/v/fynbos-freight`, `/b/fynbos-freight.png`, and `/s/fynbos-freight` replacing all yellow `PLACEHOLDER` boards, and (5) the live `/eval` ablation chart and Loupe model card (`huggingface.co/rizonetech/isitlegit-loupe`). Done when: a line `Footage recorded: YYYY-MM-DD` is written here.
 - [ ] Commit: `todo: record demo footage done`
 
 **Test checkpoint:** `grep -cE '^Footage recorded: 2026-' todo/99-manual/TODO-02-event-operator.md` prints `1`.
@@ -108,7 +108,7 @@ DaVinci Resolve assembly with the Remotion assets (D09 T02 §4), captions from M
 
 1. Edit, caption and upload. Done when: the YouTube link plays logged out and is in the README.
 
-- [ ] Assemble and export at 1080p, 3:00 or shorter, verifying the opening built-from-scratch claim ("From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon") and the live `#model-trace` (`?trace=1`) view are both present. Done when: the file's duration is 180 seconds or less.
+- [ ] Assemble and export at 1080p, 3:00 or shorter, verifying the PIP intro on the abstract animated background, the opening built-from-scratch claim ("From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon"), the SABRIC -> Hawarden v ENS -> 533 caught / ~65 to 123 missed stakes flow, the live `#model-trace` (`?trace=1`) and `?clock=1` views, zero `PLACEHOLDER` boards in Scene 5, and the live `/eval` ablation chart + Loupe Hugging Face card in Scene 7 and Scene 8. Done when: the file's duration is 180 seconds or less.
 - [ ] Upload to YouTube and record `Video: https://www.youtube.com/watch?v=<id>` here; Claude adds it to the README. Done when: the line is written and the link plays logged out.
 - [ ] Commit: `todo: record the demo video link`
 
