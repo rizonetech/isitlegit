@@ -180,7 +180,11 @@ export function proofSatisfied(
 }
 
 export type Api = (path: string, init?: RequestInit) => Promise<Response>;
-export type D1Query = (sql: string, params: string[]) => Promise<Record<string, string | number | null>[]>;
+export type D1Query = (
+  sql: string,
+  params: string[],
+  signal?: AbortSignal,
+) => Promise<Record<string, string | number | null>[]>;
 
 export type RunnerDeps = {
   account: string;
@@ -227,6 +231,17 @@ class DeadlineExceededError extends Error {
   }
 }
 
+function isTimeoutOrAbortError(err: unknown): boolean {
+  if (err instanceof DeadlineExceededError) return true;
+  if (!err || typeof err !== "object") return false;
+  const name = (err as { name?: unknown }).name;
+  return name === "DeadlineExceededError" || name === "TimeoutError" || name === "AbortError";
+}
+
+function isTerminalWorkflowStatus(status: string): boolean {
+  return status === "complete" || status === "errored" || status === "terminated";
+}
+
 async function callWithDeadline<T>(
   work: (signal: AbortSignal) => Promise<T>,
   deadlineMs: number,
@@ -247,7 +262,7 @@ async function callWithDeadline<T>(
   try {
     return await Promise.race([work(controller.signal), timeoutPromise]);
   } catch (err) {
-    if (err instanceof DeadlineExceededError || controller.signal.aborted) {
+    if (isTimeoutOrAbortError(err) || controller.signal.aborted) {
       throw new DeadlineExceededError();
     }
     throw err;
@@ -260,7 +275,7 @@ async function readJsonWithDeadline<T>(res: Response, deadlineMs: number, clock:
   try {
     return await callWithDeadline(() => res.json() as Promise<T>, deadlineMs, clock);
   } catch (err) {
-    if (err instanceof DeadlineExceededError) throw err;
+    if (isTimeoutOrAbortError(err)) throw new DeadlineExceededError();
     return null;
   }
 }
@@ -279,7 +294,8 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
   let instanceId: string | undefined;
   let status = "";
 
-  const query = (sql: string, params: string[]) => callWithDeadline(() => deps.query(sql, params), deadlineMs, clock);
+  const query = (sql: string, params: string[]) =>
+    callWithDeadline((signal) => deps.query(sql, params, signal), deadlineMs, clock);
   const api = (path: string, init?: RequestInit) =>
     callWithDeadline((signal) => deps.api(path, { ...init, signal }), deadlineMs, clock);
 
@@ -328,54 +344,116 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
     if (String(seedBack[0]?.path ?? "") !== FIXTURE_PATH) {
       return { exitCode: 1, reason: "seed-readback-failed", orgId };
     }
-    // Ensure the fixture host is due for capture in this execution even if an earlier run today observed it.
-    await query("UPDATE monitor_hosts SET captured_dns_hash = NULL WHERE org_id = ? AND domain = ?", [
-      orgId,
-      FIXTURE_HOST,
-    ]);
 
-    // 3. Create or join today's Workflow instance; if an instance for today already finished before this run,
-    // start a fresh correlated instance with a unique runId suffix.
+    // 3. Create or join today's Workflow instance. Because `monitor_runs.finished_at` is written at the end of Step 1
+    // (`run`) before Step 2 (`pipeline`) and Step 3 (`findings`), check the Workflow instance's own status before
+    // deciding whether an earlier same-day run is still active or terminal.
     const day = new Date(startedAtDate.getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
-    const priorRuns = await query("SELECT finished_at FROM monitor_runs WHERE org_id = ? AND day = ?", [orgId, day]);
-    const priorFinishedAt = priorRuns[0]?.finished_at ? String(priorRuns[0].finished_at) : null;
-    instanceId =
-      priorFinishedAt && priorFinishedAt <= startedAt
-        ? instanceIdFor(orgId, day, startedAtDate.getTime().toString(36))
-        : instanceIdFor(orgId, day);
-    let pollId = instanceId;
-    const createFirst = await api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
-      method: "POST",
-      body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
-    });
-    if (!createFirst.ok && createFirst.status !== 409) {
-      return { exitCode: 1, reason: `workflow-create-${createFirst.status}`, orgId, instanceId };
-    }
-    if (createFirst.ok) {
-      const createdBody = await readJsonWithDeadline<{ result?: { id?: string } }>(createFirst, deadlineMs, clock);
-      if (createdBody?.result?.id) pollId = createdBody.result.id;
-    } else if (createFirst.status === 409) {
-      const statusRes = await api(
-        `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(instanceId)}`,
+    const priorRuns = await query(
+      "SELECT run_id, started_at, finished_at FROM monitor_runs WHERE org_id = ? AND day = ?",
+      [orgId, day],
+    );
+    const priorRunId = priorRuns[0]?.run_id ? String(priorRuns[0].run_id) : null;
+    const priorStartedAt = priorRuns[0]?.started_at ? String(priorRuns[0].started_at) : null;
+    let correlationStart = startedAt;
+    let pollId = "";
+    let joinedActiveInstance = false;
+
+    if (priorRunId) {
+      const priorStatusRes = await api(
+        `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(priorRunId)}`,
       );
-      const existingStatus = statusRes.ok
-        ? parseWorkflowStatus(await readJsonWithDeadline(statusRes, deadlineMs, clock))
-        : "";
-      if (existingStatus === "complete" || existingStatus === "errored" || existingStatus === "terminated") {
-        const suffix = startedAtDate.getTime().toString(36);
-        instanceId = instanceIdFor(orgId, day, suffix);
-        pollId = instanceId;
-        const createCorrelated = await api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
-          method: "POST",
-          body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
-        });
-        if (!createCorrelated.ok) {
-          return { exitCode: 1, reason: `workflow-create-${createCorrelated.status}`, orgId, instanceId };
+      if (priorStatusRes.ok) {
+        const priorStatusBody = await readJsonWithDeadline<{
+          result?: {
+            id?: string;
+            status?: string;
+            start?: string | null;
+            end?: string | null;
+            success?: boolean | null;
+          };
+        }>(priorStatusRes, deadlineMs, clock);
+        const priorWorkflowStatus = parseWorkflowStatus(priorStatusBody);
+        if (priorWorkflowStatus && !isTerminalWorkflowStatus(priorWorkflowStatus)) {
+          instanceId = priorRunId;
+          pollId = priorStatusBody?.result?.id || priorRunId;
+          correlationStart =
+            priorStartedAt ??
+            (typeof priorStatusBody?.result?.start === "string" && priorStatusBody.result.start
+              ? priorStatusBody.result.start
+              : startedAt);
+          joinedActiveInstance = true;
+        } else if (isTerminalWorkflowStatus(priorWorkflowStatus)) {
+          instanceId = instanceIdFor(orgId, day, startedAtDate.getTime().toString(36));
         }
-        const corrBody = await readJsonWithDeadline<{ result?: { id?: string } }>(createCorrelated, deadlineMs, clock);
-        if (corrBody?.result?.id) pollId = corrBody.result.id;
       }
     }
+
+    if (!joinedActiveInstance) {
+      // Ensure the fixture host is due for capture in this new execution even if an earlier terminal run today observed it.
+      await query("UPDATE monitor_hosts SET captured_dns_hash = NULL WHERE org_id = ? AND domain = ?", [
+        orgId,
+        FIXTURE_HOST,
+      ]);
+      if (!instanceId) {
+        instanceId = instanceIdFor(orgId, day);
+      }
+      pollId = instanceId;
+      const createFirst = await api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
+        method: "POST",
+        body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
+      });
+      if (!createFirst.ok && createFirst.status !== 409) {
+        return { exitCode: 1, reason: `workflow-create-${createFirst.status}`, orgId, instanceId };
+      }
+      if (createFirst.ok) {
+        const createdBody = await readJsonWithDeadline<{ result?: { id?: string } }>(createFirst, deadlineMs, clock);
+        if (createdBody?.result?.id) pollId = createdBody.result.id;
+      } else if (createFirst.status === 409) {
+        const statusRes = await api(
+          `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(instanceId)}`,
+        );
+        const statusBody = statusRes.ok
+          ? await readJsonWithDeadline<{
+              result?: {
+                id?: string;
+                status?: string;
+                start?: string | null;
+                end?: string | null;
+                success?: boolean | null;
+              };
+            }>(statusRes, deadlineMs, clock)
+          : null;
+        const existingStatus = parseWorkflowStatus(statusBody);
+        if (isTerminalWorkflowStatus(existingStatus)) {
+          const suffix = startedAtDate.getTime().toString(36);
+          instanceId = instanceIdFor(orgId, day, suffix);
+          pollId = instanceId;
+          const createCorrelated = await api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
+            method: "POST",
+            body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
+          });
+          if (!createCorrelated.ok) {
+            return { exitCode: 1, reason: `workflow-create-${createCorrelated.status}`, orgId, instanceId };
+          }
+          const corrBody = await readJsonWithDeadline<{ result?: { id?: string } }>(
+            createCorrelated,
+            deadlineMs,
+            clock,
+          );
+          if (corrBody?.result?.id) pollId = corrBody.result.id;
+        } else {
+          if (statusBody?.result?.id) pollId = statusBody.result.id;
+          correlationStart =
+            priorStartedAt ??
+            (typeof statusBody?.result?.start === "string" && statusBody.result.start
+              ? statusBody.result.start
+              : startedAt);
+        }
+      }
+    }
+    const activeInstanceId = instanceId ?? instanceIdFor(orgId, day);
+    instanceId = activeInstanceId;
 
     // 4. Poll with bounded timeout.
     while (clock().getTime() < deadlineMs) {
@@ -397,7 +475,7 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
       return { exitCode: 2, reason: `timeout:${status || "unknown"}`, orgId, instanceId };
     }
 
-    // 5. Read back the run, capture, investigation, finding, and mail send, correlated to startedAt.
+    // 5. Read back the run, capture, investigation, finding, and mail send, correlated to correlationStart.
     const runs = await query("SELECT run_id, outcome, finished_at FROM monitor_runs WHERE org_id = ? AND day = ?", [
       orgId,
       day,
@@ -463,7 +541,7 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
           }
         : null,
     };
-    const verified = proofSatisfied(proof, startedAt);
+    const verified = proofSatisfied(proof, correlationStart);
     if (!verified.ok) {
       return {
         exitCode: 1,
@@ -486,7 +564,7 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
       alertRecipient: eligibility.alertRecipient,
     };
   } catch (err) {
-    if (err instanceof DeadlineExceededError) {
+    if (isTimeoutOrAbortError(err)) {
       return {
         exitCode: 2,
         reason: `timeout:${status || "unknown"}`,
@@ -582,10 +660,11 @@ async function main(): Promise<void> {
       headers: { authorization: `Bearer ${auth.token}`, "content-type": "application/json", ...(init?.headers ?? {}) },
     });
   };
-  const query: D1Query = async (sql, params) => {
+  const query: D1Query = async (sql, params, signal) => {
     const res = await api(`/accounts/${auth.account}/d1/database/${auth.dbId}/query`, {
       method: "POST",
       body: JSON.stringify({ sql, params }),
+      ...(signal ? { signal } : {}),
     });
     if (!res.ok) throw new Error(`D1 query answered ${res.status}`);
     const body = await readJsonWithDeadline<{ result?: { results?: Record<string, string | number | null>[] }[] }>(

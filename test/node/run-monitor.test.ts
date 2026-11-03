@@ -381,5 +381,69 @@ describe("run-monitor mechanics", () => {
     );
     expect(stalledBody.exitCode).toBe(2);
     expect(stalledBody.reason).toBe("timeout:unknown");
+
+    // 6. Native DOMException TimeoutError from a stalled D1 query converts cleanly to exit 2.
+    const nativeQueryTimeout = await executeMonitorRun(
+      {
+        account: "acc-1",
+        query: async () => {
+          throw new DOMException("The operation was aborted due to timeout", "TimeoutError");
+        },
+        api: async () => Response.json({}),
+      },
+      { orgArg: "demo-fynbos", waitSeconds: 10 },
+    );
+    expect(nativeQueryTimeout.exitCode).toBe(2);
+    expect(nativeQueryTimeout.reason).toBe("timeout:unknown");
+
+    // 7. When `monitor_runs.finished_at` is set after Step 1 (`run`) while the Workflow instance is still `"running"`
+    // in Step 2 (`pipeline`), the runner joins the active instance instead of starting an overlapping suffixed instance.
+    let activeChecks = 0;
+    let postCalls = 0;
+    let dnsResetCalls = 0;
+    const joinedOutcome = await executeMonitorRun(
+      {
+        account: "acc-1",
+        now: () => new Date("2026-11-03T10:01:00.000Z"),
+        sleep: async () => {},
+        pollIntervalMs: 10,
+        query: async (sql) => {
+          if (sql.includes("UPDATE monitor_hosts SET captured_dns_hash = NULL")) {
+            dnsResetCalls++;
+            return [];
+          }
+          if (sql.includes("FROM monitor_runs")) {
+            return [
+              {
+                run_id: `monitor-${FYNBOS_ORG_ID}-2026-11-03`,
+                started_at: "2026-11-03T10:00:00.000Z",
+                outcome: "completed",
+                finished_at: "2026-11-03T10:00:25.000Z",
+              },
+            ];
+          }
+          return baseQuery(sql);
+        },
+        api: async (_path, init) => {
+          if (init?.method === "POST") {
+            postCalls++;
+            return Response.json({ result: { id: "unexpected" } });
+          }
+          activeChecks++;
+          return Response.json({
+            result: {
+              id: `monitor-${FYNBOS_ORG_ID}-2026-11-03`,
+              status: activeChecks === 1 ? "running" : "complete",
+              start: "2026-11-03T10:00:00.000Z",
+            },
+          });
+        },
+      },
+      { orgArg: "demo-fynbos", waitSeconds: 60 },
+    );
+    expect(joinedOutcome.exitCode).toBe(0);
+    expect(joinedOutcome.instanceId).toBe(`monitor-${FYNBOS_ORG_ID}-2026-11-03`);
+    expect(postCalls).toBe(0);
+    expect(dnsResetCalls).toBe(0);
   });
 });
