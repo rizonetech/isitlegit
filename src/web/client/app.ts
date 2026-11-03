@@ -1785,6 +1785,8 @@ function passkeyEnded(reason: string): void {
   promptShown(false);
   const line = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-message]");
   if (line) line.textContent = reason;
+  const help = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-help]");
+  if (help) help.hidden = !reason;
   const request = document.querySelector<HTMLButtonElement>('form[action="/signin/link"] button[type=submit]');
   const heading = passkeyOption()?.closest("section")?.querySelector<HTMLElement>("h1");
   if (heading) heading.tabIndex = -1;
@@ -1802,6 +1804,8 @@ async function passkeySignIn(): Promise<void> {
   ceremony = own;
   const live = () => ceremony === own;
   passkeyBusy(true);
+  const staleHelp = option.querySelector<HTMLElement>("[data-passkey-help]");
+  if (staleHelp) staleHelp.hidden = true;
   promptShown(true);
   try {
     for (let renewed = false; ; renewed = true) {

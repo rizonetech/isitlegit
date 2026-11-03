@@ -66,6 +66,38 @@ describe("the passkey prompt and its recoveries", () => {
     await context.close();
   });
 
+  it("names each stuck cause with its fix in the panel, and keeps them after a cancelled ceremony (D07 T02 s28)", async () => {
+    const causes = [
+      "Your phone has no screen lock: set up a PIN, fingerprint or face lock, then try again.",
+      "Your browser is older and cannot use a phone passkey: update it, or sign in with an email link.",
+      "Bluetooth is off: turn it on on this device and on your phone, then try again.",
+    ];
+    const { p, context } = await signinWith("/signin", { width: 360 });
+    stub.optionsDelayMs = 600;
+    await press(p);
+    for (const theme of ["light", "dark"] as const) {
+      await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      const text = (await p.textContent("[data-passkey-prompt]"))?.replace(/\s+/g, " ") ?? "";
+      for (const cause of causes) expect(text, theme).toContain(cause);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(360);
+    }
+    stub.optionsDelayMs = 0;
+    await context.close();
+    // Cancelled (no passkey answers): the note stays on the sign-in page, and the email recovery works by keyboard.
+    const cancelled = await signinWith("/signin", { none: true, width: 360 });
+    await press(cancelled.p);
+    await expect.poll(() => message(cancelled.p)).toContain("No passkey was used");
+    expect(await cancelled.p.locator("[data-passkey-help]").isVisible()).toBe(true);
+    const help = (await cancelled.p.textContent("[data-passkey-help]"))?.replace(/\s+/g, " ") ?? "";
+    for (const cause of causes) expect(help).toContain(cause);
+    await cancelled.p.getByLabel("Work email").fill("m@k.example");
+    await cancelled.p.getByRole("button", { name: "Email me a sign-in link" }).focus();
+    await cancelled.p.keyboard.press("Enter");
+    await cancelled.p.waitForURL(`${h.site}/signin/link`);
+    expect(stub.links).toBe(1);
+    await cancelled.context.close();
+  });
+
   it("shows the prompt with focus on its heading and the button busy, then lands on the return path", async () => {
     const { p, context } = await signinWith("/signin");
     stub.optionsDelayMs = 600;
