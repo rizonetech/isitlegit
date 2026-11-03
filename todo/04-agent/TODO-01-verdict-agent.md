@@ -52,6 +52,7 @@ track: day-6
 | 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
+| 16 | §16 | Message-specific consequence sentences | §2 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -480,6 +481,27 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3)
 
 > **Verified:** 2026-11-03 | §15 | 8cc033b3ead34dcb30340c5fec068d99ebda5dd4
 > **Review:** `docs/reviews/d04-t01-s15.json`
+
+## 16. Message-specific consequence sentences
+
+Filed 2026-11-03 from the coordinator's filing request (app lane, D07 T03 §10's completion review): `ruleVerdict`'s `meaning` in `src/agent/rule-verdict.ts` is one fixed sentence per verdict, so a floored credential-theft case and a floored payment-diversion case read alike. The consequence sentence should name what this message would do, from the case's own evidence, still deterministic and still inside the stored verdict's existing shape.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Name the consequence from the floor's own evidence. Done when: each floor rule's raising evidence maps to one consequence sentence, chosen by code.
+
+- [ ] Add a consequence map in `src/agent/rule-verdict.ts` keyed by the floor evidence that raised the verdict (the credential-form, bank-change, malware and lookalike families `floorFor` in `src/agent/floor.ts` already classifies), each value one plain sentence of at most 300 characters naming the harm that acting on the message would do ("the sign-in page would take the password it asks for", "the payment would go to bank details that differ from the supplier's record"), never a value from the message itself. Done when: `test/agent/rule-verdict.test.ts` shows a credential-floored case and a bank-floored case storing different sentences, each fitting the `VerdictView` meaning schema. Cheaper substitute: picking the sentence from the verdict alone, which is today's fixed wording.
+- [ ] Use it where the floor decides: `ruleVerdict` writes the mapped sentence for a floored verdict (its `floorApplied` record names the raising evidence), and keeps today's per-verdict sentence when no floor raised it and for the partial and noted wordings. Done when: the same suite shows an unfloored malicious case keeping the fixed sentence, and a safe partial case keeping its partial wording.
+- [ ] Keep the agent path honest: the floored branch in `src/agent/loop.ts` (which already takes `rules.meaning` when the floor changes the verdict) stores the same mapped sentence, never the model's. Done when: `test/agent/loop.test.ts` stores the credential sentence for a floored credential answer and the bank sentence for a floored payment answer.
+- [ ] Prove it stored and read back through the pipeline: a floored case's stored verdict carries its consequence sentence, and the reply and report consumers read it as today's `meaning` with no shape change. Done when: `test/pipeline/analysis-workflow.test.ts` reads the mapped sentence back on a stored floored verdict.
+- [ ] Commit: `agent: message-specific consequence sentences`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/loop.test.ts` passes, and fails if a credential-floored and a bank-floored case store the same consequence sentence.
 
 ## Verification
 
