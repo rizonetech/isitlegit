@@ -28,11 +28,14 @@ export type RulesDeps = { db: D1Database; keys: BankKeys };
 
 const CHANGE_PHRASES = [
   "new banking details",
+  "new bank details",
   "changed banks",
   "changed bank",
   "change of bank",
   "new bank account",
-  "updated account",
+  "updated bank account",
+  "updated banking details",
+  "updated bank details",
   "bank details have changed",
   "banking details have changed",
   "nuwe bankbesonderhede",
@@ -40,14 +43,23 @@ const CHANGE_PHRASES = [
   "nuwe bankrekening",
 ];
 
-const NEGATED_OR_WARNING_CLAUSE =
+const NEGATED_OR_WARNING_PREFIX =
   /\b(?:not|never|no|haven't|hasn't|don't|cannot|can't|ignore|beware|scam|fraud|phishing|warning|caution|unchanged|nie|nooit|moenie|geen|bedrog|waarskuwing|onveranderd)\b/u;
+
+const NEGATED_PREDICATE_SUFFIX =
+  /^\s+(?:are|is|were|was|will|would|should|can|could|must|may|het|sal|moet)\s+(?:not|never|no|unchanged|nie|nooit|onveranderd)\b/u;
 
 export function hasBankChangeLanguage(visibleText: string | null): boolean {
   if (!visibleText) return false;
-  const clauses = visibleText.toLowerCase().split(/[.!?;:\r\n]+/u);
-  return clauses.some(
-    (clause) => CHANGE_PHRASES.some((phrase) => clause.includes(phrase)) && !NEGATED_OR_WARNING_CLAUSE.test(clause),
+  const subclauses = visibleText.toLowerCase().split(/[.!?;:,\r\n]+|\b(?:and|but|so|while|or|en|maar|of)\b/u);
+  return subclauses.some((sub) =>
+    CHANGE_PHRASES.some((phrase) => {
+      const idx = sub.indexOf(phrase);
+      if (idx === -1) return false;
+      const before = sub.slice(0, idx);
+      const after = sub.slice(idx + phrase.length);
+      return !NEGATED_OR_WARNING_PREFIX.test(before) && !NEGATED_PREDICATE_SUFFIX.test(after);
+    }),
   );
 }
 

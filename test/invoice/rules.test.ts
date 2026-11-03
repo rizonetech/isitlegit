@@ -148,12 +148,20 @@ describe("the bank-change rules", () => {
     expect(language.map((i) => i.check)).toEqual(["invoice.change_language"]);
     const afrikaans = await run(org, [reading()], "Neem kennis: nuwe bankbesonderhede volg.");
     expect(afrikaans.map((i) => i.check)).toEqual(["invoice.change_language"]);
-    // Negated statements and fraud-warning footers do not trigger change-language on an unchanged account.
+    // Negated statements, fraud-warning footers, and non-banking account updates do not trigger change-language.
     expect(await run(org, [reading()], "Please note we have not changed banks this year.")).toEqual([]);
     expect(
       await run(org, [reading()], "Warning: never accept new banking details by email without calling us."),
     ).toEqual([]);
     expect(await run(org, [reading()], "Ons het nie nuwe bankbesonderhede nie.")).toEqual([]);
+    expect(await run(org, [reading()], "We have updated account contact information.")).toEqual([]);
+    // An affirmative bank-change request paired with a negation of the old account still triggers.
+    const withOldAccountNegation = await run(
+      org,
+      [reading()],
+      "Please use our new banking details and do not use the old account.",
+    );
+    expect(withOldAccountNegation.map((i) => i.check)).toEqual(["invoice.change_language"]);
   });
 
   it("binds change-language findings to invoice attachments and each invoice's own supplier", async () => {
