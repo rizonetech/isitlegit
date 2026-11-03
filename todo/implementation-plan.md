@@ -393,7 +393,7 @@ Sections: 96 | Checklist items: 621
 
 ### Phase 7: After the event
 
-Sections: 197 | Checklist items: 838
+Sections: 197 | Checklist items: 843
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -515,7 +515,7 @@ Sections: 197 | Checklist items: 838
 | [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
 | [x]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
-| [ ]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 2     |
+| [ ]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards                                | none                 | 2     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member                              | none                 | 2     |
@@ -634,4 +634,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 358/556 verified sections, 128 ready to run now.
 
-Checklist: 2750/3458 items completed (includes Commit items).
+Checklist: 2750/3463 items completed (includes Commit items).
