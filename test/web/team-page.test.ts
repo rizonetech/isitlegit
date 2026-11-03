@@ -1161,7 +1161,7 @@ describe("team history for owners (D07 T04 §23)", () => {
 
   it("draws the empty state, and a failed read as the section's error with the page standing", async () => {
     const owner = await person("Owner");
-    const orgId = await organisation(owner);
+    await organisation(owner);
     const empty = text((await page(owner.cookie)).html);
     expect(empty).toContain("No team changes in this period.");
     const prepare = db.prepare.bind(db);

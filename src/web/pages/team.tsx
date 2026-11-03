@@ -599,10 +599,8 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
                 word: "Unknown",
                 detail: "The invitation was made; check it below before sending again.",
               });
-              pendingByEmail.set(
-                email.toLowerCase(),
-                now.find((i) => i.email.toLowerCase() === email.toLowerCase()) ?? heldRow!,
-              );
+              const heldNow = now.find((i) => i.email.toLowerCase() === email.toLowerCase());
+              if (heldNow) pendingByEmail.set(email.toLowerCase(), heldNow);
             } else {
               results.push({
                 email,
