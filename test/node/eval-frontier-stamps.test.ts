@@ -581,5 +581,15 @@ describe("the stamps experiment", () => {
     // Lock is released in finally so a subsequent run succeeds and skips already-completed outcomes.
     const runner2Out = await runStamps(setDir, concurrentDeps, { resultsFile: concurrentResults });
     expect(runner2Out.outcomes).toHaveLength(80);
+
+    // Interrupted reclamation: if both .lock and .lock.reclaim were left behind by dead processes, runStamps recovers and succeeds;
+    // if .lock is stale but .lock.reclaim is held by a live process, runStamps refuses with /is reclaiming/.
+    const reclaimResults = join(dir, "reclaim-results.json");
+    writeFileSync(`${reclaimResults}.lock`, "999999991:1");
+    writeFileSync(`${reclaimResults}.lock.reclaim`, `${process.pid}:1`);
+    await expect(runStamps(setDir, concurrentDeps, { resultsFile: reclaimResults })).rejects.toThrow(/is reclaiming/);
+    writeFileSync(`${reclaimResults}.lock.reclaim`, "999999992:1");
+    const recoveredOut = await runStamps(setDir, concurrentDeps, { resultsFile: reclaimResults });
+    expect(recoveredOut.outcomes).toHaveLength(80);
   });
 });

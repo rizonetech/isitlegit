@@ -5,7 +5,17 @@
 // Both arms receive the same genuine reference and the same Spark settings; labels never enter a prompt.
 // Spend is capped at US$1.50 through localBudget and the shared ledger (owner eval-frontier), stopping on any refusal.
 import { createHash } from "node:crypto";
-import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  linkSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { register } from "node:module";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
@@ -74,7 +84,8 @@ function claimLockFile(file: string, token: string): boolean {
 
 export function takeRunLock(file: string): () => void {
   mkdirSync(dirname(file), { recursive: true });
-  const token = `${process.pid}:${++writeSeq}`;
+  const seq = ++writeSeq;
+  const token = `${process.pid}:${seq}`;
   const makeReleaser = () => {
     const release = () => {
       if (readLockContents(file) !== token) return;
@@ -97,24 +108,96 @@ export function takeRunLock(file: string): () => void {
     throw new Error(`another stamps run (process ${holderPid}) is already holding ${file}`);
   }
   const guard = `${file}.reclaim`;
-  if (!claimLockFile(guard, token)) {
-    throw new Error(`another stamps run is reclaiming ${file}; wait for it to finish`);
+  const guardHolder = readLockContents(guard);
+  const guardPid = Number(guardHolder?.split(":")[0]);
+  if (guardHolder !== null && isProcessAlive(guardPid)) {
+    throw new Error(`another stamps run (process ${guardPid}) is reclaiming ${file}; wait for it to finish`);
   }
+
+  // Coordinate stale-lock / stale-reclaim recovery via per-invocation unique files in `${file}.claims`
+  // so dead-PID cleanup never unlinks a shared path and live reclaimers have strict mutual exclusion.
+  const claimsDir = `${file}.claims`;
+  mkdirSync(claimsDir, { recursive: true });
+  const idPart = `${process.pid}-${seq}`;
+  const claimName = `1-${idPart}.claim`;
+  const activeName = `2-${idPart}.active`;
+  const claimPath = join(claimsDir, claimName);
+  const activePath = join(claimsDir, activeName);
+  const cleanAndListLive = (): string[] => {
+    const live: string[] = [];
+    for (const entry of readdirSync(claimsDir)) {
+      const m = /^[12]-(\d+)-\d+\.(?:claim|active)$/.exec(entry);
+      if (!m) continue;
+      const pid = Number(m[1]);
+      if (!isProcessAlive(pid)) {
+        try {
+          unlinkSync(join(claimsDir, entry));
+        } catch {
+          // already removed
+        }
+      } else {
+        live.push(entry);
+      }
+    }
+    return live.sort();
+  };
+
+  writeFileSync(claimPath, token);
   try {
-    const now = readLockContents(file);
-    if (now !== null && now !== holder) {
-      throw new Error(`another stamps run (${now.trim()}) took ${file}`);
+    const liveStep2 = cleanAndListLive();
+    if (liveStep2.some((e) => e.startsWith("2-")) || liveStep2.some((e) => e.startsWith("1-") && e < claimName)) {
+      throw new Error(`another stamps run is reclaiming ${file}; wait for it to finish`);
     }
-    if (now !== null) unlinkSync(file);
-    if (!claimLockFile(file, token)) {
-      throw new Error(`another stamps run took ${file}`);
+    writeFileSync(activePath, token);
+    const liveStep4 = cleanAndListLive();
+    if (liveStep4.some((e) => e !== claimName && e !== activeName)) {
+      throw new Error(`another stamps run is reclaiming ${file}; wait for it to finish`);
     }
-    return makeReleaser();
-  } finally {
+
+    const currentGuard = readLockContents(guard);
+    if (currentGuard !== null) {
+      const currentGuardPid = Number(currentGuard.split(":")[0]);
+      if (isProcessAlive(currentGuardPid)) {
+        throw new Error(`another stamps run (process ${currentGuardPid}) is reclaiming ${file}; wait for it to finish`);
+      }
+      try {
+        unlinkSync(guard);
+      } catch {
+        // already gone
+      }
+    }
+    if (!claimLockFile(guard, token)) {
+      throw new Error(`another stamps run is reclaiming ${file}; wait for it to finish`);
+    }
     try {
-      unlinkSync(guard);
-    } catch {
-      // ignore
+      const now = readLockContents(file);
+      if (now !== null && now !== holder) {
+        const nowPid = Number(now.split(":")[0]);
+        if (isProcessAlive(nowPid)) {
+          throw new Error(`another stamps run (${now.trim()}) took ${file}`);
+        }
+      }
+      if (now !== null) unlinkSync(file);
+      if (!claimLockFile(file, token)) {
+        throw new Error(`another stamps run took ${file}`);
+      }
+      return makeReleaser();
+    } finally {
+      if (readLockContents(guard) === token) {
+        try {
+          unlinkSync(guard);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  } finally {
+    for (const p of [activePath, claimPath]) {
+      try {
+        unlinkSync(p);
+      } catch {
+        // ignore
+      }
     }
   }
 }
