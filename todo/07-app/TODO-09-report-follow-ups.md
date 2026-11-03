@@ -39,7 +39,7 @@ track: day-2
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
-| 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
+| 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [x] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
@@ -207,9 +207,12 @@ Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws 
 - [x] Prove the player in `test/node/evidence-cards-browser.test.tsx` at 360 px in both themes: the recording loads through the artefact route, plays by keyboard, shows its duration, and an unavailable recording states its failure with a retry; no overflow and no accessibility violations. Done when: the browser test drives the native controls and reads the played state back. Cheaper substitute: a rendered `<audio>` element alone, which passes with playback broken.
 
 **Corrected 2026-11-02 (coordinator, checks D01 T03 §16 stamped):** the stored shape holds no speaker count and no language. One `voice.transcript` item per recording carries timed segments (`chunk`, per-chunk `speaker` label, `startMs`, `endMs`, `text`), the recording and transcript artefact keys, `complete` and `gaps`, per-chunk speaker labels, and cut markers (`trimmed`, `segmentsOmitted`, `gapsOmitted`, `speakersOmitted`); a malformed transcript carries `malformed: true` and no segments. The first micro-step is shipped by D01 T03 §16 and is ticked on its stamp.
-- [ ] Commit: `web: the voice note's player and transcript`
+- [x] Commit: `web: the voice note's player and transcript`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with a stored transcript drawn, and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the recording played at 360 px.
+
+> **Verified:** 2026-11-03 | §6 | e536349894b40d976f0aa0b5376cbcb75ee0aa10
+> **Review:** `docs/reviews/d07-t09-s6.json`
 
 ## 7. Walkthrough refusal and reuse cards
 
