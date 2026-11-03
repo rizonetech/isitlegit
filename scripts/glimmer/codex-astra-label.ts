@@ -13,11 +13,14 @@
 // input tokens, 750 per 1M output), stated in the run file before any call and never raised. The runner
 // stops between batches at the cap.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { z } from "zod";
+import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { parseTerraUsage, terraPrompt, terraRefusal } from "./codex-terra-label.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
-import { WonderLabel } from "./wonder-label.ts";
+import { claimExclusiveLabelSlot, WonderLabel, writeExclusiveLabelFile } from "./wonder-label.ts";
 
 export const ASTRA_MODEL = "gpt-6-astra";
 export const ASTRA_EFFORT = "medium";
@@ -74,6 +77,34 @@ export type AstraRecord = WonderLabel & {
   source_lure: boolean | null;
 };
 
+export const AstraRecordSchema = z
+  .strictObject({
+    lure: z.boolean(),
+    lure_type: z.enum(LURE_TYPES),
+    capture_valid: z.boolean(),
+    reasons: z.array(z.string().min(1).max(300)).max(10),
+    page: z.string().min(1),
+    teacher: z.literal(ASTRA_TEACHER),
+    model: z.literal(ASTRA_MODEL),
+    effort: z.enum(["low", "medium", "high"]),
+    test: z.string().nullable().optional(),
+    seconds: z.number().nonnegative(),
+    usage: z.record(z.string(), z.unknown()).nullable(),
+    source_lure: z.boolean().nullable(),
+  })
+  .refine((label) => (label.lure_type === "none") === !label.lure, {
+    message: "lure_type is none exactly when lure is false",
+  });
+
+export function validateExistingAstraRecord(file: string, page: StoredPage): AstraRecord {
+  const parsed = AstraRecordSchema.parse(JSON.parse(readFileSync(file, "utf-8")));
+  if (parsed.page !== page.id) throw new Error(`record names page ${parsed.page}, expected ${page.id}`);
+  const expectedSourceLure = page.labels.lure ?? null;
+  if (parsed.source_lure !== expectedSourceLure)
+    throw new Error(`record source_lure=${String(parsed.source_lure)}, expected ${String(expectedSourceLure)}`);
+  return { ...parsed, test: parsed.test ?? null };
+}
+
 export function labelPageAstra(options: {
   page: StoredPage;
   screenshot: string;
@@ -87,9 +118,10 @@ export function labelPageAstra(options: {
   if (refusal) throw new Error(refusal);
   mkdirSync(options.outDir, { recursive: true });
   const file = join(options.outDir, `${options.page.id}.json`);
-  if (existsSync(file)) throw new Error("an Astra label already exists for this page and is never overwritten");
+  const claim = claimExclusiveLabelSlot(file, "an Astra");
   const now = options.now ?? Date.now;
-  const outFile = join(options.outDir, `.answer-${options.page.id}.json`);
+  const nonce = `${process.pid}.${randomBytes(6).toString("hex")}`;
+  const outFile = join(options.outDir, `.answer-${options.page.id}.${nonce}.json`);
   const started = now();
   try {
     const { jsonl } = (options.exec ?? codexAstraExec)(
@@ -109,13 +141,11 @@ export function labelPageAstra(options: {
       usage: parseTerraUsage(jsonl),
       source_lure: options.page.labels.lure ?? null,
     };
-    if (existsSync(file)) throw new Error("an Astra label already exists for this page and is never overwritten");
-    const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`);
-    renameSync(temporary, file);
+    writeExclusiveLabelFile(file, `${JSON.stringify(record, null, 2)}\n`, nonce, "an Astra");
     return record;
   } finally {
     rmSync(outFile, { force: true });
+    claim.release();
   }
 }
 
@@ -148,15 +178,22 @@ export function runAstraCli(options: {
   let invalid = 0;
   const seconds: number[] = [];
   for (const id of ids) {
-    if (existsSync(join(outDir, `${id}.json`))) {
-      skipped++;
-      console.log(`${id}: already labelled, skipped`);
-      continue;
-    }
     const page = byId.get(id);
     if (!page) {
       invalid++;
       console.error(`${id}: not in the store manifest`);
+      continue;
+    }
+    const existing = join(outDir, `${id}.json`);
+    if (existsSync(existing)) {
+      try {
+        validateExistingAstraRecord(existing, page);
+        skipped++;
+        console.log(`${id}: already labelled, skipped`);
+      } catch (error) {
+        invalid++;
+        console.error(`${id}: existing Astra label is invalid: ${(error as Error).message}`);
+      }
       continue;
     }
     const verified = store.readVerifiedPage(id);

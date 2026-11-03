@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -80,6 +80,14 @@ describe("wonder-label", () => {
     expect(wonderRefusal(page({ origin: "samples" as never }), shot)).toMatch(/sample/);
     expect(wonderRefusal(page({ origin: "synthetic" as never }), shot)).toMatch(/origin synthetic/);
     expect(wonderRefusal(page(), join(dir, "samples", "shot.jpg"))).toMatch(/samples/);
+    expect(wonderRefusal(page(), "samples/shot.jpg")).toMatch(/samples/);
+    const samplesDir = join(dir, "samples");
+    mkdirSync(samplesDir, { recursive: true });
+    const sampleShot = join(samplesDir, "shot.jpg");
+    writeFileSync(sampleShot, "x");
+    const symlinkShot = join(dir, "linked-shot.jpg");
+    symlinkSync(sampleShot, symlinkShot);
+    expect(wonderRefusal(page(), symlinkShot)).toMatch(/samples/);
     expect(wonderRefusal(page(), join(dir, "missing.jpg"))).toMatch(/no screenshot/);
     const exec = vi.fn(() => VALID);
     expect(() =>
@@ -88,6 +96,12 @@ describe("wonder-label", () => {
     expect(() =>
       labelPage({ page: page(), screenshot: join(dir, "samples", "shot.jpg"), text: "Sign in", outDir: dir, exec }),
     ).toThrow(/samples/);
+    expect(() =>
+      labelPage({ page: page(), screenshot: "samples/shot.jpg", text: "Sign in", outDir: dir, exec }),
+    ).toThrow(/samples/);
+    expect(() => labelPage({ page: page(), screenshot: symlinkShot, text: "Sign in", outDir: dir, exec })).toThrow(
+      /samples/,
+    );
     expect(exec).not.toHaveBeenCalled();
   });
 
@@ -116,6 +130,27 @@ describe("wonder-label", () => {
     );
     expect(dupExec).not.toHaveBeenCalled();
     expect(readFileSync(join(dir, "p1.json"), "utf-8")).toBe(storedBytes);
+
+    // Concurrent worker claiming the same page while in-flight is refused before invoking exec.
+    const dirConcurrent = mkdtempSync(join(tmpdir(), "wonder-conc-"));
+    const secondExec = vi.fn(() => VALID);
+    const firstRecord = labelPage({
+      page: page(),
+      screenshot: shot,
+      text: "Sign in",
+      outDir: dirConcurrent,
+      exec: (_argv, _s, promptFile) => {
+        expect(promptFile).toMatch(/\.prompt-p1\.\d+\.[0-9a-f]{12}\.txt$/);
+        expect(() =>
+          labelPage({ page: page(), screenshot: shot, text: "Sign in", outDir: dirConcurrent, exec: secondExec }),
+        ).toThrow(/already exists or is in progress/);
+        return VALID;
+      },
+      now: () => 1000,
+    });
+    expect(firstRecord.page).toBe("p1");
+    expect(secondExec).not.toHaveBeenCalled();
+
     const dir2 = mkdtempSync(join(tmpdir(), "wonder-"));
     expect(() =>
       labelPage({ page: page(), screenshot: shot, text: "Sign in", outDir: dir2, exec: () => "rubbish" }),
@@ -301,5 +336,30 @@ describe("wonder-label", () => {
     expect(skipRes.exitCode).toBe(0);
     expect(skipRes.skipped).toBe(1);
     expect(skipRes.invalid).toBe(0);
+
+    // An existing file for an ID absent from the manifest is rejected, not counted as skipped.
+    const outDir = join(store, "raw", "wonder");
+    writeFileSync(join(outDir, "ghost.json"), readFileSync(join(outDir, "p1.json"), "utf-8"));
+    const ghostRes = runWonderCli({
+      args: ["--ids", "ghost"],
+      store: openStore(store),
+      exec: () => VALID,
+    });
+    expect(ghostRes.exitCode).toBe(1);
+    expect(ghostRes.skipped).toBe(0);
+    expect(ghostRes.invalid).toBe(1);
+
+    // A corrupted or mismatched existing label for p1 is preserved untouched and reported as invalid.
+    const corruptPayload = '{"page":"other","malformed":true}';
+    writeFileSync(join(outDir, "p1.json"), corruptPayload);
+    const corruptRes = runWonderCli({
+      args: ["--ids", "p1"],
+      store: openStore(store),
+      exec: () => VALID,
+    });
+    expect(corruptRes.exitCode).toBe(1);
+    expect(corruptRes.skipped).toBe(0);
+    expect(corruptRes.invalid).toBe(1);
+    expect(readFileSync(join(outDir, "p1.json"), "utf-8")).toBe(corruptPayload);
   });
 });

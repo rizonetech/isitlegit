@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -87,6 +87,30 @@ describe("codex-astra-label", () => {
         exec: uncalled,
       }),
     ).toThrow(/samples/);
+    const samplesDir = join(dir, "samples");
+    mkdirSync(samplesDir, { recursive: true });
+    const sampleShot = join(samplesDir, "shot.jpg");
+    writeFileSync(sampleShot, "x");
+    const symlinkShot = join(dir, "linked-shot.jpg");
+    symlinkSync(sampleShot, symlinkShot);
+    expect(() =>
+      labelPageAstra({
+        page: page(),
+        screenshot: "samples/shot.jpg",
+        text: "Sign in",
+        outDir: dir,
+        exec: uncalled,
+      }),
+    ).toThrow(/samples/);
+    expect(() =>
+      labelPageAstra({
+        page: page(),
+        screenshot: symlinkShot,
+        text: "Sign in",
+        outDir: dir,
+        exec: uncalled,
+      }),
+    ).toThrow(/samples/);
     expect(uncalled).not.toHaveBeenCalled();
 
     const record = labelPageAstra({
@@ -131,6 +155,26 @@ describe("codex-astra-label", () => {
     ).toThrow(/already exists/);
     expect(dupExec).not.toHaveBeenCalled();
     expect(readFileSync(join(dir, "p1.json"), "utf-8")).toBe(storedBytes);
+
+    const dirConcurrent = mkdtempSync(join(tmpdir(), "astra-conc-"));
+    const secondExec = vi.fn(() => ({ jsonl: "" }));
+    labelPageAstra({
+      page: page(),
+      screenshot: shot,
+      text: "Sign in",
+      outDir: dirConcurrent,
+      exec: (_argv, _prompt, outFile) => {
+        expect(outFile).toMatch(/\.answer-p1\.\d+\.[0-9a-f]{12}\.json$/);
+        expect(() =>
+          labelPageAstra({ page: page(), screenshot: shot, text: "Sign in", outDir: dirConcurrent, exec: secondExec }),
+        ).toThrow(/already exists or is in progress/);
+        writeFileSync(outFile, VALID);
+        return { jsonl: "" };
+      },
+      now: () => 1000,
+    });
+    expect(secondExec).not.toHaveBeenCalled();
+
     const dir2 = mkdtempSync(join(tmpdir(), "astra-"));
     expect(() =>
       labelPageAstra({
@@ -183,5 +227,18 @@ describe("codex-astra-label", () => {
     expect(skipRes.exitCode).toBe(0);
     expect(skipRes.skipped).toBe(1);
     expect(skipRes.invalid).toBe(0);
+
+    const outDir = join(store, "raw", "astra");
+    const corruptPayload = '{"page":"other","malformed":true}';
+    writeFileSync(join(outDir, "p1.json"), corruptPayload);
+    const corruptRes = runAstraCli({
+      args: ["--ids", "p1"],
+      store: openStore(store),
+      exec,
+    });
+    expect(corruptRes.exitCode).toBe(1);
+    expect(corruptRes.skipped).toBe(0);
+    expect(corruptRes.invalid).toBe(1);
+    expect(readFileSync(join(outDir, "p1.json"), "utf-8")).toBe(corruptPayload);
   });
 });

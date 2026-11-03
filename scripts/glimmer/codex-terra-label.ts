@@ -14,10 +14,19 @@
 // file before any call and never raised. Credits per call come from the usage the `codex exec --json`
 // stream reports; a call with no reported usage is counted and named, never silently zeroed.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { z } from "zod";
+import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
-import { escapeUntrustedPromptText, WonderLabel } from "./wonder-label.ts";
+import {
+  claimExclusiveLabelSlot,
+  escapeUntrustedPromptText,
+  isSamplesPath,
+  WonderLabel,
+  writeExclusiveLabelFile,
+} from "./wonder-label.ts";
 
 export const TERRA_MODEL = "gpt-6.1-terra";
 export const TERRA_EFFORT = "medium";
@@ -49,8 +58,7 @@ export function terraRefusal(
   page: Pick<StoredPage, "origin" | "source" | "id" | "redacted">,
   screenshotPath: string,
 ): string | null {
-  if (screenshotPath.includes("/samples/") || screenshotPath.includes("\\samples\\"))
-    return "a path under samples/ never goes to the teacher";
+  if (isSamplesPath(screenshotPath)) return "a path under samples/ never goes to the teacher";
   if (page.origin === "samples" && !page.redacted) return "unredacted sample pages never go to the teacher";
   if (page.origin !== "public" && page.origin !== "benign" && page.origin !== "samples")
     return `origin ${page.origin} never goes to the teacher`;
@@ -122,6 +130,34 @@ export type TerraRecord = TerraLabel & {
   source_lure: boolean | null;
 };
 
+export const TerraRecordSchema = z
+  .strictObject({
+    lure: z.boolean(),
+    lure_type: z.enum(LURE_TYPES),
+    capture_valid: z.boolean(),
+    reasons: z.array(z.string().min(1).max(300)).max(10),
+    page: z.string().min(1),
+    teacher: z.literal(TERRA_TEACHER),
+    model: z.literal(TERRA_MODEL),
+    effort: z.enum(["low", "medium", "high"]),
+    test: z.string().nullable().optional(),
+    seconds: z.number().nonnegative(),
+    usage: z.record(z.string(), z.unknown()).nullable(),
+    source_lure: z.boolean().nullable(),
+  })
+  .refine((label) => (label.lure_type === "none") === !label.lure, {
+    message: "lure_type is none exactly when lure is false",
+  });
+
+export function validateExistingTerraRecord(file: string, page: StoredPage): TerraRecord {
+  const parsed = TerraRecordSchema.parse(JSON.parse(readFileSync(file, "utf-8")));
+  if (parsed.page !== page.id) throw new Error(`record names page ${parsed.page}, expected ${page.id}`);
+  const expectedSourceLure = page.labels.lure ?? null;
+  if (parsed.source_lure !== expectedSourceLure)
+    throw new Error(`record source_lure=${String(parsed.source_lure)}, expected ${String(expectedSourceLure)}`);
+  return { ...parsed, test: parsed.test ?? null };
+}
+
 export function labelPageTerra(options: {
   page: StoredPage;
   screenshot: string;
@@ -135,9 +171,10 @@ export function labelPageTerra(options: {
   if (refusal) throw new Error(refusal);
   mkdirSync(options.outDir, { recursive: true });
   const file = join(options.outDir, `${options.page.id}.json`);
-  if (existsSync(file)) throw new Error("a Terra label already exists for this page and is never overwritten");
+  const claim = claimExclusiveLabelSlot(file, "a Terra");
   const now = options.now ?? Date.now;
-  const outFile = join(options.outDir, `.answer-${options.page.id}.json`);
+  const nonce = `${process.pid}.${randomBytes(6).toString("hex")}`;
+  const outFile = join(options.outDir, `.answer-${options.page.id}.${nonce}.json`);
   const started = now();
   try {
     const { jsonl } = (options.exec ?? codexExec)(
@@ -157,13 +194,11 @@ export function labelPageTerra(options: {
       usage: parseTerraUsage(jsonl),
       source_lure: options.page.labels.lure ?? null,
     };
-    if (existsSync(file)) throw new Error("a Terra label already exists for this page and is never overwritten");
-    const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`);
-    renameSync(temporary, file);
+    writeExclusiveLabelFile(file, `${JSON.stringify(record, null, 2)}\n`, nonce, "a Terra");
     return record;
   } finally {
     rmSync(outFile, { force: true });
+    claim.release();
   }
 }
 
@@ -196,15 +231,22 @@ export function runTerraCli(options: {
   let invalid = 0;
   const seconds: number[] = [];
   for (const id of ids) {
-    if (existsSync(join(outDir, `${id}.json`))) {
-      skipped++;
-      console.log(`${id}: already labelled, skipped`);
-      continue;
-    }
     const page = byId.get(id);
     if (!page) {
       invalid++;
       console.error(`${id}: not in the store manifest`);
+      continue;
+    }
+    const existing = join(outDir, `${id}.json`);
+    if (existsSync(existing)) {
+      try {
+        validateExistingTerraRecord(existing, page);
+        skipped++;
+        console.log(`${id}: already labelled, skipped`);
+      } catch (error) {
+        invalid++;
+        console.error(`${id}: existing Terra label is invalid: ${(error as Error).message}`);
+      }
       continue;
     }
     const verified = store.readVerifiedPage(id);

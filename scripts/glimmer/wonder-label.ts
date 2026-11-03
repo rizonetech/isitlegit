@@ -11,7 +11,18 @@
 // screenshot is refused. The pilot is 20 pages; a larger run waits for the coordinator's go, recorded in the run
 // file, and a spend cap stated before it runs (the subscription is the cap's unit: pages, not dollars).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import {
+  closeSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
@@ -36,6 +47,20 @@ export const WonderLabel = z
   });
 export type WonderLabel = z.infer<typeof WonderLabel>;
 
+export function isSamplesPath(screenshotPath: string): boolean {
+  const hasSamplesSegment = (candidate: string): boolean =>
+    candidate.split(/[\\/]+/).some((part) => part.toLowerCase() === "samples");
+  if (hasSamplesSegment(screenshotPath) || hasSamplesSegment(resolve(screenshotPath))) return true;
+  if (existsSync(screenshotPath)) {
+    try {
+      if (hasSamplesSegment(realpathSync(screenshotPath))) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
 // A page may go to the teacher only when it is public or benign, holds a screenshot, and nothing about it comes
 // from `samples/` (unredacted client mail never reaches a model through this lane).
 export function wonderRefusal(
@@ -44,8 +69,7 @@ export function wonderRefusal(
 ): string | null {
   if (page.origin === "samples" || page.source === "samples") return "sample-derived pages never go to the teacher";
   if (page.origin !== "public" && page.origin !== "benign") return `origin ${page.origin} never goes to the teacher`;
-  if (screenshotPath.includes("/samples/") || screenshotPath.includes("\\samples\\"))
-    return "a path under samples/ never goes to the teacher";
+  if (isSamplesPath(screenshotPath)) return "a path under samples/ never goes to the teacher";
   if (!existsSync(screenshotPath)) return "the page has no screenshot to label from";
   return null;
 }
@@ -188,15 +212,60 @@ export const WonderRecordSchema = z
     reasons: z.array(z.string().min(1).max(300)).max(10),
     page: z.string().min(1),
     model: z.literal(WONDER_MODEL),
-    effort: z.literal("medium"),
+    effort: z.enum(["low", "medium", "high"]),
     test: z.string().nullable().optional(),
-    seconds: z.number().positive(),
+    seconds: z.number().nonnegative(),
     source_lure: z.boolean().nullable(),
     agrees: z.boolean().nullable(),
   })
   .refine((label) => (label.lure_type === "none") === !label.lure, {
     message: "lure_type is none exactly when lure is false",
   });
+
+export function validateExistingWonderRecord(file: string, page: StoredPage): WonderRecord {
+  const parsed = WonderRecordSchema.parse(JSON.parse(readFileSync(file, "utf-8")));
+  if (parsed.page !== page.id) throw new Error(`record names page ${parsed.page}, expected ${page.id}`);
+  const expectedSourceLure = page.labels.lure ?? null;
+  if (parsed.source_lure !== expectedSourceLure)
+    throw new Error(`record source_lure=${String(parsed.source_lure)}, expected ${String(expectedSourceLure)}`);
+  const expectedAgrees = expectedSourceLure === null ? null : expectedSourceLure === parsed.lure;
+  if (parsed.agrees !== expectedAgrees)
+    throw new Error(`record agrees=${String(parsed.agrees)}, expected ${String(expectedAgrees)}`);
+  return { ...parsed, test: parsed.test ?? null };
+}
+
+export function claimExclusiveLabelSlot(file: string, teacherName: string): { release: () => void } {
+  if (existsSync(file)) throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
+  const lockFile = `${file}.lock`;
+  let lockFd: number;
+  try {
+    lockFd = openSync(lockFile, "wx");
+  } catch {
+    throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
+  }
+  closeSync(lockFd);
+  if (existsSync(file)) {
+    rmSync(lockFile, { force: true });
+    throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
+  }
+  return {
+    release: () => {
+      rmSync(lockFile, { force: true });
+    },
+  };
+}
+
+export function writeExclusiveLabelFile(file: string, payload: string, nonce: string, teacherName: string): void {
+  const temporary = `${file}.${nonce}.tmp`;
+  writeFileSync(temporary, payload, { flag: "wx" });
+  try {
+    linkSync(temporary, file);
+  } catch {
+    throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+}
 
 export type PilotVerification = {
   total: number;
@@ -225,6 +294,8 @@ export function verifyPilotRecords(wonderDir: string = join(storeDir(), "raw", "
     if (!existsSync(file)) throw new Error(`missing pilot record ${file}`);
     const parsed = WonderRecordSchema.parse(JSON.parse(readFileSync(file, "utf-8")));
     if (parsed.page !== id) throw new Error(`pilot record ${file} names ${parsed.page}, expected ${id}`);
+    if (parsed.effort !== "medium" || parsed.seconds <= 0)
+      throw new Error(`pilot record ${id} has invalid effort=${parsed.effort} or seconds=${parsed.seconds}`);
     if (parsed.source_lure === null || parsed.agrees === null)
       throw new Error(`pilot record ${id} lacks source_lure or agrees`);
     const computedAgrees = parsed.lure === parsed.source_lure;
@@ -290,12 +361,13 @@ export function labelPage(options: {
   if (refusal) throw new Error(refusal);
   mkdirSync(options.outDir, { recursive: true });
   const file = join(options.outDir, `${options.page.id}.json`);
-  if (existsSync(file)) throw new Error("a Wonder label already exists for this page and is never overwritten");
+  const claim = claimExclusiveLabelSlot(file, "a Wonder");
   const now = options.now ?? Date.now;
-  const promptFile = join(options.outDir, `.prompt-${options.page.id}.txt`);
-  writeFileSync(promptFile, wonderPrompt(options.page, options.text));
+  const nonce = `${process.pid}.${randomBytes(6).toString("hex")}`;
+  const promptFile = join(options.outDir, `.prompt-${options.page.id}.${nonce}.txt`);
   const started = now();
   try {
+    writeFileSync(promptFile, wonderPrompt(options.page, options.text), { flag: "wx" });
     const output = (options.exec ?? museExec)(
       wonderCommand(options.screenshot, promptFile),
       options.screenshot,
@@ -312,17 +384,16 @@ export function labelPage(options: {
       source_lure: options.page.labels.lure ?? null,
       agrees: options.page.labels.lure === undefined ? null : options.page.labels.lure === label.lure,
     };
-    if (existsSync(file)) throw new Error("a Wonder label already exists for this page and is never overwritten");
-    const temporary = `${file}.${process.pid}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`);
-    renameSync(temporary, file);
+    writeExclusiveLabelFile(file, `${JSON.stringify(record, null, 2)}\n`, nonce, "a Wonder");
     return record;
   } finally {
     try {
-      writeFileSync(promptFile, "");
+      if (existsSync(promptFile)) writeFileSync(promptFile, "");
     } catch {
       // the prompt file is scratch; a failed scrub leaves nothing sensitive (public page text only)
     }
+    rmSync(promptFile, { force: true });
+    claim.release();
   }
 }
 
@@ -362,23 +433,40 @@ export function runWonderCli(options: {
   const records: WonderRecord[] = [];
   let skipped = 0;
   let invalid = 0;
+  const hasValidExisting = (p: StoredPage): boolean => {
+    const existing = join(outDir, `${p.id}.json`);
+    if (!existsSync(existing)) return false;
+    try {
+      validateExistingWonderRecord(existing, p);
+      return true;
+    } catch {
+      return false;
+    }
+  };
   const targets: string[] = requestedIds
     ? requestedIds.slice(0, max)
     : store
         .manifest()
         .filter((p) => p.origin === "public" || p.origin === "benign")
-        .filter((p) => !existsSync(join(outDir, `${p.id}.json`)))
+        .filter((p) => !hasValidExisting(p))
         .slice(0, max)
         .map((p) => p.id);
   for (const id of targets) {
-    if (existsSync(join(outDir, `${id}.json`))) {
-      skipped++;
-      continue;
-    }
     const page = byId.get(id);
     if (!page) {
       invalid++;
       console.error(`${id}: not in the store manifest`);
+      continue;
+    }
+    const existing = join(outDir, `${id}.json`);
+    if (existsSync(existing)) {
+      try {
+        validateExistingWonderRecord(existing, page);
+        skipped++;
+      } catch (error) {
+        invalid++;
+        console.error(`${id}: existing Wonder label is invalid: ${(error as Error).message}`);
+      }
       continue;
     }
     const folder = join(store.dir, "pages", page.id);
