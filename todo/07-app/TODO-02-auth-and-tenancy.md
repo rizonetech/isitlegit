@@ -59,7 +59,7 @@ track: day-1
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
-| 25 | §25 | Same-device other-browser | §12 | [ ] |
+| 25 | §25 | Same-device other-browser | §12 | [x] |
 | 26 | §26 | Export and fresh sign-in before closure | §9 | [ ] |
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
 | 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [ ] |
@@ -943,9 +943,12 @@ Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-
 - [x] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
 - [x] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
 - [x] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
-- [ ] Commit: `auth: the other-browser link page names the browser`
+- [x] Commit: `auth: the other-browser link page names the browser`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass with the recorded wording.
+
+> **Verified:** 2026-11-03 | §25 | 3f678251e994caff31d356df319da41093b4eb4a
+> **Review:** `docs/reviews/d07-t02-s25.json`
 
 ## 26. Export and fresh sign-in before closure
 
