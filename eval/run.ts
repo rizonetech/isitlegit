@@ -211,6 +211,10 @@ export async function runEval(args: {
   // An ablation arm name (`ablate:<flag>`), or the full pipeline. The mode is stored on the run row so reports can
   // tell arms apart; a resume keeps the stored mode.
   mode?: string;
+  // The source run a replay remeasures (D08 T02 section 12), set only by the --replay path after it has
+  // restored and verified the source population. A replay mode named through `mode` is refused: it would
+  // carry replay provenance with no validated source behind it.
+  replayOf?: string;
 }): Promise<RunResult> {
   const { samples, setVersion, options, api, db, env } = args;
   const refused = (problems: string[]): RunResult => ({
@@ -238,7 +242,11 @@ export async function runEval(args: {
   const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
   let commitSha = commitNow;
   let capUsd = options.capUsd;
-  let mode = args.mode ?? "full";
+  let mode = args.replayOf ? `replay:${args.replayOf}` : (args.mode ?? "full");
+  if (mode.startsWith("replay:") && !args.replayOf && !args.resume)
+    return refused([
+      `a replay is started with --replay <run id>, not --mode ${JSON.stringify(mode)}: the source population must be restored and verified first`,
+    ]);
   if (
     mode !== "full" &&
     !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))) &&
@@ -1019,7 +1027,7 @@ export async function main(
     db,
     env,
     resume: options.resume,
-    ...(options.replay ? { mode: `replay:${options.replay}` } : options.mode ? { mode: options.mode } : {}),
+    ...(options.replay ? { replayOf: options.replay } : options.mode ? { mode: options.mode } : {}),
   });
   for (const p of result.problems) console.error(`eval:run: ${p}`);
   if (result.exit === EXIT.refused) {

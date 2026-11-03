@@ -1330,10 +1330,14 @@ describe("the replay identity", () => {
     };
     const ordinary = await runEval({ ...base, api });
     expect(ordinary.results.every((r) => r.outcome === "stale-repeat")).toBe(true);
+    // A replay named through --mode is refused: only --replay, after restoring the source, starts one.
+    const bypass = await runEval({ ...base, api, mode: "replay:run-00000009" });
+    expect(bypass.exit).toBe(3);
+    expect(bypass.problems.join(" ")).toMatch(/--replay <run id>, not --mode/);
     // Distinct run ids per run, as the live entry's randomUUID gives: the harness id is constant.
     let seq = 100;
     const env = { ...t.env, id: () => `run-${String(++seq).padStart(8, "0")}` };
-    const replayed = await runEval({ ...base, api, env, mode: "replay:run-00000009" });
+    const replayed = await runEval({ ...base, api, env, replayOf: "run-00000009" });
     expect(replayed.exit).toBe(0);
     expect(replayed.results.every((r) => r.outcome === "done")).toBe(true);
     expect(t.runs.get(replayed.runId ?? "")?.mode).toBe("replay:run-00000009");
@@ -1343,7 +1347,7 @@ describe("the replay identity", () => {
     expect(new Set(sent)).toEqual(new Set([replayed.runId]));
     expect(sent).not.toContain("run-00000009");
     // A second replay of the same source opens its own cases under a different identity.
-    const again = await runEval({ ...base, api, env, mode: "replay:run-00000009" });
+    const again = await runEval({ ...base, api, env, replayOf: "run-00000009" });
     expect(again.exit).toBe(0);
     expect(again.runId).not.toBe(replayed.runId);
     const sentAgain = replayIds.filter((x) => x !== null).slice(2);

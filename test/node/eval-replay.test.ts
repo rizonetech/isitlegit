@@ -231,6 +231,48 @@ describe("eval replay", () => {
       const readBack = await db.readRun(replayRun?.id ?? "");
       expect(readBack?.run.status).toBe("complete");
       expect(readBack?.results).toHaveLength(2);
+      // Through the real transport: liveApi serializes the field, a fixture door answers replay uploads
+      // with fresh cases and ordinary uploads with the old case, as intake does.
+      const transport = (async (url: unknown, init?: { body?: FormData }) => {
+        const path = String(url);
+        if (path.endsWith("/health")) return { ok: true, json: async () => ({ commit: "newcommit" }) };
+        if (path.endsWith("/api/auth/get-session")) return { ok: true, json: async () => ({ user: { id: "user-1" } }) };
+        const replayId = init?.body?.get("replayRunId");
+        return {
+          status: 201,
+          json: async () => (replayId ? { caseId: `fresh-${++seq}` } : { caseId: "old", repeat: true }),
+        };
+      }) as unknown as typeof fetch;
+      const wired = liveApi("https://example.test", "cookie", transport);
+      const wiredDb: Db = {
+        ...db,
+        caseState: async (caseId) => ({
+          status: "done",
+          verdict: caseId === "old" ? "safe" : "malicious",
+          costUsd: 0.01,
+          critical: false,
+          createdAt: caseId === "old" ? "2026-11-01T08:00:00.000Z" : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }),
+      };
+      const wiredExit = await main(
+        ["--replay", source.id, "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db: wiredDb, api: wired, env },
+      );
+      expect(wiredExit).toBe(0);
+      const wiredRun = [...runs.values()].filter((r) => r.mode === `replay:${source.id}`).at(-1);
+      expect(results.get(wiredRun?.id ?? "")?.every((r) => r.outcome === "done" && r.caseId !== "old")).toBe(true);
+      const ordinaryExit = await main(
+        ["--set", "synthetic-sa", "--limit", "2", "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db: wiredDb, api: wired, env },
+      );
+      // Nothing measured anew: the run ends incomplete, every line a stale repeat.
+      expect(ordinaryExit).toBe(2);
+      const ordinaryRun = [...runs.values()].filter((r) => r.mode === "full").at(-1);
+      expect(results.get(ordinaryRun?.id ?? "")?.every((r) => r.outcome === "stale-repeat")).toBe(true);
+
       // An interrupted replay resumes under its own identity through the same entry.
       let failOnce = true;
       const flaky: Api = {
