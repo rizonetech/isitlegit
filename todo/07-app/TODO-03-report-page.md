@@ -638,6 +638,8 @@ A vision finding shows the rendered page or the logo crop beside its reference, 
 
 ## 15. Invoice and document cards
 
+> **Started:** 2026-11-03T03:41:30Z
+
 An invoice finding shows the masked comparison of the invoice's bank details with the ledger, and a payment document its fields and the limit statement (M3, board `Report-Invoice`; S3 payment document card). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
 **Phase:** 7
