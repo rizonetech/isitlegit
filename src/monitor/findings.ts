@@ -10,6 +10,7 @@ import {
   encodeFindingDecision,
   isBenignDismissalReason,
   latestDismissedCaptureKey,
+  parseFindingDecisions,
   recoverPendingTrainingCopies,
   resolveCaptureUrl,
   retractTrainingCopy,
@@ -280,47 +281,88 @@ export async function dismissFinding(
 ): Promise<boolean> {
   const trimmed = reason.trim();
   if (!trimmed || trimmed.length > 500) return false;
-  const finding = await db
-    .prepare(
-      "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ?",
-    )
-    .bind(orgId, host)
-    .first<{
-      status: string;
-      capture_key: string;
-      dismissed_reason: string | null;
-      dismissed_capture_key: string | null;
-    }>();
-  if (!finding) return false;
   const nowIso = now().toISOString();
-  const encodedDecisions = encodeFindingDecision(finding, {
-    captureKey: finding.capture_key,
-    kind: "dismissal",
-    reason: trimmed,
-    at: nowIso,
-  });
-  await db
-    .prepare(
-      "UPDATE monitor_findings SET status = 'dismissed', dismissed_reason = ?, dismissed_at = ?, dismissed_capture_key = ?, updated_at = ? WHERE org_id = ? AND host = ?",
-    )
-    .bind(trimmed, nowIso, encodedDecisions, nowIso, orgId, host)
-    .run();
-  if (bucket && isBenignDismissalReason(trimmed)) {
-    const captureUrl = await resolveCaptureUrl(db, bucket, orgId, host, finding.capture_key);
-    await copyForTraining(
-      bucket,
-      {
+  let capturedKey = "";
+  let updated = false;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const finding = await db
+      .prepare(
+        "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ?",
+      )
+      .bind(orgId, host)
+      .first<{
+        status: string;
+        capture_key: string;
+        dismissed_reason: string | null;
+        dismissed_capture_key: string | null;
+      }>();
+    if (!finding) return false;
+    capturedKey = finding.capture_key;
+    const encodedDecisions = encodeFindingDecision(finding, {
+      captureKey: finding.capture_key,
+      kind: "dismissal",
+      reason: trimmed,
+      at: nowIso,
+    });
+    const res = await db
+      .prepare(
+        `UPDATE monitor_findings
+         SET status = 'dismissed', dismissed_reason = ?, dismissed_at = ?, dismissed_capture_key = ?, updated_at = ?
+         WHERE org_id = ? AND host = ?
+           AND status = ? AND capture_key = ?
+           AND dismissed_reason IS ? AND dismissed_capture_key IS ?`,
+      )
+      .bind(
+        trimmed,
+        nowIso,
+        encodedDecisions,
+        nowIso,
         orgId,
         host,
-        captureKey: finding.capture_key,
-        captureUrl,
-        label: "benign",
-        why: `dismissed as not a fake: ${trimmed.slice(0, 120)}`,
-        source: "dismissal",
-        sourceRef: `finding:${orgId}:${host}:${finding.capture_key}`,
-      },
-      now,
-    ).catch(() => "missing-source");
+        finding.status,
+        finding.capture_key,
+        finding.dismissed_reason,
+        finding.dismissed_capture_key,
+      )
+      .run();
+    if ((res.meta?.changes ?? 0) > 0) {
+      updated = true;
+      break;
+    }
+  }
+  if (!updated || !capturedKey) return false;
+  if (bucket && isBenignDismissalReason(trimmed)) {
+    const current = await db
+      .prepare(
+        "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ?",
+      )
+      .bind(orgId, host)
+      .first<{
+        status: string;
+        capture_key: string;
+        dismissed_reason: string | null;
+        dismissed_capture_key: string | null;
+      }>();
+    const activeDecision = current
+      ? parseFindingDecisions(current).find((d) => d.captureKey === capturedKey)
+      : undefined;
+    if (!activeDecision || activeDecision.kind === "dismissal") {
+      const captureUrl = await resolveCaptureUrl(db, bucket, orgId, host, capturedKey);
+      await copyForTraining(
+        bucket,
+        {
+          orgId,
+          host,
+          captureKey: capturedKey,
+          captureUrl,
+          label: "benign",
+          why: `dismissed as not a fake: ${trimmed.slice(0, 120)}`,
+          source: "dismissal",
+          sourceRef: `finding:${orgId}:${host}:${capturedKey}`,
+        },
+        now,
+      ).catch(() => "missing-source");
+    }
   }
   return true;
 }
@@ -332,34 +374,52 @@ export async function restoreFinding(
   now: () => Date = () => new Date(),
   bucket?: R2Bucket,
 ): Promise<boolean> {
-  const existing = await db
-    .prepare(
-      "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ? AND status = 'dismissed'",
-    )
-    .bind(orgId, host)
-    .first<{
-      status: string;
-      capture_key: string;
-      dismissed_reason: string | null;
-      dismissed_capture_key: string | null;
-    }>();
-  if (!existing) return false;
-  const targetKey = latestDismissedCaptureKey(existing.dismissed_capture_key) ?? existing.capture_key;
   const nowIso = now().toISOString();
-  const encodedDecisions = encodeFindingDecision(existing, {
-    captureKey: targetKey,
-    kind: "restore",
-    reason: "finding restored by business",
-    at: nowIso,
-  });
-  const result = await db
-    .prepare(
-      "UPDATE monitor_findings SET status = 'watching', dismissed_reason = NULL, dismissed_at = NULL, dismissed_capture_key = ?, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
-    )
-    .bind(encodedDecisions, nowIso, orgId, host)
-    .run();
-  const changed = (result.meta?.changes ?? 0) > 0;
-  if (changed && bucket) {
+  let targetKey = "";
+  let changed = false;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const existing = await db
+      .prepare(
+        "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ? AND status = 'dismissed'",
+      )
+      .bind(orgId, host)
+      .first<{
+        status: string;
+        capture_key: string;
+        dismissed_reason: string | null;
+        dismissed_capture_key: string | null;
+      }>();
+    if (!existing) return false;
+    targetKey = latestDismissedCaptureKey(existing.dismissed_capture_key) ?? existing.capture_key;
+    const encodedDecisions = encodeFindingDecision(existing, {
+      captureKey: targetKey,
+      kind: "restore",
+      reason: "finding restored by business",
+      at: nowIso,
+    });
+    const result = await db
+      .prepare(
+        `UPDATE monitor_findings
+         SET status = 'watching', dismissed_reason = NULL, dismissed_at = NULL, dismissed_capture_key = ?, updated_at = ?
+         WHERE org_id = ? AND host = ? AND status = 'dismissed'
+           AND capture_key = ? AND dismissed_reason IS ? AND dismissed_capture_key IS ?`,
+      )
+      .bind(
+        encodedDecisions,
+        nowIso,
+        orgId,
+        host,
+        existing.capture_key,
+        existing.dismissed_reason,
+        existing.dismissed_capture_key,
+      )
+      .run();
+    if ((result.meta?.changes ?? 0) > 0) {
+      changed = true;
+      break;
+    }
+  }
+  if (changed && bucket && targetKey) {
     await retractTrainingCopy(bucket, orgId, host, targetKey, "finding restored by business", now).catch(
       () => "missing",
     );

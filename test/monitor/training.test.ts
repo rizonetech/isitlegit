@@ -1052,5 +1052,88 @@ describe("copyForTraining", () => {
     ) as StoredTrainingMeta;
     expect(metaD.retracted).toBe(true);
     expect(metaD.source).toBe("restore");
+
+    // 3. Concurrent non-qualifying dismissal paused after SELECT while restore completes must retry CAS and preserve the restore decision.
+    const hostConcurrent = "concurrent-cas.example";
+    const captureE = `monitor/${orgId}/${hostConcurrent}/2026-11-02T09:40:00.000Z/`;
+    await seedCapture(captureE, `https://${hostConcurrent}/e`, "Concurrent CAS capture");
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-mo-e', ?, 'confirmed', '["E5"]', '2026-11-02T09:41:00.000Z', '2026-11-02T09:41:00.000Z')`,
+      )
+      .bind(orgId, hostConcurrent, captureE, `https://${hostConcurrent}/e`)
+      .run();
+    await findingsFromInvestigations(
+      db,
+      orgId,
+      { mail: null, appUrl: "https://app.isitlegit.co.za" },
+      () => new Date("2026-11-02T09:42:00.000Z"),
+      bucket,
+    );
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        hostConcurrent,
+        "Not a fake, this is our own regional site",
+        () => new Date("2026-11-02T09:43:00.000Z"),
+        bucket,
+      ),
+    ).toBe(true);
+
+    let pauseFirstSelect = true;
+    let notifySelectPaused!: () => void;
+    const selectPaused = new Promise<void>((resolve) => {
+      notifySelectPaused = resolve;
+    });
+    let releaseSelect!: () => void;
+    const selectGate = new Promise<void>((resolve) => {
+      releaseSelect = resolve;
+    });
+    const interceptedDb = {
+      prepare: (sql: string) => {
+        const stmt = db.prepare(sql);
+        if (pauseFirstSelect && sql.startsWith("SELECT status, capture_key")) {
+          pauseFirstSelect = false;
+          return {
+            bind: (...args: unknown[]) => {
+              const bound = stmt.bind(...args);
+              return {
+                first: async <T>() => {
+                  const row = await bound.first<T>();
+                  notifySelectPaused();
+                  await selectGate;
+                  return row;
+                },
+              };
+            },
+          };
+        }
+        return stmt;
+      },
+    } as unknown as D1Database;
+
+    const concurrentDismiss = dismissFinding(
+      interceptedDb,
+      orgId,
+      hostConcurrent,
+      "duplicate ticket",
+      () => new Date("2026-11-02T09:44:00.000Z"),
+      failingBucket,
+    );
+    await selectPaused;
+    expect(
+      await restoreFinding(db, orgId, hostConcurrent, () => new Date("2026-11-02T09:44:30.000Z"), failingBucket),
+    ).toBe(true);
+    releaseSelect();
+    expect(await concurrentDismiss).toBe(true);
+
+    await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T09:45:00.000Z"));
+    const metaE = JSON.parse(
+      (await (await bucket.get(`training/${captureE}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(metaE.retracted).toBe(true);
+    expect(metaE.source).toBe("restore");
   });
 });
