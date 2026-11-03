@@ -820,10 +820,10 @@ An owner who opts in receives the week's counts by email every Monday, with a on
 1. Record the owner's decision (who may opt in, the day and hour, the content) in `design/SPEC.md`. Done when: the SPEC names each.
 2. Send it from the 15-minute schedule through the existing mail sender. Done when: a test reads one send per opted-in owner per week.
 
-- [ ] Record the owner's decision on the weekly report in `design/SPEC.md`. Done when: the SPEC names who, when and what. Cheaper substitute: a report sent to every member unasked.
-- [ ] Store the opt-in per member with a timestamp, set and cleared from Account settings, bound to the organisation the page displays. Done when: a test reads it set and cleared, read back on a fresh GET, with a member of two organisations holding one preference each. Cheaper substitute: an organisation-wide flag.
-- [ ] Send Friday's report once per opted-in member from the schedule, idempotent per week, a failed send retried by the mail sender. Done when: a test reads one send per member per week across repeated ticks in the window, none after an unsubscribe, none to a departed or protected member, and the rendered email carrying the week's three numbers and no case content. Cheaper substitute: a send on every schedule tick.
-- [ ] Commit: `mail: opt-in weekly counts report`
+- [x] Record the owner's decision on the weekly report in `design/SPEC.md`. Done when: the SPEC names who, when and what. Cheaper substitute: a report sent to every member unasked.
+- [x] Store the opt-in per member with a timestamp, set and cleared from Account settings, bound to the organisation the page displays. Done when: a test reads it set and cleared, read back on a fresh GET, with a member of two organisations holding one preference each. Cheaper substitute: an organisation-wide flag.
+- [x] Send Friday's report once per opted-in member from the schedule, idempotent per week, a failed send retried by the mail sender. Done when: a test reads one send per member per week across repeated ticks in the window, none after an unsubscribe, none to a departed or protected member, and the rendered email carrying the week's three numbers and no case content. Cheaper substitute: a send on every schedule tick.
+- [x] Commit: `mail: opt-in weekly counts report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unsubscribed member is sent the report.
 

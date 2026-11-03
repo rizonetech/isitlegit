@@ -297,3 +297,65 @@ export function trialNoticeEmail(input: {
   });
   return { subject, text, html };
 }
+
+// The Friday weekly counts for a member who opted in (D07 T04 §20, N10): the three Cases tiles' numbers for the
+// week as it stands on Friday, the organisation named, a link to Cases and the one-step unsubscribe. Counts only,
+// never a case's content.
+export function weeklyReportEmail(input: {
+  appUrl: string;
+  organisation: string;
+  checked: number;
+  flagged: number;
+  medianSeconds: number | null;
+  casesLink: string;
+  unsubscribeLink: string;
+}): { subject: string; text: string; html: string } {
+  const clean = (v: string) => v.replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ");
+  const median =
+    input.medianSeconds === null
+      ? "No verdicts yet"
+      : input.medianSeconds < 60
+        ? `${input.medianSeconds} s`
+        : `${Math.floor(input.medianSeconds / 60)} min ${input.medianSeconds % 60 ? `${input.medianSeconds % 60} s` : ""}`.trim();
+  const subject = clean(`Your week so far at ${input.organisation}: ${input.checked} checked, ${input.flagged} malicious or suspicious`);
+  const heading = clean(`Your week so far at ${input.organisation}`);
+  const lines = [
+    `Checked this week: ${input.checked}`,
+    `Malicious or suspicious: ${input.flagged}`,
+    `Median time to verdict: ${median}`,
+  ];
+  const why = clean(`You received this because you asked for ${input.organisation}'s weekly counts on IsItLegit.`);
+  const text = [
+    heading,
+    "",
+    ...lines,
+    "",
+    "Open your cases:",
+    input.casesLink,
+    "",
+    "Stop these emails:",
+    input.unsubscribeLink,
+    "",
+    why,
+    LEGAL,
+  ].join("\n");
+  const html = frame({
+    appUrl: input.appUrl,
+    title: subject,
+    heading,
+    why,
+    rows: [
+      row(panel(lines.map((line) => para(escapeHtml(line))).join(gap))),
+      row(button(input.casesLink, "Open your cases")),
+      row(pasteLink(input.casesLink)),
+      row(
+        para(
+          `Stop these emails: <a href="${escapeHtml(input.unsubscribeLink)}" style="color: ${C["orange-text"]}">unsubscribe</a>`,
+          `color: ${C.muted}`,
+        ),
+        "0 40px 24px",
+      ),
+    ],
+  });
+  return { subject, text, html };
+}

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CSV_HEADER, median, weeklyCounts, weeklyStats, weekStart } from "../../src/db/case-stats";
 import { ulid } from "../../src/db/ulid";
 import { kindLine, verdictTime } from "../../src/web/pages/cases-view";
-import { call, signIn, target } from "../auth/helpers";
+import { call, ORIGIN, signIn, target } from "../auth/helpers";
 
 // The Cases list's weekly stats and their CSV (D07 T04 §2; board `Cases` stats panel): cases by the SAST week they
 // arrived in, every state counted, the median to a stored verdict, counts only in the CSV, and its refusals as pages.
@@ -537,5 +537,77 @@ describe("GET /cases/stats.csv period boundaries (D07 T04 §19)", () => {
     expect(sameDay.status).toBe(200);
     const lines = (await sameDay.text()).trimEnd().split("\r\n");
     expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual(["2026-10-12"]);
+  });
+});
+
+describe("the Friday weekly counts (D07 T04 §20)", () => {
+  const FRIDAY = new Date("2026-10-30T14:30:00.000Z"); // Friday 16:30 SAST.
+  const provider = () => {
+    const sent: { to: string[]; subject: string; text_body: string }[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.includes("smtp2go")) return real(input, init);
+      sent.push(JSON.parse(String(init?.body ?? "{}")) as { to: string[]; subject: string; text_body: string });
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    return sent;
+  };
+
+  it("sends one report per opted-in member per week, with the tiles' numbers and no case content", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, uid, email } = await member(a);
+    const tue = "2026-10-27T08:00:00.000Z";
+    await made(a, { at: tue, verdict: "malicious", decidedAt: plus(tue, 40) });
+    await made(a, { at: tue, verdict: "safe", decidedAt: plus(tue, 30) });
+    // Opt in through the Account page, bound to the displayed organisation.
+    const post = await call("/settings/account", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded", origin: ORIGIN },
+      body: new URLSearchParams({ action: "weekly-report", org: a, weekly: "on" }).toString(),
+    });
+    expect(post.status).toBe(303);
+    const held = await db.prepare(`SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`).bind(a, uid).first();
+    expect(held).not.toBeNull();
+    const pageHtml = await (await get("/settings/account", cookie)).text();
+    expect(pageHtml).toContain("Email me this organisation&#39;s weekly counts on Fridays");
+    expect(pageHtml).toContain("checked");
+    const sent = provider();
+    const mailEnv = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    const { sendWeeklyReports } = await import("../../src/mail/weekly-report");
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.to).toEqual([email]);
+    expect(sent[0]?.text_body).toContain("Checked this week: 2");
+    expect(sent[0]?.text_body).toContain("Malicious or suspicious: 1");
+    expect(sent[0]?.text_body).toContain("Your week so far at Karoo Couriers");
+    expect(sent[0]?.text_body).not.toContain("Secret subject");
+    // The unsubscribe link in the mail clears the opt-in; after that, no more sends.
+    const link = /https?:\/\/\S*weekly-report\/unsubscribe\S*/.exec(sent[0]?.text_body ?? "")?.[0] as string;
+    const path = new URL(link).pathname + new URL(link).search;
+    const un = await call(path, { headers: { accept: "text/html" } });
+    expect(un.status).toBe(200);
+    expect(await un.text()).toContain("Unsubscribed");
+    expect(await db.prepare(`SELECT 1 FROM weekly_report_optins WHERE org_id = ?`).bind(a).first()).toBeNull();
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("sends nothing outside the window, to a departed member, or to a protected account", async () => {
+    const a = await org("Karoo Couriers");
+    const { uid } = await member(a);
+    await db
+      .prepare(`INSERT INTO weekly_report_optins (org_id, user_id, opted_in_at) VALUES (?, ?, ?)`)
+      .bind(a, uid, new Date().toISOString())
+      .run();
+    const sent = provider();
+    const mailEnv = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    const { sendWeeklyReports } = await import("../../src/mail/weekly-report");
+    await sendWeeklyReports(mailEnv, () => new Date("2026-10-29T14:30:00.000Z")); // Thursday.
+    expect(sent).toHaveLength(0);
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ?`).bind(uid).run();
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    expect(sent).toHaveLength(0);
   });
 });

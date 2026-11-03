@@ -11,6 +11,7 @@ import { sameSitePath } from "./auth/paths";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { scheduledSearchRefresh } from "./db/case-search";
+import { sendWeeklyReports } from "./mail/weekly-report";
 import { fixturesResponse } from "./fixtures/redirects";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
@@ -43,6 +44,7 @@ import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
 import { retryRoutes } from "./web/pages/report-retry";
 import { accountRoutes } from "./web/pages/settings-account";
+import { weeklyReportRoutes } from "./web/pages/weekly-report";
 import { planRoutes } from "./web/pages/settings-plan";
 import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
@@ -124,6 +126,7 @@ app.route("/", domainsListRoutes);
 app.route("/", planRoutes);
 // The Account page, the member's own sign-in details (D07 T08 §3), src/web/pages/settings-account.tsx.
 app.route("/", accountRoutes);
+app.route("/", weeklyReportRoutes);
 // The onboarding checklist (D07 T08 §2), src/web/pages/welcome.tsx.
 app.route("/", welcomeRoutes);
 // The single-address verification page (D07 T04 §27), src/web/pages/addresses.tsx.
@@ -220,6 +223,12 @@ export default {
       return;
     }
     ctx.waitUntil(scheduledReconcile(env));
+    // The Friday weekly counts for members who opted in (D07 T04 §20), inside their Friday-to-Monday window.
+    ctx.waitUntil(
+      sendWeeklyReports(env).catch((error: unknown) =>
+        console.log(JSON.stringify({ event: "weekly-report", outcome: "failed", error: (error as Error).name })),
+      ),
+    );
     // The verify page's address for identities protected before it existed (D05 T02 §6), by the same rule as a save.
     ctx.waitUntil(
       backfillPublicSlugs(env.DB).catch((error: unknown) =>
