@@ -1,6 +1,25 @@
 // The fan-out manifest store (D01 T01 §12): which further originals of one forward became cases of their
 // own, and how far each got. A row is written before its child is started, and a retry reads the same rows
 // back, so the admitted set never changes under a retry and a refused original stays refused on the record.
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+// A child's case ID, derived from its forward and its position: the same on every retry, so admitting it
+// again lands on the same case and the manifest row a retry writes names the case the first attempt made.
+// A ULID in shape (the artefact store requires one), from the SHA-256 of the pair.
+export async function childCaseIdFor(parentCaseId: string, position: number): Promise<string> {
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${parentCaseId}:${position}`)),
+  );
+  let value = 0n;
+  for (const byte of digest.subarray(0, 16)) value = (value << 8n) | BigInt(byte);
+  const encode = (part: bigint, chars: number) => {
+    let out = "";
+    for (let i = 0; i < chars; i++, part >>= 5n) out = CROCKFORD[Number(part & 31n)] + out;
+    return out;
+  };
+  return encode(value >> 80n, 10) + encode(value & ((1n << 80n) - 1n), 16);
+}
 export type ChildRow = {
   parentCaseId: string;
   position: number;

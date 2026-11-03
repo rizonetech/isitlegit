@@ -1819,6 +1819,29 @@ describe("several originals in one forward (D01 T01 §12)", () => {
     expect(started).toHaveLength(1);
   });
 
+  it("resumes an interrupted fan-out on retry with the same derived child", async () => {
+    const id = await caseWith(forwards["two-originals"]);
+    const { childrenOf, childCaseIdFor } = await import("../../src/intake/children");
+    await expect(
+      parse(store, id, MAIL, {
+        start: async () => {
+          throw new Error("workflow create lost");
+        },
+      }),
+    ).rejects.toThrow(/workflow create lost/);
+    const started: string[] = [];
+    await parse(store, id, MAIL, {
+      start: async (childCaseId: string) => {
+        started.push(childCaseId);
+      },
+    });
+    const children = await childrenOf(env.DB, id);
+    expect(children).toHaveLength(1);
+    expect(children[0]?.childCaseId).toBe(await childCaseIdFor(id, 2));
+    expect(children[0]?.state).toBe("started");
+    expect(started).toEqual([children[0]?.childCaseId]);
+  });
+
   it("sends one grouped reply when every case is terminal, and nothing before", async () => {
     const parentId = await caseWith(forwards["two-originals"]);
     const started: string[] = [];
@@ -1848,6 +1871,10 @@ describe("several originals in one forward (D01 T01 §12)", () => {
       // The child is still running: the parent sends nothing.
       const waiting = await reply(env, parentId, { status: "ready", verdict: "safe" });
       expect(waiting.mail).toBe("waiting");
+      expect(requests).toHaveLength(0);
+      // The child finishing first sends nothing either: the parent is not finished.
+      const childWaiting = await reply(env, childId, { status: "ready", verdict: "safe" });
+      expect(childWaiting.mail).toBe("waiting");
       expect(requests).toHaveLength(0);
       // Both terminal with verdicts: one grouped reply, each original with its own link.
       for (const [caseId, verdict] of [

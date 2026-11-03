@@ -251,6 +251,10 @@ export function buildGroupedReply(input: {
   const blockWords = (block: GroupedBlock) => ({
     subject: block.subject ? oneLine(block.subject) : "A message with no subject",
     verdict: block.verdict ? VERDICT_WORDS[block.verdict] : "Check failed · no verdict",
+    // A block with no verdict carries the failure's advice, as the single reply's no-verdict form does.
+    advice: block.verdict
+      ? null
+      : "We could not finish checking this message. Forward it again in a few minutes; until it is checked, do not pay, click or reply.",
   });
   const notChecked: string[] = [];
   if (input.boundExcluded > 0)
@@ -262,7 +266,13 @@ export function buildGroupedReply(input: {
     "",
     ...input.blocks.flatMap((block, index) => {
       const words = blockWords(block);
-      return [`${index + 1}. ${words.subject}`, `   ${words.verdict}`, `   The full report: ${block.reportUrl}`, ""];
+      return [
+        `${index + 1}. ${words.subject}`,
+        `   ${words.verdict}`,
+        ...(words.advice ? [`   ${words.advice}`] : []),
+        `   The full report: ${block.reportUrl}`,
+        "",
+      ];
     }),
     ...(totalNotChecked
       ? [
@@ -276,14 +286,15 @@ export function buildGroupedReply(input: {
   const blocksHtml = input.blocks
     .map((block, index) => {
       const words = blockWords(block);
-      return `<tr><td style="padding:12px 0;border-top:1px solid #E5E0D8"><p style="margin:0 0 4px;font-weight:700">${index + 1}. ${escapeHtml(words.subject)}</p><p style="margin:0 0 4px">${escapeHtml(words.verdict)}</p><p style="margin:0"><a href="${escapeHtml(block.reportUrl)}">The full report</a></p></td></tr>`;
+      return `<tr><td style="padding:12px 0;border-top:1px solid #E5E0D8"><p style="margin:0 0 4px;font-weight:700">${index + 1}. ${escapeHtml(words.subject)}</p><p style="margin:0 0 4px">${escapeHtml(words.verdict)}</p>${words.advice ? `<p style="margin:0 0 4px">${escapeHtml(words.advice)}</p>` : ""}<p style="margin:0"><a href="${escapeHtml(block.reportUrl)}">The full report</a></p></td></tr>`;
     })
     .join("");
-  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1A1A1A"><p>We checked the messages in your forward. Each has its own report:</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${blocksHtml}</table>${
+  const footer = footerWords(input.organisation, input.blocks[0]?.reportUrl ?? "");
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1A1A1A"><p style="font-weight:700">IsItLegit${input.organisation ? ` · checked for ${escapeHtml(input.organisation)}` : ""}</p><p>We checked the messages in your forward. Each has its own report:</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${blocksHtml}</table>${
     totalNotChecked
       ? `<p>${totalNotChecked} more ${totalNotChecked === 1 ? "message was" : "messages were"} not checked: ${escapeHtml(notChecked.join(", "))}. Forward ${totalNotChecked === 1 ? "it" : "each"} on its own to have it checked.</p>`
       : ""
-  }</body></html>`;
+  }<p>${escapeHtml(footer[0])}</p><p>${escapeHtml(footer[1])}</p></body></html>`;
   return { subject: replySubject(input.parentSubject), text, html };
 }
 
