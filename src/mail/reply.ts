@@ -7,6 +7,7 @@ import { asciiDomain } from "../checks/auth";
 import type { Evidence } from "../checks/evidence";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
+import { MAX_ORIGINALS } from "../intake/forward";
 import { orderedActions } from "../web/pages/report-verdict";
 import { messageIds } from "./rfc5322";
 import {
@@ -226,6 +227,65 @@ export function replyHeaders(evidence: readonly Pick<Evidence, "check" | "detail
 
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
 const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();
+
+// One forward's grouped reply (D01 T01 §12; design/SPEC.md N1's grouped variant, not drawn): one block per
+// checked original in attachment order, its subject, its verdict word and its own signed report link, then
+// the originals not checked (past the bound, refused by the cap) named with their counts. No single primary
+// button; each block's link is its report.
+export type GroupedBlock = {
+  subject: string | null;
+  verdict: VerdictView["verdict"] | null;
+  reportUrl: string;
+};
+
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+export function buildGroupedReply(input: {
+  blocks: readonly GroupedBlock[];
+  boundExcluded: number;
+  capRefused: number;
+  organisation: string | null;
+  parentSubject: string | null;
+}): { subject: string; text: string; html: string } {
+  const blockWords = (block: GroupedBlock) => ({
+    subject: block.subject ? oneLine(block.subject) : "A message with no subject",
+    verdict: block.verdict ? VERDICT_WORDS[block.verdict] : "Check failed · no verdict",
+  });
+  const notChecked: string[] = [];
+  if (input.boundExcluded > 0)
+    notChecked.push(`${input.boundExcluded} past the limit of ${MAX_ORIGINALS} in one forward`);
+  if (input.capRefused > 0) notChecked.push(`${input.capRefused} over today's check limit`);
+  const totalNotChecked = input.boundExcluded + input.capRefused;
+  const text = [
+    "We checked the messages in your forward. Each has its own report:",
+    "",
+    ...input.blocks.flatMap((block, index) => {
+      const words = blockWords(block);
+      return [`${index + 1}. ${words.subject}`, `   ${words.verdict}`, `   The full report: ${block.reportUrl}`, ""];
+    }),
+    ...(totalNotChecked
+      ? [
+          `${totalNotChecked} more ${totalNotChecked === 1 ? "message was" : "messages were"} not checked: ${notChecked.join(", ")}. Forward ${totalNotChecked === 1 ? "it" : "each"} on its own to have it checked.`,
+          "",
+        ]
+      : []),
+    ...footerWords(input.organisation, input.blocks[0]?.reportUrl ?? ""),
+    "",
+  ].join("\n");
+  const blocksHtml = input.blocks
+    .map((block, index) => {
+      const words = blockWords(block);
+      return `<tr><td style="padding:12px 0;border-top:1px solid #E5E0D8"><p style="margin:0 0 4px;font-weight:700">${index + 1}. ${escapeHtml(words.subject)}</p><p style="margin:0 0 4px">${escapeHtml(words.verdict)}</p><p style="margin:0"><a href="${escapeHtml(block.reportUrl)}">The full report</a></p></td></tr>`;
+    })
+    .join("");
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1A1A1A"><p>We checked the messages in your forward. Each has its own report:</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${blocksHtml}</table>${
+    totalNotChecked
+      ? `<p>${totalNotChecked} more ${totalNotChecked === 1 ? "message was" : "messages were"} not checked: ${escapeHtml(notChecked.join(", "))}. Forward ${totalNotChecked === 1 ? "it" : "each"} on its own to have it checked.</p>`
+      : ""
+  }</body></html>`;
+  return { subject: replySubject(input.parentSubject), text, html };
+}
 
 export function buildReply(input: ReplyInput): { subject: string; text: string; html: string } {
   const notes: string[] = [];

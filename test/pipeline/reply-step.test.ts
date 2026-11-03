@@ -103,11 +103,23 @@ describe("the reply step", () => {
     expect(await caseStatus(id)).toBe("done");
   });
 
-  it("asks for each of several attached messages on its own", async () => {
+  it("answers a forward of several messages with one grouped reply (D01 T01 §12)", async () => {
     const requests = stubSmtp2go(["sent"]);
     const id = await caseFrom(forwards["two-originals"]);
     await run(id);
-    expect(requests[0]?.text_body).toContain("we checked only the first");
+    // The grouped reply goes when the child case finishes, in its own instance.
+    const { childrenOf } = await import("../../src/intake/children");
+    const childId = (await childrenOf(env.DB, id))[0]?.childCaseId as string;
+    const child = await introspectWorkflowInstance(env.ANALYSIS, childId);
+    try {
+      await child.waitForStatus("complete");
+    } finally {
+      await child.dispose();
+    }
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.text_body).toContain("1. Updated banking details");
+    expect(requests[0]?.text_body).toContain("2. Updated banking details");
+    expect(requests[0]?.text_body).not.toContain("we checked only the first");
   });
 
   it("sends the verdict that is stored, not a stand-in", async () => {

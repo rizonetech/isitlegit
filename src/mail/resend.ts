@@ -159,13 +159,16 @@ async function resendOne(
     // done (final review); a failure here leaves it as it was and is logged.
     const delivered =
       result.mail !== "none" &&
+      result.mail !== "waiting" &&
       (result.outcome.status === "sent" ||
         (result.outcome.status === "duplicate" && result.outcome.previous === "sent"));
     if (delivered && state.status === "ready") await finishCase(env.DB, row.case_id, report);
     outcome =
       result.mail === "none"
         ? "with no one to reply to (no forwarder)"
-        : result.outcome.status === "refused"
+        : result.mail === "waiting"
+          ? "waiting for the forward's other cases to finish"
+          : result.outcome.status === "refused"
           ? `refused (${result.outcome.reason})`
           : result.outcome.status === "uncertain"
             ? "uncertain, left to the reconciler"

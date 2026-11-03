@@ -1,6 +1,6 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
 import type { ProtectedCandidates } from "../../src/checks/case-view";
 import { SummaryRefused } from "../../src/checks/case-view";
@@ -1788,4 +1788,97 @@ it("fills the protected candidates across organisations, and fails the step when
       async () => [],
     ),
   ).rejects.toThrow(/identity store down/);
+});
+
+describe("several originals in one forward (D01 T01 §12)", () => {
+  it("makes a case of the second original, records it before starting it, and resumes the same child on retry", async () => {
+    const id = await caseWith(forwards["two-originals"]);
+    const started: string[] = [];
+    const fanout = {
+      start: async (childCaseId: string) => {
+        started.push(childCaseId);
+      },
+    };
+    await parse(store, id, MAIL, fanout);
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, id);
+    expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({ position: 2, state: "started" });
+    expect(started).toEqual([children[0]?.childCaseId]);
+    const childId = children[0]?.childCaseId as string;
+    // The child's own message is stored, and its parse reads it as the original itself.
+    const childRaw = await readArtefact(store, childId, rawKey(childId));
+    expect(childRaw && "body" in childRaw).toBe(true);
+    await parse(store, childId, MAIL, fanout);
+    const childSummary = await readArtefact(store, childId, parsedKey(childId));
+    if (!childSummary || !("body" in childSummary)) throw new Error("the child's summary is missing");
+    expect(JSON.parse(new TextDecoder().decode(childSummary.body)).forward.path).not.toBe("inline");
+    // A retried parent parse makes no second child and starts nothing new.
+    await parse(store, id, MAIL, fanout);
+    expect(await childrenOf(env.DB, id)).toHaveLength(1);
+    expect(started).toHaveLength(1);
+  });
+
+  it("sends one grouped reply when every case is terminal, and nothing before", async () => {
+    const parentId = await caseWith(forwards["two-originals"]);
+    const started: string[] = [];
+    await parse(store, parentId, MAIL, {
+      start: async (childCaseId: string) => {
+        started.push(childCaseId);
+      },
+    });
+    const { childrenOf } = await import("../../src/intake/children");
+    const childId = (await childrenOf(env.DB, parentId))[0]?.childCaseId as string;
+    // The child parses its own original, which stores its subject for its block.
+    await parse(store, childId, MAIL, { start: async () => {} });
+    // Both cases need a forwarder for the reply; the parent's case was made without one here.
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id IN (?, ?)")
+      .bind("member@demo.isitlegit.co.za", parentId, childId)
+      .run();
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-1" } });
+    });
+    try {
+      // The child is still running: the parent sends nothing.
+      const waiting = await reply(env, parentId, { status: "ready", verdict: "safe" });
+      expect(waiting.mail).toBe("waiting");
+      expect(requests).toHaveLength(0);
+      // Both terminal with verdicts: one grouped reply, each original with its own link.
+      for (const [caseId, verdict] of [
+        [parentId, "suspicious"],
+        [childId, "malicious"],
+      ] as const) {
+        await setStatus(env.DB, ORG, caseId, "running");
+        const stored = await storeVerdict(env.DB, ORG, caseId, {
+          verdict,
+          headline: "h",
+          meaning: "m",
+          confidence: 0.5,
+          reasons: [],
+          actions: [],
+          source: "rules",
+        });
+        expect(stored.ok).toBe(true);
+        await setStatus(env.DB, ORG, caseId, "done");
+      }
+      const sent = await reply(env, childId, { status: "ready", verdict: "malicious" });
+      expect(sent.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("1. Updated banking details");
+      expect(requests[0]?.text_body).toContain("2. Updated banking details");
+      expect(requests[0]?.text_body).toContain("Fraud");
+      // A second attempt under the same group key sends nothing new.
+      const again = await reply(env, parentId, { status: "ready", verdict: "suspicious" });
+      expect(again.mail).toBe("duplicate");
+      expect(requests).toHaveLength(1);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });

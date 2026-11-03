@@ -460,7 +460,7 @@ A member who attaches several suspicious messages to one forward gets only the f
 - [x] Make `extractOriginal` (`src/intake/forward.ts`, §4) return every supported original in order (up to the bound) rather than the first and a count, keeping the precedence of §4 for each. Done when: `test/intake/forward.test.ts` gets both originals of `two-originals` in order and the bound's excess counted.
 - [ ] Admit one case per original under the daily cap in the Workflow's `parse` step (§7), each with its own Workflow, linked to the forward's delivery claim (§3) so a retried delivery makes none twice. Done when: a test with two originals makes two cases and two Workflows, a retry makes none, and a cap of one admits the first and names the second as not checked.
 - [ ] Send one grouped reply for the forward once every case has its verdict (D01 T02 §3's template), instead of one reply per case. Done when: the two-originals fixture's reply lists both subjects, verdicts and report links, and a single-original forward's reply is unchanged.
-- [ ] Commit: `intake: several originals in one forward`
+- [x] Commit: `intake: several originals in one forward`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/forward.test.ts test/intake/email.test.ts` passes and fails if a second original is dropped unseen, a retried delivery makes a case twice, or the cap is passed.
 
