@@ -85,6 +85,22 @@ describe("the stamps experiment", () => {
     const seenImages: Buffer[][] = [];
     let spent = 0;
     let askCalls = 0;
+    // Ordinary model refusal stops the run immediately.
+    const refusalStop = await runStamps(
+      setDir,
+      {
+        segment: async () => [],
+        ask: async () => {
+          throw new Error("provider refused request");
+        },
+        spentUsd: () => 0,
+      },
+      { resultsFile: join(dir, "refusal-stop.json") },
+    );
+    expect(refusalStop.stopped).toMatch(/refused/);
+    expect(refusalStop.outcomes).toHaveLength(1);
+    expect(refusalStop.outcomes[0]?.status).toBe("refused");
+
     const first = await runStamps(setDir, {
       segment: async (_png, concept) => {
         // Return 0 boxes on the second page (pop-01-doctored.png) to prove empty-segmentation without fallback.
@@ -96,26 +112,26 @@ describe("the stamps experiment", () => {
         askCalls++;
         if (askCalls === 3) {
           spent += 2.5;
-          throw new Error("provider refused request");
+          throw new Error("malformed json output");
         }
         return { doctored: images.length === 3, usd: 0.02 };
       },
       spentUsd: () => spent,
     });
     expect(first.stopped).toMatch(/budget cap/);
-    // First page whole (answered), first page chain (answered, 3 PNGs), second page whole (refused, cost includes seg + spark), second page chain (empty-segmentation, no ask call).
+    // First page whole (answered), first page chain (answered, 3 PNGs), second page whole (malformed), second page chain (empty-segmentation, no ask call).
     expect(seenImages[1]).toHaveLength(3);
     for (const buf of seenImages[1] ?? []) {
       const meta = await sharp(buf).metadata();
       expect(meta.format).toBe("png");
       expect(meta.width).toBeGreaterThan(50);
     }
-    const refusedRow = first.outcomes.find((o) => o.file === "pop-01-doctored.png" && o.arm === "whole");
-    expect(refusedRow?.status).toBe("refused");
-    expect(refusedRow?.usd).toBeCloseTo(ESTIMATE_USD.spark);
-    expect(refusedRow?.attempts).toBe(1);
+    const failedRow = first.outcomes.find((o) => o.file === "pop-01-doctored.png" && o.arm === "whole");
+    expect(failedRow?.status).toBe("malformed");
+    expect(failedRow?.usd).toBeCloseTo(ESTIMATE_USD.spark);
+    expect(failedRow?.attempts).toBe(1);
 
-    // Resuming without retryFailed does NOT resend the refused row, only finishes the budget-stopped rows.
+    // Resuming without retryFailed does NOT resend the failed row, only finishes the budget-stopped rows.
     spent = 0;
     let resumeAskCalls = 0;
     const second = await runStamps(setDir, {
@@ -127,15 +143,17 @@ describe("the stamps experiment", () => {
       spentUsd: () => spent,
     });
     expect(second.stopped).toBeNull();
-    // 40 pages: page 1 whole & chain were answered, page 2 whole was refused (skipped!), leaving 38 whole calls.
+    // 40 pages: page 1 whole & chain were answered, page 2 whole was malformed (skipped!), leaving 38 whole calls.
     // All remaining 39 chain calls had empty-segmentation (0 ask calls).
     expect(resumeAskCalls).toBe(38);
-    expect(second.outcomes.find((o) => o.file === "pop-01-doctored.png" && o.arm === "whole")?.status).toBe("refused");
+    expect(second.outcomes.find((o) => o.file === "pop-01-doctored.png" && o.arm === "whole")?.status).toBe(
+      "malformed",
+    );
     expect(second.outcomes.find((o) => o.file === "pop-01-doctored.png" && o.arm === "chain")?.status).toBe(
       "empty-segmentation",
     );
 
-    // Retrying with retryFailed: true resends only the refused row and accumulates its prior attempt cost and count.
+    // Retrying with retryFailed: true resends only the failed row and accumulates its prior attempt cost and count.
     let retryCalls = 0;
     const third = await runStamps(
       setDir,
@@ -256,9 +274,15 @@ describe("the stamps experiment", () => {
     expect(s.chain.falsePositives).toBe(0);
     expect(decideStamps(s)).toBe("feature");
 
-    // Probe: > 2% false positives or > 2x whole-page cost returns "cut", never "feature".
+    // Probe: > 2% false positives, > 2x whole-page cost, or latency > ceiling (15s median / 30s worst) returns "cut", never "feature".
     expect(decideStamps({ ...s, chain: { ...s.chain, falsePositives: 0.1 } })).toBe("cut");
     expect(decideStamps({ ...s, chain: { ...s.chain, totalUsd: 200 } })).toBe("cut");
+    expect(decideStamps({ ...s, chain: { ...s.chain, medianMs: 600_000, maxMs: 600_000 } })).toBe("cut");
+
+    // Segmentation and crop configuration are bound into experimentFingerprint.
+    expect(experimentFingerprint(entries, "ref", { samModel: "sam-other" })).not.toBe(fp);
+    expect(experimentFingerprint(entries, "ref", { samConcepts: ["stamp"] })).not.toBe(fp);
+    expect(experimentFingerprint(entries, "ref", { maxCropsPerConcept: 2 })).not.toBe(fp);
 
     const validLog = `whole detection 50.0%, whole false positives 0.0%, whole cost US$0.0600, median 10 ms, worst 10 ms, chain detection 100.0%, chain false positives 0.0%, chain cost US$0.0750, median 10 ms, worst 12 ms, Decision: feature | fingerprint: ${s.fingerprint}, ${PROMPT}, Adopted in D06 T02 §2`;
     expect(checkLog(validLog, entries, outcomes, { referenceSha256: "ref" })).toEqual([]);
@@ -289,7 +313,7 @@ describe("the stamps experiment", () => {
     expect(emptyScore.chain.maxMs).toBe(42);
     expect(emptyScore.chain.answeredMedianMs).toBeNull();
 
-    // Standalone scoreOutcomes throws on stale fingerprint or wrong fileSha256.
+    // Standalone scoreOutcomes throws on stale fingerprint, wrong fileSha256, duplicate outcomes, or invalid terminal fields.
     expect(() =>
       scoreOutcomes(
         entries,
@@ -304,6 +328,28 @@ describe("the stamps experiment", () => {
         "ref",
       ),
     ).toThrow(/fileSha256/);
+    expect(() => scoreOutcomes(entries, [...outcomes, outcomes[0] as ArmOutcome], "ref")).toThrow(/duplicate/);
+    expect(() =>
+      scoreOutcomes(
+        entries,
+        outcomes.map((o, idx) => (idx === 0 ? { ...o, doctored: null } : o)),
+        "ref",
+      ),
+    ).toThrow(/non-boolean doctored/);
+    expect(() =>
+      scoreOutcomes(
+        entries,
+        outcomes.map((o, idx) => (idx === 0 ? { ...o, usd: -1 } : o)),
+        "ref",
+      ),
+    ).toThrow(/invalid usd/);
+    expect(() =>
+      scoreOutcomes(
+        entries,
+        outcomes.map((o, idx) => (idx === 0 ? { ...o, ms: -5 } : o)),
+        "ref",
+      ),
+    ).toThrow(/missing non-negative ms/);
   });
 
   it("rejects stale results in standalone score CLI without --check and persists settled charges + retry attempts through localBudget + sharedLedger", async () => {

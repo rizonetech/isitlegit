@@ -1,9 +1,9 @@
 // The stamps experiment (D08 T03 section 2): does SAM segmentation plus crops beat the whole page?
 //   node eval/frontier/stamps.ts build [--out <dir>]   # 20 code-made POP pairs (40 pages) and manifest.json
-//   node eval/frontier/stamps.ts run [--dir <dir>] [--retry-failed]  # runs whole and chain arms under US$2.00 cap
+//   node eval/frontier/stamps.ts run [--dir <dir>] [--retry-failed]  # runs whole and chain arms under US$1.50 cap
 //   node eval/frontier/stamps.ts score [--dir <dir>] [--results <file>] [--check <log>]
 // Both arms receive the same genuine reference and the same Spark settings; labels never enter a prompt.
-// Spend is capped at US$2.00 through the shared ledger (owner eval-frontier), as section 1's digits run.
+// Spend is capped at US$1.50 through localBudget and the shared ledger (owner eval-frontier), stopping on any refusal.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
@@ -12,11 +12,18 @@ import sharp from "sharp";
 import { z } from "zod";
 
 export const SET_DIR = join(import.meta.dirname, "sets/stamps");
-export const RUN_CAP_USD = 2.0;
+export const RUN_CAP_USD = 1.5;
 export const STAMP_BOX = { left: 480, top: 700, width: 260, height: 180 };
 export const SIGNATURE_BOX = { left: 80, top: 760, width: 300, height: 120 };
 export const REFERENCE_BOX = { left: 60, top: 690, width: 690, height: 200 };
 export const MODEL_ID = "muse-spark-1.3";
+export const SAM_MODEL_ID = "sam-3.1";
+export const SAM_CONCEPTS = ["stamp", "signature"] as const;
+export const MAX_CROPS_PER_CONCEPT = 4;
+export const PAGE_WIDTH = 800;
+export const PAGE_HEIGHT = 1000;
+export const MAX_CHAIN_MEDIAN_MS = 15_000;
+export const MAX_CHAIN_MAX_MS = 30_000;
 export const REASONING_EFFORT = "low" as const;
 export const MAX_OUTPUT_TOKENS = 4000;
 
@@ -114,8 +121,8 @@ export const ArmOutcome = z.strictObject({
   arm: z.enum(["whole", "chain"]),
   status: z.enum(["pending", "answered", "empty-segmentation", "refused", "malformed", "timeout", "budget-stopped"]),
   doctored: z.boolean().nullable(),
-  ms: z.number().nullable(),
-  usd: z.number(),
+  ms: z.number().nonnegative().finite().nullable(),
+  usd: z.number().nonnegative().finite(),
   attempts: z.number().int().nonnegative(),
   fileSha256: z.string(),
   fingerprint: z.string(),
@@ -128,13 +135,30 @@ export const PROMPT =
   "The first image is a genuine Protea Bank reference showing the authentic signature (left) and bank stamp (right, blue, dated matching the payment date). Judge whether the stamp or signature in the following image or crops was doctored (altered date, changed stamp colour, or swapped signature) compared with the genuine reference. Answer only through the schema.";
 export const ESTIMATE_USD = { segment: 0.0025, spark: 0.02 };
 
-export function experimentFingerprint(entries: readonly ManifestEntry[], referenceSha256 = "ref"): string {
+export type FingerprintConfig = {
+  samModel?: string;
+  samConcepts?: readonly string[];
+  maxCropsPerConcept?: number;
+  pageWidth?: number;
+  pageHeight?: number;
+};
+
+export function experimentFingerprint(
+  entries: readonly ManifestEntry[],
+  referenceSha256 = "ref",
+  config?: FingerprintConfig,
+): string {
   return sha256(
     JSON.stringify({
       prompt: PROMPT,
       model: MODEL_ID,
       effort: REASONING_EFFORT,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
+      samModel: config?.samModel ?? SAM_MODEL_ID,
+      samConcepts: config?.samConcepts ?? SAM_CONCEPTS,
+      maxCropsPerConcept: config?.maxCropsPerConcept ?? MAX_CROPS_PER_CONCEPT,
+      pageWidth: config?.pageWidth ?? PAGE_WIDTH,
+      pageHeight: config?.pageHeight ?? PAGE_HEIGHT,
       referenceSha256,
       files: entries.map((e) => `${e.file}:${e.pairId}:${e.label}:${e.alteration}:${e.sha256}`),
     }),
@@ -172,7 +196,8 @@ export function verifySetOnDisk(
 
 // Failure-aware scoring: every doctored and genuine entry in the manifest stays in the denominator; an unanswered,
 // empty-segmentation, refused, malformed, timed-out, pending or budget-stopped case counts as missed (never dropped).
-// Every stored outcome is validated against its manifest entry sha256 and the experiment fingerprint before scoring.
+// Every stored outcome is validated against its manifest entry sha256, experiment fingerprint, duplicate keys and
+// terminal field invariants before scoring.
 export function validateOutcomes(
   entries: readonly ManifestEntry[],
   outcomes: readonly ArmOutcome[],
@@ -181,7 +206,11 @@ export function validateOutcomes(
   const problems: string[] = [];
   const expectedFp = experimentFingerprint(entries, referenceSha256);
   const byFile = new Map(entries.map((e) => [e.file, e]));
+  const seen = new Set<string>();
   for (const o of outcomes) {
+    const key = `${o.file}:${o.arm}`;
+    if (seen.has(key)) problems.push(`${o.file} (${o.arm}): duplicate outcome record`);
+    seen.add(key);
     const entry = byFile.get(o.file);
     if (!entry) {
       problems.push(`${o.file}: outcome names file not in manifest`);
@@ -195,8 +224,21 @@ export function validateOutcomes(
       problems.push(
         `${o.file} (${o.arm}): outcome fingerprint (${o.fingerprint}) differs from experiment (${expectedFp})`,
       );
-    if (o.status === "pending" || o.status === "budget-stopped")
+    if (!Number.isFinite(o.usd) || o.usd < 0) problems.push(`${o.file} (${o.arm}): invalid usd (${o.usd})`);
+    if (o.status === "pending" || o.status === "budget-stopped") {
       problems.push(`${o.file} (${o.arm}): incomplete outcome status ${o.status}`);
+      continue;
+    }
+    if (typeof o.ms !== "number" || !Number.isFinite(o.ms) || o.ms < 0)
+      problems.push(`${o.file} (${o.arm}): terminal outcome missing non-negative ms (${o.ms})`);
+    if (!Number.isInteger(o.attempts) || o.attempts < 1)
+      problems.push(`${o.file} (${o.arm}): terminal outcome requires attempts >= 1 (${o.attempts})`);
+    if (o.status === "answered") {
+      if (typeof o.doctored !== "boolean")
+        problems.push(`${o.file} (${o.arm}): answered outcome has non-boolean doctored (${o.doctored})`);
+    } else if (o.doctored !== null) {
+      problems.push(`${o.file} (${o.arm}): non-answered outcome (${o.status}) must have null doctored`);
+    }
   }
   for (const e of entries)
     for (const arm of ["whole", "chain"] as const)
@@ -207,7 +249,11 @@ export function validateOutcomes(
 export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], referenceSha256 = "ref") {
   const expectedFp = experimentFingerprint(entries, referenceSha256);
   const byFile = new Map(entries.map((e) => [e.file, e]));
+  const seen = new Set<string>();
   for (const o of outcomes) {
+    const key = `${o.file}:${o.arm}`;
+    if (seen.has(key)) throw new Error(`${o.file} (${o.arm}): duplicate outcome record`);
+    seen.add(key);
     const entry = byFile.get(o.file);
     if (!entry) throw new Error(`${o.file}: outcome names file not in manifest`);
     if (o.fileSha256 !== entry.sha256)
@@ -218,6 +264,17 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], 
       throw new Error(
         `${o.file} (${o.arm}): outcome fingerprint (${o.fingerprint}) differs from experiment (${expectedFp})`,
       );
+    if (!Number.isFinite(o.usd) || o.usd < 0) throw new Error(`${o.file} (${o.arm}): invalid usd (${o.usd})`);
+    if (o.status !== "pending" && o.status !== "budget-stopped") {
+      if (typeof o.ms !== "number" || !Number.isFinite(o.ms) || o.ms < 0)
+        throw new Error(`${o.file} (${o.arm}): terminal outcome missing non-negative ms (${o.ms})`);
+      if (!Number.isInteger(o.attempts) || o.attempts < 1)
+        throw new Error(`${o.file} (${o.arm}): terminal outcome requires attempts >= 1 (${o.attempts})`);
+      if (o.status === "answered" && typeof o.doctored !== "boolean")
+        throw new Error(`${o.file} (${o.arm}): answered outcome has non-boolean doctored`);
+      if (o.status !== "answered" && o.doctored !== null)
+        throw new Error(`${o.file} (${o.arm}): non-answered outcome (${o.status}) must have null doctored`);
+    }
   }
   const totalAttacks = entries.filter((e) => e.label === "doctored");
   const totalGenuine = entries.filter((e) => e.label === "genuine");
@@ -272,8 +329,9 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], 
 export type StampDecision = "feature" | "cut" | "open question";
 
 // Preset adoption rule (D08 T03 §2 correction 6): feature when chain detects >= 80%, raises at most 2% false
-// positives, beats whole-page detection, and costs at most twice whole-page cost; cut when chain detects no more than
-// whole-page, raises > 2% false positives, or costs > 2x whole-page; otherwise open question.
+// positives, beats whole-page detection, costs at most twice whole-page cost, and stays within the step latency ceiling
+// (median <= 15s, worst <= 30s); cut when chain detects no more than whole-page, raises > 2% false positives, costs > 2x
+// whole-page, or exceeds the latency ceiling; otherwise open question.
 export function decideStamps(score: ReturnType<typeof scoreOutcomes>): StampDecision {
   const { whole, chain } = score;
   if (
@@ -288,7 +346,9 @@ export function decideStamps(score: ReturnType<typeof scoreOutcomes>): StampDeci
   if (
     chain.detection <= whole.detection ||
     chain.falsePositives > 0.02 ||
-    (whole.totalUsd > 0 && chain.totalUsd > 2 * whole.totalUsd)
+    (whole.totalUsd > 0 && chain.totalUsd > 2 * whole.totalUsd) ||
+    (chain.medianMs !== null && chain.medianMs > MAX_CHAIN_MEDIAN_MS) ||
+    (chain.maxMs !== null && chain.maxMs > MAX_CHAIN_MAX_MS)
   )
     return "cut";
   if (
@@ -298,7 +358,11 @@ export function decideStamps(score: ReturnType<typeof scoreOutcomes>): StampDeci
     chain.falsePositives <= 0.02 &&
     chain.detection > whole.detection &&
     whole.totalUsd > 0 &&
-    chain.totalUsd <= 2 * whole.totalUsd
+    chain.totalUsd <= 2 * whole.totalUsd &&
+    chain.medianMs !== null &&
+    chain.medianMs <= MAX_CHAIN_MEDIAN_MS &&
+    chain.maxMs !== null &&
+    chain.maxMs <= MAX_CHAIN_MAX_MS
   )
     return "feature";
   return "open question";
@@ -485,14 +549,14 @@ export async function runStamps(
           images = [reference, page];
         } else {
           const crops: Buffer[] = [reference];
-          for (const concept of ["stamp", "signature"] as const) {
+          for (const concept of SAM_CONCEPTS) {
             const rawSeg = await deps.segment(page, concept, meta);
             const boxes = Array.isArray(rawSeg) ? rawSeg : rawSeg.boxes;
             segCost += Array.isArray(rawSeg) ? ESTIMATE_USD.segment : (rawSeg.usd ?? ESTIMATE_USD.segment);
             segAttempts += Array.isArray(rawSeg) ? 1 : (rawSeg.attempts ?? 1);
             samBoxes += boxes.length;
-            for (const rawBox of boxes.slice(0, 4)) {
-              const box = clampCropBox(rawBox);
+            for (const rawBox of boxes.slice(0, MAX_CROPS_PER_CONCEPT)) {
+              const box = clampCropBox(rawBox, PAGE_WIDTH, PAGE_HEIGHT);
               crops.push(await sharp(page).extract(box).png().toBuffer());
             }
           }
@@ -553,7 +617,7 @@ export async function runStamps(
           fingerprint,
           ...(arm === "chain" ? { samBoxes } : {}),
         });
-        if (isFatalStop) {
+        if (status === "refused" || isFatalStop) {
           stopped = msg;
           fatalStop = true;
         }
