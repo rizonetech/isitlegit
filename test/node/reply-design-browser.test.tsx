@@ -95,6 +95,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the reply in Chromium", { t
       }
     });
 
+  it("fits a 300-character hostile stored sentence in the band at phone and desktop widths (D07 T03 s10)", async () => {
+    const longest = `<script>alert(1)</script> ${"Do not use it. ".repeat(30)}`.slice(0, 300);
+    expect(longest).toHaveLength(300);
+    const design: ReplyDesign = {
+      ...BASE,
+      verdict: { ...(BASE.verdict as NonNullable<ReplyDesign["verdict"]>), meaning: longest },
+    };
+    for (const width of [360, 640]) {
+      const { p, context } = await open(design, width);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth), String(width)).toBeLessThanOrEqual(width);
+      expect(await p.locator("script").count()).toBe(0);
+      const text = (await p.locator("body").textContent())?.replace(/\s+/g, " ") ?? "";
+      expect(text).toContain(longest);
+      await context.close();
+    }
+  });
+
   it("loads every image with images on", async () => {
     const { p, context } = await open(BASE, 640);
     const images = await p

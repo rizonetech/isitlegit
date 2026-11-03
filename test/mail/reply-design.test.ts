@@ -74,6 +74,13 @@ describe("the stored sentence in the reply (D07 T03 s10)", () => {
     expect(hostile.text).toContain("<script>alert(1)</script> Do not use it.");
     expect(hostile.html).not.toContain("<script>alert(1)</script>");
     expect(hostile.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt; Do not use it.");
+    // At the stored field's 300-character maximum, the same holds in both bodies.
+    const longest = `<script>alert(1)</script> ${"Do not use it. ".repeat(30)}`.slice(0, 300);
+    expect(longest).toHaveLength(300);
+    const maxed = send({ view: { meaning: longest } });
+    expect(maxed.text).toContain(longest);
+    expect(maxed.html).not.toContain("<script>alert(1)</script>");
+    expect(maxed.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
   });
 });
 

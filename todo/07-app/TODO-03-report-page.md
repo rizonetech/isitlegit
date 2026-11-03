@@ -504,6 +504,7 @@ The verdict banner's third line is one sentence on what the verdict means for th
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts test/mail/reply-design.test.ts test/node/report-verdict-browser.test.tsx` passes with the stored sentence drawn in the band and the reply.
 
+
 ## 11. Follow-up question from
 
 A reader whose situation the fixed advice does not cover ("I already paid; what now?", "I typed my password") asks one follow-up question on the report and gets guidance for that case, its verdict and evidence kept as context. General assistants answer follow-ups (D07 T03 §2's completion review, E2); the report today ends at its list. Filed 2026-10-31 from §2's completion review. It changes the approved report surface, so the operator approves a board for it first.
