@@ -166,27 +166,27 @@ def main(argv=None):
         remove_dead_staging(folder)
         limits.new_pass()  # the second pass counts its own entries and bytes, but not its own clock
         written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl", limits)
+        # Every URL folder met, by outcome, each named by the id its row carries (`7dl-<folder prefix>`), so the item ledger
+        # and the import name it alike (§28 G3).
+        receipt = Receipt(limits)
+        chosen = set(keys)
+        for key in sorted(met):
+            item = f"7dl-{key.split('-', 1)[0]}"
+            receipt.note_inventory(item)
+            if key in written:
+                receipt.export(item)
+            elif key in chosen:
+                receipt.reject("its chosen capture's files did not both arrive", item)
+            elif key in earliest:
+                receipt.sample_out(item)
+            else:
+                receipt.reject("no capture answered 200 with a screenshot and HTML", item)
+        exported = receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest,
+                                 {"max": args.max, "seed": args.seed})
+        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
         print(f"sevendays-rows: refused ({error})", file=sys.stderr)
         return 1
-    # Every URL folder met, by outcome, each named by the id its row carries (`7dl-<folder prefix>`), so the item ledger
-    # and the import name it alike (§28 G3).
-    receipt = Receipt()
-    chosen = set(keys)
-    for key in sorted(met):
-        item = f"7dl-{key.split('-', 1)[0]}"
-        receipt.note_inventory(item)
-        if key in written:
-            receipt.export(item)
-        elif key in chosen:
-            receipt.reject("its chosen capture's files did not both arrive", item)
-        elif key in earliest:
-            receipt.sample_out(item)
-        else:
-            receipt.reject("no capture answered 200 with a screenshot and HTML", item)
-    exported = receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest,
-                             {"max": args.max, "seed": args.seed})
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     print(f"sevendays-rows: {len(written)} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
     return 0
 

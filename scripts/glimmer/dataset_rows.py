@@ -213,7 +213,8 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=20261028)
     args = parser.parse_args(argv)
     folder = store_dir() / "raw" / args.source
-    receipt, limits = Receipt(), Limits()
+    limits = Limits()
+    receipt = Receipt(limits)
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     try:
@@ -242,6 +243,10 @@ def main(argv=None):
                                       ensure_ascii=False) + "\n")
                 receipt.export(item_id)
         os.replace(temporary, out)
+        exported = receipt.write(folder, out, Path(__file__), inputs_digest,
+                                 {"source": args.source, "max": args.max, "seed": args.seed})
+        # Every item met, named, in the item ledger beside the receipt (§28 G3).
+        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
         print(f"dataset-rows: {args.source}: refused ({error})", file=sys.stderr)
@@ -249,10 +254,6 @@ def main(argv=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    exported = receipt.write(folder, out, Path(__file__), inputs_digest,
-                             {"source": args.source, "max": args.max, "seed": args.seed})
-    # Every item met, named, in the item ledger beside the receipt (§28 G3).
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     rejected = sum(receipt.rejected.values())
     print(f"dataset-rows: {args.source}: {receipt.exported} rows ({rejected} rejected, {receipt.sampled_out} sampled out) into {out}")
     return 0

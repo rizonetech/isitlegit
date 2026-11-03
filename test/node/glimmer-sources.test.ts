@@ -753,9 +753,65 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
     // Stored page lacking capture-problem evidence.
     const { evidence: _dropped, ...withoutEvidence } = storedPage;
     expect(runCheck({}, [withoutEvidence]).join()).toMatch(/has no capture-problem evidence/);
+    // Completion review G2, G3, G8: synthetic placeholder IDs, missing ITEMS.inventory.jsonl, missing input digests,
+    // wall evidence on a stored page, or missing/conflicting per-item lure on multi-item pages are refused.
+    expect(runCheck({ requireInventory: true, inventory: undefined }).join()).toMatch(
+      /no ITEMS\.inventory\.jsonl from its converter/,
+    );
+    expect(
+      runCheck({
+        converterItems: {
+          ...converterItems,
+          entries: [
+            { item: "item-1", outcome: "exported" },
+            { item: "item-2", outcome: "exported" },
+            { item: "phreshphish:rejected-1", outcome: "rejected", reason: "not a page" },
+          ],
+        },
+        inventory: ["item-1", "item-2", "phreshphish:rejected-1"],
+      }).join(),
+    ).toMatch(/contains synthetic placeholder item phreshphish:rejected-1/);
+    expect(
+      runCheck({
+        importItems: {
+          ...importItems,
+          entries: [
+            { item: "item-1", outcome: "imported", page: storedPage.id },
+            { item: "item-2", input: "in-2", outcome: "duplicate", page: storedPage.id },
+          ],
+        },
+      }).join(),
+    ).toMatch(/item item-1 in ITEMS\.import\.jsonl has no input digest/);
+    expect(
+      runCheck({}, [
+        {
+          ...storedPage,
+          evidence: { ...evidence, wall: true },
+        },
+      ]).join(),
+    ).toMatch(/has a capture-problem wall in its evidence/);
+    expect(
+      runCheck(
+        {
+          rowItems: [
+            { item: "item-1", input: "in-1", lure: true },
+            { item: "item-2", input: "in-2", lure: false },
+          ],
+        },
+        [
+          {
+            ...storedPage,
+            items: [
+              { id: "item-1", input: "in-1", lure: true },
+              { id: "item-2", input: "in-2" },
+            ],
+          },
+        ],
+      ).join(),
+    ).toMatch(/item item-2 is missing or disagrees with its row lure label/);
   });
 
-  it("removes ITEMS.import.jsonl when removing a source, and migrateLineage upgrades a pre-change store end to end (D03 T04 §28)", async () => {
+  it("removes ITEMS.import.jsonl when removing a source, and migrateLineage upgrades a pre-change store end to end while refusing synthetic IDs, unmatched items or changed generations (D03 T04 §28)", async () => {
     const root = mkdtempSync(join(tmpdir(), "glimmer-mig-root-"));
     const store = mkdtempSync(join(tmpdir(), "glimmer-mig-store-"));
     try {
@@ -830,12 +886,56 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
           rows: rowsSha,
         }),
       );
-      // Pre-migration store fails storeProblems because ITEMS.jsonl, ITEMS.import.jsonl, item/input and evidence are missing.
+      // Pre-migration store fails storeProblems because ITEMS.inventory.jsonl, ITEMS.jsonl, ITEMS.import.jsonl, item/input and evidence are missing.
       const beforeProblems = storeProblems(store, root).problems.join("\n");
       expect(beforeProblems).toContain("no item or input lineage");
       expect(beforeProblems).toContain("no capture-problem evidence");
+      expect(beforeProblems).toContain("no ITEMS.inventory.jsonl");
       expect(beforeProblems).toContain("no ITEMS.jsonl");
       expect(beforeProblems).toContain("no ITEMS.import.jsonl");
+
+      // Completion review G2: migrateLineage refuses when non-exported items lack real converter inventory.
+      await expect(migrateLineage(store, root)).rejects.toThrow(
+        /cannot migrate ITEMS\.jsonl without real converter inventory/,
+      );
+
+      // Provide the converter's real inventory (including rejected item compphish-3).
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: rowsSha },
+          { item: "compphish-1" },
+          { item: "compphish-2" },
+          { item: "compphish-3" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+
+      // Completion review G6: migrateLineage refuses when a rendered row does not match any stored page by content.
+      const otherShot = new Uint8Array(
+        await sharp({ create: { width: 16, height: 16, channels: 3, background: "#119" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      await expect(
+        migrateLineage(store, root, {
+          renderHtml: async () => ({
+            screenshot: otherShot,
+            text: "Completely unrelated text",
+            has_login_form: false,
+            has_payment_form: false,
+            evidence: {
+              title: "Other",
+              overlays: "",
+              captcha: false,
+              consentWall: false,
+              challengeCover: false,
+              wall: false,
+            },
+          }),
+        }),
+      ).rejects.toThrow(/did not match any stored page by content/);
 
       await migrateLineage(store, root, {
         renderHtml: async () => ({
@@ -858,7 +958,13 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
       expect(migratedPage?.item).toBe("compphish-1");
       expect(migratedPage?.evidence?.title).toBe("Account Login");
       expect(existsSync(join(folder, "ITEMS.jsonl"))).toBe(true);
+      expect(existsSync(join(folder, "ITEMS.inventory.jsonl"))).toBe(true);
       expect(existsSync(join(folder, "ITEMS.import.jsonl"))).toBe(true);
+
+      // Completion review G7: migrateLineage refuses when INPUTS.json changes instead of overwriting EXPORT.json / IMPORT.json.
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify({ files: [{ name: "New_HTML.zip" }] }));
+      await expect(migrateLineage(store, root)).rejects.toThrow(/other inputs than INPUTS\.json names/);
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify(manifest));
 
       // Removing a source cleans ITEMS.import.jsonl alongside marking IMPORT.json incomplete.
       expect(removeSourceFromStore(store, "compphish")).toBe(1);
@@ -874,6 +980,10 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
     const doc = readFileSync(join(import.meta.dirname, "../../docs/glimmer/importing.md"), "utf-8");
     expect(doc).not.toContain("renders under 20 characters of text");
     expect(doc).toContain("captureProblem()");
+    expect(doc).toContain("15 percent");
+    expect(doc).toContain("new_rows.py");
+    expect(doc).toContain("import-new.ts");
+    expect(doc).toContain("ITEMS.inventory.jsonl");
     expect(doc).toContain("ITEMS.import.jsonl");
     expect(doc).toContain("migrate-lineage");
   });

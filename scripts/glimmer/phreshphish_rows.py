@@ -54,7 +54,8 @@ def main(parquet=None):
     remove_dead_staging(folder)
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
-    receipt, limits = Receipt(), Limits()
+    limits = Limits()
+    receipt = Receipt(limits)
     try:
         with temporary.open("w", encoding="utf-8") as sink:
             for shard in shards:
@@ -77,6 +78,8 @@ def main(parquet=None):
                         finally:
                             limits.release_retained(held)
         os.replace(temporary, out)
+        exported = receipt.write(folder, out, Path(__file__), inputs_digest)
+        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every row met, named (§28 G3)
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
         print(f"phreshphish-rows: refused ({error})", file=sys.stderr)
@@ -84,8 +87,6 @@ def main(parquet=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    exported = receipt.write(folder, out, Path(__file__), inputs_digest)
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every row met, named (§28 G3)
     print(f"phreshphish-rows: {receipt.exported} rows from {len(shards)} shards into {out}")
     return 0
 

@@ -320,6 +320,86 @@ export function wallShown(seen: { title: string; text: string; overlays: string;
 export const NOT_FOUND =
   /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
 
+// Recovers capture-problem evidence (`title`, `overlays`, `captcha`, `consentWall`, `challengeCover`, `wall`) from a
+// row's static HTML and stored visible text (`text.txt`), for migrating pre-§28 stored pages without fabricating empty
+// defaults (D03 T04 §28 completion review G8).
+export function recoverHtmlEvidence(
+  html: string,
+  text: string,
+): {
+  title: string;
+  overlays: string;
+  captcha: boolean;
+  consentWall: boolean;
+  challengeCover: boolean;
+  wall: boolean;
+} {
+  const decodeEntities = (raw: string) =>
+    raw
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/&nbsp;/gi, " ");
+  const stripTags = (raw: string) =>
+    decodeEntities(
+      raw
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " "),
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
+  const title = titleMatch ? stripTags(titleMatch[1] ?? "").slice(0, 500) : "";
+  const overlayMatches = [
+    ...html.matchAll(
+      /<([a-z0-9-]+)\b[^>]*\bstyle\s*=\s*["'][^"']*?\bposition\s*:\s*(?:fixed|absolute)\b[^"']*["'][^>]*>([\s\S]*?)<\/\1>/gi,
+    ),
+  ];
+  const overlays = overlayMatches
+    .map((m) => stripTags(m[2] ?? ""))
+    .filter((s) => s.length > 0)
+    .join("\n")
+    .slice(0, 2000);
+  const frames = [...html.matchAll(/<iframe\b([^>]*)>/gi)].map((m) => m[1] ?? "");
+  const visibleFrame = (attrs: string) =>
+    !/\b(?:hidden|display\s*:\s*none|visibility\s*:\s*hidden)\b/i.test(attrs) &&
+    !/\b(?:width|height)\s*=\s*["']?0\b/i.test(attrs);
+  const captcha = frames.some(
+    (attrs) =>
+      visibleFrame(attrs) &&
+      /src\s*=\s*["'][^"']*(?:recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha)/i.test(
+        attrs,
+      ) &&
+      !/[?&]size=invisible\b/i.test(attrs),
+  );
+  const consentWords =
+    /we use cookies|accept (all )?cookies|(cookie|privacy) (settings|preferences)|manage cookies|consent to|your consent/i;
+  const consentFrame = frames.some(
+    (attrs) =>
+      visibleFrame(attrs) &&
+      /src\s*=\s*["'][^"']*(?:consent|cookiebot|onetrust|cookielaw|didomi|trustarc|quantcast|consensu\.org|privacy-mgmt|sourcepoint|usercentrics|cookiefirst|iubenda)/i.test(
+        attrs,
+      ),
+  );
+  const consentWall = consentFrame || (overlays.length > 0 && overlays.length < 3000 && consentWords.test(overlays));
+  const vendorScript =
+    /<script\b[^>]*\bsrc\s*=\s*["'][^"']*(?:perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs|funcaptcha|cdn-cgi\/challenge-platform|challenges\.cloudflare\.com|geetest|kasada|\/TSPD\/|_bm\/|sec-cpt|recaptcha\/(?:api|enterprise))/i.test(
+      html,
+    );
+  const hasCover = overlayMatches.some(
+    (m) =>
+      /(?:width\s*:\s*100%|inset\s*:\s*0|left\s*:\s*0[^"']*right\s*:\s*0)/i.test(m[0] ?? "") &&
+      stripTags(m[2] ?? "").length < 40 &&
+      /(?:<img|<canvas|<svg|<iframe|<video|<object|<embed|background-image\s*:)/i.test(m[0] ?? ""),
+  );
+  const challengeCover = vendorScript && hasCover;
+  const wall = wallShown({ title, text, overlays });
+  return { title, overlays, captcha, consentWall, challengeCover, wall };
+}
+
 // Signs that the page is not the site but a wall in front of it. Run inside the page.
 export function readWalls(): {
   captcha: boolean;

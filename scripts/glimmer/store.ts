@@ -355,10 +355,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
     const meta = PageMeta.parse({ ...current, labels, label_source, ...(licence ? { licence } : {}) });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 
@@ -391,10 +394,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     });
     const meta = PageMeta.parse({ ...current, items: [...listed.map(clean), clean(item)] });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 
@@ -414,10 +420,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       ...(kept.length > 1 ? { items: kept } : {}),
     });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 
@@ -441,10 +450,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       ...(update.evidence !== undefined ? { evidence: update.evidence } : {}),
     });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 

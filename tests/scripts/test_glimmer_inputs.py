@@ -221,6 +221,29 @@ class ItemLedger(unittest.TestCase):
             dup_inv.write_items(self.dir, "i" * 64, "r" * 64)
         self.assertEqual(list(self.dir.iterdir()), [])
 
+    def test_charges_lineage_bookkeeping_and_serialization_to_limits_and_writes_inventory(self):
+        # Retained limit breached by inventory or outcome bookkeeping (completion review G1).
+        tight_retained = inputs.Limits(retained=300)
+        bounded = inputs.Receipt(tight_retained)
+        bounded.note_inventory("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "bytes retained at once"):
+            bounded.export("row-a")
+        # Allocation limit breached during write_items serialization.
+        tight_alloc = inputs.Limits(retained=10_000, allocation=50)
+        alloc_receipt = inputs.Receipt(tight_alloc)
+        alloc_receipt.note_inventory("row-a")
+        alloc_receipt.export("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "allocation limit"):
+            alloc_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertEqual(list(self.dir.iterdir()), [])
+        # Within limits: writes both ITEMS.jsonl and ITEMS.inventory.jsonl.
+        ok = inputs.Receipt(inputs.Limits())
+        ok.note_inventory("row-a")
+        ok.export("row-a")
+        ok.write_items(self.dir, "i" * 64, "r" * 64)
+        inv_lines = [json.loads(line) for line in (self.dir / inputs.INVENTORY_ITEMS).read_text().splitlines()]
+        self.assertEqual(inv_lines, [{"inputs": "i" * 64}, {"item": "row-a"}])
+
 
 if __name__ == "__main__":
     unittest.main()

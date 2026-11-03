@@ -189,7 +189,8 @@ def main(argv=None):
         print(f"scamferret-rows: {path} is missing", file=sys.stderr)
         return 2
     out = folder / "rows.jsonl"
-    receipt, limits = Receipt(), Limits()
+    limits = Limits()
+    receipt = Receipt(limits)
     try:
         # Nothing is read from an archive that is not the one bound in the manifest.
         _, inputs_digest = verify(folder, INPUT_FILES)
@@ -197,11 +198,11 @@ def main(argv=None):
         found = screenshots(path, limits)
         limits.new_pass()  # the second pass counts its own entries and bytes, but not its own clock
         written = export(path, found, out, receipt, limits)
+        exported = receipt.write(folder, out, Path(__file__), inputs_digest)
+        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every page met, named (§28 G3)
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
         print(f"scamferret-rows: refused ({error})", file=sys.stderr)
         return 1
-    exported = receipt.write(folder, out, Path(__file__), inputs_digest)
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every page met, named (§28 G3)
     rejected = sum(receipt.rejected.values())
     print(f"scamferret-rows: {len(written)} rows ({rejected} rejected) into {out}")
     return 0

@@ -10,12 +10,13 @@ Each source's files sit under `<store>/raw/<source>/` with their SHA-256 (or the
 
 | Source | Command |
 | ------ | ------- |
-| ScamFerret | `python3 -I scripts/glimmer/scamferret_rows.py` (reads the archive `<store>/raw/scamferret/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc.tar.gz` entry by entry, never unpacked, once `INPUTS.json` binds it, and writes `rows.jsonl` and `EXPORT.json`) |
+| ScamFerret | `python3 -I scripts/glimmer/scamferret_rows.py` (reads the archive `<store>/raw/scamferret/artifact-8cf8dc631edafe584141e2f95f0c0f51855fb7bc.tar.gz` entry by entry, never unpacked, once `INPUTS.json` binds it, and writes `rows.jsonl`, `EXPORT.json`, `ITEMS.jsonl` and `ITEMS.inventory.jsonl`) |
 | PhreshPhish | `~/.venvs/fireworks/bin/python scripts/glimmer/phreshphish_rows.py` |
 | CompPhish, Ariyadasa 2021, Kempf HTML, Look For Mallory | `~/.venvs/fireworks/bin/python -I scripts/glimmer/dataset_rows.py <source> [--max 15000]` |
 | 7 Days Later | `~/.venvs/fireworks/bin/python -I scripts/glimmer/sevendays_rows.py [--max 15000]` |
+| OWS, PhishingEval-Ji, PhishDecloaker, ARES 2021, Putra | `~/.venvs/fireworks/bin/python -I scripts/glimmer/new_rows.py <source> [--max 30000]` |
 
-Archives are read entry by entry, never run; each entry is bounded in size. Each command first removes the staging a killed earlier run left (`scripts/glimmer/staging.py`) and writes its output temp-then-rename.
+Archives are read entry by entry, never run; each entry, decompressed total, single-buffer allocation, retained-memory footprint (including lineage bookkeeping and ledger serialization), pending-part count and wall-clock deadline is bounded by `scripts/glimmer/inputs.py` (`Limits`). Every Hugging Face pin in `INPUTS.json` must name an immutable 40-digit commit hash, never a mutable branch or tag (`main`, `master`, `refs/...`). Each command first removes the staging a killed earlier run left (`scripts/glimmer/staging.py`) and writes `rows.jsonl`, `EXPORT.json`, `ITEMS.jsonl` and `ITEMS.inventory.jsonl` temp-then-rename with read-back verification.
 
 ## 3. Import
 
@@ -23,16 +24,21 @@ Archives are read entry by entry, never run; each entry is bounded in size. Each
 | ------ | ------- |
 | ScamFerret | `node scripts/glimmer/import-scamferret.ts [--concurrency 4]` (reads only the rows its `EXPORT.json` names; rows without a receipt, or changed since, are refused) |
 | PhreshPhish | `node scripts/glimmer/import-phreshphish.ts [--concurrency 4]` |
-| The rest | `node scripts/glimmer/import-rows.ts <source> [--concurrency 4]` |
+| CompPhish, Ariyadasa 2021, Kempf HTML, Look For Mallory, 7 Days Later | `node scripts/glimmer/import-rows.ts <source> [--concurrency 4]` |
+| OWS, PhishingEval-Ji, PhishDecloaker, ARES 2021, Putra | `node scripts/glimmer/import-new.ts <source> [--concurrency 4]` |
 
-The import writes `<store>/raw/<source>/IMPORT.json` as `running` before it touches a page, and at the end as `complete` or `incomplete` with every item accounted for: imported, a duplicate of a stored page, skipped (already stored from an earlier run, not rendered again), filtered (`captureProblem()` in `scripts/glimmer/label-rules.ts`: a CAPTCHA, consent or challenge wall in the DOM or title/text, a 404/error page, a directory listing or suspended host, a parked domain, or a blank page with neither visible text nor login/payment form fields, while a sparse lure with a logo and login or payment fields is admitted) or excluded (with its reason). More than 5 percent excluded, or a stop on a write failure, reads `incomplete`; an import only reads `complete` after `<store>/raw/<source>/ITEMS.import.jsonl` is written and read back whole, bound to `{ inputs, rows, export, import }`. A source is trained on and evaluated only once its import reads `complete`. A stopped or killed import is resumed by running the same command again.
+The import writes `<store>/raw/<source>/IMPORT.json` as `running` before it touches a page, and at the end as `complete` or `incomplete` with every item accounted for: imported, a duplicate of a stored page, skipped (already stored from an earlier run, not rendered again), filtered (`captureProblem()` in `scripts/glimmer/label-rules.ts`: a CAPTCHA, consent or challenge wall in the DOM or title/text, a 404/error page, a directory listing or suspended host, a parked domain, or a blank page with neither visible text nor login/payment form fields, while a sparse lure with a logo and login or payment fields is admitted) or excluded (with its reason). More than 15 percent excluded, or a stop on a write failure, reads `incomplete`; an import only publishes `complete` to `IMPORT.json` after `<store>/raw/<source>/ITEMS.import.jsonl` is written and read back whole, bound to `{ inputs, rows, export, import }` with every item's `input` digest. A source is trained on and evaluated only once its import reads `complete`. A stopped or killed import is resumed by running the same command again.
 
-## 4. Check, inspect and reverse
+## 4. Check, inspect, recover and reverse
 
-- `node scripts/glimmer/sources.ts check` reconciles `docs/glimmer/sources.md`, every accepted source's `INPUTS.json`, `EXPORT.json`, `ITEMS.jsonl`, `IMPORT.json` and `ITEMS.import.jsonl`, and every stored page's `item`, `items`, `input` digest and `evidence` (`title` and `overlays`), and prints `sources: reconciled`.
-- `node scripts/glimmer/sources.ts migrate-lineage` populates `ITEMS.jsonl`, `ITEMS.import.jsonl` and stored-page lineage (`item`, `input`, `items`, `evidence`) for imports written before §28, re-rendering small sources lacking stored evidence.
+- `node scripts/glimmer/sources.ts check` reconciles `docs/glimmer/sources.md`, every accepted source's `INPUTS.json`, `EXPORT.json`, `ITEMS.inventory.jsonl`, `ITEMS.jsonl`, `IMPORT.json` and `ITEMS.import.jsonl`, and every stored page's `item`, `items` (with per-item `input` digest and `lure` label), `input` digest and `evidence` (`title`, `overlays` and structural wall flags), and prints `sources: reconciled`.
+- `node scripts/glimmer/sources.ts migrate-lineage` populates `ITEMS.inventory.jsonl`, `ITEMS.jsonl`, `ITEMS.import.jsonl` and stored-page lineage (`item`, `input`, `items`, `evidence`) for imports written before §28, recovering capture evidence and per-item lure labels from the bound rows and refusing any source whose inputs, export or pages disagree by generation or content.
 - `node scripts/glimmer/sources.ts status` lists each source's pages and its import's status, counts and rate.
 - `node scripts/glimmer/sources.ts remove <source>` takes a source's pages out of the store, removes `raw/<source>/ITEMS.import.jsonl`, and marks its `IMPORT.json` as removed; a rejected source must have no page left.
+- **Recovery from refusals:**
+  - *Converter limit or pin refusal* (`more than ... archive entries`, `more than ... bytes expanded`, `more than ... bytes retained at once`, `passes the ... byte allocation limit`, `the conversion passed ... seconds`, or a mutable Hugging Face commit pin): replace any mutable Hugging Face branch/tag in `raw/<source>/INPUTS.json` with the exact 40-hex commit SHA, verify the archive digests in `INPUTS.json` (`inputs.verify()`), and re-run the source's converter command in §2.
+  - *Inventory or ledger disagreement* (`ITEMS.jsonl does not match the converter's input inventory`, `ITEMS.inventory.jsonl` missing/mismatched, or `ITEMS.import.jsonl` missing/mismatched): re-run the source's converter command in §2 to rewrite `rows.jsonl`, `EXPORT.json`, `ITEMS.jsonl` and `ITEMS.inventory.jsonl` from the verified inputs, then re-run the source's import command in §3 so `ITEMS.import.jsonl` and `IMPORT.json` are rewritten in lockstep.
+  - *Generation or content mismatch* (`EXPORT.json was made from other inputs than INPUTS.json names`, `the import was made from other rows than EXPORT.json names`, `ITEMS.import.jsonl is not bound to its IMPORT.json`, or `migrate-lineage` refusing an unmatched item or changed generation): never edit a receipt or ledger digest by hand; re-run the converter in §2 when `INPUTS.json` changed, then re-run the importer in §3 so changed items are re-rendered, shared pages narrowed or replaced, and stale items removed.
 
 ## 5. The sample import's environments: install, verify and recover
 

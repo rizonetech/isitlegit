@@ -210,6 +210,9 @@ class Limits:
 
 
 ITEMS = "ITEMS.jsonl"
+INVENTORY_ITEMS = "ITEMS.inventory.jsonl"
+# What one held ledger/inventory entry costs beyond its text (dict/list slots and string headers).
+HELD_LEDGER_ENTRY = 200
 
 
 class Receipt:
@@ -217,21 +220,33 @@ class Receipt:
     (`ITEMS.jsonl`, D03 T04 §28 G3): its id, its outcome and, for a rejection, the reason; an exported item's id is its
     row's, which the import then follows to its page."""
 
-    def __init__(self):
+    def __init__(self, limits=None):
+        self.limits = limits
         self.met = 0
         self.exported = 0
         self.sampled_out = 0
         self.rejected = {}
         self.items = []
         self.inventory = []
+        self._held = 0
+
+    def _charge(self, size):
+        if self.limits is not None:
+            self.limits.charge_retained(size)
+            self._held += size
 
     def note_inventory(self, item):
         """An input item enumerated independently of outcome recording (D03 T04 §28 plan review gap 2)."""
-        self.inventory.append(str(item))
+        text = str(item)
+        self._charge(HELD_LEDGER_ENTRY + len(text.encode("utf-8")))
+        self.inventory.append(text)
 
     def _named(self, item, outcome, reason=None):
         if item is not None:
-            self.items.append({"item": str(item), "outcome": outcome, **({"reason": reason} if reason else {})})
+            text = str(item)
+            extra = len(reason.encode("utf-8")) if reason else 0
+            self._charge(HELD_LEDGER_ENTRY + len(text.encode("utf-8")) + len(outcome) + extra)
+            self.items.append({"item": text, "outcome": outcome, **({"reason": reason} if reason else {})})
 
     def export(self, item=None):
         self.met += 1
@@ -252,32 +267,74 @@ class Receipt:
         """The item ledger, written whole (temp then rename) once every item met is named exactly once; bound to the
         inputs and rows it describes. Refused while any item is unnamed or named twice, or disagrees with an
         independently enumerated input inventory, so a partial ledger never stands in for the whole."""
+        if self.limits is not None:
+            self.limits.check_deadline()
         if len(self.items) != self.met:
             raise Refused(f"the item ledger names {len(self.items)} of {self.met} items")
         ids = [entry["item"] for entry in self.items]
-        if len(set(ids)) != len(ids):
-            raise Refused("the item ledger names an item twice")
         inv = [str(x) for x in inventory] if inventory is not None else self.inventory
-        if inv:
-            if len(set(inv)) != len(inv):
-                raise Refused("the input inventory names an item twice")
-            if set(inv) != set(ids) or len(inv) != len(ids):
-                raise Refused(
-                    f"the item ledger ({len(ids)} items) does not match the input inventory ({len(inv)} items)"
-                )
+        scratch = sum(HELD_LEDGER_ENTRY + len(x.encode("utf-8")) for x in ids) + sum(
+            HELD_LEDGER_ENTRY + len(x.encode("utf-8")) for x in inv
+        )
+        if self.limits is not None:
+            self.limits.check_allocation(scratch, "item ledger reconciliation")
+            self.limits.charge_retained(scratch)
+        try:
+            if len(set(ids)) != len(ids):
+                raise Refused("the item ledger names an item twice")
+            if inv:
+                if len(set(inv)) != len(inv):
+                    raise Refused("the input inventory names an item twice")
+                if set(inv) != set(ids) or len(inv) != len(ids):
+                    raise Refused(
+                        f"the item ledger ({len(ids)} items) does not match the input inventory ({len(inv)} items)"
+                    )
+        finally:
+            if self.limits is not None:
+                self.limits.release_retained(scratch)
         path = Path(folder) / ITEMS
         temporary = path.with_name(f".{ITEMS}.{os.getpid()}.tmp")
         written = "".join(
             [json.dumps({"inputs": inputs_digest, "rows": rows_digest}) + "\n"]
             + [json.dumps(entry) + "\n" for entry in self.items]
         )
-        with open(temporary, "w", encoding="utf-8") as handle:
-            handle.write(written)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-        if path.read_text(encoding="utf-8") != written:
-            raise Refused(f"{path} did not read back as written")
+        written_bytes = len(written.encode("utf-8"))
+        if self.limits is not None:
+            self.limits.check_allocation(written_bytes, ITEMS)
+            self.limits.charge_retained(written_bytes)
+        try:
+            with open(temporary, "w", encoding="utf-8") as handle:
+                handle.write(written)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+            if path.read_text(encoding="utf-8") != written:
+                raise Refused(f"{path} did not read back as written")
+        finally:
+            if self.limits is not None:
+                self.limits.release_retained(written_bytes)
+        if inv:
+            inv_path = Path(folder) / INVENTORY_ITEMS
+            inv_tmp = inv_path.with_name(f".{INVENTORY_ITEMS}.{os.getpid()}.tmp")
+            inv_written = "".join(
+                [json.dumps({"inputs": inputs_digest}) + "\n"]
+                + [json.dumps({"item": item}) + "\n" for item in inv]
+            )
+            inv_bytes = len(inv_written.encode("utf-8"))
+            if self.limits is not None:
+                self.limits.check_allocation(inv_bytes, INVENTORY_ITEMS)
+                self.limits.charge_retained(inv_bytes)
+            try:
+                with open(inv_tmp, "w", encoding="utf-8") as handle:
+                    handle.write(inv_written)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(inv_tmp, inv_path)
+                if inv_path.read_text(encoding="utf-8") != inv_written:
+                    raise Refused(f"{inv_path} did not read back as written")
+            finally:
+                if self.limits is not None:
+                    self.limits.release_retained(inv_bytes)
         return path
 
     def write(self, folder, rows, converter, inputs_digest, parameters=None):

@@ -132,6 +132,7 @@ export function concurrencyArg(argv: string[] = process.argv): number {
 export const IMPORT_ITEMS = "ITEMS.import.jsonl";
 export type ImportOutcome = {
   item: string;
+  input?: string | undefined;
   outcome: "imported" | "duplicate" | "stored" | "excluded" | "filtered";
   page?: string;
   reason?: string;
@@ -235,7 +236,12 @@ export async function importSource(options: {
   let relabelled = 0;
   let rerendered = 0;
   const outcomes = new Map<string, ImportOutcome>();
-  const record = (outcome: ImportOutcome) => outcomes.set(outcome.item, outcome);
+  const record = (outcome: ImportOutcome) => {
+    const clean = { ...outcome };
+    if (clean.input === undefined) delete clean.input;
+    outcomes.set(clean.item, clean);
+  };
+  const itemDigest = (item: SourceItem): string | undefined => item.input;
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -254,8 +260,12 @@ export async function importSource(options: {
         const others = (stored.items?.map((entry) => entry.id) ?? [stored.item as string]).filter(
           (id) => id !== item.id,
         );
-        if (others.length) store.keepItems(stored.id, others);
-        else store.removePage(stored.id);
+        if (others.length) {
+          const updated = store.keepItems(stored.id, others);
+          for (const otherId of others) intactByItem.set(otherId, updated);
+        } else {
+          store.removePage(stored.id);
+        }
         intactByItem.delete(item.id);
         rerendered++;
         stored = undefined;
@@ -285,7 +295,7 @@ export async function importSource(options: {
           relabelled++;
         }
         skipped++;
-        record({ item: item.id, outcome: "stored", page: stored.id });
+        record({ item: item.id, input: itemDigest(item), outcome: "stored", page: stored.id });
         continue;
       }
       let page: Awaited<ReturnType<SourceItem["load"]>>;
@@ -293,7 +303,12 @@ export async function importSource(options: {
         page = await withDeadline(item.load(), options.itemMs ?? ITEM_DEADLINE_MS);
       } catch (error) {
         excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
-        record({ item: item.id, outcome: "excluded", reason: excluded.at(-1)?.reason as string });
+        record({
+          item: item.id,
+          input: itemDigest(item),
+          outcome: "excluded",
+          reason: excluded.at(-1)?.reason as string,
+        });
         continue;
       }
       // Why a capture cannot carry its publisher's label (§28 G6 and plan review gap 6): an empty page with no text or
@@ -305,7 +320,7 @@ export async function importSource(options: {
           : captureProblem(page.text, page.evidence, page);
       if (problem) {
         filtered.push({ item: item.id, reason: problem });
-        record({ item: item.id, outcome: "filtered", reason: problem });
+        record({ item: item.id, input: itemDigest(item), outcome: "filtered", reason: problem });
         continue;
       }
       const labels: Labels = { ...item.labels };
@@ -321,6 +336,7 @@ export async function importSource(options: {
         label_source.has_payment_form = flagSource(page.has_payment_form);
       }
       const host = hostOf(item.url);
+      const digest = itemDigest(item);
       try {
         const id = await store.putPage(source, {
           screenshot: page.screenshot,
@@ -334,18 +350,18 @@ export async function importSource(options: {
           label_source,
           redacted: options.redacted ?? false,
           item: item.id,
-          ...(item.input ? { input: item.input } : {}),
+          ...(digest ? { input: digest } : {}),
           ...(page.evidence ? { evidence: page.evidence } : {}),
         });
         if (before.has(id)) {
           duplicates++;
           // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
-          store.addItem(id, { id: item.id, input: item.input, lure: labels.lure, lure_type: labels.lure_type });
-          record({ item: item.id, outcome: "duplicate", page: id });
+          store.addItem(id, { id: item.id, input: digest, lure: labels.lure, lure_type: labels.lure_type });
+          record({ item: item.id, input: digest, outcome: "duplicate", page: id });
         } else {
           before.add(id);
           imported++;
-          record({ item: item.id, outcome: "imported", page: id });
+          record({ item: item.id, input: digest, outcome: "imported", page: id });
         }
       } catch (error) {
         const reason = (error as Error).message.split("\n")[0] ?? "store failed";
@@ -353,7 +369,7 @@ export async function importSource(options: {
         if ((error as NodeJS.ErrnoException).code) stopped = reason;
         else {
           excluded.push({ item: item.id, reason });
-          record({ item: item.id, outcome: "excluded", reason });
+          record({ item: item.id, input: digest, outcome: "excluded", reason });
         }
       }
       const handled = imported + duplicates + skipped + excluded.length + filtered.length;
@@ -415,27 +431,36 @@ export async function importSource(options: {
     pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
     concurrency,
   };
-  writeImport(importJson, options.publish === false ? { ...result, status: "running" } : result);
+  const plannedImport = options.publish === false ? { ...result, status: "running" as const } : result;
   try {
     options.afterImportWrite?.();
     // The import ledger is bound to the inputs, export and import digests it belongs to, written temp-then-replace and
-    // read back after the page metadata and IMPORT.json (§28 plan review gap 5). A failure or stop here marks
-    // IMPORT.json incomplete, and a kill between IMPORT.json and this write leaves the ledger missing or bound to the
-    // previous import digest, which `sources.ts check` refuses and a rerun of the import repairs.
+    // read back before IMPORT.json publishes `complete` (§28 plan review gap 5 and completion review G9). A failure or
+    // stop here marks IMPORT.json incomplete, and a hard kill before writeImport leaves IMPORT.json as `running`.
     if ((options.binding || options.writeLedger) && !stopped) {
       const binding = options.binding ?? { inputs: "", rows: "" };
       const where = new Map<string, string>();
       for (const page of sourcePages)
         for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
       const settled = items.map((item): ImportOutcome => {
+        const digest = itemDigest(item);
         const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
         if (had.page && !where.has(item.id))
-          return { item: item.id, outcome: "excluded", reason: "its page was settled away" };
-        return had.page ? { ...had, page: where.get(item.id) as string } : had;
+          return {
+            item: item.id,
+            ...(digest ? { input: digest } : {}),
+            outcome: "excluded",
+            reason: "its page was settled away",
+          };
+        return had.page
+          ? { ...had, ...(digest ? { input: digest } : {}), page: where.get(item.id) as string }
+          : { ...had, ...(digest ? { input: digest } : {}) };
       });
       const exportFile = join(dirname(importJson), "EXPORT.json");
       const exportDigest = binding.export ?? (existsSync(exportFile) ? fileSha256(exportFile) : undefined);
-      const importDigest = fileSha256(importJson);
+      const importDigest = createHash("sha256")
+        .update(`${JSON.stringify(plannedImport, null, 2)}\n`, "utf-8")
+        .digest("hex");
       writeImportItems(
         join(dirname(importJson), IMPORT_ITEMS),
         { ...binding, export: exportDigest, import: importDigest },
@@ -443,6 +468,7 @@ export async function importSource(options: {
         options.writeLedger ? { write: options.writeLedger } : {},
       );
     }
+    writeImport(importJson, plannedImport);
   } catch (error) {
     result.status = "incomplete";
     result.reason = (error as Error).message;

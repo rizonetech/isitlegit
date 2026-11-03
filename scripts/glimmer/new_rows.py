@@ -424,7 +424,8 @@ def main():
         print(f"new-rows: refused ({error})", file=sys.stderr)
         return 1
     remove_dead_staging(folder)
-    receipt, limits = Receipt(), Limits()
+    limits = Limits()
+    receipt = Receipt(limits)
     out = Rows(folder, receipt, limits)
     try:
         if args.source == "van-dooremaal-ares-2021":
@@ -432,12 +433,12 @@ def main():
         else:
             convert(folder, receipt, limits, out)
         out.close()
+        rows_digest = inputs_module.file_digest(folder / "rows.jsonl")
+        receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest)
+        receipt.write_items(folder, inputs_digest, rows_digest)
     except inputs_module.Refused as error:
         print(f"new-rows: refused ({error})", file=sys.stderr)
         return 1
-    rows_digest = inputs_module.file_digest(folder / "rows.jsonl")
-    receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest)
-    receipt.write_items(folder, inputs_digest, rows_digest)
     print(f"new-rows: {args.source}: {receipt.exported} rows exported, {sum(receipt.rejected.values())} rejected")
     return 0
 
