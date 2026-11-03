@@ -77,9 +77,7 @@ def main(parquet=None):
                                 receipt.export(row.get("sha256"))
                         finally:
                             limits.release_retained(held)
-        os.replace(temporary, out)
-        exported = receipt.write(folder, out, Path(__file__), inputs_digest)
-        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every row met, named (§28 G3)
+        receipt.publish(folder, temporary, out, Path(__file__), inputs_digest)
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
         print(f"phreshphish-rows: refused ({error})", file=sys.stderr)

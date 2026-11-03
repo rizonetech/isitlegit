@@ -281,6 +281,29 @@ class ItemLedger(unittest.TestCase):
         inv_lines = [json.loads(line) for line in (self.dir / inputs.INVENTORY_ITEMS).read_text().splitlines()]
         self.assertEqual(inv_lines, [{"inputs": "i" * 64}, {"item": "row-a"}])
 
+        # Round 5 finding 2: Receipt.publish stages and validates ledgers before replacing rows.jsonl or writing EXPORT.json,
+        # so a limit refusal during ledger staging leaves pre-existing outputs completely untouched.
+        out_rows = self.dir / "rows.jsonl"
+        out_rows.write_text('{"sha256":"prev"}\n', encoding="utf-8")
+        (self.dir / inputs.EXPORT).write_text('{"rows_sha256":"prev-export"}\n', encoding="utf-8")
+        (self.dir / inputs.ITEMS).write_text('{"inputs":"prev","rows":"prev"}\n', encoding="utf-8")
+        (self.dir / inputs.INVENTORY_ITEMS).write_text('{"inputs":"prev"}\n', encoding="utf-8")
+        staged_rows = self.dir / ".rows.jsonl.99999.tmp"
+        staged_rows.write_text('{"sha256":"new-0"}\n' * 60, encoding="utf-8")
+        pub_limits = inputs.Limits(retained=40_000, allocation=1000)
+        pub_receipt = inputs.Receipt(pub_limits)
+        for idx in range(60):
+            item_id = f"new-{idx:04d}"
+            pub_receipt.note_inventory(item_id)
+            pub_receipt.export(item_id)
+        with self.assertRaisesRegex(inputs.Refused, "more than 40000 bytes retained at once"):
+            pub_receipt.publish(self.dir, staged_rows, out_rows, Path(__file__), "n" * 64)
+        self.assertEqual(out_rows.read_text(encoding="utf-8"), '{"sha256":"prev"}\n')
+        self.assertEqual((self.dir / inputs.EXPORT).read_text(encoding="utf-8"), '{"rows_sha256":"prev-export"}\n')
+        self.assertEqual((self.dir / inputs.ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev","rows":"prev"}\n')
+        self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
+        self.assertEqual([p.name for p in self.dir.iterdir() if p.name.startswith(".ITEMS")], [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -97,7 +97,7 @@ def screenshots(path, limits, found=None):
     return found
 
 
-def export(path, found, out, receipt, limits):
+def export(path, found, out, receipt, limits, stage_only=False):
     """Second pass: one row a page, written as its parts arrive. Returns the ids written."""
     pending, written, seen, done = {}, set(), set(), set()
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
@@ -171,7 +171,8 @@ def export(path, found, out, receipt, limits):
                         html = row["html"]
                         write(sink, row["id"], key, pending.pop(key))
                         limits.release_retained(len(html) + len(encoded))
-        os.replace(temporary, out)
+        if not stage_only:
+            os.replace(temporary, out)
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
@@ -189,6 +190,7 @@ def main(argv=None):
         print(f"scamferret-rows: {path} is missing", file=sys.stderr)
         return 2
     out = folder / "rows.jsonl"
+    temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     limits = Limits()
     receipt = Receipt(limits)
     try:
@@ -197,10 +199,10 @@ def main(argv=None):
         remove_dead_staging(folder)
         found = screenshots(path, limits)
         limits.new_pass()  # the second pass counts its own entries and bytes, but not its own clock
-        written = export(path, found, out, receipt, limits)
-        exported = receipt.write(folder, out, Path(__file__), inputs_digest)
-        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every page met, named (§28 G3)
+        written = export(path, found, out, receipt, limits, stage_only=True)
+        receipt.publish(folder, temporary, out, Path(__file__), inputs_digest)  # every page met, named (§28 G3)
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
+        temporary.unlink(missing_ok=True)
         print(f"scamferret-rows: refused ({error})", file=sys.stderr)
         return 1
     rejected = sum(receipt.rejected.values())

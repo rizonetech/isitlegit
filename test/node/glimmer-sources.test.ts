@@ -1041,6 +1041,112 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
       expect(removeSourceFromStore(store, "compphish")).toBe(1);
       expect(existsSync(join(folder, "ITEMS.import.jsonl"))).toBe(false);
       expect(JSON.parse(readFileSync(join(folder, "IMPORT.json"), "utf-8")).status).toBe("incomplete");
+
+      // Round 5 finding 1: when rows.jsonl has duplicate HTML rows and no existing ITEMS.import.jsonl,
+      // migrateLineage matches duplicates by SHA-256 digest (htmlHashByItem) and reads HTML on demand only for
+      // the single row rendered, without retaining raw HTML strings across all rows.
+      const dupHtml =
+        "<html><head><title>Account Login</title></head><body><form><input type='password'/>Sign in to your account</form></body></html>";
+      const dupRowsContent = `${[
+        {
+          sha256: "compphish-dup-1",
+          url: "https://login.example.com/a",
+          html: dupHtml,
+          label: "phish",
+          target: "Example",
+        },
+        {
+          sha256: "compphish-dup-2",
+          url: "https://login.example.com/a",
+          html: dupHtml,
+          label: "phish",
+          target: "Example",
+        },
+      ]
+        .map((r) => JSON.stringify(r))
+        .join("\n")}\n`;
+      writeFileSync(join(folder, "rows.jsonl"), dupRowsContent);
+      const dupRowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 2,
+          exported: 2,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: dupRowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 1,
+          skipped: 0,
+          filtered: [],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: dupRowsSha,
+        }),
+      );
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${[{ inputs: inputsDigest }, { item: "compphish-dup-1" }, { item: "compphish-dup-2" }]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: dupRowsSha },
+          { item: "compphish-dup-1", outcome: "exported" },
+          { item: "compphish-dup-2", outcome: "exported" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      const s2 = openStore(store);
+      const dupPageId = await s2.putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      });
+      await migrateLineage(store, root, {
+        renderHtml: async () => ({
+          screenshot: shot,
+          text: "Sign in to your account",
+          has_login_form: true,
+          has_payment_form: false,
+          evidence: {
+            title: "Account Login",
+            overlays: "",
+            captcha: false,
+            consentWall: false,
+            challengeCover: false,
+            wall: false,
+          },
+        }),
+      });
+      const dupImportLines = readFileSync(join(folder, "ITEMS.import.jsonl"), "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      expect(dupImportLines.slice(1)).toEqual([
+        { item: "compphish-dup-1", outcome: "imported", page: dupPageId, input: expect.any(String) },
+        { item: "compphish-dup-2", outcome: "duplicate", page: dupPageId, input: expect.any(String) },
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
       rmSync(store, { recursive: true, force: true });

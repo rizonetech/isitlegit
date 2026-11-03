@@ -242,11 +242,9 @@ def main(argv=None):
                 sink.write(json.dumps({"sha256": item_id, "url": url, "html": html, "label": label, "target": None},
                                       ensure_ascii=False) + "\n")
                 receipt.export(item_id)
-        os.replace(temporary, out)
-        exported = receipt.write(folder, out, Path(__file__), inputs_digest,
-                                 {"source": args.source, "max": args.max, "seed": args.seed})
-        # Every item met, named, in the item ledger beside the receipt (§28 G3).
-        receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
+        # Validate and stage the ledgers before replacing rows.jsonl or EXPORT.json (§28 Round 5 finding 2).
+        receipt.publish(folder, temporary, out, Path(__file__), inputs_digest,
+                        {"source": args.source, "max": args.max, "seed": args.seed})
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
         print(f"dataset-rows: {args.source}: refused ({error})", file=sys.stderr)

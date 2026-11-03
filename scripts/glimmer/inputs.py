@@ -303,7 +303,7 @@ class Receipt:
             self.limits.check_allocation(base_bytes + size, label)
         return size
 
-    def _write_jsonl_streamed(self, path, records_fn, label):
+    def _stage_jsonl_streamed(self, path, records_fn, label):
         temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
         total_bytes = 0
         try:
@@ -326,9 +326,8 @@ class Receipt:
                             self.limits.release_retained(held_line)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary, path)
             read_total = 0
-            with open(path, "rb") as handle:
+            with open(temporary, "rb") as handle:
                 for record in records_fn():
                     if self.limits is not None:
                         self.limits.check_deadline()
@@ -352,14 +351,14 @@ class Receipt:
                 extra = handle.read(1)
                 if extra:
                     raise Refused(f"{path} did not read back as written")
+            return temporary
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
 
-    def write_items(self, folder, inputs_digest, rows_digest, inventory=None):
-        """The item ledger, written whole (temp then rename) once every item met is named exactly once; bound to the
-        inputs and rows it describes. Refused while any item is unnamed or named twice, or disagrees with an
-        independently enumerated input inventory, so a partial ledger never stands in for the whole."""
+    def stage_items(self, folder, inputs_digest, rows_digest, inventory=None):
+        """Reconciles, writes and reads back the item and inventory ledgers into temporary files without replacing
+        existing published files yet."""
         if self.limits is not None:
             self.limits.check_deadline()
         if len(self.items) != self.met:
@@ -371,6 +370,7 @@ class Receipt:
         seen_ids = set()
         seen_inv = set()
         external_inv_list = []
+        staged = []
         try:
             try:
                 for entry in self.items:
@@ -420,7 +420,7 @@ class Receipt:
                 for entry in self.items:
                     yield entry
 
-            self._write_jsonl_streamed(path, iter_items, ITEMS)
+            staged.append((self._stage_jsonl_streamed(path, iter_items, ITEMS), path))
             inv_items = external_inv_list if keep_external_inv else self.inventory
             if inv_items:
                 inv_path = Path(folder) / INVENTORY_ITEMS
@@ -430,15 +430,49 @@ class Receipt:
                     for item_id in inv_items:
                         yield {"item": item_id}
 
-                self._write_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS)
-            return path
+                staged.append((self._stage_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS), inv_path))
+            return staged
+        except BaseException:
+            for tmp, _ in staged:
+                tmp.unlink(missing_ok=True)
+            raise
         finally:
             external_inv_list.clear()
             del external_inv_list
             if self.limits is not None and inv_retained:
                 self.limits.release_retained(inv_retained)
 
-    def write(self, folder, rows, converter, inputs_digest, parameters=None):
+    def write_items(self, folder, inputs_digest, rows_digest, inventory=None):
+        """The item ledger, written whole (temp then rename) once every item met is named exactly once; bound to the
+        inputs and rows it describes. Refused while any item is unnamed or named twice, or disagrees with an
+        independently enumerated input inventory, so a partial ledger never stands in for the whole."""
+        staged = self.stage_items(folder, inputs_digest, rows_digest, inventory=inventory)
+        try:
+            for tmp, dst in staged:
+                os.replace(tmp, dst)
+        finally:
+            for tmp, _ in staged:
+                tmp.unlink(missing_ok=True)
+        return Path(folder) / ITEMS
+
+    def publish(self, folder, staged_rows, out_rows, converter, inputs_digest, parameters=None, inventory=None):
+        """Validates and stages the complete generation (rows, item ledger, inventory ledger and export receipt) before
+        replacing any published file, so a limit or validation refusal leaves the previous generation untouched."""
+        rejected = sum(self.rejected.values())
+        if self.exported + self.sampled_out + rejected != self.met:
+            raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
+        rows_digest = file_digest(staged_rows)
+        staged_ledgers = self.stage_items(folder, inputs_digest, rows_digest, inventory=inventory)
+        try:
+            os.replace(staged_rows, out_rows)
+            for tmp, dst in staged_ledgers:
+                os.replace(tmp, dst)
+        finally:
+            for tmp, _ in staged_ledgers:
+                tmp.unlink(missing_ok=True)
+        return self.write(folder, out_rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
+
+    def write(self, folder, rows, converter, inputs_digest, parameters=None, rows_digest=None):
         """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own
         (the sample cap and seed), recorded with this module's digest and the interpreter, so the receipt names the whole
         recipe that made the rows (completion review E1)."""
@@ -450,7 +484,7 @@ class Receipt:
             "exported": self.exported,
             "sampled_out": self.sampled_out,
             "rejected": dict(sorted(self.rejected.items())),
-            "rows_sha256": file_digest(rows),
+            "rows_sha256": rows_digest if rows_digest is not None else file_digest(rows),
             "converter_sha256": file_digest(converter),
             "inputs": inputs_digest,
             "recipe": {

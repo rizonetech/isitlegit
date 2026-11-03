@@ -110,6 +110,17 @@ class Rows:
         self.sink.close()
         os.replace(self.temporary, self.folder / "rows.jsonl")
 
+    def close_staged(self):
+        self.sink.close()
+        return self.temporary
+
+    def cleanup(self):
+        try:
+            self.sink.close()
+        except Exception:
+            pass
+        self.temporary.unlink(missing_ok=True)
+
 
 def read_entry(archive, info, limits):
     if info.is_dir() or info.file_size > MAX_ENTRY:
@@ -432,13 +443,15 @@ def main():
             convert(folder, receipt, limits, out, max_per_label=(args.max // 2 if args.max else None), seed=args.seed)
         else:
             convert(folder, receipt, limits, out)
-        out.close()
-        rows_digest = inputs_module.file_digest(folder / "rows.jsonl")
-        receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest)
-        receipt.write_items(folder, inputs_digest, rows_digest)
+        staged = out.close_staged()
+        receipt.publish(folder, staged, folder / "rows.jsonl", Path(__file__), inputs_digest)
     except inputs_module.Refused as error:
+        out.cleanup()
         print(f"new-rows: refused ({error})", file=sys.stderr)
         return 1
+    except BaseException:
+        out.cleanup()
+        raise
     print(f"new-rows: {args.source}: {receipt.exported} rows exported, {sum(receipt.rejected.values())} rejected")
     return 0
 

@@ -1161,11 +1161,15 @@ export async function migrateLineage(
         continue;
       }
 
-      // Recover HTML evidence by rendering any page lacking evidence, and index HTML hashes when duplicate items need matching.
+      // Recover HTML evidence by rendering any page lacking evidence, and index HTML SHA-256 hashes (never retaining
+      // raw HTML documents) when duplicate items need matching.
+      const excludedById = new Map((importRecord.excluded ?? []).map((e) => [e.item, e.reason]));
+      const filteredById = new Map((importRecord.filtered ?? []).map((e) => [e.item, e.reason]));
       const pagesMissingEvidence = new Set(pages.filter((p) => !p.evidence).map((p) => p.id));
       const needLedgerBuild = !existingImportLedger || existingImportLedger.entries.length !== receipt.exported;
       const recoveredEvidenceByPage = new Map<string, NonNullable<StoredPage["evidence"]>>();
-      const htmlByItem = new Map<string, string>();
+      const htmlHashByItem = new Map<string, string>();
+      const indexedByItem = new Map<string, Awaited<ReturnType<typeof indexRows>>[number]>();
       if (pagesMissingEvidence.size > 0 || needLedgerBuild) {
         const renderHtml = pagesMissingEvidence.size > 0 ? await getRenderHtml() : undefined;
         const indexed = await indexRows(rowsFile);
@@ -1174,9 +1178,13 @@ export async function migrateLineage(
           if (p.item && (pagesMissingEvidence.has(p.id) || needLedgerBuild)) wantedPrimaryItems.set(p.item, p);
         }
         for (const entry of indexed) {
+          if (excludedById.has(entry.sha256) || filteredById.has(entry.sha256)) continue;
+          if (needLedgerBuild) indexedByItem.set(entry.sha256, entry);
           if (wantedPrimaryItems.has(entry.sha256) || needLedgerBuild) {
             const html = readHtml(rowsFile, entry);
-            if (needLedgerBuild) htmlByItem.set(entry.sha256, html);
+            if (needLedgerBuild) {
+              htmlHashByItem.set(entry.sha256, createHash("sha256").update(html, "utf-8").digest("hex"));
+            }
             const primaryPage = wantedPrimaryItems.get(entry.sha256);
             if (primaryPage && pagesMissingEvidence.has(primaryPage.id) && renderHtml) {
               const rendered = await renderHtml(html);
@@ -1270,8 +1278,6 @@ export async function migrateLineage(
       }
 
       // Build ITEMS.import.jsonl and stored-page lineage from verified content matches only.
-      const excludedById = new Map((importRecord.excluded ?? []).map((e) => [e.item, e.reason]));
-      const filteredById = new Map((importRecord.filtered ?? []).map((e) => [e.item, e.reason]));
       const pageByItem = new Map<string, StoredPage>();
       const pagesByHtmlHash = new Map<string, StoredPage>();
       const pagesByPair = new Map<string, StoredPage[]>();
@@ -1282,10 +1288,9 @@ export async function migrateLineage(
         }
         pageByItem.set(page.item, page);
         for (const li of page.items ?? []) pageByItem.set(li.id, page);
-        const primaryHtml = htmlByItem.get(page.item);
-        if (primaryHtml !== undefined) {
-          const h = createHash("sha256").update(primaryHtml, "utf-8").digest("hex");
-          if (!pagesByHtmlHash.has(h)) pagesByHtmlHash.set(h, page);
+        const primaryHash = htmlHashByItem.get(page.item);
+        if (primaryHash !== undefined && !pagesByHtmlHash.has(primaryHash)) {
+          pagesByHtmlHash.set(primaryHash, page);
         }
         const pairKey = `${page.sha256.screenshot}:${page.sha256.text}`;
         pagesByPair.set(pairKey, [...(pagesByPair.get(pairKey) ?? []), page]);
@@ -1299,17 +1304,14 @@ export async function migrateLineage(
       for (const r of surviving) {
         let matched = pageByItem.get(r.item);
         if (!matched) {
-          const html = htmlByItem.get(r.item);
-          if (html !== undefined) {
-            const h = createHash("sha256").update(html, "utf-8").digest("hex");
-            matched = pagesByHtmlHash.get(h);
-          }
+          const h = htmlHashByItem.get(r.item);
+          if (h !== undefined) matched = pagesByHtmlHash.get(h);
         }
         if (!matched) {
-          const html = htmlByItem.get(r.item);
-          if (html !== undefined) {
+          const entry = indexedByItem.get(r.item);
+          if (entry !== undefined) {
             const renderHtml = await getRenderHtml();
-            const rendered = await renderHtml(html);
+            const rendered = await renderHtml(readHtml(rowsFile, entry));
             const shotHash = createHash("sha256").update(rendered.screenshot).digest("hex");
             const textHash = createHash("sha256").update(rendered.text, "utf-8").digest("hex");
             matched = pagesByPair.get(`${shotHash}:${textHash}`)?.[0] ?? pagesByText.get(textHash)?.[0];
