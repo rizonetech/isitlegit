@@ -91,10 +91,11 @@ describe("decompressRtf", () => {
   it("refuses a MELA stream whose sizes disagree and an LZFu stream with no terminator", () => {
     const body = enc("abcdef");
     expect(() => decompressRtf(header(body.length + 12, 3, 0x414c454d, 0, body), LIMIT)).toThrow(ParseError);
-    // Eight literals in one control group, the declared body longer, and nothing ends the stream.
+    // Eight literals in one control group declaring exactly eight bytes, and nothing ends the stream:
+    // reaching the declared size is not termination.
     const payload = new Uint8Array([0, ...enc("12345678")]);
-    const unterminated = header(payload.length + 12, 100, 0x75465a4c, rtfCrc(payload), payload);
-    expect(() => decompressRtf(unterminated, LIMIT)).toThrow(/terminator|declared size/);
+    const unterminated = header(payload.length + 12, 8, 0x75465a4c, rtfCrc(payload), payload);
+    expect(() => decompressRtf(unterminated, LIMIT)).toThrow(/terminator/);
   });
 
   it("refuses a bad checksum, a cut-off stream and an unknown compression type", () => {
@@ -146,6 +147,9 @@ describe("scoped state and syntax", () => {
     // The fallback is an escaped backslash: skipped whole, the X after it is text.
     expect(rtfToText(enc("{\\rtf1\\uc1\\u945\\\\X}"), "windows-1252")).toBe("αX");
     expect(() => rtfToText(enc("{\\rtf1\\u945\\'zz}"), "windows-1252")).toThrow(ParseError);
+    // A group delimiter is never fallback, and a \bin payload is one fallback character, not body text.
+    expect(rtfToText(enc("{\\rtf1{\\u945}Pay now}"), "windows-1252")).toBe("αPay now");
+    expect(rtfToText(enc("{\\rtf1\\uc1\\u945\\bin3 abcX}"), "windows-1252")).toBe("αX");
   });
 
   it("keeps the Unicode fallback count and the font inside their group", () => {

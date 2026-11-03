@@ -298,16 +298,26 @@ function walkRtf(
         // never eats half a token and the stream stays validated as it is skipped.
         let skip = frame().fallback;
         while (skip > 0 && k < rtf.length) {
+          // A group delimiter is never fallback: it closes or opens a group, and the fallback simply ends.
+          if (rtf[k] === 0x7b || rtf[k] === 0x7d) break;
           if (rtf[k] === 0x5c && rtf[k + 1] === 0x27) {
             const hex = new TextDecoder().decode(rtf.subarray(k + 2, k + 4));
             if (!/^[0-9a-fA-F]{2}$/.test(hex)) throw new ParseError("the RTF body holds a malformed byte escape");
             k += 4;
           } else if (rtf[k] === 0x5c && isLetter(rtf[k + 1] as number)) {
-            k += 2;
-            while (k < rtf.length && isLetter(rtf[k] as number)) k++;
+            let w = k + 1;
+            while (w < rtf.length && isLetter(rtf[w] as number)) w++;
+            const name = new TextDecoder().decode(rtf.subarray(k + 1, w));
+            k = w;
+            let payload = 0;
             if (rtf[k] === 0x2d) k++;
-            while (k < rtf.length && (rtf[k] as number) >= 48 && (rtf[k] as number) <= 57) k++;
+            while (k < rtf.length && (rtf[k] as number) >= 48 && (rtf[k] as number) <= 57) {
+              payload = payload * 10 + ((rtf[k] as number) - 48);
+              k++;
+            }
             if (rtf[k] === 0x20) k++;
+            // \binN's payload is part of the same fallback character: consumed, never body text.
+            if (name === "bin") k += payload;
           } else if (rtf[k] === 0x5c) {
             k += 2;
           } else {
