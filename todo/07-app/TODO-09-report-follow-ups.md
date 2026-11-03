@@ -442,6 +442,8 @@ Filed 2026-11-02 from D07 T09 §7's completion review (out-of-scope excellence i
 
 ## 14. Abandoned preview response during a retry
 
+> **Started:** 2026-11-03T23:57:00Z
+
 Filed 2026-11-02 from D07 T09 §8's round 5 (P3): §8's browser test releases each stalled response before Try again, so it does not prove that an abandoned response arriving while a retry is pending leaves the retry's loading state and deadline intact. §8 cancels the abandoned transfer, so the scenario needs a harness that can deliver the old response after the retry starts (separate routes for the two requests).
 
 **Phase:** 7
