@@ -109,7 +109,7 @@ export async function browserCapture(
 export function monitorDeps(
   env: Env,
   runId: string,
-  opts: { fetcher?: typeof fetch; now?: () => number; sparkFetch?: typeof fetch } = {},
+  opts: { fetcher?: typeof fetch; now?: () => number; sparkFetch?: typeof fetch; ctFetch?: typeof fetch } = {},
 ): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
   const { sparkFetch, ...loupe } = opts;
@@ -126,7 +126,11 @@ export function monitorDeps(
     ...(sparkFetch ? { fetch: sparkFetch } : {}),
   };
   return {
-    ct: (tokens: string[]) => ctCandidates(opts.fetcher ?? fetch, tokens),
+    // CT runs on its own transport; when a test names the run's transports, CT stays off
+    // unless it names ctFetch too, so a stubbed run never reaches the network by surprise.
+    ...(opts.ctFetch || (!opts.fetcher && !opts.sparkFetch)
+      ? { ct: (tokens: string[]) => ctCandidates(opts.ctFetch ?? fetch, tokens) }
+      : {}),
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
