@@ -11,7 +11,7 @@ import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/rec
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
-import { type CaseView, caseViewOf, type Tenant } from "../checks/case-view";
+import { boundProtectedCandidates, type CaseView, caseViewOf, type Tenant } from "../checks/case-view";
 import { cloudflareBlocked } from "../checks/cf-block";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
@@ -75,6 +75,7 @@ import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
 import { bankKeys } from "../trust/bank";
+import { protectedIdentities } from "../trust/identity";
 import { recordVisionNotRun, visionStep } from "../vision/step";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
@@ -818,6 +819,10 @@ export async function checks(
           : null,
     // Each stored transcript, for the transcript evidence (D01 T03 §16).
     transcripts: await storedTranscripts(store, caseId, key, read),
+    // Every effectively protected identity as a candidate for the trust claim match (D02 T01 §9): discovered
+    // across organisations, since a member's case can claim another protected business; a failed read fails
+    // the step like its other awaited store reads, never reads as no candidate.
+    protectedCandidates: boundProtectedCandidates(await protectedIdentities(store.db)),
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
