@@ -151,6 +151,34 @@ const outcome = (result: ToolResult) =>
           evidence: result.evidence.map(({ id, check }) => ({ id, check })),
         };
 
+// Model text that reaches the report and reply carries no destination of its own: any web
+// address or mailbox the model wrote is removed before storage, because destinations in a
+// verdict (the signed report link, the feedback link) come from code, never from the model
+// (AGENTS.md: no model decides who receives mail, and a plain-text address in a reply is a
+// destination a mail client can link). The words around it stay, so the finding still reads.
+const stripDestinations = (text: string) =>
+  // Token by token, with no word-boundary or suffix list to bypass: a token whose core holds a
+  // scheme, an @, or a dot between letters or digits (any script's) is a destination, whatever
+  // punctuation surrounds it. The surrounding punctuation and words stay, so the finding reads.
+  text
+    .split(/(\s+)/)
+    .map((token) => {
+      if (!token || /^\s+$/.test(token)) return token;
+      const core = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}/]+$/gu, "");
+      // A dotted token is a destination when a letter follows a dot (a domain in any script),
+      // or it is a numeric address; a purely numeric dotted token is an amount or a
+      // percentage, never a destination, and its figures stay.
+      const destination =
+        core.includes("://") ||
+        core.includes("@") ||
+        /^[\p{L}\p{N}-]+\.[\p{L}]/u.test(core) ||
+        /^\d{1,3}(?:\.\d{1,3}){3}(?:\/|$)/.test(core) ||
+        /^www\./i.test(core);
+      if (!destination) return token;
+      return token.replace(core, core.includes("@") && !core.includes("://") ? "[address removed]" : "[link removed]");
+    })
+    .join("");
+
 // A verdict that was not stored is not a verdict: the typed refusal is thrown, never reported as success.
 async function mustSave(db: D1Database, caseId: string, view: VerdictView): Promise<void> {
   const saved = await saveVerdict(db, caseId, view);
@@ -321,13 +349,16 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const reasonIds = floored ? [...floorIds, ...cited.filter((id) => !floorIds.includes(id))] : cited;
     const view: VerdictView = {
       verdict,
-      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : answer.headline,
+      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : stripDestinations(answer.headline),
       confidence: Math.min(answer.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? 0.5 : 1),
       reasons: reasonIds.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
       actions: floored
         ? [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10)
-        : [...fixed, ...answer.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
-      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : answer.meaning,
+        : [
+            ...fixed,
+            ...answer.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a)).map(stripDestinations),
+          ].slice(0, 10),
+      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : stripDestinations(answer.meaning),
       source: "agent",
       floorApplied: floorApplied ? { ...floorApplied, evidenceIds: floorIds } : null,
       ablated: null,

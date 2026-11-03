@@ -43,7 +43,7 @@ track: day-4
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
-| 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [ ] |
+| 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [x] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
 | 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [ ] |
 
@@ -274,6 +274,10 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 
 ## 7. One URL policy with the
 
+> **Started:** 2026-11-03T00:20:00Z
+
+> **Corrected 2026-11-03 (against the tree):** the checks lane's side has already adopted this policy: `src/checks/expand.ts` imports `allowedUrl`, `dohResolve` and `Resolve` from `src/walkthrough/url-policy.ts`, and no second address check exists in `src/checks/` or `src/vision/render.ts` (grep proves it). The coordinator ask registered for this section is therefore answered by main itself; what remains is the side-by-side comparison, the proof that both callers' tests cover every case of both former policies, and the record. No checks-lane code changes in this section.
+
 Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in Browser Run) was not stamped when the walkthrough driver needed request interception, so §3 wrote its own strict URL policy (`src/walkthrough/url-policy.ts`). Two policies for the same question drift apart; this section makes one.
 
 **Phase:** 7
@@ -285,11 +289,14 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 
 1. Compare the two policies and keep the stricter rule of each. Done when: one module answers both callers.
 
-- [ ] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
-- [ ] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
-- [ ] Commit: `walkthrough: one URL policy with the redirect checks`
+- [x] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
+- [x] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
+- [x] Commit: `walkthrough: one URL policy with the redirect checks`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts` passes and every case of both former policies' tests is in it.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts test/checks/live-policy.test.ts` passes and every case of both former policies' tests is in it; `test/node/expand-browser.test.ts` (the redirect interception suite) passes unchanged.
+
+> **Verified:** 2026-11-03 | §7 | f5cfa9575348637838b50b7cdf8af0e8327e3238
+> **Review:** `docs/reviews/d04-t02-s7.json`
 
 ## 8. Collector failure is not rejection
 
