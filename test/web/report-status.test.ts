@@ -986,6 +986,52 @@ describe("the status poll", () => {
     expect(html).not.toContain("What the receiving mail system recorded");
   });
 
+  // D07 T09 §1: from the producer's early save alone (D01 T01 §23), while the slower checks still run.
+  it("draws the early card from only the auth outcomes the producer stored first, while checks still run", async () => {
+    const { cookie, id } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "auth.spf",
+          severity: "medium",
+          summary: "SPF failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dkim",
+          severity: "info",
+          summary: "DKIM passed for sender.example, as your receiving system recorded.",
+          detail: { state: "passed", results: [{ result: "pass", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dmarc",
+          severity: "high",
+          summary: "DMARC failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
+      ],
+    );
+    const html = await (await poll(id, cookie)).text();
+    expect(html).toContain("What the receiving mail system recorded");
+    expect(html).toContain("Early authentication results are in.");
+    // Still running: the page is still investigating, with no finished verdict drawn.
+    expect(html).toContain("We are investigating this message.");
+  });
+
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
   // the report words it by how the case came and offers that channel's own next step, never a retry that cannot succeed.
   async function failedAdmission(
