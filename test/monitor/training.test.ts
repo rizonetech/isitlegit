@@ -869,4 +869,112 @@ describe("copyForTraining", () => {
       }),
     ).toBe("removed");
   });
+
+  it("preserves per-capture dismissals and restores across later captures during an R2 outage and surfaces recovery errors", async () => {
+    const orgId = "org-multi-decision";
+    await ensureOrg(orgId);
+    const host = "multi-outage.example";
+    const captureA = `monitor/${orgId}/${host}/2026-11-02T09:00:00.000Z/`;
+    const captureB = `monitor/${orgId}/${host}/2026-11-02T09:10:00.000Z/`;
+    await seedCapture(captureA, `https://${host}/a`, "Outage capture A");
+    await seedCapture(captureB, `https://${host}/b`, "Outage capture B");
+
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-mo-a', ?, 'confirmed', '["E1"]', '2026-11-02T09:01:00.000Z', '2026-11-02T09:01:00.000Z')`,
+      )
+      .bind(orgId, host, captureA, `https://${host}/a`)
+      .run();
+
+    const failingBucket = {
+      head: async () => {
+        throw new Error("R2 outage head");
+      },
+      get: async () => {
+        throw new Error("R2 outage get");
+      },
+      put: async () => {
+        throw new Error("R2 outage put");
+      },
+      delete: async () => {
+        throw new Error("R2 outage delete");
+      },
+      list: async () => {
+        throw new Error("R2 outage list");
+      },
+    } as unknown as R2Bucket;
+
+    // Settle finding on capture A while R2 is down: surfaces trainingRecoveryFailed without blocking D1 settlement.
+    const settledA = await findingsFromInvestigations(
+      db,
+      orgId,
+      { mail: null, appUrl: "https://app.isitlegit.co.za" },
+      () => new Date("2026-11-02T09:02:00.000Z"),
+      failingBucket,
+    );
+    expect(settledA.created).toBe(1);
+    expect(settledA.trainingRecoveryFailed).toBeGreaterThanOrEqual(1);
+    expect(settledA.trainingRecoveryErrors?.[0]).toContain("R2 outage");
+
+    // Dismiss capture A while R2 is still down.
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        host,
+        "Not a fake, this is our own staging site",
+        () => new Date("2026-11-02T09:03:00.000Z"),
+        failingBucket,
+      ),
+    ).toBe(true);
+
+    // Newer confirmed capture B arrives while R2 is still down: reopens the finding, then member dismisses and restores B.
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-mo-b', ?, 'confirmed', '["E2"]', '2026-11-02T09:11:00.000Z', '2026-11-02T09:11:00.000Z')`,
+      )
+      .bind(orgId, host, captureB, `https://${host}/b`)
+      .run();
+    const reopenedB = await findingsFromInvestigations(
+      db,
+      orgId,
+      { mail: null, appUrl: "https://app.isitlegit.co.za" },
+      () => new Date("2026-11-02T09:12:00.000Z"),
+      failingBucket,
+    );
+    expect(reopenedB.reopened).toBe(1);
+    expect(reopenedB.trainingRecoveryFailed).toBeGreaterThanOrEqual(1);
+
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        host,
+        "Not a fake, this is our own regional site",
+        () => new Date("2026-11-02T09:13:00.000Z"),
+        failingBucket,
+      ),
+    ).toBe(true);
+    expect(await restoreFinding(db, orgId, host, () => new Date("2026-11-02T09:14:00.000Z"), failingBucket)).toBe(true);
+
+    // When R2 recovers, recoverPendingTrainingCopies materialises capture A as benign dismissal and capture B as retracted restore!
+    const recovered = await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T09:15:00.000Z"));
+    expect(recovered.failed).toBe(0);
+    expect(recovered.recovered).toBeGreaterThanOrEqual(2);
+
+    const metaA = JSON.parse(
+      (await (await bucket.get(`training/${captureA}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    const metaB = JSON.parse(
+      (await (await bucket.get(`training/${captureB}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(metaA.label).toBe("benign");
+    expect(metaA.source).toBe("dismissal");
+    expect(metaA.retracted).toBe(false);
+    expect(metaA.why).toContain("our own staging site");
+    expect(metaB.retracted).toBe(true);
+    expect(metaB.source).toBe("restore");
+  });
 });

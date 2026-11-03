@@ -31,6 +31,8 @@ export type ScreenCounts = {
   errors: string[];
   // The domains tried in this run, so a page that failed before the captures is not tried again after them.
   tried: Set<string>;
+  trainingRecoveryFailed?: number;
+  trainingRecoveryErrors?: string[];
 };
 
 export const newScreenCounts = (): ScreenCounts => ({
@@ -283,6 +285,14 @@ export async function screenOwed(
     }
     if (s.lure && second?.verdict !== "declined") counts.lures++;
   }
-  await recoverPendingTrainingCopies(deps.db, deps.store, orgId, at).catch(() => null);
+  const rec = await recoverPendingTrainingCopies(deps.db, deps.store, orgId, at).catch((err) => ({
+    recovered: 0,
+    failed: 1,
+    errors: [err instanceof Error ? err.message : String(err)],
+  }));
+  if (rec.failed > 0) {
+    counts.trainingRecoveryFailed = (counts.trainingRecoveryFailed ?? 0) + rec.failed;
+    if (rec.errors) counts.trainingRecoveryErrors = [...(counts.trainingRecoveryErrors ?? []), ...rec.errors];
+  }
   return counts;
 }

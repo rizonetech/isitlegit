@@ -13,13 +13,16 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { openStore } from "../../scripts/glimmer/store";
 import {
+  assertFreshMonitorExport,
   type BucketLike,
   exportBeforeRetraining,
   exportMonitorCopies,
   loadReceipts,
   type Receipts,
   readSkipManifest,
+  removeHostTrainingData,
   saveReceipts,
+  type WritableBucketLike,
 } from "../../scripts/monitor-export";
 
 const scratch = mkdtempSync(join(tmpdir(), "monitor-export-"));
@@ -427,5 +430,93 @@ describe("monitor export", () => {
       intact: number;
     };
     expect(status).toMatchObject({ state: "ok", intact: 1 });
+    const fresh = assertFreshMonitorExport(store, 36 * 3600_000, () => new Date("2026-11-03T18:00:00.000Z"));
+    expect(fresh.intact).toBe(1);
+    expect(() => assertFreshMonitorExport(store, 36 * 3600_000, () => new Date("2026-11-06T00:00:00.000Z"))).toThrow(
+      /is stale/,
+    );
+  });
+
+  it("refreshes local provenance on same-label metadata updates and executes scoped operator host removal", async () => {
+    const dir = join(scratch, "store-provenance-removal");
+    const store = openStore(dir);
+    const receiptsPath = join(dir, "monitor-export-receipts.json");
+    const receipts: Receipts = new Map();
+    const save = () => saveReceipts(receiptsPath, receipts);
+    const baseBucket = bucketWith({
+      ownsite: {
+        orgId: "org-prov",
+        label: "benign",
+        source: "second-look",
+        sourceRef: "screen:org-prov:ownsite.example:monitor/org-prov/ownsite.example/2026-11-02T03:00:00.000Z/",
+        why: "Muse Spark second look declined Loupe's lure flag",
+        updatedAt: "2026-11-02T03:05:00.000Z",
+        text: "Our own regional portal landing page",
+      },
+    });
+    const writableBucket: WritableBucketLike & { objects: Map<string, Uint8Array | string> } = {
+      ...baseBucket,
+      putText: async (key, value) => {
+        baseBucket.objects.set(key, value);
+      },
+      deleteKey: async (key) => {
+        baseBucket.objects.delete(key);
+      },
+    };
+
+    // Initial export as Spark-declined benign.
+    expect(await exportMonitorCopies(writableBucket, store, receipts, save)).toEqual({
+      stored: 1,
+      skipped: 0,
+      already: 0,
+    });
+    const initialId = "monitor/org-prov/ownsite.example/2026-11-02T03:00:00.000Z";
+    expect(receipts.get(initialId)?.item).toContain("screen:org-prov:ownsite.example");
+    expect(store.manifest()[0]?.item).toContain("screen:org-prov:ownsite.example");
+
+    // Later human dismissal keeps `label: "benign"` but updates `source`, `sourceRef`, `why`, and `updatedAt`.
+    const prefix = `training/${initialId}/`;
+    const meta = JSON.parse(String(writableBucket.objects.get(`${prefix}meta.json`))) as Record<string, unknown>;
+    writableBucket.objects.set(
+      `${prefix}meta.json`,
+      JSON.stringify({
+        ...meta,
+        label: "benign",
+        source: "dismissal",
+        sourceRef: `finding:org-prov:ownsite.example:${initialId}/`,
+        why: "Business confirmed this is their own regional portal",
+        updatedAt: "2026-11-02T04:00:00.000Z",
+      }),
+    );
+    expect(await exportMonitorCopies(writableBucket, store, receipts, save)).toEqual({
+      stored: 1,
+      skipped: 0,
+      already: 0,
+    });
+    expect(receipts.get(initialId)?.item).toContain("finding:org-prov:ownsite.example");
+    expect(receipts.get(initialId)?.updatedAt).toBe("2026-11-02T04:00:00.000Z");
+    expect(store.manifest()[0]?.item).toContain("Business confirmed this is their own regional portal");
+
+    // Execute scoped operator host removal (`removeHostTrainingData`).
+    const removed = await removeHostTrainingData(
+      writableBucket,
+      store,
+      receipts,
+      save,
+      "org-prov",
+      "ownsite.example",
+      "removed at the business's request",
+      () => new Date("2026-11-02T05:00:00.000Z"),
+    );
+    expect(removed).toEqual({
+      orgId: "org-prov",
+      host: "ownsite.example",
+      deletedObjects: 4,
+      tombstonesWritten: 2,
+      localItemsRemoved: 1,
+      verifiedEmpty: true,
+    });
+    expect(store.manifest()).toHaveLength(0);
+    expect(receipts.get(initialId)?.outcome).toBe("removed");
   });
 });

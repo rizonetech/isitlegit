@@ -274,3 +274,11 @@ The proven-only deploy ran from gated main (`node scripts/deploy.ts --proven-onl
 | `https://app.isitlegit.co.za/health` | 200 | `{"ok":true,"commit":"a83da8dc0dae68e8d3de215820be57c47bed496c"}` |
 
 The production demo seed was read before these checks: `node scripts/seed-demo.ts --remote --check` (keys piped from the vault item "IsItLegit bank key", never printed) exits 0 with all five businesses `protected: true`.
+
+## Monitor training export, R2 lifecycle, and systemd timer (D05 T04 §10, 2026-11-03)
+
+Read and verified on 2026-11-03 13:59 to 14:01 UTC (15:59 to 16:01 SAST):
+
+1. Production R2 bucket lifecycle rules (`npx wrangler r2 bucket lifecycle list isitlegit-artefacts`): three rules are configured (`raw-7d` on prefix `raw/` at 7 days, `art-30d` on prefix `art/` at 30 days, and `monitor-30d` on prefix `monitor/` at 30 days), and no lifecycle rule touches `training/`, so training copies survive the 30-day `monitor/` expiry.
+2. User systemd timer and service (`systemctl --user list-timers monitor-export.timer --no-pager`, `systemctl --user start monitor-export.service`, and `node scripts/monitor-export.ts --check-fresh`): `monitor-export.timer` is enabled and active (`waiting`, daily schedule with 6h jitter and `Persistent=true`), and starting `monitor-export.service` wrote `<store>/monitor-export-status.json` with `{"state":"ok","at":"2026-11-03T13:59:31.704Z","intact":0,"stored":0,"skipped":0,"already":0}`.
+3. Live R2 training copy export, verified read-back, and scoped host removal against `isitlegit-artefacts` (`training/monitor/org-smoke-s10/fynbos-smoke-s10.example/2026-11-03T13:59:00.000Z/`): `exportBeforeRetraining` exported the R2 copy as page `monitor-4ef79764b5681714` (`{"stored":1,"skipped":0,"already":0,"intact":1}`), `assertFreshMonitorExport` confirmed `state === "ok"`, `store.readVerifiedPage("monitor-4ef79764b5681714")` verified the screenshot, text, and `labels: { lure: true }` on disk, and `removeHostTrainingData` (`--remove-host org-smoke-s10 fynbos-smoke-s10.example`) removed the 4 R2 payload objects, wrote the 2 `removed.json` tombstones, removed the local store item (`{"deletedObjects":4,"tombstonesWritten":2,"localItemsRemoved":1,"verifiedEmpty":true}`), and left 0 objects under `training/monitor/org-smoke-s10/` after smoke-test tombstone cleanup.

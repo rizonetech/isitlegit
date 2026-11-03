@@ -402,7 +402,7 @@ Sections: 105 | Checklist items: 671
 
 ### Phase 7: After the event
 
-Sections: 214 | Checklist items: 956
+Sections: 214 | Checklist items: 957
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -502,7 +502,7 @@ Sections: 214 | Checklist items: 956
 | [ ]    | D05 T04 §6  | Demo lookalike site found by                                | cloudflare           | 4     |
 | [x]    | D05 T04 §7  | Certificate-transparency search for                         | none                 | 2     |
 | [ ]    | D05 T04 §10 | Findings exported to                                        | cloudflare           | 7     |
-| [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 4     |
+| [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 5     |
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
@@ -662,4 +662,4 @@ Sections: 17 | Checklist items: 71
 
 Progress: 392/584 verified sections, 122 ready to run now.
 
-Checklist: 2954/3640 items completed (includes Commit items).
+Checklist: 2954/3641 items completed (includes Commit items).

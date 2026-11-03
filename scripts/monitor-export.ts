@@ -6,7 +6,7 @@
 // listed in `monitor-export-skips.json` in the store directory.
 //
 // Run (operator or systemd timer, credentials from the vault or local Wrangler OAuth, never printed):
-//   node scripts/monitor-export.ts [--for-retraining] [--print-root]
+//   node scripts/monitor-export.ts [--for-retraining] [--check-fresh] [--remove-host <orgId> <host> [--reason <why>]] [--print-root]
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
@@ -18,6 +18,11 @@ export type BucketLike = {
   list: (prefix: string) => Promise<BucketObject[]>;
   getText: (key: string) => Promise<string | null>;
   getBytes: (key: string) => Promise<Uint8Array | null>;
+};
+
+export type WritableBucketLike = BucketLike & {
+  putText: (key: string, value: string) => Promise<void>;
+  deleteKey: (key: string) => Promise<void>;
 };
 
 export type ReceiptOutcome = "stored" | "skipped" | "retracted" | "removed";
@@ -423,12 +428,21 @@ export async function exportMonitorCopies(
             (verified.page.item ? [{ id: verified.page.item, lure: verified.page.labels.lure }] : []))
           : [];
         const ownEntries = pageEntries.filter((entry) => entry.id.startsWith(`${id} (`));
+        const expectedItem = currentMeta ? buildItemId(currentMeta, id) : existing.item;
+        const expectedUpdatedAt = currentMeta?.updatedAt ?? currentMeta?.copiedAt;
         const hasOwnItem =
-          verified !== null && ownEntries.length === 1 && (!existing.item || ownEntries[0]?.id === existing.item);
+          verified !== null && ownEntries.length === 1 && (!expectedItem || ownEntries[0]?.id === expectedItem);
+        const sameRevision = !expectedUpdatedAt || !existing.updatedAt || existing.updatedAt === expectedUpdatedAt;
         const storedItemLure = ownEntries[0]?.lure ?? verified?.page.labels.lure;
         const expectedLabel = existing.label ?? (storedItemLure ? "lure" : "benign");
         const r2Label = currentMeta?.label ?? expectedLabel;
-        if (verified && hasOwnItem && r2Label === expectedLabel && storedItemLure === (r2Label === "lure")) {
+        if (
+          verified &&
+          hasOwnItem &&
+          sameRevision &&
+          r2Label === expectedLabel &&
+          storedItemLure === (r2Label === "lure")
+        ) {
           already++;
           continue;
         }
@@ -494,6 +508,140 @@ export async function exportBeforeRetraining(
   };
 }
 
+export function assertFreshMonitorExport(
+  store: Store = openStore(),
+  maxAgeMs = 36 * 60 * 60 * 1000,
+  now: () => Date = () => new Date(),
+): { at: string; ageMs: number; intact: number; stored: number; skipped: number; already: number } {
+  const statusPath = join(store.dir, "monitor-export-status.json");
+  if (!existsSync(statusPath)) {
+    throw new Error(
+      `monitor-export: missing ${statusPath}; run 'node scripts/monitor-export.ts --for-retraining' first`,
+    );
+  }
+  const raw = JSON.parse(readFileSync(statusPath, "utf-8")) as {
+    at?: string;
+    state?: string;
+    stored?: number;
+    skipped?: number;
+    already?: number;
+  };
+  if (raw.state !== "ok" || typeof raw.at !== "string") {
+    throw new Error(`monitor-export: last export state is '${raw.state ?? "unknown"}', not 'ok'`);
+  }
+  const atMs = Date.parse(raw.at);
+  if (Number.isNaN(atMs)) {
+    throw new Error(`monitor-export: invalid timestamp '${raw.at}' in monitor-export-status.json`);
+  }
+  const ageMs = Math.max(0, now().getTime() - atMs);
+  if (ageMs > maxAgeMs) {
+    throw new Error(
+      `monitor-export: last export at ${raw.at} is stale (${Math.round(ageMs / 3600000)}h > ${Math.round(maxAgeMs / 3600000)}h)`,
+    );
+  }
+  const verified = store.verify("monitor");
+  if (verified.damaged.length > 0) {
+    throw new Error(`monitor-export: ${verified.damaged.length} stored monitor pages failed verification`);
+  }
+  return {
+    at: raw.at,
+    ageMs,
+    intact: verified.intact,
+    stored: raw.stored ?? 0,
+    skipped: raw.skipped ?? 0,
+    already: raw.already ?? 0,
+  };
+}
+
+export async function removeHostTrainingData(
+  bucket: WritableBucketLike,
+  store: Store,
+  receipts: Receipts,
+  save: () => void,
+  orgId: string,
+  host: string,
+  reason = "removed at the business's request",
+  now: () => Date = () => new Date(),
+): Promise<{
+  orgId: string;
+  host: string;
+  deletedObjects: number;
+  tombstonesWritten: number;
+  localItemsRemoved: number;
+  verifiedEmpty: boolean;
+}> {
+  if (!orgId || !host || orgId.includes("/") || host.includes("/") || orgId.includes("..") || host.includes("..")) {
+    throw new Error("removeHostTrainingData: orgId and host must be single path segments");
+  }
+  const hostIdPrefix = `monitor/${orgId}/${host}/`;
+  const r2HostPrefix = `training/${hostIdPrefix}`;
+  const countLocalItems = () => {
+    let count = 0;
+    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === "monitor")) {
+      const entries = page.items ?? (page.item ? [{ id: page.item }] : []);
+      for (const entry of entries) {
+        if (entry.id.startsWith(hostIdPrefix)) count++;
+      }
+    }
+    return count;
+  };
+  const beforeLocalItems = countLocalItems();
+  const objects = await bucket.list(r2HostPrefix);
+  const capturePrefixes = new Set<string>();
+  const toDelete: string[] = [];
+  for (const obj of objects) {
+    if (!obj.key.endsWith("removed.json")) {
+      toDelete.push(obj.key);
+    }
+    const parts = obj.key.split("/");
+    if (parts.length >= 6 && parts[0] === "training" && parts[1] === "monitor") {
+      capturePrefixes.add(`${parts.slice(0, 5).join("/")}/`);
+    }
+  }
+  for (const id of receipts.keys()) {
+    if (id.startsWith(hostIdPrefix)) {
+      capturePrefixes.add(`training/${id.replace(/\/$/, "")}/`);
+    }
+  }
+  const tombstonePayload = `${JSON.stringify(
+    {
+      orgId,
+      host,
+      removed: true,
+      reason,
+      removedAt: now().toISOString(),
+    },
+    null,
+    2,
+  )}\n`;
+  let tombstonesWritten = 0;
+  await bucket.putText(`${r2HostPrefix}removed.json`, tombstonePayload);
+  tombstonesWritten++;
+  for (const cp of [...capturePrefixes].sort()) {
+    await bucket.putText(`${cp}removed.json`, tombstonePayload);
+    tombstonesWritten++;
+  }
+  for (const key of toDelete) {
+    await bucket.deleteKey(key);
+  }
+  await exportMonitorCopies(bucket, store, receipts, save, now);
+  const remainingObjects = (await bucket.list(r2HostPrefix)).filter((o) => !o.key.endsWith("removed.json"));
+  const afterLocalItems = countLocalItems();
+  if (remainingObjects.length > 0 || afterLocalItems > 0) {
+    throw new Error(
+      `removeHostTrainingData: verification failed (remainingObjects=${remainingObjects.length}, afterLocalItems=${afterLocalItems})`,
+    );
+  }
+  return {
+    orgId,
+    host,
+    deletedObjects: toDelete.length,
+    tombstonesWritten,
+    localItemsRemoved: Math.max(0, beforeLocalItems - afterLocalItems),
+    verifiedEmpty: true,
+  };
+}
+
 async function resolveCloudflareCredentials(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ token: string; account: string } | null> {
@@ -547,7 +695,7 @@ export function createCloudflareR2Bucket(
   token: string,
   account: string,
   bucketName = "isitlegit-artefacts",
-): BucketLike {
+): WritableBucketLike {
   const api = `https://api.cloudflare.com/client/v4/accounts/${account}/r2/buckets/${bucketName}/objects`;
   const headers = { authorization: `Bearer ${token}` };
   return {
@@ -576,12 +724,33 @@ export function createCloudflareR2Bucket(
       if (!res.ok) throw new Error(`R2 getBytes answered ${res.status}`);
       return new Uint8Array(await res.arrayBuffer());
     },
+    putText: async (key, value) => {
+      const res = await fetch(`${api}/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        headers: { ...headers, "content-type": "application/json" },
+        body: value,
+      });
+      if (!res.ok) throw new Error(`R2 putText answered ${res.status}`);
+    },
+    deleteKey: async (key) => {
+      const res = await fetch(`${api}/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+        headers,
+      });
+      if (!res.ok && res.status !== 404) throw new Error(`R2 deleteKey answered ${res.status}`);
+    },
   };
 }
 
 async function main(): Promise<void> {
   if (process.argv.includes("--print-root")) {
     console.log(storeDir());
+    return;
+  }
+  const store = openStore();
+  if (process.argv.includes("--check-fresh")) {
+    const fresh = assertFreshMonitorExport(store);
+    console.log(JSON.stringify({ event: "monitor-export", mode: "check-fresh", ...fresh }));
     return;
   }
   const creds = await resolveCloudflareCredentials();
@@ -591,7 +760,30 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const bucket = createCloudflareR2Bucket(creds.token, creds.account, bucketName);
-  const store = openStore();
+  const removeIdx = process.argv.indexOf("--remove-host");
+  if (removeIdx !== -1) {
+    const orgId = process.argv[removeIdx + 1];
+    const host = process.argv[removeIdx + 2];
+    const reasonIdx = process.argv.indexOf("--reason");
+    const reason = reasonIdx !== -1 ? process.argv[reasonIdx + 1] : undefined;
+    if (!orgId || !host) {
+      console.error("Usage: node scripts/monitor-export.ts --remove-host <orgId> <host> [--reason <why>]");
+      process.exit(2);
+    }
+    const receiptsPath = join(store.dir, "monitor-export-receipts.json");
+    const receipts = loadReceipts(receiptsPath);
+    const removed = await removeHostTrainingData(
+      bucket,
+      store,
+      receipts,
+      () => saveReceipts(receiptsPath, receipts),
+      orgId,
+      host,
+      reason,
+    );
+    console.log(JSON.stringify({ event: "monitor-export", mode: "remove-host", ...removed }));
+    return;
+  }
   if (process.argv.includes("--for-retraining")) {
     const summary = await exportBeforeRetraining(bucket, store);
     console.log(JSON.stringify({ event: "monitor-export", mode: "retraining", ...summary }));

@@ -51,6 +51,109 @@ export type StoredTrainingMeta = {
 
 export type CopyOutcome = "copied" | "updated" | "exists" | "missing-source" | "ineligible-source" | "removed";
 
+export type FindingDecision = {
+  captureKey: string;
+  kind: "dismissal" | "restore";
+  reason: string;
+  at: string;
+};
+
+export function latestDismissedCaptureKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const firstLine = (raw.split("\n")[0] ?? "").trim();
+  if (!firstLine) return null;
+  return firstLine.replace(/^restored:/, "");
+}
+
+export function parseFindingDecisions(row: {
+  status: string;
+  capture_key: string;
+  dismissed_reason: string | null;
+  dismissed_capture_key: string | null;
+}): FindingDecision[] {
+  const raw = row.dismissed_capture_key;
+  if (!raw) {
+    if (row.status === "dismissed" && row.dismissed_reason) {
+      return [
+        {
+          captureKey: row.capture_key,
+          kind: "dismissal",
+          reason: row.dismissed_reason,
+          at: "",
+        },
+      ];
+    }
+    return [];
+  }
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const byCapture = new Map<string, FindingDecision>();
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line?.startsWith("{")) continue;
+    try {
+      const parsed = JSON.parse(line) as Partial<FindingDecision>;
+      if (
+        typeof parsed.captureKey === "string" &&
+        (parsed.kind === "dismissal" || parsed.kind === "restore") &&
+        typeof parsed.reason === "string"
+      ) {
+        byCapture.set(parsed.captureKey, {
+          captureKey: parsed.captureKey,
+          kind: parsed.kind,
+          reason: parsed.reason,
+          at: typeof parsed.at === "string" ? parsed.at : "",
+        });
+      }
+    } catch {
+      // Ignore malformed trailing line.
+    }
+  }
+  const head = lines[0] ?? "";
+  const isHeadRestore = head.startsWith("restored:");
+  const headKey = head.replace(/^restored:/, "");
+  if (headKey && !byCapture.has(headKey)) {
+    if (isHeadRestore && row.status !== "dismissed") {
+      byCapture.set(headKey, {
+        captureKey: headKey,
+        kind: "restore",
+        reason: "finding restored by business",
+        at: "",
+      });
+    } else if (row.dismissed_reason) {
+      byCapture.set(headKey, {
+        captureKey: headKey,
+        kind: "dismissal",
+        reason: row.dismissed_reason,
+        at: "",
+      });
+    }
+  }
+  return [...byCapture.values()];
+}
+
+export function encodeFindingDecision(
+  existing: {
+    status: string;
+    capture_key: string;
+    dismissed_reason: string | null;
+    dismissed_capture_key: string | null;
+  },
+  next: FindingDecision,
+): string {
+  const prior = parseFindingDecisions(existing);
+  const byCapture = new Map<string, FindingDecision>();
+  for (const item of prior) {
+    byCapture.set(item.captureKey, item);
+  }
+  byCapture.set(next.captureKey, next);
+  const head = next.kind === "restore" ? `restored:${next.captureKey}` : next.captureKey;
+  const serialized = [...byCapture.values()].map((d) => JSON.stringify(d));
+  return [head, ...serialized].join("\n");
+}
+
 const CAPTURE_KEY_PATTERN = /^monitor\/([^/]+)\/([^/]+)\/(\d{4}-\d{2}-\d{2}T[^/]+)\/$/;
 
 export function parseCaptureKey(
@@ -681,9 +784,10 @@ export async function recoverPendingTrainingCopies(
   bucket: R2Bucket,
   orgId: string,
   now: () => Date = () => new Date(),
-): Promise<{ recovered: number; failed: number }> {
+): Promise<{ recovered: number; failed: number; errors?: string[] }> {
   let recovered = 0;
   let failed = 0;
+  const errors: string[] = [];
 
   // Reconcile any tombstoned hosts or captures in R2 that still have residual objects from an
   // interrupted or failed post-write check.
@@ -742,22 +846,30 @@ export async function recoverPendingTrainingCopies(
             );
           }
           if (cleaned || info.keys.length > 0) recovered++;
-        } catch {
+        } catch (err) {
           failedRemovedPrefixes.add(prefix);
           failed++;
+          errors.push(`reconcile-removed:${prefix}:${(err as Error).message || "failed"}`);
         }
       }
     }
-  } catch {
+  } catch (err) {
     failed++;
+    errors.push(`list-org:${(err as Error).message || "failed"}`);
   }
 
-  const declined = await db
-    .prepare("SELECT domain, capture_key FROM monitor_screens WHERE org_id = ? AND second_look = 'declined'")
-    .bind(orgId)
-    .all<{ domain: string; capture_key: string }>()
-    .then((r) => r.results)
-    .catch(() => [] as { domain: string; capture_key: string }[]);
+  let declined: { domain: string; capture_key: string }[] = [];
+  try {
+    declined = (
+      await db
+        .prepare("SELECT domain, capture_key FROM monitor_screens WHERE org_id = ? AND second_look = 'declined'")
+        .bind(orgId)
+        .all<{ domain: string; capture_key: string }>()
+    ).results;
+  } catch (err) {
+    failed++;
+    errors.push(`query-screens:${(err as Error).message || "failed"}`);
+  }
 
   for (const row of declined) {
     if (failedRemovedPrefixes.has(`training/${row.capture_key}`)) continue;
@@ -778,20 +890,30 @@ export async function recoverPendingTrainingCopies(
         now,
       );
       if (out === "copied" || out === "updated") recovered++;
-      else if (out === "missing-source") failed++;
-    } catch {
+      else if (out === "missing-source") {
+        failed++;
+        errors.push(`missing-source:${row.capture_key}`);
+      }
+    } catch (err) {
       failed++;
+      errors.push(`copy-declined:${row.capture_key}:${(err as Error).message || "failed"}`);
     }
   }
 
-  const confirmed = await db
-    .prepare(
-      "SELECT domain, capture_key, capture_url FROM monitor_investigations WHERE org_id = ? AND state = 'confirmed'",
-    )
-    .bind(orgId)
-    .all<{ domain: string; capture_key: string; capture_url: string | null }>()
-    .then((r) => r.results)
-    .catch(() => [] as { domain: string; capture_key: string; capture_url: string | null }[]);
+  let confirmed: { domain: string; capture_key: string; capture_url: string | null }[] = [];
+  try {
+    confirmed = (
+      await db
+        .prepare(
+          "SELECT domain, capture_key, capture_url FROM monitor_investigations WHERE org_id = ? AND state = 'confirmed'",
+        )
+        .bind(orgId)
+        .all<{ domain: string; capture_key: string; capture_url: string | null }>()
+    ).results;
+  } catch (err) {
+    failed++;
+    errors.push(`query-investigations:${(err as Error).message || "failed"}`);
+  }
 
   for (const row of confirmed) {
     if (failedRemovedPrefixes.has(`training/${row.capture_key}`)) continue;
@@ -812,85 +934,90 @@ export async function recoverPendingTrainingCopies(
         now,
       );
       if (out === "copied" || out === "updated") recovered++;
-      else if (out === "missing-source") failed++;
-    } catch {
+      else if (out === "missing-source") {
+        failed++;
+        errors.push(`missing-source:${row.capture_key}`);
+      }
+    } catch (err) {
       failed++;
+      errors.push(`copy-confirmed:${row.capture_key}:${(err as Error).message || "failed"}`);
     }
   }
 
-  const findings = await db
-    .prepare(
-      "SELECT host, status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND (status = 'dismissed' OR dismissed_capture_key IS NOT NULL)",
-    )
-    .bind(orgId)
-    .all<{
-      host: string;
-      status: string;
-      capture_key: string;
-      dismissed_reason: string | null;
-      dismissed_capture_key: string | null;
-    }>()
-    .then((r) => r.results)
-    .catch(
-      () =>
-        [] as {
+  let findings: {
+    host: string;
+    status: string;
+    capture_key: string;
+    dismissed_reason: string | null;
+    dismissed_capture_key: string | null;
+  }[] = [];
+  try {
+    findings = (
+      await db
+        .prepare(
+          "SELECT host, status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND (status = 'dismissed' OR dismissed_capture_key IS NOT NULL)",
+        )
+        .bind(orgId)
+        .all<{
           host: string;
           status: string;
           capture_key: string;
           dismissed_reason: string | null;
           dismissed_capture_key: string | null;
-        }[],
-    );
+        }>()
+    ).results;
+  } catch (err) {
+    failed++;
+    errors.push(`query-findings:${(err as Error).message || "failed"}`);
+  }
 
   for (const row of findings) {
-    const rawDismissedKey = row.dismissed_capture_key;
-    const isExplicitRestore = row.status !== "dismissed" && Boolean(rawDismissedKey?.startsWith("restored:"));
-    const targetKey = (rawDismissedKey ?? row.capture_key).replace(/^restored:/, "");
-    if (failedRemovedPrefixes.has(`training/${targetKey}`)) continue;
-    try {
-      if (isExplicitRestore) {
-        const parsed = parseCaptureKey(targetKey, orgId, row.host);
-        if (parsed) {
-          const [removedNow, meta, doneHead] = await Promise.all([
-            isRemoved(bucket, orgId, row.host, parsed.prefix),
-            readExistingMeta(bucket, parsed.prefix),
-            bucket.head(`${parsed.prefix}done.json`),
-          ]);
-          if (removedNow || !meta?.retracted || !doneHead) {
-            const out = await retractTrainingCopy(
-              bucket,
+    const decisions = parseFindingDecisions(row);
+    for (const decision of decisions) {
+      const targetKey = decision.captureKey;
+      if (failedRemovedPrefixes.has(`training/${targetKey}`)) continue;
+      try {
+        if (decision.kind === "restore") {
+          const parsed = parseCaptureKey(targetKey, orgId, row.host);
+          if (parsed) {
+            const [removedNow, meta, doneHead] = await Promise.all([
+              isRemoved(bucket, orgId, row.host, parsed.prefix),
+              readExistingMeta(bucket, parsed.prefix),
+              bucket.head(`${parsed.prefix}done.json`),
+            ]);
+            if (removedNow || !meta?.retracted || !doneHead) {
+              const out = await retractTrainingCopy(bucket, orgId, row.host, targetKey, decision.reason, now);
+              if (out === "retracted") recovered++;
+            }
+          }
+        } else if (decision.reason && isBenignDismissalReason(decision.reason)) {
+          const url = await resolveCaptureUrl(db, bucket, orgId, row.host, targetKey);
+          const out = await copyForTraining(
+            bucket,
+            {
               orgId,
-              row.host,
-              targetKey,
-              "finding restored by business",
-              now,
-            );
-            if (out === "retracted") recovered++;
+              host: row.host,
+              captureKey: targetKey,
+              captureUrl: url,
+              label: "benign",
+              why: `dismissed as not a fake: ${decision.reason.trim().slice(0, 120)}`,
+              source: "dismissal",
+              sourceRef: `finding:${orgId}:${row.host}:${targetKey}`,
+            },
+            now,
+          );
+          if (out === "copied" || out === "updated") recovered++;
+          else if (out === "missing-source") {
+            failed++;
+            errors.push(`missing-source:${targetKey}`);
           }
         }
-      } else if (row.dismissed_reason && isBenignDismissalReason(row.dismissed_reason)) {
-        const url = await resolveCaptureUrl(db, bucket, orgId, row.host, targetKey);
-        const out = await copyForTraining(
-          bucket,
-          {
-            orgId,
-            host: row.host,
-            captureKey: targetKey,
-            captureUrl: url,
-            label: "benign",
-            why: `dismissed as not a fake: ${row.dismissed_reason.trim().slice(0, 120)}`,
-            source: "dismissal",
-            sourceRef: `finding:${orgId}:${row.host}:${targetKey}`,
-          },
-          now,
-        );
-        if (out === "copied" || out === "updated") recovered++;
-        else if (out === "missing-source") failed++;
+      } catch (err) {
+        failed++;
+        errors.push(`finding-decision:${targetKey}:${(err as Error).message || "failed"}`);
       }
-    } catch {
-      failed++;
     }
   }
 
-  return { recovered, failed };
+  return failed > 0 ? { recovered, failed, errors } : { recovered, failed };
 }

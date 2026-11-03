@@ -70,7 +70,13 @@ export type PipelineDeps = {
   now?: () => Date;
 };
 
-export type PipelineSummary = { investigated: number; skipped: number; failed: number };
+export type PipelineSummary = {
+  investigated: number;
+  skipped: number;
+  failed: number;
+  trainingRecoveryFailed?: number;
+  trainingRecoveryErrors?: string[];
+};
 
 const sha256Hex = async (bytes: Uint8Array) => {
   const digest = await crypto.subtle.digest("SHA-256", bytes as BufferSource);
@@ -454,7 +460,6 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
   // The monitor's own eligibility gate (round 4): no protection on, no investigation, whatever
   // outstanding rows an earlier run left.
   if (!(await protectedOrgs(deps.db)).includes(orgId)) return summary;
-  await recoverPendingTrainingCopies(deps.db, deps.bucket, orgId, now).catch(() => null);
   // Outstanding investigations and rollover-eligible allowance refusals are recovered whatever
   // their age or whether a newer capture replaced them (completion review gap 5; D05 T04 §12).
   const outstandingRows = (
@@ -524,6 +529,15 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
         now(),
       ).catch(() => null);
     }
+  }
+  const rec = await recoverPendingTrainingCopies(deps.db, deps.bucket, orgId, now).catch((err) => ({
+    recovered: 0,
+    failed: 1,
+    errors: [err instanceof Error ? err.message : String(err)],
+  }));
+  if (rec.failed > 0) {
+    summary.trainingRecoveryFailed = rec.failed;
+    if (rec.errors) summary.trainingRecoveryErrors = [...rec.errors];
   }
   return summary;
 }

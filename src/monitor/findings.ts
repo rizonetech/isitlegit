@@ -7,7 +7,9 @@ import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { identityContact } from "../trust/identity";
 import {
   copyForTraining,
+  encodeFindingDecision,
   isBenignDismissalReason,
+  latestDismissedCaptureKey,
   recoverPendingTrainingCopies,
   resolveCaptureUrl,
   retractTrainingCopy,
@@ -54,7 +56,13 @@ export async function findingsFromInvestigations(
   deps: AlertDeps,
   now: () => Date = () => new Date(),
   bucket?: R2Bucket,
-): Promise<{ created: number; alerted: number; reopened: number }> {
+): Promise<{
+  created: number;
+  alerted: number;
+  reopened: number;
+  trainingRecoveryFailed?: number;
+  trainingRecoveryErrors?: string[];
+}> {
   const settled = (
     await db
       .prepare(
@@ -114,7 +122,7 @@ export async function findingsFromInvestigations(
       const captureAt = /^\d{4}-\d{2}-\d{2}T/.test(keyMoment) ? keyMoment : inv.created_at;
       if (
         inv.state === "confirmed" &&
-        inv.capture_key !== existing.dismissed_capture_key?.replace(/^restored:/, "") &&
+        inv.capture_key !== latestDismissedCaptureKey(existing.dismissed_capture_key) &&
         captureAt > (existing.dismissed_at ?? "")
       ) {
         // A reopen lands offline, never live, when current evidence already settles it there.
@@ -166,8 +174,28 @@ export async function findingsFromInvestigations(
       .run();
   }
   const alerted = await alertNewFindings(db, orgId, deps, now);
-  if (bucket) await recoverPendingTrainingCopies(db, bucket, orgId, now).catch(() => null);
-  return { created, alerted, reopened };
+  let trainingRecoveryFailed = 0;
+  let trainingRecoveryErrors: string[] | undefined;
+  if (bucket) {
+    const rec = await recoverPendingTrainingCopies(db, bucket, orgId, now).catch((err) => ({
+      recovered: 0,
+      failed: 1,
+      errors: [`recovery-exception:${(err as Error).message || "failed"}`],
+    }));
+    trainingRecoveryFailed = rec.failed;
+    trainingRecoveryErrors = rec.errors;
+  }
+  return {
+    created,
+    alerted,
+    reopened,
+    ...(trainingRecoveryFailed > 0
+      ? {
+          trainingRecoveryFailed,
+          ...(trainingRecoveryErrors ? { trainingRecoveryErrors } : {}),
+        }
+      : {}),
+  };
 }
 
 // One alert per new confirmed finding, keyed so a restart after delivery sends nothing twice.
@@ -253,15 +281,29 @@ export async function dismissFinding(
   const trimmed = reason.trim();
   if (!trimmed || trimmed.length > 500) return false;
   const finding = await db
-    .prepare("SELECT capture_key FROM monitor_findings WHERE org_id = ? AND host = ?")
+    .prepare(
+      "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ?",
+    )
     .bind(orgId, host)
-    .first<{ capture_key: string }>();
+    .first<{
+      status: string;
+      capture_key: string;
+      dismissed_reason: string | null;
+      dismissed_capture_key: string | null;
+    }>();
   if (!finding) return false;
+  const nowIso = now().toISOString();
+  const encodedDecisions = encodeFindingDecision(finding, {
+    captureKey: finding.capture_key,
+    kind: "dismissal",
+    reason: trimmed,
+    at: nowIso,
+  });
   await db
     .prepare(
       "UPDATE monitor_findings SET status = 'dismissed', dismissed_reason = ?, dismissed_at = ?, dismissed_capture_key = ?, updated_at = ? WHERE org_id = ? AND host = ?",
     )
-    .bind(trimmed, now().toISOString(), finding.capture_key, now().toISOString(), orgId, host)
+    .bind(trimmed, nowIso, encodedDecisions, nowIso, orgId, host)
     .run();
   if (bucket && isBenignDismissalReason(trimmed)) {
     const captureUrl = await resolveCaptureUrl(db, bucket, orgId, host, finding.capture_key);
@@ -292,17 +334,29 @@ export async function restoreFinding(
 ): Promise<boolean> {
   const existing = await db
     .prepare(
-      "SELECT capture_key, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ? AND status = 'dismissed'",
+      "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ? AND status = 'dismissed'",
     )
     .bind(orgId, host)
-    .first<{ capture_key: string; dismissed_capture_key: string | null }>();
+    .first<{
+      status: string;
+      capture_key: string;
+      dismissed_reason: string | null;
+      dismissed_capture_key: string | null;
+    }>();
   if (!existing) return false;
-  const targetKey = (existing.dismissed_capture_key ?? existing.capture_key).replace(/^restored:/, "");
+  const targetKey = latestDismissedCaptureKey(existing.dismissed_capture_key) ?? existing.capture_key;
+  const nowIso = now().toISOString();
+  const encodedDecisions = encodeFindingDecision(existing, {
+    captureKey: targetKey,
+    kind: "restore",
+    reason: "finding restored by business",
+    at: nowIso,
+  });
   const result = await db
     .prepare(
       "UPDATE monitor_findings SET status = 'watching', dismissed_reason = NULL, dismissed_at = NULL, dismissed_capture_key = ?, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
     )
-    .bind(`restored:${targetKey}`, now().toISOString(), orgId, host)
+    .bind(encodedDecisions, nowIso, orgId, host)
     .run();
   const changed = (result.meta?.changes ?? 0) > 0;
   if (changed && bucket) {
