@@ -125,3 +125,52 @@ describe("discovery persistence", () => {
     expect(row).not.toBeNull();
   });
 });
+
+describe("saturated coverage", () => {
+  it("advances the candidate window by a full cap each day", async () => {
+    const { orgId } = await business();
+    // 305 retained discoveries, all matching the token, none resolving.
+    for (let i = 0; i < 305; i++)
+      await db
+        .prepare(
+          `INSERT INTO monitor_hosts (org_id, domain, resolves, first_seen, last_seen) VALUES (?, ?, 0, '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z')`,
+        )
+        .bind(orgId, `fynbos-${String(i).padStart(3, "0")}.example`)
+        .run();
+    const seen: string[][] = [];
+    const make = (dayIso: string) =>
+      ({
+        db,
+        bucket: env.ARTEFACTS,
+        store: { bucket: env.ARTEFACTS, db },
+        kv: (env as unknown as { CACHE: KVNamespace }).CACHE,
+        meta: {
+          env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" },
+          budget: undefined,
+          random: () => 0.5,
+          sleep: async () => {},
+          fetch: (async () => new Response("x", { status: 500 })) as typeof fetch,
+        },
+        resolve: async (host: string) => {
+          (seen.at(-1) as string[]).push(host);
+          return { status: "none" as const };
+        },
+        capture: async () => ({ outcome: "failed" as const, error: "none" }),
+        open: async () => ({}) as never,
+        close: async () => ({}) as never,
+        settle: async () => ({}) as never,
+        heldSince: async () => null,
+        now: () => new Date(dayIso),
+        ct: async () => ({ names: [], failed: [] }),
+      }) as unknown as MonitorDeps;
+    seen.push([]);
+    await monitorOrg(make("2026-11-02T01:00:00.000Z"), orgId, `monitor-${orgId}-sat1`);
+    seen.push([]);
+    await monitorOrg(make("2026-11-03T01:00:00.000Z"), orgId, `monitor-${orgId}-sat2`);
+    const day1 = new Set(seen[0]);
+    const day2 = new Set(seen[1]);
+    expect(day1.size).toBe(300);
+    // The second day covers hosts the first day never reached.
+    expect([...day2].some((h) => !day1.has(h))).toBe(true);
+  });
+});
