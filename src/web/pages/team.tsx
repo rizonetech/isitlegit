@@ -777,7 +777,10 @@ teamRoutes.post(
     // and why; an htmx post with the same notice as a redirect, since htmx draws no 4xx answer and the app script would
     // turn it into "may not have reached us".
     if (roleOf(who.org.role) === "member") {
-      if (c.req.header("hx-request") === "true") return back(secret, orgId, { r: "no-permission" });
+      // The find is recovered from the bounded form read so the refusal keeps the member's search (D07 T04 §26).
+      const refusedForm = await readSmallForm(c.req.raw, { find: 300 }).catch(() => null);
+      const refusedFind = refusedForm?.find ?? "";
+      if (c.req.header("hx-request") === "true") return back(secret, orgId, { r: "no-permission" }, refusedFind);
       try {
         const [members, shell] = await Promise.all([
           readMembers(c.env.DB, orgId),
@@ -790,6 +793,7 @@ teamRoutes.post(
             members={members}
             reader={reader}
             outcome={{ r: "no-permission" }}
+            find={refusedFind || undefined}
             now={new Date()}
           />,
           403,
