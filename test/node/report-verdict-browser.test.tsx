@@ -134,7 +134,7 @@ const EXAMINED = [
     outcome: "ran" as const,
     reason: null,
     findings: 0,
-    examined: { targets: ["one.example", "last.example"], omitted: 2 },
+    examined: { targets: ["one.example", "a".repeat(255), "last.example"], omitted: 2 },
   },
 ];
 const COVERAGE = [
@@ -241,6 +241,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
         expect(await summary.evaluate((el) => document.activeElement === el)).toBe(true);
         await p.keyboard.press("Enter");
         await expect.poll(() => p.getByText("last.example").isVisible()).toBe(true);
+        const longTarget = p.getByText("a".repeat(255));
+        await longTarget.scrollIntoViewIfNeeded();
+        expect(await longTarget.isVisible()).toBe(true);
+        expect(await longTarget.evaluate((el) => el.getBoundingClientRect().right)).toBeLessThanOrEqual(width);
         expect(await p.getByText("2 more targets were examined but are not listed.").isVisible()).toBe(true);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });

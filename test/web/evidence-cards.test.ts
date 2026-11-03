@@ -2196,8 +2196,13 @@ describe("the evidence count line and the clean checks", () => {
     expect(html).toContain("No targets were recorded for this check.");
     expect(long).toHaveLength(255);
     // The whole list, in order, and only the two non-empty sets open a disclosure.
+    expect(html.indexOf("one.example")).toBeGreaterThan(-1);
     expect(html.indexOf("one.example")).toBeLessThan(html.indexOf(long));
     expect(html.indexOf(long)).toBeLessThan(html.indexOf("last.example"));
+    const listed = [...html.matchAll(/<li class="wrap-anywhere">([^<]*)<\/li>/g)].map((m) => m[1]);
+    expect(listed).toContain(`one.example`);
+    expect(listed.filter((x) => x === long)).toHaveLength(1);
+    expect(listed.filter((x) => x === "last.example")).toHaveLength(1);
     expect(html.match(/See what this check examined/g)).toHaveLength(2);
     const noOmission = String(
       jsx(CleanChecks, {
