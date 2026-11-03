@@ -314,9 +314,14 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const own = new Set(domains);
     const isOwn = (host: string) => domains.some((d) => host === d || host.endsWith(`.${d}`));
     const knownCt = [...known.keys()].filter((host) => tokens.some((token) => host.includes(token)) && !isOwn(host));
-    const candidates = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])]
-      .filter((h) => !own.has(h))
-      .slice(0, MAX_CANDIDATES);
+    // Inside the shared cap, the list rotates by day: retained discoveries first in rotation
+    // order, so a saturated list defers coverage to later days instead of starving the same
+    // hosts forever; the run's deferral is visible in the summary counts.
+    const merged = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])].filter(
+      (h) => !own.has(h),
+    );
+    const offset = merged.length ? Math.floor(started.getTime() / 86_400_000) % merged.length : 0;
+    const candidates = [...merged.slice(offset), ...merged.slice(0, offset)].slice(0, MAX_CANDIDATES);
     // A CT discovery persists before any lookup (D05 T04 §7): a failed lookup today and an
     // empty CT answer tomorrow never lose it.
     const discovered = ctNames.filter((h) => !isOwn(h) && !known.has(h));

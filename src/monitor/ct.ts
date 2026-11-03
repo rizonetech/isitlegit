@@ -55,14 +55,18 @@ const HOSTNAME = /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9
 export function ctNames(json: unknown, token: string): { names: string[]; truncated: boolean } {
   if (!Array.isArray(json)) return { names: [], truncated: true };
   const out = new Set<string>();
+  let malformed = false;
   for (const record of json.slice(0, MAX_RECORDS) as { name_value?: unknown }[]) {
-    if (typeof record?.name_value !== "string") continue;
+    if (typeof record?.name_value !== "string") {
+      malformed = true;
+      continue;
+    }
     for (const line of record.name_value.split(/\n/)) {
       const host = line.trim().toLowerCase().replace(/^\*\./, "");
       if (host.includes(token) && HOSTNAME.test(host)) out.add(host);
     }
   }
-  return { names: [...out], truncated: json.length > MAX_RECORDS };
+  return { names: [...out], truncated: malformed || json.length > MAX_RECORDS };
 }
 
 export type CtResult = { names: string[]; failed: string[] };

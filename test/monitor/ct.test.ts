@@ -40,6 +40,11 @@ describe("brand tokens and CT names", () => {
       ["fynbos"],
     );
     expect(bad).toEqual({ names: [], failed: ["fynbos"] });
+    const malformed = await ctCandidates(
+      (async () => Response.json([null, {}, { name_value: 42 }])) as unknown as typeof fetch,
+      ["fynbos"],
+    );
+    expect(malformed.failed).toEqual(["fynbos"]);
   });
 });
 
@@ -86,5 +91,37 @@ describe("the daily run with CT", () => {
     expect(second.errors.join(" ")).toContain("ct:fynbos");
     // The discovery stays monitored on a later day without any CT answer.
     expect(resolved).toContain("fynbos-secure.example");
+  });
+});
+
+describe("discovery persistence", () => {
+  it("keeps a discovery whose first DNS lookup fails, for the next day", async () => {
+    const { orgId } = await business();
+    const failing = {
+      db,
+      bucket: env.ARTEFACTS,
+      store: { bucket: env.ARTEFACTS, db },
+      kv: (env as unknown as { CACHE: KVNamespace }).CACHE,
+      meta: {
+        env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" },
+        budget: undefined,
+        random: () => 0.5,
+        sleep: async () => {},
+        fetch: (async () => new Response("x", { status: 500 })) as typeof fetch,
+      },
+      resolve: async () => ({ status: "failed" as const, error: "servfail" }),
+      capture: async () => ({ outcome: "failed" as const, error: "none" }),
+      open: async () => ({}) as never,
+      close: async () => ({}) as never,
+      settle: async () => ({}) as never,
+      heldSince: async () => null,
+      ct: async () => ({ names: ["fynbos-later.example"], failed: [] }),
+    } as unknown as MonitorDeps;
+    await monitorOrg(failing, orgId, `monitor-${orgId}-ct1`);
+    const row = await db
+      .prepare("SELECT domain FROM monitor_hosts WHERE org_id = ? AND domain = 'fynbos-later.example'")
+      .bind(orgId)
+      .first();
+    expect(row).not.toBeNull();
   });
 });
