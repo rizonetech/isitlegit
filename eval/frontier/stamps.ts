@@ -231,8 +231,11 @@ export function validateOutcomes(
     }
     if (typeof o.ms !== "number" || !Number.isFinite(o.ms) || o.ms < 0)
       problems.push(`${o.file} (${o.arm}): terminal outcome missing non-negative ms (${o.ms})`);
-    if (!Number.isInteger(o.attempts) || o.attempts < 1)
-      problems.push(`${o.file} (${o.arm}): terminal outcome requires attempts >= 1 (${o.attempts})`);
+    const minAttempts = o.status === "refused" ? 0 : 1;
+    if (!Number.isInteger(o.attempts) || o.attempts < minAttempts)
+      problems.push(
+        `${o.file} (${o.arm}): terminal outcome (${o.status}) requires attempts >= ${minAttempts} (${o.attempts})`,
+      );
     if (o.status === "answered") {
       if (typeof o.doctored !== "boolean")
         problems.push(`${o.file} (${o.arm}): answered outcome has non-boolean doctored (${o.doctored})`);
@@ -268,8 +271,11 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], 
     if (o.status !== "pending" && o.status !== "budget-stopped") {
       if (typeof o.ms !== "number" || !Number.isFinite(o.ms) || o.ms < 0)
         throw new Error(`${o.file} (${o.arm}): terminal outcome missing non-negative ms (${o.ms})`);
-      if (!Number.isInteger(o.attempts) || o.attempts < 1)
-        throw new Error(`${o.file} (${o.arm}): terminal outcome requires attempts >= 1 (${o.attempts})`);
+      const minAttempts = o.status === "refused" ? 0 : 1;
+      if (!Number.isInteger(o.attempts) || o.attempts < minAttempts)
+        throw new Error(
+          `${o.file} (${o.arm}): terminal outcome (${o.status}) requires attempts >= ${minAttempts} (${o.attempts})`,
+        );
       if (o.status === "answered" && typeof o.doctored !== "boolean")
         throw new Error(`${o.file} (${o.arm}): answered outcome has non-boolean doctored`);
       if (o.status !== "answered" && o.doctored !== null)
@@ -657,10 +663,26 @@ export async function createBudgetedStampDeps(opts: {
     }
     const priorIds = new Set((await opts.ledger.entries(callKey)).map((e) => e.id));
     const spend = ledgeredBudget(opts.guard, opts.ledger, callKey);
+    let stepRefusal: string | null = null;
+    const budget: import("../../src/meta/guard.ts").Budget = {
+      ...spend.budget,
+      reserve: async (model, estimateUsd, attempt, id, call) => {
+        try {
+          return await spend.budget.reserve(model, estimateUsd, attempt, id, call);
+        } catch (err) {
+          stepRefusal ??= err instanceof Error ? err.message : String(err);
+          throw err;
+        }
+      },
+      refused: async (model, call, errorClass) => {
+        stepRefusal ??= `refused (${errorClass})`;
+        await spend.budget.refused(model, call, errorClass);
+      },
+    };
     const late: Promise<unknown>[] = [];
     const ctx = {
       env: opts.env,
-      budget: spend.budget,
+      budget,
       owner: { kind: "script" as const, name: "eval-frontier" },
       waitUntil: (p: Promise<unknown>) => {
         late.push(p);
@@ -686,6 +708,8 @@ export async function createBudgetedStampDeps(opts: {
         fatalAccounting ??= acct;
         throw new Error(`accounting: a settlement could not be written (${fatalAccounting})`);
       }
+      const ref = spend.refusal() ?? stepRefusal;
+      if (ref) throw new Error(`budget: ${ref}`);
       return { value, usd: step.usd, attempts: step.attempts };
     } catch (err) {
       failedStep = await collectOnce().catch(() => ({ usd: 0, attempts: spend.attempts() }));
@@ -694,6 +718,8 @@ export async function createBudgetedStampDeps(opts: {
         fatalAccounting ??= acct;
         throw new Error(`accounting: a settlement could not be written (${fatalAccounting})`);
       }
+      const ref = spend.refusal() ?? stepRefusal;
+      if (ref) throw new Error(`budget: ${ref}`);
       throw err;
     }
   }

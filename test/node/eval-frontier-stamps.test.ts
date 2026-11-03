@@ -505,5 +505,45 @@ describe("the stamps experiment", () => {
     expect(stoppedRun.stopped).toMatch(/accounting:/);
     expect(callsSent).toBe(1);
     expect(deps3.spentUsd()).toBeCloseTo(0.003, 6);
+
+    // A SAM reservation refusal masked by "the segmentation request could not be completed" still surfaces as budget refusal and stops the run, with 0 attempts accepted by scoreOutcomes.
+    failSettle = false;
+    const tinyLedger = sharedLedger(join(dir, "tiny-ledger.json"), "stamps-tiny", { capUsd: 0.0031 });
+    let tinyCalls = 0;
+    const deps4 = await createBudgetedStampDeps({
+      env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://example.test" },
+      guard,
+      ledger: tinyLedger,
+      segmentFn: async (ctx: unknown) => {
+        tinyCalls++;
+        const b = (ctx as { budget: Budget }).budget;
+        try {
+          await b.reserve("sam-3.1", ESTIMATE_USD.segment, 1);
+        } catch {
+          // Real segment() in src/vision/sam.ts:80 catches budget errors and throws a generic message.
+          throw new Error("the segmentation request could not be completed");
+        }
+        return [];
+      },
+      structuredFn: (async (_schema: unknown, _req: unknown, ctx: unknown) => {
+        tinyCalls++;
+        const b = (ctx as { budget: Budget }).budget;
+        const id = await b.reserve("muse-spark-1.3", 0.003, 1);
+        await b.settle(id, 0.003, {
+          ms: 10,
+          outcome: "ok",
+          certainty: "measured",
+          source: "meta-usage",
+          inputTokens: 80,
+          outputTokens: 15,
+        });
+        return { value: { doctored: false, reason: "clean" }, callId: id, attempts: 1 };
+      }) as never,
+    });
+    const samStopped = await runStamps(setDir, deps4, { resultsFile: join(dir, "sam-stopped.json") });
+    expect(samStopped.stopped).toMatch(/budget:.*pass its cap/);
+    expect(tinyCalls).toBe(2);
+    expect(samStopped.outcomes[1]?.status).toBe("refused");
+    expect(samStopped.outcomes[1]?.attempts).toBe(0);
   });
 });
