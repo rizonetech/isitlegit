@@ -38,16 +38,30 @@ def file_digest(path, kind="sha256"):
     return digest.hexdigest()
 
 
-def write_json(path, value):
-    """Written whole or not at all: a temporary file flushed, then renamed into place, and the folder flushed."""
+def stage_json(path, value):
+    """Written whole to a temporary file, flushed, fsynced and read back before any published file is replaced."""
     path = Path(path)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    expected = json.loads(json.dumps(value))
     try:
         with temporary.open("w", encoding="utf-8") as sink:
             json.dump(value, sink, indent=1, sort_keys=True)
             sink.write("\n")
             sink.flush()
             os.fsync(sink.fileno())
+        with temporary.open(encoding="utf-8") as source:
+            if json.load(source) != expected:
+                raise Refused(f"{path.name} did not read back as staged")
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    return temporary, path
+
+
+def write_json(path, value):
+    """Written whole or not at all: a temporary file flushed, then renamed into place, and the folder flushed."""
+    temporary, path = stage_json(path, value)
+    try:
         os.replace(temporary, path)
     except BaseException:
         temporary.unlink(missing_ok=True)
@@ -455,31 +469,11 @@ class Receipt:
                 tmp.unlink(missing_ok=True)
         return Path(folder) / ITEMS
 
-    def publish(self, folder, staged_rows, out_rows, converter, inputs_digest, parameters=None, inventory=None):
-        """Validates and stages the complete generation (rows, item ledger, inventory ledger and export receipt) before
-        replacing any published file, so a limit or validation refusal leaves the previous generation untouched."""
+    def _build_receipt(self, rows, converter, inputs_digest, parameters=None, rows_digest=None):
         rejected = sum(self.rejected.values())
         if self.exported + self.sampled_out + rejected != self.met:
             raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
-        rows_digest = file_digest(staged_rows)
-        staged_ledgers = self.stage_items(folder, inputs_digest, rows_digest, inventory=inventory)
-        try:
-            os.replace(staged_rows, out_rows)
-            for tmp, dst in staged_ledgers:
-                os.replace(tmp, dst)
-        finally:
-            for tmp, _ in staged_ledgers:
-                tmp.unlink(missing_ok=True)
-        return self.write(folder, out_rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
-
-    def write(self, folder, rows, converter, inputs_digest, parameters=None, rows_digest=None):
-        """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own
-        (the sample cap and seed), recorded with this module's digest and the interpreter, so the receipt names the whole
-        recipe that made the rows (completion review E1)."""
-        rejected = sum(self.rejected.values())
-        if self.exported + self.sampled_out + rejected != self.met:
-            raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
-        receipt = {
+        return {
             "met": self.met,
             "exported": self.exported,
             "sampled_out": self.sampled_out,
@@ -493,5 +487,60 @@ class Receipt:
                 "python": platform.python_version(),
             },
         }
+
+    def publish(self, folder, staged_rows, out_rows, converter, inputs_digest, parameters=None, inventory=None):
+        """Validates and stages the complete generation (rows, item ledger, inventory ledger and export receipt) before
+        replacing any published file, preserving backups of the previous generation across the replacement sequence so
+        any failure or interruption leaves a recoverable generation intact."""
+        folder = Path(folder)
+        staged_rows, out_rows = Path(staged_rows), Path(out_rows)
+        rejected = sum(self.rejected.values())
+        if self.exported + self.sampled_out + rejected != self.met:
+            raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
+        rows_digest = file_digest(staged_rows)
+        staged_ledgers = self.stage_items(folder, inputs_digest, rows_digest, inventory=inventory)
+        try:
+            receipt = self._build_receipt(out_rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
+            staged_export = stage_json(folder / EXPORT, receipt)
+        except BaseException:
+            for tmp, _ in staged_ledgers:
+                tmp.unlink(missing_ok=True)
+            raise
+        replacements = [(staged_rows, out_rows), *staged_ledgers, staged_export]
+        backups = []
+        try:
+            for _, dst in replacements:
+                if dst.is_file():
+                    backup = dst.with_name(f".prev.{dst.name}.{os.getpid()}.tmp")
+                    backup.unlink(missing_ok=True)
+                    os.link(dst, backup)
+                    backups.append((backup, dst))
+            for tmp, dst in replacements:
+                os.replace(tmp, dst)
+            dir_fd = os.open(folder, os.O_RDONLY)
+            try:
+                os.fsync(dir_fd)
+            finally:
+                os.close(dir_fd)
+        except BaseException:
+            for backup, dst in reversed(backups):
+                if backup.is_file():
+                    try:
+                        os.rename(backup, dst)
+                    except OSError:
+                        pass
+            raise
+        finally:
+            for tmp, _ in replacements:
+                tmp.unlink(missing_ok=True)
+            for backup, _ in backups:
+                backup.unlink(missing_ok=True)
+        return receipt
+
+    def write(self, folder, rows, converter, inputs_digest, parameters=None, rows_digest=None):
+        """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own
+        (the sample cap and seed), recorded with this module's digest and the interpreter, so the receipt names the whole
+        recipe that made the rows (completion review E1)."""
+        receipt = self._build_receipt(rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
         write_json(Path(folder) / EXPORT, receipt)
         return receipt

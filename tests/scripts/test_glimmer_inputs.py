@@ -304,6 +304,40 @@ class ItemLedger(unittest.TestCase):
         self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
         self.assertEqual([p.name for p in self.dir.iterdir() if p.name.startswith(".ITEMS")], [])
 
+        # Round 7 finding 1: ENOSPC while staging EXPORT.json or an interrupted replacement mid-sequence preserves
+        # the previous generation intact without leaving half-replaced files behind.
+        staged_rows2 = self.dir / ".rows.jsonl.99999.tmp"
+        staged_rows2.write_text('{"sha256":"new-0"}\n', encoding="utf-8")
+        enospc_receipt = inputs.Receipt(inputs.Limits())
+        enospc_receipt.note_inventory("new-0")
+        enospc_receipt.export("new-0")
+        with unittest.mock.patch.object(inputs.json, "dump", side_effect=OSError(28, "No space left on device")):
+            with self.assertRaisesRegex(OSError, "No space left on device"):
+                enospc_receipt.publish(self.dir, staged_rows2, out_rows, Path(__file__), "n" * 64)
+        self.assertEqual(out_rows.read_text(encoding="utf-8"), '{"sha256":"prev"}\n')
+        self.assertEqual((self.dir / inputs.EXPORT).read_text(encoding="utf-8"), '{"rows_sha256":"prev-export"}\n')
+        self.assertEqual((self.dir / inputs.ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev","rows":"prev"}\n')
+        self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
+
+        staged_rows3 = self.dir / ".rows.jsonl.99999.tmp"
+        staged_rows3.write_text('{"sha256":"new-0"}\n', encoding="utf-8")
+        real_replace = inputs.os.replace
+        calls = {"n": 0}
+
+        def fail_third_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 3:
+                raise OSError(5, "Input/output error mid-replacement")
+            return real_replace(src, dst)
+
+        with unittest.mock.patch.object(inputs.os, "replace", side_effect=fail_third_replace):
+            with self.assertRaisesRegex(OSError, "Input/output error mid-replacement"):
+                enospc_receipt.publish(self.dir, staged_rows3, out_rows, Path(__file__), "n" * 64)
+        self.assertEqual(out_rows.read_text(encoding="utf-8"), '{"sha256":"prev"}\n')
+        self.assertEqual((self.dir / inputs.EXPORT).read_text(encoding="utf-8"), '{"rows_sha256":"prev-export"}\n')
+        self.assertEqual((self.dir / inputs.ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev","rows":"prev"}\n')
+        self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
+
 
 if __name__ == "__main__":
     unittest.main()
