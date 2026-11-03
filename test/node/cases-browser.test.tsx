@@ -195,13 +195,19 @@ async function answer(req: IncomingMessage): Promise<Response> {
     return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
   if (url.pathname === "/cases/stats.csv" && url.searchParams.get("org") !== state.org)
     return new Response(null, { status: 303, headers: { location: "/cases" } });
-  if (url.pathname === "/cases/stats.csv")
+  if (url.pathname === "/cases/stats.csv") {
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
     return new Response("week_start,checked\r\n2026-10-26,27\r\n", {
       headers: {
         "content-type": "text/csv; charset=utf-8",
-        "content-disposition": 'attachment; filename="isitlegit-weekly-counts.csv"',
+        "content-disposition":
+          from && to
+            ? `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`
+            : 'attachment; filename="isitlegit-weekly-counts.csv"',
       },
     });
+  }
   if (url.pathname === "/signin")
     return new Response("<!doctype html><title>Sign in</title><h1>Sign in</h1>", {
       headers: { "content-type": "text/html" },
@@ -840,6 +846,22 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => tile("Checked this week").textContent()).toBe("28");
     expect(await tile("Malicious or suspicious").textContent()).toBe("10");
     expect(await tile("Median time to verdict").textContent()).toBe("1 min 35 s");
+    await context.close();
+  });
+
+  it("exports a chosen period and keeps the dates across a redraw (D07 T04 §19)", async () => {
+    const { p, context } = await open();
+    expect(await p.getByRole("link", { name: "This month" }).isVisible()).toBe(true);
+    expect(await p.getByRole("link", { name: "This quarter" }).isVisible()).toBe(true);
+    await p.locator("#case-export-from").fill("2026-10-01");
+    await p.locator("#case-export-to").fill("2026-10-31");
+    const download = p.waitForEvent("download");
+    await p.getByRole("button", { name: "Export period" }).click();
+    expect((await download).suggestedFilename()).toBe("isitlegit-counts-2026-10-01-to-2026-10-31.csv");
+    // A filter redraw swaps the panel; the typed dates come back.
+    await segment(p, "Safe").click();
+    await expect.poll(() => p.locator("#case-export-from").inputValue()).toBe("2026-10-01");
+    await expect.poll(() => p.locator("#case-export-to").inputValue()).toBe("2026-10-31");
     await context.close();
   });
 

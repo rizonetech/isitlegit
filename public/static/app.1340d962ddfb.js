@@ -1130,7 +1130,8 @@ document.addEventListener("click", (event) => {
   drawSlashToggle();
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
+  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented)
+    return;
   if (event.isComposing || slashOff()) return;
   const target = event.target                  ;
   if (target?.closest("input, textarea, select, [contenteditable]")) return;
@@ -1997,4 +1998,36 @@ document.addEventListener("click", (event) => {
   if (!button) return;
   event.preventDefault();
   void passkeyAdd(button);
+});
+
+// The counts-export period fields (D07 T04 §19) survive the stats panel's own redraws: their values are kept
+// in sessionStorage and restored after a swap, and clearing both clears the stored pair.
+const restoreExportDates = () => {
+  try {
+    const from = document.querySelector                  ("#case-export-from");
+    const to = document.querySelector                  ("#case-export-to");
+    if (from && !from.value) from.value = sessionStorage.getItem("iil-export-from") ?? "";
+    if (to && !to.value) to.value = sessionStorage.getItem("iil-export-to") ?? "";
+  } catch {
+    // Storage refused: the fields simply start empty.
+  }
+};
+restoreExportDates();
+document.addEventListener("htmx:afterSwap", restoreExportDates);
+document.addEventListener("change", (event) => {
+  const field = event.target                           ;
+  if (field?.id !== "case-export-from" && field?.id !== "case-export-to") return;
+  try {
+    const from = document.querySelector                  ("#case-export-from")?.value ?? "";
+    const to = document.querySelector                  ("#case-export-to")?.value ?? "";
+    if (!from && !to) {
+      sessionStorage.removeItem("iil-export-from");
+      sessionStorage.removeItem("iil-export-to");
+    } else {
+      sessionStorage.setItem("iil-export-from", from);
+      sessionStorage.setItem("iil-export-to", to);
+    }
+  } catch {
+    // Storage refused: nothing to restore later.
+  }
 });

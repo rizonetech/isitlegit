@@ -730,10 +730,58 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
               Export counts as CSV
             </a>
           </dd>
+          <dd class="text-13">
+            <form method="get" action="/cases/stats.csv" class="flex flex-wrap items-end gap-8 mt-8">
+              <input type="hidden" name="org" value={props.orgId} />
+              <label class="flex flex-col gap-4">
+                <span class="text-muted">From</span>
+                <input id="case-export-from" type="date" name="from" class={SELECT} />
+              </label>
+              <label class="flex flex-col gap-4">
+                <span class="text-muted">To</span>
+                <input id="case-export-to" type="date" name="to" class={SELECT} />
+              </label>
+              <button type="submit" class={cx("underline underline-offset-4 text-orange-text", FOCUS)}>
+                Export period
+              </button>
+            </form>
+            <p class="text-muted mt-4">Whole weeks that overlap your dates.</p>
+            <p class="mt-4 flex gap-12">
+              <a
+                href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${monthRange().from}&to=${monthRange().to}`}
+                class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+              >
+                This month
+              </a>
+              <a
+                href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${quarterRange().from}&to=${quarterRange().to}`}
+                class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+              >
+                This quarter
+              </a>
+            </p>
+          </dd>
         </div>
       </dl>
     </section>
   );
+}
+
+// The current calendar month and quarter as SAST dates, for the period presets (D07 T04 §19).
+function sastToday(): { y: number; m: number; d: number } {
+  const shifted = new Date(Date.now() + 2 * 3_600_000);
+  return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth(), d: shifted.getUTCDate() };
+}
+const ymd = (y: number, m: number, d: number) =>
+  `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+function monthRange(): { from: string; to: string } {
+  const { y, m } = sastToday();
+  return { from: ymd(y, m, 1), to: ymd(y, m, new Date(Date.UTC(y, m + 1, 0)).getUTCDate()) };
+}
+function quarterRange(): { from: string; to: string } {
+  const { y, m } = sastToday();
+  const first = Math.floor(m / 3) * 3;
+  return { from: ymd(y, first, 1), to: ymd(y, first + 2, new Date(Date.UTC(y, first + 3, 0)).getUTCDate()) };
 }
 
 export function CasesPage(props: {

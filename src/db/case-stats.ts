@@ -118,6 +118,22 @@ export async function weeklyStats(db: D1Database, orgId: string, now = new Date(
   return { thisWeek: thisWeek as WeekCounts, lastWeekChecked: lastWeek?.checked ?? 0 };
 }
 
+// The weeks overlapping a chosen SAST date range (D07 T04 §19), oldest first for the export: the window is
+// anchored to the range's end and sized to both overlapping Mondays (two calendar years can overlap 106 weeks).
+export async function periodWeeks(db: D1Database, orgId: string, fromDate: string, toDate: string): Promise<WeekCounts[]> {
+  const fromMonday = Date.parse(weekStart(new Date(`${fromDate}T00:00:00+02:00`)));
+  const toMonday = Date.parse(weekStart(new Date(`${toDate}T00:00:00+02:00`)));
+  const count = Math.round((toMonday - fromMonday) / WEEK_MS) + 1;
+  const weeks = await weeklyCounts(db, orgId, new Date(`${toDate}T12:00:00+02:00`), count);
+  const todayMonday = Date.parse(weekStart(new Date()));
+  return weeks
+    .filter((w) => {
+      const start = Date.parse(w.weekStart);
+      return start >= fromMonday && start <= toMonday && start <= todayMonday;
+    })
+    .reverse();
+}
+
 // The CSV of the last 12 weeks' counts, newest first: counts only, never a subject, sender or file name.
 export const CSV_WEEKS = 12;
 export const CSV_HEADER = "week_start,checked,malicious,suspicious,safe,unfinished,median_seconds_to_verdict";

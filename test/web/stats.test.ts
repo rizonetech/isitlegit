@@ -470,3 +470,44 @@ describe("threat kinds: weeks, runs and the rendered line (D07 T04 §18)", () =>
     expect(panel.replace(/<[^>]+>/g, "|")).toContain("|2 phishing, 1 invoice|");
   });
 });
+
+describe("GET /cases/stats.csv with a chosen period (D07 T04 §19)", () => {
+  it("exports the weeks overlapping October 2026, oldest first, and nothing outside them", async () => {
+    const a = await org("Karoo Couriers");
+    // Weeks beginning 28 Sep, 5, 12, 19 and 26 Oct 2026 (SAST Mondays) overlap October; 21 Sep and 2 Nov do not.
+    await made(a, { at: "2026-09-21T08:00:00.000Z", verdict: "safe", decidedAt: "2026-09-21T08:01:00.000Z" });
+    await made(a, { at: "2026-09-28T08:00:00.000Z", verdict: "malicious", decidedAt: "2026-09-28T08:01:00.000Z" });
+    await made(a, { at: "2026-10-26T08:00:00.000Z", verdict: "safe", decidedAt: "2026-10-26T08:01:00.000Z" });
+    await made(a, { at: "2026-11-02T08:00:00.000Z", verdict: "safe", decidedAt: "2026-11-02T08:01:00.000Z" });
+    const { cookie } = await member(a);
+    const res = await get(`/cases/stats.csv?org=${a}&from=2026-10-01&to=2026-10-31`, cookie);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toBe('attachment; filename="isitlegit-counts-2026-10-01-to-2026-10-31.csv"');
+    const lines = (await res.text()).trimEnd().split("\r\n");
+    expect(lines[0]).toBe(CSV_HEADER);
+    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual(["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]);
+    expect(lines[1]).toContain(",1,1,0,0,0,");
+    // A stale organisation is redirected to Cases, never exported.
+    const stale = await get(`/cases/stats.csv?org=org-elsewhere&from=2026-10-01&to=2026-10-31`, cookie);
+    expect(stale.status).toBe(303);
+  });
+
+  it("refuses a reversed, over-long, missing or unreadable period with an HTML 400 page, never an attachment", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    for (const q of [
+      "from=2026-10-31&to=2026-10-01",
+      "from=2024-01-01&to=2026-01-02",
+      "from=2026-10-01",
+      "from=2026-02-30&to=2026-10-01",
+      "from=soon&to=2026-10-01",
+    ]) {
+      const res = await get(`/cases/stats.csv?org=${a}&${q}`, cookie);
+      expect(res.status, q).toBe(400);
+      expect(res.headers.get("content-disposition"), q).toBeNull();
+      const html = await res.text();
+      expect(html, q).toContain("That period does not work");
+      expect(html, q).toContain('href="/cases"');
+    }
+  });
+});

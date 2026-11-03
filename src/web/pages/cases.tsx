@@ -11,9 +11,9 @@ import { activeMembership } from "../../auth/org";
 import { verifiedSenders } from "../../auth/senders";
 import { ignoredDates, searchTooLong } from "../../db/case-filters";
 import { filtersFrom, listCases } from "../../db/case-list";
-import { CSV_WEEKS, countsCsv, weeklyCounts, weeklyStats } from "../../db/case-stats";
+import { CSV_WEEKS, countsCsv, periodWeeks, weeklyCounts, weeklyStats } from "../../db/case-stats";
 import { CasesPage, ORG_HEADER } from "./cases-view";
-import { errorPage, HEADERS, reference } from "./errors";
+import { errorPage, HEADERS, page, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { COOKIE, hiddenIn, stepsOf } from "./welcome-steps";
 import { doneCount } from "./welcome-view";
@@ -134,6 +134,49 @@ casesRoutes.get(
     const asked = new URL(c.req.url).searchParams.get("org");
     if (asked && asked !== membership.org.id)
       return new Response(null, { status: 303, headers: { ...HEADERS, location: "/cases" } });
+    const params = new URL(c.req.url).searchParams;
+    const from = params.get("from");
+    const to = params.get("to");
+    if (from !== null || to !== null) {
+      const bad = (why: string) =>
+        page(
+          "Choose a period",
+          <main id="content" class="px-16 py-24 md:px-56 md:py-40">
+            <h1 class="type-h1">That period does not work</h1>
+            <p class="type-body mt-12">{why}</p>
+            <p class="type-body mt-12">
+              <a href="/cases" class="text-orange-text underline underline-offset-4">
+                Back to your cases
+              </a>
+            </p>
+          </main>,
+          400,
+        );
+      const dateOk = (v: string | null): v is string => {
+        const m = v?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return false;
+        const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+        return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+      };
+      if (!dateOk(from) || !dateOk(to))
+        return bad("Give both dates as real calendar dates, From and To, and try again.");
+      const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+      if (span < 0) return bad("The To date is before the From date. Swap them and try again.");
+      if (span > 731) return bad("That period is longer than two years. Choose a shorter one and try again.");
+      try {
+        const weeks = await periodWeeks(c.env.DB, membership.org.id, from, to);
+        return new Response(countsCsv(weeks), {
+          headers: {
+            "content-type": "text/csv; charset=utf-8",
+            "content-disposition": `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`,
+            "cache-control": "private, no-store",
+            "x-content-type-options": "nosniff",
+          },
+        });
+      } catch (error) {
+        return outage(c.req.raw, (error as Error).name, "cases-csv");
+      }
+    }
     try {
       const weeks = await weeklyCounts(c.env.DB, membership.org.id, new Date(), CSV_WEEKS);
       return new Response(countsCsv(weeks), {

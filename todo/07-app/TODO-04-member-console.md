@@ -781,10 +781,10 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 1. Record the owner's decision on the periods offered and the control in `design/SPEC.md` M1. Done when: the SPEC names both.
 2. Take the period in `GET /cases/stats.csv` in `src/web/pages/cases.tsx`. Done when: `test/web/stats.test.ts` reads a month's rows only.
 
-- [ ] Record the owner's periods and control in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: free date fields with no validation.
-- [ ] Draw the period controls in `StatsPanel` (`src/web/pages/cases-view.tsx`): labelled From and To dates, Export period, This month and This quarter, each carrying the displayed `org`, the one-press export untouched. Done when: the browser test submits by keyboard, downloads the period file with its filename, works with scripts off, and reads the fields restored after a filter redraw, at phone width in both themes.
-- [ ] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week for the weeks overlapping the range, the window anchored to the range's end. Done when: the test reads October 2026's rows only (the weeks beginning 28 September to 26 October), and a reversed, over-limit, missing or unreadable date is refused with the HTML 400 page. Cheaper substitute: filtering the 12-week rows.
-- [ ] Commit: `web: chosen period for the counts export`
+- [x] Record the owner's periods and control in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: free date fields with no validation.
+- [x] Draw the period controls in `StatsPanel` (`src/web/pages/cases-view.tsx`): labelled From and To dates, Export period, This month and This quarter, each carrying the displayed `org`, the one-press export untouched. Done when: the browser test submits by keyboard, downloads the period file with its filename, works with scripts off, and reads the fields restored after a filter redraw, at phone width in both themes.
+- [x] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week for the weeks overlapping the range, the window anchored to the range's end. Done when: the test reads October 2026's rows only (the weeks beginning 28 September to 26 October), and a reversed, over-limit, missing or unreadable date is refused with the HTML 400 page. Cheaper substitute: filtering the 12-week rows.
+- [x] Commit: `web: chosen period for the counts export`
 
 > **Deferred:** exact calendar-date totals -> XREF: D07 T04 §34
 
