@@ -14,7 +14,7 @@ import { evidenceProducers, readEvidence, saveEvidence } from "../../src/checks/
 import { CheckRegistry } from "../../src/checks/registry";
 import { createCase } from "../../src/db/cases";
 import { getVerdict } from "../../src/db/verdicts";
-import { putAttachment, type Store } from "../../src/intake/store";
+import { putAttachment, putParsed, type Store } from "../../src/intake/store";
 import {
   DOCUMENT_LIMIT,
   documentStep,
@@ -25,7 +25,9 @@ import {
 import { bankChangeAction, POP_ACTION } from "../../src/invoice/fixed-actions";
 import { analysePdf, FORENSIC_CHECKS, forensicsEvidence } from "../../src/invoice/forensics";
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
+import { invoiceStep, recordInvoiceNotRun } from "../../src/invoice/step";
 import { d1Budget } from "../../src/meta/budget";
+import { parse } from "../../src/pipeline/analysis-workflow";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import { EvidenceCards } from "../../src/web/components/evidence/cards";
@@ -105,7 +107,7 @@ const renderCards = (items: Awaited<ReturnType<typeof readEvidence>>, cited: str
 
 const storedVerdictOf = async (caseId: string) => {
   const res = await getVerdict(db, caseId);
-  return res && res.ok ? res.value : null;
+  return res?.ok ? res.value : null;
 };
 
 beforeEach(async () => {
@@ -443,7 +445,8 @@ describe("the standalone document step (D06 T02 §3)", () => {
 
     // Agent attempts to return "safe", but floor enforces "malicious" and preserves POP_ACTION; rule fallback also preserves POP_ACTION.
     await db.prepare("DELETE FROM case_verdicts WHERE case_id = ?").bind(mismatchCase.caseId).run();
-    const mismatchItem = mismatchEval.evidence.find((e) => e.check === "document.beneficiary_mismatch")!;
+    const mismatchItem = mismatchEval.evidence.find((e) => e.check === "document.beneficiary_mismatch");
+    if (!mismatchItem) throw new Error("expected document.beneficiary_mismatch");
     const agentView = await runAgent(
       {
         db,
@@ -636,5 +639,95 @@ describe("the standalone document step (D06 T02 §3)", () => {
     expect(retried.step).toEqual({ outcome: "read", documents: 1 });
     expect(retried.evidence.map((e) => e.check)).not.toContain("document.not_checked");
     expect(retried.verdict.actions).toContain(POP_ACTION);
+  });
+
+  it("routes uploaded documents/images and empty-body emails through the production Workflow's parse and invoiceStep, and runs PDF forensics on non-standalone mail attachments", async () => {
+    const org = await makeOrg();
+    await seedSupplier(org);
+    await env.ARTEFACTS.put("ref/pop/kestrel-bank.pdf", generated["gs-genuine-pop.pdf"]);
+
+    // 1. Uploaded PDF POP through production `parse` -> `invoiceStep` -> `runAgent`:
+    const uploadedPdf = await caseWithDocument(org, {
+      channel: "upload",
+      sourceKind: "document",
+      bytes: generated["gs-edited-pop.pdf"],
+      filename: "uploaded-pop.pdf",
+    });
+    await parse(store, uploadedPdf.caseId, { channel: "upload", sourceKind: "document", headersAvailable: false });
+    const hUpload = harness([() => answer(POP), () => answer({ layout_differences: ["amounts"] })]);
+    const stepRes1 = await invoiceStep({ ...hUpload.deps, waitUntil: () => {} }, uploadedPdf.caseId, org);
+    expect(stepRes1).toEqual({ outcome: "read", invoices: 1 });
+    const ev1 = await readEvidence(db, uploadedPdf.caseId);
+    expect(ev1.map((e) => e.check)).toContain("document.forensics.revisions");
+    expect(ev1.map((e) => e.check)).toContain("document.type");
+    expect(ev1.map((e) => e.check)).toContain("document.layout_mismatch");
+    expect(ev1.map((e) => e.check)).toContain("document.beneficiary_match");
+    expect(ev1.map((e) => e.check)).toContain("document.proof_of_payment");
+    expect(ev1.map((e) => e.check)).toContain("document.limit");
+
+    // 2. Empty-body emailed PNG POP through `parsed.json` -> `invoiceStep`:
+    const emailedImg = await caseWithDocument(org, {
+      channel: "email",
+      sourceKind: "mail",
+      mediaType: "image/png",
+      bytes: PNG_BYTES,
+      filename: "emailed-pop.png",
+    });
+    await putParsed(store, emailedImg.caseId, {
+      source: { kind: "message" },
+      forward: { headersAvailable: true },
+      headers: [{ name: "Subject", value: "POP" }],
+      text: "   ",
+      html: "<div></div>",
+      attachments: [{ key: emailedImg.artefactKey, filename: "emailed-pop.png", mediaType: "image/png" }],
+    });
+    const hEmail = harness([() => answer(POP), () => answer({ layout_differences: [] })]);
+    const stepRes2 = await invoiceStep({ ...hEmail.deps, waitUntil: () => {} }, emailedImg.caseId, org);
+    expect(stepRes2).toEqual({ outcome: "read", invoices: 1 });
+    const ev2 = await readEvidence(db, emailedImg.caseId);
+    expect(ev2.map((e) => e.check)).toContain("document.type");
+    expect(ev2.map((e) => e.check)).toContain("document.proof_of_payment");
+    expect(ev2.map((e) => e.check)).toContain("document.limit");
+
+    // 3. `recordInvoiceNotRun` on a standalone document case writes `document.not_checked` + `document.limit`:
+    await recordInvoiceNotRun(store, emailedImg.caseId, "error");
+    const evAfterFail = await readEvidence(db, emailedImg.caseId);
+    expect(evAfterFail.map((e) => e.check)).toEqual(["document.not_checked", "document.limit"]);
+
+    // 4. Non-standalone mail case with a doctored PDF attachment runs PDF forensics alongside invoice extraction:
+    const regularMail = await caseWithDocument(org, {
+      channel: "email",
+      sourceKind: "mail",
+      bytes: generated["gs-edited-pop.pdf"],
+      filename: "attached-invoice.pdf",
+    });
+    await putParsed(store, regularMail.caseId, {
+      source: { kind: "message" },
+      forward: { headersAvailable: true },
+      headers: [{ name: "Subject", value: "Invoice" }],
+      text: "Please pay the attached invoice today.",
+      html: null,
+      attachments: [{ key: regularMail.artefactKey, filename: "attached-invoice.pdf", mediaType: "application/pdf" }],
+    });
+    const hRegular = harness([
+      () =>
+        answer({
+          is_invoice: true,
+          supplier_name: "Hadeda Couriers",
+          supplier_domain: "hadedacouriers.co.za",
+          bank_name: "Kestrel Bank (fictional)",
+          account_holder: "Hadeda Couriers",
+          account_number: "62004417731",
+          branch_code: "250655",
+          amount_cents: 410000,
+          currency: "ZAR",
+          reference: "INV-9",
+          due_date: "2026-11-30",
+        }),
+    ]);
+    await invoiceStep({ ...hRegular.deps, waitUntil: () => {} }, regularMail.caseId, org);
+    const evRegular = await readEvidence(db, regularMail.caseId);
+    expect(evRegular.map((e) => e.check)).toContain("invoice.detected");
+    expect(evRegular.map((e) => e.check)).toContain("document.forensics.revisions");
   });
 });

@@ -19,7 +19,7 @@ import {
 } from "../checks/evidence.ts";
 import { pdfText } from "../checks/pdf-text.ts";
 import { saveVerdict, type VerdictView } from "../db/verdicts.ts";
-import { artefactsOf, readArtefact, type Store } from "../intake/store.ts";
+import { artefactsOf, parsedKey, readArtefact, type Store } from "../intake/store.ts";
 import type { MetaContext } from "../meta/client.ts";
 import type { BankKeys } from "../trust/bank.ts";
 import { bankChangeAction } from "./fixed-actions.ts";
@@ -94,6 +94,43 @@ export function isStandaloneDocumentCase(input: {
   const hasHtml = Boolean(input.htmlBody && stripMarkup(input.htmlBody) !== "");
   if (hasText || hasHtml) return false;
   return input.attachments.length === 1 && isDocumentMediaType(input.attachments[0]?.mediaType ?? "");
+}
+
+// Reads the case row and parsed message summary from `store` to determine whether `caseId` is a
+// standalone payment-document case (`source_kind = "document"` or `"image"`, or a parsed `"mail"`
+// case whose body is empty and which carries a single PDF or image attachment).
+export async function isStandaloneCase(
+  store: Store,
+  caseId: string,
+  attachments?: readonly { mediaType: string }[],
+): Promise<boolean> {
+  const row = await store.db
+    .prepare("SELECT source_kind FROM cases WHERE id = ?")
+    .bind(caseId)
+    .first<{ source_kind: string | null }>()
+    .catch(() => null);
+  if (!row) return false;
+  const list = attachments ?? (await artefactsOf(store, caseId, "attachment"));
+  if (row.source_kind === "document" || row.source_kind === "image") {
+    return isStandaloneDocumentCase({ sourceKind: row.source_kind, attachments: list });
+  }
+  if (row.source_kind !== "mail") return false;
+  const parsedRaw = await readArtefact(store, caseId, parsedKey(caseId)).catch(() => null);
+  if (!parsedRaw || !("body" in parsedRaw)) return false;
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(parsedRaw.body)) as {
+      text?: string | null;
+      html?: string | null;
+    };
+    return isStandaloneDocumentCase({
+      sourceKind: "mail",
+      textBody: typeof parsed.text === "string" ? parsed.text : null,
+      htmlBody: typeof parsed.html === "string" ? parsed.html : null,
+      attachments: list,
+    });
+  } catch {
+    return false;
+  }
 }
 
 // Normalises an issuer name to candidate R2 slugs under `ref/pop/<slug>.pdf` (D06 T02 §2 and §3):
@@ -199,7 +236,7 @@ export async function saveDocumentEvidence(
   return list.map((e, i) => ({ ...e, id: ids[i] ?? e.id }));
 }
 
-const limitItem = (artefactKey: string): EvidenceDraft => ({
+export const limitItem = (artefactKey: string): EvidenceDraft => ({
   check: "document.limit",
   severity: "info",
   summary: DOCUMENT_LIMIT.slice(0, 200),
