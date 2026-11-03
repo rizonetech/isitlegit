@@ -444,6 +444,8 @@ Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a repla
 
 ## 14. Paired-evidence investigation
 
+> **Started:** 2026-11-03T04:15:00+02:00
+
 Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a changed verdict in the comparison names the sample but not the two cases behind it, so investigating why a verdict moved starts with manual retrieval. This section gives each changed sample a documented path to its paired evidence under the existing access controls.
 
 **Phase:** 6
