@@ -3,6 +3,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type Workflo
 import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
+import { ensurePartialAttachmentEvidence } from "../agent/floor";
 import { caseSummary, fixedActionsFor, runAgent, verdictToolDeps } from "../agent/loop";
 import { ruleVerdict } from "../agent/rule-verdict";
 import { createToolExecutor } from "../agent/tools";
@@ -1277,7 +1278,8 @@ export async function verdict(
   store: Store,
   caseId: string,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
-  const evidence = await readEvidence(db, caseId);
+  const outcomes = await readCheckOutcomes(db, caseId);
+  const evidence = await ensurePartialAttachmentEvidence(db, caseId, await readEvidence(db, caseId), outcomes);
   const row = await db
     .prepare("SELECT headers_available, org_id FROM cases WHERE id = ?")
     .bind(caseId)
@@ -1286,7 +1288,7 @@ export async function verdict(
   // An ablated arm (D04 T01 §14): the verdict agent is never called, and none of its preparation is read
   // either; the rule verdict decides alone with the deterministic actions, and the verdict names the flag.
   if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {
-    const rules = ruleVerdict(evidence, { headersAvailable });
+    const rules = ruleVerdict(evidence, { headersAvailable, outcomes });
     const fixed = fixedActionsFor(evidence);
     const view: VerdictView = {
       ...rules,
@@ -1312,7 +1314,8 @@ export async function verdict(
     }
   })();
   const keys = await bankKeys(env).catch(() => null);
-  const deps = verdictToolDeps(env, db, store, caseId, row?.org_id ?? null, table, keys);
+  const orgId = row?.org_id ?? null;
+  const deps = verdictToolDeps(env, db, store, caseId, orgId, table, keys);
   // Every address the case already holds, from the evidence that carries it: landing pages, link chains and the
   // addresses they settled on, so the agent can investigate a link the checks found without following a new one.
   const collect = (value: unknown, out: string[]) => {
@@ -1323,7 +1326,10 @@ export async function verdict(
   const found: string[] = [];
   for (const e of evidence) collect(e.detail, found);
   const urls = [...new Set(found)];
-  const executor = createToolExecutor({ db, caseId, urls }, deps);
+  const executor = createToolExecutor(
+    { db, caseId, urls, brands: table, ablateFlag: () => ablateFlagFor(env.CACHE, orgId) },
+    deps,
+  );
   const view = await runAgent(
     {
       db,
@@ -1331,6 +1337,7 @@ export async function verdict(
       summary,
       headersAvailable,
       executor,
+      outcomes,
     },
     caseId,
   );
