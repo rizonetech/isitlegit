@@ -257,6 +257,11 @@ describe("copyForTraining", () => {
   it("enforces qualifying dismissal semantics, label precedence (confirmation -> dismissal -> restore), and ignores non-qualifying reasons", async () => {
     expect(isBenignDismissalReason("duplicate alert already handled")).toBe(false);
     expect(isBenignDismissalReason("expired domain")).toBe(false);
+    expect(isBenignDismissalReason("not legitimate")).toBe(false);
+    expect(isBenignDismissalReason("not our site")).toBe(false);
+    expect(isBenignDismissalReason("not authorized")).toBe(false);
+    expect(isBenignDismissalReason("not a false positive")).toBe(false);
+    expect(isBenignDismissalReason("does not belong to us")).toBe(false);
     expect(isBenignDismissalReason("Not a fake, this is our own campaign site")).toBe(true);
     expect(isBenignDismissalReason("legitimate partner domain")).toBe(true);
 
@@ -412,6 +417,56 @@ describe("copyForTraining", () => {
       recovered: 0,
       failed: 0,
     });
+
+    // Boundary 3: A qualifying dismissal written before done.json, followed by restore and automated recovery,
+    // preserves the retraction rather than being overwritten by pipeline recovery.
+    const hostRestored = "crash-restored.example";
+    const keyRestored = `monitor/${orgId}/${hostRestored}/2026-11-02T06:20:00.000Z/`;
+    await seedCapture(keyRestored, `https://${hostRestored}/`, "Restored after partial dismissal");
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-rec-3', ?, 'confirmed', '["E3"]', '2026-11-02T06:21:00.000Z', '2026-11-02T06:21:00.000Z')`,
+      )
+      .bind(orgId, hostRestored, keyRestored, `https://${hostRestored}/`)
+      .run();
+    await findingsFromInvestigations(db, orgId, { mail: null, appUrl: "https://app.isitlegit.co.za" });
+    await dismissFinding(
+      db,
+      orgId,
+      hostRestored,
+      "Not a fake, this is our own site",
+      () => new Date("2026-11-02T06:22:00.000Z"),
+      bucket,
+    );
+    // Simulate crash before done.json during dismissal, then restore in D1 without R2 write.
+    await bucket.delete(`training/${keyRestored}done.json`);
+    await restoreFinding(db, orgId, hostRestored, () => new Date("2026-11-02T06:23:00.000Z"));
+    await bucket.put(
+      `training/${keyRestored}meta.json`,
+      JSON.stringify({
+        trainingId: `monitor/${orgId}/${hostRestored}/2026-11-02T06:20:00.000Z`,
+        orgId,
+        host: hostRestored,
+        captureKey: keyRestored,
+        url: `https://${hostRestored}/`,
+        fetchedAt: "2026-11-02T06:20:00.000Z",
+        label: "benign",
+        why: "dismissed as not a fake: Not a fake, this is our own site",
+        source: "dismissal",
+        sourceRef: `finding:${orgId}:${hostRestored}:${keyRestored}`,
+        copiedAt: "2026-11-02T06:22:00.000Z",
+        updatedAt: "2026-11-02T06:22:00.000Z",
+        retracted: false,
+      }),
+    );
+    await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T06:25:00.000Z"));
+    const restoredMeta = JSON.parse(
+      (await (await bucket.get(`training/${keyRestored}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(restoredMeta.retracted).toBe(true);
+    expect(restoredMeta.source).toBe("restore");
+    expect(await bucket.head(`training/${keyRestored}done.json`)).not.toBeNull();
   });
 
   it("removes training copies for a host with durable tombstones and prevents re-copying", async () => {
@@ -432,6 +487,35 @@ describe("copyForTraining", () => {
         source: "pipeline",
       }),
     ).toBe("copied");
+
+    // A failed delete must not report removal or write tombstones while screenshot.jpg remains.
+    let failDelete = true;
+    const failingBucket = new Proxy(bucket, {
+      get(target, prop, receiver) {
+        if (prop === "delete") {
+          return async (key: string | string[]) => {
+            if (failDelete && typeof key === "string" && key.endsWith("screenshot.jpg")) {
+              throw new Error("R2 delete failed");
+            }
+            return target.delete(key);
+          };
+        }
+        const val = Reflect.get(target, prop, receiver);
+        return typeof val === "function" ? val.bind(target) : val;
+      },
+    });
+    await expect(
+      removeTrainingCopiesForHost(
+        failingBucket,
+        orgId,
+        host,
+        "requested by business owner",
+        () => new Date("2026-11-02T07:59:00.000Z"),
+      ),
+    ).rejects.toThrow(/failed to remove/);
+    expect(await bucket.head(`training/${captureKey}screenshot.jpg`)).not.toBeNull();
+    expect(await bucket.head(`training/${captureKey}removed.json`)).toBeNull();
+    failDelete = false;
 
     const removed = await removeTrainingCopiesForHost(
       bucket,

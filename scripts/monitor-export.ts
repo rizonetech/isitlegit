@@ -116,7 +116,7 @@ const TRAINING_PREFIX_PATTERN = /^training\/(monitor\/([^/]+)\/([^/]+)\/([^/]+))
 
 function buildItemId(meta: CopyMeta, id: string): string {
   const provenance = meta.sourceRef ?? `${meta.source}:${id}`;
-  return `${id} (${provenance}: ${meta.why})`.slice(0, 500);
+  return `${id} (${meta.label} via ${provenance}: ${meta.why})`.slice(0, 500);
 }
 
 function removeOrNarrowPage(store: Store, pageId: string, itemIdPrefix: string, nowIso: string): void {
@@ -136,6 +136,19 @@ function removeOrNarrowPage(store: Store, pageId: string, itemIdPrefix: string, 
   } else {
     revokeProductionAdmission(store, [pageId], "monitor-export", nowIso);
     store.removePage(pageId);
+  }
+}
+
+function removeCaptureFromStore(store: Store, id: string, pageHint: string | null | undefined, nowIso: string): void {
+  const itemPrefix = `${id} (`;
+  if (pageHint) {
+    removeOrNarrowPage(store, pageHint, itemPrefix, nowIso);
+  }
+  for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === "monitor")) {
+    const entries = page.items ?? (page.item ? [{ id: page.item }] : []);
+    if (entries.some((e) => e.id.startsWith(itemPrefix))) {
+      removeOrNarrowPage(store, page.id, itemPrefix, nowIso);
+    }
   }
 }
 
@@ -233,21 +246,45 @@ export async function exportOne(
     const current = store.manifest({ tolerant: true }).find((p) => p.id === page);
     if (current) {
       const sameIdPrefix = `${id ?? `${meta.orgId}/${meta.host}`} (`;
-      const otherItems = (
-        current.items ?? (current.item ? [{ id: current.item, lure: current.labels.lure }] : [])
-      ).filter((entry) => !entry.id.startsWith(sameIdPrefix));
-      if (otherItems.length === 0) {
-        // Single logical capture on this page: ensure its current label (e.g. after a dismissal override) stands.
-        if (current.labels.lure !== lure) {
-          store.setLabels(page, { lure }, { lure: "rule" });
-        }
-      } else {
+      const existingEntries = current.items ?? (current.item ? [{ id: current.item, lure: current.labels.lure }] : []);
+      if (!existingEntries.some((entry) => entry.id === item && entry.lure === lure)) {
         store.addItem(page, { id: item, lure });
+      }
+      const keepIds: string[] = [];
+      let placed = false;
+      for (const entry of existingEntries) {
+        if (entry.id.startsWith(sameIdPrefix)) {
+          if (!placed) {
+            keepIds.push(item);
+            placed = true;
+          }
+        } else {
+          keepIds.push(entry.id);
+        }
+      }
+      if (!placed) keepIds.push(item);
+      const afterAdd = store.manifest({ tolerant: true }).find((p) => p.id === page);
+      if (
+        afterAdd?.items &&
+        (afterAdd.items.length !== keepIds.length || afterAdd.items.some((entry, idx) => entry.id !== keepIds[idx]))
+      ) {
+        store.keepItems(page, keepIds);
+      }
+      const afterKeep = store.manifest({ tolerant: true }).find((p) => p.id === page);
+      if (afterKeep) {
+        const activeEntries =
+          afterKeep.items ?? (afterKeep.item ? [{ id: afterKeep.item, lure }] : [{ id: item, lure }]);
+        const reconciledLure = activeEntries.every((e) => e.lure === activeEntries[0]?.lure)
+          ? (activeEntries[0]?.lure ?? lure)
+          : lure;
+        if (afterKeep.labels.lure !== reconciledLure) {
+          store.setLabels(page, { lure: reconciledLure }, { lure: "rule" });
+        }
       }
     }
     const verified = store.readVerifiedPage(page);
     if (!verified) {
-      return { outcome: "skipped", reason: "the stored page failed read-back verification" };
+      throw new Error("the stored page failed read-back verification");
     }
     return {
       outcome: "stored",
@@ -257,7 +294,14 @@ export async function exportOne(
       item,
     };
   } catch (error) {
-    return { outcome: "skipped", reason: `the store refused the page (${(error as Error).message.slice(0, 120)})` };
+    if (
+      error instanceof TypeError ||
+      error instanceof RangeError ||
+      (error as { name?: string } | null)?.name === "ZodError"
+    ) {
+      return { outcome: "skipped", reason: `the store refused the page (${(error as Error).message.slice(0, 120)})` };
+    }
+    throw error;
   }
 }
 
@@ -304,22 +348,11 @@ export async function exportMonitorCopies(
     if (!isRemovedCapture) continue;
     const existing = receipts.get(id);
     if (existing?.outcome === "removed") {
-      if (existing.page && store.readVerifiedPage(existing.page)) {
-        removeOrNarrowPage(store, existing.page, `${id} (`, nowIso());
-      }
+      removeCaptureFromStore(store, id, existing.page, nowIso());
       already++;
       continue;
     }
-    if (existing?.page) {
-      removeOrNarrowPage(store, existing.page, `${id} (`, nowIso());
-    } else {
-      for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === "monitor")) {
-        const entries = page.items ?? (page.item ? [{ id: page.item }] : []);
-        if (entries.some((e) => e.id.startsWith(`${id} (`))) {
-          removeOrNarrowPage(store, page.id, `${id} (`, nowIso());
-        }
-      }
-    }
+    removeCaptureFromStore(store, id, existing?.page, nowIso());
     receipts.set(id, {
       page: null,
       outcome: "removed",
@@ -363,12 +396,13 @@ export async function exportMonitorCopies(
       }
       if (existing.outcome === "retracted") {
         if (!currentMeta || currentMeta.retracted) {
+          removeCaptureFromStore(store, id, existing.page, nowIso());
           already++;
           continue;
         }
       } else if (existing.outcome === "stored") {
         if (currentMeta?.retracted) {
-          if (existing.page) removeOrNarrowPage(store, existing.page, `${id} (`, nowIso());
+          removeCaptureFromStore(store, id, existing.page, nowIso());
           receipts.set(id, {
             page: null,
             outcome: "retracted",
@@ -381,13 +415,17 @@ export async function exportMonitorCopies(
           continue;
         }
         const verified = existing.page ? store.readVerifiedPage(existing.page) : null;
+        const pageEntries = verified
+          ? (verified.page.items ??
+            (verified.page.item ? [{ id: verified.page.item, lure: verified.page.labels.lure }] : []))
+          : [];
+        const ownEntries = pageEntries.filter((entry) => entry.id.startsWith(`${id} (`));
         const hasOwnItem =
-          verified !== null &&
-          (verified.page.item?.startsWith(`${id} (`) ||
-            Boolean(verified.page.items?.some((entry) => entry.id.startsWith(`${id} (`))));
-        const expectedLabel = existing.label ?? (verified?.page.labels.lure ? "lure" : "benign");
+          verified !== null && ownEntries.length === 1 && (!existing.item || ownEntries[0]?.id === existing.item);
+        const storedItemLure = ownEntries[0]?.lure ?? verified?.page.labels.lure;
+        const expectedLabel = existing.label ?? (storedItemLure ? "lure" : "benign");
         const r2Label = currentMeta?.label ?? expectedLabel;
-        if (verified && hasOwnItem && r2Label === expectedLabel) {
+        if (verified && hasOwnItem && r2Label === expectedLabel && storedItemLure === (r2Label === "lure")) {
           already++;
           continue;
         }
@@ -398,13 +436,13 @@ export async function exportMonitorCopies(
     try {
       result = await exportOne(bucket, store, prefix, now);
     } catch {
-      // Transient transport failure: leave unreceipted so the next run retries it.
+      // Transient transport or local persistence failure: leave unreceipted so the next run retries it.
       failed++;
       continue;
     }
 
-    if (result.outcome === "retracted" && existing?.page) {
-      removeOrNarrowPage(store, existing.page, `${id} (`, nowIso());
+    if (result.outcome === "retracted") {
+      removeCaptureFromStore(store, id, existing?.page, nowIso());
     }
     receipts.set(id, {
       page: result.page ?? null,

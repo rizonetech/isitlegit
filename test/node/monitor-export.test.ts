@@ -34,6 +34,7 @@ type CopySpec = {
   label: string;
   source: string;
   sourceRef?: string;
+  why?: string;
   shot?: Uint8Array;
   text?: string;
   retracted?: boolean;
@@ -259,12 +260,63 @@ describe("monitor export", () => {
     expect(store.manifest()).toHaveLength(1);
     expect(store.manifest()[0]?.items).toHaveLength(2);
 
+    // 1b. Relabelling one capture on a shared page replaces its previous provenance entry instead of duplicating it.
+    bucket.putCopy("earlier", {
+      orgId: "org-1",
+      host: "aaa.example",
+      moment: "2026-11-01T01:00:00.000Z",
+      label: "benign",
+      source: "dismissal",
+      sourceRef: "finding:org-1:aaa.example:monitor/org-1/aaa.example/2026-11-01T01:00:00.000Z/",
+      why: "dismissed as not a fake: our own site",
+      text: "Shared lure content",
+      updatedAt: "2026-11-02T10:00:00.000Z",
+    });
+    expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({ stored: 1, skipped: 0, already: 1 });
+    const sharedItems = store.manifest()[0]?.items ?? [];
+    expect(sharedItems).toHaveLength(2);
+    expect(sharedItems.filter((e) => e.id.startsWith("monitor/org-1/aaa.example/2026-11-01T01:00:00.000Z ("))).toEqual([
+      expect.objectContaining({ lure: false }),
+    ]);
+
     // 2. Interruption after `putPage` before receipt persistence: delete receipt for `earlier` while page stays in store.
     receipts.delete("monitor/org-1/aaa.example/2026-11-01T01:00:00.000Z");
     save();
     expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({ stored: 1, skipped: 0, already: 1 });
     expect(store.manifest()).toHaveLength(1);
     expect(store.manifest()[0]?.items).toHaveLength(2);
+
+    // 2b. Retraction after receipt loss: if receipt for `earlier` is lost and `earlier` is then retracted in R2,
+    // export still removes `earlier` from the stored page's provenance.
+    receipts.delete("monitor/org-1/aaa.example/2026-11-01T01:00:00.000Z");
+    save();
+    bucket.putCopy("earlier", {
+      orgId: "org-1",
+      host: "aaa.example",
+      moment: "2026-11-01T01:00:00.000Z",
+      label: "benign",
+      source: "restore",
+      text: "Shared lure content",
+      retracted: true,
+      updatedAt: "2026-11-02T11:00:00.000Z",
+    });
+    expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({ stored: 0, skipped: 1, already: 1 });
+    expect(store.manifest()).toHaveLength(1);
+    expect(store.manifest()[0]?.items).toBeUndefined();
+    expect(store.manifest()[0]?.labels.lure).toBe(true);
+
+    // Re-confirm `earlier` so both items are present again for subsequent checks.
+    bucket.putCopy("earlier", {
+      orgId: "org-1",
+      host: "aaa.example",
+      moment: "2026-11-01T01:00:00.000Z",
+      label: "lure",
+      source: "pipeline",
+      text: "Shared lure content",
+      retracted: false,
+      updatedAt: "2026-11-02T12:00:00.000Z",
+    });
+    expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({ stored: 1, skipped: 0, already: 1 });
 
     // 3. Local data loss recovery: corrupt the stored page's text on disk; next export detects via readVerifiedPage and repairs it.
     const pageId = store.manifest()[0]?.id ?? "";
@@ -273,7 +325,7 @@ describe("monitor export", () => {
     expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({ stored: 2, skipped: 0, already: 0 });
     expect(store.readVerifiedPage(pageId)).not.toBeNull();
 
-    // 4. Transient read failure leaves item unreceipted (`failed: 1`) and retries on the next run.
+    // 4. Transient read failure and transient local write failure (ENOSPC) leave item unreceipted (`failed: 1`) and retry on the next run.
     bucket.putCopy("flaky", {
       orgId: "org-3",
       host: "flaky.example",
@@ -289,6 +341,25 @@ describe("monitor export", () => {
         throw new Error("transient R2 socket reset");
       }
       return origGetBytes(key);
+    };
+    expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({
+      stored: 0,
+      skipped: 0,
+      already: 2,
+      failed: 1,
+    });
+    expect(receipts.has("monitor/org-3/flaky.example/2026-11-02T03:00:00.000Z")).toBe(false);
+
+    let failWriteOnce = true;
+    const origPutPage = store.putPage;
+    store.putPage = async (src, p) => {
+      if (failWriteOnce && p.host === "flaky.example") {
+        failWriteOnce = false;
+        const err = new Error("ENOSPC: no space left on device") as NodeJS.ErrnoException;
+        err.code = "ENOSPC";
+        throw err;
+      }
+      return origPutPage(src, p);
     };
     expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({
       stored: 0,

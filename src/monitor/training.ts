@@ -84,15 +84,24 @@ export function defaultSourceRef(copy: Pick<TrainingCopy, "orgId" | "host" | "ca
   }
 }
 
-// A dismissal qualifies as a benign training label only when its reason states the site is not a
-// fake, is legitimate, or belongs to / is authorised by the business; operational dismissals
-// ("duplicate", "already handled", "expired") do not label the page benign.
+const NEGATED_BENIGN_PATTERN =
+  /\b(?:not|no|never|isn'?t|wasn'?t|aren'?t|weren'?t|don'?t|doesn'?t|didn'?t|cannot|can'?t|won'?t|wouldn'?t|shouldn'?t|hardly|barely|neither|nor|without)\s+(?:(?:a|an|the|any|really|actually|even|at\s+all|longer|more|be|being|been|seem|seems|look|looks)\s+){0,3}(?:our\s+(?:own|site|domain|brand|page)|legitimate|authori[sz]ed|official(?:\s+(?:site|domain|partner))?|partner(?:\s+(?:site|domain))?|false\s+positive|belong(?:s|ing)?\s+to\s+us)\b/i;
+
+const POSITIVE_NOT_FAKE_PATTERN =
+  /\bnot\s+(?:a\s+|an\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonat\w*|spoof\w*|fraud\w*)\b/i;
+
+const POSITIVE_BENIGN_PATTERN =
+  /\b(?:our\s+(?:own|site|domain|brand|page)|legitimate|authori[sz]ed|official\s+(?:site|domain|partner)|partner\s+(?:site|domain)|false\s+positive|belong(?:s|ing)?\s+to\s+us)\b/i;
+
+// A dismissal qualifies as a benign training label only when its reason unambiguously states the
+// site is not a fake, is legitimate, or belongs to / is authorised by the business; operational
+// dismissals ("duplicate", "already handled", "expired") and negated assertions ("not legitimate",
+// "not our site", "not authorized") do not label the page benign.
 export function isBenignDismissalReason(reason: string): boolean {
   const trimmed = reason.trim();
   if (!trimmed) return false;
-  return /\b(?:not\s+(?:a\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonat\w*)|our\s+(?:own|site|domain|brand|page)|legitimate|authori[sz]ed|official\s+(?:site|domain|partner)|partner\s+(?:site|domain)|false\s+positive|belong(?:s)?\s+to\s+us)\b/i.test(
-    trimmed,
-  );
+  if (NEGATED_BENIGN_PATTERN.test(trimmed)) return false;
+  return POSITIVE_NOT_FAKE_PATTERN.test(trimmed) || POSITIVE_BENIGN_PATTERN.test(trimmed);
 }
 
 // Reads the immutable final URL captured with `captureKey`: explicit caller value first, then the
@@ -167,67 +176,103 @@ export async function copyForTraining(
     readExistingMeta(bucket, prefix),
   ]);
   const complete = doneHead !== null && shotHead !== null && textHead !== null && existingMeta !== null;
-  const sourceRef = copy.sourceRef ?? defaultSourceRef(copy);
 
-  if (complete && existingMeta) {
-    // Precedence: a restored (retracted) or dismissed capture is not overwritten by an automated
-    // pipeline or second-look retry; only a new qualifying human dismissal updates it.
-    if (existingMeta.retracted) {
-      if (copy.source !== "dismissal") return "exists";
+  let effectiveCopy: TrainingCopy = copy;
+  if (existingMeta) {
+    // Precedence: restore (retracted) > human dismissal > automated pipeline / second-look.
+    // Precedence holds even when an earlier write was interrupted before done.json or before the
+    // page bytes landed: automated recovery repairs missing objects without downgrading a human
+    // dismissal or retraction.
+    if (existingMeta.retracted || existingMeta.source === "restore") {
+      if (copy.source !== "dismissal") {
+        if (doneHead !== null) return "exists";
+        const nowIso = now().toISOString();
+        await bucket.put(
+          `${prefix}done.json`,
+          JSON.stringify({
+            at: existingMeta.updatedAt ?? existingMeta.copiedAt ?? nowIso,
+            label: existingMeta.label,
+            source: "restore",
+            sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
+            retracted: true,
+          }),
+          { httpMetadata: { contentType: "application/json" } },
+        );
+        return "updated";
+      }
     } else if (existingMeta.source === "dismissal") {
-      if (copy.source !== "dismissal") return "exists";
-      if (existingMeta.label === copy.label && existingMeta.why === copy.why) return "exists";
-    } else if (existingMeta.source === copy.source && existingMeta.label === copy.label) {
+      if (copy.source !== "dismissal") {
+        if (complete) return "exists";
+        effectiveCopy = {
+          ...copy,
+          label: existingMeta.label,
+          why: existingMeta.why,
+          source: "dismissal",
+          sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
+          captureUrl: existingMeta.url ?? copy.captureUrl ?? null,
+        };
+      } else if (complete && existingMeta.label === copy.label && existingMeta.why === copy.why) {
+        return "exists";
+      }
+    } else if (complete && existingMeta.source === copy.source && existingMeta.label === copy.label) {
       return "exists";
     }
   }
+  const effectiveSourceRef = effectiveCopy.sourceRef ?? defaultSourceRef(effectiveCopy);
 
   let shotBytes: ArrayBuffer | null = null;
   let textBytes: ArrayBuffer | null = null;
   if (!shotHead || !textHead) {
     const [shot, text] = await Promise.all([
-      bucket.get(`${copy.captureKey}screenshot.jpg`).catch(() => null),
-      bucket.get(`${copy.captureKey}text.txt`).catch(() => null),
+      bucket.get(`${effectiveCopy.captureKey}screenshot.jpg`).catch(() => null),
+      bucket.get(`${effectiveCopy.captureKey}text.txt`).catch(() => null),
     ]);
     if (!shot || !text) return "missing-source";
     [shotBytes, textBytes] = await Promise.all([shot.arrayBuffer(), text.arrayBuffer()]);
   }
   const resolvedUrl =
-    copy.captureUrl ??
+    effectiveCopy.captureUrl ??
     existingMeta?.url ??
-    (await resolveCaptureUrl(null, bucket, copy.orgId, copy.host, copy.captureKey, null));
+    (await resolveCaptureUrl(null, bucket, effectiveCopy.orgId, effectiveCopy.host, effectiveCopy.captureKey, null));
 
   if (shotBytes && textBytes) {
     await bucket.put(`${prefix}screenshot.jpg`, shotBytes, { httpMetadata: { contentType: "image/jpeg" } });
     await bucket.put(`${prefix}text.txt`, textBytes, { httpMetadata: { contentType: "text/plain" } });
   }
   const nowIso = now().toISOString();
-  const history: TrainingHistoryEntry[] = existingMeta
-    ? [
-        ...(existingMeta.history ?? []),
-        {
-          label: existingMeta.label,
-          source: existingMeta.source,
-          sourceRef: existingMeta.sourceRef ?? defaultSourceRef({ ...copy, source: "pipeline" }),
-          why: existingMeta.why,
-          at: existingMeta.updatedAt ?? existingMeta.copiedAt,
-          ...(existingMeta.retracted ? { retracted: true } : {}),
-        },
-      ]
-    : [];
+  const sameMetaAsExisting =
+    existingMeta !== null &&
+    !existingMeta.retracted &&
+    existingMeta.source === effectiveCopy.source &&
+    existingMeta.label === effectiveCopy.label &&
+    existingMeta.why === effectiveCopy.why;
+  const history: TrainingHistoryEntry[] =
+    existingMeta && !sameMetaAsExisting
+      ? [
+          ...(existingMeta.history ?? []),
+          {
+            label: existingMeta.label,
+            source: existingMeta.source,
+            sourceRef: existingMeta.sourceRef ?? defaultSourceRef({ ...effectiveCopy, source: "pipeline" }),
+            why: existingMeta.why,
+            at: existingMeta.updatedAt ?? existingMeta.copiedAt,
+            ...(existingMeta.retracted ? { retracted: true } : {}),
+          },
+        ]
+      : (existingMeta?.history ?? []);
   const meta: StoredTrainingMeta = {
     trainingId,
-    orgId: copy.orgId,
-    host: copy.host,
-    captureKey: copy.captureKey,
+    orgId: effectiveCopy.orgId,
+    host: effectiveCopy.host,
+    captureKey: effectiveCopy.captureKey,
     url: resolvedUrl,
     fetchedAt,
-    label: copy.label,
-    why: copy.why,
-    source: copy.source,
-    sourceRef,
+    label: effectiveCopy.label,
+    why: effectiveCopy.why,
+    source: effectiveCopy.source,
+    sourceRef: effectiveSourceRef,
     copiedAt: existingMeta?.copiedAt ?? nowIso,
-    updatedAt: nowIso,
+    updatedAt: sameMetaAsExisting ? (existingMeta?.updatedAt ?? nowIso) : nowIso,
     retracted: false,
     ...(history.length ? { history } : {}),
   };
@@ -238,10 +283,10 @@ export async function copyForTraining(
   await bucket.put(
     `${prefix}done.json`,
     JSON.stringify({
-      at: nowIso,
-      label: copy.label,
-      source: copy.source,
-      sourceRef,
+      at: meta.updatedAt,
+      label: effectiveCopy.label,
+      source: effectiveCopy.source,
+      sourceRef: effectiveSourceRef,
       retracted: false,
     }),
     { httpMetadata: { contentType: "application/json" } },
@@ -260,33 +305,69 @@ export async function retractTrainingCopy(
 ): Promise<"retracted" | "missing" | "removed"> {
   const parsed = parseCaptureKey(captureKey, orgId, host);
   if (!parsed) return "missing";
-  const { prefix } = parsed;
+  const { prefix, trainingId, fetchedAt } = parsed;
   if (await isRemoved(bucket, orgId, host, prefix)) return "removed";
-  const existing = await readExistingMeta(bucket, prefix);
-  if (!existing) return "missing";
-  if (existing.retracted) return "retracted";
+  const [existing, doneHead] = await Promise.all([
+    readExistingMeta(bucket, prefix),
+    bucket.head(`${prefix}done.json`).catch(() => null),
+  ]);
   const nowIso = now().toISOString();
   const sourceRef = `finding:${orgId}:${host}:${captureKey}`;
-  const history: TrainingHistoryEntry[] = [
-    ...(existing.history ?? []),
-    {
-      label: existing.label,
-      source: existing.source,
-      sourceRef: existing.sourceRef ?? sourceRef,
-      why: existing.why,
-      at: existing.updatedAt ?? existing.copiedAt,
-    },
-  ];
-  const updated: StoredTrainingMeta = {
-    ...existing,
-    source: "restore",
-    sourceRef,
-    why: reason,
-    updatedAt: nowIso,
-    retracted: true,
-    retractedAt: nowIso,
-    history,
-  };
+  if (existing?.retracted) {
+    if (!doneHead) {
+      await bucket.put(
+        `${prefix}done.json`,
+        JSON.stringify({
+          at: existing.updatedAt ?? existing.copiedAt ?? nowIso,
+          label: existing.label,
+          source: "restore",
+          sourceRef,
+          retracted: true,
+        }),
+        { httpMetadata: { contentType: "application/json" } },
+      );
+    }
+    return "retracted";
+  }
+  const history: TrainingHistoryEntry[] = existing
+    ? [
+        ...(existing.history ?? []),
+        {
+          label: existing.label,
+          source: existing.source,
+          sourceRef: existing.sourceRef ?? sourceRef,
+          why: existing.why,
+          at: existing.updatedAt ?? existing.copiedAt,
+        },
+      ]
+    : [];
+  const updated: StoredTrainingMeta = existing
+    ? {
+        ...existing,
+        source: "restore",
+        sourceRef,
+        why: reason,
+        updatedAt: nowIso,
+        retracted: true,
+        retractedAt: nowIso,
+        ...(history.length ? { history } : {}),
+      }
+    : {
+        trainingId,
+        orgId,
+        host,
+        captureKey,
+        url: await resolveCaptureUrl(null, bucket, orgId, host, captureKey, null),
+        fetchedAt,
+        label: "lure",
+        why: reason,
+        source: "restore",
+        sourceRef,
+        copiedAt: nowIso,
+        updatedAt: nowIso,
+        retracted: true,
+        retractedAt: nowIso,
+      };
   await bucket.put(`${prefix}meta.json`, JSON.stringify(updated), {
     httpMetadata: { contentType: "application/json" },
   });
@@ -294,7 +375,7 @@ export async function retractTrainingCopy(
     `${prefix}done.json`,
     JSON.stringify({
       at: nowIso,
-      label: existing.label,
+      label: updated.label,
       source: "restore",
       sourceRef,
       retracted: true,
@@ -305,8 +386,9 @@ export async function retractTrainingCopy(
 }
 
 // Authorised removal procedure (D05 T04 §10): deletes stored training copies for `(orgId, host)` in
-// R2 and writes durable `removed.json` tombstones so neither production recovery nor the read-only
-// local exporter can re-copy or reimport them.
+// R2 across all pages, verifies deletion of every object, and writes durable `removed.json`
+// tombstones so neither production recovery nor the read-only local exporter can re-copy or reimport
+// them.
 export async function removeTrainingCopiesForHost(
   bucket: R2Bucket,
   orgId: string,
@@ -315,29 +397,71 @@ export async function removeTrainingCopiesForHost(
   now: () => Date = () => new Date(),
 ): Promise<{ removed: string[] }> {
   const basePrefix = `training/monitor/${orgId}/${host}/`;
-  const listed = await bucket.list({ prefix: basePrefix }).catch(() => ({ objects: [] as { key: string }[] }));
+  const allObjects: { key: string }[] = [];
+  let cursor: string | undefined;
+  while (true) {
+    const listed = await bucket.list({ prefix: basePrefix, ...(cursor ? { cursor } : {}) });
+    allObjects.push(...listed.objects);
+    if (!listed.truncated) break;
+    cursor = listed.cursor;
+    if (!cursor) break;
+  }
   const capturePrefixes = new Set<string>();
-  for (const obj of listed.objects) {
+  const extraKeysByPrefix = new Map<string, string[]>();
+  for (const obj of allObjects) {
     const rel = obj.key.slice(basePrefix.length);
     const moment = rel.split("/")[0];
     if (moment && /^\d{4}-\d{2}-\d{2}T/.test(moment)) {
-      capturePrefixes.add(`${basePrefix}${moment}/`);
+      const prefix = `${basePrefix}${moment}/`;
+      capturePrefixes.add(prefix);
+      if (!obj.key.endsWith("/removed.json")) {
+        const list = extraKeysByPrefix.get(prefix) ?? [];
+        list.push(obj.key);
+        extraKeysByPrefix.set(prefix, list);
+      }
     }
   }
   const nowIso = now().toISOString();
   const removed: string[] = [];
+  const failedCaptures: string[] = [];
   for (const prefix of [...capturePrefixes].sort()) {
     const trainingId = prefix.replace(/^training\//, "").replace(/\/$/, "");
-    await Promise.all([
-      bucket.delete(`${prefix}done.json`).catch(() => null),
-      bucket.delete(`${prefix}meta.json`).catch(() => null),
-      bucket.delete(`${prefix}screenshot.jpg`).catch(() => null),
-      bucket.delete(`${prefix}text.txt`).catch(() => null),
-    ]);
+    const keysToDelete = [
+      ...new Set<string>([
+        `${prefix}done.json`,
+        `${prefix}meta.json`,
+        `${prefix}screenshot.jpg`,
+        `${prefix}text.txt`,
+        ...(extraKeysByPrefix.get(prefix) ?? []),
+      ]),
+    ];
+    let deleteFailed = false;
+    for (const key of keysToDelete) {
+      try {
+        await bucket.delete(key);
+      } catch {
+        deleteFailed = true;
+      }
+    }
+    const verifyHeads = await Promise.all(
+      keysToDelete.map((key) =>
+        bucket
+          .head(key)
+          .then((res) => res !== null)
+          .catch(() => true),
+      ),
+    );
+    if (deleteFailed || verifyHeads.some(Boolean)) {
+      failedCaptures.push(trainingId);
+      continue;
+    }
     await bucket.put(`${prefix}removed.json`, JSON.stringify({ trainingId, orgId, host, reason, removedAt: nowIso }), {
       httpMetadata: { contentType: "application/json" },
     });
     removed.push(trainingId);
+  }
+  if (failedCaptures.length > 0) {
+    throw new Error(`failed to remove R2 training objects for: ${failedCaptures.join(", ")}`);
   }
   await bucket.put(
     hostRemovedKey(orgId, host),
@@ -472,8 +596,11 @@ export async function recoverPendingTrainingCopies(
       } else if (row.status !== "dismissed" && row.dismissed_capture_key) {
         const parsed = parseCaptureKey(row.dismissed_capture_key, orgId, row.host);
         if (parsed) {
-          const meta = await readExistingMeta(bucket, parsed.prefix);
-          if (meta && !meta.retracted && meta.source === "dismissal") {
+          const [meta, doneHead] = await Promise.all([
+            readExistingMeta(bucket, parsed.prefix),
+            bucket.head(`${parsed.prefix}done.json`).catch(() => null),
+          ]);
+          if (!meta?.retracted || !doneHead) {
             const out = await retractTrainingCopy(
               bucket,
               orgId,
