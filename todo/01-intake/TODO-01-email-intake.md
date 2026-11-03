@@ -469,6 +469,8 @@ A member who attaches several suspicious messages to one forward gets only the f
 
 ## 13. Compressed-RTF message bodies
 
+> **Started:** 2026-11-03T02:50Z
+
 Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`), with no plain-text or HTML body (Microsoft, "Supporting formatted text in outgoing messages"). §6 refuses such a `.msg` as a `ParseError`, so its case ends partial naming why rather than as an empty message (D01 T01 §6 plan review, finding 5). This section reads those bodies.
 
 **Phase:** 7
