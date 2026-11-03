@@ -41,12 +41,14 @@ export function checkFreeSpace(
   dir: string,
   minFreeBytes: number,
   freeBytes: (dir: string) => number = defaultFreeBytes,
+  neededBytes = 1,
 ): number {
   if (!minFreeBytes || minFreeBytes <= 0) return 0;
+  const pending = Math.max(1, Math.ceil(neededBytes));
   const free = freeBytes(dir);
-  if (free < minFreeBytes) {
+  if (free - pending < minFreeBytes) {
     const err = new Error(
-      `only ${free} bytes free under ${dir}; at least ${minFreeBytes} bytes must stay free`,
+      `only ${free} bytes free under ${dir}; writing ${pending} bytes would breach the ${minFreeBytes} byte reserve (${minFreeBytes} bytes must stay free)`,
     ) as NodeJS.ErrnoException;
     err.code = "ENOSPC";
     throw err;
@@ -237,8 +239,9 @@ export async function importSource(options: {
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
+  const publicationReserveBytes = items.length * 256 + 16_384;
   if (options.minFreeBytes && options.minFreeBytes > 0) {
-    checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes);
+    checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, publicationReserveBytes);
   }
   // Tolerant: a page whose record does not read is damaged, and this run repairs it rather than failing on it.
   const manifest = store.manifest({ tolerant: true });
@@ -273,6 +276,7 @@ export async function importSource(options: {
   let skipped = 0;
   let relabelled = 0;
   let rerendered = 0;
+  let inFlightBytes = 0;
   const outcomes = new Map<string, ImportOutcome>();
   const record = (outcome: ImportOutcome) => {
     const clean = { ...outcome };
@@ -290,7 +294,7 @@ export async function importSource(options: {
     while (!stopped && next < items.length) {
       if (options.minFreeBytes && options.minFreeBytes > 0) {
         try {
-          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes);
+          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, inFlightBytes + publicationReserveBytes);
         } catch (error) {
           stopped = (error as Error).message.split("\n")[0] ?? "low disk space";
           break;
@@ -388,9 +392,11 @@ export async function importSource(options: {
       }
       const host = hostOf(item.url);
       const digest = itemDigest(item);
+      const pageBytes = page.screenshot.byteLength + Buffer.byteLength(page.text, "utf-8") + 4096;
+      inFlightBytes += pageBytes;
       try {
         if (options.minFreeBytes && options.minFreeBytes > 0) {
-          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes);
+          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, inFlightBytes + publicationReserveBytes);
         }
         const id = await store.putPage(source, {
           screenshot: page.screenshot,
@@ -425,6 +431,8 @@ export async function importSource(options: {
           excluded.push({ item: item.id, reason });
           record({ item: item.id, input: digest, outcome: "excluded", reason });
         }
+      } finally {
+        inFlightBytes = Math.max(0, inFlightBytes - pageBytes);
       }
       const handled = imported + duplicates + skipped + excluded.length + filtered.length;
       if (handled % 250 === 0) options.log?.(`${source}: ${handled} of ${items.length}`);
@@ -512,15 +520,23 @@ export async function importSource(options: {
       });
       const exportFile = join(dirname(importJson), "EXPORT.json");
       const exportDigest = binding.export ?? (existsSync(exportFile) ? fileSha256(exportFile) : undefined);
-      const importDigest = createHash("sha256")
-        .update(`${JSON.stringify(plannedImport, null, 2)}\n`, "utf-8")
-        .digest("hex");
+      const importText = `${JSON.stringify(plannedImport, null, 2)}\n`;
+      const importDigest = createHash("sha256").update(importText, "utf-8").digest("hex");
+      const ledgerBytes =
+        Buffer.byteLength(importText, "utf-8") +
+        settled.reduce((sum, entry) => sum + Buffer.byteLength(JSON.stringify(entry), "utf-8") + 1, 256);
+      if (options.minFreeBytes && options.minFreeBytes > 0) {
+        checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, ledgerBytes);
+      }
       writeImportItems(
         join(dirname(importJson), IMPORT_ITEMS),
         { ...binding, export: exportDigest, import: importDigest },
         settled,
         options.writeLedger ? { write: options.writeLedger } : {},
       );
+    } else if (options.minFreeBytes && options.minFreeBytes > 0 && !stopped) {
+      const importText = `${JSON.stringify(plannedImport, null, 2)}\n`;
+      checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, Buffer.byteLength(importText, "utf-8"));
     }
     writeImport(importJson, plannedImport);
   } catch (error) {

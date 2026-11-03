@@ -75,13 +75,14 @@ NEW_SOURCE_POLICY = {
 }
 
 
-def check_free_space(folder, min_free=MIN_FREE_BYTES, usage_fn=shutil.disk_usage):
+def check_free_space(folder, min_free=MIN_FREE_BYTES, needed_bytes=1, usage_fn=shutil.disk_usage):
     if not min_free or min_free <= 0:
         return 0
+    pending = max(1, int(needed_bytes))
     free = int(usage_fn(folder).free)
-    if free < min_free:
+    if free - pending < min_free:
         raise inputs_module.Refused(
-            f"only {free} bytes free under {folder}; at least {min_free} bytes must stay free"
+            f"only {free} bytes free under {folder}; writing {pending} bytes would breach the {min_free} byte reserve ({min_free} bytes must stay free)"
         )
     return free
 
@@ -156,21 +157,30 @@ class Rows:
         self.min_free = min_free
         self.usage_fn = usage_fn
         self.by_label = {"phish": 0, "benign": 0}
-        self.check_space()
+        self.check_space(4096)
         self.temporary = folder / f".rows.jsonl.{os.getpid()}.tmp"
         self.sink = self.temporary.open("w", encoding="utf-8")
 
-    def check_space(self):
-        check_free_space(self.folder, self.min_free, self.usage_fn)
+    def publication_reserve_bytes(self):
+        return (self.receipt.met + 1) * 512 + 8192
+
+    def check_space(self, needed_bytes=1):
+        check_free_space(
+            self.folder,
+            self.min_free,
+            needed_bytes=max(1, int(needed_bytes)) + self.publication_reserve_bytes(),
+            usage_fn=self.usage_fn,
+        )
 
     def add(self, item, url, html, label, target=None, screenshot=None):
         self.limits.check_deadline()
         self.limits.count_entry()
-        self.check_space()
         row = {"sha256": item, "url": url, "html": html, "label": label, "target": target}
         if screenshot is not None:
             row["screenshot"] = base64.b64encode(screenshot).decode("ascii")
-        self.sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+        line_text = json.dumps(row, ensure_ascii=False) + "\n"
+        self.check_space(inputs_module._utf8_len(line_text))
+        self.sink.write(line_text)
         self.by_label[label] = self.by_label.get(label, 0) + 1
         self.receipt.export(item)
 
@@ -178,12 +188,12 @@ class Rows:
         self.receipt.reject(reason, item)
 
     def close(self):
-        self.check_space()
+        self.check_space(1)
         self.sink.close()
         os.replace(self.temporary, self.folder / "rows.jsonl")
 
     def close_staged(self):
-        self.check_space()
+        self.check_space(1)
         self.sink.close()
         return self.temporary
 
@@ -202,24 +212,80 @@ def read_entry(archive, info, limits):
     return archive.read(info)
 
 
+def iter_ows_lines(path, limits, max_line_bytes=MAX_ENTRY * 2):
+    chunk_size = 256 * 1024
+    with path.open("rb") as handle:
+        buf = bytearray()
+        oversized_hasher = None
+        oversized_len = 0
+        while True:
+            limits.check_deadline()
+            chunk = handle.read(chunk_size)
+            if not chunk:
+                if oversized_hasher is not None:
+                    limits.count_entry(oversized_len)
+                    yield None, oversized_hasher.hexdigest()
+                elif buf:
+                    raw = bytes(buf)
+                    if raw.strip():
+                        limits.check_allocation(len(raw), "an OWS JSONL line")
+                        limits.count_entry(len(raw))
+                        yield raw.decode("utf-8", errors="replace"), None
+                break
+            start = 0
+            while True:
+                nl = chunk.find(b"\n", start)
+                part = chunk[start:] if nl == -1 else chunk[start:nl]
+                if oversized_hasher is not None:
+                    oversized_hasher.update(part)
+                    oversized_len += len(part)
+                elif len(buf) + len(part) > max_line_bytes:
+                    oversized_hasher = hashlib.sha256()
+                    oversized_hasher.update(buf)
+                    oversized_hasher.update(part)
+                    oversized_len = len(buf) + len(part)
+                    buf.clear()
+                else:
+                    buf.extend(part)
+                if nl == -1:
+                    break
+                if oversized_hasher is not None:
+                    limits.count_entry(oversized_len)
+                    yield None, oversized_hasher.hexdigest()
+                    oversized_hasher = None
+                    oversized_len = 0
+                else:
+                    raw = bytes(buf)
+                    buf.clear()
+                    if raw.strip():
+                        limits.check_allocation(len(raw), "an OWS JSONL line")
+                        limits.count_entry(len(raw))
+                        yield raw.decode("utf-8", errors="replace"), None
+                start = nl + 1
+
+
 def convert_ows(folder, receipt, limits, out):
     name = "malicious_OWS_URL_HTML_DS.jsonl"
-    with (folder / name).open(encoding="utf-8") as lines:
-        for line in lines:
-            limits.check_deadline()
-            if not line.strip():
-                continue
-            page = json.loads(line)
-            html = page.get("html") or ""
-            item = item_id("ows", page.get("url") or "", html)
+    for line, oversized_digest in iter_ows_lines(folder / name, limits):
+        if oversized_digest is not None:
+            item = item_id("ows-oversized", oversized_digest)
             receipt.note_inventory(item)
-            if page.get("label") != "Malicious" or page.get("sublabel") != "Phishing":
-                out.reject(item, f"sublabel {page.get('sublabel') or 'unknown'} is not a phishing page")
-                continue
-            if not html:
-                out.reject(item, "no HTML in the record")
-                continue
-            out.add(item, page.get("url"), html, "phish")
+            out.reject(item, "over the entry limit")
+            continue
+        page = json.loads(line)
+        html = page.get("html") or ""
+        item = item_id("ows", page.get("url") or "", html)
+        receipt.note_inventory(item)
+        if page.get("label") != "Malicious" or page.get("sublabel") != "Phishing":
+            out.reject(item, f"sublabel {page.get('sublabel') or 'unknown'} is not a phishing page")
+            continue
+        if not html:
+            out.reject(item, "no HTML in the record")
+            continue
+        if inputs_module._utf8_len(html) > MAX_ENTRY:
+            out.reject(item, "over the entry limit")
+            continue
+        out.add(item, page.get("url"), html, "phish")
 
 
 def convert_phishingeval(folder, receipt, limits, out):
@@ -428,12 +494,12 @@ def convert_ares(folder, receipt, limits, out, max_per_label=None, seed=20261101
             if db_name is not None:
                 db_info = names[db_name]
                 limits.count_entry(db_info.file_size)
-                out.check_space()
+                out.check_space(db_info.file_size)
                 temporary = folder / f".ares-{root}.db"
                 try:
                     with temporary.open("wb") as handle:
                         handle.write(archive.read(db_info))
-                    out.check_space()
+                    out.check_space(1)
                     connection = sqlite3.connect(temporary)
                     try:
                         wanted = set(sites)
@@ -500,13 +566,19 @@ def convert_source(
     source,
     folder,
     max_rows=None,
-    seed=20261101,
+    seed=None,
     min_free=MIN_FREE_BYTES,
     usage_fn=shutil.disk_usage,
     policy=NEW_SOURCE_POLICY,
 ):
+    if source != "van-dooremaal-ares-2021" and (max_rows is not None or seed is not None):
+        raise inputs_module.Refused(
+            f"{source}: sampling flags (--max/--seed) are not supported; policy requires full conversion"
+        )
+    if max_rows is not None and max_rows < 2:
+        raise inputs_module.Refused(f"{source}: --max must be at least 2")
     convert, names = CONVERTERS[source]
-    check_free_space(folder, min_free, usage_fn)
+    check_free_space(folder, min_free, needed_bytes=8192, usage_fn=usage_fn)
     _, inputs_digest = ensure_inputs(folder, names)
     remove_dead_staging(folder)
     limits = Limits()
@@ -516,33 +588,41 @@ def convert_source(
         if source == "van-dooremaal-ares-2021":
             spec = (policy or {}).get(source) or {}
             effective_max = max_rows if max_rows is not None else spec.get("default_max")
+            effective_seed = seed if seed is not None else spec.get("seed", 20261101)
             convert(
                 folder,
                 receipt,
                 limits,
                 out,
                 max_per_label=(effective_max // 2 if effective_max else None),
-                seed=seed,
+                seed=effective_seed,
             )
         else:
             convert(folder, receipt, limits, out)
         if policy is not None:
             check_export_coverage(source, receipt, out.by_label, policy=policy)
         staged = out.close_staged()
-        check_free_space(folder, min_free, usage_fn)
-        receipt.publish(folder, staged, folder / "rows.jsonl", Path(__file__), inputs_digest)
+        check_free_space(folder, min_free, needed_bytes=out.publication_reserve_bytes(), usage_fn=usage_fn)
+        receipt.publish(
+            folder,
+            staged,
+            folder / "rows.jsonl",
+            Path(__file__),
+            inputs_digest,
+            check_space=lambda n: check_free_space(folder, min_free, needed_bytes=n, usage_fn=usage_fn),
+        )
     except BaseException:
         out.cleanup()
         raise
     return receipt, out.by_label
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("source", choices=sorted(CONVERTERS))
     parser.add_argument("--max", type=int, default=None, help="sample at most this many rows (ARES: half a label)")
-    parser.add_argument("--seed", type=int, default=20261101)
-    args = parser.parse_args()
+    parser.add_argument("--seed", type=int, default=None)
+    args = parser.parse_args(argv)
     folder = store_dir() / "raw" / args.source
     try:
         receipt, _ = convert_source(args.source, folder, max_rows=args.max, seed=args.seed)

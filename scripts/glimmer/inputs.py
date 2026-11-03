@@ -317,7 +317,7 @@ class Receipt:
             self.limits.check_allocation(base_bytes + size, label)
         return size
 
-    def _stage_jsonl_streamed(self, path, records_fn, label):
+    def _stage_jsonl_streamed(self, path, records_fn, label, check_space=None):
         temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
         total_bytes = 0
         try:
@@ -332,6 +332,8 @@ class Receipt:
                         if self.limits is not None:
                             self.limits.charge_retained(held_line)
                         raw = (json.dumps(record) + "\n").encode("utf-8")
+                        if check_space is not None:
+                            check_space(len(raw))
                         total_bytes += len(raw)
                         handle.write(raw)
                     finally:
@@ -370,7 +372,7 @@ class Receipt:
             temporary.unlink(missing_ok=True)
             raise
 
-    def stage_items(self, folder, inputs_digest, rows_digest, inventory=None):
+    def stage_items(self, folder, inputs_digest, rows_digest, inventory=None, check_space=None):
         """Reconciles, writes and reads back the item and inventory ledgers into temporary files without replacing
         existing published files yet."""
         if self.limits is not None:
@@ -434,7 +436,7 @@ class Receipt:
                 for entry in self.items:
                     yield entry
 
-            staged.append((self._stage_jsonl_streamed(path, iter_items, ITEMS), path))
+            staged.append((self._stage_jsonl_streamed(path, iter_items, ITEMS, check_space=check_space), path))
             inv_items = external_inv_list if keep_external_inv else self.inventory
             if inv_items:
                 inv_path = Path(folder) / INVENTORY_ITEMS
@@ -444,7 +446,9 @@ class Receipt:
                     for item_id in inv_items:
                         yield {"item": item_id}
 
-                staged.append((self._stage_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS), inv_path))
+                staged.append(
+                    (self._stage_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS, check_space=check_space), inv_path)
+                )
             return staged
         except BaseException:
             for tmp, _ in staged:
@@ -488,7 +492,17 @@ class Receipt:
             },
         }
 
-    def publish(self, folder, staged_rows, out_rows, converter, inputs_digest, parameters=None, inventory=None):
+    def publish(
+        self,
+        folder,
+        staged_rows,
+        out_rows,
+        converter,
+        inputs_digest,
+        parameters=None,
+        inventory=None,
+        check_space=None,
+    ):
         """Validates and stages the complete generation (rows, item ledger, inventory ledger and export receipt) before
         replacing any published file, preserving backups of the previous generation across the replacement sequence so
         any failure or interruption leaves a recoverable generation intact."""
@@ -498,9 +512,13 @@ class Receipt:
         if self.exported + self.sampled_out + rejected != self.met:
             raise Refused(f"the export accounts for {self.exported + self.sampled_out + rejected} of {self.met} items")
         rows_digest = file_digest(staged_rows)
-        staged_ledgers = self.stage_items(folder, inputs_digest, rows_digest, inventory=inventory)
+        staged_ledgers = self.stage_items(
+            folder, inputs_digest, rows_digest, inventory=inventory, check_space=check_space
+        )
         try:
             receipt = self._build_receipt(out_rows, converter, inputs_digest, parameters=parameters, rows_digest=rows_digest)
+            if check_space is not None:
+                check_space(len((json.dumps(receipt, indent=2) + "\n").encode("utf-8")))
             staged_export = stage_json(folder / EXPORT, receipt)
         except BaseException:
             for tmp, _ in staged_ledgers:

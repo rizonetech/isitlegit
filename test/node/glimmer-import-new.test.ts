@@ -294,7 +294,7 @@ describe("import-new", () => {
       expect(midDrop.reason).toMatch(/must stay free/);
       const importAfterMidDrop = readFileSync(join(folder, "IMPORT.json"), "utf-8");
 
-      // 2. Starting while still below 300 GB refuses immediately and leaves IMPORT.json untouched.
+      // 2. Starting at the exact 300 GB boundary (or with insufficient margin for pending writes) refuses immediately and leaves IMPORT.json untouched.
       await expect(
         importNewSource({
           source: "putra",
@@ -302,12 +302,25 @@ describe("import-new", () => {
           reader: realReader,
           concurrency: 1,
           enforceCoverage: false,
-          freeBytes: () => MIN_FREE_BYTES - 500,
+          freeBytes: () => MIN_FREE_BYTES,
         }),
-      ).rejects.toThrow(/must stay free/);
+      ).rejects.toThrow(/would breach/);
       expect(readFileSync(join(folder, "IMPORT.json"), "utf-8")).toBe(importAfterMidDrop);
 
-      // 3. Once free space recovers above 300 GB, the rerun skips the stored page and finishes the rest.
+      // 3. Above 300 GB by 20 KB (enough for initial check, but less than pending page write + publication reserve) stops before storing the second page.
+      const tightPending = await importNewSource({
+        source: "putra",
+        dir,
+        reader: realReader,
+        concurrency: 2,
+        enforceCoverage: false,
+        freeBytes: () => MIN_FREE_BYTES + 17_000,
+      });
+      expect(tightPending.status).toBe("incomplete");
+      expect(tightPending.stored).toBe(1);
+      expect(tightPending.reason).toMatch(/would breach/);
+
+      // 4. Once free space recovers above 300 GB + pending writes, the rerun skips the stored page and finishes the rest.
       const resumed = await importNewSource({
         source: "putra",
         dir,

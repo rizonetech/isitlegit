@@ -96,7 +96,7 @@ export async function importNewSource(options: {
     throw new Error(`import-new: ${rowsFile} is missing; run scripts/glimmer/new_rows.py ${source} first`);
   }
   const minFreeBytes = options.minFreeBytes ?? MIN_FREE_BYTES;
-  if (minFreeBytes > 0) checkFreeSpace(dir, minFreeBytes, options.freeBytes);
+  if (minFreeBytes > 0) checkFreeSpace(dir, minFreeBytes, options.freeBytes, 16_384);
   const store = openStore(dir);
   const indexed = await indexRows(rowsFile);
   const result = await importSource({

@@ -228,6 +228,66 @@ class FreeSpaceAndCoverageGuardTest(unittest.TestCase):
             self.assertFalse((folder / "rows.jsonl").exists())
             self.assertFalse((folder / "EXPORT.json").exists())
 
+    def test_rejects_unsupported_sampling_flags_on_non_ares_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self._write_ows_fixture(folder)
+            self.assertEqual(new_rows.main(["putra", "--max", "100"]), 1)
+            self.assertEqual(new_rows.main(["ows", "--seed", "42"]), 1)
+
+    def test_ows_bounds_reads_enforces_entry_limit_and_charges_expanded_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            oversized_html = "x" * (new_rows.MAX_ENTRY + 1)
+            records = [
+                {"url": "https://ok.example", "label": "Malicious", "sublabel": "Phishing", "html": "<p>Sign in</p>"},
+                {"url": "https://big.example", "label": "Malicious", "sublabel": "Phishing", "html": oversized_html},
+            ]
+            (folder / "malicious_OWS_URL_HTML_DS.jsonl").write_text(
+                "".join(json.dumps(r) + "\n" for r in records), encoding="utf-8"
+            )
+            receipt, limits = Receipt(), Limits()
+            out = new_rows.Rows(folder, receipt, limits)
+            new_rows.convert_ows(folder, receipt, limits, out)
+            out.close()
+            self.assertEqual(receipt.exported, 1)
+            self.assertEqual(receipt.rejected.get("over the entry limit"), 1)
+            self.assertGreater(limits.expanded, new_rows.MAX_ENTRY)
+
+    def test_exact_boundary_and_pending_write_plus_publication_reserve_refuse_before_breach(self):
+        from collections import namedtuple
+        import inputs as inputs_module
+
+        Usage = namedtuple("Usage", ["total", "used", "free"])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self._write_ows_fixture(folder)
+            policy = {"ows": {"default_max": None, "seed": 20261101, "max_sampled_out": 0, "min_exported": {"phish": 2, "benign": 0}}}
+            # Exact 300 GB boundary refuses before writing any file.
+            with self.assertRaises(inputs_module.Refused) as ctx:
+                new_rows.convert_source(
+                    "ows",
+                    folder,
+                    usage_fn=lambda _: Usage(500 * 10**9, 200 * 10**9, new_rows.MIN_FREE_BYTES),
+                    policy=policy,
+                )
+            self.assertIn("would breach", str(ctx.exception))
+            self.assertFalse((folder / "rows.jsonl").exists())
+
+            # Enough for initial check (8192 bytes) and row writes, but drops to exact boundary during receipt publication.
+            calls = {"n": 0}
+
+            def tight_at_publish(_):
+                calls["n"] += 1
+                free = new_rows.MIN_FREE_BYTES + 50_000 if calls["n"] <= 5 else new_rows.MIN_FREE_BYTES + 10
+                return Usage(500 * 10**9, 500 * 10**9 - free, free)
+
+            with self.assertRaises(inputs_module.Refused) as ctx2:
+                new_rows.convert_source("ows", folder, usage_fn=tight_at_publish, policy=policy)
+            self.assertIn("would breach", str(ctx2.exception))
+            self.assertFalse((folder / "rows.jsonl").exists())
+            self.assertFalse((folder / "EXPORT.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
