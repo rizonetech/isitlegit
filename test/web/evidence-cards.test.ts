@@ -2160,7 +2160,7 @@ describe("the evidence count line and the clean checks", () => {
 
   // D07 T09 §10: every target a clean check examined, whole, with omissions stated and hostile text as text.
   it("lists every examined target of a clean check whole, with its omissions stated", () => {
-    const long = `https://${"a".repeat(240)}.example/reset`;
+    const long = "a".repeat(255);
     const html = String(
       jsx(CleanChecks, {
         coverage: [
@@ -2194,6 +2194,25 @@ describe("the evidence count line and the clean checks", () => {
     expect(html).toContain("3 more targets were examined but are not listed.");
     expect(html).toContain("1 more target was examined but is not listed.");
     expect(html).toContain("No targets were recorded for this check.");
+    expect(long).toHaveLength(255);
+    // The whole list, in order, and only the two non-empty sets open a disclosure.
+    expect(html.indexOf("one.example")).toBeLessThan(html.indexOf(long));
+    expect(html.indexOf(long)).toBeLessThan(html.indexOf("last.example"));
+    expect(html.match(/See what this check examined/g)).toHaveLength(2);
+    const noOmission = String(
+      jsx(CleanChecks, {
+        coverage: [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["x.example"], omitted: 0 },
+          },
+        ],
+      }),
+    );
+    expect(noOmission).not.toContain("not listed");
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).toContain("&lt;script&gt;");
     // No set stored: the list as it was, with no disclosure.

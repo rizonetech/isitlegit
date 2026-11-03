@@ -175,8 +175,8 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function open(body: string, width: number, theme: "light" | "dark" = "light") {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+async function open(body: string, width: number, theme: "light" | "dark" = "light", javaScriptEnabled = true) {
+  const context = await browser.newContext({ viewport: { width, height: 900 }, javaScriptEnabled });
   const p: Page = await context.newPage();
   await p.route(`${APP}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -247,6 +247,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
         expect(problems(await scan(p))).toEqual([]);
         await context.close();
       });
+
+  // D07 T09 §10: with JavaScript disabled, the set still opens by Tab and Enter at 360 px.
+  it("opens a clean check's examined set with JavaScript disabled, by Tab, at 360 px", async () => {
+    const { p, context } = await open(html("examined"), 360, "light", false);
+    const summary = p.getByText("See what this check examined");
+    await summary.scrollIntoViewIfNeeded();
+    for (let i = 0; i < 40; i++) {
+      await p.keyboard.press("Tab");
+      if (await summary.evaluate((el) => document.activeElement === el)) break;
+    }
+    expect(await summary.evaluate((el) => document.activeElement === el)).toBe(true);
+    await p.keyboard.press("Enter");
+    expect(await p.getByText("last.example").isVisible()).toBe(true);
+    await context.close();
+  });
 
   // D07 T03 §5: the model trace starts collapsed, is reached by keyboard under a name, and opens and closes by Enter.
   for (const theme of ["light", "dark"] as const)

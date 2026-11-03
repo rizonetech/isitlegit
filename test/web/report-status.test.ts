@@ -618,6 +618,13 @@ describe("the status poll", () => {
       expect(html).toContain("last.example");
       expect(html).toContain("2 more targets were examined but are not listed.");
     }
+    // The finished page itself, on its first read and the next, for a member.
+    for (let i = 0; i < 2; i++) {
+      const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+      expect(page).toContain("See what this check examined");
+      expect(page).toContain("last.example");
+      expect(page).toContain("2 more targets were examined but are not listed.");
+    }
   });
 
   // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
