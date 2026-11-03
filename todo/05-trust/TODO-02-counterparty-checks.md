@@ -35,7 +35,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
 | 2 | §2 | Claims found: name, domain, logo, | §1, D03 T03 §3, D02 T01 §9 | [x] |
-| 3 | §3 | Registry comparison evidence that | §2, D05 T01 §2 | [ ] |
+| 3 | §3 | Registry comparison evidence that | §2, D05 T01 §2 | [x] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
 | 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [x] |
@@ -137,6 +137,9 @@ Compare the claiming mail with the registry: sending domain registered or not, a
 - [x] Commit: `trust: registry comparison that reveals nothing`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/compare.test.ts` passes and fails if a registered domain list appears in evidence.
+
+> **Verified:** 2026-11-04 | §3 | 2dd62000506b33b92882eeece4322420d8bda745
+> **Review:** `docs/reviews/d05-t02-s3.json`
 
 ## 4. Impersonation alert to the protected business
 

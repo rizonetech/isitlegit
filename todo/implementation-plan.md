@@ -498,7 +498,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
 | [x]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
-| [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
+| [x]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business               | none                 | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                           | none                 | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 401/597 verified sections, 121 ready to run now.
+Progress: 402/597 verified sections, 122 ready to run now.
 
 Checklist: 2991/3686 items completed (includes Commit items).
