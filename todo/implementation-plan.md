@@ -402,7 +402,7 @@ Sections: 105 | Checklist items: 671
 
 ### Phase 7: After the event
 
-Sections: 215 | Checklist items: 961
+Sections: 218 | Checklist items: 972
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -497,6 +497,8 @@ Sections: 215 | Checklist items: 961
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                           | none                 | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                                  | none                 | 7     |
+| [ ]    | D05 T02 §12 | Claim-aware candidate selection before bounds               | none                 | 4     |
+| [ ]    | D05 T02 §13 | Comparative impersonation and logo ablation                 | meta-api             | 3     |
 | [x]    | D05 T04 §4  | Full pipeline on                                            | meta-api, cloudflare | 9     |
 | [x]    | D05 T04 §5  | Monitor alerts and takedown pack                            | none                 | 9     |
 | [x]    | D05 T04 §6  | Demo lookalike site found by                                | cloudflare           | 4     |
@@ -534,6 +536,7 @@ Sections: 215 | Checklist items: 961
 | [x]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
 | [x]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 7     |
 | [ ]    | D07 T03 §17 | Trust and verification cards                                | none                 | 2     |
+| [ ]    | D05 T02 §11 | Workflow and global registry wiring for claims              | none                 | 4     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member                              | none                 | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                               | attended             | 2     |
 | [ ]    | D07 T03 §27 | Reply and report in your language                           | none                 | 4     |
@@ -661,6 +664,6 @@ Sections: 17 | Checklist items: 71
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 394/585 verified sections, 121 ready to run now.
+Progress: 394/588 verified sections, 121 ready to run now.
 
-Checklist: 2959/3645 items completed (includes Commit items).
+Checklist: 2960/3656 items completed (includes Commit items).

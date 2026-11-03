@@ -14,13 +14,7 @@ import { addressParser } from "postal-mime";
 import { z } from "zod";
 import { registrable } from "../auth/senders";
 import { asciiDomain, bounded, fittedDetail, plain } from "../checks/auth";
-import {
-  type CaseView,
-  MAX_CANDIDATE_DOMAINS,
-  MAX_CANDIDATE_NAMES,
-  MAX_PROTECTED_CANDIDATES,
-  type ProtectedCandidates,
-} from "../checks/case-view";
+import { type CaseView, MAX_PROTECTED_CANDIDATES, type ProtectedCandidates } from "../checks/case-view";
 import { split, techniqueOf } from "../checks/domain-lookalike";
 import type { EvidenceDraft } from "../checks/evidence";
 import { labelSkeleton } from "../checks/lookalike";
@@ -123,7 +117,55 @@ export type ClaimHit = {
 export type ClaimLogoPhaseResult = {
   logoJudgements: LogoJudgementFor[];
   unavailable: string[];
+  unavailableCodes?: string[];
 };
+
+const PLAIN_UNAVAILABLE_REASONS: Record<string, string> = {
+  "candidate-cap-reached": "some protected identities past the candidate bound could not be compared",
+  "comparison-timeout": "logo comparison did not finish in time",
+  "crop-listing-unavailable": "the case's logo crops could not be listed",
+  "no-crop-manifest": "logo crops were not produced for this case",
+  "manifest-unreadable": "the case's logo crop manifest could not be read",
+  "logo-crop-cap-reached": "only the first 4 logo crops were compared",
+  "missing-crop": "a logo crop could not be read",
+  "invalid-crop": "a logo crop image could not be read",
+  "invalid-reference": "the registered logo image could not be read",
+  "too-large": "a logo image is larger than the size limit",
+  "unsupported-media": "a logo image is not in a supported raster format",
+  "logo-comparison-cap-reached": "only the first 8 logo comparisons were run",
+  "registered-logo-unreadable": "the registered logo could not be read",
+  "registered-logo-invalid": "the registered logo image is damaged",
+  "registered-logo-svg-unrasterised": "the registered SVG logo could not be rasterised for comparison",
+  "comparison-budget": "the allowance for logo comparison is used up",
+  "comparison-refused": "the logo comparison service refused the image",
+  "comparison-failed": "a logo comparison could not be completed",
+  "low-confidence-logo-judgement": "a logo comparison had low confidence",
+};
+
+export function plainUnavailableReason(reason: string): string {
+  const trimmed = reason.trim();
+  return PLAIN_UNAVAILABLE_REASONS[trimmed] ?? trimmed;
+}
+
+function plainVoiceReason(reason: string): string {
+  const trimmed = reason.trim();
+  if (trimmed === "budget" || trimmed === "budget-exceeded") {
+    return "the allowance for reading voice notes today is used up";
+  }
+  if (trimmed === "the transcript is not stored") {
+    return "the words of the recording were not available";
+  }
+  if (trimmed.startsWith("output-")) {
+    return "the reading did not give an answer that could be used";
+  }
+  if (trimmed.startsWith("model-")) {
+    return "the reading service did not answer";
+  }
+  if (trimmed.startsWith("the reading did not finish")) {
+    return "the reading did not finish in time";
+  }
+  return trimmed;
+}
 
 export type CaseViewWithClaimLogos = CaseView & {
   claimLogos?: ClaimLogoPhaseResult | null;
@@ -197,7 +239,9 @@ function readVoiceInput(voice: ClaimVoiceInput): NormalisedVoice {
       claimedIdentity: null,
       identityQuote: null,
       unavailable: [
-        reason ? `the voice note could not be checked (${plain(reason, 80)})` : "the voice note could not be checked",
+        reason
+          ? `the voice note could not be checked (${plain(plainVoiceReason(reason), 80)})`
+          : "the voice note could not be checked",
       ],
     };
   }
@@ -324,32 +368,34 @@ export function detectClaims(input: ClaimInput): ClaimHit[] {
       if (fromDomain && fromDomain === domain && input.fromDomain) {
         add(
           candidate,
-          matchedName ?? candidate.names[0] ?? domain,
+          matchedName ?? candidate.names[0] ?? fromDomain,
           "from-domain",
           `From domain ${plain(input.fromDomain, 120)}`,
         );
       } else if (fromDomain && lookalikeOf(fromDomain, domain) && input.fromDomain) {
+        const targetLabel = matchedName ?? candidate.names[0] ?? "protected business";
         add(
           candidate,
-          matchedName ?? candidate.names[0] ?? domain,
+          targetLabel,
           "from-lookalike",
-          `From domain ${plain(input.fromDomain, 120)} looks like ${domain}`,
+          `From domain ${plain(input.fromDomain, 120)} looks like ${plain(targetLabel, 80)}'s domain`,
         );
       }
       for (const reply of replyEntries) {
         if (reply.registrable === domain) {
           add(
             candidate,
-            matchedName ?? candidate.names[0] ?? domain,
+            matchedName ?? candidate.names[0] ?? reply.registrable,
             "reply-to-domain",
             `Reply-To domain ${plain(reply.raw, 120)}`,
           );
         } else if (lookalikeOf(reply.registrable, domain)) {
+          const targetLabel = matchedName ?? candidate.names[0] ?? "protected business";
           add(
             candidate,
-            matchedName ?? candidate.names[0] ?? domain,
+            targetLabel,
             "reply-to-lookalike",
-            `Reply-To domain ${plain(reply.raw, 120)} looks like ${domain}`,
+            `Reply-To domain ${plain(reply.raw, 120)} looks like ${plain(targetLabel, 80)}'s domain`,
           );
         }
       }
@@ -379,7 +425,7 @@ export function detectClaims(input: ClaimInput): ClaimHit[] {
     if (positiveLogoJudgement(judgement)) {
       add(
         candidate,
-        candidate.names[0] ?? candidate.domains[0] ?? "the business",
+        candidate.names[0] ?? "protected business",
         "logo",
         "The mail's logo matches the registered logo",
         judgement.cropKey,
@@ -417,7 +463,8 @@ const ROUTE_WORDS: Record<ClaimRoute, string> = {
 function collectUnavailable(input: ClaimInput): string[] {
   const reasons: string[] = [];
   const push = (reason: string) => {
-    const cleaned = plain(reason.replace(/ident\/[^\s,;)]+/g, "registered-logo"), 160);
+    const explained = plainUnavailableReason(reason);
+    const cleaned = plain(explained.replace(/ident\/[^\s,;)]+/g, "registered-logo"), 160);
     if (cleaned && !reasons.includes(cleaned)) reasons.push(cleaned);
   };
 
@@ -427,10 +474,12 @@ function collectUnavailable(input: ClaimInput): string[] {
       `${omitted} protected ${omitted === 1 ? "identity" : "identities"} past the candidate bound could not be compared`,
     );
   }
+  for (const u of input.unavailable) {
+    push(u);
+  }
   for (const candidate of input.candidates.slice(0, MAX_CANDIDATES)) {
     if ((candidate.namesOmitted ?? 0) > 0 || (candidate.domainsOmitted ?? 0) > 0) {
-      const label = plain(candidate.names[0] ?? candidate.domains[0] ?? "a protected business", 60);
-      push(`some registered names or domains for ${label} were past the candidate bound`);
+      push("some registered names or domains past the candidate bound could not be compared");
     }
     for (const d of candidate.domains) {
       if (!domainComparableForLookalike(d)) {
@@ -454,13 +503,9 @@ function collectUnavailable(input: ClaimInput): string[] {
   }
 
   for (const j of input.logoJudgements) {
-    if (j.same && (j.confidence ?? 1) < MIN_LOGO_CLAIM_CONFIDENCE) {
+    if ((j.confidence ?? 1) < MIN_LOGO_CLAIM_CONFIDENCE) {
       push("a logo comparison had low confidence");
     }
-  }
-
-  for (const u of input.unavailable) {
-    push(u);
   }
 
   return reasons;
@@ -588,10 +633,7 @@ export function claimInputFromView(view: Readonly<CaseView>): ClaimInput {
 
   const candidates: ClaimCandidate[] = protectedSet.candidates.map((c) => {
     if (c.namesOmitted > 0 || c.domainsOmitted > 0) {
-      const label = plain(c.names[0] ?? c.domains[0] ?? "a protected business", 60);
-      unavailable.push(
-        `some registered names or domains for ${label} past the bound (${MAX_CANDIDATE_NAMES}/${MAX_CANDIDATE_DOMAINS}) could not be compared`,
-      );
+      unavailable.push("some registered names or domains past the candidate bound could not be compared");
     }
     return {
       orgId: c.orgId,
@@ -734,14 +776,34 @@ const toBase64 = (bytes: Uint8Array) => {
 };
 const fromBase64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-async function rasteriseSvgInBrowser(browser: Browser, svgBytes: Uint8Array, timeoutMs: number): Promise<Uint8Array> {
+export function fitSvgDimensions(
+  width: number,
+  height: number,
+  maxSide = SVG_RASTER_SIDE,
+): { width: number; height: number } {
+  const bound = Math.max(1, Math.floor(maxSide));
+  const srcW = Number.isFinite(width) && width > 0 ? width : bound;
+  const srcH = Number.isFinite(height) && height > 0 ? height : bound;
+  const scale = Math.min(1, bound / srcW, bound / srcH);
+  return {
+    width: Math.max(1, Math.min(bound, Math.round(srcW * scale))),
+    height: Math.max(1, Math.min(bound, Math.round(srcH * scale))),
+  };
+}
+
+async function rasteriseSvgInBrowser(
+  browser: Browser,
+  svgBytes: Uint8Array,
+  timeoutMs: number,
+  now: () => number = Date.now,
+): Promise<Uint8Array> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error("svg-raster-timeout")), Math.max(1, timeoutMs));
   });
   let landed: Awaited<ReturnType<Browser["newPage"]>> | undefined;
   let settled = false;
-  const startedAt = Date.now();
+  const startedAt = now();
   try {
     const page = await Promise.race([
       browser.newPage().then((p) => {
@@ -769,8 +831,12 @@ async function rasteriseSvgInBrowser(browser: Browser, svgBytes: Uint8Array, tim
           const blob = new Blob([raw.buffer as ArrayBuffer], { type: "image/svg+xml;charset=utf-8" });
           const image = await g.createImageBitmap(blob);
           try {
-            const w = Math.max(1, Math.min(maxSide, image.width || maxSide));
-            const h = Math.max(1, Math.min(maxSide, image.height || maxSide));
+            const bound = Math.max(1, Math.floor(maxSide));
+            const srcW = image.width > 0 ? image.width : bound;
+            const srcH = image.height > 0 ? image.height : bound;
+            const scale = Math.min(1, bound / srcW, bound / srcH);
+            const w = Math.max(1, Math.min(bound, Math.round(srcW * scale)));
+            const h = Math.max(1, Math.min(bound, Math.round(srcH * scale)));
             const canvas = g.document.createElement("canvas");
             canvas.width = w;
             canvas.height = h;
@@ -799,10 +865,18 @@ async function rasteriseSvgInBrowser(browser: Browser, svgBytes: Uint8Array, tim
     settled = true;
     clearTimeout(timer);
     if (landed) {
-      await Promise.race([
-        landed.close().catch(() => undefined),
-        new Promise((resolve) => setTimeout(resolve, Math.max(0, startedAt + timeoutMs - Date.now()))),
-      ]);
+      const closeLeft = startedAt + timeoutMs - now();
+      if (closeLeft > 0) {
+        let closeTimer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          landed.close().catch(() => undefined),
+          new Promise((resolve) => {
+            closeTimer = setTimeout(resolve, closeLeft);
+          }),
+        ]).finally(() => clearTimeout(closeTimer));
+      } else {
+        void landed.close().catch(() => undefined);
+      }
     }
   }
 }
@@ -811,8 +885,8 @@ async function rasteriseSvgInBrowser(browser: Browser, svgBytes: Uint8Array, tim
 // discovers the latest generation of case-owned SAM crop manifests (`art/<caseId>/crop/*-manifest-<n>.json`),
 // loads and validates each candidate's registered logo from R2 (validating PNGs with `pngPixelsProblem` and
 // sanitising + rasterising SVGs to PNG before calling `compareLogo`), and compares each logo crop within a
-// shared phase deadline. Every failure mode is recorded in `unavailable`, and no registered-logo storage key
-// ever appears in the returned judgements or unavailable reasons.
+// shared phase deadline. Every failure mode is recorded in `unavailable` as a plain user-facing explanation,
+// and no registered-logo storage key ever appears in the returned judgements or unavailable reasons.
 export async function compareClaimLogos(
   deps: ClaimLogoDeps,
   caseId: string,
@@ -820,8 +894,12 @@ export async function compareClaimLogos(
 ): Promise<ClaimLogoPhaseResult> {
   const now = deps.now ?? Date.now;
   const unavailable: string[] = [];
-  const addUnavailable = (reason: string) => {
-    if (!unavailable.includes(reason)) unavailable.push(reason);
+  const unavailableCodes: string[] = [];
+  const addUnavailable = (codeOrReason: string) => {
+    const code = codeOrReason.trim();
+    if (code && !unavailableCodes.includes(code)) unavailableCodes.push(code);
+    const explained = plainUnavailableReason(code);
+    if (explained && !unavailable.includes(explained)) unavailable.push(explained);
   };
 
   if (candidates.length > MAX_CANDIDATES) {
@@ -834,7 +912,7 @@ export async function compareClaimLogos(
         c.logo !== null,
     );
   if (withLogo.length === 0) {
-    return { logoJudgements: [], unavailable };
+    return { logoJudgements: [], unavailable, unavailableCodes };
   }
 
   const phaseAt = now() + (deps.deadlineMs ?? CLAIM_LOGO_PHASE_MS);
@@ -868,12 +946,12 @@ export async function compareClaimLogos(
   const listing = await withinPhase(() => artefactsOf(deps.store, caseId, "crop"));
   if (!listing.ok) {
     addUnavailable(listing.reason === "timeout" ? "comparison-timeout" : "crop-listing-unavailable");
-    return { logoJudgements: [], unavailable };
+    return { logoJudgements: [], unavailable, unavailableCodes };
   }
   const cropArtefacts: Stored[] = listing.value;
   if (!cropArtefacts.length && phaseDeadline.expired()) {
     addUnavailable("comparison-timeout");
-    return { logoJudgements: [], unavailable };
+    return { logoJudgements: [], unavailable, unavailableCodes };
   }
 
   const escapedCase = caseId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -940,8 +1018,9 @@ export async function compareClaimLogos(
       addUnavailable("manifest-unreadable");
     }
   }
-  if (failedManifests > 0 && manifests.size === 0) {
-    addUnavailable("manifest-unreadable");
+  if (manifests.size === 0) {
+    addUnavailable(failedManifests > 0 ? "manifest-unreadable" : "no-crop-manifest");
+    return { logoJudgements: [], unavailable, unavailableCodes };
   }
 
   const allLogoCropKeys: string[] = [];
@@ -954,7 +1033,7 @@ export async function compareClaimLogos(
   }
 
   if (allLogoCropKeys.length === 0) {
-    return { logoJudgements: [], unavailable };
+    return { logoJudgements: [], unavailable, unavailableCodes };
   }
   if (allLogoCropKeys.length > MAX_CLAIM_CROPS) {
     addUnavailable("logo-crop-cap-reached");
@@ -989,7 +1068,7 @@ export async function compareClaimLogos(
   }
 
   if (loadedCrops.length === 0) {
-    return { logoJudgements: [], unavailable };
+    return { logoJudgements: [], unavailable, unavailableCodes };
   }
 
   let browser: Browser | undefined;
@@ -1067,7 +1146,7 @@ export async function compareClaimLogos(
             browser = await deps.launch();
           }
           if (!browser) throw new Error("no-browser-for-svg-raster");
-          return rasteriseSvgInBrowser(browser, sanitisedBytes, Math.max(1, phaseAt - now()));
+          return rasteriseSvgInBrowser(browser, sanitisedBytes, Math.max(1, phaseAt - now()), now);
         });
         if (!rasterRes.ok) {
           addUnavailable(rasterRes.reason === "timeout" ? "comparison-timeout" : "registered-logo-svg-unrasterised");
@@ -1096,20 +1175,31 @@ export async function compareClaimLogos(
           break;
         }
         comparisonsRun += 1;
+        const refBytes = referencePngBytes;
         try {
-          const judgement = await compareLogo(
-            {
-              meta: { ...deps.meta, owner },
-              kv: deps.kv,
-              owner,
-              waitUntil: deps.waitUntil ?? (() => {}),
-              deadline: phaseDeadline,
-            },
-            { bytes: crop.bytes, mediaType: "image/png", label: crop.key },
-            { bytes: referencePngBytes, mediaType: "image/png", label: `registered-${candidate.orgId}` },
+          const cmpRes = await withinPhase(() =>
+            compareLogo(
+              {
+                meta: { ...deps.meta, owner },
+                kv: deps.kv,
+                owner,
+                waitUntil: deps.waitUntil ?? (() => {}),
+                deadline: phaseDeadline,
+              },
+              { bytes: crop.bytes, mediaType: "image/png", label: crop.key },
+              { bytes: refBytes, mediaType: "image/png", label: `registered-${candidate.orgId}` },
+            ),
           );
-          if (judgement.same_brand && judgement.confidence < MIN_LOGO_CLAIM_CONFIDENCE) {
-            addUnavailable("a logo comparison had low confidence");
+          if (!cmpRes.ok) {
+            if (cmpRes.reason === "timeout") {
+              addUnavailable("comparison-timeout");
+              break;
+            }
+            throw cmpRes.error;
+          }
+          const judgement = cmpRes.value;
+          if (judgement.confidence < MIN_LOGO_CLAIM_CONFIDENCE) {
+            addUnavailable("low-confidence-logo-judgement");
             logoJudgements.push({
               orgId: candidate.orgId,
               same: false,
@@ -1149,10 +1239,23 @@ export async function compareClaimLogos(
       }
     }
   } finally {
-    await browser?.close().catch(() => undefined);
+    if (browser) {
+      const closeLeft = phaseAt - now();
+      if (closeLeft > 0) {
+        let closeTimer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          browser.close().catch(() => undefined),
+          new Promise((resolve) => {
+            closeTimer = setTimeout(resolve, Math.min(1_000, closeLeft));
+          }),
+        ]).finally(() => clearTimeout(closeTimer));
+      } else {
+        void browser.close().catch(() => undefined);
+      }
+    }
   }
 
-  return { logoJudgements, unavailable };
+  return { logoJudgements, unavailable, unavailableCodes };
 }
 
 // Runs the bounded registered-logo comparison phase over the case's stored SAM crop manifests and returns
@@ -1162,8 +1265,13 @@ export async function runClaimDetectionWithLogos(
   caseId: string,
   view: CaseView,
 ): Promise<{ view: CaseViewWithClaimLogos; items: EvidenceDraft[] }> {
+  const hasVisualSurface =
+    view.source.kind === "message" ||
+    (view.source.kind === "upload" && (view.source.fileKind === "document" || view.source.fileKind === "image"));
   const candidates = view.protectedCandidates?.candidates ?? [];
-  const claimLogos = await compareClaimLogos(deps, caseId, candidates);
+  const claimLogos = hasVisualSurface
+    ? await compareClaimLogos(deps, caseId, candidates)
+    : { logoJudgements: [], unavailable: [], unavailableCodes: [] };
   const enriched = withClaimLogos(view, claimLogos);
   return {
     view: enriched,

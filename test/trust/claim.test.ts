@@ -12,6 +12,7 @@ import {
   type CaseView,
   caseViewOf,
   MAX_CANDIDATE_DOMAINS,
+  MAX_CANDIDATE_NAMES,
   MAX_PROTECTED_CANDIDATES,
 } from "../../src/checks/case-view";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
@@ -21,12 +22,14 @@ import { createCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import { putArtefact } from "../../src/intake/store";
 import { d1Budget } from "../../src/meta/budget";
+import { BudgetExceeded } from "../../src/meta/guard";
 import {
   type ClaimInput,
   claimEvidence,
   claimInputFromView,
   compareClaimLogos,
   detectClaims,
+  fitSvgDimensions,
   readTrustClaimDetail,
   registerClaimCheck,
   runClaimDetectionWithLogos,
@@ -238,7 +241,10 @@ describe("claim routes", () => {
     const failedItems = claimEvidence({ ...base, voice: failedVoice });
     expect(failedItems).toHaveLength(1);
     expect(failedItems[0]?.detail.checked).toBe(false);
-    expect(failedItems[0]?.summary).toContain("the voice note could not be checked");
+    expect(failedItems[0]?.summary).toContain(
+      "the voice note could not be checked (the reading service did not answer)",
+    );
+    expect(failedItems[0]?.summary).not.toContain("model-timeout");
 
     const incompleteVoice: VoiceRead = { ...readMatched, complete: false, cut: true };
     const incompleteItems = claimEvidence({ ...base, voice: incompleteVoice });
@@ -253,7 +259,7 @@ describe("claim routes", () => {
     );
   });
 
-  it("extracts original headers only when headersAvailable is true and combines routes across multiple identities", () => {
+  it("extracts original headers only when headersAvailable is true, reports truncated plain-text bodies, and never leaks unobserved registered domains on lookalikes", () => {
     const viewWithHeaders = buildMessageView({
       headersAvailable: true,
       headers: [
@@ -263,7 +269,12 @@ describe("claim routes", () => {
       text: "Hello,\nPlease see attached.\nRegards,\nFynbos Freight",
     });
     viewWithHeaders.protectedCandidates = boundProtectedCandidates([
-      { ...FYNBOS, logo: null },
+      {
+        orgId: "org-fynbos",
+        names: ["Fynbos Freight"],
+        domains: ["fynbosfreight.co.za", "fynbos-secret-internal.co.za"],
+        logo: null,
+      },
       { ...KAROO, logo: null },
     ]);
 
@@ -273,9 +284,45 @@ describe("claim routes", () => {
 
     const fynbosHit = hits.find((h) => h.orgId === "org-fynbos");
     expect(fynbosHit?.routes).toEqual(["from-lookalike", "reply-to-lookalike", "signature"]);
+    // Lookalike privacy (G5): unobserved registered domains ("fynbosfreight.co.za", "fynbos-secret-internal.co.za") must never appear in hits or evidence.
+    const lookalikeEvidence = claimEvidence(input);
+    const serialisedLookalike = JSON.stringify({ hits, lookalikeEvidence });
+    expect(serialisedLookalike).not.toContain("fynbosfreight.co.za");
+    expect(serialisedLookalike).not.toContain("fynbos-secret-internal.co.za");
 
-    const karooHit = hits.find((h) => h.orgId === "org-karoo");
-    expect(karooHit?.routes).toEqual(["display-name", "reply-to-domain"]);
+    // Domain-only candidate on lookalike still hides the unobserved registered domain.
+    const domainOnlyLookalike = claimEvidence({
+      ...base,
+      fromDomain: "fynb0sfreight.co.za",
+      candidates: [{ orgId: "org-fynbos", names: [], domains: ["fynbosfreight.co.za"] }],
+    });
+    expect(JSON.stringify(domainOnlyLookalike)).not.toContain("fynbosfreight.co.za");
+    expect(domainOnlyLookalike[0]?.detail.name).toBe("protected business");
+
+    // Truncated plain-text body reports signature unavailability while retaining header claims.
+    const truncatedView = buildMessageView({
+      headersAvailable: true,
+      headers: [{ name: "From", value: '"Fynbos Freight" <billing@fynbosfreight.example>' }],
+      text: "Cut body line.",
+      truncated: [
+        {
+          mediaType: "text/plain",
+          charset: "utf-8",
+          key: "raw/case-claim/body.txt",
+          fullBytes: 120_000,
+          keptBytes: 65_536,
+        },
+      ],
+    });
+    truncatedView.protectedCandidates = boundProtectedCandidates([{ ...FYNBOS, logo: null }]);
+    const truncatedItems = claimEvidence(claimInputFromView(truncatedView));
+    expect(truncatedItems).toHaveLength(2);
+    expect(truncatedItems[0]?.detail.orgId).toBe("org-fynbos");
+    expect(truncatedItems[0]?.detail.routes).toEqual(["display-name", "from-lookalike"]);
+    expect(truncatedItems[1]?.detail.checked).toBe(false);
+    expect(truncatedItems[1]?.detail.unavailable).toContain(
+      "the plain-text body was cut short before its signature block",
+    );
 
     // Inline forward (headersAvailable: false) must not trust headers, still detects signature, and states header unavailability.
     const inlineView = buildMessageView({
@@ -463,6 +510,7 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
         check: "trust.claim",
         outcome: "ran",
         findings: 1,
+        summary: "Claims Fynbos Freight (Pty) Ltd by its logo",
       }),
     ]);
 
@@ -532,7 +580,8 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
       candidates.candidates,
     );
     expect(logoResult.logoJudgements).toEqual([]);
-    expect(logoResult.unavailable).toContain("comparison-failed");
+    expect(logoResult.unavailable).toContain("a logo comparison could not be completed");
+    expect(logoResult.unavailableCodes).toContain("comparison-failed");
 
     const view = withClaimLogos(
       buildMessageView({
@@ -550,9 +599,9 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
     expect(items[0]?.detail.orgId).toBe(fynbosOrgId);
     expect(items[0]?.detail.routes).toEqual(["display-name", "from-lookalike"]);
     expect(items[1]?.detail.checked).toBe(false);
-    expect(items[1]?.detail.unavailable).toContain("comparison-failed");
+    expect(items[1]?.detail.unavailable).toContain("a logo comparison could not be completed");
     expect(outcomes[0]?.outcome).toBe("partial");
-    expect(outcomes[0]?.reason).toBe("comparison-failed");
+    expect(outcomes[0]?.reason).toBe("a logo comparison could not be completed");
 
     // Also verify that an unreadable newer manifest generation refuses to fall back to the stale generation.
     await putArtefact(
@@ -577,7 +626,468 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
       caseId,
       candidates.candidates,
     );
-    expect(corruptManifestResult.unavailable).toContain("manifest-unreadable");
+    expect(corruptManifestResult.unavailable).toContain("the case's logo crop manifest could not be read");
+    expect(corruptManifestResult.unavailableCodes).toContain("manifest-unreadable");
+  });
+
+  it("distinguishes missing crop production from a completed zero-logo manifest, preserves SVG aspect ratio, and handles missing, oversized, corrupt, refused, budget, timeout, cap and low-confidence logo paths", async () => {
+    // 1. SVG aspect-ratio preservation (G2): landscape (1024x256 -> 512x128) and portrait (256x1024 -> 128x512).
+    expect(fitSvgDimensions(1024, 256)).toEqual({ width: 512, height: 128 });
+    expect(fitSvgDimensions(256, 1024)).toEqual({ width: 128, height: 512 });
+    expect(fitSvgDimensions(200, 100)).toEqual({ width: 200, height: 100 });
+
+    const fynbosOrgId = await protectableOrg("fynbosfreight.co.za", "finance@fynbosfreight.co.za", "Fynbos Freight");
+    await setIdentity(
+      db,
+      fynbosOrgId,
+      "u-fynbos",
+      {
+        displayNames: ["Fynbos Freight"],
+        financeContact: "finance@fynbosfreight.co.za",
+        protected: true,
+      },
+      new Date("2026-11-01T11:10:00Z"),
+    );
+    const svgBytes = new TextEncoder().encode(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 256"><rect width="1024" height="256" fill="#1a4d2e"/></svg>',
+    );
+    await storeLogo(bucket, db, fynbosOrgId, "u-fynbos", svgBytes, "image/svg+xml", new Date("2026-11-01T11:11:00Z"));
+    const candidates = boundProtectedCandidates(await protectedIdentities(db));
+
+    // 2. Missing crop manifest (unrun SAM) -> partial coverage ("logo crops were not produced for this case").
+    const unrunCaseId = ulid();
+    await createCase(db, {
+      id: unrunCaseId,
+      orgId: fynbosOrgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: "staff@fynbosfreight.co.za",
+    });
+    const unrunRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+        },
+        kv,
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(unrunRes.unavailable).toEqual(["logo crops were not produced for this case"]);
+    expect(unrunRes.unavailableCodes).toEqual(["no-crop-manifest"]);
+
+    // 3. Completed zero-logo manifest (SAM ran and found 0 crops) -> clean `unavailable: []`.
+    await storeCrops(
+      store,
+      unrunCaseId,
+      { name: "desktop.png", key: `art/${unrunCaseId}/render/desktop.png`, sha256: "c".repeat(64) },
+      [],
+    );
+    const zeroLogoRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+        },
+        kv,
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(zeroLogoRes.unavailable).toEqual([]);
+    expect(zeroLogoRes.logoJudgements).toEqual([]);
+
+    // 4. SVG without rasteriser (`!rasteriseSvg && !launch`) -> "the registered SVG logo could not be rasterised for comparison".
+    const cropPng = await validPng(16, 16, 0x33);
+    await storeCrops(
+      store,
+      unrunCaseId,
+      { name: "desktop.png", key: `art/${unrunCaseId}/render/desktop.png`, sha256: "c".repeat(64) },
+      [
+        {
+          box: { concept: "logo", left: 4, top: 4, right: 36, bottom: 36, confidence: 0.92 },
+          bytes: cropPng,
+          width: 32,
+          height: 32,
+        },
+      ],
+    );
+    const noRasteriserRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+        },
+        kv,
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(noRasteriserRes.unavailable).toEqual(["the registered SVG logo could not be rasterised for comparison"]);
+    expect(noRasteriserRes.unavailableCodes).toEqual(["registered-logo-svg-unrasterised"]);
+
+    // 5. Default browser SVG rasteriser (`launch`) preserves aspect ratio for landscape (1024x256 -> 512x128) and portrait (256x1024 -> 128x512).
+    const observedCanvasSizes: { width: number; height: number }[] = [];
+    for (const [srcW, srcH] of [
+      [1024, 256],
+      [256, 1024],
+    ] as const) {
+      const renderedPng = await validPng(
+        Math.round((srcW * 512) / Math.max(srcW, srcH)),
+        Math.round((srcH * 512) / Math.max(srcW, srcH)),
+        0x44,
+      );
+      const res = await compareClaimLogos(
+        {
+          store,
+          meta: {
+            env: META,
+            budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+            owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+            fetch: (async () =>
+              metaReply({
+                same_brand: false,
+                brand_seen: null,
+                differences: ["different shape"],
+                confidence: 0.9,
+              })) as typeof fetch,
+          },
+          kv,
+          launch: async () =>
+            ({
+              newPage: async () => ({
+                evaluate: async (fn: (b64: string, side: number) => Promise<string>, b64: string, side: number) => {
+                  const g = globalThis as Record<string, unknown>;
+                  const prevCreateImageBitmap = g.createImageBitmap;
+                  const prevDocument = g.document;
+                  g.createImageBitmap = async () => ({ width: srcW, height: srcH, close: () => undefined });
+                  g.document = {
+                    createElement: () => {
+                      const canvas = {
+                        width: 0,
+                        height: 0,
+                        getContext: () => ({
+                          drawImage: (_img: unknown, _x: number, _y: number, w: number, h: number) => {
+                            observedCanvasSizes.push({ width: w, height: h });
+                          },
+                        }),
+                        toBlob: (cb: (b: Blob | null) => void) =>
+                          cb(new Blob([renderedPng.buffer as ArrayBuffer], { type: "image/png" })),
+                      };
+                      return canvas;
+                    },
+                  };
+                  try {
+                    return await fn(b64, side);
+                  } finally {
+                    g.createImageBitmap = prevCreateImageBitmap;
+                    g.document = prevDocument;
+                  }
+                },
+                close: async () => undefined,
+              }),
+              close: async () => undefined,
+            }) as never,
+        },
+        unrunCaseId,
+        candidates.candidates,
+      );
+      expect(res.unavailable).toEqual([]);
+    }
+    expect(observedCanvasSizes).toEqual([
+      { width: 512, height: 128 },
+      { width: 128, height: 512 },
+    ]);
+
+    // 6. Low-confidence positive (0.3) and low-confidence negative (0.1) logo answers both report inconclusive coverage (G4).
+    const lowPosRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+          fetch: (async () =>
+            metaReply({
+              same_brand: true,
+              brand_seen: "Fynbos Freight",
+              differences: [],
+              confidence: 0.3,
+            })) as typeof fetch,
+        },
+        kv,
+        rasteriseSvg: async () => validPng(32, 32, 0xaa),
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(lowPosRes.unavailable).toContain("a logo comparison had low confidence");
+    expect(lowPosRes.logoJudgements[0]?.same).toBe(false);
+
+    const lowNegRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+          fetch: (async () =>
+            metaReply({
+              same_brand: false,
+              brand_seen: null,
+              differences: ["blurry"],
+              confidence: 0.1,
+            })) as typeof fetch,
+        },
+        kv,
+        rasteriseSvg: async () => validPng(32, 32, 0xbb),
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(lowNegRes.unavailable).toContain("a logo comparison had low confidence");
+    expect(lowNegRes.logoJudgements[0]?.same).toBe(false);
+
+    // 7. Model refusal, budget exhaustion, and phase deadline timeout across stalled KV/browser cleanup (G3).
+    const refusalRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+          fetch: (async () =>
+            new Response(
+              JSON.stringify({
+                id: "resp-refused",
+                object: "response",
+                status: "completed",
+                output: [{ type: "message", role: "assistant", content: [{ type: "refusal", refusal: "refused" }] }],
+                usage: { input_tokens: 50, output_tokens: 5 },
+              }),
+              {
+                status: 200,
+                headers: { "content-type": "application/json", "cf-aig-log-id": "l", "x-request-id": "r" },
+              },
+            )) as typeof fetch,
+        },
+        kv,
+        rasteriseSvg: async () => validPng(32, 32, 0xcc),
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(refusalRes.unavailable).toEqual(["the logo comparison service refused the image"]);
+
+    const budgetRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: {
+            reserve: async () => {
+              throw new BudgetExceeded("day", "Muse-Spark");
+            },
+            settle: async () => undefined,
+            refused: async () => undefined,
+            cached: async () => undefined,
+            outputFailed: async () => undefined,
+            uncertain: async () => undefined,
+          },
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+        },
+        kv,
+        rasteriseSvg: async () => validPng(32, 32, 0xdd),
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(budgetRes.unavailable).toEqual(["the allowance for logo comparison is used up"]);
+
+    let clock = 1_000;
+    const stalledKv = {
+      get: () =>
+        new Promise<string | null>((resolve) => {
+          clock += 200;
+          setTimeout(() => resolve(null), 50);
+        }),
+      put: async () => undefined,
+    } as unknown as KVNamespace;
+    const timeoutRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: unrunCaseId }),
+          owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
+        },
+        kv: stalledKv,
+        deadlineMs: 20,
+        now: () => clock,
+        launch: async () =>
+          ({
+            newPage: async () => ({
+              evaluate: async () => btoa(String.fromCharCode(...(await validPng(16, 16, 0xee)))),
+              close: () => new Promise(() => {}),
+            }),
+            close: () => new Promise(() => {}),
+          }) as never,
+      },
+      unrunCaseId,
+      candidates.candidates,
+    );
+    expect(timeoutRes.unavailable).toContain("logo comparison did not finish in time");
+
+    // 8. Missing, oversized and corrupt crop and registered-logo inputs, plus 4-crop and 8-comparison caps.
+    const capCaseId = ulid();
+    await createCase(db, {
+      id: capCaseId,
+      orgId: fynbosOrgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: "staff@fynbosfreight.co.za",
+    });
+    // Store 5 logo crops -> triggers 4-crop cap; corrupt crop 1, delete crop 2 from R2, make crop 3 oversized, keep crop 4 valid.
+    const fiveCrops = await storeCrops(
+      store,
+      capCaseId,
+      { name: "desktop.png", key: `art/${capCaseId}/render/desktop.png`, sha256: "d".repeat(64) },
+      Array.from({ length: 5 }, (_, i) => ({
+        box: { concept: "logo" as const, left: i * 10, top: 0, right: i * 10 + 20, bottom: 20, confidence: 0.9 },
+        bytes: cropPng,
+        width: 20,
+        height: 20,
+      })),
+    );
+    await bucket.put(fiveCrops[0]?.key ?? "", new Uint8Array([1, 2, 3, 4]));
+    await bucket.delete(fiveCrops[1]?.key ?? "");
+    await bucket.put(fiveCrops[2]?.key ?? "", new Uint8Array(5 * 1024 * 1024 + 1));
+
+    // Also test registered-logo failures: missing R2 object, oversized R2 object, and corrupt PNG pixels.
+    const missingLogoCandidates = [
+      {
+        orgId: "org-missing-logo",
+        names: ["Missing Logo Co"],
+        domains: ["missinglogo.co.za"],
+        namesOmitted: 0,
+        domainsOmitted: 0,
+        logo: { key: "ident/org-missing-logo/logo.png", mediaType: "image/png", sha256: "0".repeat(64) },
+      },
+      {
+        orgId: "org-oversized-logo",
+        names: ["Oversized Logo Co"],
+        domains: ["oversizedlogo.co.za"],
+        namesOmitted: 0,
+        domainsOmitted: 0,
+        logo: { key: "ident/org-oversized-logo/logo.png", mediaType: "image/png", sha256: "1".repeat(64) },
+      },
+      {
+        orgId: "org-corrupt-logo",
+        names: ["Corrupt Logo Co"],
+        domains: ["corruptlogo.co.za"],
+        namesOmitted: 0,
+        domainsOmitted: 0,
+        logo: { key: "ident/org-corrupt-logo/logo.png", mediaType: "image/png", sha256: "2".repeat(64) },
+      },
+    ];
+    await bucket.put("ident/org-oversized-logo/logo.png", new Uint8Array(600 * 1024));
+    const badPng = await validPng(16, 16, 0x11);
+    badPng.set([0xff], badPng.length - 15); // Corrupt IDAT CRC/deflate stream
+    await bucket.put("ident/org-corrupt-logo/logo.png", badPng);
+
+    const mixedFailuresRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: capCaseId }),
+          owner: { kind: "case", caseId: capCaseId, step: "trust-claim" },
+        },
+        kv,
+      },
+      capCaseId,
+      missingLogoCandidates,
+    );
+    expect(mixedFailuresRes.unavailable).toEqual(
+      expect.arrayContaining([
+        "only the first 4 logo crops were compared",
+        "a logo image is not in a supported raster format",
+        "a logo crop could not be read",
+        "a logo image is larger than the size limit",
+        "the registered logo could not be read",
+        "the registered logo image is damaged",
+      ]),
+    );
+
+    // 8-comparison cap: 3 valid logo crops x 3 valid registered-logo candidates = 9 > MAX_CLAIM_LOGO_COMPARISONS (8).
+    const eightCapCaseId = ulid();
+    await createCase(db, {
+      id: eightCapCaseId,
+      orgId: fynbosOrgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: "staff@fynbosfreight.co.za",
+    });
+    const cropA = await validPng(16, 16, 0x21);
+    const cropB = await validPng(16, 16, 0x22);
+    const cropC = await validPng(16, 16, 0x23);
+    await storeCrops(
+      store,
+      eightCapCaseId,
+      { name: "desktop.png", key: `art/${eightCapCaseId}/render/desktop.png`, sha256: "e".repeat(64) },
+      [cropA, cropB, cropC].map((bytes, i) => ({
+        box: { concept: "logo" as const, left: i * 10, top: 0, right: i * 10 + 20, bottom: 20, confidence: 0.9 },
+        bytes,
+        width: 20,
+        height: 20,
+      })),
+    );
+    const threeValidLogoCandidates = await Promise.all(
+      [1, 2, 3].map(async (n) => {
+        const key = `ident/org-cap-${n}/logo.png`;
+        await bucket.put(key, await validPng(20, 20, 0x40 + n));
+        return {
+          orgId: `org-cap-${n}`,
+          names: [`Cap Org ${n}`],
+          domains: [`cap-${n}.co.za`],
+          namesOmitted: 0,
+          domainsOmitted: 0,
+          logo: { key, mediaType: "image/png", sha256: String(n).repeat(64) },
+        };
+      }),
+    );
+    let eightCapCalls = 0;
+    const eightCapRes = await compareClaimLogos(
+      {
+        store,
+        meta: {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: eightCapCaseId }),
+          owner: { kind: "case", caseId: eightCapCaseId, step: "trust-claim" },
+          fetch: (async () => {
+            eightCapCalls += 1;
+            return metaReply({
+              same_brand: false,
+              brand_seen: null,
+              differences: ["different"],
+              confidence: 0.91,
+            });
+          }) as typeof fetch,
+        },
+        kv,
+      },
+      eightCapCaseId,
+      threeValidLogoCandidates,
+    );
+    expect(eightCapCalls).toBe(8);
+    expect(eightCapRes.unavailable).toContain("only the first 8 logo comparisons were run");
   });
 });
 
@@ -634,23 +1144,47 @@ describe("effective protection, bounds, and clean outcomes", () => {
     expect(view.protectedCandidates.candidates).toEqual([]);
   });
 
-  it("records candidate and domain bound overflow as partial coverage and records examined targets on a clean run", async () => {
+  it("records candidate, name and domain bound overflow as partial coverage and persists ran, partial and skipped outcomes with consumer read-back", async () => {
     const registry = new CheckRegistry();
     registerClaimCheck(registry);
+    const memberOrgId = await makeOrg("Persistence Check Org");
 
-    // Without protectedCandidates on the view, the check skips with a clear reason.
+    // 1. Without protectedCandidates on the view, the check skips with a clear reason, persisted and read back from D1.
+    const skipCaseId = ulid();
+    await createCase(db, {
+      id: skipCaseId,
+      orgId: memberOrgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: "staff@persistence.co.za",
+    });
     const unpopulatedView = buildMessageView({
+      orgId: memberOrgId,
       headers: [{ name: "From", value: "sender@unrelated.example" }],
     });
     const skippedRun = await runChecksWithOutcomes(unpopulatedView, registry);
-    expect(skippedRun.outcomes[0]).toMatchObject({
-      check: "trust.claim",
-      outcome: "skipped",
-      reason: "the protected-identity candidates were not read for this case",
-    });
+    await saveEvidence(db, skipCaseId, skippedRun.items, registry, undefined, skippedRun.outcomes);
+    const storedSkippedOutcomes = await readCheckOutcomes(db, skipCaseId);
+    expect(storedSkippedOutcomes).toEqual([
+      expect.objectContaining({
+        check: "trust.claim",
+        outcome: "skipped",
+        findings: 0,
+        reason: "the protected-identity candidates were not read for this case",
+      }),
+    ]);
 
-    // Clean no-match with an active candidate records outcome "ran", summary, and examined targets.
+    // 2. Clean no-match with an active candidate records outcome "ran", summary, and examined targets, persisted and read back from D1.
+    const cleanCaseId = ulid();
+    await createCase(db, {
+      id: cleanCaseId,
+      orgId: memberOrgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: "staff@persistence.co.za",
+    });
     const cleanView = buildMessageView({
+      orgId: memberOrgId,
       headers: [
         { name: "From", value: '"Plain Sender" <hello@unrelated.example>' },
         { name: "Reply-To", value: "replies@unrelated.example" },
@@ -660,30 +1194,79 @@ describe("effective protection, bounds, and clean outcomes", () => {
     cleanView.protectedCandidates = boundProtectedCandidates([{ ...FYNBOS, logo: null }]);
     const cleanRun = await runChecksWithOutcomes(cleanView, registry);
     expect(cleanRun.items).toEqual([]);
-    expect(cleanRun.outcomes[0]).toMatchObject({
-      check: "trust.claim",
-      outcome: "ran",
-      findings: 0,
-      summary: "no protected business claimed",
-    });
-    expect(cleanRun.outcomes[0]?.examined?.targets).toEqual(
+    await saveEvidence(db, cleanCaseId, cleanRun.items, registry, undefined, cleanRun.outcomes);
+    const storedCleanOutcomes = await readCheckOutcomes(db, cleanCaseId);
+    expect(storedCleanOutcomes).toEqual([
+      expect.objectContaining({
+        check: "trust.claim",
+        outcome: "ran",
+        findings: 0,
+        summary: "no protected business claimed",
+      }),
+    ]);
+    expect(storedCleanOutcomes?.[0]?.examined?.targets).toEqual(
       expect.arrayContaining(["Plain Sender", "unrelated.example", "signature block (last 15 lines)"]),
     );
 
-    // Candidate bound overflow (> MAX_PROTECTED_CANDIDATES) and domain bound overflow (> MAX_CANDIDATE_DOMAINS) report partial.
+    // 3. Candidate bound overflow (> MAX_PROTECTED_CANDIDATES), name bound overflow (> MAX_CANDIDATE_NAMES) and domain bound overflow (> MAX_CANDIDATE_DOMAINS) report partial, persisted and read back via readTrustClaimDetail.
+    const partialCaseId = ulid();
+    await createCase(db, {
+      id: partialCaseId,
+      orgId: memberOrgId,
+      channel: "email",
+      headersAvailable: true,
+      forwardedBy: "staff@persistence.co.za",
+    });
     const manyCandidates = Array.from({ length: MAX_PROTECTED_CANDIDATES + 2 }, (_, i) => ({
       orgId: `org-${i}`,
-      names: [`Business ${i}`],
+      names:
+        i === 0
+          ? ["Fynbos Freight", ...Array.from({ length: MAX_CANDIDATE_NAMES + 1 }, (__, n) => `Alias ${n}`)]
+          : [`Business ${i}`],
       domains: Array.from({ length: MAX_CANDIDATE_DOMAINS + 1 }, (__, d) => `biz-${i}-${d}.co.za`),
       logo: null,
     }));
     const overflowView = buildMessageView({
-      headers: [{ name: "From", value: '"Plain Sender" <hello@unrelated.example>' }],
+      orgId: memberOrgId,
+      headers: [{ name: "From", value: '"Fynbos Freight" <hello@unrelated.example>' }],
     });
     overflowView.protectedCandidates = boundProtectedCandidates(manyCandidates);
+    expect(overflowView.protectedCandidates.candidates[0]?.namesOmitted).toBe(2);
+    expect(overflowView.protectedCandidates.candidates[0]?.domainsOmitted).toBe(1);
     const overflowRun = await runChecksWithOutcomes(overflowView, registry);
-    expect(overflowRun.items).toHaveLength(1);
-    expect(overflowRun.items[0]?.detail.checked).toBe(false);
-    expect(overflowRun.outcomes[0]?.outcome).toBe("partial");
+    expect(overflowRun.items).toHaveLength(2);
+    await saveEvidence(db, partialCaseId, overflowRun.items, registry, undefined, overflowRun.outcomes);
+
+    const storedPartialEvidence = await readEvidence(db, partialCaseId);
+    expect(storedPartialEvidence).toHaveLength(2);
+    const parsedClaim = readTrustClaimDetail(storedPartialEvidence[0]?.detail);
+    expect(parsedClaim).toEqual({
+      kind: "claim",
+      detail: expect.objectContaining({
+        orgId: "org-0",
+        name: "Fynbos Freight",
+        routes: ["display-name"],
+      }),
+    });
+    const parsedUnavailable = readTrustClaimDetail(storedPartialEvidence[1]?.detail);
+    expect(parsedUnavailable).toEqual({
+      kind: "unavailable",
+      detail: expect.objectContaining({
+        checked: false,
+        unavailable: expect.arrayContaining([
+          `2 protected identities past the candidate bound (${MAX_PROTECTED_CANDIDATES}) could not be compared`,
+          "some registered names or domains past the candidate bound could not be compared",
+        ]),
+      }),
+    });
+    const storedPartialOutcomes = await readCheckOutcomes(db, partialCaseId);
+    expect(storedPartialOutcomes).toEqual([
+      expect.objectContaining({
+        check: "trust.claim",
+        outcome: "partial",
+        findings: 2,
+        reason: `2 protected identities past the candidate bound (${MAX_PROTECTED_CANDIDATES}) could not be compared`,
+      }),
+    ]);
   });
 });
