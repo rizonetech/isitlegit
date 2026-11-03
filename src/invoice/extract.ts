@@ -102,12 +102,13 @@ const plain = (v: string | null, fallback: string) => (v === null || v === "" ? 
 // domain printed with it) is scrubbed to its masked form wherever it appears, in detail and summary alike.
 export function scrub(value: string | null, fields: InvoiceFields): string | null {
   if (value === null || fields.account_number === null) return value;
-  const digits = fields.account_number.replace(/[\s-]+/g, "");
+  const digits = fields.account_number.replace(/\D+/g, "");
   if (digits.length < 7) return value;
   const masked = `***${digits.slice(-3)}`;
-  // The number as printed in any spacing, on its own or inside a longer reference ("06200441773 - 1042"):
-  // the digit sequence with any spaces or dashes between its digits, wherever it occurs.
-  const asPrinted = new RegExp(digits.split("").join("[\\s-]*"), "g");
+  // The number as printed in any spacing or punctuation, on its own or inside a longer reference
+  // ("06200441773 - 1042", "Account 1234.567.8901"): the digit sequence with any non-alphanumeric
+  // separators between its digits, wherever it occurs.
+  const asPrinted = new RegExp(digits.split("").join("[^0-9A-Za-z]*"), "g");
   return value.replace(asPrinted, masked);
 }
 

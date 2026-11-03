@@ -1497,24 +1497,40 @@ describe("the evidence cards", () => {
     expect(malformed).not.toContain("***678");
     expect(malformed).not.toContain("<script>alert");
     expect(malformed).toContain("&lt;script&gt;");
-    // Producer-to-card masking when the account number repeats in supplier_domain or domain.
+    // Producer-to-card masking when the account number repeats in supplier_domain, domain, or punctuated text.
     const fieldsWithDomainAccount = {
       is_invoice: true as const,
-      supplier_name: "Karoo Parts 12345678901",
+      supplier_name: "Karoo Parts 1234.567.8901",
       supplier_domain: "12345678901.example",
-      bank_name: "Protea Bank 12345678901",
-      account_holder: "Karoo 12345678901",
+      bank_name: "Protea Bank 1234/567/8901",
+      account_holder: "Karoo (1234) 567-8901",
       account_number: "12345678901",
       branch_code: "250655",
       amount_cents: 100000,
       currency: "ZAR",
-      reference: "INV-12345678901",
+      reference: "Account 1234.567.8901",
       due_date: "2026-11-10",
     };
     const produced = detectedItem(fieldsWithDomainAccount, "case/invoice.pdf");
     expect(produced).not.toBeNull();
     expect(fieldsWithDomainAccount.supplier_domain).toBe("12345678901.example");
     expect(produced?.detail.supplier_domain).toBe("***901.example");
+    expect(produced?.detail.reference).toBe("Account ***901");
+    const [popProduced] = paymentEvidence(
+      {
+        type: "pop",
+        issuer: "Protea Bank 1234.567.8901",
+        amount_cents: 100000,
+        currency: "ZAR",
+        paid_at: "2026-11-10",
+        issued_at: "2026-11-10",
+        reference: "Account 1234.567.8901",
+        beneficiary: { name: "Karoo 1234/567/8901", account_number: "12345678901", branch_code: "250655" },
+        layout_differences: [],
+      },
+      { artefactKey: "case/pop.pdf", layout: { checked: true, differences: [] } },
+    );
+    expect(popProduced?.detail.reference).toBe("Account ***901");
     const domainMaskedHtml = draw([
       {
         id: "E1",
@@ -1529,12 +1545,22 @@ describe("the evidence cards", () => {
         check: "invoice.supplier_domain_changed",
         severity: "critical",
         summary: "Domain changed",
-        detail: { account_last3: "901", domain: "12345678901.example" },
+        detail: { account_last3: "901", domain: "1234.567.8901.example" },
+        artefacts: [],
+      },
+      {
+        id: "E3",
+        check: popProduced?.check ?? "document.type",
+        severity: "info",
+        summary: popProduced?.summary ?? "",
+        detail: { ...(popProduced?.detail ?? {}), reference: "Account 1234.567.8901" } as Record<string, unknown>,
         artefacts: [],
       },
     ]);
-    expect(domainMaskedHtml).not.toContain("12345678901");
+    for (const banned of ["12345678901", "1234.567.8901", "1234/567/8901", "1234"])
+      expect(domainMaskedHtml, banned).not.toContain(banned);
     expect(domainMaskedHtml).toContain("***901.example");
+    expect(domainMaskedHtml).toContain("Account ***901");
   });
 
   it("explains every invoice and payment-document failure state in plain words, with no raw producer reason codes (D07 T03 s15)", () => {
@@ -2174,12 +2200,12 @@ describe("the evidence cards through the report route", () => {
         supplier_name: "Karoo Parts (Pty) Ltd",
         supplier_domain: "12345678901.example",
         bank_name: "Protea Bank",
-        account_holder: "Karoo Parts 12345678901",
+        account_holder: "Karoo Parts 1234.567.8901",
         account_number: "12345678901",
         branch_code: "250655",
         amount_cents: 4850000,
         currency: "ZAR",
-        reference: "INV-20931-12345678901",
+        reference: "Account 1234.567.8901",
         due_date: "2026-11-15",
       },
       attached.key,
@@ -2256,8 +2282,10 @@ describe("the evidence cards through the report route", () => {
     const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
     for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
     expect(html).toContain("***901.example");
+    expect(html).toContain("Account ***901");
     for (const banned of [
       "12345678901",
+      "1234.567.8901",
       "998877665544",
       "***998877665544",
       "sup-internal-1",

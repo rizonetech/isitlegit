@@ -1642,8 +1642,9 @@ const cleanField = (v: unknown, last3: unknown, given?: unknown): string | null 
   const mask = masked(last3, given ?? null);
   if (!mask) return raw;
   const tail = mask.slice(3);
-  const tailPattern = tail.split("").join("[\\s-]*");
-  return raw.replace(new RegExp(`[0-9](?:[\\s-]*[0-9]){3,16}[\\s-]*${tailPattern}`, "g"), mask);
+  const sep = "[^0-9A-Za-z]{0,4}";
+  const tailPattern = tail.split("").join(sep);
+  return raw.replace(new RegExp(`[0-9](?:${sep}[0-9]){3,16}${sep}${tailPattern}`, "g"), mask);
 };
 // The payment documents (D07 T03 §15; the producers in src/invoice/payment-doc.ts and document-step.ts),
 // drawn beside the forensic family above under the same masking rule: the submitted beneficiary masked,
