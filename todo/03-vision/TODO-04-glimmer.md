@@ -83,8 +83,8 @@ track: day-6
 | 45 | §45 | The Loupe 1.1 dataset | §44, §46 | [ ] |
 | 46 | §46 | Muse Wonder teacher pilot | §44 | [ ] |
 | 47 | §47 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
-| 48 | §48 | Confidence escalation from Loupe to Spark | §1 | [ ] |
-| 49 | §49 | Every screened page captured and labelled | §48 | [ ] |
+| 48 | §48 | Confidence escalation from Loupe to Spark | §1 | [x] |
+| 49 | §49 | Every screened page captured and labelled | §48 | [x] |
 | 50 | §50 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
@@ -1591,11 +1591,14 @@ Operator, 2026-11-02: a page Loupe is unsure about escalates to Muse Spark 1.3, 
 - [x] Record the escalation in the screening result (`screener`, the tier, and why the page escalated) where §1 records the failover reason, so the monitor's stored record (D05 T04 §3) and the eval's ablation read the same fact. Done when: `test/vision/screen.test.ts` reads the tier and reason back from the result for an escalated and a non-escalated page. Cheaper substitute: logging the escalation only loses it to the ablation.
 - [x] Persist the tier in the monitor's stored record (plan review gap 2; migration number from the coordinator, requested 2026-11-02 in `vision-outbox.md`): `monitor_screens` gains the settling tier and the first Spark call reference, written by `src/monitor/screen.ts` beside the settling call it already stores. Done when: a monitor test reads the tier, the escalation and both call references back from D1 for a two-pass page, and a plain failover page reads back distinct from an escalated one. Cheaper substitute: result-only recording loses the fact where the ablation and the monitor actually read.
 - [x] Measure the band on recorded answers with exercised coverage (plan review gap 4): from the held-out set's recorded Loupe and Spark answer lines (1,000 pages, `runs/eval-1.0/`) and the §1 monitor set's (40 pages), record Loupe alone, Loupe plus escalation, Spark alone, accuracy, lure recall, false alarms and Spark cost per page in `docs/frontier-log.md`, counting escalations exercised at each tier. Done when: the rows state their coverage, a tier with zero exercised pages is recorded as unmeasured (never as passing), and the band stays at its default only if escalation raises neither false alarms nor lowers recall where it was exercised. Cheaper substitute: pricing hypothetical second passes asserts an accuracy no run measured.
-- [ ] Commit: `vision: escalate unsure Loupe answers to Spark`
+- [x] Commit: `vision: escalate unsure Loupe answers to Spark`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes, and fails if a sure Loupe answer reaches Spark or an unsure one settles without escalating.
 
 > **Unstamped:** 2026-11-03: renumbered because Loupe 1.1 took numbers 44 to 46; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s45.revoked-2026-11-03.json`)
+
+> **Verified:** 2026-11-03 | §48 | 7e9103a13c6bad19aac3bd14a75fb6503f4f7fa1
+> **Review:** `docs/reviews/d03-t04-s48.json`
 
 ## 49. Every screened page captured and labelled
 
@@ -1619,11 +1622,14 @@ Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next tr
 - [x] Queue a captured page for offline judging in the store's `review-queue.jsonl` when Spark's label disagrees with the settling answer or Spark's confidence falls inside `ESCALATION_BAND` (§48), judged by Astra and Wonder offline before admission, as §9 queues disputes; judged labels come back through a validated import (`applyJudgements`) that refuses a judgement whose page hashes no longer match, and only an imported judgement takes a page out of the queue. Done when: the test's disagreeing page lands in the queue unchanged, a judged page carries the judge's label as its own `label_source`, and a stale judgement is refused with the page still queued. Cheaper substitute: admitting disputed labels unjudged imports the teacher's errors at scale.
 - [x] Admit captured pages to a training build only through §41's consent and redaction gate: `admitProductionPages` writes `<store>/production-admission.json` atomically for cleared, labelled, undisputed (or judged) pages only, with withdrawal by the same writer; the dataset builder takes origin `production` pages only when that record names them, and a page with recipient identifiers in its URL or text is withheld and counted in the dropped figures, as §41 rules. Done when: `test/node/glimmer-capture.test.ts` shows an unadmitted production page in no training line, an admitted eligible page in a training line through the real build, and a withheld page counted, never silently dropped. Cheaper substitute: importing captures directly bypasses the consent the capture was taken under.
 - [x] Report the flywheel in `docs/glimmer/training.md`: captured, labelled, queued, judged, admitted and withheld counts per version. Done when: the counts reconcile with the store manifest for one run. Cheaper substitute: a captured total alone hides the unlabelled and disputed backlog.
-- [ ] Commit: `glimmer: capture and label every screened page`
+- [x] Commit: `glimmer: capture and label every screened page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-store.test.ts test/node/glimmer-capture.test.ts` passes, and fails if a settled page is missing, unlabelled without being counted, or admitted unjudged after a dispute.
 
 > **Unstamped:** 2026-11-03: renumbered because Loupe 1.1 took numbers 44 to 46; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s46.revoked-2026-11-03.json`)
+
+> **Verified:** 2026-11-03 | §49 | e8cb34aaa5ecce16f893629b627d3e202310dd56
+> **Review:** `docs/reviews/d03-t04-s49.json`
 
 ## 50. Loupe 1.1 promoted on a better-than-1.0 gate
 
