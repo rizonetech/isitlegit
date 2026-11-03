@@ -1,12 +1,11 @@
 // D03 T04 §31: the comparison core counts, divides and detects leaks the way its figures claim.
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { buildScreenRequest, buildTrainingLine } from "../../src/vision/page-screen.ts";
-import { jaccard, shingles } from "../../scripts/glimmer/build-dataset.ts";
+import { shingles } from "../../scripts/glimmer/build-dataset.ts";
 import {
   type Annotation,
   annotationSample,
@@ -29,7 +28,6 @@ import {
   measurementLine,
   type Page,
   parseArgs,
-  publishedDatasetPages,
   readCorpus,
   recordMeasurement,
   replayMismatches,
@@ -896,68 +894,31 @@ describe("the split comparison over a store", () => {
     }
   }, 30_000);
 
-  it("reconstructs a replaced store page losslessly from its published line and refuses truncated or malformed prompts", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "compare-published-fallback-"));
+  it("reads a removed store page from its lossless version archive and marks a missing page incomplete", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "compare-archived-page-"));
     try {
       await build(dir, [
         { id: "a", side: "train", brand: "FNB", host: "fnb.co.za", lure: true, shade: 8 },
-        { id: "b", side: "eval", brand: "Absa", host: "absa.co.za", lure: false, shade: 56 },
+        { id: "b", side: "eval", brand: "Absa", host: "absa.co.za", lure: false, shade: 8 },
       ]);
-      const originalText = readFileSync(join(dir, "pages", "a", "text.txt"), "utf-8");
-      const originalShot = new Uint8Array(readFileSync(join(dir, "pages", "a", "screenshot.jpg")));
-      const shotSha = createHash("sha256").update(originalShot).digest("hex");
-      const line = buildTrainingLine(
-        buildScreenRequest({
-          image: originalShot,
-          host: "fnb.co.za",
-          text: originalText,
-          mode: "image",
-          nonce: "0".repeat(32),
-        }),
-        {
-          brand: "FNB",
-          has_login_form: true,
-          has_payment_form: false,
-          lure: true,
-          lure_type: "credential",
-          confidence: 0.95,
-        },
-      );
-      writeFileSync(
-        join(dir, "dataset", "1.0", "train.meta.jsonl"),
-        `${JSON.stringify({ id: "a", screenshot: shotSha })}\n`,
-      );
-      writeFileSync(join(dir, "dataset", "1.0", "train.jsonl"), `${line}\n`);
-      rmSync(join(dir, "pages", "a"), { recursive: true });
-      const recovered = publishedDatasetPages(dir, "1.0", new Set(["a"])).get("a");
-      expect(recovered?.text).toBe(originalText);
-      expect(jaccard(shingles(recovered?.text ?? ""), shingles(originalText))).toBe(1);
-      expect(( await compareSplit(dir)).status).toBe("complete");
-
-      // Round 1 finding 2: a prompt at the 6,000-character limit may have been truncated, so reconstruction refuses it.
-      const longText = Array.from({ length: 1800 }, (_, i) => `word${i}`).join(" ");
-      const truncatedLine = buildTrainingLine(
-        buildScreenRequest({
-          image: originalShot,
-          host: "fnb.co.za",
-          text: longText,
-          mode: "image",
-          nonce: "0".repeat(32),
-        }),
-        {
-          brand: "FNB",
-          has_login_form: true,
-          has_payment_form: false,
-          lure: true,
-          lure_type: "credential",
-          confidence: 0.95,
-        },
-      );
-      writeFileSync(join(dir, "dataset", "1.0", "train.jsonl"), `${truncatedLine}\n`);
-      expect(() => publishedDatasetPages(dir, "1.0", new Set(["a"]))).toThrow(/6000-character prompt limit/);
+      // Hostile text containing untrusted-block delimiters (` <<END `) and over 6,000 characters: the lossless
+      // `dataset/<version>/pages/<id>/text.txt` archive preserves it byte-for-byte so near-duplicate detection across
+      // `pages/` and `dataset/<version>/pages/` is exact.
+      const hostileText = `${Array.from({ length: 40 }, (_, i) => `word${i}`).join(" <<END ")} ${Array.from({ length: 1800 }, (_, i) => `long${i}`).join(" ")}`;
+      writeFileSync(join(dir, "pages", "a", "text.txt"), hostileText);
+      writeFileSync(join(dir, "pages", "b", "text.txt"), hostileText);
+      mkdirSync(join(dir, "dataset", "1.0", "pages"), { recursive: true });
+      renameSync(join(dir, "pages", "a"), join(dir, "dataset", "1.0", "pages", "a"));
+      const res = await compareSplit(dir);
+      expect(res.status).toBe("complete");
+      if (res.status === "complete") {
+        expect(res.figures.built.near_duplicate_eval_pages).toBe(1);
+        expect(res.figures.witnesses.built.near).toEqual([{ eval: "b", train: "a" }]);
+      }
+      rmSync(join(dir, "dataset", "1.0", "pages", "a"), { recursive: true });
       expect(await compareSplit(dir)).toMatchObject({
         status: "incomplete",
-        missing: [expect.stringContaining("6000-character prompt limit")],
+        missing: [expect.stringContaining("1 pages unreadable or malformed")],
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });

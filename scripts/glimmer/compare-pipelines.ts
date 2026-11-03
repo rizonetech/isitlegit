@@ -6,9 +6,9 @@
 // each input and its sha256; `docs/glimmer/training.md` is written from that file, never typed. A missing or partial
 // input yields an `incomplete` result naming what is missing, never a completed comparison.
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { LURE_TYPES, MAX_TEXT_CHARACTERS } from "../../src/vision/page-screen.ts";
+import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT, shingles } from "./build-dataset.ts";
 import type { ListEntry } from "./render.ts";
 
@@ -517,127 +517,22 @@ const lines = (file: string) =>
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 // What a pinned page is: the digest of every consumed file of every page (its metadata, screenshot and text), so a page
-// that is relabelled, repaired or replaced changes the identity the result records.
+// that is relabelled, repaired or replaced changes the identity the result records. When an earlier dataset version's
+// page left `pages/` on a later re-import or wall recheck, its lossless page folder in `dataset/<version>/pages/<id>/`
+// is read instead.
 type PageRead = { meta: string; shot: Uint8Array; text: string };
-function pageFiles(dir: string, id: string, publishedFallback?: Map<string, PageRead>): PageRead {
-  const folder = join(dir, "pages", id);
-  if (existsSync(join(folder, "meta.json"))) {
-    const meta = readFileSync(join(folder, "meta.json"), "utf-8");
-    return {
-      meta,
-      shot: readFileSync(join(folder, "screenshot.jpg")),
-      text: readFileSync(join(folder, "text.txt"), "utf-8"),
-    };
-  }
-  const fromPublished = publishedFallback?.get(id);
-  if (fromPublished) return fromPublished;
+function pageFiles(dir: string, id: string, version?: string): PageRead {
+  const storeFolder = join(dir, "pages", id);
+  const folder =
+    existsSync(join(storeFolder, "meta.json")) || !version
+      ? storeFolder
+      : join(dir, "dataset", version, "pages", id);
   const meta = readFileSync(join(folder, "meta.json"), "utf-8");
   return {
     meta,
     shot: readFileSync(join(folder, "screenshot.jpg")),
     text: readFileSync(join(folder, "text.txt"), "utf-8"),
   };
-}
-// When an earlier dataset version's page was later remade under a new id in `pages/` (such as a sample re-import or a
-// benign wall recheck), its published training or evaluation line in `dataset/<version>/{train,eval}.jsonl` and its
-// aligned `meta.jsonl` row hold its exact screenshot (verified against the recorded sha256), visible text, host and
-// labels. Only the line indices of missing ids are decoded from the JSONL files.
-export function publishedDatasetPages(dir: string, version: string, missingIds: Set<string>): Map<string, PageRead> {
-  const out = new Map<string, PageRead>();
-  if (!missingIds.size) return out;
-  for (const side of ["train", "eval"] as const) {
-    const metaFile = join(dir, "dataset", version, `${side}.meta.jsonl`);
-    const jsonlFile = join(dir, "dataset", version, `${side}.jsonl`);
-    if (!existsSync(metaFile) || !existsSync(jsonlFile)) continue;
-    const wanted = new Map<number, { id: string; screenshot?: string }>();
-    const metaLines = lines(metaFile);
-    for (let idx = 0; idx < metaLines.length; idx++) {
-      const row = JSON.parse(metaLines[idx] as string) as { id?: string; screenshot?: string };
-      if (row.id && missingIds.has(row.id))
-        wanted.set(idx, { id: row.id, ...(row.screenshot ? { screenshot: row.screenshot } : {}) });
-    }
-    if (!wanted.size) continue;
-    const fd = openSync(jsonlFile, "r");
-    try {
-      const buf = Buffer.allocUnsafe(4 * 1024 * 1024);
-      let lineIdx = 0;
-      let chunks: Buffer[] = [];
-      let collecting = wanted.has(0);
-      const finishLine = (line: string, idx: number) => {
-        const meta = wanted.get(idx);
-        if (!meta || !line.trim()) return;
-        const parsed = JSON.parse(line) as {
-          messages?: {
-            role: string;
-            content: string | { type: string; text?: string; image_url?: { url?: string } }[];
-          }[];
-        };
-        const userMsg = parsed.messages?.find((m) => m.role === "user");
-        const assistantMsg = parsed.messages?.find((m) => m.role === "assistant");
-        if (!userMsg || !Array.isArray(userMsg.content) || !assistantMsg || typeof assistantMsg.content !== "string")
-          throw new Error(`published line for ${meta.id} has no valid messages`);
-        const textPart = userMsg.content.find((p) => p.type === "text")?.text ?? "";
-        const imgUrl = userMsg.content.find((p) => p.type === "image_url")?.image_url?.url ?? "";
-        const comma = imgUrl.indexOf(",");
-        if (comma < 0) throw new Error(`published line for ${meta.id} has no image_url data`);
-        const shot = new Uint8Array(Buffer.from(imgUrl.slice(comma + 1), "base64"));
-        if (meta.screenshot && sha(shot) !== meta.screenshot)
-          throw new Error(`published line for ${meta.id} does not match its meta screenshot sha256`);
-        const blockMatch = /^Host: ([^\n]+)\n\n<<UNTRUSTED:page-text:([0-9a-f]{32})>>\n([\s\S]*)\n<<END:\2>>$/.exec(
-          textPart,
-        );
-        if (!blockMatch) throw new Error(`published line for ${meta.id} has no valid untrusted text block`);
-        const hostRaw = blockMatch[1] ?? "none";
-        const host = hostRaw === "none" ? null : hostRaw;
-        const text = blockMatch[3] ?? "";
-        if (Array.from(text).length >= MAX_TEXT_CHARACTERS)
-          throw new Error(
-            `published line for ${meta.id} reached the ${MAX_TEXT_CHARACTERS}-character prompt limit and may be truncated`,
-          );
-        const ans = JSON.parse(assistantMsg.content) as {
-          brand?: string | null;
-          lure?: boolean;
-          lure_type?: string | null;
-        };
-        out.set(meta.id, {
-          meta: JSON.stringify({
-            host,
-            labels: {
-              brand: ans.brand ?? null,
-              lure: ans.lure === true,
-              lure_type: ans.lure_type ?? (ans.lure ? null : "none"),
-            },
-          }),
-          shot,
-          text,
-        });
-      };
-      for (;;) {
-        const n = readSync(fd, buf, 0, buf.length, null);
-        if (n <= 0) break;
-        let pos = 0;
-        while (pos < n) {
-          const nl = buf.indexOf(10, pos);
-          if (nl < 0 || nl >= n) {
-            if (collecting) chunks.push(Buffer.from(buf.subarray(pos, n)));
-            break;
-          }
-          if (collecting) {
-            chunks.push(Buffer.from(buf.subarray(pos, nl)));
-            finishLine(Buffer.concat(chunks).toString("utf-8"), lineIdx);
-            chunks = [];
-          }
-          lineIdx++;
-          collecting = wanted.has(lineIdx);
-          pos = nl + 1;
-        }
-      }
-      if (collecting && chunks.length) finishLine(Buffer.concat(chunks).toString("utf-8"), lineIdx);
-    } finally {
-      closeSync(fd);
-    }
-  }
-  return out;
 }
 const pageLine = (id: string, p: PageRead) => `${id} ${sha(p.meta)} ${sha(p.shot)} ${sha(p.text)}`;
 const pagesInput = (dir: string, entries: string[]): Input => ({
@@ -731,15 +626,13 @@ export async function compareSplit(
       ...membership.train.map((id) => [id, "train"] as [string, Side]),
       ...membership.eval.map((id) => [id, "eval"] as [string, Side]),
     ]);
-    const missingInStore = new Set([...sides.keys()].filter((id) => !existsSync(join(dir, "pages", id, "meta.json"))));
-    const publishedFallback = publishedDatasetPages(dir, version, missingInStore);
     const pages: Page[] = [];
     const entries: string[] = [];
     const unreadable: string[] = [];
     let done = 0;
     for (const id of sides.keys()) {
       try {
-        const files = pageFiles(dir, id, publishedFallback);
+        const files = pageFiles(dir, id, version);
         const meta = JSON.parse(files.meta) as {
           host: string | null;
           labels: { brand?: string | null; lure?: boolean; lure_type?: string | null };
@@ -1558,13 +1451,8 @@ export function checkResult(dir: string, name: string): Check {
         continue;
       }
       try {
-        const missingInStore = name.startsWith("split-")
-          ? new Set(ids.filter((id) => !existsSync(join(dir, "pages", id, "meta.json"))))
-          : new Set<string>();
-        const publishedFallback = name.startsWith("split-")
-          ? publishedDatasetPages(dir, name.replace(/^split-/, ""), missingInStore)
-          : undefined;
-        const entries = ids.map((id) => pageLine(id, pageFiles(dir, id, publishedFallback)));
+        const version = name.startsWith("split-") ? name.replace(/^split-/, "") : undefined;
+        const entries = ids.map((id) => pageLine(id, pageFiles(dir, id, version)));
         if (pagesInput(dir, entries).sha256 !== input.sha256) changed.push(input.name);
       } catch (error) {
         changed.push(`${input.name}: ${message(error)}`);
