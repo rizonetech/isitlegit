@@ -101,9 +101,9 @@ Does segmenting the stamp and signature with SAM 3.1 and sending the crops with 
 1. Compare chain and whole-page on 20 synthetic POP pairs. Done when: the log entry records both accuracies and costs.
 
 - [x] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen. Done 2026-11-02: code-made pairs in `eval/frontier/stamps.ts` (`buildSet`, 20 labelled pairs: stamp-date, signature-swap and stamp-colour alterations plus genuine controls, with the genuine reference stamp both arms receive); tested in `test/node/eval-frontier-stamps.test.ts`.
-- [ ] Run the chain (SAM crops plus reference to Spark) and the whole-page prompt on each. Done when: results are stored.
-- [ ] Write the log entry and decide whether the chain becomes the default in D06 T02 §2. Done when: the entry exists and a section is filed if adopted.
-- [ ] Commit: `frontier: SAM and Spark chain on stamps and signatures`
+- [x] Run the chain (SAM crops plus reference to Spark) and the whole-page prompt on each. Done when: results are stored. Done 2026-11-04: 40 outcomes (20 `whole`, 20 `chain` via real `sam-3.1` streaming segmentation + `sharp` cropping + `muse-spark-1.3`) stored in `eval/frontier/sets/stamps/results.json`; whole detection 70.0% (7/10, 0/3 signature-swap), chain detection 80.0% (8/10, 2/3 signature-swap), false positives 0.0% (0/10) on both, cost US$0.4000 whole vs US$0.5000 chain.
+- [x] Write the log entry and decide whether the chain becomes the default in D06 T02 §2. Done when: the entry exists and a section is filed if adopted. Done 2026-11-04: entry in `docs/frontier-log.md` (`score --check` exit 0, `Decision: feature | fingerprint: 816db69ca66e86d0e30a3c10b3aa70f8b7bb388171c020c6eeca22f1d1e26fca`); adoption into `D06 T02` (`src/invoice/payment-doc.ts`, owned by the `trust` lane) requested through the coordinator (`~/isitlegit-data/handover/eval-outbox.md`).
+- [x] Commit: `frontier: SAM and Spark chain on stamps and signatures`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-frontier-stamps.test.ts` passes (stubbed arms, payload and completeness refusals) and `node eval/frontier/stamps.ts score --check docs/frontier-log.md` exits 0 on the stored results.
 

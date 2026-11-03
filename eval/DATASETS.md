@@ -47,6 +47,16 @@ The challenge set (`eval/sets/synthetic-challenge/`, D08 T01 §7) is 60 messages
 - Fonts: no font file is committed or shipped. The build reads the system-installed files and refuses any other file by its sha256 (`FONT_PINS` in `eval/frontier/make-invoices.ts`); the images carry rendered glyphs only. The Bitstream Vera licence and the URW font exception both allow rendering text with the fonts into documents and images without conditions on those documents.
 - Rebuild: `node eval/frontier/digits.ts build --out <new folder>` on a machine with both packages reproduces the published 20 images byte for byte (checked 2026-10-31).
 
+## Frontier: doctored POP stamps and signatures (D08 T03 §2)
+
+| Item | Source | Licence |
+| ---- | ------ | ------- |
+| `eval/frontier/sets/stamps/*.png` | `eval/frontier/stamps.ts` (`buildSet`, SVG rasterised by `sharp`) | Project's own |
+| `manifest.json`, `results.json` beside them | `eval/frontier/stamps.ts` | Project's own |
+
+- Provenance: 20 synthetic proof-of-payment PNGs (10 genuine, 10 doctored: 4 `stamp-date`, 3 `signature-swap`, 3 `stamp-colour`) plus `reference-stamp.png` (cropped over `REFERENCE_BOX` containing both the genuine signature and the genuine stamp), all using the fictional Protea Bank and Fynbos Freight, stamped SYNTHETIC TEST DOCUMENT. No real document, stamp, signature or client detail was used.
+- Rebuild: `node eval/frontier/stamps.ts build` reproduces the 20 PNGs, `reference-stamp.png` and `manifest.json`.
+
 [1]: https://monkey.org/~jose/phishing/
 [2]: https://monkey.org/~jose/phishing/README.txt
 [3]: https://www.cs.cmu.edu/~enron/

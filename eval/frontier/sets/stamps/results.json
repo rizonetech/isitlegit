@@ -2,321 +2,341 @@
  {
   "file": "pop-01-genuine.png",
   "arm": "whole",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 17343,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 8314,
+  "usd": 0.02
  },
  {
   "file": "pop-01-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 11192,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-02-doctored.png",
   "arm": "whole",
   "status": "answered",
-  "doctored": false,
-  "ms": 11881,
+  "doctored": true,
+  "ms": 6050,
   "usd": 0.02
  },
  {
   "file": "pop-02-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 17137,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-03-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 10610,
+  "ms": 6399,
   "usd": 0.02
  },
  {
   "file": "pop-03-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 9070,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-04-doctored.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 14384,
+  "ms": 6488,
   "usd": 0.02
  },
  {
   "file": "pop-04-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 18321,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-05-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 9450,
+  "ms": 6033,
   "usd": 0.02
  },
  {
   "file": "pop-05-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 15848,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-06-doctored.png",
   "arm": "whole",
   "status": "answered",
-  "doctored": false,
-  "ms": 11941,
+  "doctored": true,
+  "ms": 6057,
   "usd": 0.02
  },
  {
   "file": "pop-06-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 9237,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-07-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 10924,
+  "ms": 4291,
   "usd": 0.02
  },
  {
   "file": "pop-07-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 10459,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-08-doctored.png",
   "arm": "whole",
   "status": "answered",
   "doctored": true,
-  "ms": 3848,
+  "ms": 5655,
   "usd": 0.02
  },
  {
   "file": "pop-08-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 19766,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-09-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 9475,
+  "ms": 6009,
   "usd": 0.02
  },
  {
   "file": "pop-09-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 8796,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-10-doctored.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 11414,
+  "ms": 3824,
   "usd": 0.02
  },
  {
   "file": "pop-10-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 11268,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-11-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 10790,
+  "ms": 4913,
   "usd": 0.02
  },
  {
   "file": "pop-11-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 9940,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-12-doctored.png",
   "arm": "whole",
   "status": "answered",
-  "doctored": false,
-  "ms": 12625,
+  "doctored": true,
+  "ms": 5136,
   "usd": 0.02
  },
  {
   "file": "pop-12-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 10209,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-13-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 8300,
+  "ms": 7121,
   "usd": 0.02
  },
  {
   "file": "pop-13-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 7264,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-14-doctored.png",
   "arm": "whole",
   "status": "answered",
-  "doctored": false,
-  "ms": 9119,
+  "doctored": true,
+  "ms": 6001,
   "usd": 0.02
  },
  {
   "file": "pop-14-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 16658,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-15-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 10382,
+  "ms": 7288,
   "usd": 0.02
  },
  {
   "file": "pop-15-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 9037,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-16-doctored.png",
   "arm": "whole",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 16867,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 5882,
+  "usd": 0.02
  },
  {
   "file": "pop-16-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 1,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 10945,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-17-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 7603,
+  "ms": 4809,
   "usd": 0.02
  },
  {
   "file": "pop-17-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 11324,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-18-doctored.png",
   "arm": "whole",
   "status": "answered",
   "doctored": true,
-  "ms": 5046,
+  "ms": 5287,
   "usd": 0.02
  },
  {
   "file": "pop-18-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 7545,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-19-genuine.png",
   "arm": "whole",
   "status": "answered",
   "doctored": false,
-  "ms": 10275,
+  "ms": 9147,
   "usd": 0.02
  },
  {
   "file": "pop-19-genuine.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 0,
-  "usd": 0
+  "status": "answered",
+  "doctored": false,
+  "ms": 12572,
+  "usd": 0.025,
+  "samBoxes": 0
  },
  {
   "file": "pop-20-doctored.png",
   "arm": "whole",
   "status": "answered",
-  "doctored": false,
-  "ms": 13333,
+  "doctored": true,
+  "ms": 4944,
   "usd": 0.02
  },
  {
   "file": "pop-20-doctored.png",
   "arm": "chain",
-  "status": "malformed",
-  "doctored": null,
-  "ms": 1,
-  "usd": 0
+  "status": "answered",
+  "doctored": true,
+  "ms": 10157,
+  "usd": 0.025,
+  "samBoxes": 0
  }
 ]
