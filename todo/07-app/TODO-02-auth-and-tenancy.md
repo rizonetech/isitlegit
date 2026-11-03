@@ -952,6 +952,8 @@ Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-
 
 ## 26. Export and fresh sign-in before closure
 
+> **Started:** 2026-11-03T00:43:24Z
+
 Closing an organisation is irreversible, and two things a member may want first are not offered (D07 T02 §9 completion review, 2026-11-02): a copy of the organisation's case summaries to keep, and a fresh sign-in (a passkey or email-link step-up within the last few minutes) before the closure is accepted, as banks ask before a destructive change.
 
 **Phase:** 7
