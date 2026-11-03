@@ -125,6 +125,7 @@ describe("run-monitor mechanics", () => {
       mailSend: {
         send_key: `monitor-finding:org-1:${FIXTURE_HOST}`,
         status: "sent",
+        updated_at: "2026-11-03T01:05:00.000Z",
       },
     };
     expect(proofSatisfied(baseProof, start)).toEqual({ ok: true });
@@ -134,9 +135,36 @@ describe("run-monitor mechanics", () => {
     expect(
       proofSatisfied({ ...baseProof, finding: { ...baseFinding, alert_state: "failed", alerted_at: null } }, start),
     ).toEqual({ ok: false, reason: "alert-not-sent" });
-    expect(proofSatisfied({ ...baseProof, mailSend: { send_key: "k", status: "refused" } }, start)).toEqual({
+    expect(
+      proofSatisfied(
+        { ...baseProof, mailSend: { send_key: "k", status: "refused", updated_at: "2026-11-03T01:05:00.000Z" } },
+        start,
+      ),
+    ).toEqual({
       ok: false,
       reason: "mail-send-not-confirmed",
+    });
+    expect(
+      proofSatisfied({ ...baseProof, finding: { ...baseFinding, alerted_at: "2026-11-02T23:59:59.000Z" } }, start),
+    ).toEqual({
+      ok: false,
+      reason: "alert-historical-not-from-this-run",
+    });
+    expect(
+      proofSatisfied(
+        {
+          ...baseProof,
+          mailSend: {
+            send_key: `monitor-finding:org-1:${FIXTURE_HOST}`,
+            status: "sent",
+            updated_at: "2026-11-02T23:59:59.000Z",
+          },
+        },
+        start,
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "alert-historical-not-from-this-run",
     });
   });
 
@@ -192,7 +220,13 @@ describe("run-monitor mechanics", () => {
           },
         ];
       if (sql.includes("FROM mail_sends"))
-        return [{ send_key: `monitor-finding:${FYNBOS_ORG_ID}:${FIXTURE_HOST}`, status: "sent" }];
+        return [
+          {
+            send_key: `monitor-finding:${FYNBOS_ORG_ID}:${FIXTURE_HOST}`,
+            status: "sent",
+            updated_at: "2026-11-03T10:01:45.000Z",
+          },
+        ];
       return [];
     };
 
@@ -263,5 +297,89 @@ describe("run-monitor mechanics", () => {
     );
     expect(errored.exitCode).toBe(1);
     expect(errored.reason).toBe("workflow-errored");
+
+    // 4. Rerun with a fresh confirmed investigation but a historical deduplicated alert exits 1.
+    const historicalRerun = await executeMonitorRun(
+      {
+        account: "acc-1",
+        now: () => new Date("2026-11-03T10:00:00.000Z"),
+        sleep: async () => {},
+        query: async (sql) => {
+          if (sql.includes("FROM monitor_findings")) {
+            return [
+              {
+                host: FIXTURE_HOST,
+                capture_key: "monitor/f/2026-11-03T10:00:30.000Z/",
+                case_id: "case-live-1",
+                outcome: "confirmed",
+                alert_state: "sent",
+                alerted_at: "2026-11-03T09:50:00.000Z",
+              },
+            ];
+          }
+          if (sql.includes("FROM mail_sends")) {
+            return [
+              {
+                send_key: `monitor-finding:${FYNBOS_ORG_ID}:${FIXTURE_HOST}`,
+                status: "sent",
+                updated_at: "2026-11-03T09:50:00.000Z",
+              },
+            ];
+          }
+          return baseQuery(sql);
+        },
+        api: async (path, init) => {
+          if (init?.method === "POST" && path.endsWith("/instances")) {
+            const body = JSON.parse(String(init.body)) as { id: string; params: Record<string, string> };
+            createdInstances.push(body);
+            return Response.json({ result: { id: body.id } });
+          }
+          return Response.json({ result: { status: "complete" } });
+        },
+      },
+      { orgArg: "demo-fynbos", waitSeconds: 10 },
+    );
+    expect(historicalRerun.exitCode).toBe(1);
+    expect(historicalRerun.reason).toBe("alert-historical-not-from-this-run");
+
+    // 5. Stalled network request and stalled response-body read abort at the wait deadline and exit 2.
+    let sawAbortSignal = false;
+    const stalledFetch = await executeMonitorRun(
+      {
+        account: "acc-1",
+        query: baseQuery,
+        api: async (_path, init) => {
+          if (init?.method === "POST") return Response.json({ result: { id: "x" } });
+          return await new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              sawAbortSignal = true;
+              reject(init.signal?.reason ?? new Error("aborted"));
+            });
+          });
+        },
+      },
+      { orgArg: "demo-fynbos", waitSeconds: 0.03 },
+    );
+    expect(sawAbortSignal).toBe(true);
+    expect(stalledFetch.exitCode).toBe(2);
+    expect(stalledFetch.reason).toBe("timeout:unknown");
+
+    const stalledBody = await executeMonitorRun(
+      {
+        account: "acc-1",
+        query: baseQuery,
+        api: async (_path, init) => {
+          if (init?.method === "POST") return Response.json({ result: { id: "x" } });
+          return {
+            ok: true,
+            status: 200,
+            json: () => new Promise(() => {}),
+          } as unknown as Response;
+        },
+      },
+      { orgArg: "demo-fynbos", waitSeconds: 0.03 },
+    );
+    expect(stalledBody.exitCode).toBe(2);
+    expect(stalledBody.reason).toBe("timeout:unknown");
   });
 });

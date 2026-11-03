@@ -43,6 +43,7 @@ track: day-6
 | 10 | §10 | Findings exported to | §5 | [x] |
 | 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §46 | [ ] |
 | 12 | §12 | Monitor case allowance and quality | §4 | [x] |
+| 13 | §13 | Unseeded autonomous discovery evaluation | §6, §7, §12 | [ ] |
 
 ## 1. Lookalike candidate generator
 
@@ -404,6 +405,25 @@ Monitor investigations must not consume the member's own checking allowance, and
 
 > **Verified:** 2026-11-03 | §12 | 3ac3b18f94dd4c2131a82d773add2be38c1aff2d
 > **Review:** `docs/reviews/d05-t04-s12.json`
+
+## 13. Unseeded autonomous discovery evaluation
+
+Measure autonomous lookalike discovery effectiveness and time-to-detection across unseeded candidate generation (§1), certificate-transparency logs (§7), and the 300-candidate / 50-capture daily scheduler (§2) without `monitor_seeds` priority, comparing recall and detection latency against external domain-monitoring benchmarks (filed 2026-11-03 from `D05 T04 §6` completion review gap 5).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Build and run the unseeded discovery evaluation corpus and harness. Done when: `data/monitor/discovery-eval.json` and `docs/frontier-log.md` record unseeded candidate recall, CT-only vs generator-only vs combined recall, and multi-day time-to-capture across a labelled lookalike domain set.
+
+- [ ] Define `DiscoveryEvalCorpusSchema` and `evaluateAutonomousDiscovery` in `src/monitor/discovery-eval.ts` over a versioned corpus `data/monitor/discovery-corpus.json` covering confusable, typo, added-word, TLD-swap, and certificate-transparency lookalike domains alongside benign sibling domains, with zero `monitor_seeds` rows present. Done when: `test/monitor/discovery-eval.test.ts` validates the corpus schema, rejects duplicate or self-matching domains, and verifies zero seed rows are read. Cheaper substitute: relying on the seeded demo fixture from §6, which bypasses autonomous discovery. Source: `docs/reviews/05-trust/D05-T04-s6.md` completion review gap 5.
+- [ ] Simulate multi-day scheduling in `evaluateAutonomousDiscovery` (`src/monitor/discovery-eval.ts`) across `candidatesForBusiness` (§1), `ctCandidatesForBusiness` (§7), and the 50-capture daily window (§2) to measure per-class recall, false-candidate rate, day-1 capture rate, and worst-case days-to-capture when more than 50 candidates resolve simultaneously. Done when: `test/monitor/discovery-eval.test.ts` proves exact numerator/denominator recall per variant class and deterministic multi-day capture latency bounds. Cheaper substitute: single-run candidate list assertions without scheduling simulation. Source: `src/monitor/run.ts` and `src/monitor/ct.ts`.
+- [ ] Write `scripts/monitor-discovery-eval.ts` to execute the unseeded evaluation, write `data/monitor/discovery-eval.json` atomically with read-back verification, and record the measured recall and detection-speed table in `docs/frontier-log.md`. Done when: `data/monitor/discovery-eval.json` and `docs/frontier-log.md` hold the verified numbers and `test/monitor/discovery-eval.test.ts` covers read-back and malformed-corpus refusal. Cheaper substitute: prose comparison without measured recall or scheduling latency. Source: `docs/reviews/05-trust/D05-T04-s6.md` completion review gap 5.
+- [ ] Commit: `monitor: unseeded autonomous discovery evaluation`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/discovery-eval.test.ts` passes.
 
 ## Verification
 

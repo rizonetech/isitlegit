@@ -118,7 +118,7 @@ export type MonitorRunProof = {
     alert_state: string | null;
     alerted_at: string | null;
   } | null;
-  mailSend: { send_key: string; status: string } | null;
+  mailSend: { send_key: string; status: string; updated_at?: string | null } | null;
 };
 
 export function proofSatisfied(
@@ -157,6 +157,7 @@ export function proofSatisfied(
   if (
     !proof.finding ||
     proof.finding.host !== FIXTURE_HOST ||
+    proof.finding.capture_key !== proof.capture.capture_key ||
     proof.finding.outcome !== "confirmed" ||
     proof.finding.case_id !== proof.investigation.case_id
   ) {
@@ -167,6 +168,13 @@ export function proofSatisfied(
   }
   if (proof.mailSend?.status !== "sent") {
     return { ok: false, reason: "mail-send-not-confirmed" };
+  }
+  if (
+    proof.finding.alerted_at < startedAtIso ||
+    !proof.mailSend.updated_at ||
+    proof.mailSend.updated_at < startedAtIso
+  ) {
+    return { ok: false, reason: "alert-historical-not-from-this-run" };
   }
   return { ok: true };
 }
@@ -212,6 +220,51 @@ function parseWorkflowStatus(
   return "";
 }
 
+class DeadlineExceededError extends Error {
+  constructor() {
+    super("wait deadline exceeded");
+    this.name = "DeadlineExceededError";
+  }
+}
+
+async function callWithDeadline<T>(
+  work: (signal: AbortSignal) => Promise<T>,
+  deadlineMs: number,
+  clock: () => Date,
+): Promise<T> {
+  const remainingMs = deadlineMs - clock().getTime();
+  if (remainingMs <= 0) {
+    throw new DeadlineExceededError();
+  }
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort(new DeadlineExceededError());
+      reject(new DeadlineExceededError());
+    }, remainingMs);
+  });
+  try {
+    return await Promise.race([work(controller.signal), timeoutPromise]);
+  } catch (err) {
+    if (err instanceof DeadlineExceededError || controller.signal.aborted) {
+      throw new DeadlineExceededError();
+    }
+    throw err;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function readJsonWithDeadline<T>(res: Response, deadlineMs: number, clock: () => Date): Promise<T | null> {
+  try {
+    return await callWithDeadline(() => res.json() as Promise<T>, deadlineMs, clock);
+  } catch (err) {
+    if (err instanceof DeadlineExceededError) throw err;
+    return null;
+  }
+}
+
 export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions): Promise<RunnerOutcome> {
   const orgId = resolveTargetOrg(options.orgArg);
   if (!orgId || !Number.isFinite(options.waitSeconds) || options.waitSeconds <= 0) {
@@ -220,197 +273,211 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
   const clock = deps.now ?? (() => new Date());
   const sleep = deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const pollMs = deps.pollIntervalMs ?? 10_000;
-
-  // 1. Check demo eligibility and alert recipient readiness in D1 before starting the Workflow.
-  const orgRows = await deps.query(
-    `SELECT o.metadata, o."createdAt" AS createdAt, l.plan, l.trial_ends_at
-     FROM "organization" o LEFT JOIN org_limits l ON l.org_id = o.id WHERE o.id = ?`,
-    [orgId],
-  );
-  const idRows = await deps.query(
-    "SELECT protected, finance_contact_email, logo_r2_key FROM identities WHERE org_id = ?",
-    [orgId],
-  );
-  const domainRows = await deps.query("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'", [
-    orgId,
-  ]);
-  const addrRows = await deps.query("SELECT address FROM org_addresses WHERE org_id = ? AND state = 'verified'", [
-    orgId,
-  ]);
-  const orgRow = orgRows[0];
-  const idRow = idRows[0];
-  const eligibility = checkOrgEligibility({
-    metadata: orgRow?.metadata !== undefined && orgRow.metadata !== null ? String(orgRow.metadata) : null,
-    createdAt: orgRow?.createdAt !== undefined && orgRow.createdAt !== null ? String(orgRow.createdAt) : null,
-    plan: orgRow?.plan !== undefined && orgRow.plan !== null ? String(orgRow.plan) : null,
-    trialEndsAt:
-      orgRow?.trial_ends_at !== undefined && orgRow.trial_ends_at !== null ? String(orgRow.trial_ends_at) : null,
-    protectedFlag: idRow?.protected !== undefined && idRow.protected !== null ? Number(idRow.protected) : null,
-    financeContact:
-      idRow?.finance_contact_email !== undefined && idRow.finance_contact_email !== null
-        ? String(idRow.finance_contact_email)
-        : null,
-    logoKey: idRow?.logo_r2_key !== undefined && idRow.logo_r2_key !== null ? String(idRow.logo_r2_key) : null,
-    verifiedDomains: domainRows.map((r) => String(r.domain ?? "")).filter(Boolean),
-    verifiedAddresses: addrRows.map((r) => String(r.address ?? "")).filter(Boolean),
-    now: clock(),
-  });
-  if (!eligibility.ok) {
-    return { exitCode: 1, reason: `ineligible:${eligibility.reasons.join(",")}`, orgId };
-  }
-
-  // 2. Provision the fixture seed idempotently and verify read-back.
   const startedAtDate = clock();
   const startedAt = startedAtDate.toISOString();
-  await deps.query(
-    `INSERT INTO monitor_seeds (org_id, host, path, created_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT (org_id, host) DO UPDATE SET path = excluded.path`,
-    [orgId, FIXTURE_HOST, FIXTURE_PATH, startedAt],
-  );
-  const seedBack = await deps.query("SELECT path FROM monitor_seeds WHERE org_id = ? AND host = ?", [
-    orgId,
-    FIXTURE_HOST,
-  ]);
-  if (String(seedBack[0]?.path ?? "") !== FIXTURE_PATH) {
-    return { exitCode: 1, reason: "seed-readback-failed", orgId };
-  }
-  // Ensure the fixture host is due for capture in this execution even if an earlier run today observed it.
-  await deps.query("UPDATE monitor_hosts SET captured_dns_hash = NULL WHERE org_id = ? AND domain = ?", [
-    orgId,
-    FIXTURE_HOST,
-  ]);
-
-  // 3. Create or join today's Workflow instance; if an instance for today already finished before this run,
-  // start a fresh correlated instance with a unique runId suffix.
-  const day = new Date(startedAtDate.getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
-  const priorRuns = await deps.query("SELECT finished_at FROM monitor_runs WHERE org_id = ? AND day = ?", [orgId, day]);
-  const priorFinishedAt = priorRuns[0]?.finished_at ? String(priorRuns[0].finished_at) : null;
-  let instanceId =
-    priorFinishedAt && priorFinishedAt <= startedAt
-      ? instanceIdFor(orgId, day, startedAtDate.getTime().toString(36))
-      : instanceIdFor(orgId, day);
-  let pollId = instanceId;
-  const createFirst = await deps.api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
-    method: "POST",
-    body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
-  });
-  if (!createFirst.ok && createFirst.status !== 409) {
-    return { exitCode: 1, reason: `workflow-create-${createFirst.status}`, orgId, instanceId };
-  }
-  if (createFirst.ok) {
-    const createdBody = (await createFirst.json().catch(() => null)) as { result?: { id?: string } } | null;
-    if (createdBody?.result?.id) pollId = createdBody.result.id;
-  } else if (createFirst.status === 409) {
-    const statusRes = await deps.api(
-      `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(instanceId)}`,
-    );
-    const existingStatus = statusRes.ok ? parseWorkflowStatus((await statusRes.json().catch(() => null)) as never) : "";
-    if (existingStatus === "complete" || existingStatus === "errored" || existingStatus === "terminated") {
-      const suffix = startedAtDate.getTime().toString(36);
-      instanceId = instanceIdFor(orgId, day, suffix);
-      pollId = instanceId;
-      const createCorrelated = await deps.api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
-        method: "POST",
-        body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
-      });
-      if (!createCorrelated.ok) {
-        return { exitCode: 1, reason: `workflow-create-${createCorrelated.status}`, orgId, instanceId };
-      }
-      const corrBody = (await createCorrelated.json().catch(() => null)) as { result?: { id?: string } } | null;
-      if (corrBody?.result?.id) pollId = corrBody.result.id;
-    }
-  }
-
-  // 4. Poll with bounded timeout.
-  const deadline = clock().getTime() + options.waitSeconds * 1000;
+  const deadlineMs = startedAtDate.getTime() + options.waitSeconds * 1000;
+  let instanceId: string | undefined;
   let status = "";
-  while (clock().getTime() < deadline) {
-    const res = await deps.api(
-      `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(pollId)}`,
+
+  const query = (sql: string, params: string[]) => callWithDeadline(() => deps.query(sql, params), deadlineMs, clock);
+  const api = (path: string, init?: RequestInit) =>
+    callWithDeadline((signal) => deps.api(path, { ...init, signal }), deadlineMs, clock);
+
+  try {
+    // 1. Check demo eligibility and alert recipient readiness in D1 before starting the Workflow.
+    const orgRows = await query(
+      `SELECT o.metadata, o."createdAt" AS createdAt, l.plan, l.trial_ends_at
+       FROM "organization" o LEFT JOIN org_limits l ON l.org_id = o.id WHERE o.id = ?`,
+      [orgId],
     );
-    if (res.ok) {
-      status = parseWorkflowStatus((await res.json().catch(() => null)) as never);
-      if (status === "complete") break;
-      if (status === "errored" || status === "terminated") {
-        return { exitCode: 1, reason: `workflow-${status}`, orgId, instanceId };
+    const idRows = await query(
+      "SELECT protected, finance_contact_email, logo_r2_key FROM identities WHERE org_id = ?",
+      [orgId],
+    );
+    const domainRows = await query("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'", [orgId]);
+    const addrRows = await query("SELECT address FROM org_addresses WHERE org_id = ? AND state = 'verified'", [orgId]);
+    const orgRow = orgRows[0];
+    const idRow = idRows[0];
+    const eligibility = checkOrgEligibility({
+      metadata: orgRow?.metadata !== undefined && orgRow.metadata !== null ? String(orgRow.metadata) : null,
+      createdAt: orgRow?.createdAt !== undefined && orgRow.createdAt !== null ? String(orgRow.createdAt) : null,
+      plan: orgRow?.plan !== undefined && orgRow.plan !== null ? String(orgRow.plan) : null,
+      trialEndsAt:
+        orgRow?.trial_ends_at !== undefined && orgRow.trial_ends_at !== null ? String(orgRow.trial_ends_at) : null,
+      protectedFlag: idRow?.protected !== undefined && idRow.protected !== null ? Number(idRow.protected) : null,
+      financeContact:
+        idRow?.finance_contact_email !== undefined && idRow.finance_contact_email !== null
+          ? String(idRow.finance_contact_email)
+          : null,
+      logoKey: idRow?.logo_r2_key !== undefined && idRow.logo_r2_key !== null ? String(idRow.logo_r2_key) : null,
+      verifiedDomains: domainRows.map((r) => String(r.domain ?? "")).filter(Boolean),
+      verifiedAddresses: addrRows.map((r) => String(r.address ?? "")).filter(Boolean),
+      now: clock(),
+    });
+    if (!eligibility.ok) {
+      return { exitCode: 1, reason: `ineligible:${eligibility.reasons.join(",")}`, orgId };
+    }
+
+    // 2. Provision the fixture seed idempotently and verify read-back.
+    await query(
+      `INSERT INTO monitor_seeds (org_id, host, path, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (org_id, host) DO UPDATE SET path = excluded.path`,
+      [orgId, FIXTURE_HOST, FIXTURE_PATH, startedAt],
+    );
+    const seedBack = await query("SELECT path FROM monitor_seeds WHERE org_id = ? AND host = ?", [orgId, FIXTURE_HOST]);
+    if (String(seedBack[0]?.path ?? "") !== FIXTURE_PATH) {
+      return { exitCode: 1, reason: "seed-readback-failed", orgId };
+    }
+    // Ensure the fixture host is due for capture in this execution even if an earlier run today observed it.
+    await query("UPDATE monitor_hosts SET captured_dns_hash = NULL WHERE org_id = ? AND domain = ?", [
+      orgId,
+      FIXTURE_HOST,
+    ]);
+
+    // 3. Create or join today's Workflow instance; if an instance for today already finished before this run,
+    // start a fresh correlated instance with a unique runId suffix.
+    const day = new Date(startedAtDate.getTime() + 2 * 3_600_000).toISOString().slice(0, 10);
+    const priorRuns = await query("SELECT finished_at FROM monitor_runs WHERE org_id = ? AND day = ?", [orgId, day]);
+    const priorFinishedAt = priorRuns[0]?.finished_at ? String(priorRuns[0].finished_at) : null;
+    instanceId =
+      priorFinishedAt && priorFinishedAt <= startedAt
+        ? instanceIdFor(orgId, day, startedAtDate.getTime().toString(36))
+        : instanceIdFor(orgId, day);
+    let pollId = instanceId;
+    const createFirst = await api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
+      method: "POST",
+      body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
+    });
+    if (!createFirst.ok && createFirst.status !== 409) {
+      return { exitCode: 1, reason: `workflow-create-${createFirst.status}`, orgId, instanceId };
+    }
+    if (createFirst.ok) {
+      const createdBody = await readJsonWithDeadline<{ result?: { id?: string } }>(createFirst, deadlineMs, clock);
+      if (createdBody?.result?.id) pollId = createdBody.result.id;
+    } else if (createFirst.status === 409) {
+      const statusRes = await api(
+        `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(instanceId)}`,
+      );
+      const existingStatus = statusRes.ok
+        ? parseWorkflowStatus(await readJsonWithDeadline(statusRes, deadlineMs, clock))
+        : "";
+      if (existingStatus === "complete" || existingStatus === "errored" || existingStatus === "terminated") {
+        const suffix = startedAtDate.getTime().toString(36);
+        instanceId = instanceIdFor(orgId, day, suffix);
+        pollId = instanceId;
+        const createCorrelated = await api(`/accounts/${deps.account}/workflows/isitlegit-monitor/instances`, {
+          method: "POST",
+          body: JSON.stringify({ id: instanceId, params: { orgId, day, runId: instanceId } }),
+        });
+        if (!createCorrelated.ok) {
+          return { exitCode: 1, reason: `workflow-create-${createCorrelated.status}`, orgId, instanceId };
+        }
+        const corrBody = await readJsonWithDeadline<{ result?: { id?: string } }>(createCorrelated, deadlineMs, clock);
+        if (corrBody?.result?.id) pollId = corrBody.result.id;
       }
     }
-    await sleep(pollMs);
-  }
-  if (status !== "complete") {
-    return { exitCode: 2, reason: `timeout:${status || "unknown"}`, orgId, instanceId };
-  }
 
-  // 5. Read back the run, capture, investigation, finding, and mail send, correlated to startedAt.
-  const runs = await deps.query("SELECT run_id, outcome, finished_at FROM monitor_runs WHERE org_id = ? AND day = ?", [
-    orgId,
-    day,
-  ]);
-  const captures = await deps.query(
-    "SELECT domain, capture_key, capture_url, captured_at FROM monitor_hosts WHERE org_id = ? AND domain = ?",
-    [orgId, FIXTURE_HOST],
-  );
-  const investigations = await deps.query(
-    "SELECT domain, capture_key, case_id, state, updated_at FROM monitor_investigations WHERE org_id = ? AND domain = ? ORDER BY updated_at DESC LIMIT 1",
-    [orgId, FIXTURE_HOST],
-  );
-  const findings = await deps.query(
-    "SELECT host, capture_key, case_id, outcome, alert_state, alerted_at FROM monitor_findings WHERE org_id = ? AND host = ?",
-    [orgId, FIXTURE_HOST],
-  );
-  const sends = await deps.query("SELECT send_key, status FROM mail_sends WHERE send_key = ?", [
-    `monitor-finding:${orgId}:${FIXTURE_HOST}`,
-  ]);
+    // 4. Poll with bounded timeout.
+    while (clock().getTime() < deadlineMs) {
+      const res = await api(
+        `/accounts/${deps.account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(pollId)}`,
+      );
+      if (res.ok) {
+        status = parseWorkflowStatus(await readJsonWithDeadline(res, deadlineMs, clock));
+        if (status === "complete") break;
+        if (status === "errored" || status === "terminated") {
+          return { exitCode: 1, reason: `workflow-${status}`, orgId, instanceId };
+        }
+      }
+      const remainingBeforeSleep = deadlineMs - clock().getTime();
+      if (remainingBeforeSleep <= 0) break;
+      await sleep(Math.min(pollMs, remainingBeforeSleep));
+    }
+    if (status !== "complete") {
+      return { exitCode: 2, reason: `timeout:${status || "unknown"}`, orgId, instanceId };
+    }
 
-  const proof: MonitorRunProof = {
-    expectedRunId: instanceId,
-    run: runs[0]
-      ? {
-          run_id: String(runs[0].run_id ?? ""),
-          outcome: String(runs[0].outcome ?? ""),
-          finished_at:
-            runs[0].finished_at !== null && runs[0].finished_at !== undefined ? String(runs[0].finished_at) : null,
-        }
-      : null,
-    capture: captures[0]
-      ? {
-          domain: String(captures[0].domain ?? ""),
-          capture_key: captures[0].capture_key ? String(captures[0].capture_key) : null,
-          capture_url: captures[0].capture_url ? String(captures[0].capture_url) : null,
-          captured_at: captures[0].captured_at ? String(captures[0].captured_at) : null,
-        }
-      : null,
-    investigation: investigations[0]
-      ? {
-          domain: String(investigations[0].domain ?? ""),
-          capture_key: String(investigations[0].capture_key ?? ""),
-          case_id: investigations[0].case_id ? String(investigations[0].case_id) : null,
-          state: String(investigations[0].state ?? ""),
-          updated_at: String(investigations[0].updated_at ?? ""),
-        }
-      : null,
-    finding: findings[0]
-      ? {
-          host: String(findings[0].host ?? ""),
-          capture_key: String(findings[0].capture_key ?? ""),
-          case_id: findings[0].case_id ? String(findings[0].case_id) : null,
-          outcome: String(findings[0].outcome ?? ""),
-          alert_state: findings[0].alert_state ? String(findings[0].alert_state) : null,
-          alerted_at: findings[0].alerted_at ? String(findings[0].alerted_at) : null,
-        }
-      : null,
-    mailSend: sends[0]
-      ? {
-          send_key: String(sends[0].send_key ?? ""),
-          status: String(sends[0].status ?? ""),
-        }
-      : null,
-  };
-  const verified = proofSatisfied(proof, startedAt);
-  if (!verified.ok) {
+    // 5. Read back the run, capture, investigation, finding, and mail send, correlated to startedAt.
+    const runs = await query("SELECT run_id, outcome, finished_at FROM monitor_runs WHERE org_id = ? AND day = ?", [
+      orgId,
+      day,
+    ]);
+    const captures = await query(
+      "SELECT domain, capture_key, capture_url, captured_at FROM monitor_hosts WHERE org_id = ? AND domain = ?",
+      [orgId, FIXTURE_HOST],
+    );
+    const investigations = await query(
+      "SELECT domain, capture_key, case_id, state, updated_at FROM monitor_investigations WHERE org_id = ? AND domain = ? ORDER BY updated_at DESC LIMIT 1",
+      [orgId, FIXTURE_HOST],
+    );
+    const findings = await query(
+      "SELECT host, capture_key, case_id, outcome, alert_state, alerted_at FROM monitor_findings WHERE org_id = ? AND host = ?",
+      [orgId, FIXTURE_HOST],
+    );
+    const sends = await query("SELECT send_key, status, updated_at FROM mail_sends WHERE send_key = ?", [
+      `monitor-finding:${orgId}:${FIXTURE_HOST}`,
+    ]);
+
+    const proof: MonitorRunProof = {
+      expectedRunId: instanceId,
+      run: runs[0]
+        ? {
+            run_id: String(runs[0].run_id ?? ""),
+            outcome: String(runs[0].outcome ?? ""),
+            finished_at:
+              runs[0].finished_at !== null && runs[0].finished_at !== undefined ? String(runs[0].finished_at) : null,
+          }
+        : null,
+      capture: captures[0]
+        ? {
+            domain: String(captures[0].domain ?? ""),
+            capture_key: captures[0].capture_key ? String(captures[0].capture_key) : null,
+            capture_url: captures[0].capture_url ? String(captures[0].capture_url) : null,
+            captured_at: captures[0].captured_at ? String(captures[0].captured_at) : null,
+          }
+        : null,
+      investigation: investigations[0]
+        ? {
+            domain: String(investigations[0].domain ?? ""),
+            capture_key: String(investigations[0].capture_key ?? ""),
+            case_id: investigations[0].case_id ? String(investigations[0].case_id) : null,
+            state: String(investigations[0].state ?? ""),
+            updated_at: String(investigations[0].updated_at ?? ""),
+          }
+        : null,
+      finding: findings[0]
+        ? {
+            host: String(findings[0].host ?? ""),
+            capture_key: String(findings[0].capture_key ?? ""),
+            case_id: findings[0].case_id ? String(findings[0].case_id) : null,
+            outcome: String(findings[0].outcome ?? ""),
+            alert_state: findings[0].alert_state ? String(findings[0].alert_state) : null,
+            alerted_at: findings[0].alerted_at ? String(findings[0].alerted_at) : null,
+          }
+        : null,
+      mailSend: sends[0]
+        ? {
+            send_key: String(sends[0].send_key ?? ""),
+            status: String(sends[0].status ?? ""),
+            updated_at: sends[0].updated_at ? String(sends[0].updated_at) : null,
+          }
+        : null,
+    };
+    const verified = proofSatisfied(proof, startedAt);
+    if (!verified.ok) {
+      return {
+        exitCode: 1,
+        reason: verified.reason,
+        orgId,
+        instanceId,
+        caseId: proof.investigation?.case_id ?? null,
+        captureKey: proof.capture?.capture_key ?? null,
+        alertedAt: proof.finding?.alerted_at ?? null,
+        alertRecipient: eligibility.alertRecipient,
+      };
+    }
     return {
-      exitCode: 1,
-      reason: verified.reason,
+      exitCode: 0,
       orgId,
       instanceId,
       caseId: proof.investigation?.case_id ?? null,
@@ -418,16 +485,17 @@ export async function executeMonitorRun(deps: RunnerDeps, options: RunnerOptions
       alertedAt: proof.finding?.alerted_at ?? null,
       alertRecipient: eligibility.alertRecipient,
     };
+  } catch (err) {
+    if (err instanceof DeadlineExceededError) {
+      return {
+        exitCode: 2,
+        reason: `timeout:${status || "unknown"}`,
+        orgId,
+        ...(instanceId !== undefined ? { instanceId } : {}),
+      };
+    }
+    throw err;
   }
-  return {
-    exitCode: 0,
-    orgId,
-    instanceId,
-    caseId: proof.investigation?.case_id ?? null,
-    captureKey: proof.capture?.capture_key ?? null,
-    alertedAt: proof.finding?.alerted_at ?? null,
-    alertRecipient: eligibility.alertRecipient,
-  };
 }
 
 async function resolveRunnerAuth(
@@ -471,6 +539,7 @@ async function resolveRunnerAuth(
   const fetchAccount = async (bearer: string) => {
     const res = await fetch("https://api.cloudflare.com/client/v4/accounts", {
       headers: { authorization: `Bearer ${bearer}` },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { result?: { id?: string }[] };
@@ -502,19 +571,29 @@ async function main(): Promise<void> {
     console.error("CF_API_TOKEN, CF_ACCOUNT_ID and D1_DATABASE_ID (or local Wrangler login) are required.");
     process.exit(2);
   }
-  const api: Api = (path, init) =>
-    fetch(`https://api.cloudflare.com/client/v4${path}`, {
+  const mainDeadlineMs = Date.now() + waitSeconds * 1000;
+  const api: Api = (path, init) => {
+    const remainingMs = Math.max(1, mainDeadlineMs - Date.now());
+    const timeoutSignal = AbortSignal.timeout(remainingMs);
+    const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
+    return fetch(`https://api.cloudflare.com/client/v4${path}`, {
       ...init,
+      signal,
       headers: { authorization: `Bearer ${auth.token}`, "content-type": "application/json", ...(init?.headers ?? {}) },
     });
+  };
   const query: D1Query = async (sql, params) => {
     const res = await api(`/accounts/${auth.account}/d1/database/${auth.dbId}/query`, {
       method: "POST",
       body: JSON.stringify({ sql, params }),
     });
     if (!res.ok) throw new Error(`D1 query answered ${res.status}`);
-    const body = (await res.json()) as { result?: { results?: Record<string, string | number | null>[] }[] };
-    return body.result?.[0]?.results ?? [];
+    const body = await readJsonWithDeadline<{ result?: { results?: Record<string, string | number | null>[] }[] }>(
+      res,
+      mainDeadlineMs,
+      () => new Date(),
+    );
+    return body?.result?.[0]?.results ?? [];
   };
   const outcome = await executeMonitorRun({ account: auth.account, api, query }, { orgArg, waitSeconds });
   console.log(

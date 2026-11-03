@@ -402,7 +402,7 @@ Sections: 105 | Checklist items: 671
 
 ### Phase 7: After the event
 
-Sections: 214 | Checklist items: 957
+Sections: 215 | Checklist items: 961
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -504,6 +504,7 @@ Sections: 214 | Checklist items: 957
 | [x]    | D05 T04 §10 | Findings exported to                                        | cloudflare           | 7     |
 | [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 5     |
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
+| [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
@@ -660,6 +661,6 @@ Sections: 17 | Checklist items: 71
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 393/584 verified sections, 121 ready to run now.
+Progress: 393/585 verified sections, 121 ready to run now.
 
-Checklist: 2957/3641 items completed (includes Commit items).
+Checklist: 2957/3645 items completed (includes Commit items).
