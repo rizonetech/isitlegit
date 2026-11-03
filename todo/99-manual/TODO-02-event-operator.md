@@ -91,7 +91,7 @@ OBS Studio at 1080p with Derick's voice on a separate track, following `docs/dem
 
 1. Record each beat. Done when: the raw files exist and are listed here.
 
-- [ ] Record the beats from `docs/demo-script.md`, including the uncut forward-to-reply take. Done when: a line `Footage recorded: YYYY-MM-DD` is written here.
+- [ ] Record the beats from `docs/demo-script.md`, including the uncut forward-to-reply take and the opening built-from-scratch claim ("From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon"). Done when: a line `Footage recorded: YYYY-MM-DD` is written here.
 - [ ] Commit: `todo: record demo footage done`
 
 **Test checkpoint:** `grep -cE '^Footage recorded: 2026-' todo/99-manual/TODO-02-event-operator.md` prints `1`.
@@ -108,7 +108,7 @@ DaVinci Resolve assembly with the Remotion assets (D09 T02 §4), captions from M
 
 1. Edit, caption and upload. Done when: the YouTube link plays logged out and is in the README.
 
-- [ ] Assemble and export at 1080p, 3:00 or shorter. Done when: the file's duration is 180 seconds or less.
+- [ ] Assemble and export at 1080p, 3:00 or shorter, verifying the opening built-from-scratch claim ("From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon") and the live `#model-trace` (`?trace=1`) view are both present. Done when: the file's duration is 180 seconds or less.
 - [ ] Upload to YouTube and record `Video: https://www.youtube.com/watch?v=<id>` here; Claude adds it to the README. Done when: the line is written and the link plays logged out.
 - [ ] Commit: `todo: record the demo video link`
 

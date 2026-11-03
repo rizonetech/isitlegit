@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 142
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 105 | Checklist items: 671
+Sections: 105 | Checklist items: 672
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -389,7 +389,7 @@ Sections: 105 | Checklist items: 671
 | [ ]    | D09 T01 §5  | Mail-sending limits verified live            | cloudflare, live-mail | 4     |
 | [ ]    | D09 T02 §1  | CONTRIBUTIONS.md by day, commit ranges       | none                  | 3     |
 | [ ]    | D09 T02 §2  | NOTICE.md audited against each dependency    | none                  | 3     |
-| [ ]    | D09 T02 §3  | Demo script and model-trace demo mode        | none                  | 4     |
+| [ ]    | D09 T02 §3  | Demo script and model-trace demo mode        | none                  | 5     |
 | [ ]    | D09 T02 §4  | Remotion title cards and animation           | none                  | 4     |
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 5     |
@@ -663,4 +663,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 387/585 verified sections, 119 ready to run now.
 
-Checklist: 2912/3622 items completed (includes Commit items).
+Checklist: 2912/3623 items completed (includes Commit items).

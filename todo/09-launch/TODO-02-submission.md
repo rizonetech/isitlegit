@@ -103,13 +103,14 @@ The 3-minute script from spec 5, updated for the decisions (fictional mail provi
 1. Write `docs/demo-script.md`. Done when: each beat names its fixture, its screen and its Meta model.
 
 - [ ] Write the beats with timings (problem, forward and reply with walkthrough replay, hidden-text evidence, invoice bank change, impersonation alert, voice note upload, safe mail, eval dashboard with ablation, what was built and how Meta is used). Done when: the file exists and totals 3 minutes or less.
+- [ ] Include the built-from-scratch opening statement in `docs/demo-script.md`: "From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon (only the internal TODO and review runner scripts existed beforehand)." Done when: `grep -c 'From zero to production-ready in 9 days' docs/demo-script.md` prints `1`.
 - [ ] Add the voice decoder claim to the voice note upload beat of `docs/demo-script.md`: "For voice-note intake inside a Worker, our decoder finishes faster than calling FFmpeg on every input we benchmarked, mainly because it decodes Opus straight to 16 kHz and runs in-process." Source: the D01 T03 §9 bench (medians of three, CI run 40602990459 at `335df7e`, FFmpeg 6.1.1-3ubuntu5); re-read the latest bench run recorded in §9 first, since `bd81843` added a 25 MiB WAV at 44,101 Hz, and narrow the wording if any row no longer holds. The on-screen caption names the CI run, the FFmpeg version and that FFmpeg's times include starting its process; the claim says nothing about output quality, which the bench does not compare. Done when: the beat carries the line and its caption, and every row of the cited run shows ours finishing first.
 - [ ] Add a "demo clock" overlay on the report page when `?clock=1` showing elapsed time since the case was received. Done when: `test/web/demo-clock.test.ts` renders it only with the flag.
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** neither `docs/demo-script.md` nor `test/web/demo-clock.test.ts` exists yet. The voice-claim item's cited bench (CI run 40602990459 at `335df7e`) is superseded by D01 T03 §9's latest (CI run 40606229380 at `bd81843`, ahead on all eleven inputs); the item already says to re-read §9, and the caption must use the latest run. The demo-clock item names no file: the overlay lives in `src/web/pages/report-view.tsx`, with the `?clock=1` flag plumbed from the page route.
 - [ ] Commit: `launch: demo script and demo mode`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/demo-clock.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/demo-clock.test.ts && grep -q 'From zero to production-ready in 9 days' docs/demo-script.md` passes.
 
 ## 4. Remotion title cards and animation
 
