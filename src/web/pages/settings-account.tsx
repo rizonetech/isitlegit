@@ -120,8 +120,14 @@ export async function readAccount(db: D1Database, signedIn: SignedIn) {
 
 // The closure state of the session's active organisation, read directly (a closed one is no longer an active
 // membership): its name, the member's role there, and when it was closed.
-async function closureFor(env: Env, signedIn: SignedIn) {
-  const orgId = (signedIn.session as { activeOrganizationId?: string | null }).activeOrganizationId;
+export const FRESH_MS = 10 * 60_000;
+// Fresh means authenticated within the last ten minutes, from the session's creation (its authentication), never
+// its activity: a renewed or long-lived session is not fresh (D07 T02 §26).
+export const freshSession = (signedIn: SignedIn, now = new Date()) =>
+  now.getTime() - new Date(signedIn.session.createdAt).getTime() < FRESH_MS;
+
+async function closureFor(env: Env, signedIn: SignedIn, wanted?: string | null) {
+  const orgId = wanted ?? (signedIn.session as { activeOrganizationId?: string | null }).activeOrganizationId;
   if (!orgId) return undefined;
   const [org, member, closedAt] = await Promise.all([
     env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`).bind(orgId).first<{ name: string }>(),
@@ -190,10 +196,21 @@ accountRoutes.get(
   sessionGate(() => outage("session")),
   (c) =>
     confirmPage(c, async () => {
-      const closure = await closureFor(c.env, c.get("signedIn"));
+      const closure = await closureFor(c.env, c.get("signedIn"), new URL(c.req.url).searchParams.get("org"));
       if (!closure) return { r: "gone" };
       if (closure.role !== "owner") return { r: "refused" };
       if (closure.closedAt) return { r: "org-closed" };
+      if (!freshSession(c.get("signedIn")))
+        return {
+          title: `Sign in again to close ${closure.orgName}`,
+          lines: [
+            `For a change this final, sign in again first: your last sign-in was more than ten minutes ago.`,
+            `You will come back to this confirmation for ${closure.orgName}, and nothing is closed until you press Close account there.`,
+          ],
+          action: "step-up",
+          id: closure.orgId,
+          label: "Sign in again",
+        };
       const deletion = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString("en-GB", {
         timeZone: "Africa/Johannesburg",
         day: "numeric",
@@ -210,8 +227,44 @@ accountRoutes.get(
         action: "close-account",
         id: closure.orgId,
         label: "Close account",
+        extra: {
+          href: `/settings/account/close/export?org=${closure.orgId}`,
+          label: "Download the case summaries first",
+        },
       };
     }),
+);
+
+// The case-summary export (D07 T02 §26): every case of the organisation as one CSV, for its owner only, open or
+// closed. Read in pages until none are left, so no case is silently omitted.
+accountRoutes.get(
+  "/settings/account/close/export",
+  sessionGate(() => outage("session")),
+  async (c) => {
+    const signedIn = c.get("signedIn");
+    const closure = await closureFor(c.env, signedIn, new URL(c.req.url).searchParams.get("org"));
+    if (!closure) return errorPage(404, "", { email: signedIn.user.email });
+    if (closure.role !== "owner") return errorPage(403, "", { email: signedIn.user.email });
+    const rows: string[] = ["case,received,status,verdict"];
+    const csv = (v: string) => (/[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
+    try {
+      for (let offset = 0; ; offset += 500) {
+        const page = await c.env.DB.prepare(
+          `SELECT id, created_at, status, verdict FROM cases WHERE org_id = ? ORDER BY created_at, id LIMIT 500 OFFSET ?`,
+        )
+          .bind(closure.orgId, offset)
+          .all<{ id: string; created_at: string; status: string; verdict: string | null }>();
+        for (const r of page.results) rows.push([r.id, r.created_at, r.status, r.verdict ?? ""].map(csv).join(","));
+        if (page.results.length < 500) break;
+      }
+    } catch {
+      return outage("export", "/settings/account/close");
+    }
+    return c.body(`${rows.join("\n")}\n`, 200, {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="cases-${closure.orgId}.csv"`,
+    });
+  },
 );
 
 // The three destructive changes, through Better Auth's own handler in process. Whatever the answer, the result is read from
@@ -318,10 +371,17 @@ const otherSessions = async (db: D1Database, userId: string, current: string) =>
 
 async function confirmPage(
   c: Context<GateEnv>,
-  build: (
-    userId: string,
-  ) => Promise<
-    { title: string; lines: string[]; action: string; id: string; label: string; confirm?: string } | Outcome
+  build: (userId: string) => Promise<
+    | {
+        title: string;
+        lines: string[];
+        action: string;
+        id: string;
+        label: string;
+        confirm?: string;
+        extra?: { href: string; label: string };
+      }
+    | Outcome
   >,
 ) {
   const signedIn = c.get("signedIn");
@@ -489,7 +549,10 @@ accountRoutes.post(
     const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100, confirm: 120 });
     if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
       return change(c, form.action as string, form.id ?? "");
+    if (form?.action === "step-up")
+      return c.redirect(`/signin?next=${encodeURIComponent(`/settings/account/close?org=${form.id ?? ""}`)}`, 303);
     if (form?.action === "close-account") {
+      if (!freshSession(signedIn)) return back(secret, signedIn.user.id, { r: "step-up" });
       // Only the confirmation page's own signed evidence closes an organisation: a bare action-and-id post does not.
       const evidence = await sign(secret, `${signedIn.user.id}\nclose\n${form.id ?? ""}`);
       if (!form.confirm || form.confirm !== evidence) return back(secret, signedIn.user.id, { r: "refused" });

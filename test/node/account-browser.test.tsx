@@ -58,6 +58,7 @@ const state = {
   mode: "full" as "full" | "empty" | "bare",
   keys: passkeys(),
   others: sessions().slice(1),
+  closed: false,
 };
 const shell = () => {
   const { children: _, ...rest } = shellOf({ organization: ORG, active: "account" });
@@ -87,7 +88,14 @@ const page = (
 
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
-  const confirm = (title: string, action: string, id: string, label: string) =>
+  const confirm = (
+    title: string,
+    action: string,
+    id: string,
+    label: string,
+    extra?: { href: string; label: string },
+    token?: string,
+  ) =>
     new Response(
       String(
         <AccountConfirm
@@ -97,6 +105,8 @@ async function answer(req: IncomingMessage): Promise<Response> {
           action={action}
           id={id}
           label={label}
+          {...(extra ? { extra } : {})}
+          {...(token ? { confirm: token } : {})}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8" } },
@@ -119,6 +129,28 @@ async function answer(req: IncomingMessage): Promise<Response> {
       { headers: { "content-type": "text/html; charset=utf-8" } },
     );
   }
+  if (url.pathname === "/settings/account/close/export")
+    return new Response("case,received,status,verdict\ncase-a,2026-10-26T01:00:00.000Z,done,malicious\n", {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": 'attachment; filename="cases-org-karoo.csv"',
+      },
+    });
+  if (url.pathname === "/settings/account/close")
+    return url.searchParams.get("stale") === "1"
+      ? confirm("Sign in again to close Karoo Couriers", "step-up", ORG.id, "Sign in again")
+      : confirm(
+          "Close Karoo Couriers?",
+          "close-account",
+          ORG.id,
+          "Close account",
+          { href: `/settings/account/close/export?org=${ORG.id}`, label: "Download the case summaries first" },
+          "tok",
+        );
+  if (url.pathname === "/signin")
+    return new Response("<!doctype html><title>Sign in</title><main><h1>Sign in</h1></main>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
   const pk = /^\/settings\/account\/passkeys\/([^/]+)\/remove$/.exec(url.pathname);
   if (pk) return confirm("Remove iPhone?", "remove-passkey", pk[1] as string, "Remove passkey");
   const ss = /^\/settings\/account\/sessions\/([^/]+)\/sign-out$/.exec(url.pathname);
@@ -133,6 +165,15 @@ async function answer(req: IncomingMessage): Promise<Response> {
     if (act === "rename-passkey") {
       state.keys = state.keys.map((k) => (k.id === form.get("id") ? { ...k, name: form.get("name") ?? k.name } : k));
       return new Response(null, { status: 303, headers: { location: "/settings/account?r=passkey-renamed" } });
+    }
+    if (act === "step-up")
+      return new Response(null, {
+        status: 303,
+        headers: { location: `/signin?next=${encodeURIComponent(`/settings/account/close?org=${ORG.id}`)}` },
+      });
+    if (act === "close-account") {
+      state.closed = true;
+      return new Response(null, { status: 303, headers: { location: "/settings/account?r=org-closed" } });
     }
     if (act === "remove-passkey") {
       state.keys = state.keys.filter((k) => k.id !== form.get("id"));
@@ -202,6 +243,7 @@ afterEach(() => {
   state.mode = "full";
   state.keys = passkeys();
   state.others = sessions().slice(1);
+  state.closed = false;
 });
 const context = (width: number): Promise<BrowserContext> => browser.newContext({ viewport: { width, height: 900 } });
 
@@ -288,6 +330,52 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     expect(await p.locator("#account-outcome").textContent()).toContain("That session was signed out.");
     expect(state.others).toHaveLength(0);
     await ctx.close();
+  });
+
+  it("offers the export, steps a stale session up, and cancels and completes closure by keyboard (D07 T02 s26)", async () => {
+    for (const width of [360, 1280]) {
+      state.closed = false;
+      const ctx = await context(width);
+      const p = await ctx.newPage();
+      const press = async (role: "link" | "button", name: string) => {
+        const target = p.getByRole(role, { name, exact: true });
+        let reached = false;
+        for (let i = 0; i < 90 && !reached; i++) {
+          await p.keyboard.press("Tab");
+          reached = await target.evaluate((el) => el === document.activeElement);
+        }
+        expect(reached, name).toBe(true);
+        await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+      };
+      // Stale: the confirmation asks for a fresh sign-in and returns to the same organisation.
+      await p.goto(`${origin}/settings/account/close?stale=1`, { waitUntil: "load" });
+      expect(await p.locator("#confirm-title").textContent()).toContain("Sign in again to close Karoo Couriers");
+      expect(await p.getByRole("link", { name: "Download the case summaries first", exact: true }).count()).toBe(0);
+      await press("button", "Sign in again");
+      expect(p.url()).toContain("/signin");
+      expect(decodeURIComponent(p.url())).toContain(`next=/settings/account/close?org=${ORG.id}`);
+      expect(state.closed).toBe(false);
+      // Fresh: the export is offered first, at both themes; Cancel closes nothing.
+      await p.goto(`${origin}/settings/account/close`, { waitUntil: "load" });
+      await p.addScriptTag({ path: AXE });
+      for (const theme of ["light", "dark"] as const) {
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(width);
+        expect(problems(await scan(p)), theme).toEqual([]);
+      }
+      const download = p.waitForEvent("download");
+      await p.getByRole("link", { name: "Download the case summaries first", exact: true }).click();
+      const file = await download;
+      expect(file.suggestedFilename()).toBe("cases-org-karoo.csv");
+      await press("link", "Cancel");
+      expect(state.closed).toBe(false);
+      // Complete it by keyboard: the account page reads the closure back.
+      await p.goto(`${origin}/settings/account/close`, { waitUntil: "load" });
+      await press("button", "Close account");
+      expect(await p.locator("#account-outcome").textContent()).toContain("Your organisation is closed.");
+      expect(state.closed).toBe(true);
+      await ctx.close();
+    }
   });
 
   it("signs every other session out by keyboard, the confirmation's heading focused, and works without JavaScript", async () => {

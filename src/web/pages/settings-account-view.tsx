@@ -35,6 +35,7 @@ export const OUTCOMES = [
   "passkey-still",
   "session-still",
   "org-closed",
+  "step-up",
   "others-none",
   "passkey-renamed",
   "rename-still",
@@ -110,6 +111,10 @@ const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
   "org-closed": {
     text: "Your organisation is closed. It refuses new cases, and its stored mail, cases and history will be deleted within 30 days.",
     tone: "done",
+  },
+  "step-up": {
+    text: "Nothing was closed: for a change this final, sign in again first (your last sign-in was more than ten minutes ago), then come back to Close account.",
+    tone: "refused",
   },
   "passkey-removed": {
     text: "Passkey removed. It may still be listed in your device's password manager: remove it there too. Sessions you are signed in on are separate.",
