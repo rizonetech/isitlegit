@@ -1,0 +1,120 @@
+{
+  "ref": "D06 T01 \u00a73",
+  "title": "Bank-change rules with the fixed action",
+  "implementation_sha": "6680bc23bd0385fdca743a50bd5d423f609c082f",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/06-invoice/D06-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/06-invoice/D06-T01-s3.md",
+      "verdict": "stopped-at-3"
+    }
+  ],
+  "checks": [
+    "taskset -c 9 pnpm exec vitest run test/invoice/rules.test.ts test/invoice/step.test.ts -> 2 files, 22 tests passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T01-s3.md",
+    "verdict": "completed",
+    "candidate": "59e09b9933dcb38d7fbd7a3455bffb350789008c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 3,
+  "cap_outcome": "Replaced unanchored regex with bounded 80-char linear scan in 6680bc23; 11/11 rules tests and 11/11 step tests pass",
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T01-s3.md",
+    "candidate": "85628e453caf4b28a90ea5bd32b095491be83c4f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

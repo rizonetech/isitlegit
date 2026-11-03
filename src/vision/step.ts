@@ -13,6 +13,7 @@ import { linksOf } from "../checks/links";
 import { originalHeaderOf } from "../intake/original-header";
 import { artefactsOf, parsedKey, readArtefact, readVisible, type Store, type Stored } from "../intake/store";
 import type { MetaContext } from "../meta/client";
+import type { AblateFlag } from "../pipeline/ablate";
 import {
   type BrandResolution,
   brandItem,
@@ -25,7 +26,14 @@ import { detectBoxes } from "./detector";
 import { compareLogo, logoMatchItem, logoNotComparedItem } from "./logo-compare";
 import { LogoReferenceError, referenceLogos } from "./logo-reference";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
-import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
+import {
+  ablatedSamCoverageItem,
+  coverageItem,
+  notCheckedItem,
+  type ReadingImage,
+  readingItems,
+  readMail,
+} from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
 import { CROP_TIMEOUT_MS, cropBoxes, imageSize, selectBoxes, storeCrops } from "./sam";
@@ -50,6 +58,9 @@ export type VisionDeps = {
   // states itself unconfirmed and leaves the committed reading standing.
   brandPhaseMs?: number;
   now?: () => number;
+  // Eval ablation flag reader (D03 T03 §6): when it returns `"no-sam"`, segmentation and logo
+  // comparison are skipped and the step's coverage states `ablated: "no-sam"`.
+  ablateFlag?: () => Promise<AblateFlag | null>;
 };
 
 // Just inside the Workflow step's 300 seconds: the render, the PDF phase and the reading's 60 run one
@@ -435,8 +446,10 @@ async function runVision(
     // SAM segmentation of the same pictures (D03 T03 §1), on this step's browser inside its
     // deadline: each kept box becomes a stored crop naming its source image, for §3's comparison.
     // A segmentation or crop failure is a stated coverage loss, never a case failure, and expired
-    // work stores nothing further.
-    if (browser) {
+    // work stores nothing further. When `no-sam` is set for the case's organisation (D03 T03 §6),
+    // segmentation and logo comparison are skipped and the step's coverage records `ablated: "no-sam"`.
+    const samAblated = (await deps.ablateFlag?.().catch(() => null)) === "no-sam";
+    if (browser && !samAblated) {
       // The whole segmentation phase (streams, crops and storage) ends at segmentBy; everything
       // after it belongs to the reading.
       const segmentBy = deadlineAt - READING_RESERVE_MS;
@@ -506,7 +519,8 @@ async function runVision(
       { at: deadlineAt, expired },
     );
     const items = readingItems(reading, images);
-    if (losses.length) items.push(coverageItem(losses));
+    if (losses.length) items.push(coverageItem(losses, samAblated ? "no-sam" : undefined));
+    else if (samAblated) items.push(ablatedSamCoverageItem());
     // The reading commits before the brand stage starts (G6): a lookup that stalls or fails from
     // here can state its brands unconfirmed, but can never take the reading down with it.
     if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
@@ -614,7 +628,7 @@ async function runVision(
     // Logo comparison (D03 T03 §3): each claimed picture's stored logo crops against the claimed
     // brand's reference, in its own bounded phase. A comparison that cannot run states itself
     // not compared; it never takes the committed reading or a sibling's judgement down with it.
-    if (claims.length && !expired()) {
+    if (claims.length && !samAblated && !expired()) {
       const logoAt = Math.min(deadlineAt - BRAND_COMMIT_RESERVE_MS, Date.now() + LOGO_PHASE_MS);
       const logoDeadline = { at: logoAt, expired: () => expired() || Date.now() > logoAt };
       // Every storage wait in this phase is bounded by the phase deadline: a stalled read states
