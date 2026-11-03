@@ -381,13 +381,13 @@ describe("against the remote API", () => {
   it("verifies a generation of more than 100 shards in reads of at most 100 keys", async () => {
     const store = new Map<string, string>();
     const wrangler = fakeWrangler(store, { remote: true });
-    const done = await load(listFile(MANY), wrangler.run, { limit: 1_000, minNames: 100 });
+    const done = await load(listFile(MANY), wrangler.run, { limit: 1_000, minNames: 100, verifyMs: 5_000 });
     expect(done.shards).toBeGreaterThan(100);
     expect(Object.keys(metaOf(store)?.shards ?? {})).toHaveLength(done.shards);
     expect(wrangler.calls.filter((c) => c === "kv bulk get").length).toBeGreaterThan(2);
     // A restore reads the previous list's shards the same way.
     await load(listFile(LIST_B), wrangler.run);
-    expect((await load("unused", wrangler.run, { restore: true })).shards).toBe(done.shards);
+    expect((await load("unused", wrangler.run, { restore: true, verifyMs: 5_000 })).shards).toBe(done.shards);
   });
 });
 
