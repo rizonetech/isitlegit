@@ -205,13 +205,32 @@ async function isRemoved(bucket: R2Bucket, orgId: string, host: string, prefix: 
   return hostTombstone !== null || captureTombstone !== null;
 }
 
-async function cleanupCaptureObjects(bucket: R2Bucket, prefix: string): Promise<void> {
-  await Promise.all([
-    bucket.delete(`${prefix}done.json`).catch(() => null),
-    bucket.delete(`${prefix}meta.json`).catch(() => null),
-    bucket.delete(`${prefix}screenshot.jpg`).catch(() => null),
-    bucket.delete(`${prefix}text.txt`).catch(() => null),
-  ]);
+const CAPTURE_OBJECT_FILES = ["done.json", "meta.json", "screenshot.jpg", "text.txt"] as const;
+
+async function cleanupCaptureObjects(bucket: R2Bucket, prefix: string, extraKeys: string[] = []): Promise<boolean> {
+  const keys = [...new Set<string>([...CAPTURE_OBJECT_FILES.map((name) => `${prefix}${name}`), ...extraKeys])];
+  const existingBefore = await Promise.all(keys.map((key) => bucket.head(key).catch(() => ({}) as R2Object)));
+  const hadResidual = existingBefore.some((res) => res !== null);
+  let deleteFailed = false;
+  for (const key of keys) {
+    try {
+      await bucket.delete(key);
+    } catch {
+      deleteFailed = true;
+    }
+  }
+  const remainingAfter = await Promise.all(
+    keys.map((key) =>
+      bucket
+        .head(key)
+        .then((res) => res !== null)
+        .catch(() => true),
+    ),
+  );
+  if (deleteFailed || remainingAfter.some(Boolean)) {
+    throw new Error(`failed to clean up removed R2 training objects under ${prefix}`);
+  }
+  return hadResidual;
 }
 
 async function putChecked(
@@ -228,7 +247,14 @@ async function putChecked(
     return false;
   }
   await bucket.put(key, value, options);
-  if (await isRemoved(bucket, orgId, host, prefix)) {
+  let removedAfterPut = false;
+  try {
+    removedAfterPut = await isRemoved(bucket, orgId, host, prefix);
+  } catch (err) {
+    await cleanupCaptureObjects(bucket, prefix).catch(() => null);
+    throw err;
+  }
+  if (removedAfterPut) {
     await cleanupCaptureObjects(bucket, prefix);
     return false;
   }
@@ -250,7 +276,10 @@ export async function copyForTraining(
   if (!parsed) return "ineligible-source";
   const { prefix, trainingId, fetchedAt } = parsed;
   return withHostLock(bucket, copy.orgId, copy.host, async () => {
-    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) return "removed";
+    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) {
+      await cleanupCaptureObjects(bucket, prefix);
+      return "removed";
+    }
 
     const [doneHead, shotHead, textHead, existingMeta] = await Promise.all([
       bucket.head(`${prefix}done.json`),
@@ -322,7 +351,10 @@ export async function copyForTraining(
       existingMeta?.url ??
       (await resolveCaptureUrl(null, bucket, effectiveCopy.orgId, effectiveCopy.host, effectiveCopy.captureKey, null));
 
-    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) return "removed";
+    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) {
+      await cleanupCaptureObjects(bucket, prefix);
+      return "removed";
+    }
     if (shotBytes && textBytes) {
       if (
         !(await putChecked(bucket, copy.orgId, copy.host, prefix, `${prefix}screenshot.jpg`, shotBytes, {
@@ -421,7 +453,10 @@ export async function retractTrainingCopy(
   if (!parsed) return "missing";
   const { prefix, trainingId, fetchedAt } = parsed;
   return withHostLock(bucket, orgId, host, async () => {
-    if (await isRemoved(bucket, orgId, host, prefix)) return "removed";
+    if (await isRemoved(bucket, orgId, host, prefix)) {
+      await cleanupCaptureObjects(bucket, prefix);
+      return "removed";
+    }
     const [existing, doneHead] = await Promise.all([
       readExistingMeta(bucket, prefix),
       bucket.head(`${prefix}done.json`),
@@ -650,6 +685,73 @@ export async function recoverPendingTrainingCopies(
   let recovered = 0;
   let failed = 0;
 
+  // Reconcile any tombstoned hosts or captures in R2 that still have residual objects from an
+  // interrupted or failed post-write check.
+  const orgPrefix = `training/monitor/${orgId}/`;
+  const failedRemovedPrefixes = new Set<string>();
+  try {
+    const allOrgObjects: { key: string }[] = [];
+    let cursor: string | undefined;
+    while (true) {
+      const listed = await bucket.list({ prefix: orgPrefix, ...(cursor ? { cursor } : {}) });
+      allOrgObjects.push(...listed.objects);
+      if (!listed.truncated) break;
+      cursor = listed.cursor;
+      if (!cursor) break;
+    }
+    const removedHosts = new Set<string>();
+    const removedCapturePrefixes = new Set<string>();
+    const residualByPrefix = new Map<string, { host: string; keys: string[] }>();
+    for (const obj of allOrgObjects) {
+      const rel = obj.key.slice(orgPrefix.length);
+      const parts = rel.split("/");
+      const host = parts[0];
+      if (!host) continue;
+      if (parts.length === 2 && parts[1] === "removed.json") {
+        removedHosts.add(host);
+        continue;
+      }
+      const moment = parts[1];
+      if (moment && /^\d{4}-\d{2}-\d{2}T/.test(moment)) {
+        const prefix = `${orgPrefix}${host}/${moment}/`;
+        if (parts.length === 3 && parts[2] === "removed.json") {
+          removedCapturePrefixes.add(prefix);
+        } else {
+          const entry = residualByPrefix.get(prefix) ?? { host, keys: [] };
+          entry.keys.push(obj.key);
+          residualByPrefix.set(prefix, entry);
+        }
+      }
+    }
+    for (const [prefix, info] of residualByPrefix.entries()) {
+      if (removedHosts.has(info.host) || removedCapturePrefixes.has(prefix)) {
+        try {
+          const cleaned = await cleanupCaptureObjects(bucket, prefix, info.keys);
+          if (!removedCapturePrefixes.has(prefix)) {
+            const trainingId = prefix.replace(/^training\//, "").replace(/\/$/, "");
+            await bucket.put(
+              `${prefix}removed.json`,
+              JSON.stringify({
+                trainingId,
+                orgId,
+                host: info.host,
+                reason: "reconciled after host removal",
+                removedAt: now().toISOString(),
+              }),
+              { httpMetadata: { contentType: "application/json" } },
+            );
+          }
+          if (cleaned || info.keys.length > 0) recovered++;
+        } catch {
+          failedRemovedPrefixes.add(prefix);
+          failed++;
+        }
+      }
+    }
+  } catch {
+    failed++;
+  }
+
   const declined = await db
     .prepare("SELECT domain, capture_key FROM monitor_screens WHERE org_id = ? AND second_look = 'declined'")
     .bind(orgId)
@@ -658,6 +760,7 @@ export async function recoverPendingTrainingCopies(
     .catch(() => [] as { domain: string; capture_key: string }[]);
 
   for (const row of declined) {
+    if (failedRemovedPrefixes.has(`training/${row.capture_key}`)) continue;
     try {
       const url = await resolveCaptureUrl(db, bucket, orgId, row.domain, row.capture_key);
       const out = await copyForTraining(
@@ -691,6 +794,7 @@ export async function recoverPendingTrainingCopies(
     .catch(() => [] as { domain: string; capture_key: string; capture_url: string | null }[]);
 
   for (const row of confirmed) {
+    if (failedRemovedPrefixes.has(`training/${row.capture_key}`)) continue;
     try {
       const url = await resolveCaptureUrl(db, bucket, orgId, row.domain, row.capture_key, row.capture_url);
       const out = await copyForTraining(
@@ -742,15 +846,17 @@ export async function recoverPendingTrainingCopies(
     const rawDismissedKey = row.dismissed_capture_key;
     const isExplicitRestore = row.status !== "dismissed" && Boolean(rawDismissedKey?.startsWith("restored:"));
     const targetKey = (rawDismissedKey ?? row.capture_key).replace(/^restored:/, "");
+    if (failedRemovedPrefixes.has(`training/${targetKey}`)) continue;
     try {
       if (isExplicitRestore) {
         const parsed = parseCaptureKey(targetKey, orgId, row.host);
         if (parsed) {
-          const [meta, doneHead] = await Promise.all([
+          const [removedNow, meta, doneHead] = await Promise.all([
+            isRemoved(bucket, orgId, row.host, parsed.prefix),
             readExistingMeta(bucket, parsed.prefix),
             bucket.head(`${parsed.prefix}done.json`),
           ]);
-          if (!meta?.retracted || !doneHead) {
+          if (removedNow || !meta?.retracted || !doneHead) {
             const out = await retractTrainingCopy(
               bucket,
               orgId,

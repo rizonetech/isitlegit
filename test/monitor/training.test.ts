@@ -759,5 +759,114 @@ describe("copyForTraining", () => {
     expect(await bucket.head(`training/${crossKey}screenshot.jpg`)).toBeNull();
     expect(await bucket.head(`training/${crossKey}done.json`)).toBeNull();
     expect(await bucket.head(`training/monitor/${orgId}/${crossHost}/removed.json`)).not.toBeNull();
+
+    // Delayed screenshot write landing after removal completes, with failing post-write tombstone head
+    // and failing cleanup delete, followed by retry and durable recovery reconciliation.
+    const residualHost = "residual-remove.example";
+    const residualKey = `monitor/${orgId}/${residualHost}/2026-11-02T07:50:00.000Z/`;
+    await seedCapture(residualKey, `https://${residualHost}/`, "Residual removal race");
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-res-1', ?, 'confirmed', '["E1"]', '2026-11-02T07:51:00.000Z', '2026-11-02T07:51:00.000Z')`,
+      )
+      .bind(orgId, residualHost, residualKey, `https://${residualHost}/`)
+      .run();
+    let releaseResidualPut!: () => void;
+    const residualPutGate = new Promise<void>((resolve) => {
+      releaseResidualPut = resolve;
+    });
+    let notifyResidualPutPaused!: () => void;
+    const residualPutPaused = new Promise<void>((resolve) => {
+      notifyResidualPutPaused = resolve;
+    });
+    let failPostPutHead = false;
+    let blockResidualDelete = false;
+    const delayedWriterBucket = {
+      head: async (k: string) => {
+        if (failPostPutHead && k.endsWith("/removed.json")) {
+          throw new Error("post-write tombstone head failed");
+        }
+        return bucket.head(k);
+      },
+      get: (k: string) => bucket.get(k),
+      put: async (k: string, v: ArrayBuffer | string, o?: R2PutOptions) => {
+        if (k === `training/${residualKey}screenshot.jpg`) {
+          notifyResidualPutPaused();
+          await residualPutGate;
+          failPostPutHead = true;
+          blockResidualDelete = true;
+        }
+        return bucket.put(k, v, o);
+      },
+      delete: async (k: string | string[]) => {
+        if (blockResidualDelete) {
+          throw new Error("cleanup delete failed");
+        }
+        return bucket.delete(k);
+      },
+      list: (o?: R2ListOptions) => bucket.list(o),
+    } as unknown as R2Bucket;
+    const delayedCopy = copyForTraining(delayedWriterBucket, {
+      orgId,
+      host: residualHost,
+      captureKey: residualKey,
+      captureUrl: `https://${residualHost}/`,
+      label: "lure",
+      why: "confirmed",
+      source: "pipeline",
+    });
+    await residualPutPaused;
+    Reflect.deleteProperty(globalThis, lockSym);
+    await removeTrainingCopiesForHost(
+      bucket,
+      orgId,
+      residualHost,
+      "removed before delayed put finishes",
+      () => new Date("2026-11-02T08:15:00.000Z"),
+    );
+    releaseResidualPut();
+    await expect(delayedCopy).rejects.toThrow(/post-write tombstone head failed/);
+    failPostPutHead = false;
+    // Because cleanup delete was also blocked during the fault, screenshot.jpg landed after removal.
+    expect(await bucket.head(`training/${residualKey}screenshot.jpg`)).not.toBeNull();
+    // While delete remains blocked, retry and recovery must fail rather than reporting "removed" with residual data.
+    await expect(
+      copyForTraining(delayedWriterBucket, {
+        orgId,
+        host: residualHost,
+        captureKey: residualKey,
+        captureUrl: `https://${residualHost}/`,
+        label: "lure",
+        why: "confirmed",
+        source: "pipeline",
+      }),
+    ).rejects.toThrow(/failed to clean up removed R2 training objects/);
+    const failedRec = await recoverPendingTrainingCopies(
+      db,
+      delayedWriterBucket,
+      orgId,
+      () => new Date("2026-11-02T08:16:00.000Z"),
+    );
+    expect(failedRec.failed).toBeGreaterThanOrEqual(1);
+    expect(await bucket.head(`training/${residualKey}screenshot.jpg`)).not.toBeNull();
+
+    // Once delete succeeds, recovery (or copyForTraining retry) reconciles the tombstoned capture and deletes screenshot.jpg.
+    blockResidualDelete = false;
+    const okRec = await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T08:17:00.000Z"));
+    expect(okRec).toEqual({ recovered: 1, failed: 0 });
+    expect(await bucket.head(`training/${residualKey}screenshot.jpg`)).toBeNull();
+    expect(await bucket.head(`training/${residualKey}removed.json`)).not.toBeNull();
+    expect(
+      await copyForTraining(bucket, {
+        orgId,
+        host: residualHost,
+        captureKey: residualKey,
+        captureUrl: `https://${residualHost}/`,
+        label: "lure",
+        why: "confirmed",
+        source: "pipeline",
+      }),
+    ).toBe("removed");
   });
 });
