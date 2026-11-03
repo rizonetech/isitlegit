@@ -6,7 +6,7 @@
 // each input and its sha256; `docs/glimmer/training.md` is written from that file, never typed. A missing or partial
 // input yields an `incomplete` result naming what is missing, never a completed comparison.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT, shingles } from "./build-dataset.ts";
@@ -350,21 +350,25 @@ export function groupShuffleSplit(pages: Page[], random: () => number, evalShare
   return assignment;
 }
 
-// The stronger baseline (§39): the same whole groups, but class-aware, as StratifiedGroupKFold is: each step takes
-// the remaining whole group whose addition brings the evaluation side nearest the built split's lure share and
-// lure-type shares (the training side is then the complement). Candidates are scanned in a seeded shuffled order,
-// at most 200 a step, so a large store stays bounded; near-duplicates of the evaluation side are then removed from
-// training as in the plain baseline.
+// The stronger baseline (§39): the same whole groups, but class-aware on both sides, as StratifiedGroupKFold is:
+// each step takes the remaining whole group whose addition brings both the evaluation side and the training
+// complement nearest the built split's lure share and lure-type shares (bucketing groups by their exact class
+// profile so every remaining group is considered at every step in O(distinct profiles) time, with ties broken by
+// the seeded shuffle); near-duplicates of the evaluation side are then removed from training as in the plain baseline.
 export function stratifiedGroupSplit(
   pages: Page[],
   random: () => number,
   evalShare: number,
   targetLureShare: number,
   targetTypeShares?: Record<string, number>,
+  targetTrainLureShare?: number,
+  targetTrainTypeShares?: Record<string, number>,
 ): Map<string, Side> {
+  const groupKey = (page: Page) =>
+    page.brand ? `brand:${brandIdentity(page.brand)}` : page.site ? `site:${page.site}` : `page:${page.id}`;
   const groups = new Map<string, Page[]>();
   for (const page of pages) {
-    const key = page.brand ? `brand:${brandIdentity(page.brand)}` : page.site ? `site:${page.site}` : `page:${page.id}`;
+    const key = groupKey(page);
     (groups.get(key) ?? groups.set(key, []).get(key))?.push(page);
   }
   const remaining = [...groups.keys()].sort();
@@ -376,44 +380,123 @@ export function stratifiedGroupSplit(
   for (const p of pages)
     if (p.lure) overallTypes[p.lureType ?? "unspecified"] = (overallTypes[p.lureType ?? "unspecified"] ?? 0) + 1;
   const totalLures = Object.values(overallTypes).reduce((a, b) => a + b, 0);
-  const typeTarget =
-    targetTypeShares ??
-    Object.fromEntries(Object.entries(overallTypes).map(([k, v]) => [k, totalLures ? v / totalLures : 0]));
-  const types = Object.keys(typeTarget).sort();
+  const overallTypeShares = Object.fromEntries(
+    Object.entries(overallTypes).map(([k, v]) => [k, totalLures ? v / totalLures : 0]),
+  );
+  const typeTarget = targetTypeShares ?? overallTypeShares;
+  const trainLureTarget = targetTrainLureShare ?? (pages.length ? totalLures / pages.length : targetLureShare);
+  const trainTypeTarget = targetTrainTypeShares ?? typeTarget;
+  const types = [
+    ...new Set([...Object.keys(overallTypes), ...Object.keys(typeTarget), ...Object.keys(trainTypeTarget)]),
+  ].sort();
+  // Cross-group near-duplicates that placing a group on `eval` would remove from `train`, so post-dedup training
+  // balance is respected directly when whole groups have near-duplicate copies in other groups.
+  const crossNearByGroup = new Map<string, { len: number; lures: number; types: number[] }>();
+  if (pages.length <= 5_000) {
+    const bands = new Map<string, Page[]>();
+    for (const page of pages)
+      for (const k of bandKeys(page.hash)) (bands.get(k) ?? bands.set(k, []).get(k))?.push(page);
+    for (const [key, g] of groups) {
+      const seen = new Set<string>();
+      const hits: Page[] = [];
+      for (const page of g)
+        for (const bk of bandKeys(page.hash))
+          for (const other of bands.get(bk) ?? [])
+            if (groupKey(other) !== key && !seen.has(other.id) && nearConventional(page, other)) {
+              seen.add(other.id);
+              hits.push(other);
+            }
+      crossNearByGroup.set(key, {
+        len: hits.length,
+        lures: hits.filter((p) => p.lure).length,
+        types: types.map((t) => hits.filter((p) => p.lure && (p.lureType ?? "unspecified") === t).length),
+      });
+    }
+  }
   const target = Math.round(pages.length * evalShare);
+  type Bucket = {
+    len: number;
+    lures: number;
+    typeCounts: number[];
+    dropLen: number;
+    dropLures: number;
+    dropTypes: number[];
+    items: { key: string; rank: number }[];
+  };
+  const buckets = new Map<string, Bucket>();
+  for (let rank = 0; rank < remaining.length; rank++) {
+    const key = remaining[rank] as string;
+    const g = groups.get(key) ?? [];
+    const lures = g.filter((p) => p.lure).length;
+    const typeCounts = types.map((t) => g.filter((p) => p.lure && (p.lureType ?? "unspecified") === t).length);
+    const drop = crossNearByGroup.get(key) ?? { len: 0, lures: 0, types: types.map(() => 0) };
+    const sig = `${g.length}:${lures}:${typeCounts.join(",")}:${drop.len}:${drop.lures}:${drop.types.join(",")}`;
+    let b = buckets.get(sig);
+    if (!b) {
+      b = {
+        len: g.length,
+        lures,
+        typeCounts,
+        dropLen: drop.len,
+        dropLures: drop.lures,
+        dropTypes: drop.types,
+        items: [],
+      };
+      buckets.set(sig, b);
+    }
+    b.items.push({ key, rank });
+  }
   const assignment = new Map<string, Side>();
   let held = 0;
   let heldLures = 0;
-  const heldTypes: Record<string, number> = {};
+  const heldTypes = types.map(() => 0);
+  let droppedTrain = 0;
+  let droppedTrainLures = 0;
+  const droppedTrainTypes = types.map(() => 0);
+  const totalTypes = types.map((t) => overallTypes[t] ?? 0);
   for (const page of pages) assignment.set(page.id, "train");
-  const score = (addPages: Page[]) => {
-    const n = held + addPages.length;
-    const lures = heldLures + addPages.filter((p) => p.lure).length;
-    let s = Math.abs((n ? lures / n : 0) - targetLureShare);
-    for (const t of types) {
-      const c = (heldTypes[t] ?? 0) + addPages.filter((p) => p.lure && (p.lureType ?? "unspecified") === t).length;
-      s += Math.abs((lures ? c / lures : 0) - (typeTarget[t] ?? 0));
+  const score = (b: Bucket) => {
+    const nEval = held + b.len;
+    const luresEval = heldLures + b.lures;
+    const nTrain = Math.max(0, pages.length - nEval - droppedTrain - b.dropLen);
+    const luresTrain = Math.max(0, totalLures - luresEval - droppedTrainLures - b.dropLures);
+    let s = Math.abs((nEval ? luresEval / nEval : 0) - targetLureShare);
+    s += Math.abs((nTrain ? luresTrain / nTrain : 0) - trainLureTarget);
+    for (let i = 0; i < types.length; i++) {
+      const t = types[i] as string;
+      const cEval = (heldTypes[i] ?? 0) + (b.typeCounts[i] ?? 0);
+      const cTrain = Math.max(0, (totalTypes[i] ?? 0) - cEval - (droppedTrainTypes[i] ?? 0) - (b.dropTypes[i] ?? 0));
+      s += Math.abs((nEval ? cEval / nEval : 0) - targetLureShare * (typeTarget[t] ?? 0));
+      s += Math.abs((nTrain ? cTrain / nTrain : 0) - trainLureTarget * (trainTypeTarget[t] ?? 0));
     }
+    if (nEval > target) s += (nEval - target) / Math.max(1, target);
     return s;
   };
-  while (held < target && remaining.length) {
-    let best = 0;
+  while (held < target) {
+    let bestBucket: Bucket | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
-    for (let i = 0; i < Math.min(remaining.length, 200); i++) {
-      const s = score(groups.get(remaining[i] as string) ?? []);
-      if (s < bestScore) {
+    let bestRank = Number.POSITIVE_INFINITY;
+    for (const b of buckets.values()) {
+      const head = b.items[0];
+      if (!head) continue;
+      const s = score(b);
+      if (s < bestScore - 1e-12 || (Math.abs(s - bestScore) <= 1e-12 && head.rank < bestRank)) {
         bestScore = s;
-        best = i;
+        bestBucket = b;
+        bestRank = head.rank;
       }
     }
-    const key = remaining.splice(best, 1)[0] as string;
-    for (const page of groups.get(key) ?? []) {
-      assignment.set(page.id, "eval");
-      held++;
-      if (page.lure) {
-        heldLures++;
-        heldTypes[page.lureType ?? "unspecified"] = (heldTypes[page.lureType ?? "unspecified"] ?? 0) + 1;
-      }
+    if (!bestBucket) break;
+    const picked = bestBucket.items.shift();
+    if (!picked) break;
+    for (const page of groups.get(picked.key) ?? []) assignment.set(page.id, "eval");
+    held += bestBucket.len;
+    heldLures += bestBucket.lures;
+    droppedTrain += bestBucket.dropLen;
+    droppedTrainLures += bestBucket.dropLures;
+    for (let i = 0; i < types.length; i++) {
+      heldTypes[i] = (heldTypes[i] ?? 0) + (bestBucket.typeCounts[i] ?? 0);
+      droppedTrainTypes[i] = (droppedTrainTypes[i] ?? 0) + (bestBucket.dropTypes[i] ?? 0);
     }
   }
   const findNear = nearIndex(
@@ -436,14 +519,121 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 // What a pinned page is: the digest of every consumed file of every page (its metadata, screenshot and text), so a page
 // that is relabelled, repaired or replaced changes the identity the result records.
 type PageRead = { meta: string; shot: Uint8Array; text: string };
-function pageFiles(dir: string, id: string): PageRead {
+function pageFiles(dir: string, id: string, publishedFallback?: Map<string, PageRead>): PageRead {
   const folder = join(dir, "pages", id);
+  if (existsSync(join(folder, "meta.json"))) {
+    const meta = readFileSync(join(folder, "meta.json"), "utf-8");
+    return {
+      meta,
+      shot: readFileSync(join(folder, "screenshot.jpg")),
+      text: readFileSync(join(folder, "text.txt"), "utf-8"),
+    };
+  }
+  const fromPublished = publishedFallback?.get(id);
+  if (fromPublished) return fromPublished;
   const meta = readFileSync(join(folder, "meta.json"), "utf-8");
   return {
     meta,
     shot: readFileSync(join(folder, "screenshot.jpg")),
     text: readFileSync(join(folder, "text.txt"), "utf-8"),
   };
+}
+// When an earlier dataset version's page was later remade under a new id in `pages/` (such as a sample re-import or a
+// benign wall recheck), its published training or evaluation line in `dataset/<version>/{train,eval}.jsonl` and its
+// aligned `meta.jsonl` row hold its exact screenshot (verified against the recorded sha256), visible text, host and
+// labels. Only the line indices of missing ids are decoded from the JSONL files.
+export function publishedDatasetPages(dir: string, version: string, missingIds: Set<string>): Map<string, PageRead> {
+  const out = new Map<string, PageRead>();
+  if (!missingIds.size) return out;
+  for (const side of ["train", "eval"] as const) {
+    const metaFile = join(dir, "dataset", version, `${side}.meta.jsonl`);
+    const jsonlFile = join(dir, "dataset", version, `${side}.jsonl`);
+    if (!existsSync(metaFile) || !existsSync(jsonlFile)) continue;
+    const wanted = new Map<number, { id: string; screenshot?: string }>();
+    const metaLines = lines(metaFile);
+    for (let idx = 0; idx < metaLines.length; idx++) {
+      const row = JSON.parse(metaLines[idx] as string) as { id?: string; screenshot?: string };
+      if (row.id && missingIds.has(row.id))
+        wanted.set(idx, { id: row.id, ...(row.screenshot ? { screenshot: row.screenshot } : {}) });
+    }
+    if (!wanted.size) continue;
+    const fd = openSync(jsonlFile, "r");
+    try {
+      const buf = Buffer.allocUnsafe(4 * 1024 * 1024);
+      let lineIdx = 0;
+      let chunks: Buffer[] = [];
+      let collecting = wanted.has(0);
+      const finishLine = (line: string, idx: number) => {
+        const meta = wanted.get(idx);
+        if (!meta || !line.trim()) return;
+        const parsed = JSON.parse(line) as {
+          messages?: {
+            role: string;
+            content: string | { type: string; text?: string; image_url?: { url?: string } }[];
+          }[];
+        };
+        const userMsg = parsed.messages?.find((m) => m.role === "user");
+        const assistantMsg = parsed.messages?.find((m) => m.role === "assistant");
+        if (!userMsg || !Array.isArray(userMsg.content) || !assistantMsg || typeof assistantMsg.content !== "string")
+          throw new Error(`published line for ${meta.id} has no valid messages`);
+        const textPart = userMsg.content.find((p) => p.type === "text")?.text ?? "";
+        const imgUrl = userMsg.content.find((p) => p.type === "image_url")?.image_url?.url ?? "";
+        const comma = imgUrl.indexOf(",");
+        if (comma < 0) throw new Error(`published line for ${meta.id} has no image_url data`);
+        const shot = new Uint8Array(Buffer.from(imgUrl.slice(comma + 1), "base64"));
+        if (meta.screenshot && sha(shot) !== meta.screenshot)
+          throw new Error(`published line for ${meta.id} does not match its meta screenshot sha256`);
+        const hostMatch = /^Host: ([^\n]+)\n\n/.exec(textPart);
+        const hostRaw = hostMatch?.[1] ?? "none";
+        const host = hostRaw === "none" ? null : hostRaw;
+        const blockMatch = /<<UNTRUSTED:page-text:[0-9a-f]{32}>>\n([\s\S]*)\n<<\/UNTRUSTED:page-text:[0-9a-f]{32}>>/.exec(
+          textPart,
+        );
+        const text = blockMatch?.[1] ?? textPart;
+        const ans = JSON.parse(assistantMsg.content) as {
+          brand?: string | null;
+          lure?: boolean;
+          lure_type?: string | null;
+        };
+        out.set(meta.id, {
+          meta: JSON.stringify({
+            host,
+            labels: {
+              brand: ans.brand ?? null,
+              lure: ans.lure === true,
+              lure_type: ans.lure_type ?? (ans.lure ? null : "none"),
+            },
+          }),
+          shot,
+          text,
+        });
+      };
+      for (;;) {
+        const n = readSync(fd, buf, 0, buf.length, null);
+        if (n <= 0) break;
+        let pos = 0;
+        while (pos < n) {
+          const nl = buf.indexOf(10, pos);
+          if (nl < 0 || nl >= n) {
+            if (collecting) chunks.push(Buffer.from(buf.subarray(pos, n)));
+            break;
+          }
+          if (collecting) {
+            chunks.push(Buffer.from(buf.subarray(pos, nl)));
+            finishLine(Buffer.concat(chunks).toString("utf-8"), lineIdx);
+            chunks = [];
+          }
+          lineIdx++;
+          collecting = wanted.has(lineIdx);
+          pos = nl + 1;
+        }
+      }
+      if (collecting && chunks.length) finishLine(Buffer.concat(chunks).toString("utf-8"), lineIdx);
+    } finally {
+      closeSync(fd);
+    }
+  }
+  return out;
 }
 const pageLine = (id: string, p: PageRead) => `${id} ${sha(p.meta)} ${sha(p.shot)} ${sha(p.text)}`;
 const pagesInput = (dir: string, entries: string[]): Input => ({
@@ -537,13 +727,15 @@ export async function compareSplit(
       ...membership.train.map((id) => [id, "train"] as [string, Side]),
       ...membership.eval.map((id) => [id, "eval"] as [string, Side]),
     ]);
+    const missingInStore = new Set([...sides.keys()].filter((id) => !existsSync(join(dir, "pages", id, "meta.json"))));
+    const publishedFallback = publishedDatasetPages(dir, version, missingInStore);
     const pages: Page[] = [];
     const entries: string[] = [];
     const unreadable: string[] = [];
     let done = 0;
     for (const id of sides.keys()) {
       try {
-        const files = pageFiles(dir, id);
+        const files = pageFiles(dir, id, publishedFallback);
         const meta = JSON.parse(files.meta) as {
           host: string | null;
           labels: { brand?: string | null; lure?: boolean; lure_type?: string | null };
@@ -584,6 +776,8 @@ export async function compareSplit(
     const stratified = STRATIFIED_SEEDS.map((seed) => {
       const builtEvalTypes = builtFigures.lure_types?.eval ?? {};
       const builtEvalLures = Object.values(builtEvalTypes).reduce((a, b) => a + b, 0);
+      const builtTrainTypes = builtFigures.lure_types?.train ?? {};
+      const builtTrainLures = Object.values(builtTrainTypes).reduce((a, b) => a + b, 0);
       const assignment = stratifiedGroupSplit(
         pages,
         seeded(seed),
@@ -591,6 +785,10 @@ export async function compareSplit(
         builtFigures.lure_share_eval ?? 0.5,
         Object.fromEntries(
           Object.entries(builtEvalTypes).map(([k, v]) => [k, builtEvalLures ? v / builtEvalLures : 0]),
+        ),
+        builtFigures.lure_share_train ?? builtFigures.lure_share_eval ?? 0.5,
+        Object.fromEntries(
+          Object.entries(builtTrainTypes).map(([k, v]) => [k, builtTrainLures ? v / builtTrainLures : 0]),
         ),
       );
       const figures = splitFigures(pages, assignment);
@@ -1356,7 +1554,13 @@ export function checkResult(dir: string, name: string): Check {
         continue;
       }
       try {
-        const entries = ids.map((id) => pageLine(id, pageFiles(dir, id)));
+        const missingInStore = name.startsWith("split-")
+          ? new Set(ids.filter((id) => !existsSync(join(dir, "pages", id, "meta.json"))))
+          : new Set<string>();
+        const publishedFallback = name.startsWith("split-")
+          ? publishedDatasetPages(dir, name.replace(/^split-/, ""), missingInStore)
+          : undefined;
+        const entries = ids.map((id) => pageLine(id, pageFiles(dir, id, publishedFallback)));
         if (pagesInput(dir, entries).sha256 !== input.sha256) changed.push(input.name);
       } catch (error) {
         changed.push(`${input.name}: ${message(error)}`);
@@ -1412,10 +1616,14 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
       )}), ${f.replay_failures} replay failures counted apart. Production renderer: ${row(f.production)}. Conventional (main-world reads, vendor-wording blocklist pinned in the result): ${row(f.conventional)}.`;
   }
   const f = (result as Complete<SplitResultFigures>).figures;
-  const typesOf = (x: SplitFigures, s: "train" | "eval") =>
-    Object.entries(x.lure_types?.[s] ?? {})
-      .map(([k, v]) => `${k} ${v}`)
-      .join(" ");
+  const typesOf = (x: SplitFigures, s: "train" | "eval") => {
+    const counts = Object.entries(x.lure_types?.[s] ?? {});
+    const total = counts.reduce((acc, [, v]) => acc + v, 0);
+    const raw = counts.map(([k, v]) => `${k} ${v}`).join(" ");
+    if (!total) return raw;
+    const shares = counts.map(([k, v]) => `${k} ${pct(v / total)}`).join(", ");
+    return `${raw} (of ${total} lures: ${shares})`;
+  };
   const side = (x: SplitFigures) =>
     `train ${x.train}, eval ${x.eval}, ${x.dropped} dropped, eval lure share ${pct(x.lure_share_eval)}, train lure share ${pct(x.lure_share_train ?? null)}, ${x.cross_brand} brands, ${x.cross_site} sites and ${x.near_duplicate_eval_pages} eval pages with a near-duplicate across the sides, eval lure types ${typesOf(x, "eval")}, train lure types ${typesOf(x, "train")}`;
   const population = f.population;
@@ -1425,7 +1633,7 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
     .map(([k, v]) => `${k} ${v}`)
     .join(
       ", ",
-    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. Stratified grouped baseline (the same groups, aiming at the build's evaluation lure share of ${pct(f.built.lure_share_eval)} within ${BALANCE_TOLERANCE * 100} share points; a seed outside it is called UNMET): ${f.stratified
+    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. Stratified grouped baseline (the same groups, aiming at the build's evaluation lure share of ${pct(f.built.lure_share_eval)} and training lure share of ${pct(f.built.lure_share_train ?? null)} plus both sides' lure-type shares within ${BALANCE_TOLERANCE * 100} share points; a seed outside it is called UNMET): ${f.stratified
     .map(
       (x) =>
         `seed ${x.seed}: ${side(x.figures)}, share gap ${(x.balance.share_gap * 100).toFixed(1)} points, train share gap ${((x.balance.train_share_gap ?? 0) * 100).toFixed(1)} points, eval type gaps ${Object.entries(

@@ -709,6 +709,37 @@ describe("split figures and the conventional split", () => {
     expect(Math.abs((evalTypes.fake_shop ?? 0) / evalLures - 0.5)).toBeLessThan(0.15);
   });
 
+  it("stratifies both evaluation and training lure-type shares even after near-duplicate removal", () => {
+    const typed = (id: string, brand: string, lure: boolean, type: string | null, hash: bigint, n: number): Page => ({
+      ...page(id, brand, `${brand}.com`, lure, hash, n),
+      lureType: type,
+    });
+    const pages: Page[] = [];
+    // DirtyCred has 8 cross-group near-duplicate credential pages in other groups: picking DirtyCred for eval would
+    // wipe out training's credential lures during near-duplicate removal. CleanCred has no cross-group near-duplicates.
+    pages.push(typed("dirty-0", "DirtyCred", true, "credential", 0n, 1));
+    pages.push(typed("dirty-1", "DirtyCred", true, "credential", 0n, 1));
+    for (let i = 0; i < 8; i++) pages.push(typed(`dup-cred-${i}`, `DupCred${i}`, true, "credential", 0n, 1));
+    pages.push(typed("clean-0", "CleanCred", true, "credential", 1n << 20n, 20));
+    pages.push(typed("clean-1", "CleanCred", true, "credential", 1n << 21n, 21));
+    for (let i = 0; i < 10; i++)
+      pages.push(typed(`shop-${i}`, `Shop${Math.floor(i / 2)}`, true, "fake_shop", BigInt(30 + i) << 12n, 30 + i));
+    for (let i = 0; i < 22; i++)
+      pages.push(typed(`benign-${i}`, `Benign${Math.floor(i / 2)}`, false, null, BigInt(60 + i) << 12n, 60 + i));
+    const targetTypes = { credential: 0.5, fake_shop: 0.5 };
+    const sides = stratifiedGroupSplit(pages, seeded(1), 8 / 44, 0.5, targetTypes, 0.5, targetTypes);
+    const figures = splitFigures(pages, sides);
+    const targetFigures = {
+      ...figures,
+      lure_share_eval: 0.5,
+      lure_share_train: 0.5,
+      lure_types: { train: { credential: 10, fake_shop: 8 }, eval: { credential: 2, fake_shop: 2 } },
+    };
+    const balance = balanceOf(targetFigures, figures);
+    expect(sides.get("dirty-0")).toBe("train");
+    expect(balance.within_tolerance).toBe(true);
+  });
+
   it("the stratified baseline is deterministic per seed, differs between seeds, and removes a planted twin from training", () => {
     const pages: Page[] = [];
     for (let i = 0; i < 40; i++)
