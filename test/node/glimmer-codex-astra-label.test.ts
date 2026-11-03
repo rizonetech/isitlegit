@@ -1,9 +1,15 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { astraCommand, labelPageAstra, parseAstraAnswer } from "../../scripts/glimmer/codex-astra-label.ts";
-import type { StoredPage } from "../../scripts/glimmer/store.ts";
+import {
+  astraCommand,
+  labelPageAstra,
+  parseAstraAnswer,
+  runAstraCli,
+} from "../../scripts/glimmer/codex-astra-label.ts";
+import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
 
 // GPT-6 Astra as a candidate Loupe 1.1 labeler: the exact codex exec command, schema validation before
 // storage, and the inherited refusals. `codex exec` is stubbed: no paid call in tests.
@@ -97,7 +103,8 @@ describe("codex-astra-label", () => {
     });
     expect(record.teacher).toBe("codex-astra");
     expect(record.usage).toEqual({ input_tokens: 10, output_tokens: 5 });
-    const stored = JSON.parse(readFileSync(join(dir, "p1.json"), "utf-8"));
+    const storedBytes = readFileSync(join(dir, "p1.json"), "utf-8");
+    const stored = JSON.parse(storedBytes);
     expect(stored).toMatchObject({
       lure: true,
       model: "gpt-6-astra",
@@ -106,6 +113,24 @@ describe("codex-astra-label", () => {
       usage: { input_tokens: 10, output_tokens: 5 },
     });
     expect("brand" in stored).toBe(false);
+    const dupExec = vi.fn((_argv: string[], _prompt: string, outFile: string) => {
+      writeFileSync(
+        outFile,
+        JSON.stringify({ lure: false, lure_type: "none", capture_valid: true, reasons: ["overwrite attempt"] }),
+      );
+      return { jsonl: "" };
+    });
+    expect(() =>
+      labelPageAstra({
+        page: page(),
+        screenshot: shot,
+        text: "Sign in",
+        outDir: dir,
+        exec: dupExec,
+      }),
+    ).toThrow(/already exists/);
+    expect(dupExec).not.toHaveBeenCalled();
+    expect(readFileSync(join(dir, "p1.json"), "utf-8")).toBe(storedBytes);
     const dir2 = mkdtempSync(join(tmpdir(), "astra-"));
     expect(() =>
       labelPageAstra({
@@ -120,5 +145,43 @@ describe("codex-astra-label", () => {
       }),
     ).toThrow();
     expect(existsSync(join(dir2, "p1.json"))).toBe(false);
+  });
+
+  it("accounts for every requested page in CLI mode and returns nonzero on missing or failed work", () => {
+    const store = mkdtempSync(join(tmpdir(), "astra-cli-"));
+    const pageDir = join(store, "pages", "p1");
+    mkdirSync(pageDir, { recursive: true });
+    writeFileSync(join(pageDir, "screenshot.jpg"), "shot");
+    writeFileSync(join(pageDir, "text.txt"), "Sign in");
+    const shotSha = createHash("sha256").update("shot").digest("hex");
+    const textSha = createHash("sha256").update("Sign in").digest("hex");
+    const { id: _id, ...p1Meta } = page({
+      labels: { lure: true },
+      label_source: { lure: "ground-truth" },
+      sha256: { screenshot: shotSha, text: textSha },
+    });
+    writeFileSync(join(pageDir, "meta.json"), JSON.stringify(p1Meta));
+
+    const exec = (_argv: string[], _prompt: string, outFile: string) => {
+      writeFileSync(outFile, VALID);
+      return { jsonl: "" };
+    };
+    const missingRes = runAstraCli({
+      args: ["--ids", "p1,missing-id"],
+      store: openStore(store),
+      exec,
+    });
+    expect(missingRes.exitCode).toBe(1);
+    expect(missingRes.labelled).toBe(1);
+    expect(missingRes.invalid).toBe(1);
+
+    const skipRes = runAstraCli({
+      args: ["--ids", "p1"],
+      store: openStore(store),
+      exec,
+    });
+    expect(skipRes.exitCode).toBe(0);
+    expect(skipRes.skipped).toBe(1);
+    expect(skipRes.invalid).toBe(0);
   });
 });
