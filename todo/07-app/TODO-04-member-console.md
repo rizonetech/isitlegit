@@ -64,6 +64,7 @@ track: day-6
 | 31 | §31 | Saved Cases views | §8 | [ ] |
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
+| 34 | §34 | Exact calendar-period counts export | §19 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -763,6 +764,8 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 
 **Corrected 2026-11-02 (the control and granularity the operator decision leaves to record):** beside the one-press 12-week export, the stats panel carries From and To SAST date fields with an Export period button, plus This month and This quarter links that carry the current calendar month's and quarter's dates. The export endpoint takes `from` and `to`, returns one row per week for the weeks overlapping the range (the CSV's own week rows, unchanged), and refuses a reversed range, a range over 2 years, or an unreadable date with the 400 page. SPEC M1 records this.
 
+**Corrected 2026-11-03 (plan review P2s, `docs/reviews/07-app/D07-T04-s19.md`):** (1) The window is anchored to the requested end: `weeklyCounts` is called with the range's end as its `now` and enough weeks for both overlapping Mondays (two calendar years can overlap 106 weeks); an old range, the maximum range, a leap-year boundary, a same-day range, zero-count weeks and a period before the organisation existed are all tested. A future period exports the weeks that exist up to today, the rest not invented. (2) The rows are whole weeks: the panel says so beside the controls ("Whole weeks that overlap your dates"), October 2026 exports the weeks beginning 28 September to 26 October, and the checkpoint fails on a week that does not overlap, never on a day outside the month inside an overlapping week. An exact date-clipped export is deferred (see the Deferred line). (3) Validation: both dates required and readable as real calendar dates, `to` not before `from`, and the inclusive span at most 2 years (731 days to cover a leap year); each failure is its own test. The refusal is an HTML 400 page naming the problem with a link back to Cases, never an attachment. (4) Every export control carries the displayed organisation as `org`, as the existing link does, and a stale-organisation submission redirects to Cases as today; sign-in, membership and outage refusals stay pages, and a retry after an outage keeps `org`, `from` and `to`. (5) The From and To values survive the stats panel's own redraws: they are kept in `sessionStorage` and restored by `src/web/client/app.ts` after a swap, and clearing both fields clears the stored pair.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Calendar month and calendar quarter beside the one-press 12-week export, which stays the default (recorded in SPEC M1 first).
 
@@ -779,8 +782,11 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 2. Take the period in `GET /cases/stats.csv` in `src/web/pages/cases.tsx`. Done when: `test/web/stats.test.ts` reads a month's rows only.
 
 - [ ] Record the owner's periods and control in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: free date fields with no validation.
-- [ ] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week or per day as the SPEC says. Done when: the test reads October 2026's rows only, and a reversed or unbounded range refused with the 400 page. Cheaper substitute: filtering the 12-week rows.
+- [ ] Draw the period controls in `StatsPanel` (`src/web/pages/cases-view.tsx`): labelled From and To dates, Export period, This month and This quarter, each carrying the displayed `org`, the one-press export untouched. Done when: the browser test submits by keyboard, downloads the period file with its filename, works with scripts off, and reads the fields restored after a filter redraw, at phone width in both themes.
+- [ ] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week for the weeks overlapping the range, the window anchored to the range's end. Done when: the test reads October 2026's rows only (the weeks beginning 28 September to 26 October), and a reversed, over-limit, missing or unreadable date is refused with the HTML 400 page. Cheaper substitute: filtering the 12-week rows.
 - [ ] Commit: `web: chosen period for the counts export`
+
+> **Deferred:** exact calendar-date totals -> XREF: D07 T04 §34
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
@@ -1178,6 +1184,29 @@ An owner adding a TXT record is shown the guide for their actual DNS host first,
 - [ ] Commit: `web: suggest the dns host's own guide`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a Cloudflare-hosted domain is suggested the generic steps first.
+
+## 34. Exact calendar-period counts export
+
+An owner exports counts clipped to the exact calendar dates chosen, not whole overlapping weeks. Filed 2026-11-03 from D07 T04 §19's plan review (P3): §19's approved whole-week export cannot give exact calendar-month or quarter totals.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the clipped export
+**Job:** an owner hands finance a month's exact numbers
+**Treatment:** one row per day inside the chosen dates, the whole-week export beside it unchanged
+**Chrome:** §19's export controls
+
+**Build order:**
+
+1. Record the clipped export and its day rows in `design/SPEC.md` M1. Done when: the SPEC names both.
+2. Clip the counts to the dates. Done when: `test/web/stats.test.ts` reads only the chosen dates' rows.
+
+- [ ] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
+- [ ] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
+- [ ] Commit: `web: exact calendar-period counts export`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a case outside the chosen dates is exported.
 
 ## Verification
 
