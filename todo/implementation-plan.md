@@ -263,7 +263,7 @@ Sections: 12 | Checklist items: 115
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
-| [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
+| [x]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 407/597 verified sections, 119 ready to run now.
+Progress: 408/597 verified sections, 119 ready to run now.
 
-Checklist: 3026/3688 items completed (includes Commit items).
+Checklist: 3029/3688 items completed (includes Commit items).
