@@ -71,6 +71,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
   // address: a signed link has exactly its three parameters.
   const held = mode === "status" ? url.searchParams.get("h") : null;
   url.searchParams.delete("h");
+  // The dispute intent (D07 T09 §3) is a page parameter, not part of a signed link: taken out before a link is
+  // verified, as `h` is, so the mail's dispute link verifies on its three signed parameters alone.
+  const dispute = url.searchParams.get("dispute") === "1";
+  url.searchParams.delete("dispute");
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
@@ -111,11 +115,15 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
+<<<<<<< HEAD
           url.searchParams.get("dispute") === "1",
           navFiltersOf(url),
           ignoredDates(url.searchParams)
             .map((name) => `The ${name} date was not a real date, so it was left out of this run.`)
             .join(" "),
+=======
+          dispute,
+>>>>>>> origin/main
         );
         if (out) return answer(out);
       }
@@ -136,6 +144,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           mode,
           url.origin,
           held,
+          undefined,
+          false,
+          null,
+          dispute,
         );
         return answer(out ?? (mode !== "page" ? elsewhere() : errorPage(404, id)));
       }

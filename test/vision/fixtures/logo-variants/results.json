@@ -1,0 +1,366 @@
+{
+  "run": "logo-variants-1793659577194",
+  "capUsd": 0.5,
+  "results": [
+    {
+      "file": "protea-bank-wordmark-1.png",
+      "brand": "Protea Bank",
+      "shown": "wordmark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 10995,
+        "cost": 0.00508975
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9220,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-wordmark-2.png",
+      "brand": "Protea Bank",
+      "shown": "wordmark",
+      "expected_same": true,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 8853,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9431,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-icon-1.png",
+      "brand": "Protea Bank",
+      "shown": "icon",
+      "expected_same": true,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 10384,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9478,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-icon-2.png",
+      "brand": "Protea Bank",
+      "shown": "icon",
+      "expected_same": true,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9411,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9069,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-dark-1.png",
+      "brand": "Protea Bank",
+      "shown": "dark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 6437,
+        "cost": 0.0039534
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9534,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-dark-2.png",
+      "brand": "Protea Bank",
+      "shown": "dark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 7379,
+        "cost": 0.0041064
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 12924,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-other-1.png",
+      "brand": "Protea Bank",
+      "shown": "other",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": null,
+        "ms": 8400,
+        "cost": 0.0037154
+      },
+      "icon": {
+        "same": false,
+        "failed": null,
+        "ms": 6207,
+        "cost": 0.0029553
+      }
+    },
+    {
+      "file": "protea-bank-other-2.png",
+      "brand": "Protea Bank",
+      "shown": "other",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": null,
+        "ms": 5530,
+        "cost": 0.00346465
+      },
+      "icon": {
+        "same": false,
+        "failed": null,
+        "ms": 6780,
+        "cost": 0.00391115
+      }
+    },
+    {
+      "file": "protea-bank-none-1.png",
+      "brand": "Protea Bank",
+      "shown": "none",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9049,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 11551,
+        "cost": 0
+      }
+    },
+    {
+      "file": "protea-bank-none-2.png",
+      "brand": "Protea Bank",
+      "shown": "none",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 10387,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 10969,
+        "cost": 0
+      }
+    },
+    {
+      "file": "nimbusmail-wordmark-1.png",
+      "brand": "NimbusMail",
+      "shown": "wordmark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 7143,
+        "cost": 0.004289149999999999
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 10721,
+        "cost": 0
+      }
+    },
+    {
+      "file": "nimbusmail-wordmark-2.png",
+      "brand": "NimbusMail",
+      "shown": "wordmark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 6781,
+        "cost": 0.0037791500000000002
+      },
+      "icon": {
+        "same": true,
+        "failed": null,
+        "ms": 8833,
+        "cost": 0.0044509
+      }
+    },
+    {
+      "file": "nimbusmail-icon-1.png",
+      "brand": "NimbusMail",
+      "shown": "icon",
+      "expected_same": true,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9784,
+        "cost": 0
+      },
+      "icon": {
+        "same": true,
+        "failed": null,
+        "ms": 7556,
+        "cost": 0.0041109
+      }
+    },
+    {
+      "file": "nimbusmail-icon-2.png",
+      "brand": "NimbusMail",
+      "shown": "icon",
+      "expected_same": true,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9554,
+        "cost": 0
+      },
+      "icon": {
+        "same": true,
+        "failed": null,
+        "ms": 5851,
+        "cost": 0.0032609
+      }
+    },
+    {
+      "file": "nimbusmail-dark-1.png",
+      "brand": "NimbusMail",
+      "shown": "dark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 6959,
+        "cost": 0.0041829
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9196,
+        "cost": 0
+      }
+    },
+    {
+      "file": "nimbusmail-dark-2.png",
+      "brand": "NimbusMail",
+      "shown": "dark",
+      "expected_same": true,
+      "wordmark": {
+        "same": true,
+        "failed": null,
+        "ms": 8149,
+        "cost": 0.00465625
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 10627,
+        "cost": 0
+      }
+    },
+    {
+      "file": "nimbusmail-other-1.png",
+      "brand": "NimbusMail",
+      "shown": "other",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": null,
+        "ms": 5376,
+        "cost": 0.00342215
+      },
+      "icon": {
+        "same": false,
+        "failed": null,
+        "ms": 6429,
+        "cost": 0.0040089
+      }
+    },
+    {
+      "file": "nimbusmail-other-2.png",
+      "brand": "NimbusMail",
+      "shown": "other",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": null,
+        "ms": 8071,
+        "cost": 0.0041914
+      },
+      "icon": {
+        "same": false,
+        "failed": null,
+        "ms": 6597,
+        "cost": 0.0036774
+      }
+    },
+    {
+      "file": "nimbusmail-none-1.png",
+      "brand": "NimbusMail",
+      "shown": "none",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 9479,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": null,
+        "ms": 7477,
+        "cost": 0.00365655
+      }
+    },
+    {
+      "file": "nimbusmail-none-2.png",
+      "brand": "NimbusMail",
+      "shown": "none",
+      "expected_same": false,
+      "wordmark": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 8671,
+        "cost": 0
+      },
+      "icon": {
+        "same": false,
+        "failed": "SyntaxError",
+        "ms": 10360,
+        "cost": 0
+      }
+    }
+  ]
+}

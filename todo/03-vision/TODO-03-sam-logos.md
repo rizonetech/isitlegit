@@ -35,7 +35,7 @@ track: day-4
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [x] |
-| 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
+| 4 | §4 | Logo recall check and detector choice | §3 | [x] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 | 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
 
@@ -187,21 +187,32 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 1. Build the 20-sample set and measure recall. Done when: `docs/frontier-log.md` records recall and cost.
 2. Choose the detector. Done when: `src/vision/detector.ts` uses the chosen one and the decision is recorded.
 
-- [ ] Generate 20 synthetic branded emails with fictional brands at varied sizes and positions (`scripts/fixtures/make-branded.ts`) with labelled logo boxes. Done when: the set and labels exist under `eval/sets/logo-recall/`.
-- [ ] Measure SAM recall (box IoU at least 0.5) and record it with cost and latency in `docs/frontier-log.md`. Done when: the entry exists.
-- [ ] Implement perception grounding with `muse-spark-1.3` (boxes on a normalised grid, Meta docs `image-understanding`) behind the same interface and measure it on the same set. Done when: both numbers are recorded.
-- [ ] Set `DETECTOR` in `src/vision/detector.ts` to the better one (SAM unless recall is under 16 of 20) and note the decision in design spec section 8 risks row. Done when: the constant and the note exist.
-- [ ] Wire the chosen detector into `visionStep` (`src/vision/step.ts`) behind `src/vision/detector.ts` (grounding for the `logo` concept alone when selected, SAM for every concept otherwise, stamp and signature always SAM). Done when: `test/vision/step-read.test.ts` reads back crops, manifests and logo evidence for both selections and a zero-match replay clears the previous set.
-- [ ] Score reproducibly: the runner saves per-sample predictions, failures, costs and timings, and the test recomputes the published recall from them (IoU at least 0.5, a failed or refused sample scored missed). Done when: `test/vision/detector.test.ts` covers the IoU boundary, non-square conversion, malformed geometry, empty success, refusal, budget exhaustion and timeout.
-- [ ] Commit: `vision: logo recall measured and detector chosen`
+- [x] Generate 20 synthetic branded emails with fictional brands at varied sizes and positions (`scripts/fixtures/make-branded.ts`) with labelled logo boxes. Done when: the set and labels exist under `eval/sets/logo-recall/`.
+- [x] Measure SAM recall (box IoU at least 0.5) and record it with cost and latency in `docs/frontier-log.md`. Done when: the entry exists.
+- [x] Implement perception grounding with `muse-spark-1.3` (boxes on a normalised grid, Meta docs `image-understanding`) behind the same interface in `src/vision/detector.ts` (`groundLogos`, validated conversion to source pixels, typed failures). Done when: `test/vision/detector.test.ts` proves the conversion and the request; the measured number is the next item's record.
+- [x] Set `DETECTOR` in `src/vision/detector.ts` to the better one (SAM unless recall is under 16 of 20) and note the decision in design spec section 8 risks row. Done when: the constant and the note exist.
+- [x] Wire the chosen detector into `visionStep` (`src/vision/step.ts`) behind `src/vision/detector.ts` (grounding for the `logo` concept alone when selected, SAM for every concept otherwise, stamp and signature always SAM). Done when: `test/vision/step-read.test.ts` reads back crops, manifests and logo evidence for both selections and a zero-match replay clears the previous set.
+- [x] Score reproducibly: the runner saves per-sample predictions, failures, costs and timings, and the test recomputes the published recall from them (IoU at least 0.5, a failed or refused sample scored missed). Done when: `test/vision/detector.test.ts` covers the IoU boundary, non-square conversion, malformed geometry, empty success, refusal, budget exhaustion and timeout.
+- [x] Commit: `vision: logo recall measured and detector chosen`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
 
+> **Verified:** 2026-11-02 | §4 | 1f52d7681fa7b510e22a28780ab3d9d05a3f8228
+> **Review:** `docs/reviews/d03-t03-s4.json`
+
 ## 5. Logos for blocked brands
+
+> **Started:** 2026-11-02T21:45:00Z
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The store holds 20 of the 23 brands plus the fictional ones; the `--check --local` line printed today therefore reads 20 real brands and the checkpoint's 23 is the target after the three are captured. (2) The `capture --only` flag and the selector table live in `scripts/load-reference-logos.ts`; read them before relying on the section's wording. (3) This section stays last: it needs §4's labelled set.
 
-Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
+Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there).
+> **Parked 2026-11-02, updated 2026-11-03:** the variant build is done (measured 9 of 12 against 7 of 12 with no false matches; the index, loader, reader and step all carry variants, and the fictional store pair proves it). Only DHL remains: unreachable from this machine at the network layer (retried 2026-11-03 after merging main: every `dhl.com` page and logo asset fails in curl over HTTP/1.1 and HTTP/2 and in headless Chromium; the connection opens to Akamai and the stream stalls, while only `/favicon.ico` is served, so no page or asset content is reachable from this host at all). The section does not stamp while a full capture cannot list 23 brands; when a host that reaches `dhl.com` finishes the generation, the full capture, look and local load close it.
+
+> **Progress 2026-11-02:** Adobe (blog.adobe.com, its red mark at 400 by 352 px) and FedEx (developer.fedex.com, its wordmark at 1284 by 360 px) are captured and looked at; the selector table carries both. DHL is unreachable from this machine (every `dhl.com` page fails at the network layer in curl over HTTP/1.1 and HTTP/2 and in headless Chromium, while other hosts answer), so the DHL capture waits on a host that can reach `dhl.com`; the generation it lands in must be completed there with `capture --into` on the same store.
+
+
+> **Added 2026-11-02 (D03 T03 §4 completion review, G1 and G7):** the recall set's images are generated directly, not through the product email renderer, and every sample is one wordmark banner on white with no logo-free negatives, multiple-logo pages or difficult variants. This section (or a successor it names) widens the set through `renderEmail` and reports false detections separately before any detector claim is broadened. The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
 
 **Phase:** 7
 **Needs:** cloudflare
@@ -213,8 +224,8 @@ Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The 
 2. Decide on variants from §4's measurements. Done when: the decision and its numbers are in `docs/frontier-log.md`.
 
 - [ ] Find, for Adobe, DHL and FedEx, a page on one of each brand's own `domains` that shows the logo to headless Chromium, and record its URL and selector in `data/reference-logos.json`. Done when: `node scripts/load-reference-logos.ts capture --only "Adobe,DHL,FedEx"` stores all three, each looked at. Cheaper substitute: a logo from a third-party site.
-- [ ] Measure, with §4's labelled set, whether a second reference per brand (icon beside wordmark, or the dark variant) raises the logo match rate. Done when: `docs/frontier-log.md` records both rates and the choice.
-- [ ] If the measurement favours variants, extend `LogoIndex` in `scripts/load-reference-logos.ts` with a `variant` field and the selector table with one entry per variant. Done when: `test/node/reference-logos.test.ts` covers two variants of one brand and `coverage` still counts the brand once.
+- [x] Measure, with §4's labelled set, whether a second reference per brand (icon beside wordmark, or the dark variant) raises the logo match rate. Done when: `docs/frontier-log.md` records both rates and the choice.
+- [x] If the measurement favours variants, extend `LogoIndex` in `scripts/load-reference-logos.ts` with a `variant` field and the selector table with one entry per variant. Done when: `test/node/reference-logos.test.ts` covers two variants of one brand and `coverage` still counts the brand once.
 - [ ] Run a full capture, look at every logo, `load --local`, and hand the coordinator the production load as in §2. Done when: `node scripts/load-reference-logos.ts --check --local` prints 23 brands.
 - [ ] Commit: `vision: reference logos for every brand and the chosen variants`
 

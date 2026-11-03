@@ -114,28 +114,52 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
 
   // The count line's Check versions disclosure (D07 T03 §39): Tab reaches it, Enter opens and closes it with the
   // run's versions listed and focus kept, at both widths.
-  for (const width of [360, 1280])
-    it(`opens Check versions by keyboard (${width} px)`, async () => {
-      const coverage: Coverage = [
-        { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-2026-11-02-9f2c" },
-        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
-      ];
-      const { p, context } = await open(html("member", 3, VERDICT, coverage), width, "light");
-      let reached = false;
-      for (let i = 0; i < 40 && !reached; i++) {
-        await p.keyboard.press("Tab");
-        reached = (await focused(p))?.key === "Check versions";
-      }
-      expect(reached, "Tab never reached Check versions").toBe(true);
-      const shown = () => p.getByText("Lookalike domains: v-2026-11-02-9f2c");
-      await p.keyboard.press("Enter");
-      expect(await shown().isVisible()).toBe(true);
-      expect(await p.getByText("Hidden text: version not recorded").isVisible()).toBe(true);
-      await p.keyboard.press("Enter");
-      expect(await shown().isVisible()).toBe(false);
-      expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
-      await context.close();
-    });
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [360, 1280])
+      it(`opens Check versions by keyboard (${theme}, ${width} px)`, async () => {
+        const coverage: Coverage = [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            revision: "v-2026-11-02-9f2c",
+            data: { revision: "rev-7", id: "brands-abc123", source: "kv" },
+          },
+          { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+          {
+            check: "auth.spf",
+            outcome: "skipped",
+            reason: "the original's headers were not available",
+            findings: 0,
+            revision: "v-skip",
+          },
+          { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0, revision: "v-fail" },
+        ];
+        const { p, context } = await open(html("member", 3, VERDICT, coverage), width, theme);
+        let reached = false;
+        for (let i = 0; i < 40 && !reached; i++) {
+          await p.keyboard.press("Tab");
+          reached = (await focused(p))?.key === "Check versions";
+        }
+        expect(reached, "Tab never reached Check versions").toBe(true);
+        const shown = () => p.getByText("Lookalike domains: v-2026-11-02-9f2c");
+        await p.keyboard.press("Enter");
+        expect(await shown().isVisible()).toBe(true);
+        expect(await p.getByText("Hidden text: version not recorded").isVisible()).toBe(true);
+        // D07 T09 §11: the opened lines word a skipped and a failed outcome beside their versions.
+        expect(await p.getByText("The sending server check (SPF): v-skip · did not run").isVisible()).toBe(true);
+        expect(await p.getByText("How old the domain is: v-fail · failed: it ran out of time").isVisible()).toBe(true);
+        // D07 T09 §12: the applicable line names its detection data, revision, identity and source.
+        expect(await p.getByText("data rev-7 (brands-abc123, KV)").isVisible()).toBe(true);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
+        await p.keyboard.press("Enter");
+        expect(await shown().isVisible()).toBe(false);
+        expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
+        await context.close();
+      });
 
   it("reaches Previous and Next by keyboard on a member report, and a link holder has neither (D07 T04 §9)", async () => {
     for (const width of [360, 1280]) {

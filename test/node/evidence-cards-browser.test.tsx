@@ -310,6 +310,25 @@ const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",
 );
+// One second of silence as a WAV the browser can actually play (D07 T09 §6).
+const WAV = (() => {
+  const samples = 8000;
+  const buf = Buffer.alloc(44 + samples * 2);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + samples * 2, 4);
+  buf.write("WAVEfmt ", 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(8000, 24);
+  buf.writeUInt32LE(16000, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(samples * 2, 40);
+  return buf;
+})();
+let audioGone = false;
 async function open(width: number, theme: "light" | "dark" = "light", hash = "", cards: ReportEvidence[] = evidence) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
@@ -319,6 +338,10 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
     if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
     if (path.startsWith("/static/") && path.endsWith(".js") && holdScript) await holdScript;
     if (path.startsWith("/a/")) {
+      if (path.endsWith(".ogg")) {
+        if (audioGone) return route.fulfill({ status: 404, contentType: "text/plain", body: "gone" });
+        return route.fulfill({ status: 200, contentType: "audio/wav", body: WAV });
+      }
       if (holdShot) await holdShot;
       if (shotMode === "png") return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
       if (shotMode === "html")
@@ -391,6 +414,66 @@ const REPUTATION: ReportEvidence[] = [
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chromium", { timeout: 120_000 }, () => {
+  // D07 T09 §6: the transcript card's player loads, plays by keyboard, and its words are marked, at 360 px.
+  for (const theme of ["light", "dark"] as const)
+    it(`plays a stored voice note and marks the request in its transcript (${theme}, 360 px)`, async () => {
+      const recording = "art/01JCASE0000000000000000000/recording.ogg";
+      const cards: ReportEvidence[] = [
+        {
+          id: "E1",
+          check: "voice.request",
+          severity: "high",
+          summary: "The caller asks for payment.",
+          detail: { request: "pay", quote: "the new account today" },
+          artefacts: [],
+        },
+        {
+          id: "E2",
+          check: "voice.transcript",
+          severity: "info",
+          summary: "What the recording says.",
+          detail: {
+            transcript: "art/01JCASE0000000000000000000/transcript.json",
+            recording,
+            filename: "voice-note.ogg",
+            complete: true,
+            gaps: [],
+            segments: [
+              { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 4000, text: "Hello, this is accounts." },
+              { chunk: 0, speaker: "Speaker 1", startMs: 4000, endMs: 9000, text: "Please pay the new account today." },
+            ],
+          },
+          artefacts: [recording],
+        },
+      ];
+      const { p, context } = await open(360, theme, "", cards);
+      const audio = p.locator("audio");
+      await audio.scrollIntoViewIfNeeded();
+      await audio.focus();
+      await expect.poll(() => audio.evaluate((a) => document.activeElement === a)).toBe(true);
+      await p.keyboard.press("Space");
+      await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => !a.paused)).toBe(true);
+      await expect
+        .poll(() => audio.evaluate((a: HTMLAudioElement) => Number.isFinite(a.duration) && a.duration > 0))
+        .toBe(true);
+      expect(await p.locator("mark").textContent()).toContain("the new account today");
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+      // The recording gone: the player reports its error and the download stays named.
+      audioGone = true;
+      try {
+        const gone = await open(360, theme, "", cards);
+        await gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.load());
+        await expect.poll(() => gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.error !== null)).toBe(true);
+        expect(await gone.p.locator('audio a[href*="recording.ogg"]').count()).toBe(1);
+        await gone.context.close();
+      } finally {
+        audioGone = false;
+      }
+    });
+
   // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
   for (const theme of ["light", "dark"] as const)
     it(`draws the voice lure card (${theme}, 1280 px)`, async () => {
@@ -401,6 +484,43 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       expect(problems(await scan(p))).toEqual([]);
       await context.close();
     });
+
+  // D07 T09 §7: the refusal and reuse cards at phone width.
+  it("draws the walkthrough refusal and reuse cards at 360 px with no overflow or accessibility violations", async () => {
+    const cards: ReportEvidence[] = [
+      {
+        id: "E1",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
+        detail: { reason: "budget", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "A form sends credentials elsewhere.",
+        detail: {
+          url: "https://lure.example/in",
+          domain: "collect.example",
+          method: "POST",
+          fields: ["password"],
+          state: "delivered",
+          outcome: "accepted",
+          reused: { at: "2026-11-01T08:30:00.000Z" },
+        },
+        artefacts: [],
+      },
+    ];
+    const { p, context } = await open(360, "light", "", cards);
+    await expect.poll(() => p.getByText("The walkthrough could not run").isVisible()).toBe(true);
+    await expect.poll(() => p.getByText(/From an earlier walk of the same page/).isVisible()).toBe(true);
+    expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    await p.addScriptTag({ path: AXE });
+    expect(problems(await scan(p))).toEqual([]);
+    await context.close();
+  });
 
   // D07 T03 §12: the review link by keyboard, a long listed address wrapping, both themes at phone width.
   for (const theme of ["light", "dark"] as const)
@@ -728,6 +848,126 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       });
       return { gate, go };
     };
+
+    // D07 T09 §8: a preview transfer that stalls is given up after its deadline, on every attempt.
+    it("gives up a stalled preview transfer after its deadline, twice, then Try again loads it", async () => {
+      shotMode = "png";
+      const { p, context } = await open(1280, "light", "", cards);
+      try {
+        await expect.poll(() => loaded(p)).toEqual([true, true]);
+        await p.evaluate(() => {
+          for (const opener of document.querySelectorAll("#e1 a[data-evidence-open]"))
+            opener.setAttribute("data-deadline-ms", "300");
+        });
+        const stall = async () => {
+          const slow = release();
+          holdShot = slow.gate;
+          await p.evaluate(() => {
+            const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+            img.setAttribute("src", `${img.getAttribute("src")}&stall=${Date.now()}`);
+            // A reader looking at the card: the transfer is under way in view.
+            img.scrollIntoView();
+          });
+          const note = p.locator("#e1 [data-evidence-failed]");
+          await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 10_000 }).toBe("temporary");
+          expect(await note.getByRole("button", { name: "Try again" }).count()).toBe(1);
+          return slow;
+        };
+        // The first failure is announced through the figure's live status.
+        const first = await stall();
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("This screenshot could not be loaded.");
+        // The abandoned answer arriving after the deadline changes nothing: the failure state stands.
+        holdShot = null;
+        first.go();
+        await p.waitForTimeout(700);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(1);
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("This screenshot could not be loaded.");
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
+        await expect
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        // A second stall is given up by its own fresh deadline, then Try again loads it.
+        const second = await stall();
+        holdShot = null;
+        second.go();
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
+        await expect
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        // A preview that loaded stays loaded past any old deadline.
+        await p.waitForTimeout(700);
+        expect(
+          await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+        ).toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
+
+    // D07 T09 §8: a lazy preview the browser has not begun loading is never timed out.
+    it("does not time out a preview still waiting in a closed disclosure, then loads it when opened", async () => {
+      shotMode = "png";
+      const dormant: ReportEvidence[] = [
+        ...cards,
+        {
+          id: "E3",
+          check: "walkthrough.credential_target",
+          severity: "critical",
+          summary: "The test credentials would go to a site that is not NimbusMail's.",
+          detail: {
+            url: `https://${LONG}/post`,
+            domain: LONG,
+            method: "POST",
+            fields: ["username", "password"],
+            state: "delivered",
+            outcome: "accepted",
+            brand: "NimbusMail",
+            brandEvidence: "E4",
+          },
+          artefacts: [WALK_SHOT],
+        },
+      ];
+      const { p, context } = await open(360, "light", "", dormant);
+      try {
+        // E3 is uncited, so a phone keeps it in the closed "more findings" disclosure, its preview not begun.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = false;
+          document.querySelector("#e3 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
+          const img = document.querySelector("#e3 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&dormant=1`);
+        });
+        await p.waitForTimeout(900);
+        expect(await p.locator("#e3 [data-evidence-failed]").count()).toBe(0);
+        // Opening the disclosure and reaching the preview starts it, and it loads.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = true;
+          document.querySelector("#e3 img[data-evidence-image]")?.scrollIntoView();
+        });
+        await expect
+          .poll(() =>
+            p.locator("#e3 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e3 [data-evidence-failed]").count()).toBe(0);
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
 
     it("repairs an image that failed before the app script ran, when the script arrives late", async () => {
       shotMode = "404";

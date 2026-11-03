@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
+import { scheduledClosurePurge } from "./auth/closure";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
@@ -27,7 +28,8 @@ import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { screenSmokePage } from "./vision/smoke-screen.ts";
-import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { AXE_SOURCE } from "./web/dev/axe-source";
+import { GalleryFrame, GalleryPage, GalleryState } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
 import { adminRoutes } from "./web/pages/admin";
 import { adminFeedbackRoutes } from "./web/pages/admin-feedback";
@@ -156,6 +158,16 @@ app.get("/dev/components/frame/:id", (c) => {
   const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
   return frame ? c.html(frame) : c.notFound();
 });
+app.get("/dev/components/state/:slug", (c) => {
+  const state = c.env.ENV === "development" ? GalleryState(c.req.param("slug")) : null;
+  return state ? c.html(state) : c.notFound();
+});
+// axe-core for the gallery's on-demand checks (§15), only in development: every deploy answers it 404.
+app.get("/dev/axe.min.js", (c) =>
+  c.env.ENV === "development"
+    ? c.body(AXE_SOURCE, 200, { "Content-Type": "text/javascript; charset=utf-8" })
+    : c.notFound(),
+);
 
 // An unmatched path is the 404 page, which says nothing of whether the page exists or is someone else's (E1); an
 // uncaught throw is the 500 page with a reference, the error's class and that reference logged as JSON and nothing of its
@@ -245,6 +257,12 @@ export default {
     ctx.waitUntil(sendTrialNotices(env).catch(() => null));
     // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
     ctx.waitUntil(scheduledSearchRefresh(env));
+    // The closed organisations' purge (D07 T02 §9): their artefacts and rows, 25 days after closure.
+    ctx.waitUntil(
+      scheduledClosurePurge(env, new Date(controller.scheduledTime)).then((report) =>
+        console.log(JSON.stringify({ event: "scheduled", outcome: "closure-purge", ...report })),
+      ),
+    );
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
     ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).

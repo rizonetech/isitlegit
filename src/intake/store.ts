@@ -156,31 +156,59 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
     // object already holds them, so R2, D1 and the answer agree.
     item = { ...item, mediaType: existing.httpMetadata?.contentType ?? item.mediaType };
   }
+  // A write across its case's removal is fenced (D01 T01 §24): the insert below joins the case, so a case
+  // gone at insert time records no row; an object this call just created is removed again, while an
+  // earlier attempt's object is recorded work the removal flow's prefix sweep owns, never deleted here.
+  const caseStillThere = async (): Promise<boolean> => {
+    try {
+      return (await store.db.prepare("SELECT id FROM cases WHERE id = ?").bind(item.caseId).first()) !== null;
+    } catch {
+      return true;
+    }
+  };
+  const fencedByRemoval = async (): Promise<StoreError> => {
+    if (created !== null) {
+      try {
+        await store.bucket.delete(item.key);
+      } catch {
+        return new StoreError(
+          "storage",
+          `${item.key} was fenced: its case is gone, and its object could not be removed; the removal sweep owns it`,
+        );
+      }
+    }
+    return new StoreError("storage", `${item.key} was fenced: its case is gone`);
+  };
   // A caller deadline (fenceAt) is enforced twice: in the Worker before the insert, and inside the
   // insert's own SQL as it executes, so a write delayed past it (a stalled lookup, a slow object
   // write) records no row and is never listed, whatever lands in the bucket meanwhile.
-  if (fenceAt !== undefined && Date.now() > fenceAt)
+  if (fenceAt !== undefined && Date.now() > fenceAt) {
+    if (!(await caseStillThere())) throw await fencedByRemoval();
     throw new StoreError("storage", `${item.key} was fenced after its deadline`);
+  }
   let row: Row | null;
   try {
     await store.db
       .prepare(
         fenceAt === undefined
-          ? "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (r2_key) DO NOTHING"
-          : "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) SELECT ?, ?, ?, ?, ?, ? WHERE CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) < ? ON CONFLICT (r2_key) DO NOTHING",
+          ? "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM cases WHERE id = ?) ON CONFLICT (r2_key) DO NOTHING"
+          : "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) SELECT ?, ?, ?, ?, ?, ? WHERE CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) < ? AND EXISTS (SELECT 1 FROM cases WHERE id = ?) ON CONFLICT (r2_key) DO NOTHING",
       )
       .bind(
         ...(fenceAt === undefined
-          ? [item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes]
-          : [item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes, fenceAt]),
+          ? [item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes, item.caseId]
+          : [item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes, fenceAt, item.caseId]),
       )
       .run();
     row = await store.db.prepare("SELECT * FROM artefacts WHERE r2_key = ?").bind(item.key).first<Row>();
   } catch (error) {
     throw new StoreError("database", `recording ${item.key}: ${(error as Error).message}`);
   }
-  if (!row && fenceAt !== undefined && Date.now() > fenceAt)
-    throw new StoreError("storage", `${item.key} was fenced after its deadline`);
+  if (!row) {
+    if (!(await caseStillThere())) throw await fencedByRemoval();
+    if (fenceAt !== undefined && Date.now() > fenceAt)
+      throw new StoreError("storage", `${item.key} was fenced after its deadline`);
+  }
   if (!row || row.sha256 !== item.sha256 || row.case_id !== item.caseId)
     throw new StoreError("conflict", `${item.key} is recorded with other content`);
   return { ...item, mediaType: row.media_type, bytes: row.bytes };

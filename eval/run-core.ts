@@ -206,6 +206,7 @@ export type Options = {
   capUsd: number;
   resume: string | null;
   verify: string | null;
+  replay: string | null;
   mode: string | null;
   dry: boolean;
   help: boolean;
@@ -219,6 +220,7 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
     capUsd: Number.NaN,
     resume: null,
     verify: null,
+    replay: null,
     mode: null,
     dry: false,
     help: false,
@@ -246,6 +248,10 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
       if (!v || !/^[a-z0-9-]{8,64}$/.test(v)) return { error: `${a} needs a run id` };
       if (a === "--resume") o.resume = v;
       else o.verify = v;
+    } else if (a === "--replay") {
+      const v = value();
+      if (!v || !/^[a-z0-9-]{8,64}$/.test(v)) return { error: "--replay needs a run id" };
+      o.replay = v;
     } else if (a === "--mode") {
       const v = value();
       if (!v) return { error: "--mode needs a value: full or ablate:<flag>" };
@@ -261,6 +267,7 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
 export const USAGE = [
   "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--mode <full|ablate:flag>] [--dry]",
   "       pnpm eval:run --resume <run id>   (keeps the cap, the selection and the mode the run began with)",
+  "       pnpm eval:run --replay <run id> --cap-usd <usd>   (remeasures the stored run's whole population on the current deployment under a fresh run id; the stored selection is restored and verified first, and a drifted population is refused with nothing sent)",
   "       pnpm eval:run --verify <run id>",
   `sets: ${SETS.join(", ")} (all by default). Needs EVAL_SESSION_COOKIE; exit 0 complete, 1 fault, 2 incomplete, 3 refused.`,
 ].join("\n");

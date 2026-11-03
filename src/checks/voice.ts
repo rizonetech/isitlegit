@@ -218,6 +218,120 @@ export function voiceLureEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   return items;
 }
 
+type TranscriptSegment = { chunk: number; speaker: string | null; startMs: number; endMs: number; text: string };
+
+// The transcript's own fitting (D01 T03 §16, completion review): the generic detail helper clips every string
+// to 255 code points and every list to 20, which would lose most of a routine monologue inside a 64 KiB
+// budget. Here the whole transcript is kept while it fits the evidence detail budget (60,000 bytes, the
+// store's own margin), segments in order; what does not fit is cut from the end, a last segment's text cut at
+// a code-point boundary when part of it fits, and every omission (segments, gaps, speaker entries) counted.
+const TRANSCRIPT_BUDGET = 60_000;
+const byteSize = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
+
+function fitTranscript(meta: {
+  transcript: string;
+  recording: string | null;
+  filename: string | null;
+  complete: boolean;
+  gaps: unknown[];
+  speakers: unknown[];
+  unlabelled: number;
+  segments: TranscriptSegment[];
+}): Record<string, unknown> {
+  const { segments, ...rest } = meta;
+  const detail: Record<string, unknown> & { segments: TranscriptSegment[] } = { ...rest, segments: [] };
+  let trimmed = false;
+  while (byteSize(detail) > TRANSCRIPT_BUDGET && Array.isArray(detail.gaps) && detail.gaps.length) {
+    detail.gaps = (detail.gaps as unknown[]).slice(0, -1);
+    detail.gapsOmitted = meta.gaps.length - (detail.gaps as unknown[]).length;
+    trimmed = true;
+  }
+  while (byteSize(detail) > TRANSCRIPT_BUDGET && Array.isArray(detail.speakers) && detail.speakers.length) {
+    detail.speakers = (detail.speakers as unknown[]).slice(0, -1);
+    detail.speakersOmitted = meta.speakers.length - (detail.speakers as unknown[]).length;
+    trimmed = true;
+  }
+  for (const segment of segments) {
+    const whole = { ...detail, segments: [...detail.segments, segment] };
+    if (byteSize(whole) <= TRANSCRIPT_BUDGET) {
+      detail.segments.push(segment);
+      continue;
+    }
+    // Part of this segment's text may still fit: keep what does, at a code-point boundary.
+    let low = 0;
+    let high = segment.text.length;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      const trial = { ...detail, segments: [...detail.segments, { ...segment, text: segment.text.slice(0, mid) }] };
+      if (byteSize(trial) <= TRANSCRIPT_BUDGET) low = mid;
+      else high = mid - 1;
+    }
+    if (low > 0) detail.segments.push({ ...segment, text: segment.text.slice(0, low) });
+    detail.segmentsOmitted = segments.length - detail.segments.length;
+    trimmed = true;
+    break;
+  }
+  if (trimmed) detail.trimmed = true;
+  return detail;
+}
+
+// One item per stored transcript (D01 T03 §16): what was heard, so the report can show the words themselves.
+// Speaker labels are scoped to their chunk (the transcription contract), so they are kept per chunk and never
+// counted as people; the segments ride in the detail under its bound, every cut marked.
+function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
+  if (!view.transcripts?.length) return [];
+  return view.transcripts.map((t): EvidenceDraft => {
+    const name = t.filename ? ` (${plain(t.filename, 80)})` : "";
+    if (t.malformed)
+      return {
+        check: "voice.transcript",
+        severity: "info",
+        summary: bounded(`The transcript${name} could not be read.`),
+        detail: fittedDetail({
+          transcript: t.transcriptKey,
+          recording: t.recordingKey,
+          filename: t.filename,
+          malformed: true,
+        }) as EvidenceDraft["detail"],
+        artefacts: [t.transcriptKey],
+      };
+    const byChunk = new Map<number, string[]>();
+    let unlabelled = 0;
+    for (const turn of t.turns) {
+      if (turn.speaker === null) unlabelled++;
+      else if (!byChunk.get(turn.chunk)?.includes(turn.speaker)) {
+        byChunk.set(turn.chunk, [...(byChunk.get(turn.chunk) ?? []), turn.speaker]);
+      }
+    }
+    const segments = t.turns.map((turn) => ({
+      chunk: turn.chunk,
+      speaker: turn.speaker,
+      startMs: turn.startMs,
+      endMs: turn.endMs,
+      text: turn.text,
+    }));
+    const detail = fitTranscript({
+      transcript: t.transcriptKey,
+      recording: t.recordingKey,
+      filename: t.filename,
+      complete: t.complete,
+      gaps: t.gaps,
+      speakers: [...byChunk.entries()].map(([chunk, labels]) => ({ chunk, labels })),
+      unlabelled,
+      segments,
+    });
+    return {
+      check: "voice.transcript",
+      severity: "info",
+      summary: bounded(
+        `What the recording${name} says, as transcribed: ${t.turns.length} turn${t.turns.length === 1 ? "" : "s"}${t.complete ? "" : " (part could not be transcribed)"}.`,
+      ),
+      detail: detail as EvidenceDraft["detail"],
+      artefacts: [t.transcriptKey],
+    };
+  });
+}
+
 export function registerVoiceChecks(registry: CheckRegistry): void {
   const applies = (view: Readonly<CaseView>) => (view.voice ? null : NOT_VOICE);
   const appliesToClaim = (view: Readonly<CaseView>) => (!view.voice ? NOT_VOICE : claimOf(view) ? null : NOT_READ);
@@ -270,6 +384,15 @@ export function registerVoiceChecks(registry: CheckRegistry): void {
       items.length
         ? `${items.length} attachment${items.length === 1 ? "" : "s"} posing as a voice message`
         : "no voicemail lure",
+  });
+  registry.register({
+    name: "voice.transcript",
+    needs: [],
+    timeoutMs: 2_000,
+    run: transcriptEvidence,
+    applies: (view) =>
+      !view.voice && !view.transcripts ? NOT_VOICE : view.transcripts?.length ? null : "the transcript is not stored",
+    summary: (_view, items) => (items.length ? "the words of the recording, as transcribed" : null),
   });
   registry.register({
     name: "voice.limits",

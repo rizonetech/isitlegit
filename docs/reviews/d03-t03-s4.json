@@ -1,0 +1,124 @@
+{
+  "ref": "D03 T03 \u00a74",
+  "title": "Logo recall check and detector choice",
+  "implementation_sha": "1f52d7681fa7b510e22a28780ab3d9d05a3f8228",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T03-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T03-s4.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T03-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/vision/detector.test.ts test/vision/step-read.test.ts -> 25 passed",
+    "node scripts/measure-logo-recall.ts --confirm-credit -> SAM 0/20, grounding 20/20, cumulative US$0.4362 under the US$1.00 cap",
+    "python3 scripts/todo-graph.py validate -> valid: 534 sections"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T03-s4.md",
+    "verdict": "filed",
+    "candidate": "4117358ae6472bdcdde311bc871e6831209de4a2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T03 \u00a75",
+      "D08 T02 \u00a73"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T03-s4.md",
+    "candidate": "45091a817aac4b92c65b5fdbe062f6a7d619d1f6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
