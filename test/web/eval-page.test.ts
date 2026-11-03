@@ -197,7 +197,10 @@ describe("the results page with a published run", () => {
   it("keeps the headline on the latest full run: an ablation published later never replaces it", async () => {
     await publish(report("run-00000001", { detection: 0.9 }), "2026-11-05T11:00:00.000Z");
     await publish(report("run-00000002", { detection: 0.97 }), "2026-11-06T11:00:00.000Z");
-    await publish(report("run-00000003", { mode: "no-spark", detection: 0.5 }), "2026-11-07T11:00:00.000Z");
+    await publish(
+      report("run-00000003", { mode: "ablate:no-agent-reasoning", detection: 0.5 }),
+      "2026-11-07T11:00:00.000Z",
+    );
     const t = text((await page()).html);
     expect(t).toContain("caught 97.0% of attacks");
     expect(t).toContain("Eval run run-00000002");
@@ -206,12 +209,15 @@ describe("the results page with a published run", () => {
 
   it("compares an ablation only with a baseline of the same selection and commit, else says not comparable", async () => {
     await publish(report("run-00000001"), "2026-11-05T11:00:00.000Z");
-    await publish(report("run-00000002", { mode: "no-spark", commit: "1111111aaaaaa" }), "2026-11-06T11:00:00.000Z");
     await publish(
-      report("run-00000003", { mode: "no-wonder", setVersion: "b".repeat(64) }),
+      report("run-00000002", { mode: "ablate:no-agent-reasoning", commit: "1111111aaaaaa" }),
+      "2026-11-06T11:00:00.000Z",
+    );
+    await publish(
+      report("run-00000003", { mode: "ablate:no-walkthrough", setVersion: "b".repeat(64) }),
       "2026-11-06T12:00:00.000Z",
     );
-    await publish(report("run-00000004", { mode: "no-sam", detection: 0.9 }), "2026-11-06T13:00:00.000Z");
+    await publish(report("run-00000004", { mode: "ablate:no-sam", detection: 0.9 }), "2026-11-06T13:00:00.000Z");
     const t = text((await page()).html);
     expect(t).toContain(
       "Muse Spark reasoning Rule-based verdict Not comparable: another deployed commit than the full run",
@@ -219,7 +225,7 @@ describe("the results page with a published run", () => {
     expect(t).toContain(
       "Muse Wonder walkthrough No walkthrough Not comparable: another dataset or selection than the full run",
     );
-    expect(t).toContain("SAM 3.1 logo check No logo comparison minus 6.0 pts");
+    expect(t).toContain("SAM 3.1 comparison No logo comparison minus 6.0 pts");
     expect(t).not.toContain("No model has been switched off");
   });
 

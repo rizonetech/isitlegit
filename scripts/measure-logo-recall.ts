@@ -1,5 +1,5 @@
 // The logo recall measurement (D03 T03 §4): SAM 3.1 and Muse Spark perception grounding over
-// the 20 labelled synthetic samples in eval/sets/logo-recall, scored by the production scoring
+// the 20 labelled synthetic samples in test/vision/fixtures/logo-recall, scored by the production scoring
 // in src/vision/detector.ts. Per-sample predictions, failures, costs and timings are saved to
 // results.json beside the labels, and the totals the frontier log records are recomputed from
 // that file by the section's test.
@@ -80,7 +80,7 @@ import {
 } from "./meta-smoke.ts";
 
 const CAP_USD = 1.0;
-const SET = join(import.meta.dirname, "../eval/sets/logo-recall");
+const SET = join(import.meta.dirname, "../test/vision/fixtures/logo-recall");
 const today = new Date().toISOString().slice(0, 10);
 const run = `logo-recall-${Date.now()}`;
 

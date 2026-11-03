@@ -12,7 +12,7 @@ import { type SegmentBox, SegmentError, type SegmentImageResult, segment, segmen
 export { type GroundingAnswer, groundingRequest } from "./grounding-schema";
 
 export type Detector = "sam" | "grounding";
-// Measured 2026-11-02 on eval/sets/logo-recall (docs/frontier-log.md): SAM found 0 of 20
+// Measured 2026-11-02 on test/vision/fixtures/logo-recall (docs/frontier-log.md): SAM found 0 of 20
 // logos and grounding found 20 of 20, so grounding holds the logo concept; changed only with a
 // new measurement recorded there.
 export const DETECTOR: Detector = "grounding";

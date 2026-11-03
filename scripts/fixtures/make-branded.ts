@@ -5,13 +5,13 @@
 //
 //   node scripts/fixtures/make-branded.ts
 //
-// Writes eval/sets/logo-recall/sample-NN.png and labels.json (brand, image size, logo box).
+// Writes test/vision/fixtures/logo-recall/sample-NN.png and labels.json (brand, image size, logo box).
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../lib/chromium.ts";
 
-const OUT = join(import.meta.dirname, "../../eval/sets/logo-recall");
+const OUT = join(import.meta.dirname, "../../test/vision/fixtures/logo-recall");
 const WIDTH = 1024;
 const HEIGHT = 768;
 

@@ -51,13 +51,14 @@ const KIND: Record<string, string> = {
   "voice-lure": "Voice note lures",
   "malware-attachment": "Malware attachments",
 };
-// The ablation modes (D08 T02 §3) in the board's words: what is switched off and what replaces it.
+// The ablation modes (D08 T02 §3) in the board's words, keyed by the stored arm mode (`ablate:<flag>` from
+// ABLATE_FLAGS in eval/ablate.ts): what is switched off and what replaces it.
 export const MODES: Record<string, { off: string; replacedBy: string }> = {
-  "no-spark": { off: "Muse Spark reasoning", replacedBy: "Rule-based verdict" },
-  "no-wonder": { off: "Muse Wonder walkthrough", replacedBy: "No walkthrough" },
-  "no-sam": { off: "SAM 3.1 logo check", replacedBy: "No logo comparison" },
-  "no-voice": { off: "Muse Voice Transcribe", replacedBy: "No transcript" },
-  "no-glimmer": { off: "Muse Glimmer screening", replacedBy: "Every page to Muse Spark" },
+  "ablate:no-agent-reasoning": { off: "Muse Spark reasoning", replacedBy: "Rule-based verdict" },
+  "ablate:no-walkthrough": { off: "Muse Wonder walkthrough", replacedBy: "No walkthrough" },
+  "ablate:no-sam": { off: "SAM 3.1 comparison", replacedBy: "No logo comparison" },
+  "ablate:no-transcribe": { off: "Voice transcription", replacedBy: "No transcript" },
+  "ablate:no-screening": { off: "Loupe page screening", replacedBy: "Muse Spark screens every page" },
 };
 
 export type EvalView =

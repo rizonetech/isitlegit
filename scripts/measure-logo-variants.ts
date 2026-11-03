@@ -1,5 +1,5 @@
 // The variant measurement (D03 T03 §5): does a second reference per brand (icon beside
-// wordmark) raise the logo match rate? Each labelled sample in eval/sets/logo-variants is
+// wordmark) raise the logo match rate? Each labelled sample in test/vision/fixtures/logo-variants is
 // compared with its claimed brand's wordmark reference and its icon reference through the
 // shipped comparison schema and prompt; the one-reference policy is the wordmark judgement
 // alone, the two-reference policy matches when either reference matches. Per-sample
@@ -40,7 +40,7 @@ import {
 } from "./meta-smoke.ts";
 
 const CAP_USD = 0.5;
-const SET = join(import.meta.dirname, "../eval/sets/logo-variants");
+const SET = join(import.meta.dirname, "../test/vision/fixtures/logo-variants");
 const today = new Date().toISOString().slice(0, 10);
 const run = `logo-variants-${Date.now()}`;
 
