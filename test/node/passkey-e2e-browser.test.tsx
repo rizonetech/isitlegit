@@ -111,7 +111,11 @@ afterAll(async () => {
   if (persist) rmSync(persist, { recursive: true, force: true });
 }, 120_000);
 
-async function withAuthenticator(context: BrowserContext, page: Page, transport: string = "internal") {
+async function withAuthenticator(
+  context: BrowserContext,
+  page: Page,
+  transport: "internal" | "hybrid" = "internal",
+) {
   const cdp: CDPSession = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
   const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
