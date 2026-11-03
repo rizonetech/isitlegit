@@ -2583,4 +2583,56 @@ describe("several originals in one forward (D01 T01 §12)", () => {
       vi.restoreAllMocks();
     }
   });
+
+  it("persists the mapped consequence sentence through the verdict step and renders it in both the reply and report consumers (D04 T01 §16)", async () => {
+    const { FLOOR_CONSEQUENCES } = await import("../../src/agent/rule-verdict");
+    const { buildReply } = await import("../../src/mail/reply");
+    const { meaningOf, VerdictSection } = await import("../../src/web/pages/report-verdict");
+
+    const caseId = await caseWith(forwards["inline-forward"]);
+    await saveEvidence(env.DB, caseId, [
+      {
+        check: "invoice.bank_changed",
+        severity: "critical",
+        summary: "The invoice's bank account differs from the supplier's recorded account.",
+        detail: { supplier: "Fynbos Freight" },
+        artefacts: [],
+      },
+    ]);
+
+    await env.DB.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(caseId).run();
+    const { view } = await verdict(env, env.DB, store, caseId);
+    expect(view.verdict).toBe("malicious");
+    expect(view.meaning).toBe(FLOOR_CONSEQUENCES.bank);
+
+    const stored = await storeVerdict(env.DB, ORG, caseId, view);
+    expect(stored.ok).toBe(true);
+    const readBack = await getVerdict(env.DB, caseId);
+    expect(readBack.ok && readBack.value?.meaning).toBe(FLOOR_CONSEQUENCES.bank);
+
+    // Reply consumer reads the stored consequence sentence as meaning
+    const built = buildReply({
+      parentSubject: "Fwd: Invoice 104",
+      headersAvailable: true,
+      otherOriginals: 0,
+      report: { status: "ready", view: readBack.ok && readBack.value ? readBack.value : view },
+      reportUrl: "https://isitlegit.co.za/r/tok",
+      design: { appUrl: "https://isitlegit.co.za" },
+    });
+    expect(built.text).toContain(FLOOR_CONSEQUENCES.bank);
+    expect(built.html).toContain(FLOOR_CONSEQUENCES.bank.replaceAll("'", "&#39;"));
+
+    // Report consumer reads the stored consequence sentence as meaning
+    const reportVal = readBack.ok && readBack.value ? readBack.value : view;
+    expect(meaningOf(reportVal)).toBe(FLOOR_CONSEQUENCES.bank);
+    const rendered = String(
+      VerdictSection({
+        state: "complete",
+        stored: reportVal,
+        evidence: [{ id: "E1", severity: "critical" }],
+        voice: false,
+      }),
+    );
+    expect(rendered).toContain(FLOOR_CONSEQUENCES.bank.replaceAll("'", "&#39;"));
+  });
 });
