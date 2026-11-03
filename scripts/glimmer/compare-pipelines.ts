@@ -524,9 +524,7 @@ type PageRead = { meta: string; shot: Uint8Array; text: string };
 function pageFiles(dir: string, id: string, version?: string): PageRead {
   const storeFolder = join(dir, "pages", id);
   const folder =
-    existsSync(join(storeFolder, "meta.json")) || !version
-      ? storeFolder
-      : join(dir, "dataset", version, "pages", id);
+    existsSync(join(storeFolder, "meta.json")) || !version ? storeFolder : join(dir, "dataset", version, "pages", id);
   const meta = readFileSync(join(folder, "meta.json"), "utf-8");
   return {
     meta,
