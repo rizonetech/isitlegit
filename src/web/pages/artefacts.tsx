@@ -285,11 +285,13 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
     // under this route's access rule, verified above for this case. The reference store's own hash check
     // stands behind the bytes; a brand with none, or a changed reference, answers not found, which the report
     // draws as a missing image, never a wrong logo.
-    if (key.startsWith("ref-logo:")) {
-      const brand = key.slice("ref-logo:".length).trim();
+    if (key.startsWith("ref-logo:") || key.startsWith("ref-logo-icon:")) {
+      const icon = key.startsWith("ref-logo-icon:");
+      const brand = key.slice(icon ? "ref-logo-icon:".length : "ref-logo:".length).trim();
       if (!brand) return answer(errorPage(404, id));
       try {
-        const [logo] = await referenceLogos(c.env.ARTEFACTS, brand);
+        const logos = await referenceLogos(c.env.ARTEFACTS, brand);
+        const logo = icon ? logos.find((entry) => entry.variant === "icon") : logos[0];
         if (!logo) return answer(errorPage(404, id));
         return answer(
           new Response(logo.bytes as BodyInit, {

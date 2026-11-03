@@ -536,6 +536,43 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         artefacts: ["derived/case/render-1.png"],
       },
       {
+        id: "E24",
+        check: "vision.claimed_brand",
+        severity: "info",
+        summary: "A picture shows NimbusMail branding.",
+        detail: {
+          source_key: "derived/case/render-1.png",
+          source_name: "the invoice picture",
+          confidence: 0.9,
+          checked: true,
+          brand: "NimbusMail",
+          visible_sender: "NimbusMail Support",
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E25",
+        check: "vision.urgency",
+        severity: "medium",
+        summary: "A picture presses for speed.",
+        detail: {
+          source_key: "derived/case/render-1.png",
+          source_name: "the invoice picture",
+          confidence: 0.9,
+          checked: true,
+          quotes: ["Act now, today only, or the account closes"],
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E26",
+        check: "vision.coverage",
+        severity: "info",
+        summary: "Part of the message could not be pictured.",
+        detail: { checked: false, complete: false, losses: ["the second page could not be pictured"] },
+        artefacts: [],
+      },
+      {
         id: "E23",
         check: "vision.not_checked",
         severity: "info",
@@ -558,6 +595,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           "The bird faces the other way",
           "Not one of NimbusMail's domains",
           "The pictures were not read",
+          "What a picture claims",
+          "NimbusMail Support",
+          "Pressure in a picture",
+          "Act now, today only, or the account closes",
+          "Part of the message could not be pictured",
         ])
           expect(text, `${words} ${width} ${theme}`).toContain(words);
         await expect
@@ -566,10 +608,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
               .locator("img[data-evidence-image]")
               .evaluateAll((all) => all.filter((i) => (i as HTMLImageElement).naturalWidth > 0).length),
           )
-          .toBe(4);
+          .toBe(6);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);
+        if (width === 360 && theme === "light") {
+          const download = p.locator("#e21").getByRole("link", { name: "Download the logo crop" });
+          let reached = false;
+          for (let i = 0; i < 120 && !reached; i++) {
+            await p.keyboard.press("Tab");
+            reached = await download.evaluate((el) => el === document.activeElement);
+          }
+          expect(reached, "Download the logo crop by keyboard").toBe(true);
+        }
         await context.close();
       }
     // A missing picture reads as missing, in the app script's failure state, never as a broken image.

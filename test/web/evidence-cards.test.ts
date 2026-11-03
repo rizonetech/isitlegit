@@ -942,7 +942,7 @@ const FIXTURES: Fixture[] = [
       visible_sender: "NimbusMail Support",
     },
     artefacts: ["derived/case/render-1.png"],
-    shows: ["What a picture claims", "Brand it shows", "NimbusMail", "Sender it shows", "NimbusMail Support"],
+    shows: ["What a picture claims", "Brand it shows", "NimbusMail", "Sender it shows", "NimbusMail Support", "How sure the reading is", "90%"],
   },
   {
     check: "vision.requested_action",
@@ -956,7 +956,7 @@ const FIXTURES: Fixture[] = [
       payment_request: false,
     },
     artefacts: ["derived/case/render-1.png"],
-    shows: ["What a picture asks for", "sign in", "Asks for a payment", "No"],
+    shows: ["What a picture asks for", "sign in", "Asks for a payment", "No", "How sure the reading is", "90%"],
   },
   {
     check: "vision.urgency",
@@ -993,7 +993,7 @@ const FIXTURES: Fixture[] = [
     detail: {
       brand: "NimbusMail",
       same_brand: true,
-      brand_seen: true,
+      brand_seen: "NimbusMail",
       differences: ["The bird faces the other way"],
       confidence: 0.8,
       domain: "mismatch",
@@ -1005,6 +1005,8 @@ const FIXTURES: Fixture[] = [
       "The crop in the message",
       "The reference",
       "ref-logo%3ANimbusMail",
+      "ref-logo-icon%3ANimbusMail",
+      "Brand the crop shows",
       "The bird faces the other way",
       "On a domain that is not the brand&#39;s",
     ],
@@ -1022,7 +1024,7 @@ const FIXTURES: Fixture[] = [
     detail: {
       brand: "NimbusMail",
       same_brand: false,
-      brand_seen: true,
+      brand_seen: "NimbusPost",
       differences: ["It names NimbusPost, not NimbusMail"],
       confidence: 0.7,
       domain: "unjudged",
@@ -1061,7 +1063,7 @@ const FIXTURES: Fixture[] = [
     detail: {
       brand: "NimbusMail",
       source_name: "the invoice picture",
-      domains: [],
+      domains: [{ host: "nimbusmai1.example", kind: "sender", domain: "nimbusmai1.example" }],
       confirmed: false,
       checked: false,
       reason: "no-domain",
@@ -1070,6 +1072,7 @@ const FIXTURES: Fixture[] = [
     shows: [
       "NimbusMail&#39;s domains could not be confirmed",
       "This case holds no domain to compare it with",
+      "Sent from nimbusmai1.example",
       "No match and no clearance",
     ],
   },

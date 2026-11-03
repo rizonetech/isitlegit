@@ -1662,13 +1662,21 @@ const VISION_ACTION: Record<string, string> = {
 };
 const VISION_REASON = (reason: string | null): string => {
   if (!reason) return "It could not be completed";
-  if (reason === "timeout") return "It ran out of time";
+  if (reason === "timeout" || reason === "deadline") return "It ran out of time";
   if (reason === "no-picture") return "The message held no picture to read";
   if (reason === "no-domain") return "This case holds no domain to compare it with";
   if (reason === "unverified-domain") return "A domain proposed as the brand's could not be judged";
+  if (reason === "missing-crop") return "No logo crop was stored to compare";
+  if (reason === "crop-listing-unavailable" || reason === "manifest-unreadable")
+    return "The logo crops in the message could not be listed";
+  if (reason === "comparison-unavailable") return "The comparison could not run";
+  if (reason === "search-cap") return "The search that confirms a brand's domains had no capacity left";
   if (reason.startsWith("render-")) return "The message could not be pictured";
   return "It could not be completed";
 };
+// A reading's stored confidence as a reader's words: a percentage, said as how sure the reading is.
+const sure = (v: unknown): string | null =>
+  typeof v === "number" && Number.isFinite(v) ? `${Math.round(Math.min(1, Math.max(0, v)) * 100)}%` : null;
 const DOMAIN_KIND: Record<string, string> = { sender: "Sent from", landing: "It leads to", visible: "Shown" };
 const vision: Renderer = (item, file) => {
   const d = item.detail;
@@ -1691,6 +1699,7 @@ const vision: Renderer = (item, file) => {
             rows={[
               ["Brand it shows", text(d.brand)],
               ["Sender it shows", text(d.visible_sender)],
+              ["How sure the reading is", sure(d.confidence)],
               ["Read from", text(d.source_name)],
             ]}
           />
@@ -1708,6 +1717,7 @@ const vision: Renderer = (item, file) => {
             rows={[
               ["It asks the reader to", VISION_ACTION[text(d.action) ?? ""] ?? null],
               ["Asks for a payment", d.payment_request === true ? "Yes" : d.payment_request === false ? "No" : null],
+              ["How sure the reading is", sure(d.confidence)],
               ["Read from", text(d.source_name)],
             ]}
           />
@@ -1726,6 +1736,7 @@ const vision: Renderer = (item, file) => {
               <EvidenceQuote>{quote}</EvidenceQuote>
             ))}
           </div>
+          <Facts rows={[["How sure the reading is", sure(d.confidence)]]} />
           <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
         </>
       ),
@@ -1789,12 +1800,22 @@ const vision: Renderer = (item, file) => {
             <div class="flex flex-col gap-8">
               <p class="text-14 weight-text-strong">The reference</p>
               {reference}
+              <EvidenceFigure caption={`The reference icon for ${brand}, when the brand has one`}>
+                <img
+                  src={inlineUrl(file(`ref-logo-icon:${brand}`))}
+                  alt={`The reference icon for ${brand}`}
+                  loading="lazy"
+                  class="h-full w-full object-contain"
+                />
+              </EvidenceFigure>
             </div>
           </div>
           <Facts
             rows={[
               ["Brand", text(d.brand)],
+              ["Brand the crop shows", text(d.brand_seen)],
               ["The same logo", d.same_brand === true ? "Yes" : d.same_brand === false ? "No" : null],
+              ["How sure the reading is", sure(d.confidence)],
               [
                 "Where it was found",
                 d.domain === "mismatch"
@@ -1825,6 +1846,11 @@ const vision: Renderer = (item, file) => {
               ["Brand it shows", text(d.brand)],
               ["Why", VISION_REASON(text(d.reason))],
             ]}
+          />
+          <Bullets
+            items={compared.map(
+              (entry) => `${DOMAIN_KIND[text(entry.kind) ?? ""] ?? "Seen at"} ${text(entry.host) ?? "an unknown address"}`,
+            )}
           />
           <p class="text-14 text-muted">No match and no clearance: the brand's real domains were not confirmed.</p>
           <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
