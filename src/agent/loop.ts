@@ -572,6 +572,7 @@ export function verdictToolDeps(
         const followed = await expandLink(browser, url, { policy });
         if (followed.outcome !== "done" || !followed.final)
           throw new Error(`the page could not be reached (${followed.outcome})`);
+        const settledHost = new URL(followed.final).hostname.toLowerCase();
         const guard = async (page: Awaited<ReturnType<typeof browser.newPage>>) => {
           // No channels the interception cannot see (WebSocket, event streams, workers, RTC): the constructors
           // are gone before any page script runs, as the link follower's own capture does (src/checks/expand.ts).
@@ -582,6 +583,13 @@ export function verdictToolDeps(
           page.on("request", (request) => {
             const target = request.url();
             if (/^(about:|data:|blob:)/.test(target)) return request.continue().catch(() => undefined);
+            let targetHost = "";
+            try {
+              targetHost = new URL(target).hostname.toLowerCase();
+            } catch {
+              return request.abort().catch(() => undefined);
+            }
+            if (targetHost !== settledHost) return request.abort().catch(() => undefined);
             return policy(target)
               .then((verdict) => (verdict.ok ? request.continue() : request.abort()))
               .catch(() => request.abort())
@@ -597,9 +605,19 @@ export function verdictToolDeps(
         });
         const page = await browser.newPage();
         let storedKey: string;
+        let capturedUrl = followed.final;
         try {
           await guard(page);
           await page.goto(followed.final, { waitUntil: "domcontentloaded", timeout: 15_000 });
+          const actualUrl = page.url();
+          if (actualUrl && actualUrl !== "about:blank") {
+            const actualHost = new URL(actualUrl).hostname.toLowerCase();
+            const verdict = await policy(actualUrl);
+            if (!verdict.ok || actualHost !== settledHost) {
+              throw new Error("the captured page moved away from the settled host");
+            }
+            capturedUrl = actualUrl;
+          }
           const shot = await page.screenshot({ type: "png" });
           const bytes = shot instanceof Uint8Array ? shot : new Uint8Array(shot);
           const stored = await putArtefact(store, caseId, "render", `screenshot-${ulid()}.png`, bytes, "image/png");
@@ -612,7 +630,7 @@ export function verdictToolDeps(
             check: "agent.screenshot_url",
             severity: "info",
             summary: "A fresh screenshot of the page was taken.",
-            detail: { url, final: followed.final },
+            detail: { url, final: capturedUrl },
             artefacts: [storedKey],
           },
         ];

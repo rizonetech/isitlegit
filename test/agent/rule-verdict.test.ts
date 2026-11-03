@@ -288,11 +288,11 @@ describe("ruleVerdict", () => {
     expect(visionPay.verdict).toBe("suspicious");
     expect(visionPay.meaning).toBe(MEANINGS.suspicious);
 
-    const visionSignIn = ruleVerdict(
-      [withDetail("vision.requested_action", "high", { action: "sign_in" })],
+    const visionLogIn = ruleVerdict(
+      [withDetail("vision.requested_action", "high", { action: "log_in" })],
       WITH_HEADERS,
     );
-    expect(visionSignIn.meaning).toBe(FLOOR_CONSEQUENCES.credential);
+    expect(visionLogIn.meaning).toBe(FLOOR_CONSEQUENCES.credential);
 
     const supplierDomainChanged = ruleVerdict(
       [withDetail("invoice.supplier_domain_changed", "critical", {})],

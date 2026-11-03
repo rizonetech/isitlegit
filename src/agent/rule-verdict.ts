@@ -57,7 +57,8 @@ export function consequenceFamilyOf(item: Pick<Evidence, "check" | "severity" | 
       item.detail.credentialCount > 0) ||
     (item.check === "attachment.html" &&
       (item.detail.passwordField === true || item.detail.hasPasswordInput === true)) ||
-    (item.check === "vision.requested_action" && item.detail.action === "sign_in")
+    (item.check === "vision.requested_action" &&
+      (item.detail.action === "log_in" || item.detail.action === "sign_in"))
   ) {
     return "credential";
   }

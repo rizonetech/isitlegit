@@ -122,10 +122,17 @@ async function seedCase(): Promise<{ caseId: string; orgId: string }> {
 }
 
 function stubBrowser(
-  options: { cropFail?: boolean; partialCropFail?: boolean; delayCropMs?: number; stallClose?: boolean } = {},
+  options: {
+    cropFail?: boolean;
+    partialCropFail?: boolean;
+    delayCropMs?: number;
+    stallClose?: boolean;
+    secondNavUrl?: string;
+  } = {},
 ): () => Promise<Browser> {
-  return async () =>
-    ({
+  return async () => {
+    let pageCount = 0;
+    return {
       on: () => undefined,
       off: () => undefined,
       target: () => ({
@@ -141,6 +148,8 @@ function stubBrowser(
         }
       },
       newPage: async () => {
+        pageCount += 1;
+        const isSecondPage = pageCount >= 2;
         let currentUrl = "https://www.fnb.co.za/login";
         const mainFrame = { _id: "f1", url: () => currentUrl };
         const listeners = new Map<string, ((arg: unknown) => void)[]>();
@@ -163,10 +172,10 @@ function stubBrowser(
             listeners.set(event, list);
           },
           goto: async (url: string) => {
-            currentUrl = url;
+            currentUrl = isSecondPage && options.secondNavUrl ? options.secondNavUrl : url;
             for (const fn of listeners.get("response") ?? []) {
               fn({
-                url: () => url,
+                url: () => currentUrl,
                 status: () => 200,
                 headers: () => ({}),
                 request: () => ({ resourceType: () => "document", frame: () => mainFrame }),
@@ -201,7 +210,8 @@ function stubBrowser(
           close: async () => undefined,
         };
       },
-    }) as unknown as Browser;
+    } as unknown as Browser;
+  };
 }
 
 async function seedFnbReferenceLogos(options: { corruptHash?: boolean; withIcon?: boolean } = {}) {
@@ -907,6 +917,26 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     if (stalledCloseRes.status === "ok") {
       expect(stalledCloseRes.evidence[0]?.detail.count).toBe(1);
     }
+
+    // 9c. Changed destination host between link expansion and screenshot capture fails with checked: false and stores no render artefact
+    const changedHostUrl = "https://fnb-redirect-trap.example/start";
+    const changedHostDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
+      launch: stubBrowser({ secondNavUrl: "https://www.fnb.co.za/login" }),
+      policy: async () => ({ ok: true }),
+      metaFetch: async () => samStreamResponse([]),
+    });
+    const changedHostExec = createToolExecutor(
+      { db: env.DB, caseId, urls: [changedHostUrl], brands: bundled },
+      changedHostDeps,
+    );
+    const rendersBeforeChangedHost = await artefactsOf(store, caseId, "render");
+    const changedHostRes = await changedHostExec.call("screenshot_url", { url: changedHostUrl });
+    expect(changedHostRes.status).toBe("failed");
+    if (changedHostRes.status === "failed") {
+      expect(changedHostRes.evidence[0]?.detail).toMatchObject({ checked: false, error: "Error" });
+    }
+    const rendersAfterChangedHost = await artefactsOf(store, caseId, "render");
+    expect(rendersAfterChangedHost.length).toBe(rendersBeforeChangedHost.length);
 
     // 10. Exhausted shared Meta budget refuses both segment_logos and compare_logo and records checked: false
     await env.DB.prepare(
