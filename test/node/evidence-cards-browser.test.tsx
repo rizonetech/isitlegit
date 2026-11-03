@@ -462,9 +462,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       audioGone = true;
       try {
         const gone = await open(360, theme, "", cards);
-        await expect
-          .poll(() => gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.error !== null || a.readyState === 0))
-          .toBe(true);
+        await gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.load());
+        await expect.poll(() => gone.p.locator("audio").evaluate((a: HTMLAudioElement) => a.error !== null)).toBe(true);
         expect(await gone.p.locator('audio a[href*="recording.ogg"]').count()).toBe(1);
         await gone.context.close();
       } finally {

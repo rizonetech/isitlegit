@@ -1313,13 +1313,28 @@ const at = (ms: unknown) => {
 const voice: Renderer = (item, file, requestQuote) => {
   const d = item.detail;
   if (item.check === "voice.transcript") {
+    const recording = text(d.recording);
+    const player = recording ? (
+      <figure class="flex flex-col gap-8">
+        {/* biome-ignore lint/a11y/useMediaCaption: the transcript below is this recording's text, segment by segment */}
+        <audio controls preload="none" src={inlineUrl(file(recording))} class="w-full">
+          <a href={file(recording)} class={LINK} rel="nofollow">
+            Download the recording
+          </a>
+        </audio>
+      </figure>
+    ) : null;
     if (d.malformed === true)
       return {
         title: "What was said",
-        body: <p class="text-14">The transcript could not be read, so the words of this recording are not shown.</p>,
+        body: (
+          <>
+            {player}
+            <p class="text-14">The transcript could not be read, so the words of this recording are not shown.</p>
+          </>
+        ),
       };
     const segments = records(d.segments);
-    const recording = text(d.recording);
     // The request's place: the verified quote matched across the segments, every segment it spans marked.
     const joined = segments.map((s) => text(s.text) ?? "").join(" ");
     const atQuote = requestQuote ? joined.indexOf(requestQuote) : -1;
@@ -1330,24 +1345,16 @@ const voice: Renderer = (item, file, requestQuote) => {
       offset += own.length + 1;
       return hit;
     });
-    const omitted =
+    const wordsOmitted =
       (typeof d.segmentsOmitted === "number" ? d.segmentsOmitted : 0) +
-      (typeof d.gapsOmitted === "number" ? d.gapsOmitted : 0) +
-      (typeof d.speakersOmitted === "number" ? d.speakersOmitted : 0);
+      (typeof d.gapsOmitted === "number" ? d.gapsOmitted : 0);
+    const gaps = records(d.gaps);
+    const multiChunk = new Set(segments.map((s) => s.chunk)).size > 1;
     return {
       title: "What was said",
       body: (
         <>
-          {recording && (
-            <figure class="flex flex-col gap-8">
-              {/* biome-ignore lint/a11y/useMediaCaption: the transcript below is this recording's text, segment by segment */}
-              <audio controls preload="none" src={inlineUrl(file(recording))} class="w-full">
-                <a href={file(recording)} class={LINK} rel="nofollow">
-                  Download the recording
-                </a>
-              </audio>
-            </figure>
-          )}
+          {player}
           {segments.length === 0 ? (
             <p class="text-14">No words were transcribed from this recording.</p>
           ) : (
@@ -1364,11 +1371,19 @@ const voice: Renderer = (item, file, requestQuote) => {
             </ol>
           )}
           {d.complete === false && <p class="text-14">Part of the recording could not be transcribed.</p>}
-          {Array.isArray(d.gaps) && d.gaps.length > 0 && (
-            <p class="text-14">{`The transcription has ${d.gaps.length} gap${d.gaps.length === 1 ? "" : "s"} where nothing could be heard clearly.`}</p>
+          {gaps.map((g) => (
+            <p class="text-14">{`Speech was cut and not transcribed from ${at(g.startMs)} to ${at(g.endMs)}.`}</p>
+          ))}
+          {multiChunk && (
+            <p class="text-14">
+              Speaker labels belong to each part of the recording: the same label in another part may be someone else.
+            </p>
           )}
-          {(d.trimmed === true || omitted > 0) && (
+          {(d.trimmed === true || wordsOmitted > 0) && (
             <p class="text-14">The stored transcript is cut short here, so later words are not shown.</p>
+          )}
+          {typeof d.speakersOmitted === "number" && d.speakersOmitted > 0 && (
+            <p class="text-14">Some speaker labels are not shown.</p>
           )}
         </>
       ),
@@ -1748,7 +1763,10 @@ export function EvidenceCards(props: {
     | null;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
-  const requestQuote = text(props.items.find((i) => i.check === "voice.request")?.detail.quote ?? null);
+  // The quote names no recording, so with two recordings on one case it marks neither: a mark on the wrong one is worse than none.
+  const transcripts = props.items.filter((i) => i.check === "voice.transcript").length;
+  const requestQuote =
+    transcripts === 1 ? text(props.items.find((i) => i.check === "voice.request")?.detail.quote ?? null) : null;
   const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
   const all = cited.length === 0;
   return (

@@ -1123,14 +1123,60 @@ describe("the evidence cards", () => {
     expect(hostile).toContain("&lt;script&gt;");
     // The incomplete states, in their own words.
     expect(transcript({ ...base, complete: false })).toContain("Part of the recording could not be transcribed.");
-    expect(transcript({ ...base, gaps: [{ startMs: 1 }] })).toContain("1 gap");
+    expect(transcript({ ...base, gaps: [{ chunk: 0, startMs: 4000, endMs: 7000 }] })).toContain(
+      "Speech was cut and not transcribed from 0:04 to 0:07.",
+    );
     expect(transcript({ ...base, trimmed: true, segmentsOmitted: 2 })).toContain("cut short");
+    const speakersOnly = transcript({ ...base, speakersOmitted: 2 });
+    expect(speakersOnly).toContain("Some speaker labels are not shown.");
+    expect(speakersOnly).not.toContain("cut short");
+    expect(
+      transcript({
+        ...base,
+        segments: [
+          { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 1000, text: "One." },
+          { chunk: 1, speaker: "Speaker 1", startMs: 1000, endMs: 2000, text: "Two." },
+        ],
+      }),
+    ).toContain("the same label in another part may be someone else");
+    const damaged = transcript(
+      { transcript: "k", recording: base.recording, filename: "v.ogg", malformed: true },
+      false,
+    );
+    expect(damaged).toContain("The transcript could not be read");
+    expect(damaged).toContain("<audio");
     expect(transcript({ transcript: "k", recording: null, malformed: true }, false)).toContain(
       "The transcript could not be read",
     );
     expect(transcript({ ...base, segments: [] }, false)).toContain("No words were transcribed");
     // No request stored: nothing is marked.
     expect(transcript(base, false)).not.toContain("<mark>");
+    // An unmatched quote marks nothing, and with two recordings the quote marks neither.
+    const unmatched = draw(
+      items([
+        {
+          check: "voice.request",
+          severity: "high" as const,
+          detail: { request: "pay", quote: "words never said" },
+          shows: [],
+        },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+      ]),
+    );
+    expect(unmatched).not.toContain("<mark>");
+    const two = draw(
+      items([
+        {
+          check: "voice.request",
+          severity: "high" as const,
+          detail: { request: "pay", quote: "the new account today" },
+          shows: [],
+        },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+      ]),
+    );
+    expect(two).not.toContain("<mark>");
   });
 
   it("draws an attachment claiming to be a recording, its player and link said plainly (D07 T03 §16)", () => {
