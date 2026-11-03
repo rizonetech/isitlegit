@@ -73,7 +73,7 @@ Judges run the project from the public repository's setup instructions, and ever
 Checks:
 
 - The README's setup path runs from a clean clone with no judge-owned account or secret, or says plainly at the top which parts need the hosted service instead, and includes `.env.example` / instructions for judges who wish to test with their own Meta Model API key (never committing our own keys).
-- At least one working no-account demo exists at every judging stage: the hosted live service with judge access, a sandbox or mock-data mode, or a replay of recorded examples (`pnpm judge:demo`), each explained in the README (confirmed by `Maya (Meta)`, 2026-11-02: pre-filled sample data and recorded traces are allowed when clearly labelled).
+- At least one working no-account demo exists at every judging stage: the hosted live service with judge access, a sandbox or mock-data mode, or a replay of recorded examples (`pnpm judge:demo`), each explained in the README (confirmed by `Maya (Meta)`, 2026-11-02, and `Yash Khare (Meta)`, 2026-11-03 17:12: *"great call on making it reproducible without accounts or keys... show off which models you used and where, and highlight anything beyond a basic API call; if the local demo uses cached or stubbed responses, label them clearly, and show the live model in the video"*).
 - Recorded examples carry provenance and label every simulated part; nothing simulated is presented as a live model call.
 - **3-minute video rules (`sources/discord/2026-11-03-qa-threads-raw.txt`):**
   - **Judges stop watching at `3:00`**: keep total runtime strictly at or under `3:00` (`<= 180.0s`).
