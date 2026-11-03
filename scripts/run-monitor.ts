@@ -5,7 +5,9 @@
 // started. Credentials come from the environment (the vault), never printed.
 //
 //   CF_API_TOKEN=... CF_ACCOUNT_ID=... node scripts/run-monitor.ts --org demo-fynbos --wait 300
-import { FYNBOS_ORG_ID } from "../src/demo/seed";
+import { PROTECTED_ORGANISATIONS } from "../src/auth/protected";
+
+const FYNBOS_ORG_ID = PROTECTED_ORGANISATIONS[0] as string;
 
 export const FIXTURE_HOST = "fixtures.isitlegit.co.za";
 
@@ -101,7 +103,11 @@ async function main(): Promise<void> {
     "SELECT state, updated_at FROM monitor_investigations WHERE org_id = ? AND domain = ? ORDER BY updated_at DESC LIMIT 1",
     [orgId, FIXTURE_HOST],
   );
-  const ok = findingSatisfied(findings[0] ?? null, investigations[0] ?? null, startedAt);
+  const ok = findingSatisfied(
+    (findings[0] as { host: string } | undefined) ?? null,
+    (investigations[0] as { state: string; updated_at: string } | undefined) ?? null,
+    startedAt,
+  );
   console.log(
     JSON.stringify({
       event: "run-monitor",
