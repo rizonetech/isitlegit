@@ -1194,3 +1194,41 @@ describe("team history after a real change (D07 T04 §23)", () => {
     expect(proto).toContain("Choose one of the listed actions.");
   });
 });
+
+describe("finding a person on the Team page (D07 T04 §26)", () => {
+  it("finds by name part and email part, folded, and never another organisation's member", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const jose = await person("José Petersen");
+    await join(orgId, jose, "member");
+    const sipho = await person("Sipho Mokoena");
+    await join(orgId, sipho, "admin");
+    const otherOwner = await person("Other Owner");
+    const other = await organisation(otherOwner);
+    const twin = await person("José Petersen");
+    await join(other, twin, "member");
+    const byName = text((await page(owner.cookie, "/team?find=jose")).html);
+    expect(byName).toContain("José Petersen");
+    expect(byName).not.toContain("Sipho Mokoena");
+    const byEmail = text(
+      (await page(owner.cookie, `/team?find=${encodeURIComponent(sipho.email.split("@")[0] as string)}`)).html,
+    );
+    expect(byEmail).toContain("Sipho Mokoena");
+    expect(byEmail).not.toContain("José Petersen");
+    const none = text((await page(owner.cookie, "/team?find=nobody-like-this")).html);
+    expect(none).toContain("No one on the team matches.");
+    const tooLong = text((await page(owner.cookie, `/team?find=${"x".repeat(201)}`)).html);
+    expect(tooLong).toContain("That find is too long");
+    expect(tooLong).toContain("Sipho Mokoena");
+  });
+
+  it("keeps a hidden second owner counting while one is found", async () => {
+    const owner = await person("Owner One");
+    const orgId = await organisation(owner);
+    const second = await person("Owner Two");
+    await join(orgId, second, "owner");
+    const html = text((await page(owner.cookie, "/team?find=Owner One")).html);
+    expect(html).toContain("Owner One");
+    expect(html).not.toContain("You are the only owner");
+  });
+});

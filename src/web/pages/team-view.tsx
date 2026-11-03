@@ -3,6 +3,7 @@
 // stored state. Changes post to `/team` (./team.tsx); removal confirms on its own page, with or without JavaScript.
 // The invitations panel and the pending table (D07 T04 §21) post to the same route; the table reads the stored invitations.
 import { isProtectedAccount } from "../../auth/protected";
+import { fold } from "../../db/search-fold";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
@@ -199,8 +200,14 @@ const SELECT = cx(
 );
 
 // `layout` keeps ids unique: the table (wide screens) and the cards (phones) each draw a row's controls.
-function RoleCell(props: { reader: Reader; member: TeamMember; orgId: string; layout: "table" | "card" }) {
-  const { reader, member, orgId, layout } = props;
+function RoleCell(props: {
+  reader: Reader;
+  member: TeamMember;
+  orgId: string;
+  layout: "table" | "card";
+  find?: string | undefined;
+}) {
+  const { reader, member, orgId, layout, find } = props;
   const choices = roleChoices(reader, member);
   if (!choices.length)
     return (
@@ -227,6 +234,7 @@ function RoleCell(props: { reader: Reader; member: TeamMember; orgId: string; la
       <input type="hidden" name="action" value="role" />
       <input type="hidden" name="org" value={orgId} />
       <input type="hidden" name="member" value={member.memberId} />
+      {find ? <input type="hidden" name="find" value={find} /> : null}
       <label for={id} class="sr-only">
         Role of {member.name || member.email}
       </label>
@@ -247,8 +255,14 @@ function RoleCell(props: { reader: Reader; member: TeamMember; orgId: string; la
   );
 }
 
-function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: boolean; layout: "table" | "card" }) {
-  const { reader, member, onlyOwner, layout } = props;
+function RemoveCell(props: {
+  reader: Reader;
+  member: TeamMember;
+  onlyOwner: boolean;
+  layout: "table" | "card";
+  find?: string | undefined;
+}) {
+  const { reader, member, onlyOwner, layout, find } = props;
   const id = layout === "table" ? `remove-${member.memberId}` : `remove-${member.memberId}-card`;
   const self = member.userId === reader.userId;
   // Every Remove names who it acts on, enabled or not, so a list of controls tells them apart.
@@ -291,7 +305,7 @@ function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: bool
     );
   return (
     <a
-      href={`/team/remove/${encodeURIComponent(member.memberId)}`}
+      href={`/team/remove/${encodeURIComponent(member.memberId)}${find ? `?find=${encodeURIComponent(find)}` : ""}`}
       class={buttonClass("danger", "small")}
       aria-label={label}
     >
@@ -520,7 +534,7 @@ function historyWhen(iso: string): string {
   }).format(at);
 }
 
-function TeamHistorySection(props: { history: TeamHistory; now: Date }) {
+function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: string | undefined }) {
   const { history } = props;
   return (
     <section
@@ -531,6 +545,7 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date }) {
         Team history
       </h2>
       <form method="get" action="/team" class="flex flex-wrap items-end gap-12 px-24 pb-16">
+        {props.find ? <input type="hidden" name="find" value={props.find} /> : null}
         <label class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">Action</span>
           <select id="history-action" name="action" class={SELECT}>
@@ -637,9 +652,13 @@ export function TeamPage(props: {
   draft?: InviteDraft;
   inviteBatch?: InviteBatch;
   history?: TeamHistory | undefined;
+  find?: string | undefined;
   now: Date;
 }) {
-  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history } = props;
+  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history, find } = props;
+  const findTooLong = (find ?? "").length > 200;
+  const visible =
+    find && !findTooLong ? members.filter((m) => fold(`${m.name} ${m.email}`).includes(fold(find))) : members;
   const mayInvite = reader.role !== "member";
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
@@ -706,6 +725,40 @@ export function TeamPage(props: {
             <strong class="text-ink">Admin</strong>: suppliers, protection, domains and invites.{" "}
             <strong class="text-ink">Member</strong>: checks mail and sees cases.
           </p>
+          <form method="get" action="/team" class="flex flex-wrap items-end gap-12" aria-label="Find a person">
+            {history?.action ? <input type="hidden" name="action" value={history.action} /> : null}
+            {history?.from ? <input type="hidden" name="from" value={history.from} /> : null}
+            {history?.to ? <input type="hidden" name="to" value={history.to} /> : null}
+            <label class="flex flex-col gap-4">
+              <span class="type-small weight-text-strong">Find a person</span>
+              <input
+                id="team-find"
+                type="search"
+                name="find"
+                value={find ?? ""}
+                placeholder="Name or email"
+                autocomplete="off"
+                class={SELECT}
+                {...(find && !outcome ? { autofocus: true } : {})}
+              />
+            </label>
+            <Button type="submit" variant="dark">
+              Find
+            </Button>
+            {find ? (
+              <a href="/team" class="type-small text-orange-text underline underline-offset-4">
+                Clear
+              </a>
+            ) : null}
+          </form>
+          {findTooLong && (
+            <p role="alert" class="type-small text-mal weight-text-strong">
+              That find is too long. Shorten it and try again.
+            </p>
+          )}
+          {find && !findTooLong && visible.length === 0 && (
+            <p class="type-small text-muted">No one on the team matches.</p>
+          )}
           <div class="bg-surface border border-line rounded-card-large overflow-hidden">
             <table class="hidden md:table w-full text-left border-collapse">
               <caption class="sr-only">Members of {orgName}</caption>
@@ -729,7 +782,7 @@ export function TeamPage(props: {
                 </tr>
               </thead>
               <tbody>
-                {members.map((m) => (
+                {visible.map((m) => (
                   <tr class="border-b border-line last:border-b-0">
                     <td class="px-16 py-16 align-middle">
                       <span class="weight-text-strong wrap-anywhere">{m.name || m.email}</span>
@@ -744,11 +797,11 @@ export function TeamPage(props: {
                     </td>
                     <td class="px-16 py-16 align-middle wrap-anywhere">{m.email}</td>
                     <td class="px-16 py-16 align-middle">
-                      <RoleCell reader={reader} member={m} orgId={shell.organization.id} layout="table" />
+                      <RoleCell reader={reader} member={m} orgId={shell.organization.id} layout="table" find={find} />
                     </td>
                     <td class="px-16 py-16 align-middle text-muted">{lastActiveText(m.lastActive, now)}</td>
                     <td class="px-16 py-16 align-middle text-right">
-                      <RemoveCell reader={reader} member={m} onlyOwner={owners === 1} layout="table" />
+                      <RemoveCell reader={reader} member={m} onlyOwner={owners === 1} layout="table" find={find} />
                     </td>
                   </tr>
                 ))}
@@ -756,7 +809,7 @@ export function TeamPage(props: {
             </table>
             {/* Phone: one card per member, no sideways scroll. */}
             <ul class="md:hidden flex flex-col">
-              {members.map((m) => (
+              {visible.map((m) => (
                 <li class="flex flex-col gap-8 p-16 border-b border-line last:border-b-0">
                   <span class="weight-text-strong wrap-anywhere">
                     {m.name || m.email}
@@ -765,8 +818,8 @@ export function TeamPage(props: {
                   <span class="type-small text-muted wrap-anywhere">{m.email}</span>
                   <span class="type-small text-muted">Last active: {lastActiveText(m.lastActive, now)}</span>
                   <div class="flex flex-wrap items-center justify-between gap-12">
-                    <RoleCell reader={reader} member={m} orgId={shell.organization.id} layout="card" />
-                    <RemoveCell reader={reader} member={m} onlyOwner={owners === 1} layout="card" />
+                    <RoleCell reader={reader} member={m} orgId={shell.organization.id} layout="card" find={find} />
+                    <RemoveCell reader={reader} member={m} onlyOwner={owners === 1} layout="card" find={find} />
                   </div>
                 </li>
               ))}
@@ -778,7 +831,7 @@ export function TeamPage(props: {
             )}
           </div>
           {mayInvite && <PendingInvites orgId={shell.organization.id} invites={invites ?? []} now={now} />}
-          {history && <TeamHistorySection history={history} now={now} />}
+          {history && <TeamHistorySection history={history} now={now} find={find} />}
         </div>
       </AppShell>
     </Document>
@@ -786,8 +839,12 @@ export function TeamPage(props: {
 }
 
 // The confirmation a removal asks first, with or without JavaScript: the member's name, Remove and Cancel.
-export function RemoveConfirm(props: { shell: Omit<MemberShellProps, "children">; member: TeamMember }) {
-  const { shell, member } = props;
+export function RemoveConfirm(props: {
+  shell: Omit<MemberShellProps, "children">;
+  member: TeamMember;
+  find?: string | undefined;
+}) {
+  const { shell, member, find } = props;
   const who = member.name || member.email;
   return (
     <Document title="Remove a member">
@@ -802,10 +859,11 @@ export function RemoveConfirm(props: { shell: Omit<MemberShellProps, "children">
             <input type="hidden" name="action" value="remove" />
             <input type="hidden" name="org" value={shell.organization.id} />
             <input type="hidden" name="member" value={member.memberId} />
+            {find ? <input type="hidden" name="find" value={find} /> : null}
             <Button type="submit" variant="danger" data-busy-label={`Removing ${who}`}>
               Remove {who}
             </Button>
-            <Button variant="ghost" href="/team">
+            <Button variant="ghost" href={find ? `/team?find=${encodeURIComponent(find)}` : "/team"}>
               Cancel
             </Button>
           </form>

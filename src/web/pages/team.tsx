@@ -157,10 +157,11 @@ const boundedName = (name: string) => {
   const chars = Array.from(name);
   return chars.length > OUTCOME_NAME_LIMIT ? `${chars.slice(0, OUTCOME_NAME_LIMIT - 1).join("")}…` : name;
 };
-async function back(secret: string, orgId: string, given: Outcome) {
+async function back(secret: string, orgId: string, given: Outcome, find = "") {
   const outcome: Outcome = given.name ? { ...given, name: boundedName(given.name) } : given;
   const at = Date.now();
   const query = new URLSearchParams({ r: outcome.r });
+  if (find) query.set("find", find);
   if (outcome.name) query.set("n", outcome.name);
   query.set("t", String(at));
   query.set("s", await sign(secret, signed(orgId, outcome, at)));
@@ -311,6 +312,7 @@ teamRoutes.get(
           lost={lost}
           invites={invites}
           history={history}
+          find={new URL(c.req.url).searchParams.get("find") ?? undefined}
           now={new Date()}
         />,
       );
@@ -345,7 +347,9 @@ teamRoutes.get(
       // anyone else gets here, so nothing is told to those who could not).
       if (isProtectedAccount(member.email))
         return back(secret, who.org.id, { r: "protected", name: member.name || member.email });
-      return html(<RemoveConfirm shell={shell} member={member} />);
+      return html(
+        <RemoveConfirm shell={shell} member={member} find={new URL(c.req.url).searchParams.get("find") ?? undefined} />,
+      );
     } catch (error) {
       return outage((error as Error).name);
     }
@@ -372,7 +376,7 @@ type InviteAction = {
   secret: string;
   orgId: string;
   origin: string;
-  form: { email: string; role: string; id: string; batch?: string };
+  form: { email: string; role: string; id: string; batch?: string; find?: string };
 };
 
 // An invitation made, sent again or revoked through Better Auth's own handler (its hooks, allowlist and send key run as
@@ -416,6 +420,7 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       status,
     );
   };
+  const findBack = a.form.find ?? "";
   try {
     if (action === "invite") {
       // Several addresses at once (D07 T04 §22): split on commas or lines, trim, drop empties, and invite a
@@ -654,9 +659,9 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       if (!(inviteRoles(reader) as string[]).includes(role))
         return await refuse(draft("Choose a role you can give."), 400);
       const res = await call("invite-member", { email, role, organizationId: orgId });
-      if (res.ok) return back(secret, orgId, { r: "invited", name: email });
+      if (res.ok) return back(secret, orgId, { r: "invited", name: email }, findBack);
       if (res.status === 401) return signin();
-      if (res.status === 502) return back(secret, orgId, { r: "invite-unsent", name: email });
+      if (res.status === 502) return back(secret, orgId, { r: "invite-unsent", name: email }, findBack);
       if (res.status === 403) {
         const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
         if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
@@ -666,7 +671,7 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
             ),
             403,
           );
-        return back(secret, orgId, { r: "no-permission" });
+        return back(secret, orgId, { r: "no-permission" }, findBack);
       }
       if (res.status === 429)
         return await refuse(draft("Too many invitations just now. Try again in a little while."), 429);
@@ -688,7 +693,7 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
     )
       .bind(a.form.id, orgId)
       .first<{ id: string; email: string; role: string | null; expires: string | number }>();
-    if (!row) return back(secret, orgId, { r: "invite-gone" });
+    if (!row) return back(secret, orgId, { r: "invite-gone" }, findBack);
     // Better Auth does not count a lapsed invitation as one already made, so sending it again makes a new one beside it.
     // The new one is made first and the lapsed one cancelled after: a failure in between leaves the lapsed row to try
     // again from, never an organisation with no invitation to manage (the list shows only the newer one meanwhile).
@@ -723,7 +728,7 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
           .bind(orgId, row.email, row.id, startedAt)
           .all<{ id: string }>();
         for (const m of made.results) await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
-        return back(secret, orgId, { r: "invite-gone", name: row.email });
+        return back(secret, orgId, { r: "invite-gone", name: row.email }, findBack);
       }
     }
     if (lapsed && (res.ok || res.status === 502)) {
@@ -731,23 +736,26 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       if (!cancelled?.ok)
         console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
     }
-    if (res.ok) return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email });
+    if (res.ok)
+      return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email }, findBack);
     if (res.status === 401) return signin();
-    if (res.status === 502 && action === "resend") return back(secret, orgId, { r: "invite-unsent", name: row.email });
+    if (res.status === 502 && action === "resend")
+      return back(secret, orgId, { r: "invite-unsent", name: row.email }, findBack);
     if (res.status === 403) {
       const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
       if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
-        return back(secret, orgId, { r: "invite-limit", name: row.email });
-      return back(secret, orgId, { r: "no-permission" });
+        return back(secret, orgId, { r: "invite-limit", name: row.email }, findBack);
+      return back(secret, orgId, { r: "no-permission" }, findBack);
     }
-    if (res.status === 404 || res.status === 400) return back(secret, orgId, { r: "invite-gone", name: row.email });
+    if (res.status === 404 || res.status === 400)
+      return back(secret, orgId, { r: "invite-gone", name: row.email }, findBack);
     return failed(secret, orgId, `invite-${res.status}`, row.email);
   } catch (error) {
     const ref = reference(500);
     console.log(
       JSON.stringify({ event: "team", outcome: "invite-failed", reference: ref, error: (error as Error).name }),
     );
-    return back(secret, orgId, { r: "invite-failed", name: a.form.email.trim() });
+    return back(secret, orgId, { r: "invite-failed", name: a.form.email.trim() }, findBack);
   }
 }
 
@@ -797,12 +805,14 @@ teamRoutes.post(
       role: 20,
       email: 7000,
       batch: 20,
+      find: 300,
       invitation: 200,
     });
     if (!form) return back(secret, orgId, { r: "refused" });
     const field = (name: string) => form[name] ?? "";
+    const findBack = field("find");
     // Drawn for another organisation than the active one (switched in another tab): nothing is done.
-    if (field("org") !== orgId) return back(secret, orgId, { r: "switched" });
+    if (field("org") !== orgId) return back(secret, orgId, { r: "switched" }, findBack);
     const action = field("action");
     const role = field("role");
     if (action === "invite" || action === "resend" || action === "revoke")
@@ -813,17 +823,17 @@ teamRoutes.post(
         secret,
         orgId,
         origin,
-        form: { email: field("email"), role, id: field("invitation"), batch: field("batch") },
+        form: { email: field("email"), role, id: field("invitation"), batch: field("batch"), find: field("find") },
       });
     // Not a request this page sends (an unknown action, a role that does not exist): refused, nothing claimed.
     if (action !== "remove" && !(action === "role" && ["owner", "admin", "member"].includes(role)))
-      return back(secret, orgId, { r: "refused" });
+      return back(secret, orgId, { r: "refused" }, findBack);
     try {
       const members = await readMembers(c.env.DB, orgId);
       const target = members.find((m) => m.memberId === field("member"));
-      if (!target) return back(secret, orgId, { r: "gone" });
+      if (!target) return back(secret, orgId, { r: "gone" }, findBack);
       const name = target.name || target.email;
-      if (action === "role" && target.role === role) return back(secret, orgId, { r: "unchanged", name });
+      if (action === "role" && target.role === role) return back(secret, orgId, { r: "unchanged", name }, findBack);
       // Better Auth's own handler, with the member's cookie and the app's origin, so its hooks run as for any request.
       const path = action === "role" ? "update-member-role" : "remove-member";
       const body =
@@ -838,7 +848,7 @@ teamRoutes.post(
       const res = await createAuth(c.env).handler(
         new Request(`${origin}/api/auth/organization/${path}`, { method: "POST", headers, body: JSON.stringify(body) }),
       );
-      if (res.ok) return back(secret, orgId, { r: action === "role" ? "role-changed" : "removed", name });
+      if (res.ok) return back(secret, orgId, { r: action === "role" ? "role-changed" : "removed", name }, findBack);
       const answer = await answerOf(res);
       if (answer === "signin")
         return new Response(null, {
@@ -851,7 +861,7 @@ teamRoutes.post(
       // Better Auth names an admin's refused removal of the only owner as the last-owner rule; to the admin it is a
       // permission they lack, and the guard's words are the owner's own.
       const said = answer === "last-owner" && roleOf(who.org.role) !== "owner" ? "no-permission" : answer;
-      return back(secret, orgId, { r: said, name });
+      return back(secret, orgId, { r: said, name }, findBack);
     } catch (error) {
       return failed(secret, orgId, (error as Error).name);
     }
