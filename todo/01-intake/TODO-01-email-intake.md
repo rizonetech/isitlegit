@@ -481,12 +481,14 @@ Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`
 
 1. Decompress and de-encapsulate. Done when: an RTF-only fixture yields its text, and one encapsulating HTML (`\fromhtml1`) yields that HTML.
 
-- [ ] Decompress `PidTagRtfCompressed` ([MS-OXRTFCP]) in `src/intake/rtf.ts`, bounded to §5's body limits, refusing a stream whose declared size exceeds them. Done when: `test/intake/rtf.test.ts` decompresses the §6 `rtf-only.msg` body and refuses a stream claiming 50 MiB.
-- [ ] De-encapsulate HTML from RTF that carries `\fromhtml1` ([MS-OXRTFEX]), else extract the plain text (control words dropped, `\par` and `\line` as line breaks, `\'xx` decoded in the RTF's code page). Done when: an HTML-encapsulating fixture yields its HTML and a plain RTF one its text, non-ASCII intact.
-- [ ] Use it in `parseMsg` (§6) when there is no text and no HTML body, instead of the `ParseError`. Done when: `rtf-only.msg` parses with its text, and a message with text or HTML ignores its RTF.
-- [ ] Commit: `intake: compressed-RTF message bodies`
+- [x] Decompress `PidTagRtfCompressed` ([MS-OXRTFCP]) in `src/intake/rtf.ts`, bounded to §5's body limits, refusing a stream whose declared size exceeds them. Done when: `test/intake/rtf.test.ts` decompresses the §6 `rtf-only.msg` body and refuses a stream claiming 50 MiB.
+- [x] De-encapsulate HTML from RTF that carries `\fromhtml1` ([MS-OXRTFEX]), else extract the plain text (control words dropped, `\par` and `\line` as line breaks, `\'xx` decoded in the RTF's code page). Done when: an HTML-encapsulating fixture yields its HTML and a plain RTF one its text, non-ASCII intact.
+- [x] Use it in `parseMsg` (§6) when there is no text and no HTML body, instead of the `ParseError`. Done when: `rtf-only.msg` parses with its text, and a message with text or HTML ignores its RTF.
+- [x] Commit: `intake: compressed-RTF message bodies`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/rtf.test.ts test/intake/msg.test.ts` passes and fails if an RTF-only message parses empty or a decompression passes the body limits.
+
+**Corrected 2026-11-03** (plan review, 1 P1 and 5 P2, `docs/reviews/01-intake/D01-T01-s13.md`): (1) decompression refuses a declared size past §5's body limits before allocating, counts output before every literal and back-reference write, and rejects a final size that differs from the declaration, MELA included. (2) The `rtf-only.msg` fixture is uncompressed MELA, so a genuine LZFu fixture with dictionary back-references and exact expected output is built beside it. (3) Plain extraction handles signed `\uN` with its `\ucN` fallback skipped, escaped braces and backslash, tabs, skipped destinations, and per-font charsets from the font table. (4) HTML de-encapsulation is proven on interleaved shared text with `htmltag` destinations and `htmlrtf` suppression, exact HTML asserted. (5) Extracted bodies enter `parseMsg` through its existing byte-budget helpers (1 MiB a part, 2 MiB in all), encoded UTF-8 with the cut part kept whole in `truncated`. (6) A malformed stream, bad CRC, truncated token or invalid termination is a `ParseError`; a well-formed RTF with no text is an empty body, never a silent success over today's refusal, and RTF is still ignored when a text or HTML body exists.
 
 
 ## 14. Near-limit forward, live

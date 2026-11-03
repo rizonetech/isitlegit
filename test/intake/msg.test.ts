@@ -49,9 +49,8 @@ describe("parseMsg", () => {
     expect(await parseMsg(msgs.draft)).toMatchObject({ headersAvailable: false, parsed: { headers: [] } });
   });
 
-  it("refuses an RTF-only body, a file that is not a .msg and a cut-off one as a ParseError", async () => {
+  it("refuses a file that is not a .msg and a cut-off one as a ParseError", async () => {
     for (const [name, bytes] of [
-      ["rtf-only", msgs.rtfOnly],
       ["not-a-msg", msgs.notAMsg],
       ["truncated", msgs.truncated],
       ["empty", msgs.empty],
@@ -60,6 +59,12 @@ describe("parseMsg", () => {
     // Each for its own reason: msgreader's returned error, and a well-formed file holding nothing.
     await expect(parseMsg(msgs.notAMsg)).rejects.toThrow(/not a compound file/);
     await expect(parseMsg(msgs.empty)).rejects.toThrow(/holds nothing readable/);
+  });
+
+  it("reads a body held only as compressed RTF (D01 T01 §13)", async () => {
+    const { parsed } = await parseMsg(msgs.rtfOnly);
+    expect(parsed.text).toContain("Please pay invoice 77 today.");
+    expect(parsed.html).toBeNull();
   });
 
   it("stores the parse with storeParsed, the inline image under its content id", async () => {
