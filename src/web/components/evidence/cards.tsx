@@ -32,6 +32,7 @@ export const FAMILIES = [
   "walkthrough",
   "voice",
   "document",
+  "vision",
   "reputation",
   "not_checked",
 ] as const;
@@ -1647,6 +1648,219 @@ const documentCard: Renderer = (item, file) => {
   };
 };
 
+// What the message's pictures claim, ask and press for, and the logo and brand comparisons over them
+// (D07 T03 §14; the producers' stored shapes in src/vision/reading.ts, src/vision/logo-compare.ts and
+// src/vision/brand.ts). A reading that could not run, and a comparison that did not run, say so in plain
+// words and never read as a finding or a clearance. Stored text is drawn as text throughout; a stored
+// `source_url` is words, never a link the reader could follow.
+const VISION_ACTION: Record<string, string> = {
+  log_in: "sign in",
+  pay: "pay",
+  open_file: "open a file",
+  call: "call a number",
+  reply_with_details: "reply with personal details",
+};
+const VISION_REASON = (reason: string | null): string => {
+  if (!reason) return "It could not be completed";
+  if (reason === "timeout") return "It ran out of time";
+  if (reason === "no-picture") return "The message held no picture to read";
+  if (reason === "no-domain") return "This case holds no domain to compare it with";
+  if (reason === "unverified-domain") return "A domain proposed as the brand's could not be judged";
+  if (reason.startsWith("render-")) return "The message could not be pictured";
+  return "It could not be completed";
+};
+const DOMAIN_KIND: Record<string, string> = { sender: "Sent from", landing: "It leads to", visible: "Shown" };
+const vision: Renderer = (item, file) => {
+  const d = item.detail;
+  const picture = item.artefacts[0];
+  const shot = picture ? (
+    <Shot
+      id={item.id}
+      url={file(picture)}
+      alt={text(d.source_name) ? `The picture read, ${text(d.source_name)}` : "The picture read"}
+      caption={text(d.source_name) ? `The picture read: ${text(d.source_name)}` : "The picture read"}
+    />
+  ) : null;
+  if (item.check === "vision.claimed_brand")
+    return {
+      title: "What a picture claims",
+      body: (
+        <>
+          {shot}
+          <Facts
+            rows={[
+              ["Brand it shows", text(d.brand)],
+              ["Sender it shows", text(d.visible_sender)],
+              ["Read from", text(d.source_name)],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  if (item.check === "vision.requested_action")
+    return {
+      title: "What a picture asks for",
+      body: (
+        <>
+          {shot}
+          <Facts
+            rows={[
+              ["It asks the reader to", VISION_ACTION[text(d.action) ?? ""] ?? null],
+              ["Asks for a payment", d.payment_request === true ? "Yes" : d.payment_request === false ? "No" : null],
+              ["Read from", text(d.source_name)],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  if (item.check === "vision.urgency")
+    return {
+      title: "Pressure in a picture",
+      body: (
+        <>
+          {shot}
+          <div class="flex flex-col gap-8">
+            {texts(d.quotes).map((quote) => (
+              <EvidenceQuote>{quote}</EvidenceQuote>
+            ))}
+          </div>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  if (item.check === "vision.coverage")
+    return {
+      title: "Part of the message could not be pictured",
+      body: (
+        <>
+          <Bullets items={texts(d.losses)} />
+          <p class="text-14 text-muted">What the pictures show was only partly checked.</p>
+        </>
+      ),
+    };
+  if (item.check === "vision.not_checked")
+    return {
+      title: "The pictures were not read",
+      body: (
+        <>
+          <Facts rows={[["Why", VISION_REASON(text(d.reason))]]} />
+          <p class="text-14 text-muted">What the pictures show was not checked.</p>
+        </>
+      ),
+    };
+  if (item.check === "vision.logo_match") {
+    const brand = text(d.brand) ?? "the brand";
+    if (d.checked !== true)
+      return {
+        title: "A logo that was not compared",
+        body: (
+          <>
+            {shot}
+            <Facts
+              rows={[
+                ["Brand", text(d.brand)],
+                ["Why it was not compared", VISION_REASON(text(d.reason))],
+              ]}
+            />
+            <p class="text-14 text-muted">No match and no clearance: the comparison did not run.</p>
+            <Files owner={item.id} keys={item.artefacts} file={file} name="the logo crop" />
+          </>
+        ),
+      };
+    const reference = (
+      <Shot
+        id={`${item.id}-ref`}
+        url={file(`ref-logo:${brand}`)}
+        alt={`The reference logo for ${brand}`}
+        caption={`The reference logo for ${brand}`}
+      />
+    );
+    return {
+      title: d.same_brand === true ? `A logo that matches ${brand}` : `A logo that is not ${brand}'s`,
+      body: (
+        <>
+          <div class="grid gap-16 md:grid-cols-2">
+            <div class="flex flex-col gap-8">
+              <p class="text-14 weight-text-strong">The crop in the message</p>
+              {shot}
+            </div>
+            <div class="flex flex-col gap-8">
+              <p class="text-14 weight-text-strong">The reference</p>
+              {reference}
+            </div>
+          </div>
+          <Facts
+            rows={[
+              ["Brand", text(d.brand)],
+              ["The same logo", d.same_brand === true ? "Yes" : d.same_brand === false ? "No" : null],
+              [
+                "Where it was found",
+                d.domain === "mismatch"
+                  ? "On a domain that is not the brand's"
+                  : d.domain === "official"
+                    ? "On the brand's own domain"
+                    : "Its domain was not judged",
+              ],
+            ]}
+          />
+          <Bullets items={texts(d.differences)} />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the logo crop" />
+        </>
+      ),
+    };
+  }
+  // vision.brand_domain_mismatch
+  const brand = text(d.brand) ?? "the brand";
+  const compared = records(d.domains);
+  if (d.confirmed !== true)
+    return {
+      title: `${brand}'s domains could not be confirmed`,
+      body: (
+        <>
+          {shot}
+          <Facts
+            rows={[
+              ["Brand it shows", text(d.brand)],
+              ["Why", VISION_REASON(text(d.reason))],
+            ]}
+          />
+          <p class="text-14 text-muted">No match and no clearance: the brand's real domains were not confirmed.</p>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  const mismatched = new Set(texts(d.mismatched));
+  return {
+    title: `Not one of ${brand}'s domains`,
+    body: (
+      <>
+        {shot}
+        <Facts
+          rows={[
+            ["Brand it shows", text(d.brand)],
+            [`${brand}'s real domains`, texts(d.official_domains).join(", ") || null],
+            ["Confirmed by", d.source === "table" ? "The brand table" : d.source === "search" ? "Search" : null],
+            ["Confirmed at", text(d.source_url)],
+          ]}
+        />
+        <Bullets
+          items={compared.map(
+            (entry) =>
+              `${DOMAIN_KIND[text(entry.kind) ?? ""] ?? "Seen at"} ${text(entry.host) ?? "an unknown address"}: ${
+                mismatched.has(text(entry.host) ?? "")
+                  ? "not one of the brand's domains"
+                  : "one of the brand's domains, or not judged"
+              }`,
+          )}
+        />
+        <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+      </>
+    ),
+  };
+};
+
 const RENDERERS: Record<Family, Renderer> = {
   intake,
   auth,
@@ -1658,6 +1872,7 @@ const RENDERERS: Record<Family, Renderer> = {
   walkthrough,
   voice,
   document: documentCard,
+  vision,
   reputation,
   not_checked: notChecked,
 };

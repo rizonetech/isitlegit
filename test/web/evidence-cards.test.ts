@@ -928,6 +928,151 @@ const FIXTURES: Fixture[] = [
       "The signature check (DKIM)",
     ],
   },
+  // The vision lane's readings and comparisons (D07 T03 §14; producers in src/vision/): the picture read,
+  // what it claims and asks, the logo crop beside its reference, and the brand against its real domains.
+  {
+    check: "vision.claimed_brand",
+    severity: "info",
+    detail: {
+      source_key: "derived/case/render-1.png",
+      source_name: "the invoice picture",
+      confidence: 0.9,
+      checked: true,
+      brand: "NimbusMail",
+      visible_sender: "NimbusMail Support",
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: ["What a picture claims", "Brand it shows", "NimbusMail", "Sender it shows", "NimbusMail Support"],
+  },
+  {
+    check: "vision.requested_action",
+    severity: "high",
+    detail: {
+      source_key: "derived/case/render-1.png",
+      source_name: "the invoice picture",
+      confidence: 0.9,
+      checked: true,
+      action: "log_in",
+      payment_request: false,
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: ["What a picture asks for", "sign in", "Asks for a payment", "No"],
+  },
+  {
+    check: "vision.urgency",
+    severity: "medium",
+    detail: {
+      source_key: "derived/case/render-1.png",
+      source_name: "the invoice picture",
+      confidence: 0.9,
+      checked: true,
+      quotes: ["Act now, today only"],
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: ["Pressure in a picture", "Act now, today only"],
+  },
+  {
+    check: "vision.coverage",
+    severity: "info",
+    detail: { checked: false, complete: false, losses: ["the second page could not be pictured"] },
+    shows: [
+      "Part of the message could not be pictured",
+      "the second page could not be pictured",
+      "only partly checked",
+    ],
+  },
+  {
+    check: "vision.not_checked",
+    severity: "info",
+    detail: { checked: false, reason: "timeout" },
+    shows: ["The pictures were not read", "It ran out of time", "was not checked"],
+  },
+  {
+    check: "vision.logo_match",
+    severity: "high",
+    detail: {
+      brand: "NimbusMail",
+      same_brand: true,
+      brand_seen: true,
+      differences: ["The bird faces the other way"],
+      confidence: 0.8,
+      domain: "mismatch",
+      checked: true,
+    },
+    artefacts: ["derived/case/crop-1.png"],
+    shows: [
+      "A logo that matches NimbusMail",
+      "The crop in the message",
+      "The reference",
+      "ref-logo%3ANimbusMail",
+      "The bird faces the other way",
+      "On a domain that is not the brand&#39;s",
+    ],
+  },
+  {
+    check: "vision.logo_match",
+    severity: "info",
+    detail: { brand: "NimbusMail", checked: false, reason: "deadline" },
+    artefacts: ["derived/case/crop-1.png"],
+    shows: ["A logo that was not compared", "No match and no clearance"],
+  },
+  {
+    check: "vision.logo_match",
+    severity: "info",
+    detail: {
+      brand: "NimbusMail",
+      same_brand: false,
+      brand_seen: true,
+      differences: ["It names NimbusPost, not NimbusMail"],
+      confidence: 0.7,
+      domain: "unjudged",
+      checked: true,
+    },
+    artefacts: ["derived/case/crop-1.png"],
+    shows: ["A logo that is not NimbusMail&#39;s", "It names NimbusPost, not NimbusMail", "Its domain was not judged"],
+  },
+  {
+    check: "vision.brand_domain_mismatch",
+    severity: "high",
+    detail: {
+      brand: "NimbusMail",
+      source_name: "the invoice picture",
+      domains: [
+        { host: "nimbusmai1.example", kind: "sender", domain: "nimbusmai1.example" },
+        { host: "nimbusmail.example", kind: "landing", domain: "nimbusmail.example" },
+      ],
+      confirmed: true,
+      source: "table",
+      official_domains: ["nimbusmail.example"],
+      mismatched: ["nimbusmai1.example"],
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: [
+      "Not one of NimbusMail&#39;s domains",
+      "NimbusMail&#39;s real domains",
+      "nimbusmail.example",
+      "The brand table",
+      "Sent from nimbusmai1.example: not one of the brand&#39;s domains",
+    ],
+  },
+  {
+    check: "vision.brand_domain_mismatch",
+    severity: "info",
+    detail: {
+      brand: "NimbusMail",
+      source_name: "the invoice picture",
+      domains: [],
+      confirmed: false,
+      checked: false,
+      reason: "no-domain",
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: [
+      "NimbusMail&#39;s domains could not be confirmed",
+      "This case holds no domain to compare it with",
+      "No match and no clearance",
+    ],
+  },
 ];
 const items = (fixtures: Fixture[]): CardItem[] =>
   fixtures.map((f, i) => ({
@@ -951,6 +1096,53 @@ describe("the evidence cards", () => {
     const missing = checks.names().filter((name) => !familyOf(name));
     expect(missing).toEqual([]);
     expect(FAMILIES).toContain("not_checked");
+  });
+
+  it("draws hostile vision detail as text, and a stored source address never as a link (D07 T03 s14)", () => {
+    const html = draw(
+      items([
+        {
+          check: "vision.claimed_brand",
+          severity: "info",
+          detail: { brand: HOSTILE, visible_sender: HOSTILE, source_name: "the picture", checked: true },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "vision.brand_domain_mismatch",
+          severity: "high",
+          detail: {
+            brand: "NimbusMail",
+            domains: [{ host: HOSTILE, kind: "sender", domain: "x.example" }],
+            confirmed: true,
+            source: "search",
+            source_url: "javascript:alert(1)",
+            official_domains: ["nimbusmail.example"],
+            mismatched: [],
+          },
+          artefacts: [],
+          shows: [],
+        },
+      ]),
+    );
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain('href="javascript:');
+    expect(html).toContain("javascript:alert(1)");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("maps every vision producer's name to its family (D07 T03 s14)", () => {
+    for (const name of [
+      "vision.claimed_brand",
+      "vision.requested_action",
+      "vision.urgency",
+      "vision.coverage",
+      "vision.not_checked",
+      "vision.logo_match",
+      "vision.brand_domain_mismatch",
+    ])
+      expect(familyOf(name), name).toBe("vision");
+    expect(FAMILIES).toContain("vision");
   });
 
   it("draws a fixture of every registered check", () => {
@@ -1367,6 +1559,41 @@ describe("the evidence cards through the report route", () => {
       const one = card(html, `E${i + 1}`);
       for (const words of f.shows) expect(one, `${f.check}: ${words}`).toContain(words);
     });
+  });
+
+  it("reads stored vision evidence back as its cards, the reference beside the crop (D07 T03 s14)", async () => {
+    const orgId = `org-cards-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Cards Co", orgId, new Date().toISOString())
+      .run();
+    const email = `cards-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const stored = FIXTURES.filter((f) => f.check.startsWith("vision.")).slice(0, 10);
+    expect(stored.length).toBeGreaterThanOrEqual(7);
+    await saveEvidence(
+      db,
+      id,
+      stored.map((f) => ({
+        check: f.check,
+        severity: f.severity,
+        summary: `Summary of ${f.check}`,
+        detail: f.detail as EvidenceDraft["detail"],
+        artefacts: f.artefacts ?? [],
+      })),
+    );
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+    for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
+    expect(html).toContain("ref-logo%3ANimbusMail");
   });
 });
 

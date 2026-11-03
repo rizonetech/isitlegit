@@ -9,6 +9,7 @@
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { parsedKey, peekArtefact, rawKey, readArtefact, readVisible, type Store, StoreError } from "../../intake/store";
+import { referenceLogos } from "../../vision/logo-reference";
 import { verifyReportLink } from "../report-link";
 import { artefactFailed, artefactGone, errorPage, HEADERS, reference } from "./errors";
 
@@ -280,6 +281,31 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       .bind(id, orgId)
       .first<{ createdAt: string }>();
     if (!owned) return answer(errorPage(404, id));
+    // A brand's reference logo, drawn beside a logo crop (D07 T03 §14): not a case artefact, but served only
+    // under this route's access rule, verified above for this case. The reference store's own hash check
+    // stands behind the bytes; a brand with none, or a changed reference, answers not found, which the report
+    // draws as a missing image, never a wrong logo.
+    if (key.startsWith("ref-logo:")) {
+      const brand = key.slice("ref-logo:".length).trim();
+      if (!brand) return answer(errorPage(404, id));
+      try {
+        const [logo] = await referenceLogos(c.env.ARTEFACTS, brand);
+        if (!logo) return answer(errorPage(404, id));
+        return answer(
+          new Response(logo.bytes as BodyInit, {
+            headers: {
+              ...HEADERS,
+              "content-type": logo.mediaType,
+              "content-disposition": inline ? "inline" : "attachment",
+              "x-content-type-options": "nosniff",
+              "content-security-policy": "sandbox; default-src 'none'",
+            },
+          }),
+        );
+      } catch {
+        return answer(errorPage(404, id));
+      }
+    }
     const store = { bucket: c.env.ARTEFACTS, db: c.env.DB };
     // A preview reads the case's parsed summary and visible text, never the raw message itself: it only checks that the
     // message is the case's and still stored, without reading its body (up to 25 MiB).

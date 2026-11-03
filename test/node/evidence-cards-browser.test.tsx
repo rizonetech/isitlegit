@@ -486,6 +486,101 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     });
 
   // D07 T09 §7: the refusal and reuse cards at phone width.
+  it("draws the vision and brand cards with their pictures at both widths in both themes (D07 T03 s14)", async () => {
+    const vision: ReportEvidence[] = [
+      {
+        id: "E20",
+        check: "vision.requested_action",
+        severity: "high",
+        summary: "The picture asks the reader to sign in.",
+        detail: {
+          source_key: "derived/case/render-1.png",
+          source_name: "the invoice picture",
+          confidence: 0.9,
+          checked: true,
+          action: "log_in",
+          payment_request: true,
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E21",
+        check: "vision.logo_match",
+        severity: "high",
+        summary: "A logo crop matches NimbusMail's logo, on a domain that is not NimbusMail's.",
+        detail: {
+          brand: "NimbusMail",
+          same_brand: true,
+          brand_seen: true,
+          differences: ["The bird faces the other way"],
+          confidence: 0.8,
+          domain: "mismatch",
+          checked: true,
+        },
+        artefacts: ["derived/case/crop-1.png"],
+      },
+      {
+        id: "E22",
+        check: "vision.brand_domain_mismatch",
+        severity: "high",
+        summary: "Shows NimbusMail branding from a domain that is not one of NimbusMail's.",
+        detail: {
+          brand: "NimbusMail",
+          source_name: "the invoice picture",
+          domains: [{ host: "nimbusmai1.example", kind: "sender", domain: "nimbusmai1.example" }],
+          confirmed: true,
+          source: "table",
+          official_domains: ["nimbusmail.example"],
+          mismatched: ["nimbusmai1.example"],
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E23",
+        check: "vision.not_checked",
+        severity: "info",
+        summary: "The message's pictures were not read.",
+        detail: { checked: false, reason: "timeout" },
+        artefacts: [],
+      },
+    ];
+    shotMode = "png";
+    for (const width of [360, 1280])
+      for (const theme of ["light", "dark"] as const) {
+        const { p, context } = await open(width, theme, "", vision);
+        const text = (await p.locator("main").textContent())?.replace(/\s+/g, " ") ?? "";
+        for (const words of [
+          "What a picture asks for",
+          "sign in",
+          "A logo that matches NimbusMail",
+          "The crop in the message",
+          "The reference",
+          "The bird faces the other way",
+          "Not one of NimbusMail's domains",
+          "The pictures were not read",
+        ])
+          expect(text, `${words} ${width} ${theme}`).toContain(words);
+        await expect
+          .poll(() =>
+            p
+              .locator("img[data-evidence-image]")
+              .evaluateAll((all) => all.filter((i) => (i as HTMLImageElement).naturalWidth > 0).length),
+          )
+          .toBe(4);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
+        await context.close();
+      }
+    // A missing picture reads as missing, in the app script's failure state, never as a broken image.
+    shotMode = "404";
+    const gone = await open(360, "light", "", vision);
+    await expect.poll(() => gone.p.locator("[data-evidence-failed]").count()).toBeGreaterThan(0);
+    expect(await gone.p.getByText("This screenshot could not be loaded.").first().isVisible()).toBe(true);
+    await gone.context.close();
+    shotMode = "png";
+  });
+
   it("draws the walkthrough refusal and reuse cards at 360 px with no overflow or accessibility violations", async () => {
     const cards: ReportEvidence[] = [
       {
