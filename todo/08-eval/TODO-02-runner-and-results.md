@@ -42,7 +42,7 @@ track: day-6
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
 | 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
-| 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
+| 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
 | 13 | §13 | Source-versus-replay comparison | §12 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -408,9 +408,12 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after 
 - [x] Give each replay a fresh identity: the new run's own id is the `replayRunId` sent on upload and kept on resume; the source run id lives only in the stored mode `replay:<source id>` for provenance. Done when: two successive replays of one source on different deployments open distinct cases, an interrupted replay resumes under its own id, and the claim attribution still reads back after the source run's claims age out. Cheaper substitute: none (claim reuse silently remeasures nothing).
 - [x] Report a replay as a measurement: a complete replay of a full run publishes like a full run (the results summary is written from it, its provenance kept in the stored report), never as an ablation arm; `mergeReplayResults` replaces an original line only with a terminal replay line (`done` or `partial`), from either original state. Done when: publish and metrics tests show a published complete replay as the latest full measurement and an ablation list without it. Cheaper substitute: none (an unreported remeasurement does not exist for a reader).
 - [x] Prove the command, not a stub of it: command-entry tests drive `main()` with persisted read-back, the real multipart serialization of `replayRunId`, a changed deployment, ordinary deduplication beside it, the refusal paths and a resume. Done when: `test/node/eval-run.test.ts` and `test/node/eval-replay.test.ts` both run in the checkpoint and the D01 intake suites named there pass unchanged. Cheaper substitute: none (the stub passed while the live command could not store a result).
-- [ ] Commit: `eval: eval replay after deploy`
+- [x] Commit: `eval: eval replay after deploy`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-run.test.ts test/node/eval-replay.test.ts test/node/eval-publish.test.ts test/node/eval-metrics.test.ts` passes, and the D01 intake tests still pass unchanged.
+
+> **Verified:** 2026-11-03 | §12 | dc1850077abc826f5d2b3618b55769bd859daca1
+> **Review:** `docs/reviews/d08-t02-s12.json`
 
 ## 13. Source-versus-replay comparison
 
