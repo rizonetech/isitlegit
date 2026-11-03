@@ -3,9 +3,10 @@
 //   `trust.sender_not_registered`, and `trust.bank_mismatch`.
 // - Negative controls: genuine DMARC-aligned mail from a registered domain yields `trust.verified_sender`
 //   and no impersonation/mismatch; unauthenticated spoof on a registered domain does not yield
-//   `trust.verified_sender`; non-claiming third-party mail and negative-only logo judgements do not yield
-//   `trust.sender_not_registered` or `trust.impersonation`.
-// - Multi-business bank account attribution and ambiguity handling.
+//   `trust.verified_sender`; non-claiming third-party mail, partner-logo mail from a separate verified
+//   business, and unrelated negative logo crops do not yield `trust.sender_not_registered` or
+//   `trust.impersonation`.
+// - Multi-business and conflicting supplier bank account attribution and ambiguity handling.
 // - Every typed refusal of `matchBankAccount` and `bankKeys` (`AccountRefused`, `NoBaseline`,
 //   `KeyMismatch`, `IdentityRefused`, `MatchLimited`, `BankKeysMissing`) yields zero `trust.bank_mismatch`
 //   items, preserves independent sender findings, and records the plain unavailable reason.
@@ -21,7 +22,7 @@ import { CheckRegistry } from "../../src/checks/registry";
 import { type CheckOutcome, runChecksWithOutcomes } from "../../src/checks/runner";
 import { ulid } from "../../src/db/ulid";
 import { addAccount, bankKeys, MATCHES_PER_HOUR } from "../../src/trust/bank";
-import { claimEvidence, claimInputFromView, registerClaimCheck } from "../../src/trust/claim";
+import { claimEvidence, claimInputFromView, registerClaimCheck, withClaimLogos } from "../../src/trust/claim";
 import {
   comparisonEvidence,
   comparisonOutcomes,
@@ -82,7 +83,9 @@ function assertNoRegistryLeak(
     }
   }
   for (const fragment of secrets.accountFragments) {
-    if (combined.includes(fragment.toLowerCase())) {
+    const escaped = fragment.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`(?:\\*\\*\\*|(?<![0-9a-z]))${escaped}(?![0-9a-z])`, "i");
+    if (pattern.test(combined)) {
       throw new Error(`Registry leak detected: account fragment "${fragment}" appeared in evidence or outcome`);
     }
   }
@@ -269,12 +272,22 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     });
   });
 
-  it("handles negative controls: genuine DMARC-aligned mail yields trust.verified_sender, unauthenticated spoof on registered domain does not, and non-claiming third-party mail yields no findings", async () => {
-    const { keys, checkerOrgId, fynbosOrgId, candidates } = await seedFynbosAndChecker();
+  it("handles negative controls: genuine DMARC-aligned mail (including mixed unrelated logo crops), partner-logo mail from a separate verified business, unauthenticated spoof on registered domain, and non-claiming third-party mail", async () => {
+    const { keys, checkerOrgId, fynbosOrgId } = await seedFynbosAndChecker();
+    const hadedaOrgId = await makeOrg("Hadeda Couriers (Pty) Ltd");
+    await addDomain(hadedaOrgId, "hadedacouriers.co.za", "verified");
+    await addAddress(hadedaOrgId, "finance@hadedacouriers.co.za", "verified");
+    await setIdentity(db, hadedaOrgId, "owner-2", {
+      displayNames: ["Hadeda Couriers"],
+      financeContact: "finance@hadedacouriers.co.za",
+      protected: true,
+    });
+    const candidates = boundProtectedCandidates(await protectedIdentities(db));
 
-    // 1. Genuine DMARC-aligned mail from registered domain with matching bank account.
+    // 1. Genuine DMARC-aligned mail from registered domain with matching bank account AND both a matching Fynbos logo
+    //    crop (`same: true`) and an unrelated second badge crop (`same: false, brandSeen: "ISO 9001"`).
     const genuineCaseId = ulid();
-    const genuineView = buildView({
+    const genuineBaseView = buildView({
       caseId: genuineCaseId,
       orgId: checkerOrgId,
       protectedCandidates: candidates,
@@ -288,6 +301,27 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
         { name: "From", value: '"Fynbos Freight" <billing@fynbosfreight.co.za>' },
       ],
       text: "Attached is your monthly statement.\n\nFynbos Freight",
+    });
+    const genuineView = withClaimLogos(genuineBaseView, {
+      logoJudgements: [
+        {
+          orgId: fynbosOrgId,
+          same: true,
+          brandSeen: "Fynbos Freight",
+          differences: [],
+          confidence: 0.96,
+          cropKey: `art/${genuineCaseId}/crop/logo-0.png`,
+        },
+        {
+          orgId: fynbosOrgId,
+          same: false,
+          brandSeen: "ISO 9001 Certification Badge",
+          differences: ["circular certification seal, not Fynbos emblem"],
+          confidence: 0.94,
+          cropKey: `art/${genuineCaseId}/crop/logo-1.png`,
+        },
+      ],
+      unavailable: [],
     });
 
     const genuineComparison = await prepareRegistryComparison({ db, keys }, genuineCaseId, genuineView, undefined, [
@@ -308,7 +342,94 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     expect(genuineItems[0]?.summary.toLowerCase()).not.toContain("bank confirmed");
     expect(genuineItems[0]?.summary.toLowerCase()).not.toContain("account holder confirmed");
 
-    // 2. Unauthenticated spoof on a registered domain (DMARC fail): yields neither verified_sender nor sender_not_registered.
+    // 2. Genuine partner-logo mail: Hadeda Couriers (verified sender) sends DMARC-aligned mail from
+    //    `ops@hadedacouriers.co.za` that also includes Fynbos Freight's matching partner logo crop (`same: true`).
+    //    Actual claim detection claims both Hadeda (by From domain + display name) and Fynbos (by logo only).
+    //    Hadeda gets `trust.verified_sender`; Fynbos gets ZERO `trust.sender_not_registered` and ZERO `trust.impersonation`.
+    const partnerCaseId = ulid();
+    const partnerBaseView = buildView({
+      caseId: partnerCaseId,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [
+        { name: "Received", value: "by mx.google.com with ESMTPS id part1; Tue, 03 Nov 2026 12:00:00 +0200" },
+        {
+          name: "Authentication-Results",
+          value:
+            "mx.google.com; spf=pass smtp.mailfrom=hadedacouriers.co.za; dkim=pass header.d=hadedacouriers.co.za; dmarc=pass",
+        },
+        { name: "From", value: '"Hadeda Couriers" <ops@hadedacouriers.co.za>' },
+      ],
+      text: "Dispatch update from Hadeda Couriers.",
+    });
+    const partnerView = withClaimLogos(partnerBaseView, {
+      logoJudgements: [
+        {
+          orgId: fynbosOrgId,
+          same: true,
+          brandSeen: "Fynbos Freight",
+          differences: [],
+          confidence: 0.95,
+          cropKey: `art/${partnerCaseId}/crop/partner-logo.png`,
+        },
+      ],
+      unavailable: [],
+    });
+    const partnerClaimItems = claimEvidence(claimInputFromView(partnerView));
+    expect(partnerClaimItems.map((i) => i.detail.orgId)).toEqual(expect.arrayContaining([hadedaOrgId, fynbosOrgId]));
+    const partnerComparison = await prepareRegistryComparison(
+      { db, keys },
+      partnerCaseId,
+      partnerView,
+      partnerClaimItems,
+    );
+    const partnerItems = comparisonEvidence(partnerComparison);
+    expect(partnerItems.filter((i) => i.check === "trust.sender_not_registered")).toEqual([]);
+    expect(partnerItems.filter((i) => i.check === "trust.impersonation")).toEqual([]);
+    expect(partnerItems.map((i) => ({ check: i.check, orgId: i.detail.orgId }))).toEqual([
+      { check: "trust.verified_sender", orgId: hadedaOrgId },
+    ]);
+
+    // 3. Doctored logo crop purporting to be Fynbos Freight (`same: false, brandSeen: "Fynbos Freight"`) alongside a
+    //    textual claim triggers `logo-mismatch` in `trust.impersonation`.
+    const doctoredLogoCaseId = ulid();
+    const doctoredBaseView = buildView({
+      caseId: doctoredLogoCaseId,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [
+        { name: "Received", value: "by mx.google.com with ESMTPS id doc1; Tue, 03 Nov 2026 12:00:00 +0200" },
+        {
+          name: "Authentication-Results",
+          value:
+            "mx.google.com; spf=pass smtp.mailfrom=fynbosfreight.co.za; dkim=pass header.d=fynbosfreight.co.za; dmarc=pass",
+        },
+        { name: "From", value: '"Fynbos Freight" <billing@fynbosfreight.co.za>' },
+      ],
+      text: "Updated invoice from Fynbos Freight.",
+    });
+    const doctoredView = withClaimLogos(doctoredBaseView, {
+      logoJudgements: [
+        {
+          orgId: fynbosOrgId,
+          same: false,
+          brandSeen: "Fynbos Freight",
+          differences: ["modified protea icon and redrawn wordmark"],
+          confidence: 0.93,
+          cropKey: `art/${doctoredLogoCaseId}/crop/doctored-logo.png`,
+        },
+      ],
+      unavailable: [],
+    });
+    const doctoredComparison = await prepareRegistryComparison({ db, keys }, doctoredLogoCaseId, doctoredView);
+    const doctoredItems = comparisonEvidence(doctoredComparison);
+    expect(doctoredItems.find((i) => i.check === "trust.impersonation")?.detail).toMatchObject({
+      orgId: fynbosOrgId,
+      signals: ["logo-mismatch"],
+    });
+    expect(doctoredItems.find((i) => i.check === "trust.verified_sender")).toBeUndefined();
+
+    // 4. Unauthenticated spoof on a registered domain (DMARC fail): yields neither verified_sender nor sender_not_registered.
     const spoofCaseId = ulid();
     const spoofView = buildView({
       caseId: spoofCaseId,
@@ -329,7 +450,7 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     expect(spoofItems.find((i) => i.check === "trust.verified_sender")).toBeUndefined();
     expect(spoofItems.find((i) => i.check === "trust.sender_not_registered")).toBeUndefined();
 
-    // 3. Non-claiming third-party mail (and negative-only logo judgement without textual claim): zero findings.
+    // 5. Non-claiming third-party mail (and negative-only logo judgement without textual claim): zero findings.
     const thirdPartyCaseId = ulid();
     const thirdPartyView = buildView({
       caseId: thirdPartyCaseId,
@@ -360,7 +481,7 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     expect(comparisonEvidence(thirdPartyComparison)).toEqual([]);
   });
 
-  it("attributes bank accounts to the matching business when multiple businesses are claimed and marks ambiguous accounts unavailable without emitting trust.bank_mismatch", async () => {
+  it("attributes bank accounts to the matching business when multiple businesses are claimed and marks ambiguous or conflicting accounts unavailable without emitting trust.bank_mismatch", async () => {
     const { keys, checkerOrgId, fynbosOrgId } = await seedFynbosAndChecker();
     const hadedaOrgId = await makeOrg("Hadeda Couriers (Pty) Ltd");
     await addDomain(hadedaOrgId, "hadedacouriers.co.za", "verified");
@@ -426,6 +547,48 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     const bankOutcome = outcomes.find((o) => o.check === "trust.bank_mismatch");
     expect(bankOutcome?.outcome).toBe("partial");
     expect(bankOutcome?.reason).toBe("the extracted bank account could not be tied to one claimed business");
+
+    // Sole claimed business with conflicting supplierName vs supplierDomain: records unavailable and emits no bank_mismatch.
+    const singleCaseId = ulid();
+    const singleView = buildView({
+      caseId: singleCaseId,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [
+        { name: "Received", value: "by mx.google.com with ESMTPS id s1; Tue, 03 Nov 2026 12:00:00 +0200" },
+        { name: "From", value: '"Fynbos Freight" <billing@fynbosfreight.co.za>' },
+      ],
+      text: "Attached invoice from Fynbos Freight.",
+    });
+    const conflictingCmp = await prepareRegistryComparison({ db, keys }, singleCaseId, singleView, undefined, [
+      {
+        number: "9998887776",
+        branchCode: "250655",
+        supplierName: "Fynbos Freight",
+        supplierDomain: "capestationery.co.za",
+        role: "payee",
+        artefactKey: `raw/${singleCaseId}/conflict-domain.pdf`,
+      },
+      {
+        number: "9998887776",
+        branchCode: "250655",
+        supplierName: "Cape Stationery",
+        supplierDomain: "fynbosfreight.co.za",
+        role: "payee",
+        artefactKey: `raw/${singleCaseId}/conflict-name.pdf`,
+      },
+    ]);
+    expect(comparisonEvidence(conflictingCmp).filter((i) => i.check === "trust.bank_mismatch")).toEqual([]);
+    expect(
+      comparisonOutcomes(withRegistryComparison(singleView, conflictingCmp)).find(
+        (o) => o.check === "trust.bank_mismatch",
+      ),
+    ).toEqual({
+      check: "trust.bank_mismatch",
+      outcome: "skipped",
+      reason: "the extracted bank account could not be tied to one claimed business",
+      findings: 0,
+    });
   });
 
   it("maps every typed refusal (AccountRefused, NoBaseline, KeyMismatch, IdentityRefused, MatchLimited, BankKeysMissing) to unavailable coverage with zero trust.bank_mismatch items while preserving sender findings", async () => {
@@ -559,24 +722,22 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
   });
 
   it("fails the leak detector immediately when a registered domain, address, finance contact, or account fragment is planted", () => {
-    const cleanItems: EvidenceDraft[] = [
-      {
-        check: "trust.bank_mismatch",
-        severity: "critical",
-        summary: "These bank details are not the ones Fynbos Freight registered with IsItLegit.",
-        detail: { checked: true, business: "Fynbos Freight", matched: false },
-        artefacts: ["raw/case-1/message.eml"],
-      },
-    ];
-    const cleanOutcomes: CheckOutcome[] = [
-      {
-        check: "trust.bank_mismatch",
-        outcome: "ran",
-        reason: null,
-        findings: 1,
-        summary: "These bank details are not the ones Fynbos Freight registered with IsItLegit.",
-      },
-    ];
+    const baseItem: EvidenceDraft = {
+      check: "trust.bank_mismatch",
+      severity: "critical",
+      summary: "These bank details are not the ones Fynbos Freight registered with IsItLegit.",
+      detail: { checked: true, business: "Fynbos Freight", matched: false },
+      artefacts: ["raw/case-1/message.eml"],
+    };
+    const baseOutcome: CheckOutcome = {
+      check: "trust.bank_mismatch",
+      outcome: "ran",
+      reason: null,
+      findings: 1,
+      summary: "These bank details are not the ones Fynbos Freight registered with IsItLegit.",
+    };
+    const cleanItems: EvidenceDraft[] = [baseItem];
+    const cleanOutcomes: CheckOutcome[] = [baseOutcome];
     const secrets: ForbiddenSecrets = {
       registeredDomainsNotInMail: ["fynbosfreight.co.za", FYNBOS_EXTRA_DOMAIN],
       registeredAddressesNotInMail: [FYNBOS_EXTRA_ADDRESS],
@@ -591,7 +752,7 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
       assertNoRegistryLeak(
         [
           {
-            ...cleanItems[0]!,
+            ...baseItem,
             detail: { registeredDomains: ["fynbosfreight.co.za", FYNBOS_EXTRA_DOMAIN] },
           },
         ],
@@ -603,7 +764,7 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     // Planted registered address in summary:
     expect(() =>
       assertNoRegistryLeak(
-        [{ ...cleanItems[0]!, summary: `Expected mail from ${FYNBOS_EXTRA_ADDRESS}` }],
+        [{ ...baseItem, summary: `Expected mail from ${FYNBOS_EXTRA_ADDRESS}` }],
         cleanOutcomes,
         secrets,
       ),
@@ -611,20 +772,12 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
 
     // Planted finance contact in check outcome summary:
     expect(() =>
-      assertNoRegistryLeak(
-        cleanItems,
-        [{ ...cleanOutcomes[0]!, summary: `Contact ${FYNBOS_FINANCE_CONTACT}` }],
-        secrets,
-      ),
+      assertNoRegistryLeak(cleanItems, [{ ...baseOutcome, summary: `Contact ${FYNBOS_FINANCE_CONTACT}` }], secrets),
     ).toThrow(/finance contact/);
 
     // Planted account fragment ("ends 223") in summary:
     expect(() =>
-      assertNoRegistryLeak(
-        [{ ...cleanItems[0]!, summary: "Fynbos Freight's account ends 223" }],
-        cleanOutcomes,
-        secrets,
-      ),
+      assertNoRegistryLeak([{ ...baseItem, summary: "Fynbos Freight's account ends 223" }], cleanOutcomes, secrets),
     ).toThrow(/account fragment/);
   });
 });

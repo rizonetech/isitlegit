@@ -89,6 +89,7 @@ export type BankMatchEntry = {
 export type RegistryComparisonBusiness = {
   orgId: string;
   name: string;
+  knownNames?: string[];
   routes: ClaimRoute[];
   support: string[];
   logos: ClaimLogoSummary[];
@@ -97,6 +98,10 @@ export type RegistryComparisonBusiness = {
   senderDomainRegistered: boolean;
   senderAddressRegistered: boolean;
   dmarcAlignedPass: boolean;
+  // Set per business when the message's From domain/address belongs to a separate verified business that
+  // the From display name identifies, so a partner logo inside a genuine third-party message is not misread
+  // as sender impersonation of the logo's owner.
+  senderIsOtherVerifiedBusiness?: boolean;
   senderUnavailable: string[];
   bankChecked: boolean;
   bankMatches: BankMatchEntry[];
@@ -110,8 +115,6 @@ export type RegistryComparisonInput = {
   fromHeader: string | null;
   rawKey: string | null;
   headersAvailable: boolean;
-  // Set when the message's From domain/address belongs to a separate verified business that the From display name
-  // also identifies, so a partner logo inside a genuine third-party message is not misread as sender impersonation.
   senderIsOtherVerifiedBusiness: boolean;
   businesses: RegistryComparisonBusiness[];
   unavailable: string[];
@@ -203,14 +206,12 @@ export function hasAlignedDmarcPass(view: Readonly<CaseView>, observedFromDomain
   const spfAlignedPass = results.some((r) => {
     if (r.method !== "spf" || stateOf("spf", r) !== "passed") return false;
     const id = spfIdentifier(r);
-    return id !== null && id.alignable && aligned(id.domain, site);
+    return Boolean(id?.alignable && aligned(id.domain, site));
   });
   const dkimAlignedPass = results.some((r) => {
     if (r.method !== "dkim" || stateOf("dkim", r) !== "passed") return false;
     return aligned(dkimIdentifier(r), site);
   });
-  // When Authentication-Results reports passing DMARC alongside explicit SPF/DKIM results, require at least one
-  // aligned pass; when the receiver stamped `dmarc=pass` with `header.from` matching the From domain, verify alignment.
   if (spfAlignedPass || dkimAlignedPass) return true;
   const hasSpfOrDkim = results.some((r) => r.method === "spf" || r.method === "dkim");
   if (hasSpfOrDkim) return false;
@@ -335,30 +336,56 @@ function parseSenderFromView(view: Readonly<CaseView>): {
   };
 }
 
-function matchesBusinessByNameOrDomain(
+function nameMatchesList(candidateName: string | null | undefined, names: readonly string[]): boolean {
+  const target = candidateName ? normaliseName(candidateName) : "";
+  if (target.length < 3) return false;
+  return names.some((n) => {
+    const norm = normaliseName(n);
+    return norm.length >= 3 && (norm === target || norm.includes(target) || target.includes(norm));
+  });
+}
+
+// Evaluates how an extracted bank account's supplierName and supplierDomain relate to a claimed business:
+// - "match": at least one field (name or domain) matches the business, and the other field (if present) does not conflict.
+// - "conflict": a provided supplierName or supplierDomain does not match this business.
+// - "unattributed": neither supplierName nor supplierDomain was provided on the account.
+function evaluateAccountAttribution(
   account: ExtractedBankAccount,
   business: { orgId: string; name: string; knownNames: string[]; knownDomains: string[] },
-): boolean {
-  const supDomain = account.supplierDomain
-    ? (registrable(account.supplierDomain) ?? asciiDomain(account.supplierDomain))
+): "match" | "conflict" | "unattributed" {
+  const hasDomainField = Boolean(account.supplierDomain && account.supplierDomain.trim().length > 0);
+  const supDomain = hasDomainField
+    ? (registrable(account.supplierDomain ?? "") ?? asciiDomain(account.supplierDomain ?? ""))
     : null;
-  if (supDomain) {
-    const matchesDomain = business.knownDomains.some((d) => {
-      const reg = registrable(d) ?? asciiDomain(d);
-      return reg !== null && reg === supDomain;
-    });
-    if (matchesDomain) return true;
+  const hasNameField = Boolean(account.supplierName && normaliseName(account.supplierName).length >= 3);
+
+  if (!hasDomainField && !hasNameField) {
+    return "unattributed";
   }
-  const supName = account.supplierName ? normaliseName(account.supplierName) : "";
-  if (supName.length >= 3) {
-    const names = [business.name, ...business.knownNames];
-    const matchesName = names.some((n) => {
-      const norm = normaliseName(n);
-      return norm.length >= 3 && (norm === supName || norm.includes(supName) || supName.includes(norm));
-    });
-    if (matchesName) return true;
+
+  let domainResult: "match" | "conflict" | "none" = "none";
+  if (hasDomainField) {
+    if (!supDomain || business.knownDomains.length === 0) {
+      domainResult = "conflict";
+    } else {
+      const matched = business.knownDomains.some((d) => {
+        const reg = registrable(d) ?? asciiDomain(d);
+        return reg !== null && reg === supDomain;
+      });
+      domainResult = matched ? "match" : "conflict";
+    }
   }
-  return false;
+
+  let nameResult: "match" | "conflict" | "none" = "none";
+  if (hasNameField) {
+    const allNames = [business.name, ...business.knownNames];
+    nameResult = nameMatchesList(account.supplierName, allNames) ? "match" : "conflict";
+  }
+
+  if (domainResult === "conflict" || nameResult === "conflict") {
+    return "conflict";
+  }
+  return domainResult === "match" || nameResult === "match" ? "match" : "unattributed";
 }
 
 // Runs the store-backed registry comparisons for a case's claimed businesses and extracted bank accounts,
@@ -375,11 +402,10 @@ export async function prepareRegistryComparison(
   const sender = parseSenderFromView(view);
   const rawKey = isCaseArtefactKey(view.raw) ? view.raw : null;
 
-  // Check whether the From domain/address belongs to a separate verified business whose display name matches From.
-  let senderIsOtherVerifiedBusiness = false;
+  // Identify every active protected business that owns the message's From domain and matches the From display name.
+  const verifiedSenderOrgIds = new Set<string>();
   if (sender.fromDomain && sender.fromDisplayName) {
     const fromSite = registrable(sender.fromDomain) ?? sender.fromDomain;
-    const claimedOrgIds = new Set(claims.map((c) => c.orgId));
     try {
       const rows = await deps.db
         .prepare(
@@ -388,19 +414,10 @@ export async function prepareRegistryComparison(
         .bind(sender.fromDomain, fromSite)
         .all<{ org_id: string }>();
       for (const row of rows.results) {
-        if (claimedOrgIds.has(row.org_id)) continue;
         const otherIdentity = await getIdentity(deps.db, row.org_id);
-        if (!otherIdentity || !otherIdentity.effective.on) continue;
-        const fromNorm = normaliseName(sender.fromDisplayName);
-        if (
-          fromNorm.length >= 3 &&
-          otherIdentity.displayNames.some((n) => {
-            const norm = normaliseName(n);
-            return norm.length >= 3 && (fromNorm === norm || fromNorm.includes(norm));
-          })
-        ) {
-          senderIsOtherVerifiedBusiness = true;
-          break;
+        if (!otherIdentity?.effective.on) continue;
+        if (nameMatchesList(sender.fromDisplayName, otherIdentity.displayNames)) {
+          verifiedSenderOrgIds.add(row.org_id);
         }
       }
     } catch {
@@ -439,8 +456,8 @@ export async function prepareRegistryComparison(
   for (const claim of claims) {
     const routes = normaliseRoutes(claim.routes);
     const cand = candidateLookup.get(claim.orgId);
-    const knownNames = cand?.names ?? [claim.name];
-    const knownDomains = cand?.domains ?? [];
+    const knownNames = [...(cand?.names ?? [claim.name])];
+    const knownDomains = [...(cand?.domains ?? [])];
     const senderUnavailable: string[] = [];
     let senderChecked = false;
     let senderDomainRegistered = false;
@@ -449,11 +466,23 @@ export async function prepareRegistryComparison(
 
     try {
       const identity = await getIdentity(deps.db, claim.orgId);
-      if (!identity || !identity.effective.on) {
+      if (!identity?.effective.on) {
         pushUnique(senderUnavailable, "the business's protection is not active");
       } else {
         for (const n of identity.displayNames) {
           if (!knownNames.includes(n)) knownNames.push(n);
+        }
+        // Populate verified domains from the registry if not already in knownDomains so domain attribution is exact.
+        if (knownDomains.length === 0) {
+          const domRows = await deps.db
+            .prepare(
+              `SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified' AND ${claimable()} ORDER BY domain`,
+            )
+            .bind(claim.orgId)
+            .all<{ domain: string }>();
+          for (const r of domRows.results) {
+            if (!knownDomains.includes(r.domain)) knownDomains.push(r.domain);
+          }
         }
         if (sender.senderUnavailable) {
           pushUnique(senderUnavailable, sender.senderUnavailable);
@@ -485,6 +514,9 @@ export async function prepareRegistryComparison(
       pushUnique(senderUnavailable, "the sender's registration could not be read right now");
     }
 
+    // Relative to `claim.orgId`, is the message's From sender a separate verified protected business?
+    const senderIsOtherForThisBusiness = [...verifiedSenderOrgIds].some((id) => id !== claim.orgId);
+
     businessRecords.push({
       claim,
       routes,
@@ -493,6 +525,7 @@ export async function prepareRegistryComparison(
       business: {
         orgId: claim.orgId,
         name: plain(claim.name, 80) || "protected business",
+        knownNames,
         routes,
         support: (claim.support ?? []).map((s) => plain(s, 200)),
         logos: [...(claim.logos ?? [])],
@@ -501,6 +534,7 @@ export async function prepareRegistryComparison(
         senderDomainRegistered,
         senderAddressRegistered,
         dmarcAlignedPass,
+        senderIsOtherVerifiedBusiness: senderIsOtherForThisBusiness,
         senderUnavailable,
         bankChecked: false,
         bankMatches: [],
@@ -516,40 +550,35 @@ export async function prepareRegistryComparison(
       : { sender: sender.fromAddress ?? `case@${caseId}.local` };
 
     for (const account of beneficiaryAccounts) {
-      const matchingBusinesses = businessRecords.filter((b) =>
-        matchesBusinessByNameOrDomain(account, {
+      const evaluations = businessRecords.map((b) => ({
+        record: b,
+        status: evaluateAccountAttribution(account, {
           orgId: b.claim.orgId,
           name: b.business.name,
           knownNames: b.knownNames,
           knownDomains: b.knownDomains,
         }),
-      );
+      }));
 
+      const matchedRecords = evaluations.filter((e) => e.status === "match").map((e) => e.record);
       let target: (typeof businessRecords)[number] | null = null;
-      if (matchingBusinesses.length === 1 && matchingBusinesses[0]) {
-        target = matchingBusinesses[0];
-      } else if (matchingBusinesses.length > 1) {
+
+      if (matchedRecords.length === 1 && matchedRecords[0]) {
+        target = matchedRecords[0];
+      } else if (matchedRecords.length > 1) {
         const reason = "the extracted bank account could not be tied to one claimed business";
-        for (const b of matchingBusinesses) pushUnique(b.business.bankUnavailable, reason);
+        for (const r of matchedRecords) pushUnique(r.business.bankUnavailable, reason);
         continue;
-      } else if (businessRecords.length === 1 && businessRecords[0]) {
-        // Sole claimed business: compare unless the account explicitly names a different supplier name/domain.
-        const hasConflictingSupplier =
-          Boolean(account.supplierDomain && businessRecords[0].knownDomains.length > 0) ||
-          Boolean(account.supplierName && normaliseName(account.supplierName).length >= 3);
-        if (hasConflictingSupplier) {
-          pushUnique(
-            businessRecords[0].business.bankUnavailable,
-            "the extracted bank account could not be tied to one claimed business",
-          );
-          continue;
-        }
-        target = businessRecords[0];
+      } else if (businessRecords.length === 1 && evaluations[0]?.status === "unattributed") {
+        // Sole claimed business and no conflicting supplierName/supplierDomain on the account.
+        target = businessRecords[0] ?? null;
       } else {
         const reason = "the extracted bank account could not be tied to one claimed business";
         for (const b of businessRecords) pushUnique(b.business.bankUnavailable, reason);
         continue;
       }
+
+      if (!target) continue;
 
       if (keysError) {
         pushUnique(target.business.bankUnavailable, refusalReasonOf(keysError));
@@ -585,6 +614,8 @@ export async function prepareRegistryComparison(
     }
   }
 
+  const anyOtherVerified = businessRecords.some((r) => r.business.senderIsOtherVerifiedBusiness === true);
+
   return {
     fromAddress: sender.fromAddress,
     fromDomain: sender.fromDomain,
@@ -592,19 +623,23 @@ export async function prepareRegistryComparison(
     fromHeader: sender.fromHeader,
     rawKey,
     headersAvailable: view.tenant.headersAvailable,
-    senderIsOtherVerifiedBusiness,
+    senderIsOtherVerifiedBusiness: anyOtherVerified,
     businesses: businessRecords.map((r) => r.business),
     unavailable,
   };
 }
 
-function hasStrongSenderClaim(business: RegistryComparisonBusiness, senderIsOtherVerifiedBusiness: boolean): boolean {
+function isOtherVerifiedSenderFor(business: RegistryComparisonBusiness, input: RegistryComparisonInput): boolean {
+  return business.senderIsOtherVerifiedBusiness ?? input.senderIsOtherVerifiedBusiness;
+}
+
+function hasStrongSenderClaim(business: RegistryComparisonBusiness, input: RegistryComparisonInput): boolean {
   if (business.routes.some((r) => TEXTUAL_OR_HEADER_ROUTES.has(r))) {
     return true;
   }
   const hasPositiveLogo =
     business.routes.includes("logo") && (business.logos.length === 0 || business.logos.some((l) => l.same === true));
-  if (hasPositiveLogo && !senderIsOtherVerifiedBusiness) {
+  if (hasPositiveLogo && !isOtherVerifiedSenderFor(business, input)) {
     return true;
   }
   return false;
@@ -612,6 +647,19 @@ function hasStrongSenderClaim(business: RegistryComparisonBusiness, senderIsOthe
 
 function hasTextualOrVoiceClaim(business: RegistryComparisonBusiness): boolean {
   return business.routes.some((r) => TEXTUAL_OR_HEADER_ROUTES.has(r));
+}
+
+// A negative logo judgement (`same === false`) counts as a logo mismatch for `business` only when:
+// 1. No crop in the message matched `business`'s registered logo (`!business.logos.some(l => l.same === true)`), and
+// 2. The mismatching crop purports to be `business` (`l.brandSeen` matches `business.name` or `business.knownNames`),
+//    so an unrelated second graphic or partner badge never triggers false logo impersonation or suppresses
+//    `trust.verified_sender`.
+function hasIdentityLogoMismatch(business: RegistryComparisonBusiness): boolean {
+  if (business.logos.some((l) => l.same === true)) {
+    return false;
+  }
+  const allNames = [business.name, ...(business.knownNames ?? [])];
+  return business.logos.some((l) => l.same === false && nameMatchesList(l.brandSeen, allNames));
 }
 
 function businessArtefacts(business: RegistryComparisonBusiness, rawKey: string | null): string[] {
@@ -629,7 +677,7 @@ function businessArtefacts(business: RegistryComparisonBusiness, rawKey: string 
 export function senderNotRegisteredEvidence(input: RegistryComparisonInput): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const business of input.businesses) {
-    if (!hasStrongSenderClaim(business, input.senderIsOtherVerifiedBusiness)) continue;
+    if (!hasStrongSenderClaim(business, input)) continue;
     if (!business.senderChecked) continue;
     if (business.senderDomainRegistered || business.senderAddressRegistered) continue;
     const observed = input.fromDomain ?? input.fromAddress ?? "this sender";
@@ -689,11 +737,11 @@ export function bankMismatchEvidence(input: RegistryComparisonInput): EvidenceDr
 export function impersonationEvidence(input: RegistryComparisonInput): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const business of input.businesses) {
-    const strongClaim = hasStrongSenderClaim(business, input.senderIsOtherVerifiedBusiness);
+    const strongClaim = hasStrongSenderClaim(business, input);
     const senderUnregistered =
       strongClaim && business.senderChecked && !business.senderDomainRegistered && !business.senderAddressRegistered;
     const bankMismatch = business.bankMatches.some((m) => !m.matched);
-    const logoMismatch = hasTextualOrVoiceClaim(business) && business.logos.some((l) => l.same === false);
+    const logoMismatch = hasTextualOrVoiceClaim(business) && hasIdentityLogoMismatch(business);
 
     if (!senderUnregistered && !bankMismatch && !logoMismatch) continue;
 
@@ -706,7 +754,7 @@ export function impersonationEvidence(input: RegistryComparisonInput): EvidenceD
     }
     if (bankMismatch) {
       signals.push("bank-mismatch");
-      reasons.push(`gives bank details not registered with IsItLegit`);
+      reasons.push("gives bank details not registered with IsItLegit");
     }
     if (logoMismatch) {
       signals.push("logo-mismatch");
@@ -747,7 +795,7 @@ export function verifiedSenderEvidence(input: RegistryComparisonInput): Evidence
   for (const business of input.businesses) {
     if (!business.senderChecked || !business.senderDomainRegistered || !business.dmarcAlignedPass) continue;
     const hasBankMismatch = business.bankMatches.some((m) => !m.matched);
-    const hasLogoMismatch = business.logos.some((l) => l.same === false);
+    const hasLogoMismatch = hasIdentityLogoMismatch(business);
     if (hasBankMismatch || hasLogoMismatch) continue;
 
     const hasBankMatch = business.bankMatches.some((m) => m.matched);
@@ -800,7 +848,7 @@ function senderSkipReason(view: Readonly<CaseView>): string | null {
   if (cmp.businesses.length === 0) {
     return cmp.unavailable[0] ?? "no protected business was claimed";
   }
-  const strong = cmp.businesses.filter((b) => hasStrongSenderClaim(b, cmp.senderIsOtherVerifiedBusiness));
+  const strong = cmp.businesses.filter((b) => hasStrongSenderClaim(b, cmp));
   if (strong.length === 0) {
     return "no sender-asserting protected identity claim was made";
   }
@@ -817,9 +865,7 @@ function senderPartialReason(view: Readonly<CaseView>): string | null {
   if (!cmp) return null;
   const reasons = [
     ...cmp.unavailable,
-    ...cmp.businesses
-      .filter((b) => hasStrongSenderClaim(b, cmp.senderIsOtherVerifiedBusiness))
-      .flatMap((b) => b.senderUnavailable),
+    ...cmp.businesses.filter((b) => hasStrongSenderClaim(b, cmp)).flatMap((b) => b.senderUnavailable),
   ];
   return reasons[0] ?? null;
 }
@@ -854,7 +900,7 @@ function impersonationSkipReason(view: Readonly<CaseView>): string | null {
   }
   const anyEvaluated = cmp.businesses.some(
     (b) =>
-      (hasStrongSenderClaim(b, cmp.senderIsOtherVerifiedBusiness) && b.senderChecked) ||
+      (hasStrongSenderClaim(b, cmp) && b.senderChecked) ||
       b.bankChecked ||
       (hasTextualOrVoiceClaim(b) && b.logos.length > 0),
   );
@@ -971,7 +1017,7 @@ export function registerComparisonChecks(registry: CheckRegistry): void {
     },
     summary: (_view, items) =>
       items.length > 0
-        ? plain(items[0]?.summary ?? "bank details do not match theIsItLegit registration", MAX_OUTCOME_SUMMARY)
+        ? plain(items[0]?.summary ?? "bank details do not match the IsItLegit registration", MAX_OUTCOME_SUMMARY)
         : "extracted bank details match what the business registered with IsItLegit",
   });
 
