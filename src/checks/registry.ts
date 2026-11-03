@@ -11,7 +11,7 @@ export const CHECK_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
 export const SYSTEM_CHECKS = ["not_checked"] as const;
 // Producers that add evidence after the checks step (D02 T01 §5), each a family: its items are named `<family>.<name>`
 // (`walkthrough.chain`) and written by `addEvidence`, never by a registered check, so no check may take the family.
-export const LATER_PRODUCERS = ["walkthrough", "agent", "vision"] as const;
+export const LATER_PRODUCERS = ["walkthrough", "agent", "vision", "invoice"] as const;
 export type LaterProducer = (typeof LATER_PRODUCERS)[number];
 export const familyOf = (name: string) => name.split(".")[0] ?? name;
 // A check's largest budget: the runner's checks all run inside one attempt of the Workflow's `checks` step, at most 30
@@ -48,6 +48,10 @@ export type Check = {
   // items only, holding nothing of the message its card does not show; null when it has nothing to say. A summary that
   // throws, is empty, runs past MAX_OUTCOME_SUMMARY characters or is not plain is stored as null, the outcome kept.
   summary?: (view: Readonly<CaseView>, items: readonly EvidenceDraft[]) => string | null;
+  // The targets the check examined, as stored text (D02 T01 §8): read by the runner only when the check ran
+  // over all its input and found nothing, so a clean outcome can show what was looked at. From the view only,
+  // never a new read. A hook that throws or returns a malformed entry loses only its examined set.
+  examined?: (view: Readonly<CaseView>) => string[];
 };
 
 export const MAX_OUTCOME_SUMMARY = 120;

@@ -120,18 +120,51 @@ describe("the ablation RESULTS.md writer", () => {
         arm: "full",
         set: "synthetic-sa",
         runId: "run-full",
-        metrics: { verdictRows: 90, detected: 10, genuineRows: 70, falsePositives: 0, medianMs: 7461, measured: true },
+        metrics: {
+          verdictRows: 90,
+          detected: 10,
+          genuineRows: 70,
+          falsePositives: 0,
+          medianMs: 7461,
+          costUsd: 1.5,
+          measured: true,
+        },
+      },
+      {
+        arm: "no-agent-reasoning",
+        set: "synthetic-sa",
+        runId: "run-arm",
+        metrics: {
+          verdictRows: 90,
+          detected: 5,
+          genuineRows: 70,
+          falsePositives: 7,
+          medianMs: 7000,
+          costUsd: 0.5,
+          measured: true,
+        },
       },
       {
         arm: "no-screening",
         set: "synthetic-sa",
-        runId: "run-arm",
-        metrics: { verdictRows: 0, detected: 0, genuineRows: 0, falsePositives: 0, medianMs: 0, measured: false },
+        runId: "run-unmeasured",
+        metrics: {
+          verdictRows: 0,
+          detected: 0,
+          genuineRows: 0,
+          falsePositives: 0,
+          medianMs: 0,
+          costUsd: 0,
+          measured: false,
+        },
       },
     ]);
     const body = readFileSync(path, "utf8");
-    expect(body).toContain("full | synthetic-sa | 10/90 | 0/70 | 7461 |");
-    expect(body).toContain("no-screening | synthetic-sa | not measured |");
+    expect(body).toContain("Model removed");
+    expect(body).toContain("none (full baseline) | synthetic-sa | 11.1% (10/90) | 0.0% (0/70) | 7461 ms | US$1.5000 |");
+    // Hand-computed deltas: detection 5.6% - 11.1% = -5.6%, FP 10.0% - 0.0% = +10.0%, time -461 ms, cost -US$1.0000.
+    expect(body).toContain("muse-spark-1.3 | synthetic-sa | -5.6% | +10.0% | -461 ms | US$-1.0000 | run-arm |");
+    expect(body).toContain("loupe | synthetic-sa | not measured |");
     expect(body).toContain("run-full");
     expect(readdirSync(dir)).not.toContain("RESULTS.md.tmp");
     expect(ablationArmPublishKey({ arm: "full", set: "synthetic-sa" })).toBe("synthetic-sa:full");
@@ -171,6 +204,88 @@ describe("the ablation orchestration", () => {
   it("an arm publish replaces only the baseline cells at the arm ids", () => {
     const merged = mergeAblationArmCells({ full: { detected: "10/90" } }, "synthetic-sa:full", { detected: "8/90" });
     expect(merged).toEqual({ full: { detected: "10/90" }, "synthetic-sa:full": { detected: "8/90" } });
+  });
+});
+
+describe("the ablation command orchestration", () => {
+  const manifest = () =>
+    startAblationRun(
+      { seed: "s", sets: ["synthetic-sa"], setVersions: { "synthetic-sa": "v1" }, deployment: "d1", ids: ["a"] },
+      ["no-screening"],
+    );
+  const actual = { setVersions: { "synthetic-sa": "v1" }, deployment: "d1" };
+  const report = (arm: AblateFlag | "full", runId: string) => ({
+    arm,
+    set: "synthetic-sa",
+    runId,
+    metrics: {
+      verdictRows: 2,
+      detected: 1,
+      genuineRows: 2,
+      falsePositives: 0,
+      medianMs: 10,
+      costUsd: 0.1,
+      measured: true,
+    },
+  });
+
+  it("runs the full arm then each switch under its stated cap and writes the table", async () => {
+    const { mkdtempSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "eval-ablate-run-"));
+    const { runAblation } = await import("../../eval/ablate-run.ts");
+    const caps: Record<string, number> = {};
+    const out = await runAblation({
+      manifest: manifest(),
+      caps: { full: 5, "no-screening": 5 },
+      actual,
+      resultsDir: dir,
+      runArm: async (flag, cap) => {
+        caps[flag] = cap;
+        return { runId: `run-${flag}`, status: "complete", outcomes: ["done"], report: report(flag, `run-${flag}`) };
+      },
+    });
+    expect(out.status).toBe("complete");
+    expect(caps).toEqual({ full: 5, "no-screening": 5 });
+    expect(readFileSync(out.resultsPath ?? "", "utf8")).toContain("Model removed");
+  });
+
+  it("stops on a failed arm, refuses a mismatched deployment, and excludes an all-stale arm", async () => {
+    const { runAblation, parseAblateArgs } = await import("../../eval/ablate-run.ts");
+    const failed = await runAblation({
+      manifest: manifest(),
+      caps: { full: 5, "no-screening": 5 },
+      actual,
+      resultsDir: "/tmp",
+      runArm: async () => ({ runId: "r1", status: "failed", outcomes: ["done"], report: null }),
+    });
+    expect(failed.status).toBe("incomplete");
+    expect(failed.arms).toHaveLength(2);
+    const stale = await runAblation({
+      manifest: manifest(),
+      caps: { full: 5, "no-screening": 5 },
+      actual,
+      resultsDir: "/tmp",
+      runArm: async (flag) => ({
+        runId: "r2",
+        status: "complete",
+        outcomes: ["stale-repeat"],
+        report: report(flag, "r2"),
+      }),
+    });
+    expect(stale.resultsPath).toBeNull();
+    const drift = await runAblation({
+      manifest: manifest(),
+      caps: { full: 5 },
+      actual: { setVersions: { "synthetic-sa": "v1" }, deployment: "d2" },
+      resultsDir: "/tmp",
+      runArm: async () => ({ runId: "r3", status: "complete", outcomes: ["done"], report: null }),
+    });
+    expect(drift.status).toBe("refused");
+    expect(parseAblateArgs([])).toHaveProperty("error");
+    expect(parseAblateArgs(["--cap-usd", "5", "--flags", "nope"])).toHaveProperty("error");
+    expect(parseAblateArgs(["--cap-usd", "5"])).toMatchObject({ capUsd: 5 });
   });
 });
 

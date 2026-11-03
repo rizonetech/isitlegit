@@ -2,13 +2,17 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type AgentContext, runAgent } from "../../src/agent/loop";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
-import { createToolExecutor, type ToolDeps } from "../../src/agent/tools";
+import { createToolExecutor, ledgerLookup, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { getVerdict } from "../../src/db/verdicts";
+import { getVerdict, storeVerdict } from "../../src/db/verdicts";
 import { readArtefact, type Store } from "../../src/intake/store";
-import { callBackAction } from "../../src/invoice/fixed-actions";
+import { bankChangeAction, callBackAction } from "../../src/invoice/fixed-actions";
+import { importSuppliers, siteOf } from "../../src/invoice/ledger";
+import { checkImport } from "../../src/invoice/ledger-csv";
 import { d1Budget } from "../../src/meta/budget";
+import { bankKeys } from "../../src/trust/bank";
+import { makeOrg } from "../trust/helpers";
 
 // D04 T01 §4: the verdict agent loop over a scripted Meta transport, the real tool executor with stubbed
 // implementations, and real D1. No Meta credit is spent.
@@ -55,8 +59,8 @@ const draft = (check: string, severity: EvidenceDraft["severity"], summary: stri
   artefacts: [],
 });
 
-async function newCase(items: EvidenceDraft[]) {
-  const made = await createCase(env.DB, { orgId: "org-loop", channel: "email", headersAvailable: true });
+async function newCase(items: EvidenceDraft[], orgId = "org-loop") {
+  const made = await createCase(env.DB, { orgId, channel: "email", headersAvailable: true });
   if (!made.ok) throw new Error(made.error.message);
   if (items.length) await saveEvidence(env.DB, made.value.id, items);
   return made.value.id;
@@ -160,6 +164,8 @@ describe("runAgent", () => {
     }
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok && stored.value.verdict).toBe("suspicious");
+    // Above the floor, the stored row carries no floor record (D04 T01 §11).
+    expect(stored?.ok && stored.value.floorApplied).toBeNull();
     const events = await env.DB.prepare(
       "SELECT step, status FROM case_events WHERE case_id = ? AND step = 'agent' ORDER BY id",
     )
@@ -209,6 +215,44 @@ describe("runAgent", () => {
     // The model's own actions give way to the rules' under a floor, and the decisive evidence leads the reasons.
     expect(view.actions).toEqual(rules.actions);
     expect(view.reasons[0]?.evidenceIds).toEqual(["E1"]);
+    // The floor outcome is persisted with the verdict (D04 T01 §11), so the eval can measure it per case.
+    expect(view.floorApplied).toEqual({ from: "safe", to: "malicious", evidenceIds: ["E1"], revision: "1" });
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({
+      ok: true,
+      value: {
+        floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"], revision: "1" },
+        floorCoverage: "raised",
+      },
+    });
+    // The production sequence on the loop's own view: an identical replay through the Workflow store
+    // answers the stored row, and a changed revision conflicts without touching it (D04 T01 §13).
+    await env.DB.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(caseId).run();
+    expect(await storeVerdict(env.DB, "org-loop", caseId, view)).toMatchObject({ ok: true });
+    const revised = { ...view, floorApplied: { ...view.floorApplied!, revision: "2" } };
+    expect(await storeVerdict(env.DB, "org-loop", caseId, revised)).toMatchObject({
+      ok: false,
+      error: { code: "conflict" },
+    });
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({
+      ok: true,
+      value: { floorApplied: { revision: "1" } },
+    });
+  });
+
+  it("stores no floor record when the answer sits exactly at the floor (D04 T01 §11)", async () => {
+    const caseId = await newCase([
+      draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", {
+        domain: "collect.example",
+      }),
+    ]);
+    const m = model([
+      () => message("done"),
+      () => final({ ...ANSWER, verdict: "malicious", cited_evidence_ids: ["E1"] }),
+    ]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.verdict).toBe("malicious");
+    expect(view.floorApplied).toBeNull();
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({ ok: true, value: { floorApplied: null } });
   });
 
   it("falls back to the rules on a model failure, and caps confidence without headers", async () => {
@@ -218,6 +262,9 @@ describe("runAgent", () => {
     ]);
     const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
     expect(view.source).toBe("rules");
+    // A fallback verdict is never below its floor, so it stores no floor record (D04 T01 §11).
+    expect(view.floorApplied).toBeNull();
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({ ok: true, value: { floorApplied: null } });
     const failedEvents = await env.DB.prepare(
       "SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'",
     )
@@ -282,6 +329,89 @@ describe("runAgent", () => {
 });
 
 describe("caseSummary and finalisation edges", () => {
+  it("attaches the numbered bank-change action on the invoice trigger alone (D04 T01 §12)", async () => {
+    const caseId = await newCase([
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+    ]);
+    const m = model([() => message("done"), () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] })]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
+    const stored = await getVerdict(env.DB, caseId);
+    expect(stored?.ok && stored.value.actions[0]).toBe(bankChangeAction("+27115550123"));
+  });
+
+  it("takes the bank-change number from the seeded ledger, never the message (D04 T01 §12)", async () => {
+    const keys = await bankKeys(env);
+    const text = [
+      "name,domain,bank,branch_code,account_number,phone",
+      "Acme Supplies,acme.example,Kestrel Bank,250655,62004417731,+27115550123",
+      "NoPhone Traders,nophone.example,Kestrel Bank,250655,62004417733,",
+    ].join("\r\n");
+    const checked = checkImport(new TextEncoder().encode(text).length, text, siteOf);
+    if (!checked.ok) throw new Error("seed refused");
+    const org = await makeOrg();
+    await importSuppliers(env.DB, keys, org, "owner", checked.rows);
+    const run = async (supplier: string, summary: string) => {
+      const caseId = await newCase([], org);
+      const deps = { ...toolDeps(), ledger: ledgerLookup(env.DB, org, keys) };
+      const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
+      const m = model([
+        () => call("ledger_lookup", { supplier, account_number: "62004417732", branch_code: "250655" }),
+        () => message("done"),
+        () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] }),
+      ]);
+      const ctx: AgentContext = {
+        db: env.DB,
+        meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: m.fetchStub },
+        summary,
+        headersAvailable: true,
+        executor,
+      };
+      const view = await runAgent(ctx, caseId);
+      const stored = await getVerdict(env.DB, caseId);
+      expect(stored?.ok && stored.value.actions[0]).toBe(view.actions[0]);
+      return view;
+    };
+    const numbered = await run("Acme Supplies", "Invoice attached. Call us on +27999999999 to confirm.");
+    expect(numbered.actions[0]).toBe(bankChangeAction("+27115550123"));
+    expect(numbered.actions.join(" ")).not.toContain("99999");
+    const numberless = await run("NoPhone Traders", "Invoice attached.");
+    expect(numberless.actions[0]).toBe(bankChangeAction());
+  });
+
+  it("uses a later numbered trigger when an earlier one carries no number (D04 T01 §12)", async () => {
+    const caseId = await newCase([
+      draft("agent.ledger_lookup", "critical", "The claimed account does not match.", {
+        supplier: "NoPhone Traders",
+        known: true,
+        match: false,
+        phone: null,
+      }),
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+    ]);
+    const m = model([() => message("done"), () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] })]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
+  });
+
+  it("attaches the numbered action on the fallback path too (D04 T01 §12)", async () => {
+    const caseId = await newCase([
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+    ]);
+    const failing = model([], 0);
+    const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
+    expect(view.source).toBe("rules");
+    expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
+    const stored = await getVerdict(env.DB, caseId);
+    expect(stored?.ok && stored.value.actions[0]).toBe(bankChangeAction("+27115550123"));
+  });
+
   it("reads real stored headers and only visible HTML text", async () => {
     const { caseSummary } = await import("../../src/agent/loop");
     const summary = caseSummary({

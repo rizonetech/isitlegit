@@ -1,0 +1,111 @@
+{
+  "ref": "D04 T02 \u00a77",
+  "title": "One URL policy with the",
+  "implementation_sha": "f5cfa9575348637838b50b7cdf8af0e8327e3238",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T02-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/walkthrough/url-policy.test.ts test/checks/live-policy.test.ts -> 11 passed",
+    "pnpm exec vitest run test/walkthrough/driver.test.ts test/node/expand-browser.test.ts -> 50 passed (frozen, unchanged)",
+    "grep for the address check in src -> one definition, src/walkthrough/url-policy.ts"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s7.md",
+    "verdict": "completed",
+    "candidate": "2f056e8c8d6fb18a3f6b084938bb4d6df0956234",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s7.md",
+    "candidate": "4de7ca5e6ab172caa372194f5693fa1fe08c77c2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

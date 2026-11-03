@@ -744,3 +744,197 @@ describe("a publisher's label on its capture (D03 T04 §18)", () => {
     }
   });
 });
+
+describe("captured production pages (§46)", () => {
+  const SETTLING = {
+    brand: "Fynbos Freight",
+    has_login_form: true,
+    has_payment_form: false,
+    lure: true,
+    lure_type: "credential" as const,
+    confidence: 0.92,
+  };
+  const capture = (over: Record<string, unknown> = {}) => ({
+    screenshot,
+    text: "Sign in to Fynbos Freight",
+    host: "fynbos-login.example",
+    settledAt: "2026-11-02T17:30:00Z",
+    tier: "glimmer",
+    screener: "glimmer" as const,
+    settling: SETTLING,
+    ...over,
+  });
+
+  it("stores one copy per page, reads the tier and answers back, and counts a text-only page", async () => {
+    const { captureScreenedPage, productionCounts } = await import("../../scripts/glimmer/store.ts");
+    const store = openStore(dir);
+    const first = await captureScreenedPage(store, capture());
+    expect(first).toMatchObject({ stored: true });
+    const again = await captureScreenedPage(store, capture());
+    expect(again).toMatchObject({ stored: false, duplicate: true, id: first.id });
+    const [page] = store.manifest().filter((p) => p.origin === "production");
+    expect(page?.capture).toMatchObject({ tier: "glimmer", screener: "glimmer", settling: { lure: true } });
+    expect(await captureScreenedPage(store, capture({ screenshot: null }))).toEqual({
+      id: null,
+      stored: false,
+      reason: "no-screenshot",
+    });
+    expect(productionCounts(store)).toMatchObject({ captured: 1, labelled: 0, unlabelled: 1 });
+  });
+
+  it("labels only after clearance, queues a disagreement, and imports a judgement", async () => {
+    const store = openStore(dir);
+    const {
+      captureScreenedPage,
+      clearProductionPage,
+      labelCapturedPage,
+      applyJudgements,
+      productionCounts,
+      readReviewQueue,
+    } = await import("../../scripts/glimmer/store.ts");
+    const { id } = (await captureScreenedPage(store, capture())) as { id: string };
+    let calls = 0;
+    const labeller = async () => {
+      calls++;
+      return { ...SETTLING, lure: false, lure_type: "none" as const, confidence: 0.9 };
+    };
+    // Uncleared: the labeller is never called.
+    expect(await labelCapturedPage(store, id, labeller, "2026-11-02T17:31:00Z")).toMatchObject({
+      labelled: false,
+      reason: "not cleared",
+    });
+    expect(calls).toBe(0);
+    expect(clearProductionPage(store, id, "operator", "2026-11-02T17:31:00Z")).toMatchObject({ cleared: true });
+    const labelled = await labelCapturedPage(store, id, labeller, "2026-11-02T17:32:00Z");
+    expect(labelled).toMatchObject({ labelled: true, queued: true });
+    expect(calls).toBe(1);
+    expect(store.manifest()[0]?.label_source.lure).toBe("spark-teacher");
+    // A rerun makes no second successful call.
+    await labelCapturedPage(store, id, labeller, "2026-11-02T17:33:00Z");
+    expect(calls).toBe(1);
+    expect(readReviewQueue(store)).toHaveLength(1);
+    const [queued] = readReviewQueue(store);
+    // A stale judgement is refused; the page stays queued.
+    expect(
+      applyJudgements(store, [
+        { id, screenshot: "0".repeat(64), text: queued?.text ?? "", answer: SETTLING, source: "astra+claude" },
+      ]),
+    ).toMatchObject([{ accepted: false }]);
+    expect(readReviewQueue(store)).toHaveLength(1);
+    expect(
+      applyJudgements(store, [
+        {
+          id,
+          screenshot: queued?.screenshot ?? "",
+          text: queued?.text ?? "",
+          answer: SETTLING,
+          source: "astra+claude",
+        },
+      ]),
+    ).toMatchObject([{ accepted: true }]);
+    expect(readReviewQueue(store)).toHaveLength(0);
+    expect(store.manifest()[0]?.label_source.lure).toBe("astra+claude");
+    expect(productionCounts(store)).toMatchObject({ captured: 1, labelled: 1, judged: 1, queued: 0 });
+  });
+
+  it("refuses clearance while recipient identifiers are in the text, and admission of a queued page", async () => {
+    const store = openStore(dir);
+    const { captureScreenedPage, clearProductionPage, admitProductionPages } = await import(
+      "../../scripts/glimmer/store.ts"
+    );
+    const { id } = (await captureScreenedPage(
+      store,
+      capture({ text: "Pay into account for derick@example.com today" }),
+    )) as { id: string };
+    expect(clearProductionPage(store, id, "operator", "2026-11-02T17:31:00Z")).toMatchObject({ cleared: false });
+    expect(admitProductionPages(store, [id], "operator", "2026-11-02T17:31:00Z").refused).toHaveLength(1);
+  });
+});
+
+describe("the production backlog path (§46 completion)", () => {
+  it("labels every cleared page once, fails closed on a damaged queue, and refuses an invalid judgement", async () => {
+    const { captureScreenedPage, clearProductionPage, processProductionBacklog, readReviewQueue, applyJudgements } =
+      await import("../../scripts/glimmer/store.ts");
+    const { writeFileSync, existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const store = openStore(dir);
+    const shot = screenshot;
+    const mk = (text: string) =>
+      captureScreenedPage(store, {
+        screenshot: shot,
+        text,
+        host: "lure.example",
+        settledAt: "2026-11-02T17:50:00Z",
+        tier: "glimmer",
+        screener: "glimmer" as const,
+        settling: {
+          brand: null,
+          has_login_form: true,
+          has_payment_form: false,
+          lure: true,
+          lure_type: "credential" as const,
+          confidence: 0.9,
+        },
+      });
+    const one = (await mk("Sign in one")) as { id: string };
+    // Distinct screenshot bytes are needed per page; reuse the same shot only once, so the second page is a duplicate.
+    expect(clearProductionPage(store, one.id, "operator", "2026-11-02T17:50:00Z")).toMatchObject({ cleared: true });
+    let calls = 0;
+    const labeller = async () => {
+      calls++;
+      return {
+        brand: null,
+        has_login_form: true,
+        has_payment_form: false,
+        lure: true,
+        lure_type: "credential" as const,
+        confidence: 0.9,
+      };
+    };
+    expect(await processProductionBacklog(store, labeller, "2026-11-02T17:51:00Z")).toMatchObject({
+      labelled: 1,
+      failed: [],
+    });
+    expect(await processProductionBacklog(store, labeller, "2026-11-02T17:52:00Z")).toMatchObject({
+      labelled: 0,
+      skipped: 1,
+    });
+    expect(calls).toBe(1);
+    // An invalid judgement answer is refused before anything is written.
+    const [page] = store.manifest();
+    expect(
+      applyJudgements(store, [
+        {
+          id: one.id,
+          screenshot: page?.sha256.screenshot ?? "",
+          text: page?.sha256.text ?? "",
+          answer: { lure: "maybe" } as never,
+          source: "claude",
+        },
+      ]),
+    ).toMatchObject([{ accepted: false, reason: expect.stringContaining("PageAnswer") }]);
+    // A non-judge source is refused at runtime, whatever the caller's types said.
+    expect(
+      applyJudgements(store, [
+        {
+          id: one.id,
+          screenshot: page?.sha256.screenshot ?? "",
+          text: page?.sha256.text ?? "",
+          answer: {
+            brand: null,
+            has_login_form: true,
+            has_payment_form: false,
+            lure: true,
+            lure_type: "credential",
+            confidence: 0.9,
+          } as never,
+          source: "spark-teacher" as never,
+        },
+      ]),
+    ).toMatchObject([{ accepted: false, reason: expect.stringContaining("offline judge") }]);
+    // A damaged queue fails closed.
+    writeFileSync(join(dir, "review-queue.jsonl"), "not json\n");
+    expect(() => readReviewQueue(store)).toThrow(/does not read/);
+    expect(existsSync(join(dir, "review-queue.jsonl"))).toBe(true);
+  });
+});

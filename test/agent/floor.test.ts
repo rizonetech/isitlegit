@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFloor, type Floor, floorFor, MAX_FLOOR_IDS } from "../../src/agent/floor";
+import { applyFloor, FLOOR_REVISION, type Floor, floorFor, MAX_FLOOR_IDS, replayFloor } from "../../src/agent/floor";
 import type { Evidence } from "../../src/checks/evidence";
 
 // D04 T01 §1: the lowest verdict the evidence allows, whatever a model says.
@@ -115,12 +115,12 @@ describe("applyFloor", () => {
   it("raises a model's safe over critical evidence to the floor and records the ids", () => {
     expect(applyFloor("safe", malicious)).toEqual({
       verdict: "malicious",
-      floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E2", "E5"] },
+      floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E2", "E5"], revision: FLOOR_REVISION },
     });
     expect(applyFloor("suspicious", malicious).verdict).toBe("malicious");
     expect(applyFloor("safe", suspicious)).toEqual({
       verdict: "suspicious",
-      floorApplied: { from: "safe", to: "suspicious", evidenceIds: ["E3"] },
+      floorApplied: { from: "safe", to: "suspicious", evidenceIds: ["E3"], revision: FLOOR_REVISION },
     });
   });
 
@@ -136,6 +136,33 @@ describe("applyFloor", () => {
     for (const model of ["safe", "suspicious", "malicious"] as const)
       for (const floor of [safe, suspicious, malicious])
         expect(rank[applyFloor(model, floor).verdict]).toBeGreaterThanOrEqual(rank[floor.verdict]);
+  });
+
+  it("names its rule revision in the record, so an older decision can be reproduced (D04 T01 §13)", () => {
+    expect(applyFloor("safe", malicious).floorApplied?.revision).toBe(FLOOR_REVISION);
+    expect(FLOOR_REVISION).toBe("1");
+    // The stored decision replays under its own revision, from the evidence it cites.
+    const evidence = [item("attachment.executable", "critical"), item("sender.first_time", "info")];
+    expect(replayFloor(FLOOR_REVISION, evidence)).toEqual(floorFor(evidence));
+    expect(replayFloor(FLOOR_REVISION, evidence)?.verdict).toBe("malicious");
+    // A revision these rules do not know replays as unknown, never as today's rules, inherited
+    // object-property names included.
+    for (const unknown of ["99", "toString", "constructor", "__proto__", "hasOwnProperty"])
+      expect(replayFloor(unknown, evidence), unknown).toBeNull();
+    // Two revisions that weigh an item differently give different outcomes on the same evidence, and
+    // the older stored decision still replays exactly under its own revision.
+    const older: typeof floorFor = (items) => {
+      const critical = items.filter((i) => i.severity === "critical");
+      return critical.length
+        ? { verdict: "suspicious", evidenceIds: critical.map((i) => i.id) }
+        : { verdict: "safe", evidenceIds: [] };
+    };
+    const retained = new Map([
+      ["0", older],
+      [FLOOR_REVISION, floorFor],
+    ]);
+    expect(replayFloor("0", evidence, retained)?.verdict).toBe("suspicious");
+    expect(replayFloor(FLOOR_REVISION, evidence, retained)?.verdict).toBe("malicious");
   });
 
   it("does not share the floor's id list with the record", () => {

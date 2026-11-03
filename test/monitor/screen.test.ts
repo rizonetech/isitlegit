@@ -88,9 +88,11 @@ describe("migration 0068", () => {
   const H64 = "a".repeat(64);
   // 0072 (the second look, D05 T04 §9; renumbered from 0069 at the coordinator's merge) builds on 0068's table, so a test that reverts to 0063 puts both back.
   const later = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0072_"));
+  // 0080 (the settling tier, D03 T04 §45) builds on the same table and is put back with them.
+  const tier = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0080_"));
   const apply = async () => {
-    if (!migration || !later) throw new Error("migration 0068 or 0072 is missing");
-    for (const query of [...migration.queries, ...later.queries]) await db.prepare(query).run();
+    if (!migration || !later || !tier) throw new Error("migration 0068, 0072 or 0080 is missing");
+    for (const query of [...migration.queries, ...later.queries, ...tier.queries]) await db.prepare(query).run();
   };
 
   // The schema as 0063 left it: monitor_hosts in its first form, no screening table, the run row without its counts.
@@ -318,6 +320,55 @@ describe("the run's screening", () => {
       screen_failed: 0,
       screen_deferred: 0,
     });
+  });
+
+  it("persists the settling tier and both Spark call references for an escalated page (§45)", async () => {
+    const b = await business();
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.9"));
+    w.deps.screen = async () => ({
+      ok: true,
+      screen: {
+        brand: null,
+        has_login_form: false,
+        has_payment_form: false,
+        lure: false,
+        lure_type: "none",
+        confidence: 0.1,
+        screener: "spark",
+      },
+      glimmer_reason: "unsure",
+      spark_call: { callId: "call-2", logId: "log-2" },
+      tier: "spark-second",
+      escalation: "loupe-unsure",
+      spark_calls: [
+        { callId: "call-1", logId: "log-1" },
+        { callId: "call-2", logId: "log-2" },
+      ],
+    });
+    await monitorOrg(w.deps, b.orgId, "s45");
+    expect(await rows(b.orgId, site)).toMatchObject([
+      { tier: "spark-second", glimmer_reason: "unsure", spark_call_id: "call-2", spark_first_call_id: "call-1" },
+    ]);
+  });
+
+  it("keeps a failed escalation's call references in the run's errors, the page still owed (§45)", async () => {
+    const b = await business();
+    const w = world(START);
+    const site = b.candidates[0] as string;
+    w.answers.set(site, live("192.0.2.10"));
+    w.deps.screen = async () => ({
+      ok: false,
+      glimmer_reason: "unsure",
+      spark_reason: "model-server",
+      spark_calls: [{ callId: "call-9", logId: "log-9" }],
+    });
+    const summary = await monitorOrg(w.deps, b.orgId, "s45f");
+    expect(summary.errors).toContain("screen-calls:call-9");
+    expect(await rows(b.orgId, site)).toEqual([]);
+    // The stored run row keeps them too, under its 20-entry error cap (one entry for the run).
+    expect(String((await runRow(b.orgId))?.errors_json ?? "")).toContain("call-9");
   });
 
   it("writes nothing twice: a rerun with nothing new asks no one", async () => {

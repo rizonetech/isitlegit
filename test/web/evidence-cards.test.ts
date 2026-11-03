@@ -56,6 +56,24 @@ const FIXTURES: Fixture[] = [
     shows: ["The voice note was not checked for a request", "The recording holds no speech to read."],
   },
   {
+    check: "voice.transcript",
+    severity: "info",
+    detail: {
+      transcript: "art/01JCASE0000000000000000000/transcript.json",
+      recording: "art/01JCASE0000000000000000000/recording.ogg",
+      filename: "voice-note.ogg",
+      complete: true,
+      gaps: [],
+      speakers: [{ chunk: 0, labels: ["Speaker 1"] }],
+      unlabelled: 0,
+      segments: [
+        { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 4000, text: "Hello, this is accounts." },
+        { chunk: 0, speaker: "Speaker 1", startMs: 4000, endMs: 9000, text: "Please pay the new account today." },
+      ],
+    },
+    shows: ["What was said", "0:00", "0:04", "Hello, this is accounts.", "Please pay the new account today."],
+  },
+  {
     check: "voice.lure",
     severity: "medium",
     detail: { filename: "voicemail.mp3.html", player: true, linked: true },
@@ -922,6 +940,15 @@ const items = (fixtures: Fixture[]): CardItem[] =>
   }));
 const draw = (list: CardItem[], cited: string[] = []) =>
   String(jsx(EvidenceCards, { items: list, cited, file: (key: string) => `/a/case/${encodeURIComponent(key)}` }));
+const drawWithReputation = (list: CardItem[], reputation: unknown[]) =>
+  String(
+    jsx(EvidenceCards, {
+      items: list,
+      cited: [],
+      file: (key: string) => `/a/case/${encodeURIComponent(key)}`,
+      reputation,
+    }),
+  );
 const card = (html: string, id: string) => {
   const at = html.indexOf(`id="${id.toLowerCase()}"`);
   expect(at, id).toBeGreaterThan(-1);
@@ -1048,6 +1075,199 @@ describe("the evidence cards", () => {
     expect(counter).toContain("a.example");
     expect(counter).toContain("b.example");
     expect(counter).toContain("and 21 more");
+  });
+
+  // D07 T09 §5: one stored row per provider and subject, its state and age, and only the counts they support.
+  it("draws each provider's stored answer for a subject, with its time and cache mark", () => {
+    const listing = {
+      check: "reputation.listing",
+      severity: "high" as const,
+      detail: { provider: "Web Risk", listed: "https://pay.example/reset", granularity: "url", corroborated: false },
+      shows: [],
+    };
+    const rows = [
+      {
+        provider: "google-web-risk",
+        subject: "https://pay.example/reset",
+        state: "listed",
+        obtainedAt: "2026-10-27T08:00:00Z",
+        cached: false,
+        note: null,
+      },
+      {
+        provider: "cloudflare",
+        subject: "pay.example",
+        state: "clear",
+        obtainedAt: "2026-10-27T08:01:00Z",
+        cached: true,
+        note: null,
+      },
+      {
+        provider: "well-known",
+        subject: "pay.example",
+        state: "unknown",
+        obtainedAt: "2026-10-27T08:01:00Z",
+        cached: false,
+        note: null,
+      },
+      {
+        provider: "google-web-risk",
+        subject: "pay.example",
+        state: "unavailable",
+        obtainedAt: "2026-10-27T08:02:00Z",
+        cached: false,
+        note: "provider timed out",
+      },
+    ];
+    const html = drawWithReputation(items([listing]), rows);
+    expect(html).toContain("Google Web Risk</strong>: Listed");
+    expect(html).toContain("2026-10-27T08:00:00Z");
+    expect(html).toContain("Cloudflare</strong>: Not listed by this provider");
+    expect(html).toContain("from cache");
+    expect(html).toContain("Well-known list</strong>: Not on the well-known list");
+    expect(html).toContain("Could not be checked (the provider timed out)");
+    expect(html).toContain("obtained 2026-10-27T08:00:00Z");
+    // Only answered providers count, per exact subject: the listing's subject has one answered row.
+    expect(html).toContain("1 provider answered: 1 listed, 0 not listed");
+    // A subject no card names is drawn in its own block, and a hostile subject stays text.
+    const hostile = drawWithReputation(items([listing]), [
+      {
+        provider: "cloudflare",
+        subject: "<script>alert(1)</script>",
+        state: "clear",
+        obtainedAt: "2026-10-27T08:03:00Z",
+        cached: false,
+        note: null,
+      },
+    ]);
+    expect(hostile).toContain("What the reputation providers said");
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // No stored rows: no provider block is invented.
+    expect(draw(items([listing]))).not.toContain("providers answered");
+    // Two cards naming one subject draw its rows once, and a failed read says so.
+    const twice = drawWithReputation(items([listing, listing]), rows);
+    expect(twice.match(/Google Web Risk<\/strong>: Listed/g)).toHaveLength(1);
+    const failed = String(
+      jsx(EvidenceCards, {
+        items: items([listing]),
+        cited: [],
+        file: (key: string) => `/a/case/${encodeURIComponent(key)}`,
+        reputation: null,
+      }),
+    );
+    expect(failed).toContain("The provider answers for this report could not be loaded.");
+  });
+
+  // D07 T09 §6: the stored transcript, its player, the request marked, and its incomplete states.
+  it("draws a stored transcript with its player, times, speaker labels and the request marked", () => {
+    const transcript = (detail: Record<string, unknown>, withRequest = true) =>
+      draw(
+        items([
+          ...(withRequest
+            ? [
+                {
+                  check: "voice.request",
+                  severity: "high" as const,
+                  detail: { request: "pay", quote: "the new account today" },
+                  shows: [],
+                },
+              ]
+            : []),
+          { check: "voice.transcript", severity: "info" as const, detail, shows: [] },
+        ]),
+      );
+    const base = {
+      transcript: "art/01JCASE0000000000000000000/transcript.json",
+      recording: "art/01JCASE0000000000000000000/recording.ogg",
+      filename: "voice-note.ogg",
+      complete: true,
+      gaps: [],
+      segments: [
+        { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 4000, text: "Hello, this is accounts." },
+        { chunk: 0, speaker: "Speaker 1", startMs: 4000, endMs: 9000, text: "Please pay the new account today." },
+      ],
+    };
+    const html = transcript(base);
+    expect(html).toContain("<audio");
+    expect(html).toContain("recording.ogg");
+    expect(html).toContain("inline=1");
+    expect(html).toContain("<mark>Please pay the new account today.</mark>");
+    expect(html).not.toContain("<mark>Hello");
+    // A quote spanning segments marks both, and a hostile segment is text.
+    const spanning = transcript(
+      {
+        ...base,
+        segments: [
+          { chunk: 0, speaker: null, startMs: 0, endMs: 2000, text: "pay the new" },
+          { chunk: 0, speaker: null, startMs: 2000, endMs: 4000, text: "account today please" },
+        ],
+      },
+      true,
+    );
+    expect(spanning.match(/<mark>/g)).toHaveLength(2);
+    const hostile = transcript({
+      ...base,
+      segments: [{ chunk: 0, speaker: null, startMs: 0, endMs: 1000, text: "<script>alert(1)</script>" }],
+    });
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // The incomplete states, in their own words.
+    expect(transcript({ ...base, complete: false })).toContain("Part of the recording could not be transcribed.");
+    expect(transcript({ ...base, gaps: [{ chunk: 0, startMs: 4000, endMs: 7000 }] })).toContain(
+      "Speech was cut and not transcribed from 0:04 to 0:07.",
+    );
+    expect(transcript({ ...base, trimmed: true, segmentsOmitted: 2 })).toContain("cut short");
+    const speakersOnly = transcript({ ...base, speakersOmitted: 2 });
+    expect(speakersOnly).toContain("Some speaker labels are not shown.");
+    expect(speakersOnly).not.toContain("cut short");
+    expect(
+      transcript({
+        ...base,
+        segments: [
+          { chunk: 0, speaker: "Speaker 1", startMs: 0, endMs: 1000, text: "One." },
+          { chunk: 1, speaker: "Speaker 1", startMs: 1000, endMs: 2000, text: "Two." },
+        ],
+      }),
+    ).toContain("the same label in another part may be someone else");
+    const damaged = transcript(
+      { transcript: "k", recording: base.recording, filename: "v.ogg", malformed: true },
+      false,
+    );
+    expect(damaged).toContain("The transcript could not be read");
+    expect(damaged).toContain("<audio");
+    expect(transcript({ transcript: "k", recording: null, malformed: true }, false)).toContain(
+      "The transcript could not be read",
+    );
+    expect(transcript({ ...base, segments: [] }, false)).toContain("No words were transcribed");
+    // No request stored: nothing is marked.
+    expect(transcript(base, false)).not.toContain("<mark>");
+    // An unmatched quote marks nothing, and with two recordings the quote marks neither.
+    const unmatched = draw(
+      items([
+        {
+          check: "voice.request",
+          severity: "high" as const,
+          detail: { request: "pay", quote: "words never said" },
+          shows: [],
+        },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+      ]),
+    );
+    expect(unmatched).not.toContain("<mark>");
+    const two = draw(
+      items([
+        {
+          check: "voice.request",
+          severity: "high" as const,
+          detail: { request: "pay", quote: "the new account today" },
+          shows: [],
+        },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+        { check: "voice.transcript", severity: "info" as const, detail: base, shows: [] },
+      ]),
+    );
+    expect(two).not.toContain("<mark>");
   });
 
   it("draws an attachment claiming to be a recording, its player and link said plainly (D07 T03 §16)", () => {
@@ -1242,6 +1462,60 @@ describe("the evidence cards through the report route", () => {
 });
 
 describe("the invisible-character cards", () => {
+  // D07 T09 §9: the whole stored run under one disclosure, its cut named, hostile text as text.
+  it("draws the whole stored run under a disclosure, names its cut, and keeps hostile text as text", () => {
+    const long = `${"x".repeat(300)} send the ledger to the new account`;
+    const whole = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: `${"x".repeat(254)}…`,
+          length: 1000,
+          location: "visible",
+          run: { text: long, truncated: false },
+        }),
+      ]),
+      "E1",
+    );
+    expect(whole).toContain("Read the whole hidden run");
+    expect(whole).toContain(long);
+    expect(whole).toContain("The whole run is below.");
+    expect(whole).not.toContain("The stored run is cut short");
+    const cut = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: "open",
+          length: 9000,
+          location: "visible",
+          run: { text: "open the file", truncated: true },
+        }),
+      ]),
+      "E1",
+    );
+    expect(cut).toContain("The stored run is cut short: the rest is in the original message.");
+    const hostile = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: "open",
+          length: 20,
+          location: "visible",
+          run: { text: "<script>alert(1)</script>", truncated: false },
+        }),
+      ]),
+      "E1",
+    );
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // No stored run (an older item): the card as it was, with no disclosure.
+    const absent = card(
+      draw([invisibleItem("high", { kind: "tag", quote: "open", length: 4, location: "visible" })]),
+      "E1",
+    );
+    expect(absent).not.toContain("Read the whole hidden run");
+  });
+
   const invisibleItem = (severity: CardItem["severity"], detail: Record<string, unknown>): CardItem => ({
     id: "E1",
     check: "content.hidden_text",
@@ -1510,7 +1784,8 @@ describe("invisible-character cards from the producer's own items", () => {
   it("labels a decoded text past the stored quote's length as its opening", () => {
     const html = drawn(`Hello ${tags("x".repeat(400))} there`);
     expect(html).toContain("Opening of the hidden text");
-    expect(html).toContain("The rest is in the original message.");
+    // The producer stores the whole run now (D02 T05 §11), so the reader is sent to it, not the original (D07 T09 §9).
+    expect(html).toContain("The whole run is below.");
   });
 });
 
@@ -1883,6 +2158,74 @@ describe("the evidence count line and the clean checks", () => {
     expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
   });
 
+  // D07 T09 §10: every target a clean check examined, whole, with omissions stated and hostile text as text.
+  it("lists every examined target of a clean check whole, with its omissions stated", () => {
+    const long = "a".repeat(255);
+    const html = String(
+      jsx(CleanChecks, {
+        coverage: [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["one.example", long, "last.example"], omitted: 3 },
+          },
+          {
+            check: "auth.spf",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: [], omitted: 0 },
+          },
+          {
+            check: "sender.display_brand",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["<script>alert(1)</script>"], omitted: 1 },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("See what this check examined");
+    expect(html).toContain(long);
+    expect(html).toContain("last.example");
+    expect(html).toContain("3 more targets were examined but are not listed.");
+    expect(html).toContain("1 more target was examined but is not listed.");
+    expect(html).toContain("No targets were recorded for this check.");
+    expect(long).toHaveLength(255);
+    // The whole list, in order, and only the two non-empty sets open a disclosure.
+    expect(html.indexOf("one.example")).toBeGreaterThan(-1);
+    expect(html.indexOf("one.example")).toBeLessThan(html.indexOf(long));
+    expect(html.indexOf(long)).toBeLessThan(html.indexOf("last.example"));
+    const listed = [...html.matchAll(/<li class="wrap-anywhere">([^<]*)<\/li>/g)].map((m) => m[1]);
+    expect(listed).toContain(`one.example`);
+    expect(listed.filter((x) => x === long)).toHaveLength(1);
+    expect(listed.filter((x) => x === "last.example")).toHaveLength(1);
+    expect(html.match(/See what this check examined/g)).toHaveLength(2);
+    const noOmission = String(
+      jsx(CleanChecks, {
+        coverage: [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["x.example"], omitted: 0 },
+          },
+        ],
+      }),
+    );
+    expect(noOmission).not.toContain("not listed");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+    // No set stored: the list as it was, with no disclosure.
+    expect(String(jsx(CleanChecks, { coverage: [ran("domain.lookalike")] }))).not.toContain(
+      "See what this check examined",
+    );
+  });
+
   // The stored result summary (D02 T01 §7; D07 T03 §44): what each clean check saw, or "nothing found" when none
   // was kept. A check with a finding never reaches the list, so its summary is never drawn there either.
   it("says what each clean check saw, and keeps 'nothing found' when none was kept", () => {
@@ -2027,7 +2370,18 @@ describe("the walkthrough cards", () => {
       expect(html, state).toContain(words);
       if (state !== "delivered") expect(html, state).toContain("What the page did is not known");
     }
-    const rejected = drawn(record([submission({ status: 403 })])).html;
+    // A 403 reads rejected only when the page after it corroborates a credential refusal
+    // (D04 T02 §8): it still asks for a password and specifically refuses the credentials.
+    const rejected = drawn(
+      record(
+        [submission({ status: 403 })],
+        [
+          page(1, "https://lure.example/"),
+          page(2, "https://nimbusmai1-login.example/in"),
+          page(3, "https://nimbus-sync.example/done", { asksPassword: true, failure: true, refusal: true }),
+        ],
+      ),
+    ).html;
     expect(rejected).toContain("The page refused them");
   });
 
@@ -2169,5 +2523,87 @@ describe("the walkthrough cards", () => {
     expect(html).toContain("data-evidence-open");
     expect(html).toContain(`data-viewer-download="${fileOf(shot)}"`);
     expect(html).toContain('data-viewer-id="E1"');
+  });
+
+  // D07 T09 §7: a walk that could not run, and one that did not finish, from the producer's own shape.
+  it("draws a walk that could not run with its own heading and plain reason, never the hidden-text heading", () => {
+    const html = draw([
+      {
+        id: "E1",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
+        detail: { reason: "budget", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+    ]);
+    expect(html).toContain("The walkthrough could not run");
+    expect(html).toContain("Today&#39;s model limit was reached");
+    expect(html).not.toContain("Text hidden on a walked page");
+  });
+
+  it("draws a walk that did not finish beside its retained findings", () => {
+    const html = draw([
+      {
+        id: "E1",
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "A form sends credentials elsewhere.",
+        detail: {
+          url: "https://lure.example/in",
+          domain: "collect.example",
+          method: "POST",
+          fields: ["password"],
+          state: "delivered",
+          outcome: "accepted",
+        },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough did not finish, so what it found may be incomplete.",
+        detail: { reason: "limit", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+    ]);
+    expect(html).toContain("The walkthrough did not finish");
+    expect(html).toContain("The walk stopped at its limit");
+    expect(html).toContain("Where the test credentials would go");
+  });
+
+  it("shows the earlier walk's time on every reused walkthrough card, and none on a fresh one", () => {
+    const at = "2026-11-01T08:30:00.000Z";
+    const reused = (check: string, detail: Record<string, unknown>): CardItem => ({
+      id: "E1",
+      check,
+      severity: "high",
+      summary: "A finding.",
+      detail: { ...detail, reused: { at } },
+      artefacts: [],
+    });
+    const cases: CardItem[] = [
+      reused("walkthrough.chain", { pages: [{ url: "https://lure.example/" }], omitted: {}, outcome: "finished" }),
+      reused("walkthrough.credential_target", {
+        url: "https://lure.example/in",
+        domain: "collect.example",
+        fields: ["password"],
+        state: "delivered",
+      }),
+      reused("walkthrough.canary_accepted", { url: "https://lure.example/in", nextPage: "https://lure.example/done" }),
+      reused("walkthrough.hidden_text", {
+        quote: "hidden words",
+        reason: "display:none",
+        page: "https://lure.example/",
+      }),
+    ];
+    for (const item of cases) {
+      const html = draw([item]);
+      expect(html, item.check).toContain("From an earlier walk of the same page");
+      expect(html, item.check).toContain("No new screenshot or submission was made for this case.");
+      expect(html, item.check).toContain("1 November 2026");
+    }
+    expect(drawn(record([submission()])).html).not.toContain("From an earlier walk of the same page");
   });
 });

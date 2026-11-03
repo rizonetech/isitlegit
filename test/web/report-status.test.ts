@@ -71,6 +71,30 @@ describe("progress from step events", () => {
     expect(p.steps.map((s) => s.step).at(-1)).toBe("glimmer");
     expect(p.steps.at(-1)?.words).toBe("Another step");
   });
+
+  // D07 T09 §7: the walkthrough is a conditional step after checks, only when recorded.
+  it("names the walkthrough between checks and verdict in each state, and omits it when unrecorded", () => {
+    const words = "Sign-in page walk in a contained browser";
+    const base = [ev("admit", "done", 0), ev("parse", "done", 1), ev("checks", "done", 2)];
+    expect(progressOf(base).steps.some((s) => s.step === "walkthrough")).toBe(false);
+    const order = progressOf([...base, ev("walkthrough", "started", 3)]).steps.map((s) => s.step);
+    expect(order.indexOf("checks")).toBeLessThan(order.indexOf("walkthrough"));
+    expect(order.indexOf("walkthrough")).toBeLessThan(order.indexOf("verdict"));
+    expect(
+      progressOf([...base, ev("walkthrough", "started", 3)]).steps.find((s) => s.step === "walkthrough"),
+    ).toMatchObject({ words, state: "running" });
+    expect(
+      progressOf([...base, ev("walkthrough", "error", 3, "Error")]).steps.find((s) => s.step === "walkthrough")?.state,
+    ).toBe("retrying");
+    expect(
+      progressOf([...base, ev("walkthrough", "error", 3, "Error"), ev("walkthrough", "done", 4)]).steps.find(
+        (s) => s.step === "walkthrough",
+      )?.state,
+    ).toBe("done");
+    expect(
+      progressOf([...base, ev("walkthrough", "failed", 3, "Timeout")]).steps.find((s) => s.step === "walkthrough"),
+    ).toMatchObject({ words, state: "failed" });
+  });
 });
 
 const VERDICT = {
@@ -130,6 +154,27 @@ describe("coverage apart from the lifecycle", () => {
       evidence: [],
     });
     expect(zero).toContain("Hidden text: v-zero");
+  });
+
+  // D07 T09 §11: every outcome beside its version, inside the disclosure, reasons in plain words.
+  it("words every outcome beside its version in the Check versions disclosure", () => {
+    const html = live({
+      coverage: [
+        { ...outcome("sender.first_time", "ran"), revision: "v1" },
+        { ...outcome("content.hidden_text", "partial", "a cut body part"), revision: "v2" },
+        { ...outcome("auth.spf", "skipped", "the original's headers were not available"), revision: "v3" },
+        { ...outcome("domain.age", "failed", "Timeout"), revision: "v4" },
+        { ...outcome("domain.lookalike", "failed", "EvidenceRefused"), revision: "v5" },
+      ],
+    });
+    const disclosure = html.slice(html.indexOf("Check versions"), html.indexOf("</details>"));
+    expect(disclosure).toContain("Whether this sender has written before: v1 · ran");
+    expect(disclosure).toContain("Hidden text: v2 · read part of its input: a cut body part");
+    expect(disclosure).toContain(
+      "The sending server check (SPF): v3 · did not run: the original&#39;s headers were not available",
+    );
+    expect(disclosure).toContain("How old the domain is: v4 · failed: it ran out of time");
+    expect(disclosure).toContain("Lookalike domains: v5 · failed: its findings could not be stored");
   });
 
   it("says a failed check on a done case, partly checked", () => {
@@ -552,6 +597,36 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T09 §10: a stored examined set reaches the finished report through storage, for both readers.
+  it("reads a clean check's examined set from storage into the finished report", async () => {
+    const { cookie, id, orgId } = await setup();
+    await saveEvidence(db, id, [], undefined, undefined, [
+      {
+        check: "domain.lookalike",
+        outcome: "ran",
+        reason: null,
+        findings: 0,
+        examined: { targets: ["one.example", "last.example"], omitted: 2 },
+      },
+    ]);
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("See what this check examined");
+      expect(html).toContain("one.example");
+      expect(html).toContain("last.example");
+      expect(html).toContain("2 more targets were examined but are not listed.");
+    }
+    // The finished page itself, on its first read and the next, for a member.
+    for (let i = 0; i < 2; i++) {
+      const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+      expect(page).toContain("See what this check examined");
+      expect(page).toContain("last.example");
+      expect(page).toContain("2 more targets were examined but are not listed.");
+    }
+  });
+
   // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
   // next; if the report drops the summary the clean check falls back to "nothing found" and this fails.
   it("reads a clean check's summary from storage into the report, twice", async () => {
@@ -632,6 +707,96 @@ describe("the status poll", () => {
     html = await (await poll(id, cookie)).text();
     expect(html).toContain("Lookalike domains: v-2026-11-02-9f2c");
     expect(html).not.toContain("version not recorded");
+  });
+
+  // D07 T09 §11: the outcomes and reasons as read back from storage, inside the disclosure.
+  it("reads the outcome and reason beside each version back from storage", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        { check: "content.hidden_text", outcome: "partial", reason: "a cut body part", findings: 0 },
+        { check: "auth.spf", outcome: "skipped", reason: "the original's headers were not available", findings: 0 },
+        { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0 },
+      ],
+      "v-stored",
+    );
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const html = await (await poll(id, cookie)).text();
+    const disclosure = html.slice(html.indexOf("Check versions"), html.indexOf("</details>"));
+    expect(disclosure).toContain("Whether this sender has written before: v-stored · ran");
+    expect(disclosure).toContain("Hidden text: v-stored · read part of its input: a cut body part");
+    expect(disclosure).toContain("The sending server check (SPF): v-stored · did not run");
+    expect(disclosure).toContain("How old the domain is: v-stored · failed: it ran out of time");
+  });
+
+  // D07 T09 §12: detection data beside the version, from storage, only for brand-table checks, per run.
+  it("reads detection data beside the version back from storage, per run", async () => {
+    const { cookie, id } = await setup();
+    const items = [
+      {
+        check: "sender.first_time",
+        severity: "info" as const,
+        summary: "A sender who has written before",
+        detail: { history: "known", from: "x@y.example", headers: [] },
+        artefacts: [],
+      },
+    ];
+    const outcomes = [
+      { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0 },
+      { check: "auth.spf", outcome: "ran" as const, reason: null, findings: 0 },
+    ];
+    const finish = async (data: { revision: string; id: string; source: "kv" | "bundled" } | null) => {
+      await saveEvidence(db, id, items, undefined, undefined, outcomes, "v-same", data);
+      await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+      await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    };
+    const disclosureOf = async () => {
+      const html = await (await poll(id, cookie)).text();
+      return html.slice(html.indexOf("Check versions"), html.indexOf("</details>"));
+    };
+    await finish({ revision: "rev-1", id: "brands-a", source: "kv" });
+    let disclosure = await disclosureOf();
+    expect(disclosure).toContain("Lookalike domains: v-same · ran · data rev-1 (brands-a, KV)");
+    // An unrelated check carries no data claim, though its stored row holds the same provenance.
+    expect(disclosure).not.toContain("The sending server check (SPF): v-same · ran · data");
+    // A newer run under the same Worker version: different revision, then the same revision, another identity.
+    await db.prepare("UPDATE cases SET run_id = 'run-2' WHERE id = ?").bind(id).run();
+    await finish({ revision: "rev-2", id: "brands-a", source: "kv" });
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("data rev-2 (brands-a, KV)");
+    expect(disclosure).not.toContain("rev-1");
+    await finish({ revision: "rev-2", id: "brands-b", source: "bundled" });
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("data rev-2 (brands-b, bundled)");
+    // The earlier run still reads its own provenance.
+    await db.prepare("UPDATE cases SET run_id = NULL WHERE id = ?").bind(id).run();
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("data rev-1 (brands-a, KV)");
+    // No provenance stored: an applicable check says so, never today's table.
+    await db.prepare("UPDATE cases SET run_id = 'run-3' WHERE id = ?").bind(id).run();
+    await finish(null);
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("Lookalike domains: v-same · ran · data not recorded");
+    // A hostile stored identity is drawn as text.
+    await finish({ revision: "rev-3", id: '<script>alert("x")</script>', source: "kv" });
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain('<script>alert("x")</script>');
+    expect(html).toContain("&lt;script&gt;alert");
   });
 
   it("draws no Check versions disclosure when no outcomes were stored", async () => {
@@ -849,6 +1014,156 @@ describe("the status poll", () => {
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
     html = await (await poll(id, cookie)).text();
     expect(html).not.toContain("What the receiving mail system recorded");
+  });
+
+  // D07 T09 §1: from the producer's early save alone (D01 T01 §23), while the slower checks still run.
+  it("draws the early card from only the auth outcomes the producer stored first, while checks still run", async () => {
+    const { cookie, id } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "auth.spf",
+          severity: "medium",
+          summary: "SPF failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dkim",
+          severity: "info",
+          summary: "DKIM passed for sender.example, as your receiving system recorded.",
+          detail: { state: "passed", results: [{ result: "pass", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dmarc",
+          severity: "high",
+          summary: "DMARC failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
+      ],
+    );
+    const html = await (await poll(id, cookie)).text();
+    expect(html).toContain("What the receiving mail system recorded");
+    expect(html).toContain("Early authentication results are in.");
+    // Still running: the page is still investigating, with no finished verdict drawn.
+    expect(html).toContain("We are investigating this message.");
+  });
+
+  // D07 T09 §5: the stored per-provider rows read back through the status route, for a member and a link holder.
+  it("draws the stored per-provider reputation rows through the status route for both views", async () => {
+    const { cookie, id, orgId } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "reputation.listing",
+          severity: "high",
+          summary: "A reputation provider lists this address.",
+          detail: {
+            provider: "Web Risk",
+            listed: "https://pay.example/reset",
+            granularity: "url",
+            corroborated: false,
+          },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [{ check: "reputation.listing", outcome: "ran", reason: null, findings: 1 }],
+    );
+    const run = await db
+      .prepare("SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?")
+      .bind(id)
+      .first<{ run: string }>();
+    for (const [provider, subject, state, cached] of [
+      ["google-web-risk", "https://pay.example/reset", "listed", 0],
+      ["cloudflare", "pay.example", "clear", 1],
+      ["well-known", "pay.example", "known", 0],
+    ] as const)
+      await db
+        .prepare(
+          "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+        )
+        .bind(id, run?.run, provider, subject, state, "2026-10-27T08:00:00Z", cached)
+        .run();
+    const member = await (await poll(id, cookie)).text();
+    expect(member).toContain("Google Web Risk</strong>: Listed");
+    expect(member).toContain("Well-known list</strong>: On the well-known list");
+    expect(member).toContain("from cache");
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    const holder = await (await poll(id, undefined, link)).text();
+    expect(holder).toContain("Google Web Risk</strong>: Listed");
+    // Another case's rows never join this report.
+    const other = await setup();
+    const otherRun = await db
+      .prepare("SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?")
+      .bind(other.id)
+      .first<{ run: string }>();
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, ?, 'cloudflare', 'other.example', 'listed', '2026-10-27T08:00:00Z', 0, NULL)",
+      )
+      .bind(other.id, otherRun?.run)
+      .run();
+    const again = await (await poll(id, cookie)).text();
+    expect(again).not.toContain("other.example");
+    // Rows stored under another run of this same case never join this run's report.
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, 'another-run', 'cloudflare', 'stale.example', 'listed', '2026-10-27T08:00:00Z', 0, NULL)",
+      )
+      .bind(id)
+      .run();
+    expect(await (await poll(id, cookie)).text()).not.toContain("stale.example");
+    // A retry's new run replaces the answers: the old run's rows go, the new run's rows arrive.
+    await db.prepare("UPDATE cases SET run_id = 'run-b' WHERE id = ?").bind(id).run();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "reputation.listing",
+          severity: "high",
+          summary: "A reputation provider lists this address.",
+          detail: {
+            provider: "Web Risk",
+            listed: "https://new.example/reset",
+            granularity: "url",
+            corroborated: false,
+          },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [{ check: "reputation.listing", outcome: "ran", reason: null, findings: 1 }],
+    );
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, 'run-b', 'google-web-risk', 'https://new.example/reset', 'clear', '2026-10-27T09:00:00Z', 0, NULL)",
+      )
+      .bind(id)
+      .run();
+    const retried = await (await poll(id, cookie)).text();
+    expect(retried).not.toContain("pay.example");
+    expect(retried).toContain("Not listed by this provider");
   });
 
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
@@ -1087,6 +1402,31 @@ describe("the status poll", () => {
       expect(html).toContain('data-announce="Step 4 of 8: Checked the sender');
       expect(html).not.toContain("Trying again");
       expect(html).not.toContain("trying again");
+    }
+  });
+
+  // D07 T09 §7: the walkthrough step through the page and the poll, announced, between checks and verdict.
+  it("shows the walkthrough step through the page and the poll, announced, advancing to the verdict", async () => {
+    const { cookie, id } = await setup();
+    const both = async () => [
+      await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text(),
+      await (await poll(id, cookie)).text(),
+    ];
+    await event(id, "admit", "done");
+    await event(id, "parse", "done");
+    await event(id, "checks", "done");
+    await event(id, "walkthrough", "started");
+    for (const html of await both()) {
+      expect(html).toContain("Sign-in page walk in a contained browser");
+      expect(html).toContain('data-announce="Step 4 of 8: Sign-in page walk in a contained browser"');
+      const list = html.slice(html.indexOf("<ol"));
+      expect(list.indexOf("Checked the sender")).toBeLessThan(list.indexOf("Sign-in page walk"));
+      expect(list.indexOf("Sign-in page walk")).toBeLessThan(list.indexOf("Weighed the evidence"));
+    }
+    await event(id, "walkthrough", "done");
+    await event(id, "verdict", "started");
+    for (const html of await both()) {
+      expect(html).toContain('data-announce="Step 5 of 8: Weighed the evidence');
     }
   });
 

@@ -7,9 +7,9 @@
 
 import type { ModelTrace } from "../../db/model-trace-types";
 import { artefactUrl } from "../artefact-url";
-import { cx } from "../components/attrs";
+import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
-import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidence/cards";
+import { type CardItem, CHECK_WORDS, EvidenceCards, type ReputationRow } from "../components/evidence/cards";
 import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/model-trace";
 import { Pill, type PillVariant } from "../components/Pill";
 import { PartialNotice } from "../components/States";
@@ -30,6 +30,10 @@ export type Coverage =
       findings: number;
       summary?: string;
       revision?: string;
+      // The detection data the run judged by (D02 T01 §6), where stored; drawn beside the version (D07 T09 §12).
+      data?: { revision: string; id: string; source: "kv" | "bundled" };
+      // What a clean check examined, where stored (D02 T01 §8); drawn under the clean list (D07 T09 §10).
+      examined?: { targets: string[]; omitted: number };
     }[]
   | null;
 
@@ -62,7 +66,27 @@ export function CleanChecks(props: { coverage: Coverage }) {
       </h2>
       <ul class="flex flex-col gap-8 text-14">
         {clean.map((o) => (
-          <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.summary?.trim() ? o.summary : "nothing found"}`}</li>
+          <li class="wrap-anywhere">
+            {`${CHECK_WORDS[o.check] ?? o.check}: ${o.summary?.trim() ? o.summary : "nothing found"}`}
+            {o.examined &&
+              (o.examined.targets.length > 0 ? (
+                <details>
+                  <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>
+                    See what this check examined
+                  </summary>
+                  <ul class="flex flex-col gap-4 mt-8">
+                    {o.examined.targets.map((target) => (
+                      <li class="wrap-anywhere">{target}</li>
+                    ))}
+                  </ul>
+                  {o.examined.omitted > 0 && (
+                    <p class="type-small text-muted mt-8">{`${o.examined.omitted} more target${o.examined.omitted === 1 ? " was" : "s were"} examined but ${o.examined.omitted === 1 ? "is" : "are"} not listed.`}</p>
+                  )}
+                </details>
+              ) : (
+                <span class="block type-small text-muted">No targets were recorded for this check.</span>
+              ))}
+          </li>
         ))}
       </ul>
     </section>
@@ -82,6 +106,7 @@ export type LiveProps = {
   verdict: ReportVerdict | null;
   sourceKind: string;
   evidence: readonly CardItem[];
+  reputation?: readonly ReputationRow[] | null | undefined;
   progress: Progress;
   coverage: Coverage;
   view: "member" | "public";
@@ -108,6 +133,9 @@ export type LiveProps = {
   // it changed (`headerKey`).
   meta?: unknown;
   headerKey?: string;
+  // The filtered list the member came from, as a query string (D07 T04 §9): the retry keeps it, so its answer
+  // lands back in the same run.
+  navQuery?: string;
 };
 
 const clock = new Intl.DateTimeFormat("en-GB", {
@@ -351,6 +379,7 @@ function Found(props: LiveProps) {
         items={props.evidence}
         cited={[]}
         file={(key) => artefactUrl(props.caseId, key, props.view === "public" ? props.link : undefined)}
+        reputation={props.reputation}
         columns={1}
       />
       <section aria-labelledby="wait-heading" class="flex flex-col gap-8 p-24 bg-subtle rounded-card-large">
@@ -407,7 +436,7 @@ export function ReportLive(props: LiveProps) {
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
   const poll = running
     ? {
-        "hx-get": `/r/${caseId}/status${link}${props.traceOpen && !link ? "?trace=1" : ""}`,
+        "hx-get": `/r/${caseId}/status${link || (props.navQuery ?? "")}${props.traceOpen && !link ? `${props.navQuery ? "&" : "?"}trace=1` : ""}`,
         "hx-trigger": "every 2s",
         "hx-swap": "outerHTML",
         // A poll still waiting keeps its request to its answer or this timeout; htmx drops the next trigger meanwhile, so
@@ -517,10 +546,10 @@ export function ReportLive(props: LiveProps) {
                 <>
                   <form
                     method="post"
-                    action={`/r/${caseId}/retry`}
+                    action={`/r/${caseId}/retry${props.navQuery ?? ""}`}
                     class="flex flex-wrap gap-12"
                     data-busy
-                    data-busy-check={`/r/${caseId}`}
+                    data-busy-check={`/r/${caseId}${props.navQuery ?? ""}`}
                   >
                     <Button type="submit" variant="dark" data-busy-label="Retrying">
                       Retry the check
@@ -549,6 +578,7 @@ export function ReportLive(props: LiveProps) {
               items={props.evidence}
               cited={[]}
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
+              reputation={props.reputation}
               intro={evidenceCount(props.evidence, props.coverage)}
               versions={props.coverage}
               empty="Nothing was found before the check stopped."
@@ -597,6 +627,7 @@ export function ReportLive(props: LiveProps) {
             items={props.evidence}
             cited={cited(verdict as ReportVerdict)}
             file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
+            reputation={props.reputation}
             columns={(verdict as ReportVerdict).verdict === "safe" ? 3 : 2}
             intro={evidenceCount(props.evidence, props.coverage)}
             versions={props.coverage}

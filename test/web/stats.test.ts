@@ -2,8 +2,8 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CSV_HEADER, median, weeklyCounts, weeklyStats, weekStart } from "../../src/db/case-stats";
 import { ulid } from "../../src/db/ulid";
-import { verdictTime } from "../../src/web/pages/cases-view";
-import { call, signIn, target } from "../auth/helpers";
+import { kindLine, verdictTime } from "../../src/web/pages/cases-view";
+import { call, ORIGIN, signIn, target } from "../auth/helpers";
 
 // The Cases list's weekly stats and their CSV (D07 T04 §2; board `Cases` stats panel): cases by the SAST week they
 // arrived in, every state counted, the median to a stored verdict, counts only in the CSV, and its refusals as pages.
@@ -107,6 +107,7 @@ describe("weeklyStats", () => {
       unfinished: 3,
       // 30, 40, 50, 70: the mean of the middle two.
       medianSecondsToVerdict: 45,
+      kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     });
     const weeks = await weeklyCounts(db, a, NOW, 2);
     expect(weeks[1]).toMatchObject({ checked: 2, malicious: 1, safe: 1, medianSecondsToVerdict: 90 });
@@ -151,7 +152,9 @@ describe("the stats panel on the Cases page", () => {
       expect(panel).not.toContain("download=");
     }
     // The panel joins every results request's out-of-band swap.
-    expect(await (await get("/cases", cookie)).text()).toContain('hx-select-oob="#case-count,#case-stats"');
+    expect(await (await get("/cases", cookie)).text()).toContain(
+      'hx-select-oob="#case-count,#case-stats,#case-period-state,#case-range-state,#case-checker-state"',
+    );
     const fresh = await org("Empty Freight");
     const html = await (await get("/cases", (await member(fresh)).cookie)).text();
     expect(html).toContain("Check your first suspicious email.");
@@ -333,4 +336,281 @@ describe("the stats at volume", () => {
     expect(weekMs).toBeLessThan(1000);
     expect(csvMs).toBeLessThan(1000);
   }, 120_000);
+});
+
+describe("threat kinds (D07 T04 §18)", () => {
+  const ev = async (
+    id: string,
+    check: string,
+    severity = "high",
+    detail = "{}",
+    run: string | null = "run-1",
+    seq = 1,
+  ) => {
+    if (run)
+      await db
+        .prepare("UPDATE cases SET run_id = ? WHERE id = ?")
+        .bind(run === "stale" ? "run-1" : run, id)
+        .run();
+    await db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'Seeded for the kinds test', ?, 1)`,
+      )
+      .bind(id, run === "stale" ? "run-old" : (run ?? "run-1"), `E${seq}`, seq, check, severity, detail)
+      .run();
+  };
+  const tue = "2026-10-27T08:00:00.000Z";
+
+  it("counts flagged cases once, by positive evidence on the current run, in precedence order", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Elsewhere");
+    for (let i = 0; i < 5; i++) await ev(await made(a, { at: tue, verdict: "malicious" }), "link.credential_form");
+    for (let i = 0; i < 3; i++) await ev(await made(a, { at: tue, verdict: "suspicious" }), "invoice.detected", "info");
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "domain.lookalike", "high");
+    // A malware-only flagged case counts in no kind; a safe invoice case and an unfinished one never count.
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "attachment.executable", "critical");
+    await ev(await made(a, { at: tue, verdict: "safe" }), "invoice.detected", "info");
+    await ev(await made(a, { at: tue, status: "running", verdict: null }), "invoice.detected", "info");
+    // Precedence: invoice plus lookalike counts as invoice, once. Partial with a verdict counts.
+    const both = await made(a, { at: tue, status: "partial", verdict: "suspicious" });
+    await ev(both, "domain.lookalike", "high", "{}", "run-1", 1);
+    await ev(both, "invoice.detected", "info", "{}", "run-1", 2);
+    // Not-compared and unconfirmed items are not findings; stale-run evidence is not the current run.
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "domain.lookalike", "info");
+    await ev(
+      await made(a, { at: tue, verdict: "malicious" }),
+      "vision.brand_domain_mismatch",
+      "info",
+      JSON.stringify({ confirmed: false }),
+    );
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "domain.lookalike", "high", "{}", "stale");
+    await ev(await made(b, { at: tue, verdict: "malicious" }), "invoice.detected", "info");
+    const stats = await weeklyStats(db, a, NOW);
+    expect(stats.thisWeek.kinds).toEqual({ phishing: 5, invoice: 4, impersonation: 1 });
+    expect(stats.thisWeek.malicious + stats.thisWeek.suspicious).toBe(14);
+    const total = Object.values(stats.thisWeek.kinds).reduce((x, y) => x + y, 0);
+    expect(total).toBeLessThanOrEqual(stats.thisWeek.malicious + stats.thisWeek.suspicious);
+  });
+
+  it("orders the line descending, ties in board order, and draws nothing when no kind is present", () => {
+    expect(kindLine({ phishing: 5, invoice: 3, impersonation: 1 })).toBe("5 phishing, 3 invoice, 1 impersonation");
+    expect(kindLine({ phishing: 1, invoice: 5, impersonation: 3 })).toBe("5 invoice, 3 impersonation, 1 phishing");
+    expect(kindLine({ phishing: 2, invoice: 2, impersonation: 0 })).toBe("2 phishing, 2 invoice");
+    expect(kindLine({ phishing: 0, invoice: 0, impersonation: 0 })).toBe("");
+  });
+});
+
+describe("threat kinds: weeks, runs and the rendered line (D07 T04 §18)", () => {
+  const ev = async (
+    id: string,
+    check: string,
+    severity = "high",
+    detail = "{}",
+    run: string | null = "run-1",
+    seq = 1,
+  ) => {
+    if (run !== null) await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(run, id).run();
+    await db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'Seeded for the kinds test', ?, 1)`,
+      )
+      .bind(id, run ?? id, `E${seq}`, seq, check, severity, detail)
+      .run();
+  };
+
+  it("allocates by arrival week, reads the current run alone, and ranks impersonation over phishing", async () => {
+    const a = await org("Karoo Couriers");
+    const tue = "2026-10-27T08:00:00.000Z";
+    // Arrival last week (Sunday 23:59:59 SAST), verdict Monday: last week's kind, not this week's.
+    const lastWeek = await made(a, {
+      at: "2026-10-25T21:59:59.000Z",
+      verdict: "malicious",
+      decidedAt: "2026-10-26T08:00:00.000Z",
+    });
+    await ev(lastWeek, "invoice.detected", "info");
+    // Conflicting runs: the old run said invoice, the current run says phishing.
+    const conflict = await made(a, { at: tue, verdict: "malicious" });
+    await ev(conflict, "invoice.detected", "info", "{}", "run-old", 1);
+    await ev(conflict, "link.lure_button", "high", "{}", "run-1", 2);
+    // No stored run id: the case's own id is its run (the fallback other readers use).
+    const fallback = await made(a, { at: tue, verdict: "suspicious" });
+    await ev(fallback, "document.type", "info", JSON.stringify({ type: "invoice" }), null);
+    // Impersonation beats phishing on one case; a medium lookalike and a confirmed mismatch both count.
+    const imp = await made(a, { at: tue, verdict: "malicious" });
+    await ev(imp, "link.credential_form", "high", "{}", "run-1", 1);
+    await ev(imp, "domain.lookalike", "medium", "{}", "run-1", 2);
+    const brand = await made(a, { at: tue, verdict: "suspicious" });
+    await ev(brand, "vision.brand_domain_mismatch", "high", JSON.stringify({ confirmed: true }));
+    // A partial case without a verdict never counts.
+    const noVerdict = await made(a, { at: tue, status: "partial", verdict: null });
+    await ev(noVerdict, "invoice.detected", "info");
+    const weeks = await weeklyCounts(db, a, NOW, 2);
+    expect(weeks[0]?.kinds).toEqual({ phishing: 1, invoice: 1, impersonation: 2 });
+    expect(weeks[1]?.kinds).toEqual({ phishing: 0, invoice: 1, impersonation: 0 });
+  });
+
+  it("draws the seeded line on the Cases page tile", async () => {
+    const a = await org("Karoo Couriers");
+    const thisWeek = weekStart(new Date());
+    for (let i = 0; i < 2; i++)
+      await ev(
+        await made(a, { at: plus(thisWeek, 60 + i), verdict: "malicious", decidedAt: plus(thisWeek, 120) }),
+        "link.credential_form",
+      );
+    await ev(
+      await made(a, { at: plus(thisWeek, 90), verdict: "suspicious", decidedAt: plus(thisWeek, 120) }),
+      "invoice.detected",
+      "info",
+    );
+    const { cookie } = await member(a);
+    const html = await (await get("/cases", cookie)).text();
+    const panel = html.slice(html.indexOf('<section id="case-stats"'), html.indexOf("</section>"));
+    expect(panel.replace(/<[^>]+>/g, "|")).toContain("|2 phishing, 1 invoice|");
+  });
+});
+
+describe("GET /cases/stats.csv with a chosen period (D07 T04 §19)", () => {
+  it("exports the weeks overlapping October 2026, oldest first, and nothing outside them", async () => {
+    const a = await org("Karoo Couriers");
+    // Weeks beginning 28 Sep, 5, 12, 19 and 26 Oct 2026 (SAST Mondays) overlap October; 21 Sep and 2 Nov do not.
+    await made(a, { at: "2026-09-21T08:00:00.000Z", verdict: "safe", decidedAt: "2026-09-21T08:01:00.000Z" });
+    await made(a, { at: "2026-09-28T08:00:00.000Z", verdict: "malicious", decidedAt: "2026-09-28T08:01:00.000Z" });
+    await made(a, { at: "2026-10-26T08:00:00.000Z", verdict: "safe", decidedAt: "2026-10-26T08:01:00.000Z" });
+    await made(a, { at: "2026-11-02T08:00:00.000Z", verdict: "safe", decidedAt: "2026-11-02T08:01:00.000Z" });
+    const { cookie } = await member(a);
+    const res = await get(`/cases/stats.csv?org=${a}&from=2026-10-01&to=2026-10-31`, cookie);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toBe(
+      'attachment; filename="isitlegit-counts-2026-10-01-to-2026-10-31.csv"',
+    );
+    const lines = (await res.text()).trimEnd().split("\r\n");
+    expect(lines[0]).toBe(CSV_HEADER);
+    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual([
+      "2026-09-28",
+      "2026-10-05",
+      "2026-10-12",
+      "2026-10-19",
+      "2026-10-26",
+    ]);
+    expect(lines[1]).toContain(",1,1,0,0,0,");
+    // A stale organisation is redirected to Cases, never exported.
+    const stale = await get(`/cases/stats.csv?org=org-elsewhere&from=2026-10-01&to=2026-10-31`, cookie);
+    expect(stale.status).toBe(303);
+  });
+
+  it("refuses a reversed, over-long, missing or unreadable period with an HTML 400 page, never an attachment", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    for (const q of [
+      "from=2026-10-31&to=2026-10-01",
+      "from=2024-01-01&to=2026-01-02",
+      "from=2026-10-01",
+      "from=2026-02-30&to=2026-10-01",
+      "from=soon&to=2026-10-01",
+      "from=&to=2026-10-01",
+      "to=2026-10-01&from=",
+    ]) {
+      const res = await get(`/cases/stats.csv?org=${a}&${q}`, cookie);
+      expect(res.status, q).toBe(400);
+      expect(res.headers.get("content-type"), q).toContain("text/html");
+      expect(res.headers.get("content-disposition"), q).toBeNull();
+      const html = await res.text();
+      expect(html, q).toContain("That period does not work");
+      expect(html, q).toContain('href="/cases"');
+    }
+  });
+});
+
+describe("GET /cases/stats.csv period boundaries (D07 T04 §19)", () => {
+  it("accepts a 731-day inclusive span and refuses 732, and reads an old same-day range", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const ok = await get(`/cases/stats.csv?org=${a}&from=2024-01-01&to=2025-12-31`, cookie);
+    expect(ok.status).toBe(200);
+    const weeks = (await ok.text()).trimEnd().split("\r\n");
+    expect(weeks.length).toBeGreaterThan(13);
+    const over = await get(`/cases/stats.csv?org=${a}&from=2024-01-01&to=2026-01-01`, cookie);
+    expect(over.status).toBe(400);
+    const sameDay = await get(`/cases/stats.csv?org=${a}&from=2026-10-15&to=2026-10-15`, cookie);
+    expect(sameDay.status).toBe(200);
+    const lines = (await sameDay.text()).trimEnd().split("\r\n");
+    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual(["2026-10-12"]);
+  });
+});
+
+describe("the Friday weekly counts (D07 T04 §20)", () => {
+  const FRIDAY = new Date("2026-10-30T14:30:00.000Z"); // Friday 16:30 SAST.
+  const provider = () => {
+    const sent: { to: string[]; subject: string; text_body: string }[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.includes("smtp2go")) return real(input, init);
+      sent.push(JSON.parse(String(init?.body ?? "{}")) as { to: string[]; subject: string; text_body: string });
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    return sent;
+  };
+
+  it("sends one report per opted-in member per week, with the tiles' numbers and no case content", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, uid, email } = await member(a);
+    const tue = "2026-10-27T08:00:00.000Z";
+    await made(a, { at: tue, verdict: "malicious", decidedAt: plus(tue, 40) });
+    await made(a, { at: tue, verdict: "safe", decidedAt: plus(tue, 30) });
+    // Opt in through the Account page, bound to the displayed organisation.
+    const post = await call("/settings/account", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/x-www-form-urlencoded", origin: ORIGIN },
+      body: new URLSearchParams({ action: "weekly-report", org: a, weekly: "on" }).toString(),
+    });
+    expect(post.status).toBe(303);
+    const held = await db
+      .prepare(`SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`)
+      .bind(a, uid)
+      .first();
+    expect(held).not.toBeNull();
+    const pageHtml = await (await get("/settings/account", cookie)).text();
+    expect(pageHtml).toContain("Email me this organisation&#39;s weekly counts on Fridays");
+    expect(pageHtml).toContain("checked");
+    const sent = provider();
+    const mailEnv = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    const { sendWeeklyReports } = await import("../../src/mail/weekly-report");
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.to).toEqual([email]);
+    expect(sent[0]?.text_body).toContain("Checked this week: 2");
+    expect(sent[0]?.text_body).toContain("Malicious or suspicious: 1");
+    expect(sent[0]?.text_body).toContain("Your week so far at Karoo Couriers");
+    expect(sent[0]?.text_body).not.toContain("Secret subject");
+    // The unsubscribe link in the mail clears the opt-in; after that, no more sends.
+    const link = /https?:\/\/\S*weekly-report\/unsubscribe\S*/.exec(sent[0]?.text_body ?? "")?.[0] as string;
+    const path = new URL(link).pathname + new URL(link).search;
+    const un = await call(path, { headers: { accept: "text/html" } });
+    expect(un.status).toBe(200);
+    expect(await un.text()).toContain("Unsubscribed");
+    expect(await db.prepare(`SELECT 1 FROM weekly_report_optins WHERE org_id = ?`).bind(a).first()).toBeNull();
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("sends nothing outside the window, to a departed member, or to a protected account", async () => {
+    const a = await org("Karoo Couriers");
+    const { uid } = await member(a);
+    await db
+      .prepare(`INSERT INTO weekly_report_optins (org_id, user_id, opted_in_at) VALUES (?, ?, ?)`)
+      .bind(a, uid, new Date().toISOString())
+      .run();
+    const sent = provider();
+    const mailEnv = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    const { sendWeeklyReports } = await import("../../src/mail/weekly-report");
+    await sendWeeklyReports(mailEnv, () => new Date("2026-10-29T14:30:00.000Z")); // Thursday.
+    expect(sent).toHaveLength(0);
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ?`).bind(uid).run();
+    await sendWeeklyReports(mailEnv, () => FRIDAY);
+    expect(sent).toHaveLength(0);
+  });
 });

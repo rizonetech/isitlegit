@@ -127,10 +127,10 @@ const MATCH_COLUMNS = ["number_hmac", "branch_code", ...KEY_COLUMNS] as const;
 const MASKED_COLUMNS = ["id", "bank_name", "branch_code", "holder", "last3"] as const;
 
 // The trigger message of migrations 0048 and 0049 when a row is written under keys that are not the current ones.
-export const NOT_CURRENT = /(bank|supplier)_accounts: not under the current keys/;
+export const NOT_CURRENT = /(bank|supplier|case_invoice)_accounts: not under the current keys/;
 
-// The two tables whose numbers are kept under the bank keys, which a re-key and the lost-key recovery move together.
-const ACCOUNT_TABLES = ["bank_accounts", "supplier_accounts"] as const;
+// The tables whose numbers are kept under the bank keys, which a re-key and the lost-key recovery move together.
+const ACCOUNT_TABLES = ["bank_accounts", "supplier_accounts", "case_invoice_accounts"] as const;
 
 export function refuseOtherKeys(rows: Pick<Row, "key_id" | "match_key_id">[], keys: BankKeys) {
   if (rows.some((r) => r.key_id !== keys.id || r.match_key_id !== keys.matchId))
@@ -417,7 +417,8 @@ export async function rekeyAccounts(
         .join(",")
         .toUpperCase();
       const counted = `(SELECT COUNT(*) FROM bank_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)
-        + (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)`;
+        + (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)
+        + (SELECT COUNT(*) FROM case_invoice_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)`;
       statements.push(
         db
           .prepare(
@@ -425,7 +426,24 @@ export async function rekeyAccounts(
              SELECT ?, ?, ?, 'bank.rekeyed', json_object('moved', ${counted}), ?
              WHERE ${counted} > 0`,
           )
-          .bind(crypto.randomUUID(), orgId, actor, orgId, ivHex, orgId, ivHex, at, orgId, ivHex, orgId, ivHex),
+          .bind(
+            crypto.randomUUID(),
+            orgId,
+            actor,
+            orgId,
+            ivHex,
+            orgId,
+            ivHex,
+            orgId,
+            ivHex,
+            at,
+            orgId,
+            ivHex,
+            orgId,
+            ivHex,
+            orgId,
+            ivHex,
+          ),
       );
     }
     const results = await db.batch(statements);
@@ -467,7 +485,17 @@ export async function abandonLostKeys(
     supplier_id?: string;
     verified_from_case_id?: string | null;
   };
+  // A case's extracted accounts go with no event of their own: no one registered them, and their case
+  // still states what it found; they are deleted so nothing sealed stays under a lost key.
+  {
+    const r = await db
+      .prepare(`DELETE FROM case_invoice_accounts WHERE (key_id != ? OR match_key_id != ?) AND NOT ${PROTECTED_SQL}`)
+      .bind(to.id, to.matchId, ...PROTECTED_BINDS)
+      .run();
+    deleted += r.meta.changes ?? 0;
+  }
   for (const table of ACCOUNT_TABLES) {
+    if (table === "case_invoice_accounts") continue;
     const extra = table === "supplier_accounts" ? ", supplier_id, verified_from_case_id" : "";
     // A second pass catches an add under the lost keys that committed between the epoch move and the first read; none
     // can commit after the move, so the loop ends.

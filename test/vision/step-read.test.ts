@@ -83,7 +83,7 @@ const reply = (body: unknown) =>
 // test's reading stub never sees a segmentation request. `samResponder` lets one test answer with
 // boxes (or a failure) instead of the default completed, zero-match stream.
 const samSse = (events: unknown[]) =>
-  new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n", {
+  new Response(`${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")}data: [DONE]\n\n`, {
     headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
   });
 const samEmpty = () =>
@@ -95,11 +95,17 @@ const samEmpty = () =>
     },
   ]);
 let samResponder: () => Response | Promise<Response> = samEmpty;
+let groundingReply: () => Response = () => reply({ boxes: [{ x_min: 30, y_min: 30, x_max: 190, y_max: 120 }] });
 
 function deps(caseId: string, fetchImpl: typeof fetch, theStore: Store = store): VisionDeps {
   const routed = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { model?: string }) : {};
+    const body =
+      typeof init?.body === "string"
+        ? (JSON.parse(init.body) as { model?: string; text?: { format?: { name?: string } } })
+        : {};
     if (body.model === "sam-3.1") return samResponder();
+    // Logo grounding (D03 T03 §4, the selected detector): one box on the normalised grid.
+    if (body.text?.format?.name === "logo_grounding") return groundingReply();
     return fetchImpl(input, init);
   }) as typeof fetch;
   return {
@@ -149,6 +155,8 @@ describe("visionStep with a stubbed model", () => {
       "vision.requested_action",
       "vision.brand_domain_mismatch",
       "vision.brand_domain_mismatch",
+      "vision.logo_match",
+      "vision.logo_match",
     ]);
     expect(items.every((e) => e.artefacts.length === 1 && e.artefacts[0]?.includes(first))).toBe(true);
     const view = ruleVerdict(await readEvidence(env.DB, first), { headersAvailable: true });
@@ -166,7 +174,7 @@ describe("visionStep with a stubbed model", () => {
       first,
     );
     expect(replay.outcome).toBe("read");
-    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(7);
+    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(9);
 
     // A twin case (the same message and attachment) is served from the cache too, with its own
     // artefact keys in the rebuilt evidence.
@@ -179,7 +187,7 @@ describe("visionStep with a stubbed model", () => {
     );
     expect(out2.outcome).toBe("read");
     const twin = (await readEvidence(env.DB, second)).filter((e) => e.check.startsWith("vision."));
-    expect(twin).toHaveLength(7);
+    expect(twin).toHaveLength(9);
     expect(twin.every((e) => e.artefacts[0]?.includes(second))).toBe(true);
   }, 300_000);
 
@@ -356,7 +364,151 @@ describe("visionStep with a stubbed model", () => {
       expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
       const coverage = items.find((e) => e.check === "vision.coverage");
       expect(JSON.stringify(coverage?.detail)).toContain("segmentation was unavailable");
-      expect(await artefactsOf(store, failedCase, "crop")).toHaveLength(0);
+      // SAM is down, so stamp and signature are lost; the selected logo detector (grounding,
+      // D03 T03 §4) still finds each picture's logo, so only its two crops and manifests land.
+      const downCrops = await artefactsOf(store, failedCase, "crop");
+      expect(downCrops.filter((c) => c.mediaType === "image/png")).toHaveLength(2);
+      expect(downCrops.every((c) => c.mediaType !== "image/png" || c.key.includes("-logo-"))).toBe(true);
+    } finally {
+      samResponder = samEmpty;
+    }
+  }, 300_000);
+
+  it("compares each logo crop with the claimed brand's reference and reads the judgement back (D03 T03 §3)", async () => {
+    const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
+    const text = `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
+    samResponder = () =>
+      samSse([
+        { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0, delta: text },
+        { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text },
+        {
+          type: "response.completed",
+          response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+        },
+      ]);
+    // The claimed brand's reference, in the store the Worker reads, under its indexed hash.
+    const referenceBytes = new TextEncoder().encode("protea-bank-reference-logo-for-step-test");
+    const digest = await crypto.subtle.digest("SHA-256", referenceBytes.buffer as ArrayBuffer);
+    const sha = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const referenceKey = "ref/logos/20260101T000000Z/protea-bank.png";
+    await env.ARTEFACTS.put(referenceKey, referenceBytes);
+    await env.ARTEFACTS.put(
+      "ref/logos/index.json",
+      JSON.stringify({
+        version: 1,
+        generation: "20260101T000000Z",
+        generated_at: "2026-01-01T00:00:00Z",
+        logos: [
+          {
+            slug: "protea-bank",
+            brand: "Protea Bank",
+            key: referenceKey,
+            page_url: "https://proteabank.example/",
+            source_url: "https://proteabank.example/logo.png",
+            source_kind: "fictional",
+            use: "detection-reference",
+            fetched_at: "2026-01-01T00:00:00Z",
+            media_type: "image/png",
+            width: 512,
+            height: 512,
+            sha256: sha,
+            fictional: true,
+          },
+        ],
+        missing: [],
+      }),
+    );
+    const comparedReferenceBytes: string[] = [];
+    const fetchStub = (async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as {
+        text?: { format?: { name?: string } };
+        input?: { content?: { type: string; image_url?: string }[] }[];
+      };
+      if (body.text?.format?.name === "logo_comparison") {
+        const images = (body.input ?? [])
+          .flatMap((entry) => entry.content ?? [])
+          .filter((part) => part.type === "input_image");
+        const second = images[1]?.image_url?.split(",")[1] ?? "";
+        comparedReferenceBytes.push(atob(second));
+        return reply({ same_brand: true, brand_seen: "Protea Bank", differences: [], confidence: 0.9 });
+      }
+      return reply(reading("Protea Bank"));
+    }) as typeof fetch;
+    try {
+      const caseId = await seededCase("logo-compared");
+      const out = await visionStep(deps(caseId, fetchStub), caseId);
+      expect(out.outcome).toBe("read");
+      const matches = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
+      // One logo crop per picture (the render and the PDF page), each compared and read back.
+      expect(matches).toHaveLength(2);
+      expect(matches.every((e) => e.detail.same_brand === true && e.detail.checked === true)).toBe(true);
+      expect(matches.every((e) => e.detail.reference_key === referenceKey && e.detail.reference_sha256 === sha)).toBe(
+        true,
+      );
+      expect(matches.every((e) => e.artefacts.some((key) => key.includes("-logo-")))).toBe(true);
+      // The image actually compared is the seeded reference, byte for byte.
+      expect(comparedReferenceBytes.length).toBeGreaterThan(0);
+      expect(comparedReferenceBytes.every((bytes) => bytes === "protea-bank-reference-logo-for-step-test")).toBe(true);
+
+      // A replay with a different judgement replaces the logo results instead of accumulating
+      // them, and the negative judgement reads back as a statement, never a clearance. The
+      // reference changed first, so the replay's comparisons are not the cached ones.
+      const changedReference = new TextEncoder().encode("protea-bank-reference-logo-changed-for-replay");
+      const changedDigest = await crypto.subtle.digest("SHA-256", changedReference.buffer as ArrayBuffer);
+      const changedSha = [...new Uint8Array(changedDigest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const changedKey = "ref/logos/20260202T000000Z/protea-bank.png";
+      await env.ARTEFACTS.put(changedKey, changedReference);
+      await env.ARTEFACTS.put(
+        "ref/logos/index.json",
+        JSON.stringify({
+          version: 1,
+          generation: "20260202T000000Z",
+          generated_at: "2026-02-02T00:00:00Z",
+          logos: [
+            {
+              slug: "protea-bank",
+              brand: "Protea Bank",
+              key: changedKey,
+              page_url: "https://proteabank.example/",
+              source_url: "https://proteabank.example/logo.png",
+              source_kind: "fictional",
+              use: "detection-reference",
+              fetched_at: "2026-01-01T00:00:00Z",
+              media_type: "image/png",
+              width: 512,
+              height: 512,
+              sha256: changedSha,
+              fictional: true,
+            },
+          ],
+          missing: [],
+        }),
+      );
+      const differentStub = (async (_input: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { text?: { format?: { name?: string } } };
+        if (body.text?.format?.name === "logo_comparison")
+          return reply({
+            same_brand: false,
+            brand_seen: "Other Bank",
+            differences: ["a different name and mark"],
+            confidence: 0.8,
+          });
+        return reply(reading("Protea Bank"));
+      }) as typeof fetch;
+      // The index has advanced, but stored evidence still names the generation it was compared
+      // against; only a replay compares against the new generation.
+      const retained = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
+      expect(retained.every((e) => e.detail.reference_key === referenceKey && e.detail.reference_sha256 === sha)).toBe(
+        true,
+      );
+      const replay = await visionStep(deps(caseId, differentStub), caseId);
+      expect(replay.outcome).toBe("read");
+      const replaced = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
+      expect(replaced).toHaveLength(2);
+      expect(replaced.every((e) => e.detail.same_brand === false && e.severity === "info")).toBe(true);
+      expect(
+        replaced.every((e) => e.detail.reference_key === changedKey && e.detail.reference_sha256 === changedSha),
+      ).toBe(true);
     } finally {
       samResponder = samEmpty;
     }
@@ -382,6 +534,7 @@ describe("visionStep with a stubbed model", () => {
 
       // The retry finds nothing: each source's latest manifest now names an empty set.
       samResponder = samEmpty;
+      groundingReply = () => reply({ boxes: [] });
       await visionStep(deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch), caseId);
       const manifests = (await artefactsOf(store, caseId, "crop")).filter((c) => c.mediaType === "application/json");
       expect(manifests).toHaveLength(4);
@@ -425,6 +578,7 @@ describe("visionStep with a stubbed model", () => {
       expect(await artefactsOf(store, stalledCase, "crop")).toHaveLength(0);
     } finally {
       samResponder = samEmpty;
+      groundingReply = () => reply({ boxes: [{ x_min: 30, y_min: 30, x_max: 190, y_max: 120 }] });
     }
   }, 300_000);
 

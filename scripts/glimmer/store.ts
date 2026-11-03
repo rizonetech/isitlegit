@@ -18,6 +18,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
+  appendFileSync,
   closeSync,
   existsSync,
   fsyncSync,
@@ -29,18 +30,20 @@ import {
   rmSync,
   statSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import sharp from "sharp";
 import { z } from "zod";
-import { HOST, jpegSize, LURE_TYPES } from "../../src/vision/page-screen.ts";
+import { HOST, inEscalationBand, jpegSize, LURE_TYPES, PageAnswer } from "../../src/vision/page-screen.ts";
+import { EMAIL, LONG_NUMBER, PHONE } from "./redact.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 export const MAX_WIDTH = 1280;
 export const MAX_HEIGHT = 2000;
 
-export const ORIGINS = ["public", "benign", "samples", "synthetic"] as const;
+export const ORIGINS = ["public", "benign", "samples", "synthetic", "production"] as const;
 // What a benign render's list said the page is (D03 T04 §6): a homepage, or a South African page of one kind.
 export const PAGE_KINDS = ["home", "login", "checkout", "account", "shop", "company", "social"] as const;
 // `unverified` marks a label from a public set whose spot check found more than 10 percent errors (D03 T04 §5): it is
@@ -58,6 +61,8 @@ export const LABEL_SOURCES = [
   "rule",
   // A source's brand kept only to group and cap pages (D03 T04 §45): never a trusted label, never taught or scored.
   "grouping-only",
+  // The §9 teacher labelling a captured production page (D03 T04 §49): it trains only after judging and admission.
+  "spark-teacher",
 ] as const;
 
 // What is known of a page's PageAnswer fields; a field not yet decided is absent (D03 T04 §9 fills them).
@@ -115,6 +120,21 @@ export const PageMeta = z
         }),
       )
       .max(10_000)
+      .optional(),
+    // A captured production page's settling provenance (D03 T04 §46): when it settled, which tier settled it, that
+    // answer, and Loupe's own answer when the page escalated past it.
+    capture: z
+      .strictObject({
+        settled_at: z.string().min(1),
+        tier: z.string().min(1).max(40),
+        screener: z.enum(["glimmer", "spark"]),
+        settling: PageAnswer,
+        loupe: PageAnswer.optional(),
+        calls: z
+          .array(z.strictObject({ callId: z.string().min(1), logId: z.string().nullable() }))
+          .max(4)
+          .optional(),
+      })
       .optional(),
     // What a benign render saw beside the text (its title and what was drawn over the page), so a later wall check can
     // judge a stored page as it judged the capture (§26).
@@ -518,5 +538,388 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     verify,
     removeSource,
     removePage,
+  };
+}
+
+export type Store = ReturnType<typeof openStore>;
+
+// ---------------------------------------------------------------------------
+// Captured production pages (D03 T04 §46): every page a screening settles is copied here under origin `production`,
+// labelled by the Spark teacher only after §41's clearance names its exact bytes, queued when that label is disputed,
+// and admitted to a training build only by the admission record. No function in this section calls a model except
+// through the labeller a caller injects.
+
+export type ScreenedCapture = {
+  screenshot: Uint8Array | null;
+  text: string;
+  host: string | null;
+  settledAt: string;
+  tier: string;
+  screener: "glimmer" | "spark";
+  settling: PageAnswer;
+  loupe?: PageAnswer | null;
+  sparkCalls?: { callId: string; logId: string | null }[];
+};
+
+export type CaptureOutcome =
+  | { id: string; stored: boolean; duplicate: boolean }
+  | { id: null; stored: false; reason: "no-screenshot" };
+
+const hasIdentifiers = (host: string | null, text: string) => {
+  const hay = `${host ?? ""}\n${text}`;
+  return [EMAIL, PHONE, LONG_NUMBER].some((shape) => new RegExp(shape.source, "g").test(hay));
+};
+export const hasRecipientIdentifiers = hasIdentifiers;
+
+function writeJsonAtomic(file: string, value: unknown): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const temporary = `${file}.${process.pid}.tmp`;
+  const fd = openSync(temporary, "w");
+  try {
+    writeSync(fd, `${JSON.stringify(value, null, 2)}\n`);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(temporary, file);
+  // The rename is acknowledged only once its directory entry is durable too.
+  const folder = openSync(dirname(file), "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
+}
+
+type ClearanceRecord = { cleared: { id: string; screenshot: string; text: string; by: string; at: string }[] };
+const clearanceFile = (store: Store) => join(store.dir, "production-clearance.json");
+export function readClearance(store: Store): ClearanceRecord {
+  try {
+    return JSON.parse(readFileSync(clearanceFile(store), "utf-8")) as ClearanceRecord;
+  } catch {
+    return { cleared: [] };
+  }
+}
+export function isProductionCleared(store: Store, page: StoredPage): boolean {
+  return readClearance(store).cleared.some(
+    (entry) => entry.id === page.id && entry.screenshot === page.sha256.screenshot && entry.text === page.sha256.text,
+  );
+}
+
+// The §41 authorised clearance action for one page: refused while recipient identifiers are in its host or text.
+export function clearProductionPage(
+  store: Store,
+  id: string,
+  by: string,
+  at: string,
+): { cleared: boolean; reason?: string } {
+  const page = store.manifest().find((entry) => entry.id === id);
+  if (!page) return { cleared: false, reason: "not in the store" };
+  const read = store.readVerifiedPage(id);
+  if (!read) return { cleared: false, reason: "the page's files do not match its record" };
+  if (hasIdentifiers(page.host, read.text))
+    return { cleared: false, reason: "recipient identifiers in the host or text; redact or withhold first" };
+  const record = readClearance(store);
+  const kept = record.cleared.filter((entry) => entry.id !== id);
+  kept.push({ id, screenshot: page.sha256.screenshot, text: page.sha256.text, by, at });
+  writeJsonAtomic(clearanceFile(store), { cleared: kept });
+  return { cleared: isProductionCleared(store, page) };
+}
+
+export async function captureScreenedPage(store: Store, capture: ScreenedCapture): Promise<CaptureOutcome> {
+  if (!capture.screenshot) return { id: null, stored: false, reason: "no-screenshot" };
+  const digest = sha256(capture.screenshot);
+  const existing = store
+    .manifest({ tolerant: true })
+    .find((page) => page.origin === "production" && page.sha256.screenshot === digest);
+  // A damaged stored copy is not a duplicate: the store's own write repairs it below.
+  if (existing && store.readVerifiedPage(existing.id)) return { id: existing.id, stored: false, duplicate: true };
+  const id = await store.putPage("production", {
+    origin: "production",
+    licence: "IsItLegit production capture; private, never published",
+    host: capture.host,
+    template: null,
+    south_africa: capture.host?.endsWith(".za") ?? false,
+    labels: {},
+    label_source: {},
+    redacted: false,
+    capture: {
+      settled_at: capture.settledAt,
+      tier: capture.tier,
+      screener: capture.screener,
+      settling: capture.settling,
+      ...(capture.loupe ? { loupe: capture.loupe } : {}),
+      ...(capture.sparkCalls?.length ? { calls: capture.sparkCalls } : {}),
+    },
+    screenshot: capture.screenshot,
+    text: capture.text,
+  });
+  return { id, stored: true, duplicate: false };
+}
+
+export type Labeller = (page: StoredPage, screenshot: Uint8Array, text: string) => Promise<PageAnswer | null>;
+
+const queueFile = (store: Store) => join(store.dir, "review-queue.jsonl");
+export type QueueEntry = {
+  id: string;
+  screenshot: string;
+  text: string;
+  reason: string;
+  at: string;
+  teacher?: PageAnswer;
+};
+// Fail-closed: a queue that does not read throws, so no caller can treat a damaged queue as no disputes. A missing
+// queue file is an empty queue.
+export function readReviewQueue(store: Store): QueueEntry[] {
+  let raw: string;
+  try {
+    raw = readFileSync(queueFile(store), "utf-8");
+  } catch (error) {
+    // Only a missing queue is an empty queue; an unreadable one refuses, never reads as no disputes.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw new Error(`the review queue ${queueFile(store)} cannot be read (${(error as Error).message})`);
+  }
+  return raw
+    .split("\n")
+    .filter(Boolean)
+    .map((line, index) => {
+      try {
+        return JSON.parse(line) as QueueEntry;
+      } catch {
+        throw new Error(
+          `the review queue ${queueFile(store)} does not read at line ${index + 1}; no page is admitted until it is repaired`,
+        );
+      }
+    });
+}
+// Durable append: the dispute is on disk, file and directory flushed, before the label it guards is committed.
+const appendQueue = (store: Store, entry: QueueEntry) => {
+  mkdirSync(store.dir, { recursive: true });
+  const file = queueFile(store);
+  const fd = openSync(file, "a");
+  try {
+    writeSync(fd, `${JSON.stringify(entry)}\n`);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  const folder = openSync(store.dir, "r");
+  try {
+    fsyncSync(folder);
+  } finally {
+    closeSync(folder);
+  }
+};
+const rewriteQueue = (store: Store, entries: QueueEntry[]) => {
+  const file = queueFile(store);
+  const temporary = `${file}.${process.pid}.tmp`;
+  const fd = openSync(temporary, "w");
+  try {
+    writeSync(fd, entries.map((entry) => `${JSON.stringify(entry)}\n`).join(""));
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(temporary, file);
+};
+
+// Labels one cleared captured page through the injected teacher labeller. An uncleared page is refused before the
+// labeller is called; a page already labelled is not labelled again.
+export async function labelCapturedPage(
+  store: Store,
+  id: string,
+  labeller: Labeller,
+  at: string,
+): Promise<{ labelled: boolean; queued: boolean; reason?: string }> {
+  const page = store.manifest().find((entry) => entry.id === id);
+  if (!page) return { labelled: false, queued: false, reason: "not in the store" };
+  if (page.labels.lure !== undefined)
+    return { labelled: true, queued: readReviewQueue(store).some((e) => e.id === id) };
+  if (!isProductionCleared(store, page)) return { labelled: false, queued: false, reason: "not cleared" };
+  const read = store.readVerifiedPage(id);
+  if (!read) return { labelled: false, queued: false, reason: "the page's files do not match its record" };
+  const answer = await labeller(read.page, read.screenshot, read.text);
+  if (!answer) return { labelled: false, queued: false, reason: "the labeller gave no answer" };
+  const settling = page.capture?.settling;
+  const disputed = (settling !== undefined && settling.lure !== answer.lure) || inEscalationBand(answer.confidence);
+  // The dispute is queued before the label is written: a stop between the two leaves a queued, unlabelled page,
+  // which admission refuses, never a labelled page whose dispute was lost.
+  if (disputed && !readReviewQueue(store).some((entry) => entry.id === id))
+    appendQueue(store, {
+      id,
+      screenshot: page.sha256.screenshot,
+      text: page.sha256.text,
+      reason:
+        settling && settling.lure !== answer.lure
+          ? "the teacher disagrees with the settling answer"
+          : "the teacher is unsure",
+      at,
+      teacher: answer,
+    });
+  const sources = Object.fromEntries(
+    ["brand", "has_login_form", "has_payment_form", "lure", "lure_type"].map((key) => [key, "spark-teacher"]),
+  ) as PageMeta["label_source"];
+  store.setLabels(
+    id,
+    {
+      brand: answer.brand,
+      has_login_form: answer.has_login_form,
+      has_payment_form: answer.has_payment_form,
+      lure: answer.lure,
+      lure_type: answer.lure_type,
+    },
+    sources,
+  );
+  return { labelled: true, queued: disputed };
+}
+
+// The executable backlog path (§46): every cleared, unlabelled production page is labelled once, in id order, and
+// the counts say what happened. Safe to rerun: labelled pages are skipped, failures stay unlabelled for the next run.
+export async function processProductionBacklog(
+  store: Store,
+  labeller: Labeller,
+  at: string,
+): Promise<{ labelled: number; queued: number; failed: { id: string; reason: string }[]; skipped: number }> {
+  const pages = store
+    .manifest({ tolerant: true })
+    .filter((page) => page.origin === "production")
+    .sort((a, b) => a.id.localeCompare(b.id));
+  let labelled = 0;
+  let queued = 0;
+  let skipped = 0;
+  const failed: { id: string; reason: string }[] = [];
+  for (const page of pages) {
+    if (page.labels.lure !== undefined) {
+      skipped++;
+      continue;
+    }
+    const outcome = await labelCapturedPage(store, page.id, labeller, at);
+    if (outcome.labelled) {
+      labelled++;
+      if (outcome.queued) queued++;
+    } else failed.push({ id: page.id, reason: outcome.reason ?? "the labeller gave no answer" });
+  }
+  return { labelled, queued, failed, skipped };
+}
+
+// Imports offline judgements (Astra and Wonder, §46): each must name the page's current hashes, or it is refused and
+// the page stays queued. An accepted judgement becomes the page's label, with the judge as its source.
+export function applyJudgements(
+  store: Store,
+  judgements: { id: string; screenshot: string; text: string; answer: PageAnswer; source: "astra+claude" | "claude" }[],
+): { id: string; accepted: boolean; reason?: string }[] {
+  const queue = readReviewQueue(store);
+  const outcomes = judgements.map((judgement) => {
+    const page = store.manifest().find((entry) => entry.id === judgement.id);
+    if (!page) return { id: judgement.id, accepted: false, reason: "not in the store" };
+    if (judgement.screenshot !== page.sha256.screenshot || judgement.text !== page.sha256.text)
+      return { id: judgement.id, accepted: false, reason: "stale: the page changed after judging" };
+    if (judgement.source !== "astra+claude" && judgement.source !== "claude")
+      return { id: judgement.id, accepted: false, reason: "the judgement's source is not an offline judge" };
+    if (typeof judgement.screenshot !== "string" || typeof judgement.text !== "string")
+      return { id: judgement.id, accepted: false, reason: "the judgement does not name the page's hashes" };
+    const parsed = PageAnswer.safeParse(judgement.answer);
+    if (!parsed.success)
+      return { id: judgement.id, accepted: false, reason: "the judgement is not a valid PageAnswer" };
+    if (!isProductionCleared(store, page)) return { id: judgement.id, accepted: false, reason: "not cleared" };
+    if (!store.readVerifiedPage(judgement.id))
+      return { id: judgement.id, accepted: false, reason: "the page's files do not match its record" };
+    const sources = Object.fromEntries(
+      ["brand", "has_login_form", "has_payment_form", "lure", "lure_type"].map((key) => [key, judgement.source]),
+    ) as PageMeta["label_source"];
+    store.setLabels(
+      judgement.id,
+      {
+        brand: judgement.answer.brand,
+        has_login_form: judgement.answer.has_login_form,
+        has_payment_form: judgement.answer.has_payment_form,
+        lure: judgement.answer.lure,
+        lure_type: judgement.answer.lure_type,
+      },
+      sources,
+    );
+    return { id: judgement.id, accepted: true };
+  });
+  const accepted = new Set(outcomes.filter((outcome) => outcome.accepted).map((outcome) => outcome.id));
+  if (accepted.size) {
+    // The teacher's and the judge's answers stay on record after the queue entry goes.
+    for (const judgement of judgements.filter((entry) => accepted.has(entry.id))) {
+      const queued = queue.find((entry) => entry.id === judgement.id);
+      appendFileSync(
+        join(store.dir, "judgements.jsonl"),
+        `${JSON.stringify({ id: judgement.id, teacher: queued?.teacher ?? null, judge: judgement.answer, source: judgement.source })}\n`,
+      );
+    }
+    rewriteQueue(
+      store,
+      queue.filter((entry) => !accepted.has(entry.id)),
+    );
+  }
+  return outcomes;
+}
+
+type AdmissionRecord = { admitted: string[]; by: string; at: string };
+const admissionFile = (store: Store) => join(store.dir, "production-admission.json");
+export function readAdmission(store: Store): Set<string> {
+  try {
+    return new Set((JSON.parse(readFileSync(admissionFile(store), "utf-8")) as AdmissionRecord).admitted);
+  } catch {
+    return new Set();
+  }
+}
+
+// The §41 admission action: only cleared, labelled pages no longer in the review queue may be named, and the record
+// is read back before it is reported.
+export function admitProductionPages(
+  store: Store,
+  ids: string[],
+  by: string,
+  at: string,
+): { admitted: string[]; refused: { id: string; reason: string }[] } {
+  const queue = new Set(readReviewQueue(store).map((entry) => entry.id));
+  const admitted = readAdmission(store);
+  const refused: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    const page = store.manifest().find((entry) => entry.id === id);
+    if (!page) refused.push({ id, reason: "not in the store" });
+    else if (page.origin !== "production") refused.push({ id, reason: "not a production capture" });
+    else if (!isProductionCleared(store, page)) refused.push({ id, reason: "not cleared" });
+    else if (page.labels.lure === undefined) refused.push({ id, reason: "unlabelled" });
+    else if (queue.has(id)) refused.push({ id, reason: "in the review queue" });
+    else admitted.add(id);
+  }
+  writeJsonAtomic(admissionFile(store), { admitted: [...admitted].sort(), by, at });
+  const back = readAdmission(store);
+  return { admitted: ids.filter((id) => back.has(id)), refused };
+}
+
+export function revokeProductionAdmission(store: Store, ids: string[], by: string, at: string): string[] {
+  const admitted = readAdmission(store);
+  for (const id of ids) admitted.delete(id);
+  writeJsonAtomic(admissionFile(store), { admitted: [...admitted].sort(), by, at });
+  const back = readAdmission(store);
+  return ids.filter((id) => !back.has(id));
+}
+
+// The flywheel's counts, reconciled against the manifest, the queue and the two gate records.
+export function productionCounts(store: Store) {
+  const pages = store.manifest({ tolerant: true }).filter((page) => page.origin === "production");
+  const queue = new Set(readReviewQueue(store).map((entry) => entry.id));
+  const admitted = readAdmission(store);
+  return {
+    captured: pages.length,
+    cleared: pages.filter((page) => isProductionCleared(store, page)).length,
+    labelled: pages.filter((page) => page.labels.lure !== undefined).length,
+    unlabelled: pages.filter((page) => page.labels.lure === undefined).length,
+    queued: pages.filter((page) => queue.has(page.id)).length,
+    judged: pages.filter((page) => page.label_source.lure === "astra+claude" || page.label_source.lure === "claude")
+      .length,
+    admitted: pages.filter((page) => admitted.has(page.id)).length,
+    // Admitted pages the build withholds for recipient identifiers, counted from their verified text.
+    withheld: pages.filter((page) => {
+      if (!admitted.has(page.id)) return false;
+      const read = store.readVerifiedPage(page.id);
+      return read !== null && hasIdentifiers(page.host, read.text);
+    }).length,
   };
 }

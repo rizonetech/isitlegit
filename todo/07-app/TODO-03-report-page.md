@@ -21,6 +21,7 @@ track: day-2
 - -> XREF: D07 T09 §7 -- the walkthrough refusal and reuse cards filed from D04 T02 §6, moved there at the 2026-11-02 gate merge when this file reached 55 sections
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
+- -> XREF: D02 T03 §12 -- the lookalike clean summary naming the domains compared, filed by §44's completion review
 - -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
 - -> XREF: D04 T01 §2 -- `case_verdicts.reasons` as `{ text, evidenceIds }[]` (each id an evidence item of the case; old `string[]` rows read as `{ text, evidenceIds: [] }`) and `VerdictView.meaning`, the banner's one sentence (old rows null), which §2's banner draws (cross-lane contract agreed 2026-10-31)
 - -> XREF: D04 T01 §5 -- the citation check that refuses a reason with no `evidenceIds` or an id not on the case, so every reason the banner shows has its evidence card
@@ -87,7 +88,7 @@ track: day-2
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
-| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [x] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
 | 47 | §47 | Previous attempt of a | §20 | [ ] |
@@ -655,7 +656,7 @@ A voice finding shows the transcript with the request, the claimed identity and 
 
 - [x] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
 
-> **Deferred:** the player and timed transcript -> XREF: D07 T09 §6
+> **Resolved:** the player and timed transcript -> XREF: D07 T09 §6. Resolved 2026-11-03 by D07 T09 §6 in `3f244d1b`, `9a84a0a5` and `e5363498`: the `voice.transcript` card (`src/web/components/evidence/cards.tsx`) plays the recording through the artefact route and draws its timed segments with the request marked.
 - [x] Name and draw `voice.lure` in `src/web/components/evidence/check-words.ts` and the voice renderer (`src/web/components/evidence/cards.tsx`): the attachment's file name, whether it carries a player, whether it carries a link, each said plainly, a hostile file name as text. Done when: `test/web/evidence-cards.test.ts` draws a lure with a player, one with a link and one with neither, and the registry words name the check. Cheaper substitute: the plain card, which shows neither the file nor what it carries.
 - [x] Prove the lure through the report: producer-shaped `voice.lure` rows stored as the producer will write them (its registration is D01 T03 §5, the checks lane's, which stamps once this card reaches main, the same sequencing as §12) read back through `/r/:caseId` for a member and a signed link. Done when: `test/web/report-access.test.ts` finds the file name and what it carries in both views. **Added 2026-11-01 (plan review P2).**
 - [x] State the limits where a transcription failed: in `ReportLive` (`src/web/pages/report-live.tsx`), a case whose failed step is `transcribe` (an uploaded voice note or a forwarded recording alike; the failed step, not the channel, says a transcription was attempted) shows "The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot read, and cloned or synthetic voices, are not detected." in the failed state and beside a partial verdict. Done when: `test/web/report-status.test.ts` finds it through the report route for a failed transcription and not for another step's failure. Cheaper substitute: the generic failure words, which leave a reader thinking a transcript exists.
@@ -715,7 +716,7 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 - [x] Prove the refreshed region carries both: in `test/web/report-status.test.ts` (**Corrected 2026-10-31 (build):** named `report-access.test.ts`; the status route's own tests and their member and link setup live in `report-status.test.ts`), a case stored running is read through `GET /r/:caseId/status` (no count line, no list), then its outcomes and safe verdict are stored and the same route returns the count line and the clean list, for a signed-in member and for a signed-link reader (`?t=`). Done when: both readers get the finished count and list from the status route alone, without loading the page. Cheaper substitute: rendering in `report-view.tsx` only fails this test.
 - [x] Check the clean list in the browser in `test/node/report-verdict-browser.test.tsx`'s safe variant: at 360 and 1280 px, light and dark, a list holding a retired check's long stored name (100 characters, the column's limit) and the count line pass the accessibility gate's rules with no sideways scroll, and the list reads as a heading and a list. Done when: the variant's matrix passes with the long name present and fails when the list overflows (a `whitespace-nowrap` on its items fails it). **Planned 2026-10-31 (plan review P2).**
 - [x] Record the board's per-check result words as a SPEC deviation: `Report-Safe` follows each clean check with what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), which the outcomes do not store; the list draws "<check words>: nothing found". Add the `Deviation` bullet under `design/SPEC.md` M3 and ask the checks lane, through the coordinator, for a per-check result summary in the stored outcome. Done when: the bullet is in the SPEC with the reason, and the ask is sent and its section ref recorded here as a `Deferred:` line. **Corrected 2026-10-31 (completion review):** the checks lane filed its half as D02 T01 §7 (on checks-lane at 7dbb51f8), which does not resolve on this branch yet; the Deferred owner is D07 T03 §44, filed here, which draws the stored summary, removes the deviation and takes D02 T01 §7 as its dependency once that row reaches this branch.
-> **Deferred:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44
+> **Resolved:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44. Resolved 2026-11-03 by D07 T03 §44 in `50c72859` and `69e3f29b`: `CleanChecks` (`src/web/pages/report-live.tsx`) draws each clean check's stored summary; the lookalike check's words naming the domains it compared follow in D02 T03 §12.
 
 - [x] Commit: `web: the report counts its checks`
 
@@ -1073,7 +1074,7 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
 
-> **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+> **Resolved:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9. Resolved 2026-11-03 by D07 T09 §9 in `15656175` and `d2f5545e`: the invisible-characters card (`src/web/components/evidence/cards.tsx`) opens the stored decoded run whole under one disclosure, with its cut named.
 
 > **Verified:** 2026-11-02 | §29 | e42119edfe34dc4d752bd58fa2d973c0b3dbbfed
 > **Review:** `docs/reviews/d07-t03-s29.json`
@@ -1530,9 +1531,14 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 - [x] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met. (2026-11-02: resolve names it, unmet empty.)
 - [x] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
 - [x] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
-- [ ] Commit: `web: clean checks say what they saw`
+- [x] Commit: `web: clean checks say what they saw`
+
+> **Deferred:** the lookalike check's clean words naming the domains it compared -> XREF: D02 T03 §12
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
+
+> **Verified:** 2026-11-03 | §44 | 69e3f29bbddc1e7a61f90c9fa940effcf20da240
+> **Review:** `docs/reviews/d07-t03-s44.json`
 
 ## 45. Unverified receiving chain on the auth card
 

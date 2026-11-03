@@ -35,7 +35,7 @@ import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { validateCitations } from "./citations";
-import { floorFor } from "./floor";
+import { applyFloor, floorFor } from "./floor";
 import { PARTIAL_HEADLINE, PARTIAL_MEANING, ruleVerdict } from "./rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps, type ToolResult } from "./tools";
 
@@ -43,8 +43,6 @@ export const SPARK = "muse-spark-1.3";
 export const AGENT_DEADLINE_MS = 150_000;
 const MAX_TURNS = 12;
 const NO_HEADERS_CAP = 0.6;
-const RANK: Record<VerdictView["verdict"], number> = { safe: 0, suspicious: 1, malicious: 2 };
-
 const MARKER = /\[E[0-9]+\]/;
 export const VerdictAnswer = z.strictObject({
   verdict: z.enum(["safe", "suspicious", "malicious"]),
@@ -76,13 +74,20 @@ export function fixedActionsFor(evidence: readonly Evidence[]): string[] {
   const request = evidence.find((e) => e.check === "voice.request");
   const identity = evidence.find((e) => e.check === "voice.claimed_identity");
   const asked = typeof request?.detail.request === "string" ? request.detail.request : null;
-  const bank =
-    asked === "change_bank_details" ||
-    evidence.some((e) => e.check === "agent.ledger_lookup" && e.detail.match === false);
+  const bankItems = evidence.filter(
+    (e) => (e.check === "agent.ledger_lookup" && e.detail.match === false) || e.check === "invoice.bank_changed",
+  );
+  // Any trigger carrying a number wins over one that does not (round 1): two lookups, or a ledger and an
+  // invoice finding, can disagree on whether the supplier's record holds a phone.
+  const bankItem = bankItems.find((e) => typeof e.detail.phone === "string") ?? bankItems[0];
+  const bank = asked === "change_bank_details" || bankItem !== undefined;
   const pop = evidence.some((e) => e.check === "document.proof_of_payment");
   const name = typeof identity?.detail.identity === "string" ? identity.detail.identity : null;
+  // The ledger's own number for the supplier, carried in the trigger item's detail by its producer
+  // (D04 T01 §12); never a number from the mail.
+  const phone = typeof bankItem?.detail.phone === "string" ? bankItem.detail.phone : null;
   const out: string[] = [];
-  if (bank) out.push(bankChangeAction());
+  if (bank) out.push(bankChangeAction(phone ?? undefined));
   if (pop) out.push(POP_ACTION);
   if ((asked === "pay" || asked === "change_bank_details") && name) out.push(callBackAction(name));
   return out;
@@ -145,6 +150,34 @@ const outcome = (result: ToolResult) =>
           reason: result.reason,
           evidence: result.evidence.map(({ id, check }) => ({ id, check })),
         };
+
+// Model text that reaches the report and reply carries no destination of its own: any web
+// address or mailbox the model wrote is removed before storage, because destinations in a
+// verdict (the signed report link, the feedback link) come from code, never from the model
+// (AGENTS.md: no model decides who receives mail, and a plain-text address in a reply is a
+// destination a mail client can link). The words around it stay, so the finding still reads.
+const stripDestinations = (text: string) =>
+  // Token by token, with no word-boundary or suffix list to bypass: a token whose core holds a
+  // scheme, an @, or a dot between letters or digits (any script's) is a destination, whatever
+  // punctuation surrounds it. The surrounding punctuation and words stay, so the finding reads.
+  text
+    .split(/(\s+)/)
+    .map((token) => {
+      if (!token || /^\s+$/.test(token)) return token;
+      const core = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}/]+$/gu, "");
+      // A dotted token is a destination when a letter follows a dot (a domain in any script),
+      // or it is a numeric address; a purely numeric dotted token is an amount or a
+      // percentage, never a destination, and its figures stay.
+      const destination =
+        core.includes("://") ||
+        core.includes("@") ||
+        /^[\p{L}\p{N}-]+\.[\p{L}]/u.test(core) ||
+        /^\d{1,3}(?:\.\d{1,3}){3}(?:\/|$)/.test(core) ||
+        /^www\./i.test(core);
+      if (!destination) return token;
+      return token.replace(core, core.includes("@") && !core.includes("://") ? "[address removed]" : "[link removed]");
+    })
+    .join("");
 
 // A verdict that was not stored is not a verdict: the typed refusal is thrown, never reported as success.
 async function mustSave(db: D1Database, caseId: string, view: VerdictView): Promise<void> {
@@ -304,9 +337,8 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     }
     const cited = answer.cited_evidence_ids;
 
-    const floor = floorFor(fresh).verdict;
-    const floored = RANK[floor] > RANK[answer.verdict];
-    const verdict = floored ? floor : answer.verdict;
+    const { verdict, floorApplied } = applyFloor(answer.verdict, floorFor(fresh));
+    const floored = floorApplied !== null;
     const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
     const partial =
       verdict === "safe" && (exhausted || fresh.some((e) => e.check === "not_checked" || e.detail.checked === false));
@@ -317,14 +349,19 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const reasonIds = floored ? [...floorIds, ...cited.filter((id) => !floorIds.includes(id))] : cited;
     const view: VerdictView = {
       verdict,
-      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : answer.headline,
+      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : stripDestinations(answer.headline),
       confidence: Math.min(answer.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? 0.5 : 1),
       reasons: reasonIds.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
       actions: floored
         ? [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10)
-        : [...fixed, ...answer.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
-      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : answer.meaning,
+        : [
+            ...fixed,
+            ...answer.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a)).map(stripDestinations),
+          ].slice(0, 10),
+      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : stripDestinations(answer.meaning),
       source: "agent",
+      floorApplied: floorApplied ? { ...floorApplied, evidenceIds: floorIds } : null,
+      ablated: null,
     };
     await mustSave(ctx.db, caseId, view);
     return view;

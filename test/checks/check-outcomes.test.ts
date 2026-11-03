@@ -352,17 +352,32 @@ describe("check outcomes", () => {
       reason: "1 attachment could not be read",
       findings: 1,
     });
-    // Each with what it saw since D02 T01 §7.
+    // Each with what it saw since D02 T01 §7, and what it examined since D02 T01 §8.
     expect(await archiveOutcomes([["clean.zip", zipped]])).toEqual([
-      { check: "attachment.macro", outcome: "ran", reason: null, findings: 0, summary: "1 read, none with macros" },
+      {
+        check: "attachment.macro",
+        outcome: "ran",
+        reason: null,
+        findings: 0,
+        summary: "1 read, none with macros",
+        examined: { targets: ["clean.zip"], omitted: 0 },
+      },
       {
         check: "attachment.encrypted_archive",
         outcome: "ran",
         reason: null,
         findings: 0,
         summary: "1 read, none encrypted",
+        examined: { targets: ["clean.zip"], omitted: 0 },
       },
-      { check: "attachment.executable", outcome: "ran", reason: null, findings: 0, summary: "1 read, none executable" },
+      {
+        check: "attachment.executable",
+        outcome: "ran",
+        reason: null,
+        findings: 0,
+        summary: "1 read, none executable",
+        examined: { targets: ["clean.zip"], omitted: 0 },
+      },
     ]);
   });
 
@@ -600,9 +615,10 @@ describe("each check's result summary", () => {
   });
 
   it("stores every summary of a set longer than one statement takes, within D1's hundred parameters", async () => {
-    // Twelve bindings a row (case, run, check, seq, outcome, reason, findings, revision, summary, data revision, id, source).
-    expect(OUTCOMES_PER_INSERT * 12).toBeLessThanOrEqual(100);
-    expect((OUTCOMES_PER_INSERT + 1) * 12).toBeGreaterThan(100);
+    // Thirteen bindings a row (case, run, check, seq, outcome, reason, findings, revision, summary, data
+    // revision, id, source, and the examined set since D02 T01 §8).
+    expect(OUTCOMES_PER_INSERT * 13).toBeLessThanOrEqual(100);
+    expect((OUTCOMES_PER_INSERT + 1) * 13).toBeGreaterThan(100);
     const { caseId, view } = await inlineView();
     const names = Array.from({ length: OUTCOMES_PER_INSERT * 2 + 1 }, (_, i) => `s.n${i}`);
     const r = sums(names.map((n): [string, Check["summary"]] => [n, () => `saw ${n}`]));

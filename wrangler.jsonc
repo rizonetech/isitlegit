@@ -11,7 +11,7 @@
   "rules": [
     {
       "type": "Text",
-      "globs": ["**/pdf.min.mjs", "**/pdf.worker.min.mjs", "**/fixtures/**/*.html"],
+      "globs": ["**/pdf.min.mjs", "**/pdf.worker.min.mjs", "**/fixtures/**/*.html", "**/axe.min.js"],
       "fallthrough": false
     },
     {
@@ -79,6 +79,9 @@
     // A second copy of each forwarding-failure alert, on another provider, since OPERATOR_EMAIL is the aliases' own
     // destination (D01 T02 §6, operator decision 2026-10-30).
     "OPERATOR_FALLBACK_EMAIL": "rizonetech@gmail.com",
+    // The eval organisation (D01 T01 §22): replay-scoped intake claims are honoured only for this organisation.
+    // An identifier, not a secret; empty until the coordinator sets it at the section's gate.
+    "EVAL_ORG_ID": "hyVHVbGUx1OTWhfzaqIwMOfpig6xGDnc",
     // The admin console's Access application (D07 T05 §1): its audience tag and the Zero Trust team domain the
     // Worker verifies Cf-Access-Jwt-Assertion against; identifiers, not secrets. CF_ACCESS_EMAIL is the operator's
     // own sign-in address, the second address the Access policy admits beside OPERATOR_EMAIL.

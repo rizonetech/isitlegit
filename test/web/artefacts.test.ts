@@ -146,6 +146,50 @@ describe("the artefact route", () => {
     expect(await bytes(res)).toEqual(PNG);
   });
 
+  // D07 T09 §6: a recording asked for inline plays, for a member and a signed-link holder alike.
+  it("serves a recording inline as audio when asked, under the same ownership checks", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const OGG = (() => {
+      const b = new Uint8Array(27 + 8 + 4);
+      b.set(enc("OggS"), 0);
+      b.set(enc("OpusHead"), 27);
+      return b;
+    })();
+    const { id } = await caseWith(orgId, OGG, "audio/ogg", "voice-note.ogg", true);
+    const report = await html(await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } }));
+    const href = fileLink(report);
+    const asAttachment = await call(href, { headers: { cookie } });
+    expect(asAttachment.headers.get("content-disposition")).toMatch(/^attachment;/);
+    const play = await call(`${href}?inline=1`, { headers: { cookie } });
+    expect(play.status).toBe(200);
+    expect(play.headers.get("content-type")).toBe("audio/ogg");
+    expect(play.headers.get("content-disposition")).toBe("inline");
+    expect(await bytes(play)).toEqual(OGG);
+    const link = await signReportLink(SECRET, id, orgId);
+    const holderReport = await html(await call(link, { headers: { accept: "text/html" } }));
+    const holderPlay = await call(`${fileLink(holderReport)}&inline=1`);
+    expect(holderPlay.status).toBe(200);
+    expect(holderPlay.headers.get("content-type")).toBe("audio/ogg");
+    const stranger = await call(`${href}?inline=1`);
+    expect(stranger.status).toBe(303);
+    expect(await bytes(stranger)).not.toEqual(OGG);
+    // The type comes from the bytes, never the name: a WAV with no extension, and one named as another format.
+    const WAVH = (() => {
+      const b = new Uint8Array(16);
+      b.set(enc("RIFF"), 0);
+      b.set(enc("WAVE"), 8);
+      return b;
+    })();
+    for (const name of ["voicemail", "voicemail.mp3"]) {
+      const named = await caseWith(orgId, WAVH, "audio/wav", name, true);
+      const namedReport = await html(await call(`/r/${named.id}`, { headers: { cookie, accept: "text/html" } }));
+      const played = await call(`${fileLink(namedReport)}?inline=1`, { headers: { cookie } });
+      expect(played.headers.get("content-type"), name).toBe("audio/wav");
+      expect(played.headers.get("content-disposition"), name).toBe("inline");
+    }
+  });
+
   it("downloads a drawn capture for a signed-link holder as an attachment with its exact bytes, and shows it inline when asked", async () => {
     const orgId = await org();
     const { id } = await caseWith(orgId, PNG, "image/png", "capture.png", true);

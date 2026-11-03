@@ -129,8 +129,22 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
   );
 }
 
+export type ReputationRow = {
+  provider: string;
+  subject: string;
+  state: string;
+  obtainedAt: string;
+  cached: boolean;
+  note: string | null;
+};
 type Drawn = { title: string; body: unknown; level?: Severity };
-type Renderer = (item: CardItem, file: FileLink) => Drawn;
+// The third argument is the case's verified request quote, for the one renderer that marks it (voice.transcript).
+type Renderer = (
+  item: CardItem,
+  file: FileLink,
+  requestQuote?: string | null,
+  reputation?: readonly ReputationRow[],
+) => Drawn;
 
 const PATH_WORDS: Record<string, string> = {
   rfc822: "Forwarded as an attached message",
@@ -435,9 +449,58 @@ function ReviewLink(props: { url: unknown }) {
 }
 // Reputation cards (D07 T03 §12; spec 4.3a): a listing names its provider and what was listed, and offers the
 // provider's review; a listing alone never decides anything, and what was not checked is never "not listed".
-const reputation: Renderer = (item, file) => {
+const PROVIDER_WORDS: Record<string, string> = {
+  "google-web-risk": "Google Web Risk",
+  cloudflare: "Cloudflare",
+  "well-known": "Well-known list",
+};
+const REPUTATION_STATE: Record<string, string> = {
+  listed: "Listed",
+  clear: "Not listed by this provider",
+  unavailable: "Could not be checked",
+  known: "On the well-known list",
+  unknown: "Not on the well-known list",
+};
+// A stored unavailable reason in plain words; a code nothing here knows is said as the provider not answering.
+function reasonWords(note: string): string {
+  if (note === "no_key") return "no provider key is configured";
+  if (note === "rate_limited") return "the provider limited the rate of asks";
+  if (note.startsWith("capped:")) return "the provider's limit for this run was reached";
+  if (note.includes("timed out") || note.includes("timeout")) return "the provider timed out";
+  return "the provider did not answer";
+}
+// One subject's stored provider answers (D07 T09 §5): every provider asked, its own state, when the answer was
+// obtained and whether it came from the cache. The count line counts only providers that answered, keeps the
+// well-known list apart, and never reads as a verdict.
+export function ProviderRows(props: { rows: readonly ReputationRow[] }) {
+  const answered = props.rows.filter((r) => r.state === "listed" || r.state === "clear");
+  const listed = answered.filter((r) => r.state === "listed").length;
+  return (
+    <div class="flex flex-col gap-8">
+      <ul class="m-0 flex list-none flex-col gap-8 p-0">
+        {props.rows.map((r) => (
+          <li class="text-14 wrap-anywhere">
+            <strong>{PROVIDER_WORDS[r.provider] ?? r.provider}</strong>
+            {`: ${REPUTATION_STATE[r.state] ?? r.state}`}
+            {r.note ? ` (${r.state === "unavailable" ? reasonWords(r.note) : r.note})` : ""}
+            {` · obtained ${r.obtainedAt}${r.cached ? " · from cache" : ""}`}
+          </li>
+        ))}
+      </ul>
+      {answered.length > 0 ? (
+        <p class="text-14 text-muted">{`${answered.length} provider${answered.length === 1 ? "" : "s"} answered: ${listed} listed, ${answered.length - listed} not listed`}</p>
+      ) : (
+        <p class="text-14 text-muted">No provider answered for this subject.</p>
+      )}
+    </div>
+  );
+}
+const reputation: Renderer = (item, file, _quote, reputation) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
+  const subject = text(d.listed) ?? text(d.domain);
+  const rows = subject && reputation ? reputation.filter((r) => r.subject === subject) : [];
+  const rowsEl = rows.length > 0 ? <ProviderRows rows={rows} /> : null;
   if (item.check === "reputation.counter_signal") {
     // An overflow item groups the domains it speaks for (the producer's `entries`), with the rest counted.
     const domains = records(d.entries)
@@ -450,7 +513,14 @@ const reputation: Renderer = (item, file) => {
           <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
           {domains.length > 0 ? (
             <>
-              <Bullets items={domains} />
+              {domains.map((domain) => (
+                <div class="flex flex-col gap-4">
+                  <p class="text-14 wrap-anywhere">{domain}</p>
+                  {reputation && reputation.filter((r) => r.subject === domain).length > 0 ? (
+                    <ProviderRows rows={reputation.filter((r) => r.subject === domain)} />
+                  ) : null}
+                </div>
+              ))}
               {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
                 <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
               )}
@@ -458,6 +528,7 @@ const reputation: Renderer = (item, file) => {
           ) : (
             <Facts rows={[["Domain", text(d.domain)]]} />
           )}
+          {rowsEl}
           {files}
         </>
       ),
@@ -488,6 +559,9 @@ const reputation: Renderer = (item, file) => {
                 ]}
               />
               <ReviewLink url={entry.delist_url} />
+              {reputation && reputation.filter((r) => r.subject === text(entry.listed)).length > 0 ? (
+                <ProviderRows rows={reputation.filter((r) => r.subject === text(entry.listed))} />
+              ) : null}
             </div>
           ))}
           {Math.max(0, (count(d.more) ?? 0) - entries.length) > 0 && (
@@ -521,6 +595,7 @@ const reputation: Renderer = (item, file) => {
           ]}
         />
         <ReviewLink url={d.delist_url} />
+        {rowsEl}
         {files}
       </>
     ),
@@ -774,6 +849,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   // Where the instruction sits in the run, when the producer found one (D02 T05 §6; D07 T03 §29): its own excerpt,
   // so a reader reads the instruction itself without decoding the original elsewhere.
   const instruction = runInstruction(d.instruction);
+  // The whole stored run (D02 T05 §11, drawn by D07 T09 §9): the decoded text past the excerpt, with its cut marked.
+  const run = d.run && typeof d.run === "object" && !Array.isArray(d.run) ? (d.run as Record<string, unknown>) : null;
+  const runText = run ? text(run.text) : null;
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -785,7 +863,12 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
           <>
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
             <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
-            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+            {cut &&
+              (runText ? (
+                <p class="text-13 text-muted">The whole run is below.</p>
+              ) : (
+                <p class="text-13 text-muted">The rest is in the original message.</p>
+              ))}
           </>
         )}
         {instruction && (
@@ -793,6 +876,17 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
             <p class="text-13 text-muted">{`The instruction, from character ${instruction.offset}`}</p>
             <EvidenceQuote>{`"${instruction.text}"`}</EvidenceQuote>
           </>
+        )}
+        {runText && (
+          <details>
+            <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Read the whole hidden run</summary>
+            <div class="flex flex-col gap-8 mt-8">
+              <EvidenceQuote>{runText}</EvidenceQuote>
+              {run?.truncated === true && (
+                <p class="text-13 text-muted">The stored run is cut short: the rest is in the original message.</p>
+              )}
+            </div>
+          </details>
         )}
         <Facts
           rows={[
@@ -1138,11 +1232,56 @@ const placeOf = (raw: string | null) => {
   }
 };
 
+// Why a walk did not run or did not finish, in plain words (D04 T02 §6: the stored reason is a class only).
+const WALK_REASON: Record<string, string> = {
+  budget: "Today's model limit was reached",
+  limit: "The walk stopped at its limit",
+  refused: "A request was refused",
+  error: "It stopped on an error",
+  invalid_case_id: "The case for the walk could not be found",
+  no_case: "The case for the walk could not be found",
+};
+const walkClock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+// A reused walk's provenance (D07 T09 §7): the finding is an earlier walk's, with its time, and this case made no
+// new screenshot or submission. A stored time that does not parse is left out, never invented.
+function Reused(props: { detail: Record<string, unknown> }) {
+  const reused = records([props.detail.reused])[0];
+  const at = reused ? text(reused.at) : null;
+  if (!at || Number.isNaN(Date.parse(at))) return null;
+  return (
+    <p class="text-14 text-muted">{`From an earlier walk of the same page, on ${walkClock.format(new Date(at))} SAST. No new screenshot or submission was made for this case.`}</p>
+  );
+}
+
 // The contained browser's walk (D04 T02 §5, written by `recordWalk`, not by a registered check): the pages it visited in
 // order, where the test credentials would go and what became of them, and text it found hidden. Every address, name and
 // quote is text; the credential values are never stored, so only the field names are drawn.
 const walkthrough: Renderer = (item, file) => {
   const d = item.detail;
+  if (item.check === "walkthrough.not_checked") {
+    const incomplete = item.summary.includes("did not finish");
+    return {
+      title: incomplete ? "The walkthrough did not finish" : "The walkthrough could not run",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Why", WALK_REASON[text(d.reason) ?? ""] ?? "It could not be completed"],
+              ["Page", text(d.url)],
+            ]}
+          />
+        </>
+      ),
+    };
+  }
   if (item.check === "walkthrough.chain") {
     const pages = records(d.pages).filter((p) => typeof p.url === "string");
     const omitted = records([d.omitted])[0] ?? {};
@@ -1154,6 +1293,7 @@ const walkthrough: Renderer = (item, file) => {
       title: "Where the walk went",
       body: (
         <>
+          <Reused detail={d} />
           <ol class="m-0 flex list-decimal flex-col gap-4 pl-20 text-14">
             {pages.map((p) => (
               <li class="wrap-anywhere">
@@ -1181,6 +1321,7 @@ const walkthrough: Renderer = (item, file) => {
       title: "Where the test credentials would go",
       body: (
         <>
+          <Reused detail={d} />
           {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
           <Facts
             rows={[
@@ -1217,6 +1358,7 @@ const walkthrough: Renderer = (item, file) => {
       title: "The page took the test credentials",
       body: (
         <>
+          <Reused detail={d} />
           {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
           <Facts rows={[["Then it moved to", placeOf(text(d.nextPage))]]} />
           {item.artefacts.length > 0 && <p class="text-14 text-muted">Screenshots taken around this step:</p>}
@@ -1229,6 +1371,7 @@ const walkthrough: Renderer = (item, file) => {
     title: "Text hidden on a walked page",
     body: (
       <>
+        <Reused detail={d} />
         {quote && <EvidenceQuote>{quote}</EvidenceQuote>}
         <Facts
           rows={[
@@ -1252,8 +1395,93 @@ const URGENCY: Record<string, string> = {
 };
 // The voice family: every quote is the speaker's own words (a verified substring of the transcript), every other field the
 // model's reading of them, so each card says which is which. Nothing here is markup.
-const voice: Renderer = (item) => {
+// A segment's start, as the board's clock words it.
+const at = (ms: unknown) => {
+  const total = Math.max(0, Math.floor((typeof ms === "number" ? ms : 0) / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+// The stored transcript itself (D01 T03 §16, drawn by D07 T09 §6): the recording through the artefact route,
+// each segment at its time with its chunk's speaker label, the request's segments marked. Nothing here counts
+// speakers: a label is scoped to its chunk and may name someone else in another.
+const voice: Renderer = (item, file, requestQuote) => {
   const d = item.detail;
+  if (item.check === "voice.transcript") {
+    const recording = text(d.recording);
+    const player = recording ? (
+      <figure class="flex flex-col gap-8">
+        {/* biome-ignore lint/a11y/useMediaCaption: the transcript below is this recording's text, segment by segment */}
+        <audio controls preload="none" src={inlineUrl(file(recording))} class="w-full">
+          <a href={file(recording)} class={LINK} rel="nofollow">
+            Download the recording
+          </a>
+        </audio>
+      </figure>
+    ) : null;
+    if (d.malformed === true)
+      return {
+        title: "What was said",
+        body: (
+          <>
+            {player}
+            <p class="text-14">The transcript could not be read, so the words of this recording are not shown.</p>
+          </>
+        ),
+      };
+    const segments = records(d.segments);
+    // The request's place: the verified quote matched across the segments, every segment it spans marked.
+    const joined = segments.map((s) => text(s.text) ?? "").join(" ");
+    const atQuote = requestQuote ? joined.indexOf(requestQuote) : -1;
+    let offset = 0;
+    const marked = segments.map((s) => {
+      const own = text(s.text) ?? "";
+      const hit = atQuote >= 0 && offset + own.length > atQuote && offset < atQuote + (requestQuote as string).length;
+      offset += own.length + 1;
+      return hit;
+    });
+    const wordsOmitted =
+      (typeof d.segmentsOmitted === "number" ? d.segmentsOmitted : 0) +
+      (typeof d.gapsOmitted === "number" ? d.gapsOmitted : 0);
+    const gaps = records(d.gaps);
+    const multiChunk = new Set(segments.map((s) => s.chunk)).size > 1;
+    return {
+      title: "What was said",
+      body: (
+        <>
+          {player}
+          {segments.length === 0 ? (
+            <p class="text-14">No words were transcribed from this recording.</p>
+          ) : (
+            <ol class="m-0 flex list-none flex-col gap-12 p-0">
+              {segments.map((s, i) => (
+                <li class="flex gap-12 text-14">
+                  <span class="text-muted">{at(s.startMs)}</span>
+                  <p class="m-0 wrap-anywhere">
+                    {text(s.speaker) && <span class="text-muted">{`${text(s.speaker)}: `}</span>}
+                    {marked[i] ? <mark>{text(s.text) ?? ""}</mark> : (text(s.text) ?? "")}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+          {d.complete === false && <p class="text-14">Part of the recording could not be transcribed.</p>}
+          {gaps.map((g) => (
+            <p class="text-14">{`Speech was cut and not transcribed from ${at(g.startMs)} to ${at(g.endMs)}.`}</p>
+          ))}
+          {multiChunk && (
+            <p class="text-14">
+              Speaker labels belong to each part of the recording: the same label in another part may be someone else.
+            </p>
+          )}
+          {(d.trimmed === true || wordsOmitted > 0) && (
+            <p class="text-14">The stored transcript is cut short here, so later words are not shown.</p>
+          )}
+          {typeof d.speakersOmitted === "number" && d.speakersOmitted > 0 && (
+            <p class="text-14">Some speaker labels are not shown.</p>
+          )}
+        </>
+      ),
+    };
+  }
   // An attachment claiming to be a recording (D07 T03 §16; D01 T03 §5's shape): its file, and what it carries.
   if (item.check === "voice.lure")
     return {
@@ -1527,10 +1755,15 @@ const RENDERERS: Record<Family, Renderer> = {
   not_checked: notChecked,
 };
 
-export function Card(props: { item: CardItem; file: FileLink }) {
+export function Card(props: {
+  item: CardItem;
+  file: FileLink;
+  requestQuote?: string | null;
+  reputation?: readonly ReputationRow[];
+}) {
   const { item, file } = props;
   const family = familyOf(item.check);
-  const drawn = family ? RENDERERS[family](item, file) : null;
+  const drawn = family ? RENDERERS[family](item, file, props.requestQuote, props.reputation) : null;
   return (
     <EvidenceCard
       id={item.id}
@@ -1572,6 +1805,40 @@ function moreWords(rest: readonly CardItem[]): string {
     .join(" · ");
 }
 
+// What a check did, in plain words, and a failed check's stored error class translated (D07 T09 §11), as the
+// coverage notice words them (src/web/pages/report-live.tsx).
+const OUTCOME_WORDS: Record<string, string> = {
+  ran: "ran",
+  partial: "read part of its input",
+  skipped: "did not run",
+  failed: "failed",
+};
+const FAILED_WORDS: Record<string, string> = {
+  Timeout: "it ran out of time",
+  EvidenceRefused: "its findings could not be stored",
+};
+// The checks whose producer reads the brand table (D07 T09 §12): only their lines name the detection data.
+const DATA_CHECKS = new Set(["domain.lookalike", "sender.display_brand", "reputation.counter_signal"]);
+function versionLine(o: {
+  check: string;
+  revision?: string;
+  outcome?: "ran" | "partial" | "skipped" | "failed";
+  reason?: string | null;
+  data?: { revision: string; id: string; source: "kv" | "bundled" };
+}): string {
+  const head = `${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`;
+  const data = DATA_CHECKS.has(o.check)
+    ? o.data
+      ? ` · data ${o.data.revision} (${o.data.id}, ${o.data.source === "kv" ? "KV" : "bundled"})`
+      : " · data not recorded"
+    : "";
+  if (!o.outcome) return `${head}${data}`;
+  const words = OUTCOME_WORDS[o.outcome] ?? o.outcome;
+  if (o.outcome === "ran") return `${head} · ${words}${data}`;
+  if (o.outcome === "failed") return `${head} · failed: ${FAILED_WORDS[o.reason ?? ""] ?? "it failed"}${data}`;
+  return `${head} · ${words}${o.reason ? `: ${o.reason}` : ""}${data}`;
+}
+
 export function EvidenceCards(props: {
   items: readonly CardItem[];
   cited: readonly string[];
@@ -1581,10 +1848,59 @@ export function EvidenceCards(props: {
   intro?: string;
   empty?: string;
   // The run shown's check versions (D07 T03 §39), drawn as a disclosure on the count line; the terminal report
-  // passes the stored outcomes, the running report passes none.
-  versions?: readonly { check: string; revision?: string }[] | null;
+  // passes the stored outcomes, the running report passes none. Each line keeps its outcome and reason beside
+  // the version (D07 T09 §11).
+  versions?:
+    | readonly {
+        check: string;
+        revision?: string;
+        outcome?: "ran" | "partial" | "skipped" | "failed";
+        reason?: string | null;
+        data?: { revision: string; id: string; source: "kv" | "bundled" };
+      }[]
+    | null;
+  // The run's stored per-provider reputation answers (D07 T09 §5), drawn on their subject's card; null when
+  // the read itself failed, which the block says rather than drawing nothing.
+  reputation?: readonly ReputationRow[] | null | undefined;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
+  const namedSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) namedSubjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) namedSubjects.add(s);
+    }
+  }
+  const uncovered = new Map<string, ReputationRow[]>();
+  // One card per subject draws its rows: the first card that names the subject, so a stored answer is never
+  // repeated on every card that mentions the same subject.
+  const claimed = new Map<string, ReputationRow[]>();
+  const seenSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    const subjects = new Set<string>();
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) subjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) subjects.add(s);
+    }
+    for (const s of subjects) {
+      if (seenSubjects.has(s)) continue;
+      seenSubjects.add(s);
+      const rows = (props.reputation ?? []).filter((r) => r.subject === s);
+      if (rows.length > 0) claimed.set(item.id, [...(claimed.get(item.id) ?? []), ...rows]);
+    }
+  }
+  for (const r of props.reputation ?? []) {
+    if (namedSubjects.has(r.subject)) continue;
+    uncovered.set(r.subject, [...(uncovered.get(r.subject) ?? []), r]);
+  }
+  // The quote names no recording, so with two recordings on one case it marks neither: a mark on the wrong one is worse than none.
+  const transcripts = props.items.filter((i) => i.check === "voice.transcript").length;
+  const requestQuote =
+    transcripts === 1 ? text(props.items.find((i) => i.check === "voice.request")?.detail.quote ?? null) : null;
   const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
   const all = cited.length === 0;
   return (
@@ -1598,7 +1914,7 @@ export function EvidenceCards(props: {
           <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Check versions</summary>
           <ul class="flex flex-col gap-4 mt-8 text-14">
             {props.versions.map((o) => (
-              <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`}</li>
+              <li class="wrap-anywhere">{versionLine(o)}</li>
             ))}
           </ul>
         </details>
@@ -1610,7 +1926,12 @@ export function EvidenceCards(props: {
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>
               {(all ? rest : cited).map((item) => (
-                <Card item={item} file={props.file} />
+                <Card
+                  item={item}
+                  file={props.file}
+                  requestQuote={requestQuote}
+                  reputation={claimed.get(item.id) ?? []}
+                />
               ))}
             </div>
           )}
@@ -1632,13 +1953,28 @@ export function EvidenceCards(props: {
               </summary>
               <div class={grid}>
                 {rest.map((item) => (
-                  <Card item={item} file={props.file} />
+                  <Card
+                    item={item}
+                    file={props.file}
+                    requestQuote={requestQuote}
+                    reputation={claimed.get(item.id) ?? []}
+                  />
                 ))}
               </div>
             </details>
           )}
         </>
       )}
+      {props.reputation === null && (
+        <p class="text-14 text-muted">The provider answers for this report could not be loaded.</p>
+      )}
+      {[...uncovered.entries()].map(([subject, rows]) => (
+        <div class="flex flex-col gap-8">
+          <h3 class="type-h3">What the reputation providers said</h3>
+          <p class="text-14 wrap-anywhere">{subject}</p>
+          <ProviderRows rows={rows} />
+        </div>
+      ))}
     </section>
   );
 }

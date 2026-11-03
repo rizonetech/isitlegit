@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
+import { scheduledClosurePurge } from "./auth/closure";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
@@ -18,6 +19,7 @@ import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { sendTrialNotices } from "./mail/trial-notices";
+import { sendWeeklyReports } from "./mail/weekly-report";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { scheduledMonitor } from "./monitor/workflow";
@@ -25,7 +27,9 @@ import { sweepRetries } from "./pipeline/retry";
 import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
-import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { screenSmokePage } from "./vision/smoke-screen.ts";
+import { AXE_SOURCE } from "./web/dev/axe-source";
+import { GalleryFrame, GalleryPage, GalleryState } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
 import { adminRoutes } from "./web/pages/admin";
 import { adminFeedbackRoutes } from "./web/pages/admin-feedback";
@@ -47,6 +51,7 @@ import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 import { verifyRoutes } from "./web/pages/verify";
+import { weeklyReportRoutes } from "./web/pages/weekly-report";
 import { welcomeRoutes } from "./web/pages/welcome";
 
 export { MonitorWorkflow } from "./monitor/workflow";
@@ -92,7 +97,9 @@ app.use(
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
 // Every binding exercised on the deployed Worker; 404 without the run's token (D00 T01 §5, scripts/smoke.ts).
-app.get("/internal/smoke", (c) => smoke(c.env, c.req.raw, c.executionCtx));
+app.get("/internal/smoke", (c) =>
+  smoke(c.env, c.req.raw, c.executionCtx, 30_000, (runId) => screenSmokePage(c.env, runId)),
+);
 // The sign-in link's confirm page, and the old verify URL sent to it (D07 T02 §10, src/auth/confirm.tsx): before
 // Better Auth's routes, so a GET of its verify URL never signs in.
 app.route("/", confirmRoutes);
@@ -121,6 +128,7 @@ app.route("/", domainsListRoutes);
 app.route("/", planRoutes);
 // The Account page, the member's own sign-in details (D07 T08 §3), src/web/pages/settings-account.tsx.
 app.route("/", accountRoutes);
+app.route("/", weeklyReportRoutes);
 // The onboarding checklist (D07 T08 §2), src/web/pages/welcome.tsx.
 app.route("/", welcomeRoutes);
 // The single-address verification page (D07 T04 §27), src/web/pages/addresses.tsx.
@@ -150,6 +158,16 @@ app.get("/dev/components/frame/:id", (c) => {
   const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
   return frame ? c.html(frame) : c.notFound();
 });
+app.get("/dev/components/state/:slug", (c) => {
+  const state = c.env.ENV === "development" ? GalleryState(c.req.param("slug")) : null;
+  return state ? c.html(state) : c.notFound();
+});
+// axe-core for the gallery's on-demand checks (§15), only in development: every deploy answers it 404.
+app.get("/dev/axe.min.js", (c) =>
+  c.env.ENV === "development"
+    ? c.body(AXE_SOURCE, 200, { "Content-Type": "text/javascript; charset=utf-8" })
+    : c.notFound(),
+);
 
 // An unmatched path is the 404 page, which says nothing of whether the page exists or is someone else's (E1); an
 // uncaught throw is the 500 page with a reference, the error's class and that reference logged as JSON and nothing of its
@@ -217,6 +235,12 @@ export default {
       return;
     }
     ctx.waitUntil(scheduledReconcile(env));
+    // The Friday weekly counts for members who opted in (D07 T04 §20), inside their Friday-to-Monday window.
+    ctx.waitUntil(
+      sendWeeklyReports(env).catch((error: unknown) =>
+        console.log(JSON.stringify({ event: "weekly-report", outcome: "failed", error: (error as Error).name })),
+      ),
+    );
     // The verify page's address for identities protected before it existed (D05 T02 §6), by the same rule as a save.
     ctx.waitUntil(
       backfillPublicSlugs(env.DB).catch((error: unknown) =>
@@ -233,6 +257,12 @@ export default {
     ctx.waitUntil(sendTrialNotices(env).catch(() => null));
     // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
     ctx.waitUntil(scheduledSearchRefresh(env));
+    // The closed organisations' purge (D07 T02 §9): their artefacts and rows, 25 days after closure.
+    ctx.waitUntil(
+      scheduledClosurePurge(env, new Date(controller.scheduledTime)).then((report) =>
+        console.log(JSON.stringify({ event: "scheduled", outcome: "closure-purge", ...report })),
+      ),
+    );
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
     ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).

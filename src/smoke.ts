@@ -9,7 +9,9 @@ import puppeteer from "@cloudflare/puppeteer";
 
 export const CHECKS = ["DB", "ARTEFACTS", "CACHE", "ANALYSIS", "BROWSER"] as const;
 export type Check = (typeof CHECKS)[number];
-export type SmokeResult = { ok: boolean; commit: string; version: string; checks: Record<Check, string> };
+// A screening probe through the deployed Worker's own path (D03 T04 §36), run only when a release asks for it.
+export type ScreenProbe = (runId: string) => Promise<{ screener: string; version: string }>;
+export type SmokeResult = { ok: boolean; commit: string; version: string; checks: Record<string, string> };
 
 // All the route needs of the request's context: keeping cleanup alive after the answer.
 type Ctx = Pick<ExecutionContext, "waitUntil">;
@@ -120,22 +122,38 @@ const RUNS: Record<Check, (env: Env, run: Run) => Promise<void>> = {
   },
 };
 
-export async function smoke(env: Env, request: Request, ctx: Ctx, limitMs = 30_000): Promise<Response> {
+export async function smoke(
+  env: Env,
+  request: Request,
+  ctx: Ctx,
+  limitMs = 30_000,
+  screen?: ScreenProbe,
+): Promise<Response> {
   const given = /^Bearer (.+)$/.exec(request.headers.get("authorization") ?? "")?.[1];
   if (!env.SMOKE_TOKEN || !given || !(await tokenMatches(given, env.SMOKE_TOKEN)))
     return new Response("Not Found", { status: 404 });
   const run: Run = { id: crypto.randomUUID(), ctx, limitMs };
-  const entries = await Promise.all(
+  const entries: [string, string][] = await Promise.all(
     CHECKS.map(async (name) => {
       try {
         await within(RUNS[name](env, run), name, limitMs);
-        return [name, "ok"] as const;
+        return [name, "ok"] as [string, string];
       } catch (error) {
-        return [name, (error as Error).message || String(error)] as const;
+        return [name, (error as Error).message || String(error)] as [string, string];
       }
     }),
   );
-  const checks = Object.fromEntries(entries) as Record<Check, string>;
+  // The SCREEN check runs only for a release that asks for it: no plain smoke run pays screening spend, and a
+  // release reads the screener and the deployed version back from the deployed Worker itself.
+  if (screen && new URL(request.url).searchParams.get("screen") === "1") {
+    try {
+      const probed = await within(screen(run.id), "SCREEN", limitMs);
+      entries.push(["SCREEN", `ok ${probed.screener} ${probed.version}`]);
+    } catch (error) {
+      entries.push(["SCREEN", (error as Error).message || String(error)]);
+    }
+  }
+  const checks = Object.fromEntries(entries) as Record<string, string>;
   const ok = entries.every(([, result]) => result === "ok");
   const body: SmokeResult = { ok, commit: env.COMMIT_SHA, version: env.CF_VERSION_METADATA.id, checks };
   return Response.json(body, { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } });

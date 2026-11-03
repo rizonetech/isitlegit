@@ -86,12 +86,44 @@ describe("Pricing", () => {
     linkTo(msp, site.about, "Talk to us", "MSP");
   });
 
-  it("answers the four questions, with the invite route and a sourced figure", () => {
+  it("answers the six questions, with the invite route and a sourced figure", () => {
     const questions = region(html, "questions");
-    assert.equal([...questions.matchAll(/<div data-question/g)].length, 4);
-    for (const q of ["Do I need a card to start?", "How do I join during the launch?", "What happens when the launch ends?", "Why is checking free?"]) {
+    assert.equal([...questions.matchAll(/<div data-question/g)].length, 6);
+    for (const q of [
+      "Do I need a card to start?",
+      "How do I join during the launch?",
+      "What happens when the launch ends?",
+      "Why is checking free?",
+      "What does the price include?",
+      "Am I locked in?",
+    ]) {
       has(questions, q, "the questions");
     }
+    const answer = (q: string) => {
+      const at = questions.indexOf(q);
+      assert.ok(at >= 0, `no question "${q}"`);
+      return text(questions.slice(at, questions.indexOf("</div>", at)));
+    };
+    assert.ok(answer("What does the price include?").includes("include VAT"), "the VAT answer is not in its question");
+    assert.doesNotMatch(answer("What does the price include?"), /exclude VAT|do not include VAT|plus VAT/, "the VAT promise is reversed");
+    // A reversed VAT promise in the built page must fail this same check.
+    const mutated = html.replace("include VAT", "do not include VAT");
+    const atMut = mutated.indexOf("What does the price include?");
+    const mutAnswer = text(mutated.slice(atMut, mutated.indexOf("</div>", atMut)));
+    assert.match(mutAnswer, /do not include VAT/, "the mutation did not land");
+    assert.ok(/exclude VAT|do not include VAT|plus VAT/.test(mutAnswer), "a reversed VAT promise would pass");
+    const locked = answer("Am I locked in?");
+    for (const words of ["month-to-month", "cancel anytime", "keeps Free check"])
+      assert.ok(locked.includes(words), `the commitment answer misses "${words}"`);
+    assert.doesNotMatch(locked, /cannot cancel|locked in for|minimum term/, "the commitment promise is reversed");
+    const mutHtml = html.replace("you can cancel anytime", "you cannot cancel anytime");
+    const mutAt = mutHtml.indexOf("Am I locked in?");
+    assert.match(
+      text(mutHtml.slice(mutAt, mutHtml.indexOf("</div>", mutAt))),
+      /cannot cancel/,
+      "a reversed cancellation promise would pass",
+    );
+    has(tier(html, "protect"), "R499 covers up to 5 members; larger organisations R999 per organisation per month", "the Protect tier");
     linkTo(questions, inviteRequest, `ask for one at ${HELLO_ADDRESS}`, "the questions");
     has(questions, "New organisations get a 14-day trial with every feature unlocked.", "the questions");
     linkTo(questions, SABRIC_2025.url, SABRIC_2025.title, "the questions");

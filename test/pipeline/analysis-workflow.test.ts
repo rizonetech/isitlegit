@@ -3,11 +3,12 @@ import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
 import { SummaryRefused } from "../../src/checks/case-view";
-import { readEvidence, saveEvidence } from "../../src/checks/evidence";
+import { readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import {
   parsedKey,
+  putArtefact,
   putAttachment,
   putParsed,
   putRaw,
@@ -18,8 +19,18 @@ import {
   StoreError,
 } from "../../src/intake/store";
 import { BudgetExceeded } from "../../src/meta/guard";
-import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
+import {
+  admit,
+  checks,
+  parse,
+  recordFailure,
+  reply,
+  STUB_VERDICT,
+  safely,
+  verdict,
+} from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
+import { storeVoice } from "../../src/voice/step";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
 
@@ -321,7 +332,7 @@ describe("AnalysisWorkflow", () => {
     // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
     // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "walkthrough", "vision"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      ...["admit", "parse", "checks", "walkthrough", "vision", "invoice"].flatMap((s) => [`${s}:started`, `${s}:done`]),
       "verdict:started",
       "agent:failed",
       "verdict:done",
@@ -476,6 +487,147 @@ describe("AnalysisWorkflow", () => {
   });
 });
 
+describe("the ablated verdict step (D04 T01 §14)", () => {
+  const draft = (check: string, severity: "info" | "low" | "critical", summary: string, detail = {}) => ({
+    check,
+    severity,
+    summary,
+    detail,
+    artefacts: [],
+  });
+
+  async function ablatedCase(flag: string | null, items: ReturnType<typeof draft>[], headersAvailable = true) {
+    const orgId = `org-ablate-${crypto.randomUUID().slice(0, 8)}`;
+    const made = await createCase(env.DB, { orgId, channel: "email", headersAvailable });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "billing@sender.example" }],
+      text: "Please pay into our new account.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable, otherOriginals: 0 },
+    });
+    await saveEvidence(env.DB, id, items);
+    if (flag) await env.CACHE.put(`ablate:${orgId}`, flag);
+    return { id, orgId };
+  }
+
+  it("never calls the agent under no-agent-reasoning: the rules decide, at the floor, with the flag stored", async () => {
+    const { id, orgId } = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+      draft("attachment.executable", "critical", "A program is attached."),
+      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+    ]);
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view).toMatchObject({ verdict: "malicious", source: "rules", ablated: "no-agent-reasoning" });
+    expect(view.reasons).toEqual([{ text: "A program is attached.", evidenceIds: ["E2"] }]);
+    // The deterministic bank-change action, with the ledger's number, comes first as on the agent path.
+    expect(view.actions[0]).toContain("012 555 0100");
+    // No agent step ran for the case.
+    expect((await events(id)).filter((e) => e.step === "agent")).toEqual([]);
+    // Stored through the Workflow's store entry point, the marker reads back.
+    await setStatus(env.DB, orgId, id, "running");
+    expect(await storeVerdict(env.DB, orgId, id, view)).toMatchObject({ ok: true });
+    expect(await getVerdict(env.DB, id)).toMatchObject({
+      ok: true,
+      value: { verdict: "malicious", ablated: "no-agent-reasoning" },
+    });
+  });
+
+  it("keeps the confidence cap without headers and the warning when a check could not run", async () => {
+    const { id } = await ablatedCase(
+      "no-agent-reasoning",
+      [
+        draft("intake.forward", "info", "Forwarded by the member."),
+        draft("not_checked", "info", "The domain age check timed out."),
+      ],
+      false,
+    );
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view).toMatchObject({
+      verdict: "safe",
+      source: "rules",
+      ablated: "no-agent-reasoning",
+      headline: "No warning signs were found, but some checks could not run",
+    });
+    expect(view.confidence).toBeLessThanOrEqual(0.5);
+    expect(view.reasons).toEqual([{ text: "The domain age check timed out.", evidenceIds: ["E2"] }]);
+  });
+
+  it("stores every deterministic action, in the agent path's order, and reads them back (completion review)", async () => {
+    const { id, orgId } = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+      draft("voice.request", "info", "The caller asks for a payment.", { request: "pay" }),
+      draft("voice.claimed_identity", "info", "The caller claims to be the bank.", { identity: "the bank" }),
+      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+    ]);
+    // The document step's own item, as a stored row of its producer.
+    await env.DB.prepare(
+      `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
+       VALUES (?, (SELECT COALESCE(run_id, id) FROM cases WHERE id = ?), 'E6', 6, 'document.proof_of_payment', 'info', 'A proof of payment is attached.', '{}', '[]', 'now', 'document')`,
+    )
+      .bind(id, id)
+      .run();
+    const { view } = await verdict(env, env.DB, store, id);
+    // The three deterministic actions come first, in the agent path's order, before any rules action.
+    expect(view.actions.length).toBeGreaterThanOrEqual(3);
+    expect(view.actions[0]).toContain("012 555 0100");
+    expect(view.actions[1]).toBe("Confirm the money has cleared in your own banking app before releasing goods.");
+    expect(view.actions[2]).toContain("the bank");
+    await setStatus(env.DB, orgId, id, "running");
+    expect(await storeVerdict(env.DB, orgId, id, view)).toMatchObject({ ok: true });
+    expect(await getVerdict(env.DB, id)).toMatchObject({
+      ok: true,
+      value: { ablated: "no-agent-reasoning", actions: view.actions },
+    });
+  });
+
+  it("caps confidence on missing headers alone, with every check complete (completion review)", async () => {
+    const { id } = await ablatedCase(
+      "no-agent-reasoning",
+      [draft("intake.forward", "info", "Forwarded by the member.")],
+      false,
+    );
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view).toMatchObject({ verdict: "safe", ablated: "no-agent-reasoning" });
+    expect(view.headline).not.toContain("could not run");
+    expect(view.confidence).toBeLessThanOrEqual(0.5);
+  });
+
+  it("restores the agent for the same organisation's next case when its flag is cleared (completion review)", async () => {
+    const orgId = `org-ablate-clear-${crypto.randomUUID().slice(0, 8)}`;
+    await env.CACHE.put(`ablate:${orgId}`, "no-agent-reasoning");
+    const first = await ablatedCase(null, [draft("intake.forward", "info", "Forwarded by the member.")]);
+    // Point the first case at the flagged organisation and read its verdict again under the flag.
+    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(orgId, first.id).run();
+    const flagged = await verdict(env, env.DB, store, first.id);
+    expect(flagged.view.ablated).toBe("no-agent-reasoning");
+    await env.CACHE.delete(`ablate:${orgId}`);
+    const second = await ablatedCase(null, [draft("intake.forward", "info", "Forwarded by the member.")]);
+    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(orgId, second.id).run();
+    const cleared = await verdict(env, env.DB, store, second.id);
+    expect(cleared.view.ablated ?? null).toBeNull();
+    expect((await events(second.id)).some((e) => e.step === "agent")).toBe(true);
+  });
+
+  it("leaves the agent in place for the other three flags, and when the flag is cleared", async () => {
+    for (const flag of ["no-walkthrough", "no-sam", "no-screening", null]) {
+      const { id, orgId } = await ablatedCase(flag, [draft("intake.forward", "info", "Forwarded by the member.")]);
+      const { view } = await verdict(env, env.DB, store, id);
+      expect(view.ablated ?? null, flag ?? "cleared").toBeNull();
+      // The agent path ran (its fallback in this environment) and recorded its step.
+      expect(
+        (await events(id)).some((e) => e.step === "agent"),
+        flag ?? "cleared",
+      ).toBe(true);
+      await env.CACHE.delete(`ablate:${orgId}`);
+    }
+  });
+});
+
 describe("failures past their last attempt", () => {
   it("ends a case partial when admission fails after it was already running", async () => {
     const id = await caseWith(forwards["inline-forward"]);
@@ -610,6 +762,8 @@ describe("round 1 cases", () => {
       "walkthrough:done",
       "vision:started",
       "vision:done",
+      "invoice:started",
+      "invoice:done",
       "reply:started",
       "reply:done",
       "finish:started",
@@ -678,6 +832,38 @@ describe("round 1 cases", () => {
     expect(vision[1]).toMatchObject({ detail: { checked: false } });
     expect((await caseRow(id))?.status).toBe("done");
     expect((await getVerdict(env.DB, id))?.ok).toBe(true);
+  }, 180_000);
+
+  it("runs the invoice step after vision and before the verdict, stating its failure and sealing nothing when the model cannot run", async () => {
+    // D06 T01 §1: a stored case with a PDF invoice. No Meta key stands in this environment, so the
+    // extraction states itself not checked, no account is sealed, and the case still reaches a verdict;
+    // the persisted extraction on a successful reading is proven in test/invoice/step.test.ts.
+    const id = await caseWith(null);
+    await putParsed(store, id, {
+      headers: [],
+      text: "Pay invoice 77 today.",
+      html: null,
+      attachments: [],
+      forward: {},
+    });
+    await putVisible(store, id, "Pay invoice 77 today.");
+    await putAttachment(store, id, "invoice.pdf", makePdf(["Invoice 77"]), "application/pdf");
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG, ...MAIL });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: 0 });
+    });
+    const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    expect(steps.indexOf("invoice:started")).toBeGreaterThan(steps.indexOf("vision:done"));
+    expect(steps.indexOf("invoice:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    const invoice = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("invoice."));
+    expect(invoice.map((e) => e.check)).toEqual(["invoice.not_checked"]);
+    const sealed = await env.DB.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts WHERE case_id = ?")
+      .bind(id)
+      .first<{ n: number }>();
+    expect(sealed?.n).toBe(0);
+    expect((await caseRow(id))?.status).toBe("done");
   }, 180_000);
 });
 
@@ -842,6 +1028,281 @@ describe("the checks step and the event writer", () => {
       expect(e.artefacts).toEqual([rawKey(id)]);
       expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
     }
+  });
+
+  it("stores the auth prefix before a blocked enrichment, and keeps its IDs after (D01 T01 §23)", async () => {
+    const org = "org-auth-first";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(
+      store,
+      id,
+      new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"),
+    );
+    const header =
+      "mx.google.com; spf=pass smtp.mailfrom=bounce@mailer.example; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=bank.example";
+    await putParsed(store, id, {
+      headers: [
+        { name: "Received", value: "from mail.sender.example (mail.sender.example. [203.0.113.5]) by mx.google.com" },
+        { name: "Authentication-Results", value: header },
+        { name: "From", value: "billing@bank.example" },
+      ],
+      text: "Pay https://collect.example/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    let release: (error: Error) => void = () => undefined;
+    const blocked = new Promise<never>((_resolve, reject) => {
+      release = reject;
+    });
+    const startedAt = Date.now();
+    const pending = checks(
+      store,
+      id,
+      parsedKey(id),
+      { orgId: org, channel: "email" },
+      async () => ["aspmx.l.google.com"],
+      undefined,
+      null,
+      { read: () => blocked },
+    );
+    // While the link following is blocked, the intake and auth rows are already stored, promptly:
+    // the measured admission-to-auth-storage latency on this synthetic case (completion review gap 5).
+    await expect
+      .poll(async () => (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("auth.")).length, {
+        timeout: 10_000,
+        interval: 100,
+      })
+      .toBeGreaterThan(0);
+    expect(Date.now() - startedAt).toBeLessThan(10_000);
+    const early = await readEvidence(env.DB, id);
+    const earlyAuth = early.filter((e) => e.check.startsWith("auth."));
+    expect(((await readCheckOutcomes(env.DB, id)) ?? []).map((o) => o.check)).toEqual(
+      expect.arrayContaining(earlyAuth.map((e) => e.check)),
+    );
+    release(new Error("browser down"));
+    await pending;
+    // The enrichment failed and the full run still stored everything: every early item (intake included)
+    // keeps its complete identity, and a replay of the step stores the identical set (completion review).
+    const stored = await readEvidence(env.DB, id);
+    for (const item of early) {
+      const after = stored.find((e) => e.id === item.id);
+      expect(after).toEqual(item);
+    }
+    const outcomes = await readCheckOutcomes(env.DB, id);
+    expect(outcomes?.length).toBeGreaterThan(0);
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]);
+    expect(await readEvidence(env.DB, id)).toEqual(stored);
+    expect(await readCheckOutcomes(env.DB, id)).toEqual(outcomes);
+  });
+
+  it("keeps the auth prefix when the checks step itself fails, and a retry completes it (D01 T01 §23)", async () => {
+    const org = "org-auth-first-fail";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(
+      store,
+      id,
+      new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"),
+    );
+    const header =
+      "mx.google.com; spf=pass smtp.mailfrom=bounce@mailer.example; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=bank.example";
+    await putParsed(store, id, {
+      headers: [
+        { name: "Received", value: "from mail.sender.example (mail.sender.example. [203.0.113.5]) by mx.google.com" },
+        { name: "Authentication-Results", value: header },
+        { name: "From", value: "billing@bank.example" },
+      ],
+      text: "Pay https://collect.example/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    // A storage failure after the early save (putting the visible text) propagates out of the step.
+    const failingStore: Store = {
+      db: env.DB,
+      bucket: new Proxy(env.ARTEFACTS, {
+        get: (target, name) =>
+          name === "put"
+            ? async () => {
+                throw new Error("R2 down");
+              }
+            : Reflect.get(target, name).bind(target),
+      }) as unknown as Store["bucket"],
+    };
+    await expect(
+      checks(failingStore, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]),
+    ).rejects.toThrow();
+    const early = await readEvidence(env.DB, id);
+    expect(early.filter((e) => e.check.startsWith("auth.")).length).toBeGreaterThan(0);
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]);
+    const stored = await readEvidence(env.DB, id);
+    for (const item of early) expect(stored.find((e) => e.id === item.id)).toEqual(item);
+  });
+
+  it("stores each recording's transcript item through the step, a malformed one beside it (D01 T03 §16)", async () => {
+    const turn = { chunk: 1, speaker: "A", startMs: 0, endMs: 1000, text: "Please pay today." };
+    const mail = await createCase(env.DB, { orgId: "org-transcript-mail", channel: "email", headersAvailable: true });
+    if (!mail.ok) throw new Error(mail.error.message);
+    const mid = mail.value.id;
+    await putRaw(store, mid, new TextEncoder().encode("From: a@bank.example\r\n\r\nTwo voice notes attached.\r\n"));
+    await putParsed(store, mid, {
+      headers: [{ name: "From", value: "a@bank.example" }],
+      text: "Two voice notes attached.",
+      html: null,
+      attachments: [
+        {
+          key: `raw/${mid}/attachments/aa-first.ogg`,
+          filename: "first.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+        {
+          key: `raw/${mid}/attachments/bb-second.ogg`,
+          filename: "second.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+        {
+          key: `raw/${mid}/attachments/cc-third.ogg`,
+          filename: "third.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+        {
+          key: `raw/${mid}/attachments/dd-fourth.ogg`,
+          filename: "fourth.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+        {
+          key: `raw/${mid}/attachments/ee-fifth.ogg`,
+          filename: "fifth.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+      ],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-1.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-2.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-3.json",
+      new TextEncoder().encode(JSON.stringify({ text: "no turns here" })),
+      "application/json",
+    );
+    const gone = await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-4.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await env.ARTEFACTS.delete(gone.key);
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-5.json",
+      new TextEncoder().encode(
+        JSON.stringify({
+          turns: Array.from({ length: 30 }, (_, i) => ({ ...turn, startMs: i * 1000, text: "é".repeat(1500) })),
+          gaps: [],
+          complete: true,
+        }),
+      ),
+      "application/json",
+    );
+    // The mail case's aggregate transcript holds no turns and is excluded, never a fourth item.
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript.json",
+      new TextEncoder().encode(JSON.stringify({ text: "joined words", complete: true })),
+      "application/json",
+    );
+    // The claim extraction failed; the transcripts were still stored and must still become evidence.
+    await storeVoice(store, mid, { state: "not_checked", reason: "the reading did not finish" });
+    await checks(store, mid, parsedKey(mid), { orgId: "org-transcript-mail", channel: "email" }, async () => []);
+    const items = (await readEvidence(env.DB, mid)).filter((e) => e.check === "voice.transcript");
+    expect(items).toHaveLength(5);
+    const byName = (name: string) => items.find((i) => i.detail.filename === name);
+    expect(byName("fourth.ogg")?.detail).toMatchObject({ malformed: true });
+    const fifth = byName("fifth.ogg");
+    expect(fifth?.detail.trimmed).toBe(true);
+    expect((fifth?.detail.segmentsOmitted as number) ?? 0).toBeGreaterThan(0);
+    expect(new TextEncoder().encode(JSON.stringify(fifth?.detail)).length).toBeLessThanOrEqual(65_536);
+    expect(byName("first.ogg")?.detail).toMatchObject({
+      recording: `raw/${mid}/attachments/aa-first.ogg`,
+      segments: [{ text: "Please pay today.", startMs: 0, endMs: 1000, chunk: 1, speaker: "A" }],
+    });
+    expect(byName("second.ogg")?.detail).toMatchObject({ complete: true });
+    expect(byName("third.ogg")?.detail).toMatchObject({ malformed: true });
+
+    const up = await createCase(env.DB, {
+      orgId: "org-transcript-up",
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "user-transcript",
+    });
+    if (!up.ok) throw new Error(up.error.message);
+    const uid = up.value.id;
+    await putRaw(store, uid, new Uint8Array([1, 2, 3]));
+    await putParsed(store, uid, {
+      source: { kind: "audio", mediaType: "audio/ogg", key: `art/${uid}/audio/rec.ogg`, bytes: 3 },
+      forward: { headersAvailable: false },
+    });
+    await putArtefact(
+      store,
+      uid,
+      "audio",
+      "transcript.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await storeVoice(store, uid, { state: "not_checked", reason: "the reading did not finish" });
+    await checks(store, uid, parsedKey(uid), { orgId: "org-transcript-up", channel: "upload" }, async () => []);
+    const upItems = (await readEvidence(env.DB, uid)).filter((e) => e.check === "voice.transcript");
+    expect(upItems).toHaveLength(1);
+    expect(upItems[0]?.detail).toMatchObject({ recording: `art/${uid}/audio/rec.ogg` });
   });
 
   it("stores auth.arc through the step with its earlier context, headers and raw key (D02 T02 §3)", async () => {

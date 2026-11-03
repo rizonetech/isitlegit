@@ -53,6 +53,16 @@ Before anything appears in the demo or README:
 - It shows evidence, not a claim: real verdicts on synthetic mail, measured numbers from the eval.
 - It uses no real client mail, names or bank details.
 
+## Judging access (operator information, 2026-11-02)
+
+Judges run the project from the public repository's setup instructions, and every judging stage needs a working demo: the 3 minute video alone is not enough, and a hosted version is optional. A judge must never need their own outside account to try it: a setup that requires a judge to create their own Meta app and connect a Page and ad account (here: their own Meta Model API keys or Cloudflare account) goes against this. A sandbox or mock-data demo is fine, and so is a replay mode when the README explains how to use it. Recorded examples (request and response pairs, outputs and traces) are a valid no-account path, with as much provenance as can be given (deployed commit, run id, date, model IDs, `store: false`), and any simulated part is labelled as simulated wherever a judge meets it.
+
+Checks:
+
+- The README's setup path runs from a clean clone with no judge-owned account or secret, or says plainly at the top which parts need the hosted service instead.
+- At least one working no-account demo exists at every judging stage: the hosted live service with judge access, a sandbox or mock-data mode, or a replay of recorded examples, each explained in the README.
+- Recorded examples carry provenance and label every simulated part; nothing simulated is presented as a live model call.
+
 ## Open questions
 
 - The event page names Muse Spark, Muse Wonder, Muse Image and SAM 3.1; the Official Rules name Muse Spark, Glimmer and SAM 3. The build uses the models the Meta Model API actually serves (design spec section 9).

@@ -961,7 +961,7 @@ export function readKey(item: string = ADMIN_ITEM): string {
 }
 
 export const USAGE =
-  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes | reconcile <reservation id> | promote <version> | rollback";
+  "usage: node scripts/glimmer/deploy.ts ensure <version> | stop | start | status | eval-up <version> | eval-down <version> | key-check <version> | warmup <version> | warmup-summary | minutes | import-wakes | reconcile <reservation id> | promote <version> | rollback | release";
 // The command line, read before any key: a command it does not know, or one missing its version, is usage, and no
 // credential is read for it.
 export function parseCommand(args: string[]): { command: string; version?: string; id?: string } | null {
@@ -973,7 +973,7 @@ export function parseCommand(args: string[]): { command: string; version?: strin
     /^local:[a-z -]+:[0-9TZ:.-]+:[0-9a-f-]{36}$/.test(version)
   )
     return { command, id: version };
-  const bare = ["stop", "start", "status", "warmup-summary", "minutes", "import-wakes", "rollback"];
+  const bare = ["stop", "start", "status", "warmup-summary", "minutes", "import-wakes", "rollback", "release"];
   const versioned = ["ensure", "eval-up", "eval-down", "key-check", "warmup", "promote"];
   if (command && bare.includes(command) && version === undefined) return { command };
   if (command && versioned.includes(command) && version && /^[1-9]\d?\.\d{1,2}$/.test(version) && args.length === 2)
@@ -1020,6 +1020,62 @@ if (import.meta.filename === process.argv[1]) {
       console.log(JSON.stringify(result, null, 2));
       // Only a refusal or a pending settlement is a non-zero exit: the reservation then stays counted in full.
       process.exit(result.outcome === "settled" || result.outcome === "already-settled" ? 0 : 1);
+    }
+    if (command === "release") {
+      // The release step (D03 T04 §36): carries the active file this checkout holds into production and proves it
+      // there. It needs no Fireworks key; its stages honour the one deadline `release` sets.
+      const { release, readActive } = await import("./promote.ts");
+      const { activeVersionFromWrangler, runCommand, runSmoke, screenThroughWorker, tokenFromVault } = await import(
+        "../smoke.ts"
+      );
+      const { dirname, join: joinPath } = await import("node:path");
+      const root = joinPath(dirname(import.meta.filename), "../..");
+      const base = "https://isitlegit.derick-f5a.workers.dev";
+      const commit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf-8" }).trim();
+      const result = await release({
+        commit,
+        activeVersion: readActive(joinPath(root, "src/vision/glimmer-active.json")).version,
+        preflight: async () => {
+          const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf-8" }).trim();
+          if (dirty) throw new Error("the working tree is not clean; commit the release first");
+          const migrations = await runCommand(
+            "pnpm",
+            ["exec", "wrangler", "d1", "migrations", "list", "DB", "--remote"],
+            "",
+            Date.now() + 60_000,
+          );
+          if (!migrations.includes("No migrations to apply"))
+            throw new Error("remote migrations are pending; apply them before deploying (docs/operations.md)");
+        },
+        servingState: () => activeVersionFromWrangler(Date.now() + 60_000),
+        deployWorker: async (deadline) => {
+          await runCommand("pnpm", ["exec", "wrangler", "deploy", "--var", `COMMIT_SHA:${commit}`], "", deadline);
+        },
+        waitHealth: async (expected, deadline) => {
+          for (;;) {
+            try {
+              const health = (await (await fetch(`${base}/health`)).json()) as { commit?: string };
+              if (health.commit === expected) return;
+            } catch {
+              // Not there yet: keep waiting until the deadline.
+            }
+            if (Date.now() >= deadline) throw new Error(`/health did not report ${expected} before the deadline`);
+            await new Promise((done) => setTimeout(done, 5_000));
+          }
+        },
+        smoke: async (deadline) => {
+          const outcome = await runSmoke(base, {
+            commit,
+            getToken: tokenFromVault,
+            activeVersion: activeVersionFromWrangler,
+            waitMs: Math.max(1_000, deadline - Date.now()),
+          });
+          if (!outcome.ok) throw new Error(`the smoke check failed: ${outcome.lines.join("; ")}`);
+        },
+        screenFixture: async (deadline) => screenThroughWorker(base, await tokenFromVault(deadline)),
+      });
+      console.log(JSON.stringify(result, null, 2));
+      process.exit(result.outcome === "released" ? 0 : 1);
     }
     if (command === "promote" || command === "rollback") {
       // Loaded here, not at the top: promote.ts imports this file.

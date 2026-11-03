@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: done
+status: active
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -22,6 +22,7 @@ track: day-2
 - -> XREF: D01 T01 §4 -- the forward's path (`rfc822`, `eml`, `msg` or `inline`) that §1 writes as the `intake.forward` evidence item
 - -> XREF: D07 T03 §18 -- the report's count line and "Checks that found nothing" panel, which read §3's stored outcomes (`ran` with no findings is clean; `partial`, `skipped` and `failed` are not; null is "coverage not recorded")
 - -> XREF: D04 T02 §5 -- the walkthrough's evidence items, the first later producer that §5's `addEvidence` writes for
+- -> XREF: D07 T09 §10 -- the report's examined-target disclosure, whose completion review filed §10 and §11 here
 
 ## Outcome
 
@@ -43,6 +44,10 @@ track: day-2
 | 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
 | 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
+| 8 | §8 | Examined set stored for a clean check | §3 | [x] |
+| 9 | §9 | Protected-identity candidate for the trust match | §3 | [ ] |
+| 10 | §10 | Every examined target kept past the stored bound | §8 | [ ] |
+| 11 | §11 | Relation of each examined target to the message | §8 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -256,6 +261,97 @@ Filed 2026-10-31 at the app lane's request, through the coordinator (D07 T03 §1
 
 > **Verified:** 2026-11-01 | §7 | f93e6a88e16b14616d2401af5c7a5079c490d6e1
 > **Review:** `docs/reviews/d02-t01-s7.json`
+
+## 8. Examined set stored for a clean check
+
+> **Started:** 2026-11-02T21:12Z
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a check that finds nothing stores its outcome but not what it examined, so a clean result cannot show its targets. This section stores, per clean check, the examined set: the targets as stored text, bounded, with omissions named.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) storage is one nullable text column `examined` on `check_outcomes` (the targets as a JSON list with the omitted count), under migration `0089` (the coordinator's, 2026-11-03T00:14, applied through this section's gate, never directly); (2) the mechanism is an optional `examined` hook on a registered check in `src/checks/registry.ts`, read by the runner (`src/checks/runner.ts`) only when the check ran over all its input and found nothing, its targets bounded as stored text with the omitted count named; a check with findings, a partial or skipped check stores none; (3) which checks name targets is settled by a registry audit at build: every check that can list its targets from the case view without a new read implements the hook in this section, and the audit's list is recorded in the section when built.
+
+**Corrected 2026-11-02** (plan review, `docs/reviews/02-checks/D02-T01-s8.md`): (4) the stored shape is `{targets, omitted}`: at most 50 targets, each at most 255 characters as stored, the whole JSON at most 8,000 bytes cut from the end with `omitted` counting what was left out; an examined empty set stores `{targets: [], omitted: 0}` and is never confused with the null of a check that stored none (no hook, findings, partial, skipped, failed, or its hook's data unavailable); (5) a hook that throws or returns malformed entries loses only its examined set, never the outcome or the evidence; (6) the new column makes thirteen bound parameters a row, so outcome batches drop to seven rows (`OUTCOMES_PER_INSERT`), proven by a stored set crossing that boundary; (7) the new tests live in `test/checks/examined.test.ts`, not the frozen suite, and every audited producer gets a contrasting fixture through runner, storage and `readCheckOutcomes`, with exclusion proven for findings, partial, skipped and failed outcomes.
+
+**Corrected 2026-11-03** (registry audit at build, correction 3): of the 38 registered checks, 17 implement the hook: `intake.truncated` (the cut parts), `sender.display_address`, `sender.display_brand`, `sender.reply_to`, `sender.return_path` and `sender.first_time` (the From mailbox or domain, the reply and bounce addresses), `domain.lookalike` (the header and link domains compared), `attachment.type_mismatch` (each attachment compared), `attachment.macro`, `attachment.encrypted_archive` and `attachment.executable` (each attachment read), and `link.text_mismatch`, `link.redirects`, `link.final_domain_changed`, `link.credential_form`, `link.card_form` and `link.lure_button` (each link, followed page and landing page). The other 21 store none: 15 always report or skip instead of running clean (`intake.forward`, `intake.upload`, `auth.results`, `auth.spf`, `auth.dkim`, `auth.dmarc`, `auth.alignment`, `domain.age`, `attachment.html`, `voice.transcript`, `voice.limits`, `voice.lure`, `reputation.listing`, `reputation.counter_signal`, `reputation.coverage`), and 6 examine nothing enumerable from the view (`auth.arc`, `content.hidden_text`, `content.ai_instructions`, `voice.request`, `voice.claimed_identity`, `voice.urgency`).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store what a clean check examined. Done when: a clean check's stored outcome names its targets, bounded, with any omission stated.
+
+- [x] Carry an examined set on the check outcome in `src/checks/runner.ts` (the targets as stored text, at the outcome's bound, the count and kind of anything omitted named) through `saveEvidence`'s outcome storage in `src/checks/evidence.ts`, for a check with no items. Done when: `test/checks/examined.test.ts` reads a clean check's targets back through `readCheckOutcomes`, and a set past the bound reads back cut with its omissions named.
+- [x] Audit the registry and implement the `examined` hook for every check that can list its targets from the case view without a new read, recording the audit's list here when built. Done when: `test/checks/examined.test.ts` proves each audited producer's exact targets and omissions through runner, storage and read-back, and exclusion for findings, partial, skipped and failed outcomes. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T01-s8.md`.)
+- [x] Commit: `checks: examined set stored for a clean check`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined.test.ts test/checks/evidence.test.ts` passes, and fails if a clean check stores no examined set.
+
+> **Verified:** 2026-11-03 | §8 | ce1236bd13e1e8ff637e6f048fdafeeb10e8825f
+> **Review:** `docs/reviews/d02-t01-s8.json`
+
+## 9. Protected-identity candidate for the trust match
+
+Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the trust match reads a protected identity's registered facts through a bounded candidate input the checks step fills on the case view, the same form as the document forensics fill trust already takes (D06 T02 §3). This section owns the checks side: the view field, its bound, and the fill; trust builds its matching and claim evidence contract against that input and stamps when the fill gates to main.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Fill a bounded protected-identity candidate on the case view. Done when: the trust match reads the candidate from the view, and no registered identity detail beyond the candidate's bound reaches a check.
+
+- [ ] Add the candidate field to `CaseView` in `src/checks/case-view.ts`: the protected business's candidate names and domains as stored text, with its registered logo references (artefact keys, never bytes), each list bounded with its omission counted, in the shape trust D05 T02 §2 names at its build. Done when: `test/checks/case-view.test.ts` (or its successor) reads the field back with its bounds held on an over-bound input.
+- [ ] Fill the field in the `checks` step in `src/pipeline/analysis-workflow.ts` from the case's own organisation data, beside the fills it already makes, failing as the step's other fills fail. Done when: a checks-step test stores a case whose view carries the candidate, and a case with no protected identity carries none. Cheaper substitute: letting the trust match read the registry itself from the checks step, which crosses the lane's storage boundary.
+- [ ] Commit: `checks: protected-identity candidate for the trust match`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a candidate names a business the case's organisation does not protect.
+
+## 10. Every examined target kept past the stored bound
+
+Filed 2026-11-03 from D07 T09 §10's completion review (`docs/reviews/07-app/D07-T09-s10.md`, missing-out-of-scope, against VirusTotal's URL report, which pages a URL's contacted domains with a continuation cursor): §8 stores at most 50 targets of at most 255 characters in at most 8,000 bytes and counts the rest as `omitted`, so a reader of a clean check sees how many targets were left out but can never inspect them. This section keeps the whole examined set for a clean check and reads it back a page at a time; drawing the pages on the report is D07 T09's.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the targets §8 leaves out. Done when: a clean check whose examined set passes §8's bound has every target stored once, in order, beside the bounded summary §8 already stores.
+2. Read the whole set back in pages. Done when: a reader asking for the next page after the last target it saw gets the following targets in order and a cursor, or no cursor at the end.
+
+- [ ] Add the overflow store for a clean check's examined targets beyond §8's bound in `src/checks/evidence.ts` (one row per target, keyed by case, check and position, each target as stored text at §8's 255-character cut), under a migration numbered by the coordinator. Done when: `test/checks/examined-overflow.test.ts` stores a 120-target clean check and reads all 120 back in order, and §8's bounded `{targets, omitted}` reads back unchanged. Cheaper substitute: raising §8's 50-target bound, which only moves the cut.
+- [ ] Write the overflow rows in the same batch as the outcome in `saveEvidence` (`src/checks/evidence.ts`), so a failed save leaves neither. Done when: a test that fails the batch after the outcome finds no outcome and no overflow rows for the case.
+- [ ] Add `readExaminedPage(caseId, check, after?)` in `src/checks/evidence.ts`, returning at most 50 targets after the cursor and the next cursor. Done when: paging a 120-target set yields 50, 50 and 20 targets with a cursor on the first two pages only, and a cursor from another case or check is refused.
+- [ ] Keep the overflow rows under the case's own removal and retention, beside its outcomes (`src/db/` case removal and the retention sweep). Done when: removing a case removes its overflow rows, proven by a test that counts them before and after.
+- [ ] Commit: `checks: every examined target kept past the stored bound`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined-overflow.test.ts test/checks/examined.test.ts` passes, and fails if a target past the bound cannot be read back.
+
+## 11. Relation of each examined target to the message
+
+Filed 2026-11-03 from D07 T09 §10's completion review (`docs/reviews/07-app/D07-T09-s10.md`, missing-out-of-scope, against VirusTotal's URL report, which tells contacted domains, outgoing links and redirect destinations apart): §8 stores each examined target as plain text, so a reader cannot tell a link in the message from the page it redirected to, a header domain or an attachment. This section stores, per target, the relation that put it in the set; drawing it on the report is D07 T09's.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Name each target's relation when a check examines it. Done when: every target an `examined` hook returns carries one relation from a closed list, and a stored set reads back with each target's relation.
+
+- [ ] Define the closed relation list in `src/checks/registry.ts` (`message-link`, `redirect-step`, `landing-page`, `header-address`, `header-domain`, `attachment`, `message-part`), the `examined` hook returning `{target, relation}` entries. Done when: the type refuses an entry without a relation at `pnpm typecheck`.
+- [ ] Return the relation from each of §8's 17 audited hooks (the `intake`, `sender`, `domain`, `attachment` and `link` checks listed in §8's correction 3). Done when: `test/checks/examined.test.ts` proves each producer's exact `{target, relation}` list through runner, storage and `readCheckOutcomes`.
+- [ ] Store the relation in §8's examined JSON and in §10's overflow rows (`src/checks/evidence.ts`), counted inside §8's 8,000-byte bound. Done when: a set at the byte bound reads back with every kept target's relation and the same `omitted` count rule, and a set stored before this section reads back with no relation and no failure.
+- [ ] Commit: `checks: relation of each examined target to the message`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined.test.ts` passes, and fails if a stored target carries no relation.
 
 ## Verification
 

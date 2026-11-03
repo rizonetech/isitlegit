@@ -41,6 +41,7 @@ track: day-6
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
 | 10 | §10 | Findings exported to | §5 | [ ] |
+| 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §49 | [ ] |
 
 ## 1. Lookalike candidate generator
 
@@ -313,6 +314,25 @@ Loupe gets better on real South African lures only if what the monitor learns fl
 - [ ] Commit: `monitor: findings exported for Loupe's training`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts test/node/monitor-export.test.ts` passes, and fails if a finding is stored twice, mislabelled, or exported with a post-form capture.
+
+## 11. Settled pages handed to Loupe capture
+
+Every settled monitor page (§3 and §4's screens) and every settled case page (the vision step's read of a case's page) is handed to Loupe's capture (`captureScreenedPage` in `scripts/glimmer/store.ts`, D03 T04 §49, vision lane) so Loupe trains on pages as they were judged, not as they later became. Filed 2026-11-02 at the coordinator's routing of vision D03 T04 §49's plan review gap 2: vision builds the store, clearance, labelling, queue and admission in §49; the producers, the durable production-to-local transfer and retries are this section's.
+
+**Phase:** 7
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Hand settled pages to the capture. Done when: a settled monitor page and a settled case page are each stored once under origin `production`.
+
+- [ ] Write the producer in `src/monitor/training.ts` (beside §10's `copyForTraining`): when a monitor screen settles (§3, §4) or a case page's vision read settles, call the capture port with the page's screenshot, visible text, host, settle time, settling tier and both answers when escalated. Done when: `test/monitor/training.test.ts` stores each settled page once, deduplicated by screenshot hash, and nothing for an unsettled page. Cheaper substitute: §10's labelled-findings flow only, which misses unlabelled settled pages.
+- [ ] Make the transfer durable: a failed capture is retried from a stored queue (the finding or case id, the artefact keys, the settle time) until it lands, and a retry never stores a page twice. Done when: the test fails the first capture, retries, and reads one stored page back.
+- [ ] Keep the boundary: only the public page as fetched, never a walkthrough capture after a form was filled and never a member's own page content. Done when: the test hands over the fetched page of a walked-through fixture and none of its post-form captures.
+- [ ] Commit: `monitor: settled pages handed to Loupe capture`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts` passes, and fails if a settled page is stored twice or an unsettled one is stored.
 
 ## Verification
 

@@ -41,6 +41,8 @@ track: day-3
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [x] |
 | 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
+| 8 | §8 | Well-known list kept fresh, staleness stated | §6 | [ ] |
+| 9 | §9 | One reputation result stored per provider | §5 | [x] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -194,6 +196,8 @@ Filed 2026-11-01 from the phase audit (checks lane, run e78fd72088d9): §1 and �
 
 ## 6. Well-known sites in KV
 
+> **Started:** 2026-11-02T05:16Z
+
 Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list into Wrangler's local storage and proves the loader and the reader; the production namespace stays at `not_loaded` until someone runs the loader against it. That is a deploy step of the coordinator's, like the brand table (`scripts/load-brands.ts`), and §4's well-known counter-signal must not be enabled before it reads back.
 
 **Phase:** 7
@@ -205,9 +209,9 @@ Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list
 
 1. Load and prove the list in production. Done when: `top:meta` in the production `CACHE` namespace reads back the generation §3's loader published, and the deployed Worker answers `known` for `microsoft.com` and `unknown` for a random new domain.
 
-- [ ] Run `node scripts/load-top-sites.ts --remote` (the coordinator, from this machine, after §3 is merged and deployed), keeping `top:meta:previous`. Done when: the loader exits 0 and its read-back matches, and the date and count are recorded in `docs/live-checks.md`.
-- [ ] Read the list through the deployed consumer: the checks step's `isWellKnown` (§5 wires it) on a case whose link is `microsoft.com`, and on a random new domain. Done when: the recorded case's evidence shows the well-known counter-signal for the first and none for the second. Until §5 is deployed, a one-off read of `top:meta` and one shard through `wrangler kv key get --remote` stands in, recorded as that.
-- [ ] Commit: `checks: well-known sites list in production KV`
+- [x] Run `node scripts/load-top-sites.ts --remote` (the coordinator, from this machine, after §3 is merged and deployed), keeping `top:meta:previous`. Done when: the loader exits 0 and its read-back matches, and the date and count are recorded in `docs/live-checks.md`. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s6.md`: the target is named: binding `CACHE`, namespace `ea28d6e83ede4a83bfb06898d8791a16` in `wrangler.jsonc`; before the load, read the active `top:meta` with `wrangler kv key get top:meta --binding CACHE --remote` and record it as the pre-load generation (none on the first load). On an uncertain publication, an interruption or a cleanup warning: read the active meta again, compare it with the pre-load and intended generations, resolve the warning, and repeat the consumer proof below after any recovery. Rollback is `node scripts/load-top-sites.ts --remote --restore`, verified by reading the restored generation and the consumer answers back; on the first production load no previous meta exists, `--restore` refuses, and restoring the original `not_loaded` state means deleting only the `top:` keys this load wrote, never the namespace or unrelated cache data.)
+- [ ] Read the list through the deployed consumer: the checks step's `isWellKnown` (§5 wires it, and §5 is stamped and deployed) on a case whose link is `microsoft.com`, and on a random new domain verified absent from the published list. (**Corrected 2026-11-02**, completion review, `docs/reviews/02-checks/D02-T06-s6.md`: this item was ticked on the local-reader probe; its Done when requires recorded deployed-Worker cases tied to the deployed version and generation, and `docs/live-checks.md` records that no authenticated deployed case was run, so the item is unticked until the coordinator gate provides that proof.) Done when: the recorded case's evidence shows the well-known counter-signal for the first and none for the second, the pair tied to the deployed version and the published generation: the first case proving the reader works rules out `not_loaded` and `not_checked` for the second, whose absence then reads `unknown`. (§5's deployed state replaces the metadata-and-one-shard stand-in this item first allowed; that stand-in no longer proves completion.)
+- [x] Commit: `checks: well-known sites list in production KV`
 
 **Test checkpoint:** `docs/live-checks.md` records the production load's generation, date and count, and a `known` and an `unknown` answer.
 
@@ -229,6 +233,59 @@ Filed 2026-11-01 from §3's completion review (Part 2 item 2): a decision that a
 - [ ] Commit: `checks: well-known list provenance`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes.
+
+## 8. Well-known list kept fresh, staleness stated
+
+Filed 2026-11-02 from §6's completion review (gaps 2 and 3, out of scope there): the reader answers from the list's metadata without reading its date, so a list loaded once stays authoritative for ever; no refresh owner, cadence or missed-refresh signal exists. The comparison baseline named in that review (a maintained ranking refreshed weekly) sets the target cadence.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the list fresh and say when it is not. Done when: a stale list no longer lends its counter-signal silently, and a missed refresh is visible to the operator.
+
+- [ ] Give the reader an age rule in `src/checks/top-sites.ts`: read the active metadata's date and, past an agreed age limit in days named beside the loader's constants, answer `not_checked` with the reason `stale` instead of a membership answer. Done when: `test/checks/top-sites.test.ts` covers fresh, boundary and stale metadata and the freeze check passes.
+- [ ] Name the refresh owner and cadence (weekly, matching the comparison baseline) in `docs/live-checks.md` with the loader command of §6 item 1, and record each production refresh's generation, date and count there. Done when: the page names the owner, the cadence and the first scheduled refresh date.
+- [ ] Report a missed refresh: the scheduled run that reads the list states `stale` in its log line when the age rule trips, so the operator sees it without a case having to arrive. Done when: a test of that run's log line covers the stale and fresh states.
+- [ ] Commit: `checks: well-known list freshness and staleness`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes, and fails if a stale list still answers membership.
+
+## 9. One reputation result stored per provider
+
+> **Started:** 2026-11-02T19:52Z
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the reputation step weighs provider answers into evidence, but no stored record keeps one result per provider per subject, so the report cannot show each provider's own answer. This section stores, per subject checked, each provider's result (listed, clear or unavailable), when it was obtained, and whether it came from the cache.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the answers live on the case view (`Reputation` in `src/checks/reputation.ts`: Web Risk per stripped URL with `cached`, Cloudflare per registrable domain with `cached`, the well-known list per domain), and no stored table holds them per provider, so storage is a new table `reputation_results` (case, run, provider, subject, state, obtained time, cached flag) under migration `0085` (the coordinator's, 2026-11-02T22:12, applied through this section's gate, never directly); (2) states map at the store: Web Risk `listed`/`not_listed`/`not_checked` and Cloudflare `blocked`/`clear`/`not_checked` read as listed, clear and unavailable, and the well-known answer keeps its own states (known, unknown, unavailable) in the same table, never renamed a listing; (3) the checks step writes the rows from the same answers it weighs, in the same run as the evidence, so a stored result can never disagree with the evidence it sits beside, and a re-run replaces the run's rows.
+
+**Corrected 2026-11-02** (plan review, `docs/reviews/02-checks/D02-T06-s9.md`): (4) the full state mapping: Web Risk `capped` also maps to unavailable with its cap reason kept in the row's note, and well-known `not_loaded` and `not_checked` both map to unavailable; no refusal or outage ever reads as clear or disappears, each proven through persisted read-back; (5) answer age: the provider contracts gain the answer's obtained time (Web Risk and Cloudflare results and their cache entries carry when the answer was fetched, a later cache hit preserving that original time, a legacy cache entry without one read as obtained when read), and the well-known answer is obtained when read with `cached` false; (6) the consumer contract is a case-scoped reader (`readReputationResults`) the report calls per case and run, its integration into the report assigned to D07 T09 §5 through the coordinator, proven from storage through that reader with historical runs kept and another case's rows never answered; (7) replacement is one atomic batch per run (delete the run's rows, insert the new set), a storage failure propagates so the step retries, and the previous complete set survives a failed replacement; (8) the table belongs to its case (`ON DELETE CASCADE`, like `check_outcomes`) and is retained with the case, proven by a migrated-database deletion test that leaves another case's rows standing.
+
+**Corrected 2026-11-02** (completion review, `docs/reviews/02-checks/D02-T06-s9.md`): (9) the well-known answer carries its obtained time from `isWellKnown` itself, so storage never substitutes the later store time; the persisted coverage holds every provider state, explicit cross-case and run isolation, a reader failure answering null, and a checks-level storage failure failing the step; and the Test checkpoint below runs the new persistence suite beside the providers' suites.
+
+**Corrected 2026-11-03** (round 1 and round 3, same findings file): (10) the results commit in the same batch as the evidence and outcomes they sit beside (`saveEvidence`'s `extraWrites`), and the step's early prefix write (D01 T01 §23) clears the run's previous results in its batch, so no commit point holds results beside evidence they do not belong to.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/reputation.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep each provider's answer as its own stored result. Done when: a checked subject reads back one result per provider with its state, time and cache flag.
+
+- [x] Store the per-provider results from the reputation answers the checks step holds (`Reputation` in `src/checks/reputation.ts`: each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) in the `reputation_results` table under the coordinator's migration number, written with the run's evidence and replaced on a re-run, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject, and a re-run holds one set.
+- [x] Give each answer its obtained time at the provider contracts (`src/checks/webrisk.ts`, `src/checks/cf-block.ts`): results and cache entries carry when the answer was fetched, a cache hit preserving the original time and a legacy entry read as obtained when read; the well-known answer is obtained when read. Done when: the providers' suites read a later hit's original time back. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
+- [x] Replace atomically and read through the consumer contract: one batch per run replaces the run's rows (a failed replacement leaving the previous set and failing the step), the table cascades with its case, and `readReputationResults` answers one case and run only. Done when: the checks step's own suite exercises the wiring (an unwired helper cannot pass), a removed subject disappears, an empty set clears, another run and case stand, and deleting the case removes its rows. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
+- [x] Commit: `checks: one reputation result stored per provider`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts test/checks/reputation-results.test.ts test/checks/webrisk.test.ts test/checks/cf-block.test.ts test/checks/top-sites.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a provider's answer is missing, merged into another's, or read as clear on an outage.
+
+> **Verified:** 2026-11-03 | §9 | 5e0335366a8826e8f4a1b9dd0e7b39508cf9d44d
+> **Review:** `docs/reviews/d02-t06-s9.json`
 
 ## Verification
 

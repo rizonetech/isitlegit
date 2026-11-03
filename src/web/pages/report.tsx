@@ -14,7 +14,9 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
-import { checkerName } from "../../db/case-list";
+import { readReputationResults } from "../../checks/reputation-results";
+import { type CaseFilters, filtersFrom, ignoredDates, PAGE_SIZE } from "../../db/case-filters";
+import { caseNeighbours, checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
@@ -22,6 +24,7 @@ import { readModelTrace, readTraceSends } from "../../db/model-trace";
 import { getVerdict } from "../../db/verdicts";
 import { replyAwaited, TraceMail } from "../components/model-trace";
 import { verifyReportLink } from "../report-link";
+import { casesHref, reportHref } from "./cases-view";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { headerKey, MetaLine, ReportHeader } from "./report-header";
@@ -29,7 +32,7 @@ import { type LiveProps, ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
 import { retryNoteOf } from "./report-retry";
 import { cited } from "./report-verdict";
-import { headerFacts, ReportDocument } from "./report-view";
+import { headerFacts, ReportDocument, type ReportSteps } from "./report-view";
 
 export { HEADERS } from "./errors";
 export { shownState } from "./report-view";
@@ -37,6 +40,11 @@ export { shownState } from "./report-view";
 const CASE_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 export const reportRoutes = new Hono<{ Bindings: Env }>();
+
+// The list context a Cases row carries (D07 T04 §9): present only with its marker, parsed as the list parses it.
+const navFiltersOf = (url: URL): CaseFilters | null =>
+  url.searchParams.get("list") === "1" ? filtersFrom(url.searchParams) : null;
+const navQuery = (filters: CaseFilters, id: string) => reportHref(filters, id).slice(`/r/${id}`.length);
 
 // A redirect with the report's own privacy headers.
 const redirect = (to: string) => new Response(null, { status: 303, headers: { ...HEADERS, location: to } });
@@ -64,6 +72,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
   // address: a signed link has exactly its three parameters.
   const held = mode === "status" ? url.searchParams.get("h") : null;
   url.searchParams.delete("h");
+  // The dispute intent (D07 T09 §3) is a page parameter, not part of a signed link: taken out before a link is
+  // verified, as `h` is, so the mail's dispute link verifies on its three signed parameters alone.
+  const dispute = url.searchParams.get("dispute") === "1";
+  url.searchParams.delete("dispute");
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
@@ -104,7 +116,11 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
-          url.searchParams.get("dispute") === "1",
+          dispute,
+          navFiltersOf(url),
+          ignoredDates(url.searchParams)
+            .map((name) => `The ${name} date was not a real date, so it was left out of this run.`)
+            .join(" "),
         );
         if (out) return answer(out);
       }
@@ -125,6 +141,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           mode,
           url.origin,
           held,
+          undefined,
+          false,
+          null,
+          dispute,
         );
         return answer(out ?? (mode !== "page" ? elsewhere() : errorPage(404, id)));
       }
@@ -134,7 +154,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
     }
     if (mode !== "page") return answer(elsewhere());
     // 4. Nobody yet: sign in, then back here.
-    if (!user) return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`));
+    if (!user) {
+      const nav = navFiltersOf(url);
+      return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}${nav ? navQuery(nav, id) : ""}`)}`));
+    }
     return answer(errorPage(404, id));
   } catch (error) {
     // The reference the page shows is the one logged, so support can find the failure by it.
@@ -144,7 +167,8 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
     );
     if (mode === "status")
       return answer(new Response(null, { status: 503, headers: { ...HEADERS, "retry-after": "2" } }));
-    return answer(errorPage(500, id, { ref, retry: report }));
+    const nav = navFiltersOf(url);
+    return answer(errorPage(500, id, { ref, retry: nav ? `/r/${id}${navQuery(nav, id)}` : report }));
   }
 }
 
@@ -172,6 +196,10 @@ async function render(
   traceRun: string | null = null,
   // The member came to dispute the verdict (D07 T03 §22): the closed control is focused, with the board's line.
   dispute = false,
+  // The filtered list the member came from (D07 T04 §9), or null: its steps are a member's, on the full page only.
+  navFilters: CaseFilters | null = null,
+  // A date bound the address named but did not give as a real date, in words (D07 T04 §9).
+  navNotice = "",
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -207,6 +235,7 @@ async function render(
   const progress = progressOf(events);
   const confirming = found.value.status === "received" && found.value.runId !== null && events.length === 0;
   const coverage = await readCheckOutcomes(db, id, run);
+  const reputation = await readReputationResults(db, id, run);
   const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
@@ -233,6 +262,36 @@ async function render(
   const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
   const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
   const facts = headerFacts(found.value, checker);
+  // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
+  // steps quietly missing; a case outside the run says so and keeps the way back.
+  let steps: ReportSteps | undefined;
+  // A poll whose header is unchanged swaps no header, so it needs no neighbours (round 7, optimization).
+  const pollSettled = mode === "status" && held === headerKey(facts, view);
+  if (view === "member" && navFilters && !pollSettled) {
+    const neighbours = await caseNeighbours(db, orgId, navFilters, id);
+    if (!neighbours.ok) throw new Error(neighbours.error.message);
+    const back = (page: number) => casesHref({ ...navFilters, page });
+    const notice = navNotice;
+    const orgChanged = activeOrgId !== null && activeOrgId !== orgId;
+    steps = neighbours.value
+      ? {
+          previous: neighbours.value.previous ? reportHref(navFilters, neighbours.value.previous) : null,
+          next: neighbours.value.next ? reportHref(navFilters, neighbours.value.next) : null,
+          back: back(Math.max(1, Math.ceil(neighbours.value.position / PAGE_SIZE))),
+          position: neighbours.value.position,
+          matching: neighbours.value.matching,
+          ...(notice ? { notice } : {}),
+          ...(orgChanged ? { orgChanged: true } : {}),
+        }
+      : {
+          previous: null,
+          next: null,
+          back: back(1),
+          unmatched: true,
+          ...(notice ? { notice } : {}),
+          ...(orgChanged ? { orgChanged: true } : {}),
+        };
+  }
   if (mode === "status")
     return new Response(
       String(
@@ -245,6 +304,7 @@ async function render(
           delivery={delivery}
           {...feedback}
           evidence={evidence}
+          reputation={reputation}
           progress={progress}
           coverage={coverage}
           view={view}
@@ -256,12 +316,17 @@ async function render(
           uploadName={found.value.uploadName}
           meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
+          {...(view === "member" && navFilters ? { navQuery: navQuery(navFilters, id) } : {})}
         />,
       ) +
         // The header out of band when it differs from the one the page holds, so a report opened before its message
         // was parsed shows the subject and sender once they are stored, and a reader's focus or selection in the
         // header survives every poll that changes nothing.
-        (held === headerKey(facts, view) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
+        (held === headerKey(facts, view)
+          ? ""
+          : String(
+              <ReportHeader facts={facts} view={view} copy={copy} oob {...(steps ? { backHref: steps.back } : {})} />,
+            )),
       { headers: HEADERS },
     );
   const shell =
@@ -274,6 +339,7 @@ async function render(
         stored={found.value}
         verdict={verdict?.value ?? null}
         evidence={evidence}
+        reputation={reputation}
         shell={shell}
         {...(linkExpires ? { linkExpires } : {})}
         {...(link ? { link } : {})}
@@ -288,6 +354,8 @@ async function render(
         trace={trace}
         traceOpen={traceOpen}
         {...(dispute ? { dispute: true } : {})}
+        {...(steps ? { steps } : {})}
+        {...(view === "member" && navFilters ? { navQuery: navQuery(navFilters, id) } : {})}
       />,
     ),
     { headers: HEADERS },

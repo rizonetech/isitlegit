@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { AblationRow, ProductionCounts, PublishedReport } from "../../src/eval/report.ts";
+import type { AblationRow, HistoryRow, ProductionCounts, PublishedReport } from "../../src/eval/report.ts";
 import { EvalPage, EvalUnavailable, type EvalView } from "../../src/web/pages/eval-view.tsx";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
@@ -91,7 +91,7 @@ const counts: ProductionCounts = {
 };
 const ablations: AblationRow[] = [
   {
-    mode: "no-sam",
+    mode: "ablate:no-sam",
     runId: "run-00000002",
     comparable: true,
     detection: rate(100, 90),
@@ -103,17 +103,35 @@ const ablations: AblationRow[] = [
     msDelta: -100,
     usdDelta: -0.001,
   },
-  { mode: "no-spark", runId: "run-00000003", comparable: false, reason: "another deployed commit than the full run" },
+  {
+    mode: "ablate:no-agent-reasoning",
+    runId: "run-00000003",
+    comparable: false,
+    reason: "another deployed commit than the full run",
+  },
+];
+const history: HistoryRow[] = [
+  { report, publishedAt: "2026-11-05T11:00:00.000Z", comparable: true, reason: null },
+  {
+    report: {
+      ...report,
+      run: { ...report.run, id: "run-00000009", commit: "1234567abcdef", setVersion: "b".repeat(64) },
+    },
+    publishedAt: "2026-11-04T11:00:00.000Z",
+    comparable: false,
+    reason: "another dataset version than the latest run",
+  },
 ];
 const views: Record<string, string> = {
   "/eval": String(
-    <EvalPage view={{ kind: "report", report, publishedAt: "2026-11-05T11:00:00.000Z", ablations, counts }} />,
+    <EvalPage view={{ kind: "report", report, publishedAt: "2026-11-05T11:00:00.000Z", ablations, counts, history }} />,
   ),
   "/eval-empty": String(
     <EvalPage
       view={
         {
           kind: "empty",
+          history: [],
           counts: { ...counts, cases: 0, flagged: 0, invoiceFlags: 0, reportedWrong: 0, medianSeconds: null },
         } satisfies EvalView
       }
@@ -216,6 +234,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the results page in a brows
       expect(names).toContain("Sign in");
       expect(names).toContain("eval/DATASETS.md");
       expect(names.some((n) => n.startsWith("Ablation table"))).toBe(true);
+      expect(names.some((n) => n.startsWith("Run history table"))).toBe(true);
       await context.close();
     }
   });
@@ -240,7 +259,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the results page in a brows
   it("names its tables with captions and column headers, and every link by its words", async () => {
     const { p, context } = await open("/eval", 1280, "light");
     const tables = await p.locator("table").count();
-    expect(tables).toBe(3);
+    expect(tables).toBe(4);
     for (let i = 0; i < tables; i++) {
       expect(await p.locator("table").nth(i).locator("caption").count()).toBe(1);
       expect(await p.locator("table").nth(i).locator('thead th[scope="col"]').count()).toBeGreaterThan(0);

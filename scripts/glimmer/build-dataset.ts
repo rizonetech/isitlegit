@@ -56,7 +56,15 @@ import {
 import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
 import type { EntityConfig } from "./redact.ts";
 import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
-import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
+import {
+  freezeFile,
+  hasRecipientIdentifiers,
+  openStore,
+  productionCounts,
+  readAdmission,
+  type StoredPage,
+  storeDir,
+} from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, receiptProblem, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -186,10 +194,10 @@ export function jaccard(a: Uint32Array, b: Uint32Array): number {
   return both / (a.length + b.length - both);
 }
 
-// The answer a page teaches, or null while any field is still unknown. A label from a source whose spot check failed
-// (`unverified`) is taught at lower confidence; every other label at 0.95. For Loupe 1.1 onward (`brandAsTruth`
-// false, D03 T04 §45) brand is never taught as truth: the answer carries null, brand and host stay grouping and
-// capping keys through the page's own labels, and no brand score is taken from the version.
+// The answer a page teaches, or null while any field is still unknown. Confidence is P(lure), as the screener prompt
+// defines it (D03 T04 §48): a lure teaches high, a benign page low, and an `unverified` label nearer the unsure band.
+// For Loupe 1.1 onward (`brandAsTruth` false, D03 T04 §45) brand is never taught as truth: the answer carries null,
+// brand and host stay grouping and capping keys through the page's own labels, and no brand score is taken from the version.
 export function answerOf(page: StoredPage, brandAsTruth = true): PageAnswer | null {
   const { labels } = page;
   if (labels.lure === undefined || labels.lure_type === undefined || labels.brand === undefined) return null;
@@ -1197,6 +1205,10 @@ export type Built = {
     // Sample pages left out because the set is not ready (`sampleReadiness`): no clean leak check over these very
     // pages, the label rules not run over them, or the teacher's receipt stale (§19, plan review finding 7).
     samplesUnready: number;
+    // Production captures the §41 admission record does not name (D03 T04 §46).
+    unadmitted: number;
+    // Admitted production captures withheld for recipient identifiers in their host or text (§46).
+    withheldProduction: number;
   };
   sha256: { train: string; evaluation: string };
 };
@@ -1548,6 +1560,8 @@ async function buildDatasetRun(options: {
     excluded: 0,
     namesClient: 0,
     samplesUnready: 0,
+    unadmitted: 0,
+    withheldProduction: 0,
   };
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
@@ -1633,6 +1647,7 @@ async function buildDatasetRun(options: {
   // `raw/dataset/reference.json` so every later version holds out the same pages. The pool does not consult the
   // exclusions either: those include pages the teacher lost, which would let its outcomes move the draw.
   let pages = store.manifest();
+  const productionAdmitted = readAdmission(store);
   // Only pages whose group can be held out are drawn: each reference page's group is held out of training.
   const reference = reserveReference(
     store.dir,
@@ -1783,6 +1798,18 @@ async function buildDatasetRun(options: {
     if (!verified) {
       unverified.push(page.id);
       continue;
+    }
+    // A captured production page trains only through §41's gate (D03 T04 §49): named by the admission record, and
+    // withheld, counted, while recipient identifiers are in its host or text.
+    if (page.origin === "production") {
+      if (!productionAdmitted.has(page.id)) {
+        dropped.unadmitted++;
+        continue;
+      }
+      if (hasRecipientIdentifiers(page.host, verified.text)) {
+        dropped.withheldProduction++;
+        continue;
+      }
     }
     const entry: Entry = {
       page: compactPage(verified.page),
@@ -2019,7 +2046,7 @@ async function buildDatasetRun(options: {
       const brands = lureBrandSet(chosen);
       return by(chosen, (e) => hardNegativeKind(e, brands) ?? "lure");
     };
-    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, metadataProtection: { pages: metadata.pages, brands: metadata.brands.size, screenshots: metadata.screenshots.size, excludedFromTraining: [...metadataReserved].filter((id) => !train.some((e) => e.page.id === id)).length }, floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, metadataProtection: { pages: metadata.pages, brands: metadata.brands.size, screenshots: metadata.screenshots.size, excludedFromTraining: [...metadataReserved].filter((id) => !train.some((e) => e.page.id === id)).length }, production: productionCounts(store), floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
     write(join(staging, "summary.json"), summary);
     // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
     // in them are the figures of the files that were just read back.

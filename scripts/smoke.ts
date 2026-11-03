@@ -301,6 +301,22 @@ async function newestVersionWith(run: Runner, deadline: number): Promise<string>
 
 export const activeVersionFromWrangler = (deadline: number) => activeVersionWith(runCommand, deadline);
 
+// One fixture page screened through the deployed Worker itself (D03 T04 §36): reads the SCREEN check a release
+// asked for (`?screen=1`) and answers which screener and Loupe version served it, or throws naming what came back.
+export async function screenThroughWorker(
+  base: string,
+  token: string,
+  fetcher: typeof fetch = fetch,
+): Promise<{ screener: string; version: string }> {
+  const url = new URL("/internal/smoke?screen=1", base);
+  const response = await fetcher(url, { headers: { authorization: `Bearer ${token}` } });
+  const body = (await response.json().catch(() => null)) as { checks?: Record<string, string> } | null;
+  const screen = body?.checks?.SCREEN;
+  const matched = /^ok (\S+) (\S+)$/.exec(screen ?? "");
+  if (!matched) throw new Error(`the deployed Worker's SCREEN check did not pass (${screen ?? "absent"})`);
+  return { screener: matched[1] as string, version: matched[2] as string };
+}
+
 export async function tokenFromVault(deadline: number): Promise<string> {
   const token = (await runCommand(OP, ["read", `op://Conclave/${VAULT_ITEM}/credential`], "", deadline)).trim();
   if (!/^[0-9a-f]{64}$/.test(token)) throw new Error(`the vault item "${VAULT_ITEM}" holds no 64-hex token`);

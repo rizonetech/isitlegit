@@ -34,9 +34,11 @@ track: day-4
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
-| 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
-| 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
-| 5 | §5 | Logos for blocked brands | §2, §4 | [ ] |
+| 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [x] |
+| 4 | §4 | Logo recall check and detector choice | §3 | [x] |
+| 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
+| 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
+| 7 | §7 | Compared reference in logo_match detail | §3 | [x] |
 
 ## 1. SAM 3.1 client, parser and crops
 
@@ -132,7 +134,15 @@ Comparison needs reference logos. Real brands' logos are used only as detection 
 
 ## 3. Logo comparison by Muse Spark
 
+> **Started:** 2026-11-02T18:55:00Z
+
+
+> **Corrected 2026-11-02 (plan validation against the tree):** (1) The live index is not `{ version, logos }` alone: `LogoIndex` in `scripts/load-reference-logos.ts` carries `generation`, `generated_at`, `logos[]` (slug, brand, key under `ref/logos/<generation>/`, media_type, sha256, fictional) and `missing[]`, and the Worker cannot import that Node script, so `src/vision/logo-reference.ts` defines its own strict zod schema for the fields it reads and refuses anything else. (2) The bucket is reached as `deps.store.bucket` (`Store` in `src/intake/store.ts`); reads are bounded (index and image byte caps, the index's own sha256 checked against the downloaded image) and a missing brand, missing index or mismatched bytes is a typed `LogoReferenceError`, never an empty image. (3) Integration is in `visionStep` (`src/vision/step.ts`) after the reading: the current crop manifest per source image (written by `storeCrops` in `src/vision/sam.ts`) names the stored crops; only `logo` concept crops of an image whose reading claims a brand are compared, each comparison is cached by both image hashes (`withCache`, task `vision.logo-comparison`), and a comparison failure states itself as coverage, never as a same or different judgement and never as a case failure. (4) Severity follows the compared domains the brand stage already computed for that picture: high when the logo is the brand's and a compared sender or landing domain is not that brand's, info when every compared domain is the brand's; with no compared domain the match is stated info with the domain unjudged, never high on the logo alone.
+
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) Evidence is written with `addEvidence(db, caseId, "vision", items)`; the `vision` producer is added to `LATER_PRODUCERS` in D03 T02 §3, which this section depends on through §1. (2) The Worker has no reader for the reference store: nothing in `src/` reads the `ref/logos/` keys that `scripts/load-reference-logos.ts` writes (its index is `ref/logos/index.json`, shape `{ version, logos }`). Add a small reader beside `src/vision/logo-compare.ts` that loads the index and a brand's image from the `ARTEFACTS` bucket, bounded and typed, with a test against the stored fixtures `test/fixtures/brands/`. (3) The domain test uses `brandForDomain` and `registrable()` in `src/checks/brands.ts`; the sender and landing domains come from the case's own parse and the walkthrough's pages.
+
+
+> **Corrected 2026-11-02 (plan review, gaps 1 to 5, planned in):** (1) `vision.logo_match` joins `ATTEMPT_OWNED` in `src/vision/step.ts`, so a replay replaces the previous logo results while preserving the reading and brand evidence outside the set, and its items ride the existing fenced commits. (2) Comparisons run in their own bounded phase inside the step deadline with a commit reserve: late calls and writes are fenced, unfinished comparisons state themselves as coverage, and a stalled reference read or model call loses only its own comparison. (3) The exported comparison is `compareLogo(ctx, crop, reference)` in `src/vision/logo-compare.ts`, where `reference` is image bytes with their media type and a provenance label; it accepts PNG, JPEG and WebP and refuses SVG with a typed error, because the model takes raster images. Retrieval of a protected business's registered logo (and any SVG conversion) stays with its owner (D05 T02 §2 reads the identity's stored logo; conversion is filed there), and this section's reader covers the curated `ref/logos/` store. (4) A different judgement (`same_brand: false`) still writes a `vision.logo_match` item: info severity, a summary that the crop is not the brand's logo, the model's differences and the crop as artefact; it never clears the message and never states a domain judgement. (5) The checkpoint grows to the case level: `test/vision/step-read.test.ts` reads back logo evidence for same and different stubbed judgements on official and unrelated domains and with no compared domain, plus malformed output, a refused or missing or corrupt or oversized reference, budget exhaustion, and cache reuse with invalidation when either image changes.
 
 SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent with the claimed brand's reference logo, or a protected business's registered logo, for a structured same or different judgement with a reason (spec 4.4).
 
@@ -144,15 +154,28 @@ SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent w
 
 1. Register `vision.logo_match`. Done when: stubbed replies for same and different yield the right evidence.
 
-- [ ] Define `LogoJudgement` (`same_brand` boolean, `brand_seen`, `differences` array, `confidence`). Done when: the schema is used with `structured()`.
-- [ ] Read the reference logo from the `ARTEFACTS` bucket (`ref/logos/index.json` and the brand's image) in `src/vision/logo-reference.ts`. Done when: `test/vision/logo-reference.test.ts` loads a stored fixture and refuses a missing brand with a typed error.
-- [ ] Send the crop and the reference as two `input_image` parts with a fixed prompt; cache by both hashes. Done when: `test/vision/logo-compare.test.ts` checks the request.
-- [ ] Register `vision.logo_match`: high when the logo matches a brand and the sender or landing domain is not that brand's; info when brand and domain agree. Done when: the fixture pair yields high.
-- [ ] Commit: `vision: logo comparison by Muse Spark`
+- [x] Define `LogoJudgement` (`same_brand` boolean, `brand_seen`, `differences` array, `confidence`). Done when: the schema is used with `structured()`.
+- [x] Read the reference logo from the `ARTEFACTS` bucket (`ref/logos/index.json` and the brand's image) in `src/vision/logo-reference.ts`. Done when: `test/vision/logo-reference.test.ts` loads a stored fixture and refuses a missing brand with a typed error.
+- [x] Send the crop and the reference as two `input_image` parts with a fixed prompt; cache by both hashes. Done when: `test/vision/logo-compare.test.ts` checks the request.
+- [x] Register `vision.logo_match`: high when the logo matches a brand and the sender or landing domain is not that brand's; info when brand and domain agree. Done when: the fixture pair yields high.
+- [x] Export `compareLogo` from `src/vision/logo-compare.ts` taking a crop and a reference image (bytes, media type, provenance label), refusing SVG and unsupported types with a typed error. Done when: `test/vision/logo-compare.test.ts` compares a registered-style reference that is absent from the curated index.
+- [x] Write the negative judgement as evidence: `same_brand: false` yields an info `vision.logo_match` item naming the differences and the crop, never a clearance. Done when: the test reads it back beside the same-brand cases.
+- [x] Join `vision.logo_match` to `ATTEMPT_OWNED` and run comparisons in a bounded phase with a commit reserve in `src/vision/step.ts`. Done when: `test/vision/step-read.test.ts` shows a replay replacing logo results, a stalled comparison stated as coverage with the reading standing, and same and different judgements on official, unrelated and unjudged domains read back.
+- [x] Commit: `vision: logo comparison by Muse Spark`
 
-**Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts test/vision/logo-reference.test.ts test/vision/step-read.test.ts` passes, and fails if a replay keeps a stale logo item, if a stalled comparison takes the reading down, or if a different judgement is stated as a clearance.
+
+> **Verified:** 2026-11-02 | §3 | 3f2dffa554a6d124b3d792162c2c957664b2aca6
+> **Review:** `docs/reviews/d03-t03-s3.json`
 
 ## 4. Logo recall check and detector choice
+
+> **Started:** 2026-11-02T19:45:00Z
+
+> **Corrected 2026-11-02 (plan validation against the tree):** (1) `scripts/fixtures/make-branded.ts` and `eval/sets/logo-recall/` do not exist yet; this section creates both, drawing on `scripts/fixtures/make-brand-logos.ts` for fictional logo drawing. (2) The measurement runs live Meta calls (SAM `sam-3.1` and Muse Spark perception grounding on 20 samples each) through the shared spend ledger (`~/isitlegit-data/ledgers/meta-spend.json`); before any paid call the run states its cap and never raises it, and the measured cost and latency are recorded per detector. (3) `src/vision/detector.ts` does not exist yet; the interface it exposes is the one `segmentImage` in `src/vision/sam.ts` already implements (boxes for an image), so the vision step can take the chosen detector without a second segmentation path.
+
+
+> **Corrected 2026-11-02 (plan review, gaps 1 to 4, planned in):** (1) The chosen detector is wired into `visionStep`: the step calls it instead of `segmentImage` directly, with case-level tests for both selections reading back crops, manifests and logo evidence, including a zero-match replay clearing the previous set. (2) Grounding replaces the `logo` concept alone; `stamp` and `signature` stay on SAM. Its normalised boxes are converted to source pixels against the decoded image size and validated, confidence is absent (kept, sorted below confident boxes, as `selectBoxes` already treats it), the existing box limits apply, and its failures become coverage losses that publish no late crops. (3) One deterministic policy: SAM stays unless its recall is under 16 of 20 and grounding's recall is higher; a tie keeps SAM, both under 16 keeps SAM with the shortfall recorded, and an incomplete run (a refused or failed sample) scores that sample as missed, never out of the denominator. (4) The runner renders each fixture through the product render path, ties labels to those exact pixels, scores the boxes production selection retains, and saves per-sample predictions, failures, costs and timings under `eval/sets/logo-recall/`; IoU boundaries and the published totals are recomputed from the saved results in the test.
 
 SAM's logo quality on rendered email is unknown (risks table). This section measures recall on 20 synthetic branded emails and, if SAM finds fewer than 16 of 20 logos, switches detection to Muse Spark perception grounding (boxes from the vision model), recording why.
 
@@ -165,19 +188,32 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 1. Build the 20-sample set and measure recall. Done when: `docs/frontier-log.md` records recall and cost.
 2. Choose the detector. Done when: `src/vision/detector.ts` uses the chosen one and the decision is recorded.
 
-- [ ] Generate 20 synthetic branded emails with fictional brands at varied sizes and positions (`scripts/fixtures/make-branded.ts`) with labelled logo boxes. Done when: the set and labels exist under `eval/sets/logo-recall/`.
-- [ ] Measure SAM recall (box IoU at least 0.5) and record it with cost and latency in `docs/frontier-log.md`. Done when: the entry exists.
-- [ ] Implement perception grounding with `muse-spark-1.3` (boxes on a normalised grid, Meta docs `image-understanding`) behind the same interface and measure it on the same set. Done when: both numbers are recorded.
-- [ ] Set `DETECTOR` in `src/vision/detector.ts` to the better one (SAM unless recall is under 16 of 20) and note the decision in design spec section 8 risks row. Done when: the constant and the note exist.
-- [ ] Commit: `vision: logo recall measured and detector chosen`
+- [x] Generate 20 synthetic branded emails with fictional brands at varied sizes and positions (`scripts/fixtures/make-branded.ts`) with labelled logo boxes. Done when: the set and labels exist under `eval/sets/logo-recall/`.
+- [x] Measure SAM recall (box IoU at least 0.5) and record it with cost and latency in `docs/frontier-log.md`. Done when: the entry exists.
+- [x] Implement perception grounding with `muse-spark-1.3` (boxes on a normalised grid, Meta docs `image-understanding`) behind the same interface in `src/vision/detector.ts` (`groundLogos`, validated conversion to source pixels, typed failures). Done when: `test/vision/detector.test.ts` proves the conversion and the request; the measured number is the next item's record.
+- [x] Set `DETECTOR` in `src/vision/detector.ts` to the better one (SAM unless recall is under 16 of 20) and note the decision in design spec section 8 risks row. Done when: the constant and the note exist.
+- [x] Wire the chosen detector into `visionStep` (`src/vision/step.ts`) behind `src/vision/detector.ts` (grounding for the `logo` concept alone when selected, SAM for every concept otherwise, stamp and signature always SAM). Done when: `test/vision/step-read.test.ts` reads back crops, manifests and logo evidence for both selections and a zero-match replay clears the previous set.
+- [x] Score reproducibly: the runner saves per-sample predictions, failures, costs and timings, and the test recomputes the published recall from them (IoU at least 0.5, a failed or refused sample scored missed). Done when: `test/vision/detector.test.ts` covers the IoU boundary, non-square conversion, malformed geometry, empty success, refusal, budget exhaustion and timeout.
+- [x] Commit: `vision: logo recall measured and detector chosen`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
 
+> **Verified:** 2026-11-02 | §4 | 1f52d7681fa7b510e22a28780ab3d9d05a3f8228
+> **Review:** `docs/reviews/d03-t03-s4.json`
+
 ## 5. Logos for blocked brands
+
+> **Started:** 2026-11-02T21:45:00Z
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The store holds 20 of the 23 brands plus the fictional ones; the `--check --local` line printed today therefore reads 20 real brands and the checkpoint's 23 is the target after the three are captured. (2) The `capture --only` flag and the selector table live in `scripts/load-reference-logos.ts`; read them before relying on the section's wording. (3) This section stays last: it needs §4's labelled set.
 
-Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
+Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there).
+> **Parked 2026-11-02, updated 2026-11-03:** the variant build is done (measured 9 of 12 against 7 of 12 with no false matches; the index, loader, reader and step all carry variants, and the fictional store pair proves it). Only DHL remains: unreachable from this machine at the network layer (retried 2026-11-03 after merging main: every `dhl.com` page and logo asset fails in curl over HTTP/1.1 and HTTP/2 and in headless Chromium; the connection opens to Akamai and the stream stalls, while only `/favicon.ico` is served, so no page or asset content is reachable from this host at all). The section does not stamp while a full capture cannot list 23 brands; when a host that reaches `dhl.com` finishes the generation, the full capture, look and local load close it.
+
+> **Progress 2026-11-02:** Adobe (blog.adobe.com, its red mark at 400 by 352 px) and FedEx (developer.fedex.com, its wordmark at 1284 by 360 px) are captured and looked at; the selector table carries both. DHL is unreachable from this machine (every `dhl.com` page fails at the network layer in curl over HTTP/1.1 and HTTP/2 and in headless Chromium, while other hosts answer), so the DHL capture waits on a host that can reach `dhl.com`; the generation it lands in must be completed there with `capture --into` on the same store.
+
+
+> **Added 2026-11-02 (D03 T03 §4 completion review, G1 and G7):** the recall set's images are generated directly, not through the product email renderer, and every sample is one wordmark banner on white with no logo-free negatives, multiple-logo pages or difficult variants. This section (or a successor it names) widens the set through `renderEmail` and reports false detections separately before any detector claim is broadened. The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
 
 **Phase:** 7
 **Needs:** cloudflare
@@ -189,12 +225,63 @@ Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The 
 2. Decide on variants from §4's measurements. Done when: the decision and its numbers are in `docs/frontier-log.md`.
 
 - [ ] Find, for Adobe, DHL and FedEx, a page on one of each brand's own `domains` that shows the logo to headless Chromium, and record its URL and selector in `data/reference-logos.json`. Done when: `node scripts/load-reference-logos.ts capture --only "Adobe,DHL,FedEx"` stores all three, each looked at. Cheaper substitute: a logo from a third-party site.
-- [ ] Measure, with §4's labelled set, whether a second reference per brand (icon beside wordmark, or the dark variant) raises the logo match rate. Done when: `docs/frontier-log.md` records both rates and the choice.
-- [ ] If the measurement favours variants, extend `LogoIndex` in `scripts/load-reference-logos.ts` with a `variant` field and the selector table with one entry per variant. Done when: `test/node/reference-logos.test.ts` covers two variants of one brand and `coverage` still counts the brand once.
+- [x] Measure, with §4's labelled set, whether a second reference per brand (icon beside wordmark, or the dark variant) raises the logo match rate. Done when: `docs/frontier-log.md` records both rates and the choice.
+- [x] If the measurement favours variants, extend `LogoIndex` in `scripts/load-reference-logos.ts` with a `variant` field and the selector table with one entry per variant. Done when: `test/node/reference-logos.test.ts` covers two variants of one brand and `coverage` still counts the brand once.
 - [ ] Run a full capture, look at every logo, `load --local`, and hand the coordinator the production load as in §2. Done when: `node scripts/load-reference-logos.ts --check --local` prints 23 brands.
 - [ ] Commit: `vision: reference logos for every brand and the chosen variants`
 
 **Test checkpoint:** `node scripts/load-reference-logos.ts --check --local` prints `reference logos: 23 brands in R2` and exits 0; `pnpm exec vitest run test/node/reference-logos.test.ts` passes.
+
+## 6. Ablation flag in segmentation
+
+Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-sam` case the vision step skips SAM segmentation entirely (no SAM call, no crops) and its coverage states the ablation, so the arm measures what the reading and the checks find without segmented crops.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read the flag where the vision step decides to segment. Done when: a flagged case makes no SAM call and stores no crop.
+2. State the ablation in the step's coverage. Done when: the case's evidence names it instead of a SAM failure.
+
+- [ ] Honour `no-sam` in the vision step's segmentation (`src/vision/step.ts`) through `ablateFlagFor` (D04 T01 §14): `segmentPages` is never called, the crop manifest work is skipped, and the coverage item states `ablated: "no-sam"`. Done when: `test/vision/step.test.ts` shows a flagged case with no SAM request in its fetch log, no crop artefacts, and the ablated coverage read back; an unflagged case segments as today.
+- [ ] Commit: `vision: ablation flag in segmentation`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/step.test.ts` passes, and fails if a flagged case sends a SAM request.
+
+## 7. Compared reference in logo_match detail
+
+> **Started:** 2026-11-03T03:17:42Z
+
+Filed 2026-11-03 from the app lane's D07 T03 §14 plan review, relayed by the coordinator: a report card must draw the exact reference a crop was judged against, not the brand's current reference. The compared reference's store key and hash therefore ride in the `vision.logo_match` evidence detail; until this lands, the app card draws the brand's current reference beside the crop, labelled as the reference, with the stored differences carrying the comparison.
+
+> **Corrected 2026-11-03 (plan review, gaps 1 to 3, planned in):** (1) The step proof reads back both identity fields against the seeded reference's digest, asserts the stubbed comparison request's second image is the seeded reference bytes, and proves an index advance to a new generation leaves stored evidence naming its compared generation until a replay compares against the new one. (2) The detail gains a validated consumer contract in `src/vision/logo-compare.ts`: a zod schema pair where compared items require both fields, not-compared items forbid both, an incomplete or malformed pair is refused, and a historical compared item written before this section parses as historical with no reference identity, never as compared-with-reference. (3) The consuming side is deferred to its owner below; this section ships the recorded identity and its validated reader only.
+
+> **Corrected 2026-11-03 (merge with main, D03 T03 §5 variants):** §5 landed on main while this section was in review: the step now compares each stored variant in turn (wordmark first, a match on any variant speaks, otherwise the wordmark judgement). The identity recorded here is the variant that produced the judgement actually written, tracked beside the judgement in `src/vision/step.ts`; a crop compared against two variants records the matched one, or the wordmark when none matched.
+
+> **Consumer handoff (owner D07 T03 §14, app lane; routed through the coordinator 2026-11-03):** the report card's use of the recorded identity (validated retrieval of the recorded key, hash verification before drawing, honest unavailable and historical-reference states, case-authorised access only, with tests that an index change cannot substitute another reference and a request cannot retrieve a reference outside the case's own evidence) is the app lane's build; the `XREF:` pair is wired when the app lane adds its pointer back, because a one-sided XREF refuses validation.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Record the compared reference in the judgement evidence. Done when: every `checked: true` `vision.logo_match` detail carries the reference store key and hash it was judged against.
+2. Give consumers a validated reader for that detail. Done when: the schema pair accepts valid compared and not-compared details, refuses incomplete or malformed pairs, and reads a historical compared item as historical.
+3. Prove it at the step. Done when: a case read back from storage names the exact reference key and hash its logo crop was compared with, across an index generation advance.
+
+- [x] Extend `logoMatchItem` in `src/vision/logo-compare.ts` to take the compared reference (`key` and `sha256` from `ReferenceLogo` in `src/vision/logo-reference.ts`) and write `reference_key` and `reference_sha256` into the evidence `detail`. Done when: `test/vision/logo-compare.test.ts` asserts both fields on a same-brand and a different-brand item. Cheaper substitute: the reference slug alone, refused because two generations can share a slug while the key and hash name the exact stored object.
+- [x] Pass the loaded reference through in `src/vision/step.ts` where `logoMatchItem` is called after `compareLogo`, so the recorded key is the object actually compared. Done when: `test/vision/step-read.test.ts` reads back a `vision.logo_match` item whose `reference_key` and `reference_sha256` are the seeded reference's key and digest, the stubbed comparison request's second image decodes to the seeded reference bytes, advancing the index to a new generation leaves the stored item naming the compared generation, and a replay then records the new generation's key and digest. Cheaper substitute: recording the brand name only, refused because it cannot identify which stored reference was drawn.
+- [x] Add the validated consumer contract in `src/vision/logo-compare.ts`: `logoMatchDetailSchema` (compared items require `reference_key` and a 64-hex `reference_sha256`; not-compared items forbid both) and a reader that returns a historical compared item (checked, no pair) as historical with no identity, and refuses an incomplete or malformed pair. Done when: `test/vision/logo-compare.test.ts` covers a valid compared pair, a valid not-compared item, a stray reference field on a not-compared item, an incomplete pair, a malformed hash, and a historical compared item. Cheaper substitute: documenting the field names, refused because `StoredEvidence` accepts arbitrary JSON detail and an unvalidated reader would half-accept a wrong pair.
+- [x] Keep un-compared items honest: `logoNotComparedItem` in `src/vision/logo-compare.ts` gains no `reference_key`, because `checked: false` means no comparison happened. Done when: `test/vision/logo-compare.test.ts` asserts the field's absence on a not-compared item.
+- [x] Commit: `vision: record compared reference in logo match detail`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts test/vision/step-read.test.ts` passes, and fails if a compared item lacks the reference key it was judged against.
+
+> **Verified:** 2026-11-03 | §7 | d320b61b01f493853cfa63402e2b1cf881017031
+> **Review:** `docs/reviews/d03-t03-s7.json`
 
 ## Verification
 

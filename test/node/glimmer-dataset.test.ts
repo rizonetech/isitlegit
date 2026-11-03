@@ -128,7 +128,7 @@ function page(id: string, over: Partial<StoredPage> = {}, labels: Partial<Stored
   } as StoredPage;
 }
 
-describe("the taught confidence", () => {
+describe("the taught confidence (§48)", () => {
   it("is P(lure): a lure carries its certainty, a benign page one minus it (URGENT loupe-confidence)", () => {
     expect(answerOf(page("lure", {}, { lure: true, lure_type: "credential" }))?.confidence).toBe(0.95);
     expect(answerOf(page("benign"))?.confidence).toBe(0.05);

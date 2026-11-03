@@ -3,7 +3,7 @@
 // in real use (counts only). It is a public page on the app's host (the site's `/eval` redirects here) in the public
 // shell. Nothing here is a message, a sender or a subject. A figure no run measures says "not measured", never a number:
 // the analysis time is not the forward-to-reply time, so that target is never shown met from this run.
-import type { AblationRow, ProductionCounts, PublishedReport } from "../../eval/report";
+import type { AblationRow, HistoryRow, ProductionCounts, PublishedReport } from "../../eval/report";
 import { AppShell } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -51,23 +51,25 @@ const KIND: Record<string, string> = {
   "voice-lure": "Voice note lures",
   "malware-attachment": "Malware attachments",
 };
-// The ablation modes (D08 T02 §3) in the board's words: what is switched off and what replaces it.
+// The ablation modes (D08 T02 §3) in the board's words, keyed by the stored arm mode (`ablate:<flag>` from
+// ABLATE_FLAGS in eval/ablate.ts): what is switched off and what replaces it.
 export const MODES: Record<string, { off: string; replacedBy: string }> = {
-  "no-spark": { off: "Muse Spark reasoning", replacedBy: "Rule-based verdict" },
-  "no-wonder": { off: "Muse Wonder walkthrough", replacedBy: "No walkthrough" },
-  "no-sam": { off: "SAM 3.1 logo check", replacedBy: "No logo comparison" },
-  "no-voice": { off: "Muse Voice Transcribe", replacedBy: "No transcript" },
-  "no-glimmer": { off: "Muse Glimmer screening", replacedBy: "Every page to Muse Spark" },
+  "ablate:no-agent-reasoning": { off: "Muse Spark reasoning", replacedBy: "Rule-based verdict" },
+  "ablate:no-walkthrough": { off: "Muse Wonder walkthrough", replacedBy: "No walkthrough" },
+  "ablate:no-sam": { off: "SAM 3.1 comparison", replacedBy: "No logo comparison" },
+  "ablate:no-transcribe": { off: "Voice transcription", replacedBy: "No transcript" },
+  "ablate:no-screening": { off: "Loupe page screening", replacedBy: "Muse Spark screens every page" },
 };
 
 export type EvalView =
-  | { kind: "empty"; counts: ProductionCounts }
+  | { kind: "empty"; counts: ProductionCounts; history: HistoryRow[] }
   | {
       kind: "report";
       report: PublishedReport;
       publishedAt: string;
       ablations: AblationRow[];
       counts: ProductionCounts;
+      history: HistoryRow[];
     };
 
 const STATE: Record<string, { words: string; variant: PillVariant }> = {
@@ -401,6 +403,93 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
   );
 }
 
+// The run history (D08 T02 §10; design/SPEC.md S10): every published full run with its own figures, a run on
+// another dataset, selection or commit marked with its reason and never compared, and the independent
+// validation statement as S10 words it.
+export const VALIDATION_STATEMENT =
+  "Independent validation means a person or organisation outside Rizonetech runs these same labelled sets against the live service and publishes their own figures, including where they disagree with ours. The sets, their licences and how they were built are described in eval/DATASETS.md so anyone can do this. It has not happened yet: every figure on this page is our own measurement, published whether it is good or not, and the run history above is the record it can be checked against.";
+
+function History(props: { rows: HistoryRow[] }) {
+  if (props.rows.length === 0) return null;
+  return (
+    <section aria-labelledby="history-heading" class="flex flex-col gap-16">
+      <h2 id="history-heading" class="type-h2">
+        Run history
+      </h2>
+      <p class="text-ink-2 max-w-[760px]">
+        Every full test we have published, newest first. A run measured on another dataset, another selection or another
+        version of the service is marked and never compared with the latest.
+      </p>
+      <div class={PANEL}>
+        <section
+          class="overflow-x-auto"
+          aria-label="Run history table, scrolls sideways on a narrow screen"
+          tabindex={0}
+        >
+          <table class="w-full min-w-[720px] border-collapse">
+            <caption class="sr-only">Every published full eval run, newest first</caption>
+            <thead>
+              <tr>
+                <th scope="col" class={TH}>
+                  Date
+                </th>
+                <th scope="col" class={TH}>
+                  Commit
+                </th>
+                <th scope="col" class={TH}>
+                  Selection
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  Attacks caught
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  False alarms
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  Median cost
+                </th>
+                <th scope="col" class={TH}>
+                  Comparable
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {props.rows.map((row) => {
+                const r = row.report;
+                return (
+                  <tr>
+                    <td class={TD}>
+                      {stamp.format(new Date(row.publishedAt))} SAST
+                      <br />
+                      <span class="text-13 text-muted">{r.run.id}</span>
+                    </td>
+                    <td class={cx(TD, "font-mono text-13")}>{r.run.commit.slice(0, 7)}</td>
+                    <td class={TD}>
+                      {r.run.sets.join(", ")} · set {r.run.setVersion.slice(0, 8)}
+                      {r.run.sampleLimit === null ? "" : ` · first ${r.run.sampleLimit}`}
+                    </td>
+                    <td class={cx(TD, NUM)}>{pct(r.main.detection.rate)}</td>
+                    <td class={cx(TD, NUM)}>{pct(r.main.falsePositives.rate)}</td>
+                    <td class={cx(TD, NUM)}>{usd(r.main.costUsd.median)}</td>
+                    <td class={TD}>
+                      {row.comparable ? (
+                        <Pill variant="safe">Comparable</Pill>
+                      ) : (
+                        <Pill variant="neutral">{`Different selection: not comparable (${row.reason})`}</Pill>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      </div>
+      <p class="text-ink-2 max-w-[760px]">{VALIDATION_STATEMENT}</p>
+    </section>
+  );
+}
+
 function RealUse(props: { counts: ProductionCounts }) {
   const c = props.counts;
   return (
@@ -452,7 +541,8 @@ export function EvalPage(props: { view: EvalView }) {
           <Tables report={report} />
         </div>
         <Ablation report={report} rows={view.kind === "report" ? view.ablations : []} />
-        <div class="w-full max-w-[1120px] mx-auto px-16 py-40 md:px-32 md:py-56">
+        <div class="flex flex-col gap-40 w-full max-w-[1120px] mx-auto px-16 py-40 md:px-32 md:py-56">
+          <History rows={view.history} />
           <RealUse counts={view.counts} />
         </div>
       </AppShell>

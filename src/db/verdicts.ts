@@ -3,6 +3,7 @@
 // view again (a retried or replayed step) answers the stored row, and a different one is a `conflict` that changes
 // nothing, so a case never shows two verdicts. Every query's failure is a typed `database` refusal.
 import { z } from "zod";
+import { ABLATE_FLAGS, type AblateFlag } from "../pipeline/ablate";
 import { Verdict } from "./cases";
 
 // A citation marker in running text would let a reader mistake prose for a link to evidence: the evidence ids a reason
@@ -15,6 +16,16 @@ export const Reason = z.strictObject({
   evidenceIds: z.array(z.string().regex(EVIDENCE_ID)).min(1).max(10),
 });
 export type Reason = z.infer<typeof Reason>;
+// The floor outcome (D04 T01 §11): the model's verdict, the floor that replaced it, and the evidence that set
+// it, exactly as `FloorApplied` in src/agent/floor.ts; null when the floor did not raise the verdict.
+export const FloorApplied = z.strictObject({
+  from: Verdict,
+  to: Verdict,
+  evidenceIds: z.array(z.string().regex(EVIDENCE_ID)).min(1).max(10),
+  // The floor rule revision that produced the record (D04 T01 §13); absent on records stored before it.
+  revision: z.string().min(1).max(40).optional(),
+});
+export type FloorApplied = z.infer<typeof FloorApplied>;
 export const VerdictView = z.object({
   verdict: Verdict,
   headline: z.string().trim().min(1).max(300),
@@ -31,6 +42,9 @@ export const VerdictView = z.object({
     .nullable()
     .default(null),
   source: z.enum(["stub", "rules", "agent"]),
+  floorApplied: FloorApplied.nullable().default(null),
+  // The ablation the verdict was produced under (D04 T01 §14): one of eval's four flags, or absent.
+  ablated: z.enum(ABLATE_FLAGS).nullable().optional(),
 });
 export type VerdictView = z.infer<typeof VerdictView>;
 // A stored verdict: a row from before reasons cited evidence reads its plain strings as reasons that cite nothing.
@@ -38,6 +52,10 @@ export type StoredVerdict = Omit<VerdictView, "reasons"> & {
   reasons: { text: string; evidenceIds: string[] }[];
   caseId: string;
   createdAt: string;
+  // Whether the floor was evaluated for this verdict (D04 T01 §13): `raised` (a floor record is stored),
+  // `measured` (stored since the coverage marker was written, with no raise), or `unrecorded` (stored
+  // before the marker existed, so nothing about the floor was kept). Always set on a read row.
+  floorCoverage?: "raised" | "measured" | "unrecorded" | undefined;
 };
 
 export type VerdictError = { code: "invalid" | "conflict" | "database"; message: string };
@@ -52,8 +70,28 @@ type Row = {
   actions: string;
   meaning: string | null;
   source: VerdictView["source"];
+  floor_applied: string | null;
+  ablated: string | null;
   created_at: string;
 };
+// The stored floor outcome (D04 T01 §11 and §13): a JSON record is a raise; the JSON null written since
+// §13 is a measured no-raise; SQL null is a row stored before the outcome was kept at all. Anything else
+// (a malformed or altered value) reads as unrecorded, never as a raise it cannot prove.
+const floorOf = (
+  stored: string | null,
+): { floorApplied: FloorApplied | null; floorCoverage: StoredVerdict["floorCoverage"] } => {
+  if (stored === null) return { floorApplied: null, floorCoverage: "unrecorded" };
+  if (stored === "null") return { floorApplied: null, floorCoverage: "measured" };
+  try {
+    const parsed = FloorApplied.safeParse(JSON.parse(stored));
+    return parsed.success
+      ? { floorApplied: parsed.data, floorCoverage: "raised" }
+      : { floorApplied: null, floorCoverage: "unrecorded" };
+  } catch {
+    return { floorApplied: null, floorCoverage: "unrecorded" };
+  }
+};
+
 const toVerdict = (row: Row): StoredVerdict => ({
   caseId: row.case_id,
   verdict: row.verdict,
@@ -65,6 +103,9 @@ const toVerdict = (row: Row): StoredVerdict => ({
   actions: JSON.parse(row.actions),
   meaning: row.meaning,
   source: row.source,
+  ...floorOf(row.floor_applied),
+  // A legacy row's SQL null, and anything outside eval's four flags, reads as absent.
+  ablated: (ABLATE_FLAGS as readonly string[]).includes(row.ablated ?? "") ? (row.ablated as AblateFlag) : null,
   createdAt: row.created_at,
 });
 const fail = (code: VerdictError["code"], message: string): { ok: false; error: VerdictError } => ({
@@ -77,6 +118,8 @@ const same = (a: Omit<StoredVerdict, "caseId" | "createdAt">, b: VerdictView) =>
   a.confidence === b.confidence &&
   a.meaning === b.meaning &&
   a.source === b.source &&
+  a.ablated === (b.ablated ?? null) &&
+  JSON.stringify(a.floorApplied) === JSON.stringify(b.floorApplied) &&
   JSON.stringify(a.reasons) === JSON.stringify(b.reasons) &&
   JSON.stringify(a.actions) === JSON.stringify(b.actions);
 
@@ -97,6 +140,11 @@ async function citesUnknown(db: D1Database, caseId: string, v: VerdictView): Pro
   return missing.length ? `a reason cites evidence the case does not have: ${missing.slice(0, 5).join(", ")}` : null;
 }
 
+// A newly stored raise must name its floor rule revision (D04 T01 §13); records stored before revisions
+// were named are read, never written, so the schema itself keeps the field optional.
+const unnamedRevision = (v: VerdictView): VerdictResult | null =>
+  v.floorApplied && !v.floorApplied.revision ? fail("invalid", "a floor record names no rule revision") : null;
+
 export async function saveVerdict(
   db: D1Database,
   caseId: string,
@@ -109,9 +157,16 @@ export async function saveVerdict(
   try {
     const unknown = await citesUnknown(db, caseId, v);
     if (unknown) return fail("invalid", unknown);
+    // An identical replay of a historical revisionless raise answers its stored row; only a verdict
+    // with no row yet must name its revision (round 1).
+    const before = await db.prepare("SELECT case_id FROM case_verdicts WHERE case_id = ?").bind(caseId).first();
+    if (!before) {
+      const unnamed = unnamedRevision(v);
+      if (unnamed) return unnamed;
+    }
     await db
       .prepare(
-        "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
+        "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, ablated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
       )
       .bind(
         caseId,
@@ -122,6 +177,9 @@ export async function saveVerdict(
         JSON.stringify(v.actions),
         v.meaning,
         v.source,
+        // A no-raise verdict stores the JSON null, so its floor reads as measured, never unrecorded (§13).
+        JSON.stringify(v.floorApplied ?? null),
+        v.ablated ?? null,
         new Date().toISOString(),
       )
       .run();
@@ -165,10 +223,15 @@ export async function storeVerdict(
   try {
     const unknown = await citesUnknown(db, caseId, v);
     if (unknown) return fail("invalid", unknown);
+    const before = await db.prepare("SELECT case_id FROM case_verdicts WHERE case_id = ?").bind(caseId).first();
+    if (!before) {
+      const unnamed = unnamedRevision(v);
+      if (unnamed) return unnamed;
+    }
     await db.batch([
       db
         .prepare(
-          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
+          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, ablated, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
         )
         .bind(
           caseId,
@@ -179,6 +242,8 @@ export async function storeVerdict(
           JSON.stringify(v.actions),
           v.meaning,
           v.source,
+          JSON.stringify(v.floorApplied ?? null),
+          v.ablated ?? null,
           now,
           caseId,
           orgId,

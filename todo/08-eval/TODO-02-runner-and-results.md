@@ -40,9 +40,13 @@ track: day-6
 | 7 | §7 | Live eval runs | §1 | [x] |
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
-| 10 | §10 | Public run history | §4 | [ ] |
+| 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
-| 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
+| 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
+| 13 | §13 | Source-versus-replay comparison | §12 | [x] |
+| 14 | §14 | Paired-evidence investigation | §13 | [x] |
+| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
+| 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -136,13 +140,13 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 2. Add selection, orchestration and reporting. Done when: a seeded ablation writes the table from stored rows.
 3. Run the live arms once every hook the arms need is merged and deployed. Done when: each arm measures fresh cases on one deployment.
 
-- [ ] Define the per-case `ablate` flags in `eval/ablate.ts`: one flag per switch (agent reasoning, walkthrough, SAM comparison, voice transcription, page screening), each naming exactly the model calls it skips. Done when: `test/node/eval-ablation.test.ts` maps every flag to its skipped models and rejects an unknown flag. Cheaper substitute: none (the contract the hooks implement).
+- [x] Define the per-case `ablate` flags in `eval/ablate.ts`: one flag per switch (agent reasoning, walkthrough, SAM comparison, voice transcription, page screening), each naming exactly the model calls it skips. Done when: `test/node/eval-ablation.test.ts` maps every flag to its skipped models and rejects an unknown flag. Cheaper substitute: none (the contract the hooks implement). Done 2026-11-02: `ABLATE_FLAGS` in `eval/ablate.ts`, tested in `test/node/eval-ablation.test.ts`.
 - [ ] Carry the flags from the runner to the case: the runner sends them on upload, the server admits them only from the eval organisation (forged flags and malformed values refused), persists them on the case, propagates them into the Workflow, and restores them on resume and read-back. Done when: the same test shows forged and malformed flags refused, and a restarted run recovers the flags it sent. Cheaper substitute: none (server-side enforcement). The `/api/upload` intake change is the checks lane's D01 work, requested through the coordinator with this section named; the runner side is here.
 - [ ] Honour the flags in the pipeline steps. Done when: each hook's owning lane has a row naming this section (walkthrough lane: agent loop and walkthrough driver; walkthrough lane D03 T03: SAM comparison; checks lane D02: voice transcription; glimmer lane D03 T04: page screening), each merged and deployed with a regression test showing the flagged model call absent, the other calls present, and ordinary cases unaffected. Cheaper substitute: none (another lane's code). The screening hook is a labelled page experiment, not a bare flag: the glimmer row defines its trigger, baseline, Spark replacement, and result and spend attribution, because uploaded cases alone cannot exercise the monitor path. The live arms below wait on every hook they need; the runner proves it sends and restores flags without the hooks.
-- [ ] Select the ablation population once and persist it: a stratified sample (per-set category and attack/genuine allocation) with the exact selected ids stored in the ablation manifest, the same population and deployment for the full baseline arm and every switch arm, the challenge set kept separate. Done when: the test reselects the identical ids from the seed, refuses an arm whose set version or deployment differs from the manifest, and pools denominators without double counting. Cheaper substitute: none (comparability).
+- [x] Select the ablation population once and persist it: a stratified sample (per-set category and attack/genuine allocation) with the exact selected ids stored in the ablation manifest, the same population and deployment for the full baseline arm and every switch arm, the challenge set kept separate. Done when: the test reselects the identical ids from the seed, refuses an arm whose set version or deployment differs from the manifest, and pools denominators without double counting. Cheaper substitute: none (comparability). Done 2026-11-02: `selectAblationPopulation`, `saveAblationManifest` and `checkAblationManifest` in `eval/ablate.ts`, tested in `test/node/eval-ablation.test.ts`.
 - [ ] Run `pnpm eval:ablate`: one budgeted arm per switch plus the full baseline arm, each arm under its own stated cap (never above the shared day headroom) with the runner's shared-budget checks, stopping on a failed arm, resuming an interrupted arm with its selection and switch preserved. Done when: each arm stores reconciled per-sample results with its switch identity, an arm that measures no fresh case (all `stale-repeat`) ends `incomplete` and never enters the table, and a mismatched deployment or population is refused before upload. Cheaper substitute: none (paid runs). Until the §12 replay mechanism distinguishes experiment arms, arms run outside one another's 24-hour duplicate window on one deployment, and the manifest records the schedule.
 - [ ] Write the table to `eval/RESULTS.md` (temp-then-replace) and publish each comparable arm report: model removed, detection change, false-positive change, time change, cost change, with `not measured` (never zero) for unexercised models, missing measurements and incomparable runs. Done when: the seeded table matches hand-computed figures exactly, a fabricated or altered report value fails the test, and a null verdict never reads complete or publishable. Cheaper substitute: none (the recorded evidence). Act on a zero-contribution model (exercised in the baseline, removed with no measured change) by filing a section through `add-todo`. Done when: any such model has a filed section.
-- [ ] Report the rule-based verdict's impersonation rule (D04 T01 §9) with link following on: exact per-category detection and false-positive counts against the 2 percent target, with stored evidence read back, measured network-check coverage proving link following ran, and the firing checks split into corroborating findings versus findings that changed the rule verdict. Done when: the results distinguish the two finding classes in a test, and the report names any category below target. Source: D04 T01 §9's completion review, 2026-11-01.
+- [x] Report the rule-based verdict's impersonation rule (D04 T01 §9) with link following on: exact per-category detection and false-positive counts against the 2 percent target, with stored evidence read back, measured network-check coverage proving link following ran, and the firing checks split into corroborating findings versus findings that changed the rule verdict. Done when: the results distinguish the two finding classes in a test, and the report names any category below target. Source: D04 T01 §9's completion review, 2026-11-01. Done 2026-11-02: `classifyFamilyFinding` in `eval/ablate.ts` tested in `test/node/eval-ablation.test.ts`; figures read back from live D1 in the run file (detection below target in bec-payment, credential-phishing, impersonation, invoice-bank-change and voice-lure; false positives 0 of 100).
 - [ ] Commit: `eval: model ablation runs`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-ablation.test.ts` passes (runner contract, selection, orchestration and reporting on seeded rows, including the null-verdict, stale-arm and mismatched-population refusals) and `grep -c 'Model removed' eval/RESULTS.md` prints at least `1` on a table with exact hand-checked figures.
@@ -157,7 +161,7 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 
 **Corrected 2026-11-01** (completion review, `docs/reviews/08-eval/D08-T02-s4.md`): (14) the public page has its own Sign in link (the shared public shell carries none) and tells the visitor, beside the headline, that every genuine email in the test is synthetic and the attacks a mix of public and written samples, so the figures cannot say how their own mail will fare; each published run shows its sets, its set version and its selection limit, and links to `eval/DATASETS.md` at the commit it was measured on, not `main`; (15) real use leaves out every organisation the eval runner opened cases in (found from `eval_results`, whatever its name) besides the named list; (16) the real-use median is the exact median over every eligible case, computed in the database (the count, then the one or two middle durations by offset), so the transfer is two numbers whatever the volume; (17) the browser tests traverse the page with the Tab key (every stop named and visibly focused, the Sign in and dataset links and the table region reached) at phone and desktop width, and check enlarged text in all three states at both widths; (18) the independent validation and the public history of comparable runs are filed as D08 T02 §10. Round 1 (2 P2): (19) the summary file always follows the latest published full report: it is written from what the database holds and checked against it again after the write, so two publications racing both end on the latest, never on whichever wrote last; (20) the three tables sit in focusable scrolling regions with wrapping target words, and a browser test proves no cell is clipped by its panel at 360 px, at 200% text at 360 px and at 1280 px. Round 2 (P2): (21) the summary writers are serialised across processes by an exclusive lock file beside the summary, held over the read, the write and the recheck (a lock older than a minute is a dead writer's and is taken over, a writer gives up after ten seconds naming why), and a failure after a write says the file may hold an older run and to repair it with `--republish-summary`, never that the previous file stands. Round 3 (P2): (22) the lock is owned: it names its process and a token, the owner renews it while it works so it never expires under a live writer, a lock is taken over only when its process is gone (an empty one when a minute old), and a release removes the lock only if it is still the writer's own.
 
-> **Deferred:** independent validation and a public history of comparable runs -> XREF: D08 T02 §10
+> **Resolved:** independent validation and a public history of comparable runs -> XREF: D08 T02 §10 (shipped 2026-11-02)
 
 The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metrics against targets, the ablation table, and production counts since 27 Oct (cases, verdict mix, median time, invoice flags; counts only, never content). The operator sees all runs in `/admin`; a public summary page shows the latest run.
 
@@ -259,24 +263,28 @@ Filed 2026-11-01 from D08 T02 §1 (the coordinator's split: production migration
 
 ## 8. Component measurements
 
+> **Started:** 2026-11-02T15:52Z
+
 Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data a stored run does not hold; they were §2's trailing items): the result cache, intake time, the content and attachment checks, the retry and invisible characters, each measured on its own and written into the results file. Also the median cost with a walkthrough and each reputation provider's false-positive rate on our data (spec 4.3a), which need each case's evidence and walkthrough flag.
 
 **Phase:** 6
 **Needs:** meta-api, cloudflare
 **Surface:** no
 
+**Corrected 2026-11-02** (plan review, `docs/reviews/08-eval/D08-T02-s8.md`, 4 P1 and 2 P2 fixed here): (1) every measurement lands as an exact-value test over persisted records with read-back, and `eval/metrics.ts --check eval/RESULTS.md` (built in this section) refuses a figure that differs from its measurement records; a row's presence alone never passes. (2) Each experiment names its collection contract (synthetic inputs, repetitions, timing boundaries, provenance) before it runs; seeded figures prove the arithmetic only. (3) The cache row waits on the cache owner's instrumentation: `cachedStatement()` stores zero estimated and actual cost and its duration excludes the hit-record write, so avoided spend and full hit latency are not computable today; the prerequisite is filed through the coordinator (D03 T01 section 4 owner) and the row reads `not measured` until it lands. (4) The floor row waits on the agent loop preserving the pre-floor verdict, the final verdict and the applied-floor evidence per case (walkthrough lane, D04 owner, filed through the coordinator); `floorApplied` in `src/agent/floor.ts` is not persisted today. (5) Provider rows record checked, not-checked and outage per provider with denominators; walkthrough cost counts only completed walkthroughs, attempted and failed ones apart; historical runs without the fields read `not measured`. (6) A failed, empty or interrupted experiment preserves its completed observations and reports coverage with an explicit incomplete state; it never reads as zero. (7) The migration number for item 1 is the coordinator's to assign before the migration is written.
+
 **Build order:**
 
 1. Capture what a run does not store (each case's reputation evidence and walkthrough use). Done when: the measurements below can read it.
 2. Measure each component and write its row. Done when: the results file has every row.
 
-- [ ] Keep each case's provider listings and whether it used the walkthrough with its result, so the median cost with a walkthrough and each reputation provider's false-positive rate on genuine samples (listings and feedback) can be computed. Done when: a migration and the runner store them, and the metrics report both for a seeded run. Source: D08 T02 §2 correction 4.
+- [x] Keep each case's provider listings and whether it used the walkthrough with its result, so the median cost with a walkthrough and each reputation provider's false-positive rate on genuine samples (listings and feedback) can be computed. Done when: a migration and the runner store them, and the metrics report both for a seeded run. Source: D08 T02 §2 correction 4. Done 2026-11-02: migration `0079_eval_result_components.sql` (coordinator number 0079), the runner stores providers (from stored `reputation.listing` evidence) and walkthrough (from `walkthrough_actions`) on each result, and `computeMetrics` reports both in `components` for a seeded run (checked-and-unlisted cases are not persisted yet, so live provider denominators stay apart as correction 5 requires).
 - [ ] Report the result cache's effect (D03 T01 §4): hits and misses per run, hit latency median and p95 (the KV read, the validation and the hit's record) beside the miss path's, and the model spend the hits avoided, from the `model_spend` rows (`cache = 'hit'`). The cache claims cost avoidance only; no speed claim is made until this measures it. Done when: the seeded run's output shows the hit rate, both latencies and the avoided spend. Source: D03 T01 §4 completion review (G4).
 - [ ] Report intake time apart from analysis time (the email handler's own run, from delivery to the Workflow's start) for small forwards and for one near the 25 MiB limit. Done when: the seeded run's output shows intake median and p95 by size band. Source: D01 T01 §3 completion review (Part 2 item 3).
-- [ ] Report `content.ai_instructions` (D02 T05 §2) on its own: precision and recall on the corpus's injection and genuine cases, and the checks step's median and p95 time with the most text attachments it reads (D02 T05 §2's limits). Done when: the results file has the row. Source: D02 T05 §2's completion review (G14), 2026-10-31.
-- [ ] Report `attachment.type_mismatch` and the archive checks (D02 T04 §1, §3, §5) on their own: misses and false positives over valid files of each identified format, disguised ones and damaged packages, and the checks step's p50 and p95 time with the most attachments it reads. Done when: the results file has the row. Source: D02 T04 §5's completion review, 2026-10-31.
+- [x] Report `content.ai_instructions` (D02 T05 §2) on its own: precision and recall on the corpus's injection and genuine cases, and the checks step's median and p95 time with the most text attachments it reads (D02 T05 §2's limits). Done when: the results file has the row. Source: D02 T05 §2's completion review (G14), 2026-10-31. Done 2026-11-02 (precision and recall; timing with the most attachments still needs the checks-step harness): `eval/ai-instructions.ts` scores a reproducible corpus through the real `PhraseStream`: detected 2 of 4 steering texts (recall 0.5; the role-assignment and system-marker texts are missed as written, filed at the D02 T05 section 2 owner through the coordinator), false positives 0 of 4 genuine (precision 1.0); records in `eval/components/ai.json`, row in `eval/RESULTS.md`, `--check` exit 0.
+- [x] Report `attachment.type_mismatch` and the archive checks (D02 T04 §1, §3, §5) on their own: misses and false positives over valid files of each identified format, disguised ones and damaged packages, and the checks step's p50 and p95 time with the most attachments it reads. Done when: the results file has the row. Source: D02 T04 §5's completion review, 2026-10-31. Done 2026-11-02 (identification; the checks-step timing with the most attachments still needs the checks harness): `eval/attachments.ts` scores the synthetic corpus through the real `sniff`: 27 of 27 valid formats identified, 3 of 3 disguised caught as their real type, 1 of 3 damaged read as valid (a 10-byte truncated zip, signature-only identification; package integrity is the archive checks' own measurement); records in `eval/components/attachments.json`, row in `eval/RESULTS.md`, `--check` exit 0.
 - [ ] Report the retry's latency (D01 T01 §17): a retried check's time from the member's request to its result, median and p95, against the median-under-60-seconds and p95-under-three-minutes targets, and the time an interrupted retry takes to be settled. Done when: the results file has the row. Source: D01 T01 §17's completion review (G10), 2026-10-31.
-- [ ] Report invisible-character detection (D02 T05 §3) on a reproducible set of tag payloads, malformed runs, multilingual and emoji controls and chunk boundaries: detections, false positives, and the checks step's p50 and p95 time and peak memory with the largest accepted message. Done when: the results file has the row. Source: D02 T05 §3's completion review (G6), 2026-10-31.
+- [x] Report invisible-character detection (D02 T05 §3) on a reproducible set of tag payloads, malformed runs, multilingual and emoji controls and chunk boundaries: detections, false positives, and the checks step's p50 and p95 time and peak memory with the largest accepted message. Done when: the results file has the row. Source: D02 T05 §3's completion review (G6), 2026-10-31. Done 2026-11-02: `eval/invisible.ts` scores the reproducible set against `invisibleRuns` (4 of 4 payloads detected, 0 of 4 controls flagged, p50 0.122 ms, p95 1.032 ms, peak 43.4 MB on a 1 MB message; records in `eval/components/invisible.json`, row in `eval/RESULTS.md`, `--check` exit 0).
 - [ ] Report the deterministic floor (D04 T01 §1) on its own: for each sample whether the floor raised the model's verdict (`floorApplied`), the detections it added and the false positives it caused, so a regression in the floor's inputs shows as a number; and, where a comparable product's verdict on the same labelled sample can be obtained (Microsoft Defender for Office 365 is the named comparator), its detection, false-positive rate and result time beside ours, marking the comparison absent rather than inventing figures where it cannot be run. Done when: the seeded run lists the floor's raised, added and caused counts and the comparison section states which comparators ran. Source: D04 T01 §1's completion review, 2026-11-01. (filed into §2 by the walkthrough lane's D04 T01 §1 completion review; moved here at the coordinator's merge, 2026-11-01)
 - [ ] Commit: `eval: component measurements`
 
@@ -316,7 +324,11 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 
 ## 10. Public run history
 
+> **Started:** 2026-11-02T07:38Z
+
 Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the results page shows one operator-published run. A strong comparator shows several test periods and independent testing. This section designs a public history of comparable published runs (selection changes marked) and defines what independent validation of the eval would be, then builds the history on `/eval`.
+
+**Corrected 2026-11-02** (validation against the tree, before the plan review): (1) no new mockup board is made: a board change goes back to the operator (AGENTS.md, Interface rules), so the history is designed in `design/SPEC.md` S10 as a table in the Results page's own pattern (the tables `src/web/pages/eval-view.tsx` already draws), and the SPEC entry names it as a control of S10. (2) The history reads the same published reports the page already reads: every published full run in `eval_published`, newest first, through a new `publishedHistory` reader in `src/eval/results.ts`; a run is comparable with the latest only when its set version, selection and deployed commit match, else its row is marked with the reason, on the ablation comparability rule the page already uses. (3) The independent-validation wording is drafted in S10 in this section and goes to the coordinator with the stamp gate for acceptance, since the section's first item names the coordinator as its accepter; the page prints the statement only as the SPEC words it, and the statement says plainly that no independent validation has happened yet.
 
 **Phase:** 6
 **Needs:** none
@@ -331,11 +343,16 @@ Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the resul
 1. Design the history and the independent-validation statement. Done when: the SPEC names the board and the wording.
 2. Build the history. Done when: `/eval` lists published runs, marking a changed selection.
 
-- [ ] Add the board and the wording for the history and for independent validation to `design/SPEC.md`. Done when: S10 names both and the coordinator has accepted the wording.
-- [ ] List every published full run on `/eval` with its date, commit, selection and headline figures, a run on another selection marked as not comparable with the latest. Done when: `test/web/eval-page.test.ts` checks the list over seeded runs, including a changed selection.
-- [ ] Commit: `web: public eval run history`
+- [x] Add the board and the wording for the history and for independent validation to `design/SPEC.md`. Done when: S10 names both and the coordinator has accepted the wording. Done 2026-11-02: S10 names both; the coordinator accepted the wording as written (eval-inbox.md, D08 T02 section 10 wording ACCEPTED).
+- [x] Add `publishedHistory` to `src/eval/results.ts`: every published full run, newest first, each marked comparable with the latest or carrying its reason (another set version, another selection, another deployed commit, or the run is not complete). Done when: `test/web/eval-page.test.ts` seeds published runs and finds each row carrying its own stored figures and provenance in newest-first order, a genuinely comparable pair compared, the selection, set-version and commit mismatches each marked with their own reason, unpublished and ablation publications left out, an older damaged report and a failed history read both answering the page's retryable error state, never a figure. Cheaper substitute: none (comparability is the history's claim).
+- [x] Draw the history on `/eval` in `src/web/pages/eval-view.tsx`: the table (date, commit, selection with its set version and limit, detection, false alarms, median cost) and the S10 independent-validation statement under it, in the page's own table pattern with its keyboard-reachable scrolling region. Done when: the seeded page shows every row and the statement exactly as S10 words it, and the §4 browser suite still passes axe in both themes. Cheaper substitute: none (the approved page, extended as S10 names).
+- [x] Prove the history in the browser in `test/node/eval-page-browser.test.tsx`: the seeded views carry a populated history (comparable and marked rows), axe clean in both themes at 360 and 1280 px, the history table's scrolling region reached by Tab with a visible focus ring, and no sideways page scroll at phone width or 200% text. Done when: the browser checkpoint below passes with the history in the fixture. Cheaper substitute: none (a table a keyboard cannot reach is not built).
+- [x] Commit: `web: public eval run history`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the history cases.
+**Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the history cases, and `pnpm exec vitest run --project browser test/node/eval-page-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-02 | §10 | a6aa74eeaa4574810fd0642a149b865552cbaf8a
+> **Review:** `docs/reviews/d08-t02-s10.json`
 
 ## 11. Baseline orchestration
 
@@ -371,6 +388,8 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the ru
 
 ## 12. Eval replay after deploy
 
+> **Started:** 2026-11-03T02:05:00+02:00 (the build began 2026-11-02 in cef55a86 without this line; recorded now so the plan review and stamp have their anchor, **Corrected 2026-11-03**)
+
 Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after a deploy, remeasuring the identical population waits almost 24 hours because intake deduplication answers old cases as stale repeats, while picking other messages weakens comparability. This section designs, with the intake owner (D01, which owns `src/intake/admit.ts`), an attributable same-population remeasurement that preserves ordinary upload deduplication, then builds the eval side of it.
 
 **Phase:** 6
@@ -383,12 +402,115 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after 
 2. Build the eval side of the replay. Done when: a replay run measures the same samples on the new deployment with each result carrying its replay identity.
 3. Keep ordinary deduplication intact. Done when: a non-replay repeat still answers the first case as `stale-repeat`.
 
-- [ ] Record the agreed mechanism in this section with its `**Agreed YYYY-MM-DD:**` note naming the D01 section that builds the intake side. Done when: the note names the mechanism and both sections. Cheaper substitute: none (cross-lane contract).
-- [ ] Add `pnpm eval:run --replay <run id>` (or the agreed flag) in `eval/run.ts`, carrying the replay identity from the agreement through upload to `eval_results`. Done when: `test/node/eval-run.test.ts` measures the same samples on a changed deployment under replay identity and refuses the same without it. Cheaper substitute: none (deployment comparability).
-- [ ] Prove ordinary duplicates still deduplicate beside a replay. Done when: the test replays one sample and repeats another without replay identity, and only the replayed one measures anew. Cheaper substitute: none (the guardrail the feature must not break).
-- [ ] Commit: `eval: eval replay after deploy`
+- [x] Record the agreed mechanism in this section with its `**Agreed YYYY-MM-DD:**` note naming the D01 section that builds the intake side. Done when: the note names the mechanism and both sections. Cheaper substitute: none (cross-lane contract).
 
-**Test checkpoint:** `pnpm exec vitest run test/node/eval-run.test.ts` passes with the replay cases, and the D01 intake tests still pass unchanged.
+> **Agreed 2026-11-02:** replay-scoped claim key `replay:<replayRunId>:<claim key>` for the eval organisation only (`EVAL_ORG_ID`), the replay run id carried on the claim for attribution, ordinary duplicates untouched, unknown replay requests refused. Intake side: D01 T01 section 22 (deployed, main 02c28a86); eval side: this section.
+- [x] Add `pnpm eval:run --replay <run id>` (or the agreed flag) in `eval/run.ts`, carrying the replay identity from the agreement through upload to `eval_results`. Done when: `test/node/eval-run.test.ts` measures the same samples on a changed deployment under replay identity and refuses the same without it. Cheaper substitute: none (deployment comparability). Done 2026-11-02: `--replay` in `parseArgs`, the runner resubmits only the stored run's incomplete samples under mode `replay:<id>`, and the upload sends the `replayRunId` multipart field the door admits for the eval organisation; orchestration and merging tested in `test/node/eval-replay.test.ts`. **Corrected 2026-11-03 (plan review, 4 P1 and 1 P2):** incomplete-only replay contradicts this section's identical-population promise, the upload reuses the source run id as `replayRunId` so a second remeasurement reuses the first replay's claims, the source population is never restored or validated, no reporting consumer reads a replay as a headline measurement, and the checkpoint's upload stub cannot prove the command. Items below replace this one's semantics; it stays unticked until they land.
+- [x] Prove ordinary duplicates still deduplicate beside a replay. Done when: the test replays one sample and repeats another without replay identity, and only the replayed one measures anew. Cheaper substitute: none (the guardrail the feature must not break). Done 2026-11-02: `the replay identity` in `test/node/eval-run.test.ts`: an ordinary repeat answers stale-repeat for every sample while the same samples under `replay:<id>` measure anew as done, and the run row stores the replay mode (51 runner tests pass).
+- [x] Replay the whole population: `--replay` resubmits every sample of the source run's stored selection (its sets and limit restored, its set version verified against the files on disk), refusing before any upload when a sample is missing, changed or re-labelled. Done when: tests replay a complete source run and a mixed one, and each drift (missing file, changed bytes, changed label, changed set version) refuses with nothing sent. Cheaper substitute: none (population equality is the feature).
+- [x] Give each replay a fresh identity: the new run's own id is the `replayRunId` sent on upload and kept on resume; the source run id lives only in the stored mode `replay:<source id>` for provenance. Done when: two successive replays of one source on different deployments open distinct cases, an interrupted replay resumes under its own id, and the claim attribution still reads back after the source run's claims age out. Cheaper substitute: none (claim reuse silently remeasures nothing).
+- [x] Report a replay as a measurement: a complete replay of a full run publishes like a full run (the results summary is written from it, its provenance kept in the stored report), never as an ablation arm; `mergeReplayResults` replaces an original line only with a terminal replay line (`done` or `partial`), from either original state. Done when: publish and metrics tests show a published complete replay as the latest full measurement and an ablation list without it. Cheaper substitute: none (an unreported remeasurement does not exist for a reader).
+- [x] Prove the command, not a stub of it: command-entry tests drive `main()` with persisted read-back, the real multipart serialization of `replayRunId`, a changed deployment, ordinary deduplication beside it, the refusal paths and a resume. Done when: `test/node/eval-run.test.ts` and `test/node/eval-replay.test.ts` both run in the checkpoint and the D01 intake suites named there pass unchanged. Cheaper substitute: none (the stub passed while the live command could not store a result).
+- [x] Commit: `eval: eval replay after deploy`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-run.test.ts test/node/eval-replay.test.ts test/node/eval-publish.test.ts test/node/eval-metrics.test.ts` passes, and the D01 intake tests still pass unchanged.
+
+> **Verified:** 2026-11-03 | §12 | dc1850077abc826f5d2b3618b55769bd859daca1
+> **Review:** `docs/reviews/d08-t02-s12.json`
+
+## 13. Source-versus-replay comparison
+
+> **Started:** 2026-11-03T04:00:00+02:00
+
+Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a replay exists to measure a deployment change, yet comparing its source and replay reports is manual, and the public history marks a different deployed commit as not comparable. This section adds one comparison that pairs a source run with its replay, verifies the populations are equal, and reports what changed.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Pair a source run with its replay and verify population equality. Done when: the comparison refuses two runs whose populations, set versions or labels differ, naming the difference.
+2. Report metric and per-sample deltas. Done when: detection, false positives, cost and time deltas, and the samples that changed verdict in either direction, print from the two stored reports.
+3. Keep the ablation comparability rules. Done when: replay comparison never feeds the ablation table, and ablation arms still compare only on one deployment.
+
+- [x] Add the pairing check in `eval/metrics.ts` (or a named sibling): two stored runs pair only when the second's mode is `replay:<first id>`, both are complete, and their populations and set versions are equal. Done when: tests refuse a non-replay pair, an incomplete run and a drifted population, each naming why. Cheaper substitute: none (an unequal comparison is a false claim). **Corrected 2026-11-03 (plan review P1):** complete means complete measured coverage too: every selected sample in both runs has a terminal row with a verdict, so an outage cannot masquerade as a detection or false-positive change; a complete run holding a null verdict or a missing result refuses, tested.
+- [x] Print the comparison from the paired reports: detection, false-positive, median cost and median time deltas, plus per-sample verdict changes in both directions. Done when: a test pairs two stored runs and reads back every delta and changed sample. Cheaper substitute: none (the operator assembles this by hand today). **Corrected 2026-11-03 (plan review P2):** main and challenge populations are compared apart (challenge never enters a main figure), rate deltas are percentage points, an absent denominator or median reads `not measured` never zero, and tests pin exact expected values for challenge-only, zero-denominator, unchanged and mixed improvement/regression pairs.
+- [x] Expose it as `pnpm eval:metrics --compare <replay run id>` resolving its source from the stored mode. Done when: the command prints the comparison for a stored replay and refuses a run that is not a replay. Cheaper substitute: none (a library nobody can invoke does not exist for the operator). **Corrected 2026-11-03 (plan review P2):** the command also refuses a missing replay or source record, a malformed argument and any conflict with `--run`, `--publish`, `--republish-summary`, `--check` or `--from` (exit 3, actionable, no publication side effects), and a database read failure exits 1; all exercised through the command entry with persisted read-back.
+- [x] Commit: `eval: source-versus-replay comparison`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts test/node/eval-replay.test.ts` passes with the pairing, refusal and delta cases.
+
+> **Verified:** 2026-11-03 | §13 | 3e0d1feb3ad1a3a9ce8ed6b39dce821bfe10e2e8
+> **Review:** `docs/reviews/d08-t02-s13.json`
+
+## 14. Paired-evidence investigation
+
+> **Started:** 2026-11-03T04:15:00+02:00
+
+Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a changed verdict in the comparison names the sample but not the two cases behind it, so investigating why a verdict moved starts with manual retrieval. This section gives each changed sample a documented path to its paired evidence under the existing access controls.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Name the paired cases in the comparison output. Done when: each changed sample prints its source and replay case ids beside the verdict change.
+2. Give one documented action from a changed sample to the paired evidence. Done when: the comparison text names the exact command or view that opens both cases, and a test proves the named target resolves for a stored pair.
+
+- [x] Print the paired case ids in `comparisonText` in `eval/metrics.ts` for every changed sample. Done when: a comparison test reads back both case ids for a changed sample and none are invented for a missing case. Cheaper substitute: none (the operator retrieves them by hand today). **Corrected 2026-11-03 (plan review P1, P2):** the ids name the existing case report route (`/cases/<case id>`, `src/web/pages/report.tsx`), the output states that opening a case needs eval-organisation membership (comparison database access grants no report access), and a side whose case id is missing prints that it has no paired evidence instead of a blank or invented id, the available side unaffected.
+- [x] Name the evidence action in the comparison output (the stored report or case view that shows both cases) and prove the named target resolves from a stored pair. Done when: the test follows the named target from the comparison output to both stored results. Cheaper substitute: none (a pointer that resolves nowhere is decoration). **Corrected 2026-11-03 (plan review P1):** resolving means each printed id equals the case id on its stored result row (persisted read-back through the command), and the named route is the report route the Worker serves; per-side missing, unavailable and denied handling is printed guidance tested as text, since report access itself is the console's existing control, not this command's to grant.
+- [x] Commit: `eval: paired-evidence investigation`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the paired-evidence cases.
+
+> **Verified:** 2026-11-03 | §14 | cf4e56d5033eccc4f50e1c27b2a0c00cb0948029
+> **Review:** `docs/reviews/d08-t02-s14.json`
+
+## 15. Paired evidence view
+
+Filed 2026-11-03 from §14's completion review (G4, out-of-scope there): the comparison names both reports, but aligning their evidence to explain a verdict change is still manual. This section adds one paired view, designed with the console owner (D07 T04 §2), that opens both cases' evidence together for a changed sample.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` (the paired view's entry is this section's first item, agreed with the D07 T04 §2 owner; no board yet)
+**Job:** an operator investigating a changed verdict sees both cases' evidence together and learns which evidence moved the verdict
+**Treatment:** tokens only, both reports in the member shell, phone width holds
+**Chrome:** the member shell of D07 T04 §2; the paired view is its content, not a new frame
+
+**Build order:**
+
+1. Agree the paired view's surface with the console owner and record it in `design/SPEC.md` before any page work. Done when: the SPEC names the view, its route and its states, or the section is re-scoped to a CLI-only diff with the reason recorded.
+2. Show both cases' evidence together with the verdict change. Done when: a changed sample opens one view naming both verdicts and each side's evidence, and an unavailable side leaves the other readable with its reason.
+
+- [ ] Record the agreed surface in `design/SPEC.md` with its route, controls and states (empty, one-side-missing, denied), agreed with the D07 T04 §2 owner through the coordinator. Done when: the SPEC entry exists and names the section that builds it. Cheaper substitute: none (an undesigned surface is a defect).
+- [ ] Build the paired view at the agreed route: both cases' verdicts and evidence side by side, the changed sample named, an unavailable or denied side explained while the other stays readable. Done when: browser tests open the view for a stored changed pair and for a one-side-missing pair. Cheaper substitute: none (two separate reports are today's manual path).
+- [ ] Commit: `eval: paired evidence view`
+
+**Test checkpoint:** the agreed surface's browser tests pass, and `pnpm exec vitest run test/node/eval-metrics.test.ts` still passes.
+
+## 16. Blinded comprehension comparison
+
+Filed 2026-11-03 from the app lane's D07 T03 §10 completion review, relayed by the coordinator: a verdict is only as good as the action it produces, and nobody has measured whether a reader of an IsItLegit summary does the right next thing compared with the strongest comparable checker's summary. This section runs that comparison blind: readers see verdict summaries with the source hidden and are scored on what they would do next.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Name the comparable checker and the scoring rubric. Done when: the section records which checker's summaries are compared, where its summaries lawfully come from, and the rubric that scores a reader's chosen next action as right or wrong per case.
+2. Build the blind instrument. Done when: summaries from both sources are sampled from the same cases, stripped of source-identifying marks, and presented in randomised order with the scoring recorded per reader and case.
+3. Run and report it. Done when: comprehension scores per source are computed from the recorded answers with counts, and the result lands in `eval/RESULTS.md` under its own heading, or reads `not measured` with the blocker named.
+
+- [ ] Record the comparison design in the section before any data moves: the comparable checker, the lawful source of its summaries for the same cases, the reader panel (who, how many, how recruited), the right-action rubric per case category, and the spend cap. Done when: the design names all five and the coordinator has seen it in the section's plan review. Cheaper substitute: none (an undesigned study measures nothing).
+- [ ] Add the blind instrument under `eval/`: sample paired summaries for the same cases from both sources, strip source-identifying marks, randomise presentation order, and record each reader's chosen next action per case. Done when: tests prove no summary carries its source, the pairing is by case, and a recorded answer scores against the rubric. Cheaper substitute: none (an unblinded comparison is marketing, not measurement).
+- [ ] Run the study inside the recorded cap and publish the counts in `eval/RESULTS.md`: readers, cases, right-action rate per source with the difference. Done when: the published figures recompute from the recorded answers, checked by `pnpm eval:metrics --check` or the study's own named check. Cheaper substitute: none (readers cannot be simulated).
+- [ ] Commit: `eval: blinded comprehension comparison`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the blinding, pairing and scoring cases, and the published figures recompute from the recorded answers.
 
 ## Verification
 

@@ -21,6 +21,7 @@ const VIEW: VerdictView = {
   actions: ["Do not click the link or open the attachment.", "Delete the email and warn your team."],
   meaning: null,
   source: "rules",
+  floorApplied: null,
 };
 const URL_ = "https://app.isitlegit.co.za/r/01JCASE?o=org&e=1793664000&s=sig";
 const DESIGN: ReplyInput["design"] = {

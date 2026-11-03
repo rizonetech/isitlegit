@@ -43,8 +43,9 @@ track: day-4
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
-| 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [ ] |
-| 8 | §8 | Collector failure is not rejection | §1, §5 | [ ] |
+| 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [x] |
+| 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
+| 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -273,6 +274,10 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 
 ## 7. One URL policy with the
 
+> **Started:** 2026-11-03T00:20:00Z
+
+> **Corrected 2026-11-03 (against the tree):** the checks lane's side has already adopted this policy: `src/checks/expand.ts` imports `allowedUrl`, `dohResolve` and `Resolve` from `src/walkthrough/url-policy.ts`, and no second address check exists in `src/checks/` or `src/vision/render.ts` (grep proves it). The coordinator ask registered for this section is therefore answered by main itself; what remains is the side-by-side comparison, the proof that both callers' tests cover every case of both former policies, and the record. No checks-lane code changes in this section.
+
 Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in Browser Run) was not stamped when the walkthrough driver needed request interception, so §3 wrote its own strict URL policy (`src/walkthrough/url-policy.ts`). Two policies for the same question drift apart; this section makes one.
 
 **Phase:** 7
@@ -284,13 +289,22 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 
 1. Compare the two policies and keep the stricter rule of each. Done when: one module answers both callers.
 
-- [ ] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
-- [ ] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
-- [ ] Commit: `walkthrough: one URL policy with the redirect checks`
+- [x] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
+- [x] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
+- [x] Commit: `walkthrough: one URL policy with the redirect checks`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts` passes and every case of both former policies' tests is in it.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts test/checks/live-policy.test.ts` passes and every case of both former policies' tests is in it; `test/node/expand-browser.test.ts` (the redirect interception suite) passes unchanged.
+
+> **Verified:** 2026-11-03 | §7 | f5cfa9575348637838b50b7cdf8af0e8327e3238
+> **Review:** `docs/reviews/d04-t02-s7.json`
 
 ## 8. Collector failure is not rejection
+
+> **Started:** 2026-11-02T07:36:54Z
+
+> **Corrected 2026-11-02 (build, against the existing test at `test/walkthrough/evidence.test.ts`):** the authentication refusals that stay `rejected` are 401 and 403: a real page's 401 is a credential judgement, as the suite's `/signin-401` case already held, and the fixture collector's refused pair is 403. Every other 4xx and every 5xx is `unknown`.
+
+> **Corrected 2026-11-02 (completion review):** a 403 alone is not a credential judgement: an access policy or anti-bot rule can answer 403 before any credential is judged (RFC 9110 section 15.5.4). A delivered 403 reads `rejected` only when a page seen after the whole answer corroborates a credential refusal (it still asks for a password and its text specifically refuses the credentials, the driver's `refusal` signal; a generic error or challenge word is not enough); otherwise it reads `unknown`. A delivered 401 stays `rejected`.
 
 Filed 2026-11-02 from §1's completion review (G6): a fixture collector that answers 500 (its trace or store failed) is read by `acceptance()` in `src/walkthrough/evidence.ts` as a credential rejection, because every status at or above 400 classifies as rejected. A backend failure and a refused login are different findings: the first says the fixture broke, the second says the page said no.
 
@@ -304,11 +318,33 @@ Filed 2026-11-02 from §1's completion review (G6): a fixture collector that ans
 1. Classify collector and server failures as unknown in the evidence. Done when: a delivered 5xx no longer reads as rejected.
 2. Prove both readings in a browser against the served fixtures. Done when: a refused pair reads rejected and a failing collector reads unknown.
 
-- [ ] Distinguish server failure from refusal in `acceptance()` in `src/walkthrough/evidence.ts` (a delivered 5xx is `unknown`, a 4xx refusal stays `rejected`). Done when: `test/walkthrough/evidence.test.ts` covers a delivered 500 and a delivered 403. Cheaper substitute: naming the fixture host in the evidence layer.
-- [ ] Prove the two readings through the contained driver in `test/walkthrough/fixtures.test.ts` (a refused canary pair, then a collector whose KV write fails). Done when: the walk's evidence reads `rejected` for the first and `unknown` for the second.
-- [ ] Commit: `walkthrough: collector failures are not credential rejections`
+- [x] Distinguish server failure from refusal in `acceptance()` in `src/walkthrough/evidence.ts` (a delivered 5xx is `unknown`, and so is a non-refusal 4xx: 400, 404, 413 and 429 mean the request was never judged; a delivered 403 reads `rejected` only when a following page still asks and specifically refuses the credentials (`refusal` in `src/walkthrough/driver.ts`), otherwise `unknown`). Done when: `test/walkthrough/evidence.test.ts` covers a delivered 500, a delivered 429, an uncorroborated 403 as `unknown` and a corroborated 403 as `rejected`. Cheaper substitute: naming the fixture host in the evidence layer.
+- [x] Prove the readings through the contained driver in `test/walkthrough/fixtures.test.ts` (a refused canary pair, then a collector whose KV write fails, then a rate-limited collector). Done when: the walk's evidence reads `rejected` for the first and `unknown` for the others, with no `walkthrough.canary_accepted` item for the limited walk.
+- [x] Commit: `walkthrough: collector failures are not credential rejections`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 is classified `rejected`.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 or 429 is classified `rejected`.
+
+> **Verified:** 2026-11-02 | §8 | e0993398daee4eab02c7454f5984001e7cea231f
+> **Review:** `docs/reviews/d04-t02-s8.json`
+
+## 9. Ablation flag in the walkthrough
+
+Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-walkthrough` case the walkthrough step skips the Muse Wonder walk entirely and stores the same evidence shape with the step marked ablated, so an ablation arm measures the case exactly as if the walk had found nothing to follow, with the reason named.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/walkthrough/trigger.test.ts test/walkthrough/evidence.test.ts` passes with no walk outcome changed for an unflagged case.
+
+**Build order:**
+
+1. Read the flag where the trigger decides to walk. Done when: a flagged case starts no browser and calls no model.
+2. Store the walkthrough evidence with the ablation named. Done when: the case's report shows the walk was ablated, not absent.
+
+- [ ] Honour `no-walkthrough` in `src/walkthrough/trigger.ts` through `ablateFlagFor` (D04 T01 §14): no `Driver.open`, no Wonder call, and the walkthrough evidence stored through the usual producer with `ablated: "no-walkthrough"` in its detail. Done when: `test/walkthrough/trigger.test.ts` shows a flagged case with no browser launched, no model spend row, and the ablated evidence read back; an unflagged case walks as today.
+- [ ] Commit: `walkthrough: ablation flag in the walkthrough`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes, and fails if a flagged case launches a browser.
 
 ## Verification
 

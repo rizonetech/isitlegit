@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
+  type InviteBatch,
   type InviteDraft,
   OUTCOMES,
   type Outcome,
@@ -59,7 +60,7 @@ const shell = () => {
   const { children: _, ...rest } = shellOf({ organization: ORG, active: "team" });
   return rest;
 };
-const page = (outcome: Outcome | null, draft?: InviteDraft, status = 200) =>
+const page = (outcome: Outcome | null, draft?: InviteDraft, status = 200, inviteBatch?: InviteBatch) =>
   html(
     <TeamPage
       shell={shell()}
@@ -68,6 +69,7 @@ const page = (outcome: Outcome | null, draft?: InviteDraft, status = 200) =>
       outcome={outcome}
       invites={state.invites}
       {...(draft ? { draft } : {})}
+      {...(inviteBatch ? { inviteBatch } : {})}
       now={NOW}
     />,
     status,
@@ -89,6 +91,23 @@ async function answer(req: IncomingMessage): Promise<Response> {
     const go = (r: string, n: string) =>
       new Response(null, { status: 303, headers: { location: `/team?r=${r}&n=${encodeURIComponent(n)}` } });
     const email = (form.get("email") ?? "").trim();
+    if (form.get("action") === "invite" && (email.includes("\n") || email.includes(",") || form.get("batch"))) {
+      const addresses = email
+        .split(/[,\n]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const retrying = form.get("batch") === "1";
+      const results = addresses.map((address, i) => ({
+        email: address,
+        word: !retrying && i === 1 ? "Not sent" : "Sent",
+        ...(!retrying && i === 1 ? { detail: "The invitation stands below; its email did not go." } : {}),
+      }));
+      return page(null, undefined, 200, {
+        role: form.get("role") as InviteBatch["role"],
+        results,
+        retry: retrying ? [] : addresses.slice(1, 2),
+      });
+    }
     if (form.get("action") === "invite") {
       if (email === "ayesha@karoo.example")
         return page(
@@ -190,7 +209,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
     for (const js of [true, false]) {
       it(`sends an invitation, sends one again and revokes one by keyboard ${js ? "with" : "without"} JavaScript`, async () => {
         const { p, context } = await open({ js });
-        await p.getByLabel("Email address").focus();
+        await p.getByLabel("Email addresses").focus();
         await p.keyboard.type("driver@karoo.example");
         await p.keyboard.press("Tab");
         await p.keyboard.press("ArrowUp");
@@ -210,6 +229,18 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         await context.close();
       });
     }
+
+    it("invites several at once and retries only the one that did not go (D07 T04 §22)", async () => {
+      const { p, context } = await open({ width: 360 });
+      await p.getByLabel("Email addresses").fill("one@karoo.example\ntwo@karoo.example, three@karoo.example");
+      await p.getByRole("button", { name: "Send invitation", exact: true }).click();
+      expect(await p.getByText("one@karoo.example: Sent").isVisible()).toBe(true);
+      expect(await p.getByText(/two@karoo\.example: Not sent/).isVisible()).toBe(true);
+      expect(await p.getByText("three@karoo.example: Sent").isVisible()).toBe(true);
+      await p.getByRole("button", { name: "Retry the ones that did not go" }).click();
+      expect(await p.getByText(/two@karoo\.example: Sent/).isVisible()).toBe(true);
+      await context.close();
+    });
 
     it("reaches Resend by Tab alone, shows it busy while it runs, and sends the normal Resend", async () => {
       state.delay = 1500;
@@ -246,12 +277,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
 
     it("keeps the address under its field on a refusal, announced to assistive technology", async () => {
       const { p, context } = await open();
-      await p.getByLabel("Email address").fill("ayesha@karoo.example");
+      await p.getByLabel("Email addresses").fill("ayesha@karoo.example");
       await Promise.all([
         p.waitForNavigation(),
         p.getByRole("button", { name: "Send invitation", exact: true }).click(),
       ]);
-      expect(await p.getByLabel("Email address").inputValue()).toBe("ayesha@karoo.example");
+      expect(await p.getByLabel("Email addresses").inputValue()).toBe("ayesha@karoo.example");
       expect(await p.getByText("already a member").count()).toBeGreaterThan(0);
       expect(await p.locator("#invite-email").getAttribute("aria-invalid")).toBe("true");
       await context.close();

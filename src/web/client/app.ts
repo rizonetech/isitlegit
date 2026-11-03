@@ -755,6 +755,72 @@ const evidenceStatus = (img: HTMLImageElement) => {
   }
   return status;
 };
+// A preview transfer that stalls emits neither `load` nor `error`, so each attempt is bounded (D07 T09 §8): the
+// deadline starts only when the browser begins loading the preview (it is visible, as a lazy preview in a closed
+// disclosure is not), clears when the attempt ends, and is armed fresh by every Try again. A late result from an
+// abandoned attempt never overwrites the current state.
+const previewTimers = new WeakMap<HTMLImageElement, ReturnType<typeof setTimeout>>();
+const previewAttempts = new WeakMap<HTMLImageElement, number>();
+const previewVisible = new WeakSet<HTMLImageElement>();
+const previewDeadline = (img: HTMLImageElement) =>
+  Number(img.closest<HTMLElement>("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
+const clearPreview = (img: HTMLImageElement) => {
+  previewAttempts.set(img, (previewAttempts.get(img) ?? 0) + 1);
+  const timer = previewTimers.get(img);
+  if (timer) clearTimeout(timer);
+  previewTimers.delete(img);
+};
+const armPreview = (img: HTMLImageElement, fresh = false) => {
+  if (!img.getAttribute("src") || img.complete) return;
+  // An attempt already counting down keeps its deadline: scrolling away and back does not extend it.
+  if (!fresh && previewTimers.has(img)) return;
+  const attempt = (previewAttempts.get(img) ?? 0) + 1;
+  previewAttempts.set(img, attempt);
+  const old = previewTimers.get(img);
+  if (old) clearTimeout(old);
+  previewTimers.set(
+    img,
+    setTimeout(() => {
+      previewTimers.delete(img);
+      if (previewAttempts.get(img) !== attempt || !img.isConnected || img.complete) return;
+      // The bound is the whole recovery: the temporary-failure state shows at once, with no second request. The
+      // abandoned transfer is cancelled (its address kept for Try again), so its late arrival changes nothing.
+      previewAttempts.set(img, attempt + 1);
+      img.dataset.evidenceAbandoned = "true";
+      const src = img.getAttribute("src");
+      if (src) img.dataset.evidenceSrc = src;
+      img.removeAttribute("src");
+      evidenceFailed(img, "temporary");
+    }, previewDeadline(img)),
+  );
+};
+const previewObserver = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    const img = entry.target as HTMLImageElement;
+    if (entry.isIntersecting) {
+      previewVisible.add(img);
+      armPreview(img);
+    } else {
+      previewVisible.delete(img);
+    }
+  }
+});
+const registerPreview = (img: HTMLImageElement) => previewObserver.observe(img);
+new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    if (mutation.type === "attributes") {
+      const img = mutation.target as HTMLImageElement;
+      if (previewVisible.has(img)) armPreview(img, true);
+      continue;
+    }
+    for (const node of mutation.addedNodes) {
+      if (!(node instanceof Element)) continue;
+      if (node instanceof HTMLImageElement && node.hasAttribute("data-evidence-image")) registerPreview(node);
+      for (const img of node.querySelectorAll<HTMLImageElement>("img[data-evidence-image]")) registerPreview(img);
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+
 const evidenceFailed = (img: HTMLImageElement, kind: Failure) => {
   const box = frameOf(img);
   if (!box || box.querySelector("[data-evidence-failed]")) return;
@@ -796,7 +862,8 @@ const evidenceFailed = (img: HTMLImageElement, kind: Failure) => {
       "self-center text-14 text-orange-text underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
     retry.textContent = "Try again";
     retry.addEventListener("click", () => {
-      const src = img.getAttribute("src") ?? "";
+      const src = img.getAttribute("src") || img.dataset.evidenceSrc || "";
+      delete img.dataset.evidenceAbandoned;
       img.dataset.evidenceRetried = "true";
       const status = evidenceStatus(img);
       note.remove();
@@ -807,12 +874,15 @@ const evidenceFailed = (img: HTMLImageElement, kind: Failure) => {
       }
       img.removeAttribute("src");
       img.setAttribute("src", src);
+      armPreview(img, true);
     });
     note.append(retry);
   }
   hideOpener(true);
   const status = evidenceStatus(img);
-  if (status) status.textContent = "";
+  // The first failure is announced once through the figure's live status, without moving focus; a failed retry
+  // replaces it below with its own words.
+  if (status) status.textContent = img.dataset.evidenceRetried === "true" ? "" : first;
   box.append(note);
   if (img.dataset.evidenceRetried === "true" && status) {
     // A failed retry keeps the keyboard where it was, but only while the reader has not moved on: the new button takes
@@ -831,8 +901,15 @@ const evidenceError = (img: HTMLImageElement) => {
   if (img.dataset.evidenceClassifying === "true") return;
   img.dataset.evidenceClassifying = "true";
   const deadlineMs = Number(img.closest<HTMLElement>("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
-  void classifyFailure(img.currentSrc || img.getAttribute("src") || "", deadlineMs).then((kind) => {
+  const attr = img.getAttribute("src") || "";
+  const src = img.currentSrc || attr;
+  const attempt = previewAttempts.get(img) ?? 0;
+  void classifyFailure(src, deadlineMs).then((kind) => {
     delete img.dataset.evidenceClassifying;
+    // A classification for an attempt the reader has since retried (a retry reuses the same address, so the
+    // attempt identity, not the URL, decides), or one that has since loaded, is stale.
+    if ((previewAttempts.get(img) ?? 0) !== attempt || (img.getAttribute("src") || "") !== attr || img.naturalWidth > 0)
+      return;
     evidenceFailed(img, kind);
   });
 };
@@ -840,7 +917,14 @@ document.addEventListener(
   "error",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceError(img);
+    if (
+      img instanceof HTMLImageElement &&
+      img.hasAttribute("data-evidence-image") &&
+      img.dataset.evidenceAbandoned !== "true"
+    ) {
+      clearPreview(img);
+      evidenceError(img);
+    }
   },
   true,
 );
@@ -848,11 +932,19 @@ document.addEventListener(
   "load",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceLoaded(img);
+    if (
+      img instanceof HTMLImageElement &&
+      img.hasAttribute("data-evidence-image") &&
+      img.dataset.evidenceAbandoned !== "true"
+    ) {
+      clearPreview(img);
+      evidenceLoaded(img);
+    }
   },
   true,
 );
 for (const img of document.querySelectorAll<HTMLImageElement>("img[data-evidence-image]")) {
+  registerPreview(img);
   if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) evidenceError(img);
   else if (!img.complete) {
     const status = evidenceStatus(img);
@@ -1074,6 +1166,71 @@ document.addEventListener("keydown", (event) => {
   if (!opener) return;
   event.preventDefault();
   openViewer(opener);
+});
+
+// Stepping through a filtered run from a report (D07 T04 §9): `j` to the next case, `k` to the previous, `u` back
+// to the list, as Gmail's keys do. Only while the step controls themselves hold focus (WCAG 2.1.4: a
+// character-key shortcut active only on its component needs no off switch), never while typing, never with a
+// modifier, and the addresses are the ones the page drew, so a disabled end simply has no key.
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+  const target = event.target as Element | null;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const steps = document.querySelector<HTMLElement>("[data-case-steps]");
+  if (!steps?.contains(target as Node)) return;
+  const to =
+    event.key === "j"
+      ? steps.dataset.next
+      : event.key === "k"
+        ? steps.dataset.previous
+        : event.key === "u"
+          ? steps.dataset.back
+          : undefined;
+  if (!to) return;
+  event.preventDefault();
+  window.location.assign(to);
+});
+
+// Focusing the Cases search with `/` (D07 T04 §15), as Gmail and GitHub do: only where the box is on the page,
+// never while typing in a field or with a modifier, and the key stays text inside any editable control. The
+// hint's Turn off button is the WCAG 2.1.4 off switch: the choice is kept in the browser and restored on load.
+let slashMemory: boolean | null = null;
+const slashOff = () => {
+  if (slashMemory !== null) return slashMemory;
+  try {
+    return localStorage.getItem("iil-slash-search") === "off";
+  } catch {
+    return false;
+  }
+};
+const drawSlashToggle = () => {
+  const off = slashOff();
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-slash-toggle]")) {
+    button.textContent = off ? "Turn on the / shortcut" : "Turn off the / shortcut";
+  }
+};
+drawSlashToggle();
+document.addEventListener("click", (event) => {
+  const button = (event.target as Element | null)?.closest<HTMLButtonElement>("[data-slash-toggle]");
+  if (!button) return;
+  slashMemory = !slashOff();
+  try {
+    localStorage.setItem("iil-slash-search", slashMemory ? "off" : "on");
+  } catch {
+    // A browser that refuses storage keeps the choice for this page in memory alone.
+  }
+  drawSlashToggle();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented)
+    return;
+  if (event.isComposing || slashOff()) return;
+  const target = event.target as Element | null;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const box = document.querySelector<HTMLInputElement>("#case-search");
+  if (!box) return;
+  event.preventDefault();
+  box.focus();
 });
 
 // A page whose state changes at a known time (`data-reload-at`, epoch seconds: a lock that ends, D07 T04 §27) loads
@@ -1933,4 +2090,36 @@ document.addEventListener("click", (event) => {
   if (!button) return;
   event.preventDefault();
   void passkeyAdd(button);
+});
+
+// The counts-export period fields (D07 T04 §19) survive the stats panel's own redraws: their values are kept
+// in sessionStorage and restored after a swap, and clearing both clears the stored pair.
+const restoreExportDates = () => {
+  try {
+    const from = document.querySelector<HTMLInputElement>("#case-export-from");
+    const to = document.querySelector<HTMLInputElement>("#case-export-to");
+    if (from && !from.value) from.value = sessionStorage.getItem("iil-export-from") ?? "";
+    if (to && !to.value) to.value = sessionStorage.getItem("iil-export-to") ?? "";
+  } catch {
+    // Storage refused: the fields simply start empty.
+  }
+};
+restoreExportDates();
+document.addEventListener("htmx:afterSwap", restoreExportDates);
+document.addEventListener("change", (event) => {
+  const field = event.target as HTMLInputElement | null;
+  if (field?.id !== "case-export-from" && field?.id !== "case-export-to") return;
+  try {
+    const from = document.querySelector<HTMLInputElement>("#case-export-from")?.value ?? "";
+    const to = document.querySelector<HTMLInputElement>("#case-export-to")?.value ?? "";
+    if (!from && !to) {
+      sessionStorage.removeItem("iil-export-from");
+      sessionStorage.removeItem("iil-export-to");
+    } else {
+      sessionStorage.setItem("iil-export-from", from);
+      sessionStorage.setItem("iil-export-to", to);
+    }
+  } catch {
+    // Storage refused: nothing to restore later.
+  }
 });

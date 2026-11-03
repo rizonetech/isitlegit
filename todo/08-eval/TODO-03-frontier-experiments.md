@@ -84,6 +84,8 @@ Can Muse Spark tell, from the image alone, that an account number on a synthetic
 
 ## 2. Experiment: SAM and Spark on stamps
 
+> **Started:** 2026-11-02T16:21Z
+
 Does segmenting the stamp and signature with SAM 3.1 and sending the crops with a genuine reference to Muse Spark beat Spark looking at the whole page, for spotting a doctored proof of payment?
 
 **Corrected 2026-10-31** (coordinator): the SAM 3.1 client, its parser and the crops are D03 T03 §1's (the walkthrough lane's), so this experiment uses them and writes no second SAM client in `eval/`: it depends on D03 T03 §1, which sits in Phase 4, so it moves from Phase 3 to Phase 4 (a prerequisite never sits in a later phase than its consumer). Spend is approved up to US$1.50 through `localBudget` and the shared ledger, owner `eval-frontier`, stopping on any refusal or at the cap.
@@ -92,16 +94,18 @@ Does segmenting the stamp and signature with SAM 3.1 and sending the crops with 
 **Needs:** meta-api
 **Surface:** no
 
+**Corrected 2026-11-02** (plan review, `docs/reviews/08-eval/D08-T03-s2.md`, 4 P1 and 2 P2 fixed here): (1) the checkpoint is a stubbed behavioural suite plus a log verifier that recomputes both arms' figures from stored results and refuses a missing outcome, a skipped arm or a mismatched input; the old grep already passed on an unrelated line. (2) Pairs are code-made stamp and signature alterations (D06 T02 section 4 edits amounts, accounts and dates, not stamps): 20 labelled genuine/doctored pairs with matching fictional references and reproducible generation, tested to contain the intended alteration and the genuine controls, with the sample's limits stated in the log. (3) Both arms receive the same genuine reference, the same cases and the same Spark settings, labels withheld from prompts; the request payloads are tested. (4) The runner is `node eval/frontier/stamps.ts` on the section 1 pattern: SAM boxes are pixel geometry, crops are cut with `sharp` in Node (no browser), bounded and cleaned up, and a test proves real crop bytes reach the Spark request. (5) Every case and arm stores an explicit outcome (answered, refused, malformed, timeout, budget-stopped) with failure-aware denominators, validated answers, durable progress fingerprinted by input, prompt and settings, and no automatic resend of a paid call. (6) The adoption rule is set before the run: detection and false-positive rates apart, end-to-end latency, and total chain cost including segmentation and failed attempts; the log records prompts, settings, results and limits, and an adopted chain names a resolvable D06 T02 section 2 section.
+
 **Build order:**
 
 1. Compare chain and whole-page on 20 synthetic POP pairs. Done when: the log entry records both accuracies and costs.
 
-- [ ] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen.
+- [x] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen. Done 2026-11-02: code-made pairs in `eval/frontier/stamps.ts` (`buildSet`, 20 labelled pairs: stamp-date, signature-swap and stamp-colour alterations plus genuine controls, with the genuine reference stamp both arms receive); tested in `test/node/eval-frontier-stamps.test.ts`.
 - [ ] Run the chain (SAM crops plus reference to Spark) and the whole-page prompt on each. Done when: results are stored.
 - [ ] Write the log entry and decide whether the chain becomes the default in D06 T02 §2. Done when: the entry exists and a section is filed if adopted.
 - [ ] Commit: `frontier: SAM and Spark chain on stamps and signatures`
 
-**Test checkpoint:** `grep -c 'stamp' docs/frontier-log.md` prints at least `1`.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-frontier-stamps.test.ts` passes (stubbed arms, payload and completeness refusals) and `node eval/frontier/stamps.ts score --check docs/frontier-log.md` exits 0 on the stored results.
 
 ## 3. Experiment: Wonder on a multi-step lure
 

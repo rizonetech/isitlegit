@@ -5,7 +5,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { claims } from "../src/lib/claims.ts";
 import { app, site } from "../src/lib/links.ts";
-import { IC3_2025, invoiceFigures, SABRIC_2025, SABRIC_POP_QUOTE, SABRIC_QUOTE } from "../src/lib/sources.ts";
+import {
+  IC3_2025,
+  invoiceFigures,
+  SABRIC_2025,
+  SABRIC_POP_QUOTE,
+  SABRIC_QUOTE,
+  SABRIC_STAY_SAFE,
+  SAPS_REPORT_CRIME,
+  STANDARD_BANK_DETAILS_SCAM,
+} from "../src/lib/sources.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
 import { proven, provenIds } from "./lib/proven.ts";
 
@@ -17,7 +26,7 @@ describe("Invoice fraud", () => {
     assert.match(intro, /<h1[^>]*>What is invoice fraud\?<\/h1>/);
     has(intro, "the bank account belongs to a criminal", "the intro");
     has(element(intro, /<div data-rule/, "rule"), "phone the supplier on the number you already have. Never use the number in the email.", "the rule");
-    has(intro, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", "the intro");
+    has(intro, "By Derick Payne, Rizonetech · Reviewed 2 Nov 2026", "the intro");
   });
 
   it("shows a fictional invoice with the E4 callout, and nothing real in it", () => {
@@ -86,6 +95,28 @@ describe("Invoice fraud", () => {
     else assert.doesNotMatch(html, /data-limit/, "the unproven limit box is published");
     has(region(html, "sample-pop"), "This proof of payment was edited after it was created.", "the sample");
     has(region(html, "sample-pop"), "A sample report on a fictional document", "the sample");
+  });
+
+  it("already paid: four steps in order, each beside its source, reached from the opening", () => {
+    linkTo(region(html, "intro"), "#already-paid", "Already paid", "the opening");
+    const recovery = region(html, "recovery");
+    assert.match(recovery, /<h2 id="already-paid"[^>]*>/, "the recovery heading is not labelled");
+    const steps = [...recovery.matchAll(/<li data-step[\s>]([\s\S]*?)<\/li>/g)].map((m) => m[1] ?? "");
+    assert.equal(steps.length, 4, "the recovery steps are not four list items");
+    const expected: [string, string][] = [
+      ["Phone your bank's fraud line now", SABRIC_STAY_SAFE.url],
+      ["Keep the email and the documents", SABRIC_STAY_SAFE.url],
+      ["nearest South African Police Service station", SAPS_REPORT_CRIME.url],
+      ["Warn the real supplier", STANDARD_BANK_DETAILS_SCAM.url],
+    ];
+    for (const [i, [words, url]] of expected.entries()) {
+      assert.ok(text(steps[i] ?? "").includes(words), `step ${i + 1} is not "${words}"`);
+      assert.ok(hrefs(steps[i] ?? "").includes(url), `step ${i + 1} has no link to its source`);
+    }
+    has(recovery, "keep the case (CAS) reference", "the SAPS step");
+    has(recovery, "ask your bank to contact the receiving bank at once", "the bank step");
+    has(recovery, "unchanged; your bank and the police will ask for them", "the keep step");
+    has(recovery, "never the one in the email", "the supplier step");
   });
 
   it("closes with sign-up and the protect page", () => {

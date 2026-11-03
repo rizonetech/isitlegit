@@ -43,6 +43,9 @@ const loupeFlag = () => ({
   screen: screened({ ...LURE, lure_type: "credential" } as never, "glimmer"),
   glimmer_reason: null,
   spark_call: null,
+  tier: "glimmer" as const,
+  escalation: null,
+  spark_calls: [],
 });
 
 // The real Spark path (monitorDeps's `second`) with Loupe's verdict stubbed to flag every page, for the hosts given.
@@ -187,6 +190,9 @@ describe("the second look in the run", () => {
       screen: screened({ ...LURE, lure_type: "credential" } as never, "spark"),
       glimmer_reason: "deployment_missing" as const,
       spark_call: { callId: "c1", logId: "l1" },
+      tier: "spark" as const,
+      escalation: null,
+      spark_calls: [{ callId: "c1", logId: "l1" }],
     });
     const w = secondWorld(b, [site], "monitor-second-2", sparkFetch, sparkScreen);
     await monitorOrg(w.deps, b.orgId, "monitor-second-2");

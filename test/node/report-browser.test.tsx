@@ -63,6 +63,15 @@ function html(view: "member" | "public", count = 3, verdict: ReportVerdict | nul
       shell={view === "member" ? shell : null}
       {...(coverage ? { coverage } : {})}
       {...(view === "public" ? { linkExpires: Date.UTC(2026, 10, 3) / 1000 } : {})}
+      {...(view === "member"
+        ? {
+            steps: {
+              previous: "/r/prev?list=1&period=all",
+              next: "/r/next?list=1&period=all",
+              back: "/cases?period=all",
+            },
+          }
+        : {})}
     />,
   );
 }
@@ -80,7 +89,11 @@ async function open(body: string, width: number, theme: "light" | "dark") {
   const p: Page = await context.newPage();
   await p.route(`${APP}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
+    if (path.startsWith("/r/")) return route.fulfill({ status: 200, contentType: "text/html", body });
+    // The Cases list the report's Back link and u key return to: Google Chrome (CI) swaps an empty 404 for its own
+    // chrome-error page, so the list must answer as the app does for the return to be observable.
+    if (path === "/cases")
+      return route.fulfill({ status: 200, contentType: "text/html", body: "<title>Cases</title>" });
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });
@@ -105,28 +118,91 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
 
   // The count line's Check versions disclosure (D07 T03 §39): Tab reaches it, Enter opens and closes it with the
   // run's versions listed and focus kept, at both widths.
-  for (const width of [360, 1280])
-    it(`opens Check versions by keyboard (${width} px)`, async () => {
-      const coverage: Coverage = [
-        { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-2026-11-02-9f2c" },
-        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
-      ];
-      const { p, context } = await open(html("member", 3, VERDICT, coverage), width, "light");
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [360, 1280])
+      it(`opens Check versions by keyboard (${theme}, ${width} px)`, async () => {
+        const coverage: Coverage = [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            revision: "v-2026-11-02-9f2c",
+            data: { revision: "rev-7", id: "brands-abc123", source: "kv" },
+          },
+          { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+          {
+            check: "auth.spf",
+            outcome: "skipped",
+            reason: "the original's headers were not available",
+            findings: 0,
+            revision: "v-skip",
+          },
+          { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0, revision: "v-fail" },
+        ];
+        const { p, context } = await open(html("member", 3, VERDICT, coverage), width, theme);
+        let reached = false;
+        for (let i = 0; i < 40 && !reached; i++) {
+          await p.keyboard.press("Tab");
+          reached = (await focused(p))?.key === "Check versions";
+        }
+        expect(reached, "Tab never reached Check versions").toBe(true);
+        const shown = () => p.getByText("Lookalike domains: v-2026-11-02-9f2c");
+        await p.keyboard.press("Enter");
+        expect(await shown().isVisible()).toBe(true);
+        expect(await p.getByText("Hidden text: version not recorded").isVisible()).toBe(true);
+        // D07 T09 §11: the opened lines word a skipped and a failed outcome beside their versions.
+        expect(await p.getByText("The sending server check (SPF): v-skip · did not run").isVisible()).toBe(true);
+        expect(await p.getByText("How old the domain is: v-fail · failed: it ran out of time").isVisible()).toBe(true);
+        // D07 T09 §12: the applicable line names its detection data, revision, identity and source.
+        expect(await p.getByText("data rev-7 (brands-abc123, KV)").isVisible()).toBe(true);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
+        await p.keyboard.press("Enter");
+        expect(await shown().isVisible()).toBe(false);
+        expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
+        await context.close();
+      });
+
+  it("reaches Previous and Next by keyboard on a member report, and a link holder has neither (D07 T04 §9)", async () => {
+    for (const width of [360, 1280]) {
+      const { p, context } = await open(html("member"), width, "light");
+      expect(await p.getByRole("link", { name: "← Previous case" }).first().getAttribute("href")).toBe(
+        "/r/prev?list=1&period=all",
+      );
+      expect(await p.getByRole("link", { name: "Next case →" }).first().getAttribute("href")).toBe(
+        "/r/next?list=1&period=all",
+      );
       let reached = false;
-      for (let i = 0; i < 40 && !reached; i++) {
+      for (let i = 0; i < 30 && !reached; i++) {
         await p.keyboard.press("Tab");
-        reached = (await focused(p))?.key === "Check versions";
+        reached = (await p.evaluate(() => document.activeElement?.textContent?.trim())) === "Next case →";
       }
-      expect(reached, "Tab never reached Check versions").toBe(true);
-      const shown = () => p.getByText("Lookalike domains: v-2026-11-02-9f2c");
-      await p.keyboard.press("Enter");
-      expect(await shown().isVisible()).toBe(true);
-      expect(await p.getByText("Hidden text: version not recorded").isVisible()).toBe(true);
-      await p.keyboard.press("Enter");
-      expect(await shown().isVisible()).toBe(false);
-      expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
+      expect(reached, "Tab never reached Next case").toBe(true);
       await context.close();
-    });
+    }
+    const pub = await open(html("public"), 360, "light");
+    expect(await pub.p.getByRole("link", { name: "Next case →" }).count()).toBe(0);
+    await pub.context.close();
+  });
+
+  it("activates Next and returns by the u key (D07 T04 §9)", async () => {
+    const { p, context } = await open(html("member"), 1280, "light");
+    await p.getByRole("link", { name: "Next case →" }).first().click();
+    await expect.poll(() => p.url()).toContain("/r/next");
+    expect(await p.getByRole("link", { name: "← Previous case" }).first().getAttribute("href")).toContain("/r/prev");
+    // The keys live on the step controls (WCAG 2.1.4): Tab into them, then u returns to the list.
+    for (
+      let i = 0;
+      i < 30 && !(await p.evaluate(() => document.activeElement?.closest("[data-case-steps]") !== null));
+      i++
+    )
+      await p.keyboard.press("Tab");
+    await p.keyboard.press("u");
+    await expect.poll(() => p.url()).toContain("/cases?period=all");
+    await context.close();
+  });
 
   it("gives a member on a phone a back link to Cases, reached by keyboard, and a link holder none", async () => {
     const { p, context } = await open(html("member"), 360, "light");

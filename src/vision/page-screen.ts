@@ -58,6 +58,12 @@ export const MAX_TEXT_CHARACTERS = 6_000;
 const NONCE = /^[0-9a-f]{32}$/;
 
 export type ScreenMode = "image" | "text-only";
+
+// The unsure band (D03 T04 §45): confidence is P(lure), so an answer inside the band is settled by neither side and
+// escalates. One constant, read by the screening route, its tests and the offline capture queue.
+export const ESCALATION_BAND = { low: 0.35, high: 0.65 } as const;
+export const inEscalationBand = (confidence: number) =>
+  confidence >= ESCALATION_BAND.low && confidence <= ESCALATION_BAND.high;
 export type TextPart = { type: "text"; text: string };
 export type ImagePart = { type: "image_url"; image_url: { url: string } };
 export type ChatMessage =

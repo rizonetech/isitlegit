@@ -59,6 +59,39 @@ export const invoiceFigures: readonly Figure[] = [
 
 export const SABRIC_POP_QUOTE = "release goods based on falsified proof of payment";
 
+// The already-paid recovery steps (D07 T06 §11): each step's primary source, read 2026-11-02.
+export const SABRIC_STAY_SAFE: Source = {
+  title: "How to Stay Safe",
+  publisher: "South African Banking Risk Information Centre (SABRIC)",
+  url: "https://www.sabric.co.za/how-to-stay-safe/",
+  published: "2026-11-02",
+  read: "2026-11-02",
+};
+
+export const SAPS_REPORT_CRIME: Source = {
+  title: "Report a crime",
+  publisher: "South African Police Service (SAPS)",
+  url: "https://www.saps.gov.za/services/report_crime.php",
+  published: "2026-11-02",
+  read: "2026-11-02",
+};
+
+export const STANDARD_BANK_DETAILS_SCAM: Source = {
+  title: "Change of banking details scam",
+  publisher: "Standard Bank",
+  url: "https://www.standardbank.co.za/southafrica/personal/learn/how-to-avoid-the-change-of-banking-details-scam",
+  published: "2026-11-02",
+  read: "2026-11-02",
+};
+
+export const FBI_BEC: Source = {
+  title: "Business Email Compromise",
+  publisher: "Federal Bureau of Investigation (FBI)",
+  url: "https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise",
+  published: "2026-11-02",
+  read: "2026-11-02",
+};
+
 // The vendors' own help pages for forwarding a message as an attachment, read 2026-10-31.
 export const HELP = {
   outlookShortcuts: {

@@ -42,17 +42,19 @@ track: day-6
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [x] |
-| 11 | §11 | Already paid: what to do now | §3 | [ ] |
-| 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
+| 11 | §11 | Already paid: what to do now | §3 | [x] |
+| 12 | §12 | Pricing terms: VAT and commitment | §4 | [x] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
 | 14 | §14 | Cross-border safeguards | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study | §7 | [ ] |
 | 17 | §17 | Operator approval of launch terms | §8 | [x] |
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
-| 19 | §19 | Security assurance evidence link | §8 | [ ] |
+| 19 | §19 | Security assurance evidence link | §8, D09 T01 §2, D09 T01 §3 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
 | 21 | §21 | Drop the 3 November repository note | §18 | [x] |
+| 22 | §22 | Direct bank fraud-line links in the recovery steps | §11 | [ ] |
+| 23 | §23 | Billing timing in the pricing terms | §12 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -432,6 +434,8 @@ A visitor can see IsItLegit judge a message before signing up: one action on the
 
 ## 11. Already paid: what to do now
 
+> **Started:** 2026-11-02T18:45Z
+
 A business owner who has already paid a fraudulent invoice finds, in one action from the invoice fraud page, what to do in the next hour in South Africa: phone their own bank's fraud line at once and ask it to contact the receiving bank, keep the mail and documents, report the case, and warn the real supplier. Filed 2026-10-31 by D07 T06 §3's completion review (Part 2, item 2): the FBI tells business email compromise victims to contact their financial institution immediately and ask it to contact the receiving institution (https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise), and the page offers only prevention.
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -450,13 +454,26 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 1. Record the operator's decision on the surface and the South African sources. Done when: `design/SPEC.md` names the surface and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
-- [ ] Source every step from primary South African sources (SABRIC's guidance for fraud victims, the South African Police Service for reporting, each bank's own fraud line page), read and dated, in `site/src/lib/sources.ts`. Done when: every step has a source with its date.
-- [ ] Commit: `site: already paid, what to do now`
+- [x] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** common to §11 to §16 and §19: the operator decision is already recorded in each header, so the "record the operator's choice" step is done; what remains open is the board and `design/SPEC.md` entry (`Fidelity: none yet`), then the build, which the current 1-row build orders do not decompose (no items for the block itself, `article-check`, or browser proof). For this section: the decision is a block on `/invoice-fraud`; no such block, board, or SPEC S3 entry exists yet, no South African recovery sources are in `site/src/lib/sources.ts`, and the checkpoint's one-action test has no counterpart in `site/test/invoice-fraud.test.ts`.
+- [x] Add the recovery block to `design/SPEC.md` S3 (a control: ordered steps with their source links, reachable in one action from the page's opening) with a recorded Deviation (no board draws it). Done when: S3 names the block, its steps and its one-action route. Cheaper substitute: a new page, refused by the operator decision.
+- [x] Source every step from primary South African sources (SABRIC's guidance for fraud victims, the South African Police Service for reporting, each bank's own fraud line page), read and dated, in `site/src/lib/sources.ts`. Done when: every step has a source with its date.
+- [x] Build the block on `/invoice-fraud` in `site/src/pages/invoice-fraud.astro` (steps in order: phone your own bank's fraud line at once and ask it to contact the receiving bank; keep the mail and documents; open a case at your nearest SAPS station and keep the CAS reference; warn the real supplier on the number you already have), each step beside its source link, in tokens only, reached by an opening anchor to its labelled heading. Done when: the built page shows the block and `pnpm --filter site build` exits 0. Cheaper substitute: unsourced advice, refused (every step sourced).
+- [x] Test it in `site/test/invoice-fraud.test.ts` and `site/test/browser.test.ts`: all four steps in their order, each beside its correct source (the test fails on a deleted step, on bank contact reordered behind reporting, and on a removed or swapped source), and the anchor reached by mouse and keyboard with visible focus and focus continuing into the block's links. Done when: each named failure breaks a test.
+- [x] Run `article-check` on the new guidance and the written-back page, fix every FAIL and answer every WARN, and update the page's review date for the new sources. Done when: the check output is recorded in the run file.
+- [x] Commit: `site: already paid, what to do now`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
 
+> **Deferred:** direct bank fraud-line links in step 1 -> XREF: D07 T06 §22
+
+> **Verified:** 2026-11-02 | §11 | f47a53d27e60846e75a232a4b3aea8d9b64fb799
+> **Review:** `docs/reviews/d07-t06-s11.json`
+
 ## 12. Pricing terms: VAT and commitment
+
+> **Started:** 2026-11-02T19:23Z
 
 What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
 
@@ -476,10 +493,20 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 
 1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`.
-- [ ] Commit: `site: pricing terms`
+- [x] Record the operator's pricing rules (VAT treatment, what moves Protect above R499, minimum term, cancellation). Done when: the choice and its date are here and in `design/SPEC.md`. (Recorded: prices include VAT, month-to-month, cancel anytime; R499 up to 5 members, R999 above, operator decision in the header; the SPEC entry is the next item.)
+- [x] Add the terms block and the member scope to `design/SPEC.md` S5 (VAT-included and month-to-month as Q&A controls, Protect's up-to-5-members scope, R999 above) with a recorded Deviation (the board draws neither). Done when: S5 names them and this section's Fidelity no longer reads board-open.
+- [x] Build it on `/pricing` in `site/src/pages/pricing.astro`: the member-scope line on the Protect tier ("up to 5 members; larger organisations R999") and two Questions answers ("What does the price include?" prices include VAT; "Am I locked in?" month-to-month, cancel anytime, keeps Free check), in tokens only. Done when: the built page shows them and `pnpm --filter site build` exits 0. Cheaper substitute: a terms page, refused (the decision puts the terms on the pricing page).
+- [x] Test in `site/test/pricing.test.ts`: the VAT and commitment answers sit inside their named Q&A entries and the member scope inside the Protect tier, with both prices, the five-member boundary, the per-organisation unit, VAT, cancellation and Free check retention. Done when: the test fails on a removed, relocated or altered value, not only on removal.
+- [x] Audit the other price surfaces for consistency (`site/src/pages/index.astro`, `site/src/pages/protect.astro`: "from R499" summaries stay, with the applicable terms reachable; `src/web/pages/settings-plan-view.tsx` is the console lane's, routed through the coordinator if it disagrees). Done when: each surface is recorded as consistent or routed.
+- [x] Run `article-check` on the draft terms and on the built page: zero FAILs and every WARN answered, recorded in the run file. Done when: both outputs are recorded.
+- [x] Commit: `site: pricing terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
+
+> **Deferred:** billing timing (member-count changes, cancellation effect) -> XREF: D07 T06 §23
+
+> **Verified:** 2026-11-02 | §12 | 5f4c6523869cb287a3f528637cda5a79f2492f03
+> **Review:** `docs/reviews/d07-t06-s12.json`
 
 ## 13. On-site invite request
 
@@ -502,6 +529,8 @@ A visitor without an invite code asks for one on the page and is told what happe
 1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S5 names it and this section's Needs drops `owner-decision`.
 
 - [ ] Record the operator's choice of where invite requests go and who answers them, and how fast. Done when: the choice and its date are here and in `design/SPEC.md`.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** "the app's intake" names no route, table, or owning section, and no on-site form exists in `site/src/` or `src/`; this is a cross-lane ask (app intake: endpoint, storage, rate limit, operator notification, form states), not a site-only edit, and the section must record that ask and its owner before it is buildable. Who answers and how fast is still unstated. The interim `inviteRequest` mailto (`site/src/lib/links.ts:32`) stands meanwhile.
 - [ ] Commit: `site: on-site invite request`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the approved content on `/pricing`; it fails when it is removed.
@@ -527,6 +556,8 @@ Which POPIA section 72 condition covers each processor that works outside South 
 1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
 
 - [ ] Record, per provider, the applicable section 72 condition and the supporting terms read (with URLs and dates), then replace the "still confirming" sentence on `/privacy` with them. Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+
+**Research 2026-11-02 (site lane, documents read, condition still the operator's to confirm per provider):** Cloudflare's Customer DPA v6.3 (effective 2025-06-20, https://www.cloudflare.com/cloudflare-customer-dpa/) incorporates EU SCCs for transfers and lists subprocessors; Fireworks' DPA (https://fireworks.ai/dpa, incorporated by its Terms §2.4) does the same; SMTP2GO (Sand Dune Mail Ltd) exposes its DPA in the account (Settings, Display Settings) with GDPR storage terms (activity data deleted after 35 days by default, EU data centre option), so its document must be read from the operator's account, not the public site; Meta's Model API terms are already cited on the page through claims (`privacy` claims at `site/src/lib/claims.ts:263`). Under the operator decision above (binding agreement or provider terms per provider), each provider's DPA is the section 72 instrument; the page sentence changes only with the SPEC S6 entry, which stays open.
 - [ ] Commit: `site: cross-border safeguards per provider`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
@@ -552,6 +583,8 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
 
 - [ ] Record the operator's response time, identity check and follow-up route (a D99 operational decision), then state them under "What are your rights?". Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the D99 half does not exist: no POPIA, privacy-request, or Information Officer entry in `todo/99-manual/` (grep empty), so the operational decision this section discloses is not recorded anywhere yet; it must be filed there (coordinator owns D99) before the page copy is written. Note the disclosed escalation (`hello@isitlegit.co.za`) is the same address the request starts at, so it is not a distinct route.
 - [ ] Commit: `site: privacy request handling notice`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
@@ -577,6 +610,8 @@ One reproducible synthetic Protect investigation on `/protect` showing the forwa
 1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S4 names it and this section's Needs drops `owner-decision`.
 
 - [ ] Record the approved S4 treatment and the synthetic Protect case's measured results from D08 and D05, then render it on `/protect`. Done when: the facts, their dates and the board are here and in `design/SPEC.md` S4.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the dependency state is half stale: D08's side exists (`eval/results-summary.json`, dated 2026-11-02; D08 T02 §4 and §10 stamped) but it is a phishing-eval figure, not a Protect outcome measurement, so the "dated measurements from D08" still have no named source artefact; D05's side is open (D05 T02 §2, §3, §4 and D05 T03 §1, §2 unstamped). No case-study block or SPEC S4 entry exists on `/protect` yet.
 - [ ] Commit: `site: protect outcome case study`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the Protect case study in at most one action from `/protect` and finds its input, evidence, alert and bank-confirmation outcome; it fails when any piece is removed.
@@ -653,6 +688,8 @@ Give `/security` one link to a dated, public security-assurance report covering 
 1. Decide with the operator what is published and where, then link it. Done when: `/security` links to the dated report and a test finds the link and the report's date.
 
 - [ ] Record the operator's decision on the report and its URL, add the link and a design deviation for its placement, and test it. Done when: `pnpm --filter site build && pnpm --filter site test` passes with the link present and the report reachable.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the decision is already recorded in the header (own page, linked from `/security`); the producers are D09 T01 §2 and §3, both open, but the Implementation Order Depends On column for §19 reads only `§8`, so that dependency is prose-only and must be added to the row before this section can be ready honestly. No assurance link exists in `security.astro` or `claims.ts`, SPEC S8 has no link placement, and a future link also needs a `site` map entry in `site/src/lib/links.ts`, which the items do not name.
 - [ ] Commit: `site: link the security assurance report`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/security` linking the dated report.
@@ -680,6 +717,8 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 - [x] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §3 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
 
 > **Coordinator record 2026-11-02:** the proven-only interim deploy is live (63 claims proven, 31 omitted, listed in the site lane's record); the remaining items (claims against the live service in full, the final all-owners deploy, the seal read-back whose handler is D05 T02 §8 and §9, Lighthouse, and the induced-5xx read-back) stay open below. Read-backs recorded in `docs/live-checks.md`, "First site deploy and apex read-backs".
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the dry-run item's "once the root script exists" is stale: `deploy:site` exists at `package.json:21`. Shipped and recorded: apex routes in `wrangler.jsonc`, the www 301 in `src/index.ts:75`, and the read-backs at `docs/live-checks.md:258`. Still unmeasured: Lighthouse (no scores recorded anywhere) and the induced-5xx read-back; `/s/fynbos-freight` still 404s while D05 T02 §8 and §9 are unstamped.
 - [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
 - [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
 - [ ] Wire and read back the error pages (D07 T08 \u00a79): an unknown address on `https://isitlegit.co.za/` returns status 404 with the 404 page (`assets.not_found_handling` is in `site/wrangler.jsonc`); the 500 is served with a 5xx status when the app Worker's routes on the apex or the origin fail, through the zone's custom 5xx page or the app Worker's error handler pointing at `https://isitlegit.co.za/500.html`, and `/500.html` is reachable; record the induced failure and recovery. Done when: the read-backs are recorded in `docs/live-checks.md`. (Added 2026-11-01 by D07 T08 \u00a79's plan review.)
@@ -709,6 +748,52 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 
 > **Verified:** 2026-11-01 | §21 | 075f2cb74ba5745175b547bf67bdd036869bf81d
 > **Review:** `docs/reviews/d07-t06-s21.json`
+
+## 22. Direct bank fraud-line links in the recovery steps
+
+SABRIC's own guidance lists each bank's fraud hotline on one page; §11's first recovery step sends the reader there and then on to their bank. Filed 2026-11-02 by D07 T06 §11's completion review (out-of-scope excellence item): linking each major bank's own fraud page directly from step 1 would save a navigation, at the cost of keeping a dozen third-party numbers and links current.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S3 (the recovery block §11 added)
+**Job:** a victim reaches their own bank's fraud line in one activation
+**Treatment:** the major banks' own fraud pages linked from step 1, verified on a dated cadence
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Link the banks and keep them current. Done when: step 1 links each listed bank's own fraud page and a dated re-verification is recorded.
+
+- [ ] Add each major South African bank's official fraud-reporting page (read from the bank's own site, dated) to `site/src/lib/sources.ts` and link them from step 1 of the recovery block in `site/src/pages/invoice-fraud.astro`. Done when: every listed link is the bank's own page with its read date. Cheaper substitute: copying SABRIC's hotline numbers onto the page, refused (numbers change; the bank's page is the source).
+- [ ] Record a re-verification cadence in this section (who re-reads the links, and how often). Done when: the cadence and owner are written here.
+- [ ] Test in `site/test/invoice-fraud.test.ts` that step 1 links each bank page beside the SABRIC source. Done when: the test fails when a bank link is removed.
+- [ ] Commit: `site: direct bank fraud-line links`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with step 1 linking each bank's own fraud page.
+
+## 23. Billing timing in the pricing terms
+
+§12 states the price, the VAT reading and the commitment, but not when a member-count change alters the charge or when a cancellation takes effect. Filed 2026-11-02 by D07 T06 §12's completion review (out-of-scope G2): those rules belong to billing, which has not started, so they are defined with the billing build and stated on `/pricing` before any customer is charged.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S5 (the terms answers §12 added)
+**Job:** a buyer knows when a change in members changes the price and when cancelling stops it
+**Treatment:** two plain answers added to the pricing page's terms when billing exists
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. With the billing build (its owning lane, through the coordinator), record the member-count and cancellation timing rules, then state them on `/pricing`. Done when: the rules and their dates are here and the page states them before billing starts.
+
+- [ ] Record the billing rules (when a member added or removed changes the charge, and the date a cancellation takes effect) from the billing build's owner, through the coordinator. Done when: the rules and dates are recorded here.
+- [ ] Add the two answers to the Questions on `/pricing` in `site/src/pages/pricing.astro`, beside the §12 terms. Done when: the built page states both. Cheaper substitute: stating timing before billing defines it, refused (invented terms).
+- [ ] Test in `site/test/pricing.test.ts` that both answers sit in their questions. Done when: the test fails when one is removed.
+- [ ] Commit: `site: billing timing in the pricing terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with both timing answers on `/pricing`, before any customer is charged.
 
 ## Verification
 

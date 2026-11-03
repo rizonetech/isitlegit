@@ -64,7 +64,7 @@ const completed = {
   },
 };
 const sse = (events: unknown[]) =>
-  new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n", {
+  new Response(`${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")}data: [DONE]\n\n`, {
     headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
   });
 
@@ -164,7 +164,7 @@ describe("segment", () => {
 
   it("aborts a later concept's active stream at the absolute deadline", async () => {
     let calls = 0;
-    const { meta } = ctx((async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const { meta } = ctx((async (_input: RequestInfo | URL, _init?: RequestInit) => {
       calls++;
       if (calls === 1) {
         const one = samText([{ x1: 1, y1: 1, x2: 9, y2: 9, c: 0.9 }]);
@@ -373,6 +373,18 @@ describe("cropBoxes and storeCrops", () => {
       if (!latestBack || !("body" in latestBack)) throw new Error("latest manifest not read back");
       const latest = JSON.parse(new TextDecoder().decode(latestBack.body)) as { crops: string[] };
       expect(latest.crops).toEqual([changed[0]?.key]);
+
+      // An attacker-long source name keeps its manifest suffix: the stored manifest key still
+      // ends in `-manifest-<generation>.json`, so a reader can find the crop set.
+      const longMade = await createCase(env.DB, { orgId: "org-sam", channel: "email", headersAvailable: true });
+      if (!longMade.ok) throw new Error(longMade.error.message);
+      const longSource = {
+        name: `${"a".repeat(110)}.pdf page 1`,
+        key: `art/${longMade.value.id}/render/source.png`,
+        sha256: "b".repeat(64),
+      };
+      const longStored = await storeCrops(store, longMade.value.id, longSource, [crops[0] as Crop]);
+      expect(longStored[longStored.length - 1]?.key).toMatch(/-manifest-1\.json$/);
     } finally {
       await browser.close();
     }

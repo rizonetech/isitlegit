@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Whether a Loupe version may replace the one deployed (D03 T04 §13; operator, 2026-11-02 00:25 SAST: the
-broken-model guard is the only gate; the 5 percent false-alarm figure and the project's 2 percent target are
-reporting figures, never blockers).
+"""Whether a Loupe version may replace the one deployed (D03 T04 §13; operator, 2026-11-02, D03 T04 §50).
 
     python3 scripts/glimmer/version-gate.py <new version> <previous version>
 
@@ -11,12 +9,11 @@ measurement `<store>/runs/eval-<version>/metrics.json`, measured on the same eva
     {"eval_sha256": "...", "overall": {"lure_recall": 0.93, "false_alarm_rate": 0.02},
      "south_africa": {"lure_recall": 0.9, "false_alarm_rate": 0.03}}
 
-and prints `promote`, or `keep <previous>: <reason>`. The previous version is kept only when the record cannot be
-trusted (the two versions were not measured on the same held-out file, an evaluation is incomplete or withheld, a
-metric is missing) or the new version is broken: a false-alarm rate over 10 percent, a lure recall under 40
-percent, or systemic invalid answers (an unanswered count in the record), overall or on the South African slice.
-The relative figures (lines trained, recall and false alarms beside the previous version's) are read for the
-report the caller prints; they never block. Exit 0 to promote, 1 to keep, 2 when a record is missing or unreadable.
+and prints both versions' figures with their denominators, then `promote`, or `keep <previous>: <reason>`. The one
+gate (operator, 2026-11-02, D03 T04 §50) is that the new version is better on the same held-out file: lure recall
+higher with false alarms no higher, or false alarms lower with recall no lower. The South African slice prints and
+is no longer a gate, and neither is the number of training lines. Exit 0 to promote, 1 to keep, 2 when a record is
+missing or unreadable.
 """
 import json
 import os
@@ -35,37 +32,51 @@ def records(store, version):
     return run, metrics
 
 
+def figures(label, metrics):
+    """One version's measured figures with their denominators, overall and on the South African slice."""
+    out = []
+    for slice_name in ("overall", "south_africa"):
+        s = metrics.get(slice_name) or {}
+        lures, benign = s.get("lures"), s.get("benign")
+        recall, alarms = s.get("lure_recall"), s.get("false_alarm_rate")
+        if isinstance(recall, (int, float)) and isinstance(alarms, (int, float)) and isinstance(lures, int) and isinstance(benign, int):
+            out.append(
+                f"{label} {slice_name}: lure recall {recall:.4f} ({round(recall * lures)}/{lures} lures), "
+                f"false alarms {alarms:.4f} ({round(alarms * benign)}/{benign} benign)"
+            )
+        elif isinstance(recall, (int, float)) and isinstance(alarms, (int, float)):
+            out.append(f"{label} {slice_name}: lure recall {recall:.4f}, false alarms {alarms:.4f} (denominators not recorded)")
+    return out
+
+
 def decide(new, previous):
     """`promote`, or the reason to keep the previous version. Each argument is (run, metrics)."""
     (new_run, new_m), (old_run, old_m) = new, previous
     if new_m.get("eval_sha256") != old_m.get("eval_sha256"):
         return "the two versions were not measured on the same held-out file"
-    new_lines, old_lines = new_run.get("lines_trained"), old_run.get("lines_trained")
-    if not isinstance(new_lines, int) or not isinstance(old_lines, int):
-        return "a run.json does not record lines_trained"
     # Rates from a run with pages unanswered are not the version's figures: an unanswered benign page would lower its
     # false alarms. Both versions' records must be complete before they are compared (§13 completion review gap 1).
     for name, m in (("the new version", new_m), ("the previous version", old_m)):
         if m.get("bar_withheld"):
             return f"{name}'s evaluation is withheld: {m['bar_withheld']}"
-        for slice_name in ("overall", "south_africa"):
-            s = m.get(slice_name) or {}
-            if s.get("complete") is not True or s.get("unanswered", 0) != 0:
-                return f"{name}'s {slice_name} evaluation is incomplete ({s.get('unanswered', '?')} pages unanswered)"
-    for slice_name in ("overall", "south_africa"):
-        new_s, old_s = new_m.get(slice_name) or {}, old_m.get(slice_name) or {}
-        for key in ("lure_recall", "false_alarm_rate"):
-            if not isinstance(new_s.get(key), (int, float)) or not isinstance(old_s.get(key), (int, float)):
-                return f"{slice_name} {key} is missing"
-    # The broken-model guard (operator, 2026-11-02): the only quality lines that keep the previous version.
-    # The new version's figures beside the previous one's are reported by the caller, never compared here.
-    for slice_name in ("overall", "south_africa"):
-        new_s = new_m.get(slice_name) or {}
-        if new_s["false_alarm_rate"] > 0.10:
-            return f"{slice_name} false-alarm rate {new_s['false_alarm_rate']:.4f} is over the 10 percent broken line"
-        if new_s["lure_recall"] < 0.40:
-            return f"{slice_name} lure recall {new_s['lure_recall']:.4f} is under the 40 percent broken line"
-    return "promote"
+        s = m.get("overall") or {}
+        if s.get("complete") is not True or s.get("unanswered", 0) != 0:
+            return f"{name}'s overall evaluation is incomplete ({s.get('unanswered', '?')} pages unanswered)"
+    new_s, old_s = new_m.get("overall") or {}, old_m.get("overall") or {}
+    for key in ("lure_recall", "false_alarm_rate"):
+        if not isinstance(new_s.get(key), (int, float)) or not isinstance(old_s.get(key), (int, float)):
+            return f"overall {key} is missing"
+    # The operator's one gate (§50): better, exactly. More training lines and the South African slice are recorded
+    # and printed, and neither vetoes a better version.
+    better_recall = new_s["lure_recall"] > old_s["lure_recall"] and new_s["false_alarm_rate"] <= old_s["false_alarm_rate"]
+    fewer_alarms = new_s["false_alarm_rate"] < old_s["false_alarm_rate"] and new_s["lure_recall"] >= old_s["lure_recall"]
+    if better_recall or fewer_alarms:
+        return "promote"
+    if new_s["lure_recall"] == old_s["lure_recall"] and new_s["false_alarm_rate"] == old_s["false_alarm_rate"]:
+        return f"overall lure recall {new_s['lure_recall']:.4f} and false alarms {new_s['false_alarm_rate']:.4f} are equal, not better"
+    if new_s["lure_recall"] < old_s["lure_recall"]:
+        return f"overall lure recall {new_s['lure_recall']:.4f} is below {old_s['lure_recall']:.4f}"
+    return f"overall false-alarm rate {new_s['false_alarm_rate']:.4f} is above {old_s['false_alarm_rate']:.4f}"
 
 
 def main(argv=None):
@@ -76,10 +87,13 @@ def main(argv=None):
     new_version, old_version = args
     store = store_dir()
     try:
-        verdict = decide(records(store, new_version), records(store, old_version))
+        new_records, old_records = records(store, new_version), records(store, old_version)
+        verdict = decide(new_records, old_records)
     except (OSError, ValueError) as error:
         print(f"version-gate: a record is missing or unreadable ({type(error).__name__}: {error})", file=sys.stderr)
         return 2
+    for line in figures(f"{new_version} (new)", new_records[1]) + figures(f"{old_version} (previous)", old_records[1]):
+        print(line)
     if verdict == "promote":
         print("promote")
         return 0

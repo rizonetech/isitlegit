@@ -3,7 +3,7 @@
 // error page with a retry and 503, never a figure. The page is ./eval-view.tsx.
 import { Hono } from "hono";
 import { productionCounts } from "../../eval/production";
-import { ablations, latestFull } from "../../eval/results";
+import { ablations, latestFull, publishedHistory } from "../../eval/results";
 import { reference } from "./errors";
 import { EvalPage, EvalUnavailable, type EvalView } from "./eval-view";
 
@@ -20,13 +20,14 @@ const html = (body: unknown, status: number, extra: Record<string, string> = {})
 
 export async function evalView(db: D1Database): Promise<EvalView> {
   const [latest, counts] = await Promise.all([latestFull(db), productionCounts(db)]);
-  if (!latest) return { kind: "empty", counts };
+  if (!latest) return { kind: "empty", counts, history: [] };
   return {
     kind: "report",
     report: latest.report,
     publishedAt: latest.publishedAt,
     ablations: await ablations(db, latest.report),
     counts,
+    history: await publishedHistory(db, latest.report),
   };
 }
 

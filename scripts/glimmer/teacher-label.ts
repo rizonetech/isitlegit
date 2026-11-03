@@ -222,6 +222,24 @@ export function responsesInput(page: StoredPage, screenshot: Uint8Array, text: s
   ];
 }
 
+// The production labeller (D03 T04 §46): Spark labels one captured production page through the same request the
+// screener is trained on. No valid answer is null, never a guess; the caller counts the page unlabelled.
+export function productionLabeller(
+  ask: Ask,
+  attempts: AttemptLedger,
+): (page: StoredPage, screenshot: Uint8Array, text: string) => Promise<PageAnswer | null> {
+  return async (page, screenshot, text) => {
+    try {
+      const reply = await ask(responsesInput(page, screenshot, text), SCREENER_SYSTEM_PROMPT, attempts);
+      if (reply.incomplete) return null;
+      const parsed = PageAnswer.safeParse(JSON.parse(reply.text.replace(/^```(?:json)?\s*|\s*```$/g, "")));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  };
+}
+
 // A checked page's outcome. `pending` is written before its first attempt; `agreed` and `disputed` carry Spark's answer
 // and `applied` once its queue entry and filled fields are written; `failed` (no valid answer, or a run stopped while
 // it was out) and `refused` (the budget sent nothing) carry the reason. Only a refused page is ever sent again.
@@ -838,8 +856,15 @@ export function receiptProblem(
 // before the ledger is locked or a secret read, so a typo never starts spending (§9 final review).
 export function teacherArgs(
   argv: string[],
-): { command: "check" } | { command: "run"; max: number; retryFailed: boolean } | { error: string } {
+):
+  | { command: "check" }
+  | { command: "production" }
+  | { command: "judge"; file: string }
+  | { command: "run"; max: number; retryFailed: boolean }
+  | { error: string } {
   if (argv.length === 1 && argv[0] === "check") return { command: "check" };
+  if (argv.length === 1 && argv[0] === "production") return { command: "production" };
+  if (argv.length === 2 && argv[0] === "judge" && argv[1]) return { command: "judge", file: argv[1] };
   let max = 500;
   let retryFailed = false;
   for (let i = 0; i < argv.length; i++) {
@@ -856,7 +881,9 @@ export function teacherArgs(
 const cli = import.meta.filename === process.argv[1] ? teacherArgs(process.argv.slice(2)) : null;
 if (cli && "error" in cli) {
   console.error(`teacher-label: ${cli.error}`);
-  console.error("usage: node scripts/glimmer/teacher-label.ts check | [--max <n>] [--retry-failed]");
+  console.error(
+    "usage: node scripts/glimmer/teacher-label.ts check | production | judge <judgements.jsonl> | [--max <n>] [--retry-failed]",
+  );
   process.exit(2);
 }
 
@@ -864,6 +891,80 @@ if (cli?.command === "check") {
   const problems = checkLabels(openStore(storeDir()), readLedger(metaLedger()));
   console.log(problems.length ? `teacher-label check: failed (${problems.join("; ")})` : "teacher-label check: clean");
   process.exit(problems.length ? 1 : 0);
+}
+
+if (cli?.command === "production") {
+  // The production backlog (D03 T04 §46): cleared captured pages are labelled once, under the same cap and ledger
+  // discipline as the teacher run.
+  const ledgerFile = metaLedger();
+  const release = takeLock(join(storeDir(), "teacher-label.lock"));
+  if (typeof release === "string") {
+    console.error(`teacher-label: ${release}`);
+    process.exit(1);
+  }
+  try {
+    const secrets = await readSecretsFromVault();
+    const env = { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL };
+    const clock = sharedClock();
+    const ask = sparkAsk({ env, budget: localBudget("glimmer-production-label", undefined, clock.guard) });
+    const store = openStore(storeDir());
+    const run = `glimmer-production-${Date.now()}`;
+    let seq = 0;
+    const closeWith = (id: string, usd: number | null) =>
+      withLedgerLock(ledgerFile, () => {
+        const ledger = readLedger(ledgerFile);
+        const entry = ledger.find((e) => e.run === run && e.call === id && e.state === "reserved");
+        if (entry) settleSpend(ledgerFile, ledger, entry, usd);
+      });
+    const attempts: AttemptLedger = {
+      reserve(_attempt, estimateUsd) {
+        const call = `${SPARK} production ${++seq}`;
+        const reserved = withLedgerLock(ledgerFile, () => {
+          const ledger = readLedger(ledgerFile);
+          if (glimmerSpend(ledger) + estimateUsd > GLIMMER_CAP_USD) throw new BudgetExceeded("total", SPARK);
+          return reserveSpend(ledgerFile, ledger, {
+            date: sastDay(clock.teacher()),
+            run,
+            call,
+            estimate: estimateUsd,
+          });
+        });
+        if ("refused" in reserved) throw new BudgetUnavailable();
+        return call;
+      },
+      settle: (id, usd) => closeWith(id, usd),
+      uncertain: (id) => closeWith(id, null),
+      release: (id) => closeWith(id, 0),
+    };
+    const { processProductionBacklog } = await import("./store.ts");
+    const result = await processProductionBacklog(store, productionLabeller(ask, attempts), new Date().toISOString());
+    console.log(JSON.stringify(result));
+    process.exit(result.failed.length ? 1 : 0);
+  } finally {
+    release();
+  }
+}
+
+if (cli?.command === "judge") {
+  // The offline judging import (D03 T04 §46): Astra and Wonder judge the queue outside this repository and hand
+  // back one JSON object a line ({id, screenshot, text, answer, source}); each is validated and hash-checked here.
+  // The teacher lock is shared with `production`, so an import never rewrites the queue under a running labeller.
+  const release = takeLock(join(storeDir(), "teacher-label.lock"));
+  if (typeof release === "string") {
+    console.error(`teacher-label: ${release}`);
+    process.exit(1);
+  }
+  try {
+    const { applyJudgements } = await import("./store.ts");
+    const { readFileSync } = await import("node:fs");
+    const lines = readFileSync(cli.file, "utf-8").split("\n").filter(Boolean);
+    const judgements = lines.map((line) => JSON.parse(line));
+    const outcomes = applyJudgements(openStore(storeDir()), judgements);
+    console.log(JSON.stringify(outcomes));
+    process.exit(outcomes.every((outcome) => outcome.accepted) ? 0 : 1);
+  } finally {
+    release();
+  }
 }
 
 if (cli?.command === "run") {

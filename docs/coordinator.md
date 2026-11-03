@@ -120,8 +120,8 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 A lane whose run waits on another lane's section resumes at its next heartbeat; this wakes it at once. After each push to `main`:
 
-1. Before the push, note `main`'s published SHA (`git rev-parse origin/main`); after it succeeds, note the new one.
-2. Run `python3 scripts/lane_wake.py waiters <old> <new>` in the main checkout. It reads every lane's guard and the two commits' plan rows, changes nothing, and prints `wake` (one record per lane that waits on a section this push stamped, with the `text` to send) and `skipped` (a lane whose worktree or guard is absent or unreadable, with the reason).
+1. Push through `python3 scripts/push_main.py` (D00 T01 §32), never a bare `git push origin main`: it fetches, captures the published baseline, pushes, and runs the selection itself.
+2. The wrapper prints the `waiters` JSON: `wake` (one record per lane that waits on a section this push stamped, with the `text` to send) and `skipped` (a lane whose worktree or guard is absent or unreadable, with the reason). A selection failure after a successful push is reported with both SHAs for a manual `lane_wake.py waiters <old> <new>` retry.
 3. For each record, find the lane's session in `ListAgents` and send the record's `text` with `SendMessage`. The text carries the lane's session id and the `campaign_guard.py wake` command to run; the lane resumes through its heartbeat's steps.
 4. A lane with no live agent, or a send that fails, was not notified: note it. Its heartbeat resumes it, so nothing is lost; never report it notified.
 
@@ -150,12 +150,22 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 2. Push the merged tip to the gate branch: `git push origin HEAD:refs/heads/coordinator-gate` (a fast-forward; the branch only ever follows `main`'s line).
 3. Watch its run: `gh run watch <id> --exit-status`. Every job must be green, the four Worker shards included.
 4. Locally meanwhile: `pnpm build` (the dry-run deploy) and `pnpm db:migrate:local` when the merge carries a migration. No full suite on this machine.
-5. Push `main` to the gated commit (docs-only commits on top may ride along). A red run: the owning lane is told with the failing test, and `main` does not move.
+5. Push `main` to the gated commit through `python3 scripts/push_main.py` (docs-only commits on top may ride along), and send the wake records it prints. A red run: the owning lane is told with the failing test, and `main` does not move.
 
 ## Deploys
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-11-03 04:20 | `ce217297` | `8ee8dc06-6802-407c-8beb-27ee5dcbb862` | none new; remote read "No migrations to apply" | `/health` reports ce21729772a2f8d5d393d319a74380a0348bea22; gate 41563762886 green; carries walkthrough lane's remaining stamps (D03 T03 s4, D04 T01 s6, D04 T02 s7), eval D08 T02 section 12 with the publishable replay, section 13 filing, and the logo measurements relocated out of eval/sets |
+| 2026-11-03 03:20 | `1739b4cb` | `302c6e1f-fa9d-4ac1-af14-fab4b2dc946f` | 0082, 0085 and 0089 applied; remote then read "No migrations to apply" | `/health` reports 1739b4cb0151c70128afbe090f2053b34c6a958a; gate 41557276544 green; carries checks sections (D02 T01 s8, D02 T05 s11, D02 T06 s9, D04 T01 s13 and s14) and report D07 T09 section 6 |
+| 2026-11-03 01:20 | `b80e2ad7` | `851c4abd-f2c7-42dd-824f-dbcfaf85fa25` | none new; remote read "No migrations to apply" | `/health` reports b80e2ad7d58a9b202892c3ff92940b846dbbf752; gate 41542043421 green after one flake re-run (load-top-sites remote-API test, passes locally); carries report D07 T09 sections 3, 4, 7, 8, 11 and 12 |
+| 2026-11-03 01:05 | `0c8ae7b7` | `7d65225e-5297-4767-b465-a7c91972a706` | 0087 applied (organisation closed_at); remote then read "No migrations to apply" | `/health` reports 0c8ae7b774c6ffb07e6be4c8f507f68b43523703; gate 41538111972 green after one flake re-run (walkthrough fixtures 429 expectation, passes locally); carries app D07 T01 sections 14 and 15, the section 9 build, and the closure claim contract line |
+| 2026-11-02 22:20 | `a4011a64` | `36a93039-1cc5-4c82-a693-d42c0ce9df08` | none new; remote read "No migrations to apply" | `/health` reports a4011a649e37304f7381cf2afb44b0166291a6af after propagation; gate 41516161283 green; carries walkthrough D03 T03 section 3 (SAM logo matching) |
+| 2026-11-02 21:50 | `02c28a86` | `95818bfe-f622-4042-a2a6-3424b3a3bf77` | none new; remote read "No migrations to apply" | `/health` reports 02c28a8678df5f41e48c53295f8f6a500d383dff; gates 41511790673 and 41513434376 green; carries checks D01 T01 section 22 (replay-scoped claims) with EVAL_ORG_ID set to the eval runner organisation |
+| 2026-11-02 21:36 | `3999f9b0` | `1715495b-b195-40f9-a0fc-05b56321a26d` | 0078 applied (case_invoice_accounts); remote then read "No migrations to apply" | `/health` reports 3999f9b0de4c8734daf1172b13e26658973fe636; gate 41509310435 green on every job; carries walkthrough D04 T02 section 8 (plus its gate fix), trust D06 T01 section 5 and D06 T02 section 2, site invoice claims render fix and D07 T06 section 11 |
+| 2026-11-02 20:35 | `0aacf4dc` | `3e6d3d8b-3270-47dd-a79f-392df5ba7daf` | 0081 applied (floor_applied on case_verdicts); remote then read "No migrations to apply" | `/health` reports 0aacf4dc78b94cd1b9f0651901b22b258114fd3f; checks D04 T01 section 11 (floor persistence). Gate order note: the checks merge reached main with the 0082 ledger push, so validation is the main run 41500223522 and the coordinator-gate run 41500273474 on the same commit, both green before this deploy; later gates return to gate-first order |
+| 2026-11-02 20:24 | `de5dac3f` | `58ac688c-05d4-46c3-94ce-a9681481e6f8` | 0080 applied (monitor_screens tier and spark_first_call_id); remote then read "No migrations to apply" | `/health` reports de5dac3fad4d818c13254ed243a040339fadc4f2; gate 41497798667 green on every job; carries vision D03 T04 section 45 (confidence escalation) and section 46 (capture every screened page) |
+| 2026-11-02 18:02 | `165cf2e8` | `56bf0c69-38d2-453f-be7d-8dd323981b93` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit 165cf2e89313a6a92de1d813eacc50b898d5b858; gate 41475578528 green on every job; carries eval D08 T02 section 10 (public run history) and the section 3 ablation RESULTS contract (unstamped, in progress) |
 | 2026-11-02 08:45 | `598fd249` | `893293d6-1529-4b54-9193-79eefa3829a3` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit; smoke passed in 14 s; gate 41398932933 green on every job; carries walkthrough D03 T02 section 4 and app D07 T04 section 29 (verifier detail view). Note: main was pushed at this commit before its gate finished; production deployed only after the green run, and the gate passed on the same commit |
 | 2026-11-02 08:20 | `1f72ae0d` | `62dd037f-a694-4992-ae7b-e78e3f5fcbd8` | 0076 applied first, then the remote read "No migrations to apply" | `/health` reports the full commit; smoke passed in 12 s; gate 41397027290 green on every job; carries trust D05 T01 section 4 (bank detail rekeying) |
 | 2026-11-02 07:35 | `eea939a8` | `ae4f9405-011a-4d3b-a4c1-91221d011ba9` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit; smoke passed in 17 s; gate 41393131876 green on every job (attempt 2; attempt 1 timed out two addresses-page tests that pass in other gates); carries app D07 T03 section 55 (viewer deadlines) |
@@ -235,5 +245,27 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0076 | trust | D05 T01 §4 (bank key rotation support) | 2026-11-02, handed to the trust lane |
 | 0077 | console | D07 T05 §5 feedback triage migration | 2026-11-02, handed to the console lane |
 | 0078 | trust | `case_invoice_accounts` (D06 T01 §1) | 2026-11-02, confirmed to the lane |
+| 0079 | eval | D08 T02 §8 item 1 (per-case provider listings and walkthrough flag on eval results) | 2026-11-02, assigned by gentle-eclipse to the eval lane |
+| 0080 | vision | D03 T04 §45 (monitor_screens tier and first Spark call reference: tier TEXT, spark_first_call_id TEXT) | 2026-11-02, assigned by gentle-eclipse to the vision lane |
+| 0081 | checks | D04 T01 §11 (floor persistence for eval D08 T02 §8) | 2026-11-02, assigned by gentle-eclipse to the checks lane |
+| 0082 | walkthrough | nullable ablated column on case_verdicts (ablation marker, D04 T01 ablation-flag section) | 2026-11-02, assigned by gentle-eclipse to the walkthrough lane |
 
-The next free number is 0079. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+| 0083 | console | D07 T04 §6 (MSP-to-client relation store) | 2026-11-02, assigned by gentle-eclipse to the console lane |
+
+| 0084 | trust | D05 T04 §4 (monitor_investigations and settled outcomes) | 2026-11-02, assigned by gentle-eclipse to the trust lane, with the standing rule repeated: `cases` is never rebuilt, so the channel change must not DROP it |
+
+| 0085 | checks | D02 T06 §9 (one reputation result stored per provider, for report D07 T09 §5) | 2026-11-02, assigned by gentle-eclipse to the checks lane |
+
+| 0086 | trust | D05 T04 §5 (provisional monitor store) | 2026-11-02, assigned by gentle-eclipse to the trust lane |
+| 0087 | app | D07 T02 §9 (organisation closed_at for account closure and the 30-day purge) | 2026-11-02, assigned by gentle-eclipse to the app lane |
+
+| 0088 | console | D07 T04 §12 (case-removals tombstone) | 2026-11-03, assigned by gentle-eclipse to the console lane |
+| 0089 | checks | D02 T01 §8 (check_outcomes.examined) | 2026-11-03, assigned by gentle-eclipse to the checks lane |
+
+| 0090 | console | D07 T04 §20 (weekly counts email opt-in and send log) | 2026-11-03, assigned by gentle-eclipse to the console lane |
+
+| 0091 | trust | D05 T04 §6 (monitor_seeds, demo businesses only) | 2026-11-03, assigned by gentle-eclipse to the trust lane |
+
+| 0092 | checks | D01 T01 §12 | 2026-11-03, assigned by gentle-eclipse to the checks lane |
+
+The next free number is 0093. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.

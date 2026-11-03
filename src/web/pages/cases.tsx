@@ -9,11 +9,11 @@ import type { GateEnv } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
 import { verifiedSenders } from "../../auth/senders";
-import { searchTooLong } from "../../db/case-filters";
+import { ignoredDates, searchTooLong } from "../../db/case-filters";
 import { filtersFrom, listCases } from "../../db/case-list";
-import { CSV_WEEKS, countsCsv, weeklyCounts, weeklyStats } from "../../db/case-stats";
+import { CSV_WEEKS, countsCsv, periodWeeks, weeklyCounts, weeklyStats } from "../../db/case-stats";
 import { CasesPage, ORG_HEADER } from "./cases-view";
-import { errorPage, HEADERS, reference } from "./errors";
+import { errorPage, HEADERS, page, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { COOKIE, hiddenIn, stepsOf } from "./welcome-steps";
 import { doneCount } from "./welcome-view";
@@ -26,6 +26,30 @@ function outage(request: Request, why: string, event = "cases") {
   const ref = reference(500);
   console.log(JSON.stringify({ event, outcome: "unavailable", reference: ref, error: why }));
   return errorPage(500, "", { ref, retry: `${url.pathname}${url.search}` });
+}
+
+// The organisation's current members for the Checked by select (D07 T04 §10): a name, or the email where the name
+// is blank, and the email in brackets where two members share a name, so each option is one colleague.
+export async function membersOf(db: D1Database, orgId: string): Promise<{ id: string; label: string }[]> {
+  const rows = (
+    await db
+      .prepare(
+        `SELECT u.id AS id, u.name AS name, u.email AS email FROM "user" u
+         JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = ? ORDER BY u.name, u.email`,
+      )
+      .bind(orgId)
+      .all<{ id: string; name: string; email: string }>()
+  ).results;
+  const names = new Map<string, number>();
+  for (const r of rows) {
+    const name = r.name.trim();
+    if (name) names.set(name.toLowerCase(), (names.get(name.toLowerCase()) ?? 0) + 1);
+  }
+  return rows.map((r) => {
+    const name = r.name.trim();
+    if (!name) return { id: r.id, label: r.email };
+    return { id: r.id, label: (names.get(name.toLowerCase()) ?? 0) > 1 ? `${name} (${r.email})` : name };
+  });
 }
 
 casesRoutes.get(
@@ -47,10 +71,11 @@ casesRoutes.get(
     try {
       // The weekly stats (D07 T04 §2) are the organisation's whatever the filters, read beside the list so every
       // results request redraws them too; a failed read is the 503 page, never a panel of zeros.
-      const [list, shell, stats] = await Promise.all([
+      const [list, shell, stats, members] = await Promise.all([
         listCases(c.env.DB, membership.org.id, filters, now),
         memberShell(c.env.DB, signedIn.user, membership.org.id, "cases"),
         weeklyStats(c.env.DB, membership.org.id, now),
+        membersOf(c.env.DB, membership.org.id),
       ]);
       if (!list.ok) return outage(c.req.raw, list.error.code);
       // No cases at all now (the last one withdrawn since the page was drawn): the first-run page has no results region
@@ -80,6 +105,8 @@ casesRoutes.get(
             now={now}
             setup={setup}
             searchLong={searchTooLong(new URL(c.req.url).searchParams.get("q"))}
+            datesIgnored={ignoredDates(new URL(c.req.url).searchParams)}
+            members={members}
           />,
         ),
         { headers: HEADERS },
@@ -107,6 +134,51 @@ casesRoutes.get(
     const asked = new URL(c.req.url).searchParams.get("org");
     if (asked && asked !== membership.org.id)
       return new Response(null, { status: 303, headers: { ...HEADERS, location: "/cases" } });
+    const params = new URL(c.req.url).searchParams;
+    const from = params.get("from");
+    const to = params.get("to");
+    if (from !== null || to !== null) {
+      const bad = (why: string) =>
+        page(
+          "Choose a period",
+          <main id="content" class="px-16 py-24 md:px-56 md:py-40">
+            <h1 class="type-h1">That period does not work</h1>
+            <p class="type-body mt-12">{why}</p>
+            <p class="type-body mt-12">
+              <a href="/cases" class="text-orange-text underline underline-offset-4">
+                Back to your cases
+              </a>
+            </p>
+          </main>,
+          400,
+        );
+      const dateOk = (v: string | null): v is string => {
+        const m = v?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return false;
+        const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+        return (
+          d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3])
+        );
+      };
+      if (!dateOk(from) || !dateOk(to))
+        return bad("Give both dates as real calendar dates, From and To, and try again.");
+      const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
+      if (span < 0) return bad("The To date is before the From date. Swap them and try again.");
+      if (span > 730) return bad("That period is longer than two years. Choose a shorter one and try again.");
+      try {
+        const weeks = await periodWeeks(c.env.DB, membership.org.id, from, to);
+        return new Response(countsCsv(weeks), {
+          headers: {
+            "content-type": "text/csv; charset=utf-8",
+            "content-disposition": `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`,
+            "cache-control": "private, no-store",
+            "x-content-type-options": "nosniff",
+          },
+        });
+      } catch (error) {
+        return outage(c.req.raw, (error as Error).name, "cases-csv");
+      }
+    }
     try {
       const weeks = await weeklyCounts(c.env.DB, membership.org.id, new Date(), CSV_WEEKS);
       return new Response(countsCsv(weeks), {

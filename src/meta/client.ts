@@ -72,6 +72,9 @@ export type MetaContext = {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
+  // A caller that bounds its paid attempts across layers (D03 T04 §45's two-call ceiling) caps this call's transport
+  // attempts; absent, the client's own three attempts stand.
+  transportAttempts?: number;
 };
 // What came back, with the gateway's id for the call's log (D03 T01 §3 reads it).
 // An answer, with the call it belongs to (D03 T01 §5: the structured-output helper marks a paid answer that failed its
@@ -92,9 +95,27 @@ export type ModelErrorKind =
   | "network"
   | "malformed";
 
+// A file the server must fetch (a file id or a file URL, or an `input_file` carrying neither) is billed by
+// content the request does not carry, so it cannot be bounded before it is sent and is refused. An inline
+// `file_data` is content the request does carry: its bytes are counted by the same estimate as any text, so
+// it is bounded and sent (D06 T01 §1; coordinator decision 2026-11-02, narrowing the D03 T01 §2 refusal,
+// which had refused every `input_file` including the inline form).
+function hasUnboundedFile(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasUnboundedFile);
+  if (value !== null && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if ("file_id" in o || "file_url" in o) return true;
+    if (o.type === "input_file" && typeof o.file_data !== "string") return true;
+    return Object.values(o).some(hasUnboundedFile);
+  }
+  return false;
+}
+
 // One attempt that failed, with what traces it: the gateway's log id (cf-aig-log-id) and Meta's (x-request-id).
 export type FailedAttempt = { kind: ModelErrorKind; status?: number; logId: string | null; requestId: string | null };
 export type ModelErrorDetails = {
+  // The call this failure ends, so a caller can name every paid call it made (D03 T04 §45).
+  callId?: string;
   status?: number;
   type?: string | null;
   code?: string | null;
@@ -142,10 +163,10 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       if (!Number.isInteger(cap) || (cap as number) < 1)
         throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
     }
-    if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+    if (hasUnboundedFile(params))
       throw new ModelError(
         "invalid-request",
-        "a server-referenced file cannot be bounded before it is sent; send its content",
+        "a server-referenced file cannot be bounded before it is sent; send its content inline",
       );
     return { model, ...settings(ctx.env) };
   });
@@ -182,45 +203,51 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
     // A grounded call reserves its whole search cap; its answer settles at the searches it reports.
     searches: groundedCall ? (ctx.search?.maxSearches ?? 0) : 0,
   });
-  const answer = await withRetries(ctx, seen, (signal, n) => {
-    let requestId: string | null = null;
-    return charged(
-      ctx.budget,
-      model,
-      estimate,
-      n,
-      async () => {
-        if (ctx.expired?.())
-          throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
-        const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
-        requestId = traced(response.headers).requestId;
-        if (!isResponse(data))
-          throw new ModelError("malformed", "Meta's answer is not a response object", {
-            status: response.status,
-            ...traced(response.headers),
-          });
-        return { data, logId: traced(response.headers).logId };
-      },
-      ({ data, logId }) => ({
-        usage: {
-          inputTokens: data.usage?.input_tokens,
-          cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
-          outputTokens: data.usage?.output_tokens,
-          // SAM is billed per image sent, one at least.
-          images: Math.max(1, images),
-          // The searches this answer itself ran, counted from its own output (D03 T02 §4).
-          searches: (data.output ?? []).filter((item) => item.type === "web_search_call").length,
+  let answer: { data: MetaResponse; logId: string | null };
+  try {
+    answer = await withRetries(ctx, seen, (signal, n) => {
+      let requestId: string | null = null;
+      return charged(
+        ctx.budget,
+        model,
+        estimate,
+        n,
+        async () => {
+          if (ctx.expired?.())
+            throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
+          const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
+          requestId = traced(response.headers).requestId;
+          if (!isResponse(data))
+            throw new ModelError("malformed", "Meta's answer is not a response object", {
+              status: response.status,
+              ...traced(response.headers),
+            });
+          return { data, logId: traced(response.headers).logId };
         },
-        logId,
-        requestId,
-        // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
-        reported: MODELS[model].unit === "token" && data.usage !== undefined,
-      }),
-      call,
-      undefined,
-      (error) => describeFailure(error, seen.last),
-    );
-  });
+        ({ data, logId }) => ({
+          usage: {
+            inputTokens: data.usage?.input_tokens,
+            cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
+            outputTokens: data.usage?.output_tokens,
+            // SAM is billed per image sent, one at least.
+            images: Math.max(1, images),
+            // The searches this answer itself ran, counted from its own output (D03 T02 §4).
+            searches: (data.output ?? []).filter((item) => item.type === "web_search_call").length,
+          },
+          logId,
+          requestId,
+          // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
+          reported: MODELS[model].unit === "token" && data.usage !== undefined,
+        }),
+        call,
+        undefined,
+        (error) => describeFailure(error, seen.last),
+      );
+    });
+  } catch (error) {
+    if (error instanceof ModelError && !error.details.callId) error.details.callId = call.callId;
+    throw error;
+  }
   return { ...answer, callId: call.callId };
 }
 
@@ -242,10 +269,10 @@ export async function metaResponsesStream(
     const model = standard(params.model, "responses");
     if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
       throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
-    if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+    if (hasUnboundedFile(params))
       throw new ModelError(
         "invalid-request",
-        "a server-referenced file cannot be bounded before it is sent; send its content",
+        "a server-referenced file cannot be bounded before it is sent; send its content inline",
       );
     // A token-priced stream reserves against its output limit like any Responses call; an
     // image-priced one (SAM) is reserved per image and needs none.
@@ -702,7 +729,8 @@ async function withRetries<T>(
           logId: failure.details.logId ?? null,
           requestId: failure.details.requestId ?? null,
         });
-        if (n >= MAX_ATTEMPTS || status === undefined || !RETRIED.has(status)) throw end(failure);
+        const limit = Math.min(MAX_ATTEMPTS, Math.max(1, ctx.transportAttempts ?? MAX_ATTEMPTS));
+        if (n >= limit || status === undefined || !RETRIED.has(status)) throw end(failure);
         // A wait longer than this call may take ends it as rate-limit, carrying the wait, whatever the status: Meta
         // sends a 503 `service_overloaded` with Retry-After: 60 (sources/meta-api/docs/docs/error-handling.md), and a
         // caller that retried a plain `server` failure at once would ignore it.

@@ -149,7 +149,7 @@ Because legitimate businesses do get listed, the rules for using these signals m
 
 - Render the email HTML to a screenshot with Browser Run (remote images allowed inside the sandbox, scripts off). Render each PDF page and each landing page to images.
 - **Muse Spark** (`muse-spark-1.3`, image input, JSON-schema structured output) returns per image: claimed brand, requested action (log in, pay, open file, call), urgency cues, visible sender identity.
-- **SAM 3.1** (`sam-3.1`, text prompt "logo") returns boxes and masks; crops go back to Muse Spark with the brand's reference logo for a same/different judgement. Output parsed with `@meta-sam/parser`. Logo-detection quality is undocumented: test on day 1, and fall back to Muse Spark perception grounding (boxes from the vision model) if SAM misses logos.
+- **SAM 3.1** (`sam-3.1`, text prompt "logo") returns boxes and masks; crops go back to Muse Spark with the brand's reference logo for a same/different judgement. Output parsed with `@meta-sam/parser`. Logo-detection quality is undocumented: test on day 1, and fall back to Muse Spark perception grounding (boxes from the vision model) if SAM misses logos. (Measured 2026-11-02, D03 T03 §4: on 20 synthetic branded pages SAM returned no logo box at all, grounding found 20 of 20, so grounding holds the logo concept and SAM keeps stamp and signature; docs/frontier-log.md.)
 - **Brand's real domains** come from a curated table first, then Muse Spark **search grounding** with citations for brands not in the table. Evidence: "Shows Standard Bank branding; sent from a domain Standard Bank does not use (source: standardbank.co.za)."
 - Reference logos: a small curated set (South African banks, Microsoft, DocuSign, SARS, couriers) with licence-safe sources, stored in R2.
 
@@ -273,7 +273,7 @@ Looks for fake websites of each protected business, so the business hears about 
 
 | Risk | Mitigation |
 |---|---|
-| SAM 3.1 does not find logos reliably | Day 1 test on 20 branded emails; fallback is Muse Spark perception grounding |
+| SAM 3.1 does not find logos reliably | Day 1 test on 20 branded emails; fallback is Muse Spark perception grounding (measured 2026-11-02, D03 T03 §4: SAM 0 of 20, grounding 20 of 20, so grounding holds logos and SAM keeps stamp and signature) |
 | Meta abuse systems flag phishing content | Standard mode, `store: false`, synthetic demo data; AUP exception request ready |
 | $150 credit runs out | Credit needs a payment method on file and a claim before 4 Nov 21:00 ET; Muse Spark for bulk work ($1.25 / $4.25 per M tokens), Wonder only for site walkthroughs; cache by artefact hash; eval set sized to budget |
 | Forwarded emails lose headers | Forward-as-attachment path, clear reply guidance, confidence lowered when headers missing |
