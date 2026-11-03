@@ -649,6 +649,8 @@ Evidence 2026-11-03 23:12 SAST. `design/SPEC.md` 1 records the one-border focus 
 
 ## 17. Premium polish sweep over every surface
 
+> **Started:** 2026-11-03T21:40:30Z
+
 Operator, 2026-11-02, after §16: a deliberate pass for the small details that make the interface feel finished, over the app, the consoles and the marketing site, each item proven on the surfaces it touches rather than asserted. The list below is the coordinator's; an item that a surface already satisfies is recorded as satisfied with its evidence, never silently dropped. Owning layer: the shared components and tokens first, a page only where the detail is that page's own.
 
 **Phase:** 8
