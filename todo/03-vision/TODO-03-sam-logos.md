@@ -241,6 +241,8 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 
 ## 7. Compared reference in logo_match detail
 
+> **Started:** 2026-11-03T03:17:42Z
+
 Filed 2026-11-03 from the app lane's D07 T03 §14 plan review, relayed by the coordinator: a report card must draw the exact reference a crop was judged against, not the brand's current reference. The compared reference's store key and hash therefore ride in the `vision.logo_match` evidence detail; until this lands, the app card draws the brand's current reference beside the crop, labelled as the reference, with the stored differences carrying the comparison.
 
 **Phase:** 6
