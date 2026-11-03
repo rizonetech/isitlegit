@@ -557,6 +557,62 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
     expect(view.reasons).toEqual([{ text: "The domain age check timed out.", evidenceIds: ["E2"] }]);
   });
 
+  it("stores every deterministic action, in the agent path's order, and reads them back (completion review)", async () => {
+    const { id, orgId } = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+      draft("voice.request", "info", "The caller asks for a payment.", { request: "pay" }),
+      draft("voice.claimed_identity", "info", "The caller claims to be the bank.", { identity: "the bank" }),
+      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+    ]);
+    // The document step's own item, as a stored row of its producer.
+    await env.DB.prepare(
+      `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
+       VALUES (?, (SELECT COALESCE(run_id, id) FROM cases WHERE id = ?), 'E6', 6, 'document.proof_of_payment', 'info', 'A proof of payment is attached.', '{}', '[]', 'now', 'document')`,
+    )
+      .bind(id, id)
+      .run();
+    const { view } = await verdict(env, env.DB, store, id);
+    // The three deterministic actions come first, in the agent path's order, before any rules action.
+    expect(view.actions.length).toBeGreaterThanOrEqual(3);
+    expect(view.actions[0]).toContain("012 555 0100");
+    expect(view.actions[1]).toBe("Confirm the money has cleared in your own banking app before releasing goods.");
+    expect(view.actions[2]).toContain("the bank");
+    await setStatus(env.DB, orgId, id, "running");
+    expect(await storeVerdict(env.DB, orgId, id, view)).toMatchObject({ ok: true });
+    expect(await getVerdict(env.DB, id)).toMatchObject({
+      ok: true,
+      value: { ablated: "no-agent-reasoning", actions: view.actions },
+    });
+  });
+
+  it("caps confidence on missing headers alone, with every check complete (completion review)", async () => {
+    const { id } = await ablatedCase(
+      "no-agent-reasoning",
+      [draft("intake.forward", "info", "Forwarded by the member.")],
+      false,
+    );
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view).toMatchObject({ verdict: "safe", ablated: "no-agent-reasoning" });
+    expect(view.headline).not.toContain("could not run");
+    expect(view.confidence).toBeLessThanOrEqual(0.5);
+  });
+
+  it("restores the agent for the same organisation's next case when its flag is cleared (completion review)", async () => {
+    const orgId = `org-ablate-clear-${crypto.randomUUID().slice(0, 8)}`;
+    await env.CACHE.put(`ablate:${orgId}`, "no-agent-reasoning");
+    const first = await ablatedCase(null, [draft("intake.forward", "info", "Forwarded by the member.")]);
+    // Point the first case at the flagged organisation and read its verdict again under the flag.
+    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(orgId, first.id).run();
+    const flagged = await verdict(env, env.DB, store, first.id);
+    expect(flagged.view.ablated).toBe("no-agent-reasoning");
+    await env.CACHE.delete(`ablate:${orgId}`);
+    const second = await ablatedCase(null, [draft("intake.forward", "info", "Forwarded by the member.")]);
+    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(orgId, second.id).run();
+    const cleared = await verdict(env, env.DB, store, second.id);
+    expect(cleared.view.ablated ?? null).toBeNull();
+    expect((await events(second.id)).some((e) => e.step === "agent")).toBe(true);
+  });
+
   it("leaves the agent in place for the other three flags, and when the flag is cleared", async () => {
     for (const flag of ["no-walkthrough", "no-sam", "no-screening", null]) {
       const { id, orgId } = await ablatedCase(flag, [draft("intake.forward", "info", "Forwarded by the member.")]);

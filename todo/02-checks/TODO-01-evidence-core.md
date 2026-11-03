@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: done
+status: active
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -44,6 +44,7 @@ track: day-2
 | 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 | 8 | §8 | Examined set stored for a clean check | §3 | [x] |
+| 9 | §9 | Protected-identity candidate for the trust match | §3 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -287,6 +288,25 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a c
 
 > **Verified:** 2026-11-03 | §8 | ce1236bd13e1e8ff637e6f048fdafeeb10e8825f
 > **Review:** `docs/reviews/d02-t01-s8.json`
+
+## 9. Protected-identity candidate for the trust match
+
+Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the trust match reads a protected identity's registered facts through a bounded candidate input the checks step fills on the case view, the same form as the document forensics fill trust already takes (D06 T02 §3). This section owns the checks side: the view field, its bound, and the fill; trust builds its matching and claim evidence contract against that input and stamps when the fill gates to main.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Fill a bounded protected-identity candidate on the case view. Done when: the trust match reads the candidate from the view, and no registered identity detail beyond the candidate's bound reaches a check.
+
+- [ ] Add the candidate field to `CaseView` in `src/checks/case-view.ts`: the protected business's candidate names and domains as stored text, with its registered logo references (artefact keys, never bytes), each list bounded with its omission counted, in the shape trust D05 T02 §2 names at its build. Done when: `test/checks/case-view.test.ts` (or its successor) reads the field back with its bounds held on an over-bound input.
+- [ ] Fill the field in the `checks` step in `src/pipeline/analysis-workflow.ts` from the case's own organisation data, beside the fills it already makes, failing as the step's other fills fail. Done when: a checks-step test stores a case whose view carries the candidate, and a case with no protected identity carries none. Cheaper substitute: letting the trust match read the registry itself from the checks step, which crosses the lane's storage boundary.
+- [ ] Commit: `checks: protected-identity candidate for the trust match`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a candidate names a business the case's organisation does not protect.
 
 ## Verification
 

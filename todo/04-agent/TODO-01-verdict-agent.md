@@ -50,7 +50,8 @@ track: day-6
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
-| 14 | §14 | Ablation flag in the verdict step | §4 | [ ] |
+| 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
+| 15 | §15 | Fixed action on every critical invoice item | §12 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -421,9 +422,31 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3: the abl
 - [x] Honour `no-agent-reasoning` in the pipeline's verdict step (`src/pipeline/analysis-workflow.ts`): the verdict agent is never called, the rule-based verdict of §2 decides with `fixedActionsFor`'s deterministic actions applied as the agent path applies them, and the stored verdict states `ablated: "no-agent-reasoning"` in the same shape an agent verdict stores. Done when: a Workflow test with the flag set shows no model call, a stored verdict, and the ablation named; without the flag the agent runs as today.
 - [x] Store the marker completely in `src/db/verdicts.ts` and its migration: `ablated` is one of the four flag names or absent (a legacy row's SQL null reads as absent), `VerdictView`'s zod refuses any other value, `same` compares it, and `getVerdict` reads it back. Done when: database tests prove a legacy row stays readable, an identical retry succeeds, a changed marker conflicts, and an invalid marker is refused.
 - [x] Prove the ablated verdict is the real rules result in the verdict step's Workflow tests: critical evidence stays at the floor, reasons cite current-run evidence, missing headers keep the confidence cap, an incomplete check keeps its warning, the other three flags do not bypass the agent, and clearing the flag restores the agent for the next case. Done when: `test/pipeline/analysis-workflow.test.ts` carries each case.
-- [ ] Commit: `agent: ablation flag in the verdict step`
+- [x] Commit: `agent: ablation flag in the verdict step`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/ablate.test.ts` and the verdict step's Workflow tests pass, and the checkpoint fails if a flagged case still calls the verdict agent.
+
+> **Verified:** 2026-11-03 | §14 | e833f7b9f847b0696d73598241f83f2827567ae2
+> **Review:** `docs/reviews/d04-t01-s14.json`
+
+## 15. Fixed action on every critical invoice item
+
+Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3): trust's rule needs a fixed action attached for every critical invoice item, and `fixedActionsFor` in `src/agent/loop.ts` today attaches the bank-change action only for the first trigger item and the proof-of-payment action once. Trust builds its Workflow proof against this extension and stamps when it gates to main (its proof half is already built against `bankChangeAction`).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Extend the deterministic actions to every critical invoice trigger. Done when: each critical invoice item's fixed action is on the verdict, in evidence order, with no duplicate.
+
+- [ ] Extend `fixedActionsFor` in `src/agent/loop.ts` so every critical `invoice.*` item (and each `agent.ledger_lookup` mismatch) carries its fixed action, keeping the numbered-trigger-wins rule of §12 and the actions' evidence order, deduplicated as the agent path deduplicates today. Done when: `test/agent/loop.test.ts` (or its successor) proves two critical invoice items yield two actions, a numberless trigger beside a numbered one still yields the numbered action, and no action repeats.
+- [ ] Prove it through the verdict path trust reads: the rule verdict and the agent fallback both carry the extended actions. Done when: the same suite reads the actions back on a stored verdict from each path.
+- [ ] Commit: `agent: fixed action on every critical invoice item`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if a second critical invoice item yields no action of its own.
 
 ## Verification
 

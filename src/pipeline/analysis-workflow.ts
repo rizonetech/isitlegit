@@ -1131,6 +1131,18 @@ export async function verdict(
     .bind(caseId)
     .first<{ headers_available: number; org_id: string }>();
   const headersAvailable = row?.headers_available === 1;
+  // An ablated arm (D04 T01 §14): the verdict agent is never called, and none of its preparation is read
+  // either; the rule verdict decides alone with the deterministic actions, and the verdict names the flag.
+  if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {
+    const rules = ruleVerdict(evidence, { headersAvailable });
+    const fixed = fixedActionsFor(evidence);
+    const view: VerdictView = {
+      ...rules,
+      actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
+      ablated: "no-agent-reasoning",
+    };
+    return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  }
   const { table } = await brandTableRead(env);
   const summary = await (async () => {
     const read = await readArtefact(store, caseId, parsedKey(caseId));
@@ -1160,18 +1172,6 @@ export async function verdict(
   for (const e of evidence) collect(e.detail, found);
   const urls = [...new Set(found)];
   const executor = createToolExecutor({ db, caseId, urls }, deps);
-  // An ablated arm (D04 T01 §14): the verdict agent is never called, the rule verdict decides alone with
-  // the deterministic actions the agent path applies, and the stored verdict names the flag.
-  if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {
-    const rules = ruleVerdict(evidence, { headersAvailable });
-    const fixed = fixedActionsFor(evidence);
-    const view: VerdictView = {
-      ...rules,
-      actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
-      ablated: "no-agent-reasoning",
-    };
-    return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
-  }
   const view = await runAgent(
     {
       db,
