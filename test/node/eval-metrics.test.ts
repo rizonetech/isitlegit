@@ -7,7 +7,16 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
 import { MAX_LABELS_BYTES } from "../../eval/load.ts";
-import { computeMetrics, coverageMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
+import {
+  compareRuns,
+  comparisonText,
+  computeMetrics,
+  coverageMetrics,
+  MAX_EXPORT_BYTES,
+  pairForCompare,
+  renderTable,
+  runMetrics,
+} from "../../eval/metrics.ts";
 import { publishProblems } from "../../eval/publish.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
 import {
@@ -659,5 +668,271 @@ describe("the coverage metrics from a baseline manifest", () => {
     expect(c.pooled).toBe(1);
     expect(c.bySample["nazario-2025/p1.eml"]?.outcome).toBe("done");
     expect(c.bySample["nazario-2025/p2.eml"]?.outcome).toBe("partial");
+  });
+});
+
+describe("the source-versus-replay comparison (section 13)", () => {
+  const pair = (
+    sourceRows: ResultRow[],
+    replayRows: ResultRow[],
+    over: { source?: Partial<RunRow>; replay?: Partial<RunRow> } = {},
+  ) => {
+    const source = {
+      run: run({ id: "run-00000001", selected: sourceRows.length, ...over.source }),
+      results: sourceRows.map((r) => ({ ...r, runId: "run-00000001" })),
+    };
+    const replay = {
+      run: run({
+        id: "run-00000002",
+        mode: "replay:run-00000001",
+        commitSha: "def5678",
+        selected: replayRows.length,
+        ...over.replay,
+      }),
+      results: replayRows.map((r) => ({ ...r, runId: "run-00000002" })),
+    };
+    return { source, replay };
+  };
+
+  it("compares exact deltas per scope and lists changed verdicts in both directions", () => {
+    const { source, replay } = pair(
+      [
+        row("synthetic-sa/a1.eml", "done", "malicious"),
+        row("synthetic-sa/a2.eml", "done", "safe"),
+        row("synthetic-sa/g1.eml", "done", "safe", { label: "genuine" }),
+        row("synthetic-sa/g2.eml", "done", "safe", { label: "genuine", ms: 3000 }),
+      ],
+      [
+        row("synthetic-sa/a1.eml", "done", "safe", { ms: 2000 }),
+        row("synthetic-sa/a2.eml", "done", "suspicious", { ms: 2000 }),
+        row("synthetic-sa/g1.eml", "done", "malicious", { label: "genuine", ms: 2000 }),
+        row("synthetic-sa/g2.eml", "done", "safe", { label: "genuine", ms: 5000 }),
+      ],
+    );
+    expect(pairForCompare(source, replay)).toBeNull();
+    const c = compareRuns(source, replay);
+    expect(c.main.detection).toMatchObject({ deltaPp: 0 });
+    expect(c.main.detection.source).toEqual({ n: 2, hits: 1, rate: 0.5 });
+    expect(c.main.falsePositives).toMatchObject({ deltaPp: 50 });
+    expect(c.main.medianMs).toEqual({ source: 1000, replay: 2000, delta: 1000 });
+    expect(c.challenge).toBeNull();
+    expect(c.changed).toEqual([
+      {
+        sample: "synthetic-sa/a1.eml",
+        label: "attack",
+        scope: "main",
+        sourceVerdict: "malicious",
+        replayVerdict: "safe",
+        change: "regression",
+        sourceCaseId: "case-synthetic-sa/a1.eml",
+        replayCaseId: "case-synthetic-sa/a1.eml",
+      },
+      {
+        sample: "synthetic-sa/a2.eml",
+        label: "attack",
+        scope: "main",
+        sourceVerdict: "safe",
+        replayVerdict: "suspicious",
+        change: "improvement",
+        sourceCaseId: "case-synthetic-sa/a2.eml",
+        replayCaseId: "case-synthetic-sa/a2.eml",
+      },
+      {
+        sample: "synthetic-sa/g1.eml",
+        label: "genuine",
+        scope: "main",
+        sourceVerdict: "safe",
+        replayVerdict: "malicious",
+        change: "regression",
+        sourceCaseId: "case-synthetic-sa/g1.eml",
+        replayCaseId: "case-synthetic-sa/g1.eml",
+      },
+    ]);
+    // Median cost deltas are exact too: every row costs US$0.02 on both sides.
+    expect(c.main.medianCostUsd).toEqual({ source: 0.02, replay: 0.02, delta: 0 });
+    expect(comparisonText(c)).toMatch(/1 improvements, 2 regressions, 0 other changes/);
+    expect(comparisonText(c)).toMatch(/detection 50\.0% \(1 of 2\) -> 50\.0% \(1 of 2\) \(\+0\.0 pp\)/);
+  });
+
+  it("keeps the challenge set apart and reads absent figures as not measured", () => {
+    const challengeOnly = pair(
+      [row("synthetic-challenge/a1.eml", "done", "safe")],
+      [row("synthetic-challenge/a1.eml", "done", "malicious")],
+    );
+    expect(pairForCompare(challengeOnly.source, challengeOnly.replay)).toBeNull();
+    const c = compareRuns(challengeOnly.source, challengeOnly.replay);
+    expect(c.main.detection.source.rate).toBeNull();
+    expect(c.main.detection.deltaPp).toBeNull();
+    expect(c.challenge?.detection).toMatchObject({ deltaPp: 100 });
+    // Attack-only: no genuine denominator on either side.
+    expect(c.main.falsePositives.source.rate).toBeNull();
+    expect(c.main.falsePositives.deltaPp).toBeNull();
+    expect(comparisonText(c)).toMatch(/false positives not measured -> not measured/);
+    // Unchanged pair: zero deltas, no changed verdicts.
+    const same = pair([row("synthetic-sa/a1.eml", "done", "safe")], [row("synthetic-sa/a1.eml", "done", "safe")]);
+    const flat = compareRuns(same.source, same.replay);
+    expect(flat.main.detection.deltaPp).toBe(0);
+    expect(flat.changed).toEqual([]);
+  });
+
+  it("refuses pairs that are not one fully measured population", () => {
+    const base = pair([row("synthetic-sa/a1.eml", "done", "safe")], [row("synthetic-sa/a1.eml", "done", "safe")]);
+    expect(pairForCompare(base.source, { ...base.replay, run: { ...base.replay.run, mode: "full" } })).toMatch(
+      /is not a replay of/,
+    );
+    expect(pairForCompare(base.source, { ...base.replay, run: { ...base.replay.run, status: "incomplete" } })).toMatch(
+      /not complete/,
+    );
+    // A complete run with a null verdict is not fully measured: an outage must not read as a change.
+    const outage = pair([row("synthetic-sa/a1.eml", "partial", null)], [row("synthetic-sa/a1.eml", "done", "safe")]);
+    expect(pairForCompare(outage.source, outage.replay)).toMatch(/not fully measured/);
+    const missing = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe"), row("synthetic-sa/a2.eml", "done", "safe")],
+      [row("synthetic-sa/a1.eml", "done", "safe")],
+      { replay: { selected: 1 } },
+    );
+    expect(pairForCompare(missing.source, missing.replay)).toMatch(/but not in run/);
+    expect(
+      pairForCompare(base.source, { ...base.replay, run: { ...base.replay.run, setVersion: "b".repeat(64) } }),
+    ).toMatch(/different set versions/);
+    // Label drift and a short result count refuse too.
+    const drift = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe")],
+      [row("synthetic-sa/a1.eml", "done", "safe", { label: "genuine" })],
+    );
+    expect(pairForCompare(drift.source, drift.replay)).toMatch(/changed label/);
+    const short = pair([row("synthetic-sa/a1.eml", "done", "safe")], [row("synthetic-sa/a1.eml", "done", "safe")], {
+      source: { selected: 2 },
+    });
+    expect(pairForCompare(short.source, short.replay)).toMatch(/holds 1 results for 2 selected/);
+  });
+
+  it("separates populated main and challenge populations in one pair", () => {
+    const { source, replay } = pair(
+      [
+        row("synthetic-sa/a1.eml", "done", "malicious", { costUsd: 0.01 }),
+        row("synthetic-challenge/a1.eml", "done", "safe", { costUsd: 0.03 }),
+      ],
+      [
+        row("synthetic-sa/a1.eml", "done", "malicious", { costUsd: 0.02 }),
+        row("synthetic-challenge/a1.eml", "done", "suspicious", { costUsd: 0.05 }),
+      ],
+    );
+    const c = compareRuns(source, replay);
+    expect(c.main.detection).toMatchObject({ deltaPp: 0 });
+    expect(c.challenge?.detection).toMatchObject({ deltaPp: 100 });
+    expect(c.main.medianCostUsd).toEqual({ source: 0.01, replay: 0.02, delta: 0.01 });
+    expect(c.challenge?.medianCostUsd.source).toBe(0.03);
+    expect(c.challenge?.medianCostUsd.replay).toBe(0.05);
+    expect(c.challenge?.medianCostUsd.delta).toBeCloseTo(0.02);
+    expect(c.changed).toEqual([
+      {
+        sample: "synthetic-challenge/a1.eml",
+        label: "attack",
+        scope: "challenge",
+        sourceVerdict: "safe",
+        replayVerdict: "suspicious",
+        change: "improvement",
+        sourceCaseId: "case-synthetic-challenge/a1.eml",
+        replayCaseId: "case-synthetic-challenge/a1.eml",
+      },
+    ]);
+  });
+
+  it("names the paired cases behind a changed verdict, and no case where none is recorded (section 14)", () => {
+    const { source, replay } = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe")],
+      [row("synthetic-sa/a1.eml", "done", "malicious", { caseId: null })],
+    );
+    const c = compareRuns(source, replay);
+    expect(c.changed[0]).toMatchObject({ sourceCaseId: "case-synthetic-sa/a1.eml", replayCaseId: null });
+    const text = comparisonText(c);
+    expect(text).toMatch(
+      /source report: https:\/\/app\.isitlegit\.co\.za\/cases\/case-synthetic-sa\/a1\.eml; replay report: none recorded/,
+    );
+    expect(text).toMatch(/paired evidence: each report opens under eval-organisation membership/);
+    expect(text).toMatch(/answer the same 404/);
+    expect(text).toMatch(/a side with no case recorded has no paired evidence/);
+  });
+
+  it("reads distinct route-valid paired ids back through the command in text and JSON (section 14)", async () => {
+    const sourceCase = "01M6F51VP52MKH8P8HC9C10PKA";
+    const replayCase = "01M6F51VP52MKH8P8HC9C10PKB";
+    const { source, replay } = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe", { caseId: sourceCase })],
+      [row("synthetic-sa/a1.eml", "done", "malicious", { caseId: replayCase })],
+    );
+    const store = new Map([
+      [source.run.id, source],
+      [replay.run.id, replay],
+    ]);
+    const db = { readRun: async (id: string) => store.get(id) ?? null };
+    const text = await runMetrics({ argv: ["--compare", replay.run.id], db, root: ROOT });
+    expect(text.code).toBe(0);
+    expect(text.stdout).toContain(`source report: https://app.isitlegit.co.za/cases/${sourceCase}`);
+    expect(text.stdout).toContain(`replay report: https://app.isitlegit.co.za/cases/${replayCase}`);
+    expect(text.stdout).toMatch(/answer the same 404/);
+    const asJson = await runMetrics({ argv: ["--compare", replay.run.id, "--json"], db, root: ROOT });
+    const parsed = JSON.parse(asJson.stdout) as { changed: { sourceCaseId: string; replayCaseId: string }[] };
+    expect(parsed.changed[0]).toMatchObject({ sourceCaseId: sourceCase, replayCaseId: replayCase });
+  });
+
+  it("drives --compare through the command entry with persisted read-back and its refusals", async () => {
+    const { source, replay } = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe")],
+      [row("synthetic-sa/a1.eml", "done", "malicious")],
+    );
+    const store = new Map([
+      [source.run.id, source],
+      [replay.run.id, replay],
+    ]);
+    const db = { readRun: async (id: string) => store.get(id) ?? null };
+    const ok = await runMetrics({ argv: ["--compare", replay.run.id], db, root: ROOT });
+    expect(ok.code).toBe(0);
+    expect(ok.stdout).toMatch(/comparison: run run-00000001 .* -> replay run-00000002/);
+    expect(ok.stdout).toMatch(/synthetic-sa\/a1\.eml \[main, attack, improvement\]: safe -> malicious/);
+    expect((await runMetrics({ argv: ["--compare", source.run.id], db, root: ROOT })).code).toBe(3);
+    expect((await runMetrics({ argv: ["--compare", "run-99999999"], db, root: ROOT })).code).toBe(3);
+    expect(
+      (await runMetrics({ argv: ["--compare", replay.run.id, "--run", source.run.id], db, root: ROOT })).code,
+    ).toBe(3);
+    expect((await runMetrics({ argv: ["--compare"], db, root: ROOT })).code).toBe(3);
+    expect((await runMetrics({ argv: ["--compare", "bad id!"], db, root: ROOT })).code).toBe(3);
+    for (const conflict of ["--publish", "--republish-summary", "--check", "--from"]) {
+      const extra = conflict === "--check" || conflict === "--from" ? [conflict, "x"] : [conflict];
+      expect((await runMetrics({ argv: ["--compare", replay.run.id, ...extra], db, root: ROOT })).code).toBe(3);
+    }
+    // A replay whose source record is gone refuses, naming the source; nothing is published on any refusal.
+    let writes = 0;
+    const orphan = await runMetrics({
+      argv: ["--compare", replay.run.id],
+      db: { readRun: async (id: string) => (id === replay.run.id ? replay : null) },
+      root: ROOT,
+      write: () => writes++,
+    });
+    expect(orphan.code).toBe(3);
+    expect(orphan.stderr).toMatch(/no source run run-00000001/);
+    expect(writes).toBe(0);
+    // JSON read-back carries the deltas; progress reports the reads off stdout.
+    const progress: string[] = [];
+    const asJson = await runMetrics({
+      argv: ["--compare", replay.run.id, "--json"],
+      db,
+      root: ROOT,
+      onProgress: (line) => progress.push(line),
+    });
+    expect(asJson.code).toBe(0);
+    const parsed = JSON.parse(asJson.stdout) as { main: { detection: { deltaPp: number } } };
+    expect(parsed.main.detection.deltaPp).toBe(100);
+    expect(progress).toEqual([
+      "eval:metrics: reading replay run run-00000002",
+      "eval:metrics: reading source run run-00000001",
+    ]);
+    const failing = {
+      readRun: async () => {
+        throw new Error("d1 down");
+      },
+    };
+    expect((await runMetrics({ argv: ["--compare", replay.run.id], db: failing, root: ROOT })).code).toBe(1);
   });
 });
