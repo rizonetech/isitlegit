@@ -322,6 +322,8 @@ Filed 2026-11-02 from §1's completion review (G6): a fixture collector that ans
 
 ## 9. Ablation flag in the walkthrough
 
+> **Started:** 2026-11-03T02:05Z
+
 Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-walkthrough` case the walkthrough step skips the Muse Wonder walk entirely and stores the same evidence shape with the step marked ablated, so an ablation arm measures the case exactly as if the walk had found nothing to follow, with the reason named.
 
 **Phase:** 6
