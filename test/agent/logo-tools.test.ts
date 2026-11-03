@@ -487,7 +487,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     };
     const deps = verdictToolDeps(metaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser(),
-      policy: async () => ({ ok: true }),
+      policy: async (raw) => ({ ok: true, url: new URL(raw) }),
       metaFetch,
     });
     const phishingUrl = "https://fnb-verify-login.example/signin";
@@ -904,11 +904,9 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
       launch: stubBrowser({ stallClose: true }),
       metaFetch: async () => samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.91 }]),
     });
-    const stalledCloseExec = createToolExecutor(
-      { db: env.DB, caseId, urls: [], brands: bundled },
-      stalledCloseDeps,
-      { budgetMs: 120 },
-    );
+    const stalledCloseExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, stalledCloseDeps, {
+      budgetMs: 120,
+    });
     const stalledCloseRes = await stalledCloseExec.call("segment_logos", {
       artefact_key: render.key,
       concept: "logo",
@@ -922,7 +920,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     const changedHostUrl = "https://fnb-redirect-trap.example/start";
     const changedHostDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser({ secondNavUrl: "https://www.fnb.co.za/login" }),
-      policy: async () => ({ ok: true }),
+      policy: async (raw) => ({ ok: true, url: new URL(raw) }),
       metaFetch: async () => samStreamResponse([]),
     });
     const changedHostExec = createToolExecutor(

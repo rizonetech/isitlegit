@@ -3,13 +3,7 @@
 // verdict above the floor and never lower it below. The floor reads only each item's severity, check name and a listing's
 // `cap`, never its summary or other free text, so hostile mail content cannot move it. Pure: no I/O, no clock.
 
-import {
-  addEvidence,
-  type Evidence,
-  type EvidenceDraft,
-  readEvidence,
-  unplain,
-} from "../checks/evidence";
+import { addEvidence, type Evidence, type EvidenceDraft, readEvidence, unplain } from "../checks/evidence";
 import type { CheckOutcome } from "../checks/runner";
 import type { Verdict } from "../db/cases";
 

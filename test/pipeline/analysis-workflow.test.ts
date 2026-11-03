@@ -2608,14 +2608,15 @@ describe("several originals in one forward (D01 T01 §12)", () => {
     const stored = await storeVerdict(env.DB, ORG, caseId, view);
     expect(stored.ok).toBe(true);
     const readBack = await getVerdict(env.DB, caseId);
-    expect(readBack.ok && readBack.value?.meaning).toBe(FLOOR_CONSEQUENCES.bank);
+    if (!readBack || !readBack.ok) throw new Error("expected stored verdict");
+    expect(readBack.value.meaning).toBe(FLOOR_CONSEQUENCES.bank);
 
     // Reply consumer reads the stored consequence sentence as meaning
     const built = buildReply({
       parentSubject: "Fwd: Invoice 104",
       headersAvailable: true,
       otherOriginals: 0,
-      report: { status: "ready", view: readBack.ok && readBack.value ? readBack.value : view },
+      report: { status: "ready", view: readBack.value },
       reportUrl: "https://isitlegit.co.za/r/tok",
       design: { appUrl: "https://isitlegit.co.za" },
     });
@@ -2623,7 +2624,7 @@ describe("several originals in one forward (D01 T01 §12)", () => {
     expect(built.html).toContain(FLOOR_CONSEQUENCES.bank.replaceAll("'", "&#39;"));
 
     // Report consumer reads the stored consequence sentence as meaning
-    const reportVal = readBack.ok && readBack.value ? readBack.value : view;
+    const reportVal = readBack.value;
     expect(meaningOf(reportVal)).toBe(FLOOR_CONSEQUENCES.bank);
     const rendered = String(
       VerdictSection({
