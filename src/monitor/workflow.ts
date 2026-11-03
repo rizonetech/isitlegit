@@ -17,6 +17,7 @@ import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
+import { ctCandidates } from "./ct";
 import { findingsFromInvestigations } from "./findings";
 import { monitorPipeline, type PipelineDeps } from "./pipeline";
 import {
@@ -125,6 +126,7 @@ export function monitorDeps(
     ...(sparkFetch ? { fetch: sparkFetch } : {}),
   };
   return {
+    ct: (tokens: string[]) => ctCandidates(opts.fetcher ?? fetch, tokens),
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),

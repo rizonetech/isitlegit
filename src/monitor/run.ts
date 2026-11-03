@@ -22,7 +22,8 @@ import { hasFeature } from "../auth/plans";
 import { getIdentity, orgDomains } from "../trust/identity";
 import type { Burst } from "../vision/glimmer-wake";
 import type { GlimmerSession } from "../vision/screen";
-import { candidatesForBusiness } from "./candidates";
+import { candidatesForBusiness, MAX_CANDIDATES } from "./candidates";
+import { brandTokens, type CtResult } from "./ct";
 import type { Signals } from "./parked";
 import { MAX_SCREENS_PER_RUN, newScreenCounts, owedDomains, type ScreenDeps, screenOwed } from "./screen";
 
@@ -64,6 +65,9 @@ export class CaptureFailed extends Error {
 export type Settled = { ok: true } | { ok: false; detail?: string } | unknown;
 export type MonitorDeps = ScreenDeps & {
   resolve: (host: string) => Promise<Lookup>;
+  // Certificate-transparency candidates for the day's brand tokens (D05 T04 §7); absent in
+  // tests that do not exercise it, stated as failed tokens on the run when a query fails.
+  ct?: (tokens: string[]) => Promise<CtResult>;
   capture: (host: string) => Promise<Capture>;
   // The run's one Loupe session (D03 T04 §1), opened for this many pages before the first capture so its warm-up
   // overlaps them, and closed after the screening; a failed close is handed to the Workflow's settle step.
@@ -94,6 +98,8 @@ export type RunSummary = {
   secondLookUnavailable: number;
   // Live hosts at the capture-failure limit, probed once a day: while any is, the run is partial (correction 8).
   captureBlocked: number;
+  // Brand tokens whose CT query failed today (D05 T04 §7): while any is, the run is partial.
+  ctFailed: number;
   errors: string[];
   // A reservation still held because its settlement failed: the Workflow settles it again in its own step.
   // `until` is the cutoff a failed settlement was to land on (D03 T04 §40), so the retry charges the same moment.
@@ -267,6 +273,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     luresDeclined: 0,
     secondLookUnavailable: 0,
     captureBlocked: 0,
+    ctFailed: 0,
     errors: [],
   };
   await startRun(deps.db, orgId, day, runId, started);
@@ -280,7 +287,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       return summary;
     }
     const domains = (await orgDomains(deps.db, orgId)).filter((d) => d.state === "verified").map((d) => d.domain);
-    const candidates = candidatesForBusiness(domains);
+    const generated = candidatesForBusiness(domains);
     const at = started.toISOString();
     const known = new Map(
       (
@@ -292,6 +299,24 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .all<HostRow>()
       ).results.map((r) => [r.domain, r]),
     );
+    // CT discoveries join the candidates before DNS (D05 T04 §7): first in the shared cap,
+    // deduped, the business's own domains and subdomains never among them. Known hosts that
+    // match a token stay monitored on later days even when CT later answers empty or fails.
+    const identity = await getIdentity(deps.db, orgId).catch(() => null);
+    const tokens = brandTokens(identity?.displayNames ?? [], domains);
+    let ctNames: string[] = [];
+    if (deps.ct && tokens.length) {
+      const ct = await deps.ct(tokens).catch((): CtResult => ({ names: [], failed: tokens }));
+      ctNames = ct.names;
+      summary.ctFailed = ct.failed.length;
+      for (const token of ct.failed) noteError(summary, `ct:${token}`);
+    }
+    const own = new Set(domains);
+    const isOwn = (host: string) => domains.some((d) => host === d || host.endsWith(`.${d}`));
+    const knownCt = [...known.keys()].filter((host) => tokens.some((token) => host.includes(token)) && !isOwn(host));
+    const candidates = [...new Set([...ctNames.filter((h) => !isOwn(h)), ...knownCt, ...generated])]
+      .filter((h) => !own.has(h))
+      .slice(0, MAX_CANDIDATES);
     const looked = await inBatches(candidates, DNS_CONCURRENCY, async (host) => ({
       host,
       lookup: await deps.resolve(host),
@@ -432,7 +457,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       summary.captureBlocked ||
       summary.secondLookUnavailable ||
       summary.screenFailed ||
-      summary.screenDeferred
+      summary.screenDeferred ||
+      summary.ctFailed
         ? "partial"
         : "completed";
   } catch (error) {
