@@ -223,6 +223,11 @@ class Receipt:
         self.sampled_out = 0
         self.rejected = {}
         self.items = []
+        self.inventory = []
+
+    def note_inventory(self, item):
+        """An input item enumerated independently of outcome recording (D03 T04 §28 plan review gap 2)."""
+        self.inventory.append(str(item))
 
     def _named(self, item, outcome, reason=None):
         if item is not None:
@@ -243,24 +248,36 @@ class Receipt:
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
         self._named(item, "rejected", reason)
 
-    def write_items(self, folder, inputs_digest, rows_digest):
+    def write_items(self, folder, inputs_digest, rows_digest, inventory=None):
         """The item ledger, written whole (temp then rename) once every item met is named exactly once; bound to the
-        inputs and rows it describes. Refused while any item is unnamed or named twice, so a partial ledger never
-        stands in for the whole."""
+        inputs and rows it describes. Refused while any item is unnamed or named twice, or disagrees with an
+        independently enumerated input inventory, so a partial ledger never stands in for the whole."""
         if len(self.items) != self.met:
             raise Refused(f"the item ledger names {len(self.items)} of {self.met} items")
         ids = [entry["item"] for entry in self.items]
         if len(set(ids)) != len(ids):
             raise Refused("the item ledger names an item twice")
+        inv = [str(x) for x in inventory] if inventory is not None else self.inventory
+        if inv:
+            if len(set(inv)) != len(inv):
+                raise Refused("the input inventory names an item twice")
+            if set(inv) != set(ids) or len(inv) != len(ids):
+                raise Refused(
+                    f"the item ledger ({len(ids)} items) does not match the input inventory ({len(inv)} items)"
+                )
         path = Path(folder) / ITEMS
         temporary = path.with_name(f".{ITEMS}.{os.getpid()}.tmp")
+        written = "".join(
+            [json.dumps({"inputs": inputs_digest, "rows": rows_digest}) + "\n"]
+            + [json.dumps(entry) + "\n" for entry in self.items]
+        )
         with open(temporary, "w", encoding="utf-8") as handle:
-            handle.write(json.dumps({"inputs": inputs_digest, "rows": rows_digest}) + "\n")
-            for entry in self.items:
-                handle.write(json.dumps(entry) + "\n")
+            handle.write(written)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        if path.read_text(encoding="utf-8") != written:
+            raise Refused(f"{path} did not read back as written")
         return path
 
     def write(self, folder, rows, converter, inputs_digest, parameters=None):

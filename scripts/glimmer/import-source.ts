@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
+import { captureProblem } from "./label-rules.ts";
 import type { Labels, openStore, PageInput } from "./store.ts";
 
 export const MAX_EXCLUDED_SHARE = 0.15;
@@ -31,7 +32,13 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 
 export type SourceItem = {
   id: string; // the item's name inside the dataset, for exclusions
-  load: () => Promise<{ screenshot: Uint8Array; text: string; has_login_form?: boolean; has_payment_form?: boolean }>;
+  load: () => Promise<{
+    screenshot: Uint8Array;
+    text: string;
+    has_login_form?: boolean | undefined;
+    has_payment_form?: boolean | undefined;
+    evidence?: PageInput["evidence"];
+  }>;
   // The screenshot is the dataset's live capture while the text and form flags come from an inert copy of its HTML
   // (7 Days Later, §18): a form a script builds shows in the picture and not in the copy, so a false flag is untrusted.
   inertFlags?: boolean;
@@ -129,15 +136,34 @@ export type ImportOutcome = {
   page?: string;
   reason?: string;
 };
-export function writeImportItems(path: string, binding: { inputs: string; rows: string }, outcomes: ImportOutcome[]) {
+export function writeImportItems(
+  path: string,
+  binding: { inputs: string; rows: string; export?: string | undefined; import?: string | undefined },
+  outcomes: ImportOutcome[],
+  options: { write?: (path: string, data: string) => void } = {},
+) {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  const lines = [
-    JSON.stringify({ inputs: binding.inputs, rows: binding.rows }),
-    ...outcomes.map((o) => JSON.stringify(o)),
-  ];
-  writeFileSync(temporary, `${lines.join("\n")}\n`);
-  renameSync(temporary, path);
+  const header = {
+    inputs: binding.inputs,
+    rows: binding.rows,
+    ...(binding.export ? { export: binding.export } : {}),
+    ...(binding.import ? { import: binding.import } : {}),
+  };
+  const lines = [JSON.stringify(header), ...outcomes.map((o) => JSON.stringify(o))];
+  const written = `${lines.join("\n")}\n`;
+  try {
+    (options.write ?? ((p, d) => writeFileSync(p, d)))(temporary, written);
+    renameSync(temporary, path);
+  } catch (error) {
+    try {
+      if (existsSync(temporary)) writeFileSync(temporary, "");
+    } catch {
+      // ignore cleanup error
+    }
+    throw error;
+  }
+  if (readFileSync(path, "utf-8") !== written) throw new Error(`${path} did not read back as written`);
 }
 
 export function writeImport(path: string, result: ImportResult): void {
@@ -168,7 +194,10 @@ export async function importSource(options: {
   redacted?: boolean;
   southAfrica?: boolean;
   // The converter's binding for the rows imported (`exportBinding`), recorded in IMPORT.json.
-  binding?: { inputs: string; rows: string };
+  binding?: { inputs: string; rows: string; export?: string };
+  // Test hooks for interrupted or failing ledger writes (D03 T04 §28 plan review gap 5).
+  afterImportWrite?: () => void;
+  writeLedger?: (path: string, data: string) => void;
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
@@ -267,11 +296,16 @@ export async function importSource(options: {
         record({ item: item.id, outcome: "excluded", reason: excluded.at(-1)?.reason as string });
         continue;
       }
-      // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing: it is filtered out,
-      // and counted apart from failures, because it is what the dataset holds rather than an import that went wrong.
-      if (page.text.trim().length < MIN_TEXT_CHARACTERS) {
-        filtered.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
-        record({ item: item.id, outcome: "filtered", reason: filtered.at(-1)?.reason as string });
+      // Why a capture cannot carry its publisher's label (§28 G6 and plan review gap 6): an empty page with no text or
+      // form, a parked or error page, or a textual or structural wall is filtered out with its reason; a sparse lure
+      // with a logo and form fields is admitted. Redacted client samples still filter script-only shells under 20 chars.
+      const problem =
+        options.origin === "samples" && page.text.trim().length < MIN_TEXT_CHARACTERS
+          ? `renders under ${MIN_TEXT_CHARACTERS} characters of text`
+          : captureProblem(page.text, page.evidence, page);
+      if (problem) {
+        filtered.push({ item: item.id, reason: problem });
+        record({ item: item.id, outcome: "filtered", reason: problem });
         continue;
       }
       const labels: Labels = { ...item.labels };
@@ -301,6 +335,7 @@ export async function importSource(options: {
           redacted: options.redacted ?? false,
           item: item.id,
           ...(item.input ? { input: item.input } : {}),
+          ...(page.evidence ? { evidence: page.evidence } : {}),
         });
         if (before.has(id)) {
           duplicates++;
@@ -339,7 +374,7 @@ export async function importSource(options: {
   // render failed or was excluded is then on no page, never on its old content. An unbound import only reports them.
   let replaced = 0;
   if (options.binding && !stopped)
-    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source && p.item)) {
+    for (const page of store.manifest({ tolerant: true, source }).filter((p) => p.source === source && p.item)) {
       const ids = page.items?.map((entry) => entry.id) ?? [page.item as string];
       const live = ids.filter((id) => listed.has(id));
       if (live.length === ids.length) continue;
@@ -347,12 +382,12 @@ export async function importSource(options: {
       else store.removePage(page.id);
       replaced++;
     }
-  const sourcePages = store.manifest({ tolerant: true }).filter((page) => page.source === source);
+  const sourcePages = store.manifest({ tolerant: true, source }).filter((page) => page.source === source);
   const stored = sourcePages.length;
   const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
   const legacy = sourcePages.filter((page) => !page.item).length;
   const result: ImportResult = {
-    ...(options.binding ?? {}),
+    ...(options.binding ? { inputs: options.binding.inputs, rows: options.binding.rows } : {}),
     status: stopped || tooMany || stillDamaged || stale ? "incomplete" : "complete",
     expected: items.length,
     imported,
@@ -380,21 +415,38 @@ export async function importSource(options: {
     pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
     concurrency,
   };
-  // The ledger before the record: a complete IMPORT.json never stands beside an earlier run's ledger. A page an
-  // import later settled (removed, or its item moved) is read back from the store, so the ledger names where each
-  // item is now.
-  if (options.binding && !stopped) {
-    const where = new Map<string, string>();
-    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source))
-      for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
-    const settled = items.map((item): ImportOutcome => {
-      const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
-      if (had.page && !where.has(item.id))
-        return { item: item.id, outcome: "excluded", reason: "its page was settled away" };
-      return had.page ? { ...had, page: where.get(item.id) as string } : had;
-    });
-    writeImportItems(join(dirname(importJson), IMPORT_ITEMS), options.binding, settled);
-  }
   writeImport(importJson, options.publish === false ? { ...result, status: "running" } : result);
+  try {
+    options.afterImportWrite?.();
+    // The import ledger is bound to the inputs, export and import digests it belongs to, written temp-then-replace and
+    // read back after the page metadata and IMPORT.json (§28 plan review gap 5). A failure or stop here marks
+    // IMPORT.json incomplete, and a kill between IMPORT.json and this write leaves the ledger missing or bound to the
+    // previous import digest, which `sources.ts check` refuses and a rerun of the import repairs.
+    if ((options.binding || options.writeLedger) && !stopped) {
+      const binding = options.binding ?? { inputs: "", rows: "" };
+      const where = new Map<string, string>();
+      for (const page of sourcePages)
+        for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
+      const settled = items.map((item): ImportOutcome => {
+        const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
+        if (had.page && !where.has(item.id))
+          return { item: item.id, outcome: "excluded", reason: "its page was settled away" };
+        return had.page ? { ...had, page: where.get(item.id) as string } : had;
+      });
+      const exportFile = join(dirname(importJson), "EXPORT.json");
+      const exportDigest = binding.export ?? (existsSync(exportFile) ? fileSha256(exportFile) : undefined);
+      const importDigest = fileSha256(importJson);
+      writeImportItems(
+        join(dirname(importJson), IMPORT_ITEMS),
+        { ...binding, export: exportDigest, import: importDigest },
+        settled,
+        options.writeLedger ? { write: options.writeLedger } : {},
+      );
+    }
+  } catch (error) {
+    result.status = "incomplete";
+    result.reason = (error as Error).message;
+    writeImport(importJson, result);
+  }
   return result;
 }

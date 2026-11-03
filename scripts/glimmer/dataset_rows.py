@@ -104,9 +104,13 @@ def compphish(folder, receipt, limits, manifest=None):
         if info.is_dir():
             continue
         if serial in labels:
-            yield f"compphish-{serial}", labels[serial], lambda a=archive, i=info: read_entry(a, i)
+            item_id = f"compphish-{serial}"
+            receipt.note_inventory(item_id)
+            yield item_id, labels[serial], lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("no phishing or benign label in the mapping file", f"compphish:{info.filename}")
+            item_id = f"compphish:{info.filename}"
+            receipt.note_inventory(item_id)
+            receipt.reject("no phishing or benign label in the mapping file", item_id)
 
 
 def ariyadasa(folder, receipt, limits, manifest=None):
@@ -131,9 +135,13 @@ def ariyadasa(folder, receipt, limits, manifest=None):
                 continue
             name = Path(info.filename).name
             if name in rows:
-                yield f"ariyadasa-{Path(name).stem}", rows[name], lambda a=archive, i=info: read_entry(a, i)
+                item_id = f"ariyadasa-{Path(name).stem}"
+                receipt.note_inventory(item_id)
+                yield item_id, rows[name], lambda a=archive, i=info: read_entry(a, i)
             else:
-                receipt.reject("not in the dataset's index", f"ariyadasa:{part.name}/{info.filename}")
+                item_id = f"ariyadasa:{part.name}/{info.filename}"
+                receipt.note_inventory(item_id)
+                receipt.reject("not in the dataset's index", item_id)
 
 
 def kempf(folder, receipt, limits, manifest=None):
@@ -145,9 +153,13 @@ def kempf(folder, receipt, limits, manifest=None):
         parts = Path(info.filename).parts
         if len(parts) == 3 and parts[1] in ("Phish", "NotPhish") and parts[2].endswith(".html"):
             label = "phish" if parts[1] == "Phish" else "benign"
-            yield f"kempf-{parts[0]}-{Path(parts[2]).stem}", (None, label), lambda a=archive, i=info: read_entry(a, i)
+            item_id = f"kempf-{parts[0]}-{Path(parts[2]).stem}"
+            receipt.note_inventory(item_id)
+            yield item_id, (None, label), lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("not a labelled HTML page in the archive's layout", f"kempf:{info.filename}")
+            item_id = f"kempf:{info.filename}"
+            receipt.note_inventory(item_id)
+            receipt.reject("not a labelled HTML page in the archive's layout", item_id)
 
 
 def mallory(folder, receipt, limits, manifest=None):
@@ -173,12 +185,14 @@ def mallory(folder, receipt, limits, manifest=None):
         raise inputs_module.Refused(f"html.xlsx has {len(pages)} rows and urls.xlsx {len(urls)}: they cannot be paired")
     for number, ((category, html), (url_category, url)) in enumerate(zip(pages, urls), 1):
         limits.check_deadline()
+        item_id = f"mallory-{number}"
+        receipt.note_inventory(item_id)
         if category not in ("spam", "ham") or not html:
-            receipt.reject("not a spam or ham row with a page", f"mallory-{number}")
+            receipt.reject("not a spam or ham row with a page", item_id)
             continue
         # A URL row is trusted only when its category matches the page's; otherwise the page has no host.
         same = url_category == category and isinstance(url, str)
-        yield f"mallory-{number}", (url if same else None, "phish" if category == "spam" else "benign"), (
+        yield item_id, (url if same else None, "phish" if category == "spam" else "benign"), (
             lambda h=html: str(h))
 
 

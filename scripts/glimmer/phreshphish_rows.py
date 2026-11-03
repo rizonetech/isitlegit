@@ -72,6 +72,7 @@ def main(parquet=None):
                                 limits.count_entry()
                                 sink.write(json.dumps(row, ensure_ascii=False) + "\n")
                                 # Every row is exported, named by its own id; the importer accounts for what it stores.
+                                receipt.note_inventory(row.get("sha256"))
                                 receipt.export(row.get("sha256"))
                         finally:
                             limits.release_retained(held)

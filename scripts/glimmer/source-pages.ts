@@ -278,7 +278,194 @@ export function shownText(): string {
   }
 }
 
-export type RenderedHtml = { screenshot: Uint8Array; text: string; drawn?: string } & FormFlags;
+export type RenderedHtml = {
+  screenshot: Uint8Array;
+  text: string;
+  drawn?: string;
+  evidence: {
+    title: string;
+    overlays: string;
+    captcha: boolean;
+    consentWall: boolean;
+    challengeCover: boolean;
+    wall: boolean;
+  };
+} & FormFlags;
+
+// What a bot wall shows instead of the site: Cloudflare's, Akamai's, and HUMAN's "Press & Hold" and Imperva's checkbox
+// (both found stored as benign pages, 2026-10-29). Wording no page uses but a wall counts wherever it is drawn; wording a
+// page may use in passing ("access denied" in an article) counts in the title, the page's opening, or an overlay.
+export const CHALLENGE =
+  /just a moment|verify you are human|access denied|attention required|checking your browser|are you a robot|are you a human|press (&|and) hold|additional security check is required|pass the security check/i;
+// The hosts' and firewalls' own wording only: "I'm not a robot" is also a fake-CAPTCHA lure's, and "we have detected
+// unauthorized activity" a phishing line, so neither counts alone.
+const WALL_ONLY =
+  /are you a human|press (&|and) hold|additional security check is required|pass the security check|verify you are (a )?human|checking (if the site connection is secure|your browser)|your request is being verified|running an automatic check to ensure a safe connection|you are seeing this page because we have detected unauthori[sz]ed activity/i;
+// What a host shows where no site is (found stored as benign pages and evaluated on, 2026-10-31, D03 T04 §13): a
+// directory listing, an empty placeholder, a suspended hosting account. Read from the page's opening.
+export const NO_SITE =
+  /^\s*index of \/[\s\S]{0,300}?\blast modified\b|(there is|there's) (currently )?no content here|hosting account (associated with this domain )?(has been |is )?suspended/i;
+
+// Whether a capture (or a stored page's kept evidence) shows a bot wall, whitespace folded so "Press\n&\nHold" reads
+// as one phrase (§26, plan review gaps 3 and 4).
+export function wallShown(seen: { title: string; text: string; overlays: string; imageText?: string }): boolean {
+  const fold = (s: string) => s.replace(/\s+/g, " ");
+  // What OCR read off a picture covering the page counts as what is drawn over it.
+  const drawn = `${seen.overlays}\n${seen.imageText ?? ""}`;
+  const anywhere = fold(`${seen.title}\n${seen.text}\n${drawn}`);
+  const opening = fold(`${seen.title}\n${seen.text.slice(0, 2000)}\n${drawn}`);
+  return WALL_ONLY.test(anywhere) || CHALLENGE.test(opening);
+}
+
+export const NOT_FOUND =
+  /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
+
+// Signs that the page is not the site but a wall in front of it. Run inside the page.
+export function readWalls(): {
+  captcha: boolean;
+  consentWall: boolean;
+  overlays: string;
+  challengeCover: boolean;
+  imageCover: boolean;
+} {
+  const width = innerWidth;
+  const height = innerHeight;
+  // The browser's own methods, never ones the page left on an element (see `readFormFlags`).
+  const area = (el: Element) => {
+    const box = Element.prototype.getBoundingClientRect.call(el);
+    return (
+      Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
+      Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0))
+    );
+  };
+  const shown = (el: Element) =>
+    Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
+  // Every element, those inside open shadow roots included: a consent manager often draws its banner in one.
+  const all: Element[] = [];
+  const walk = (root: Document | ShadowRoot) => {
+    for (const el of root.querySelectorAll("*")) {
+      all.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  const frames = all.filter((el): el is HTMLIFrameElement => el instanceof HTMLIFrameElement);
+  // A challenge the viewer must solve, not a protection badge: a visible CAPTCHA frame larger than a corner badge.
+  const captcha = frames.some((frame) => {
+    if (
+      !/recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i.test(frame.src || "")
+    )
+      return false;
+    // A widget the viewer is asked to solve (a Turnstile, hCaptcha or reCAPTCHA checkbox is about 300 by 65), not the
+    // invisible kind's corner badge (`size=invisible`).
+    if (/[?&]size=invisible\b/i.test(frame.src || "")) return false;
+    const box = Element.prototype.getBoundingClientRect.call(frame);
+    return shown(frame) && box.width >= 150 && box.height >= 50 && area(frame) > 0;
+  });
+  const consentWords =
+    /we use cookies|accept (all )?cookies|(cookie|privacy) (settings|preferences)|manage cookies|consent to|your consent/i;
+  // A consent provider's own frame in front of the page.
+  const providerFrame = frames.some(
+    (frame) =>
+      /consent|cookiebot|onetrust|cookielaw|didomi|trustarc|quantcast|consensu\.org|privacy-mgmt|sourcepoint|usercentrics|cookiefirst|iubenda/i.test(
+        frame.src || "",
+      ) &&
+      shown(frame) &&
+      area(frame) >= 0.15 * width * height,
+  );
+  let covering = false;
+  let backdrop = false;
+  let dialog = false;
+  let cover = false;
+  // A large picture with almost no words of its own, in any position (a wall can sit in the page's flow): its words, if
+  // any, are in its pixels, which the render reads by OCR before storing the page.
+  let imageCover = false;
+  for (const el of all) {
+    if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
+    if (area(el) < 0.4 * width * height || !shown(el)) continue;
+    // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
+    if (((el as HTMLElement).innerText || "").trim().length >= 40) continue;
+    if (
+      el.matches("img, canvas, svg, video, object, embed") ||
+      getComputedStyle(el).backgroundImage !== "none" ||
+      el.querySelector("img, canvas, svg, video, object, embed")
+    )
+      imageCover = true;
+  }
+  const overlays: string[] = [];
+  for (const el of all) {
+    if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
+    const style = getComputedStyle(el);
+    if (style.position !== "fixed" && style.position !== "absolute") continue;
+    if (!shown(el)) continue;
+    // What the overlay shows: its rendered text, and its open shadow root's own text, which `innerText` leaves out.
+    const rootText = el.shadowRoot
+      ? [...el.shadowRoot.childNodes]
+          .map((node) =>
+            node.nodeType === Node.TEXT_NODE ? (node.nodeValue ?? "") : (node as HTMLElement).textContent || "",
+          )
+          .join("\n")
+      : "";
+    // biome-ignore lint/performance/useDomNodeTextContent: what the overlay shows is the point
+    const text = `${(el as HTMLElement).innerText || ""}\n${rootText}`.trim();
+    const big = area(el) >= 0.5 * width * height;
+    // A consent wall asks for consent; a page wrapped whole in a positioned frame (Microsoft's sign-in) only links
+    // its "Privacy & cookies" policy in a footer.
+    if (big && text.length < 3000 && consentWords.test(text)) covering = true;
+    // A full-screen backdrop with almost nothing written on it, and a consent dialog of any size above the page.
+    if (big && text.trim().length < 40) backdrop = true;
+    if (text.length < 3000 && consentWords.test(text)) dialog = true;
+    // What sits over the page, wherever it is and however small: every shown positioned element's text, kept whole.
+    if (text.trim()) overlays.push(text.trim());
+    // A cover with no words of its own but a picture: an image, a canvas or a frame itself, one inside it, or a CSS
+    // background image. A wall drawn as an image.
+    if (
+      big &&
+      text.trim().length < 40 &&
+      (el.matches("img, canvas, svg, iframe, video, object, embed") ||
+        style.backgroundImage !== "none" ||
+        el.querySelector("img, canvas, svg, iframe, video, object, embed"))
+    )
+      cover = true;
+  }
+  // A cover drawn by a pseudo-element of any element: a fixed or absolute ::before or ::after with an image (its
+  // background or its content) spanning most of the view. Its box cannot be measured, so its computed size or its
+  // insets decide.
+  const spans = (size: string, start: string, end: string, view: number) =>
+    Number.parseFloat(size) >= 0.5 * view || (start === "0px" && end === "0px");
+  for (const el of all) {
+    for (const part of ["::before", "::after"]) {
+      const style = getComputedStyle(el, part);
+      if (style.content === "none" || style.content === "normal") continue;
+      // Words a pseudo-element draws (`content: "Press & Hold"`) reach no text reader: they join the overlays, when the
+      // element and its pseudo-element are shown (an inactive widget's hidden wording is not on the page).
+      if (!shown(el) || style.display === "none" || style.visibility === "hidden") continue;
+      const drawn = [...style.content.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) =>
+        (m[1] ?? "").replace(/\\(.)/g, "$1"),
+      );
+      if (drawn.join("").trim()) overlays.push(drawn.join(" ").trim());
+      if (style.position !== "fixed" && style.position !== "absolute") continue;
+      if (style.backgroundImage === "none" && !/url\(/.test(style.content)) continue;
+      if (spans(style.width, style.left, style.right, width) && spans(style.height, style.top, style.bottom, height))
+        cover = true;
+    }
+  }
+  // A bot-wall vendor's script on the page: HUMAN (PerimeterX), DataDome, Imperva (Incapsula), Akamai, hCaptcha.
+  // Cloudflare's challenge platform, GeeTest, Kasada, F5 (TSPD), Akamai's sensor and Arkose too.
+  const vendor = [...document.scripts].some((script) =>
+    /perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs|funcaptcha|cdn-cgi\/challenge-platform|challenges\.cloudflare\.com|geetest|kasada|\/TSPD\/|_bm\/|sec-cpt|recaptcha\/(api|enterprise)/i.test(
+      script.src || "",
+    ),
+  );
+  return {
+    captcha,
+    consentWall: covering || providerFrame || (backdrop && dialog),
+    // Bounded only against a hostile page's size; the evidence kept with a stored page is cut later, after checking.
+    overlays: overlays.join("\n").slice(0, 200_000),
+    challengeCover: cover && vendor,
+    imageCover,
+  };
+}
 
 // The CSS properties that draw a picture, as the browser computes them.
 const PICTURE_PROPERTIES = [
@@ -506,11 +693,21 @@ export async function openTextReader(
           throw new Error("refused: a picture survived the browser's own reading of the page");
         drawn = await page.evaluate(controlText);
       }
+      const title = (await page.evaluate(() => document.title || "")).slice(0, 2000);
+      const walls = await page.evaluate(readWalls);
       const text = tidy(await page.evaluate(shownText));
       // Only the fields in the 1280 by 2000 pixels the screenshot keeps (§26).
       const flags = await page.evaluate(readFormFlags, {
         region: { left: 0, top: 0, right: 1280, bottom: MAX_HEIGHT },
       });
+      const evidence = {
+        title,
+        overlays: walls.overlays.slice(0, 8000),
+        captcha: walls.captcha,
+        consentWall: walls.consentWall,
+        challengeCover: walls.challengeCover,
+        wall: wallShown({ title, text, overlays: walls.overlays }),
+      };
       // Only the top 1280 by 2000 pixels are kept, so only they are captured: a full page tens of thousands of pixels
       // tall would outgrow the decoder's pixel limit and the browser's memory.
       const fault = captureFault?.();
@@ -524,6 +721,7 @@ export async function openTextReader(
         screenshot: await normaliseScreenshot(new Uint8Array(shot)),
         text,
         ...flags,
+        evidence,
         ...(drawn !== undefined ? { drawn } : {}),
       };
     });

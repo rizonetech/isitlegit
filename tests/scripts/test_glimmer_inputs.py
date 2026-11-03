@@ -207,6 +207,18 @@ class ItemLedger(unittest.TestCase):
         twice.sample_out("row-a")
         with self.assertRaisesRegex(inputs.Refused, "names an item twice"):
             twice.write_items(self.dir, "i" * 64, "r" * 64)
+        omitted = inputs.Receipt()
+        omitted.note_inventory("row-a")
+        omitted.note_inventory("row-b")
+        omitted.export("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "does not match the input inventory"):
+            omitted.write_items(self.dir, "i" * 64, "r" * 64)
+        dup_inv = inputs.Receipt()
+        dup_inv.note_inventory("row-a")
+        dup_inv.note_inventory("row-a")
+        dup_inv.export("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "input inventory names an item twice"):
+            dup_inv.write_items(self.dir, "i" * 64, "r" * 64)
         self.assertEqual(list(self.dir.iterdir()), [])
 
 

@@ -19,10 +19,30 @@
 //   node scripts/glimmer/sources.ts bind <source>   # record, in IMPORT.json, the rows and inputs an import came from
 //   node scripts/glimmer/sources.ts freeze          # Loupe 1.0's collection freeze: raw/FROZEN.json, once reconciled
 import { createHash } from "node:crypto";
-import { existsSync, linkSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  linkSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { fileSha256, type ImportResult, writeImport } from "./import-source.ts";
+import { indexRows, readHtml } from "./import-phreshphish.ts";
+import {
+  fileSha256,
+  type ImportOutcome as ImportItemEntry,
+  type ImportResult,
+  writeImport,
+  writeImportItems,
+} from "./import-source.ts";
 import { assessCapture, majesticList, renderReceipt, saList } from "./render.ts";
+import { openTextReader, type RenderedHtml } from "./source-pages.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -94,6 +114,35 @@ export type ImportRecord = {
   rows?: string;
 };
 
+export type ConverterItemEntry = {
+  item: string;
+  outcome: "exported" | "sampled-out" | "rejected";
+  reason?: string;
+};
+
+export type ConverterItemsLedger = {
+  header?: { inputs?: string; rows?: string };
+  entries: ConverterItemEntry[];
+};
+
+export type ImportItemsLedger = {
+  header?: { inputs?: string; rows?: string; export?: string; import?: string };
+  entries: ImportItemEntry[];
+};
+
+export type SourceLedgerBinding = {
+  manifest?: string;
+  export?: ExportReceipt;
+  exportSha256?: string;
+  importSha256?: string;
+  rows?: boolean;
+  checkLineage?: boolean;
+  converterItems?: ConverterItemsLedger;
+  importItems?: ImportItemsLedger;
+  inventory?: string[];
+  rowItems?: { item: string; input: string }[];
+};
+
 // The table's rows; a row that does not parse is itself a problem, never skipped.
 export function parseSources(markdown: string): { rows: SourceRow[]; problems: string[] } {
   const rows: SourceRow[] = [];
@@ -138,7 +187,7 @@ export function reconcile(input: {
   notice: string;
   // Each source's manifest digest and export receipt, as read beside its import (§18); left out, the binding is not
   // checked (a caller with no store).
-  bindings?: Record<string, { manifest?: string; export?: ExportReceipt; rows?: boolean }>;
+  bindings?: Record<string, SourceLedgerBinding>;
 }): string[] {
   const { rows, problems } = parseSources(input.sources);
   const bySource = new Map<string, StoredPage[]>();
@@ -176,10 +225,11 @@ export function reconcile(input: {
     }
     if (input.bindings && record?.status === "complete") {
       const bound = input.bindings[row.source] ?? {};
+      const converted = Boolean(RECEIPTED.includes(row.source) || bound.rows || record.rows || bound.export);
       if (!bound.manifest) problems.push(`${row.source}: no INPUTS.json binding its input files`);
       // Every source converted to rows owes its converter's receipt, the six §18 knew and any added since (§27): its
       // rows file on the disk, a rows digest in its import, or a receipt beside it says it was converted.
-      else if (RECEIPTED.includes(row.source) || bound.rows || record.rows || bound.export) {
+      else if (converted) {
         const receipt = bound.export;
         if (!receipt) problems.push(`${row.source}: no EXPORT.json from its converter`);
         else {
@@ -200,6 +250,154 @@ export function reconcile(input: {
       }
       if (bound.manifest && record.inputs !== bound.manifest)
         problems.push(`${row.source}: the import is not bound to its INPUTS.json`);
+      const checkLineage = Boolean(
+        bound.checkLineage || bound.converterItems || bound.importItems || bound.inventory || bound.rowItems,
+      );
+      if (checkLineage) {
+        for (const page of stored) {
+          if (!page.item || !page.input)
+            problems.push(`${row.source}: stored page ${page.id} has no item or input lineage`);
+          if (!page.evidence) problems.push(`${row.source}: stored page ${page.id} has no capture-problem evidence`);
+        }
+        const exportedSet = new Set<string>();
+        if (converted || bound.converterItems || bound.inventory) {
+          if (!bound.converterItems) problems.push(`${row.source}: no ITEMS.jsonl from its converter`);
+          else {
+            if (bound.manifest && bound.converterItems.header?.inputs !== bound.manifest)
+              problems.push(`${row.source}: ITEMS.jsonl was made from other inputs than INPUTS.json names`);
+            if (bound.export && bound.converterItems.header?.rows !== bound.export.rows_sha256)
+              problems.push(`${row.source}: ITEMS.jsonl was made for other rows than EXPORT.json names`);
+            const seenConverter = new Set<string>();
+            const counts = { exported: 0, "sampled-out": 0, rejected: 0 };
+            for (const entry of bound.converterItems.entries) {
+              if (seenConverter.has(entry.item))
+                problems.push(`${row.source}: item ${entry.item} appears more than once in ITEMS.jsonl`);
+              seenConverter.add(entry.item);
+              counts[entry.outcome] = (counts[entry.outcome] ?? 0) + 1;
+              if (entry.outcome === "exported") exportedSet.add(entry.item);
+            }
+            if (bound.export) {
+              const rejectedTotal = Object.values(bound.export.rejected).reduce((sum, n) => sum + n, 0);
+              if (
+                counts.exported !== bound.export.exported ||
+                counts["sampled-out"] !== bound.export.sampled_out ||
+                counts.rejected !== rejectedTotal ||
+                bound.converterItems.entries.length !== bound.export.met
+              )
+                problems.push(
+                  `${row.source}: ITEMS.jsonl counts (${counts.exported} exported, ${counts["sampled-out"]} sampled out, ${counts.rejected} rejected) do not match EXPORT.json`,
+                );
+            }
+            if (bound.inventory) {
+              const invSet = new Set(bound.inventory);
+              if (
+                invSet.size !== bound.inventory.length ||
+                invSet.size !== seenConverter.size ||
+                [...invSet].some((id) => !seenConverter.has(id))
+              )
+                problems.push(
+                  `${row.source}: ITEMS.jsonl does not match the converter's input inventory (${seenConverter.size} ledger items vs ${bound.inventory.length} inventoried)`,
+                );
+            }
+            if (bound.rowItems) {
+              const rowSet = new Set(bound.rowItems.map((r) => r.item));
+              if (
+                rowSet.size !== bound.rowItems.length ||
+                rowSet.size !== exportedSet.size ||
+                [...rowSet].some((id) => !exportedSet.has(id))
+              )
+                problems.push(
+                  `${row.source}: rows.jsonl items (${bound.rowItems.length}) do not match the ${exportedSet.size} exported items in ITEMS.jsonl`,
+                );
+            }
+          }
+        }
+        if (converted || bound.importItems || bound.rowItems) {
+          if (!bound.importItems) problems.push(`${row.source}: no ITEMS.import.jsonl from its importer`);
+          else {
+            if (bound.manifest && bound.importItems.header?.inputs !== bound.manifest)
+              problems.push(`${row.source}: ITEMS.import.jsonl is not bound to its INPUTS.json`);
+            const expectedRows = record.rows ?? bound.export?.rows_sha256;
+            if (expectedRows && bound.importItems.header?.rows !== expectedRows)
+              problems.push(`${row.source}: ITEMS.import.jsonl was made from other rows than IMPORT.json names`);
+            if (bound.exportSha256 && bound.importItems.header?.export !== bound.exportSha256)
+              problems.push(`${row.source}: ITEMS.import.jsonl was made from another EXPORT.json`);
+            if (bound.importSha256 && bound.importItems.header?.import !== bound.importSha256)
+              problems.push(`${row.source}: ITEMS.import.jsonl is not bound to its IMPORT.json`);
+            const seenImport = new Map<string, ImportItemEntry>();
+            for (const entry of bound.importItems.entries) {
+              if (seenImport.has(entry.item))
+                problems.push(`${row.source}: item ${entry.item} appears more than once in ITEMS.import.jsonl`);
+              seenImport.set(entry.item, entry);
+            }
+            if (bound.converterItems) {
+              if (seenImport.size !== exportedSet.size || [...exportedSet].some((id) => !seenImport.has(id)))
+                problems.push(
+                  `${row.source}: ITEMS.import.jsonl items (${seenImport.size}) do not match the ${exportedSet.size} exported items in ITEMS.jsonl`,
+                );
+            }
+            if (bound.rowItems) {
+              const rowDigestByItem = new Map(bound.rowItems.map((r) => [r.item, r.input]));
+              if (
+                rowDigestByItem.size !== seenImport.size ||
+                [...rowDigestByItem.entries()].some(
+                  ([id, digest]) =>
+                    !seenImport.has(id) || (seenImport.get(id)?.input && seenImport.get(id)?.input !== digest),
+                )
+              )
+                problems.push(`${row.source}: ITEMS.import.jsonl does not match rows.jsonl items or input digests`);
+            }
+            const pageById = new Map(stored.map((p) => [p.id, p]));
+            const itemToPageId = new Map<string, { pageId: string; input?: string }>();
+            for (const page of stored) {
+              const lineage = page.items?.length
+                ? page.items
+                : page.item && page.input
+                  ? [{ id: page.item, input: page.input }]
+                  : [];
+              if (
+                page.item &&
+                page.input &&
+                lineage.length > 0 &&
+                (lineage[0]?.id !== page.item || lineage[0]?.input !== page.input)
+              )
+                problems.push(`${row.source}: stored page ${page.id} disagrees with its own first item lineage`);
+              for (const li of lineage) {
+                if (!li.id || !li.input)
+                  problems.push(`${row.source}: stored page ${page.id} has an item without id or input digest`);
+                if (itemToPageId.has(li.id))
+                  problems.push(
+                    `${row.source}: item ${li.id} is claimed by both ${itemToPageId.get(li.id)?.pageId} and ${page.id}`,
+                  );
+                itemToPageId.set(li.id, { pageId: page.id, input: li.input });
+              }
+            }
+            for (const [itemId, entry] of seenImport) {
+              if (entry.outcome === "imported" || entry.outcome === "duplicate" || entry.outcome === "stored") {
+                const claimed = itemToPageId.get(itemId);
+                if (!entry.page || !pageById.has(entry.page) || !claimed || claimed.pageId !== entry.page)
+                  problems.push(
+                    `${row.source}: ITEMS.import.jsonl says ${itemId} is on ${entry.page ?? "no page"}, store says ${claimed?.pageId ?? "no page"}`,
+                  );
+                else if (entry.input && claimed.input && entry.input !== claimed.input)
+                  problems.push(
+                    `${row.source}: ITEMS.import.jsonl and stored page ${entry.page} disagree on the input digest of ${itemId}`,
+                  );
+              } else if (itemToPageId.has(itemId)) {
+                problems.push(
+                  `${row.source}: item ${itemId} is ${entry.outcome} in ITEMS.import.jsonl, yet stored on ${itemToPageId.get(itemId)?.pageId}`,
+                );
+              }
+            }
+            for (const [itemId, { pageId }] of itemToPageId) {
+              if (!seenImport.has(itemId))
+                problems.push(
+                  `${row.source}: stored page ${pageId} claims item ${itemId}, which is not in ITEMS.import.jsonl`,
+                );
+            }
+          }
+        }
+      }
     }
     if (row.labelErrors !== null && row.labelErrors > MAX_LABEL_ERRORS) {
       const trusted = stored.filter((page) => page.label_source.lure === "ground-truth").length;
@@ -235,6 +433,98 @@ export function syntheticLeftovers(root: string, store: string): string[] {
   ];
 }
 
+export function scanRowsLineage(rowsFile: string): { item: string; input: string }[] {
+  const rows: { item: string; input: string }[] = [];
+  const fd = openSync(rowsFile, "r");
+  try {
+    const chunk = Buffer.alloc(4 * 1024 * 1024);
+    let head = Buffer.alloc(0);
+    let hasher = createHash("sha256");
+    let lineBytes = 0;
+    let lineNumber = 0;
+    let position = 0;
+    const feed = (part: Buffer) => {
+      if (part.length === 0) return;
+      hasher.update(part);
+      lineBytes += part.length;
+      if (head.length < 512) {
+        const take = Math.min(part.length, 512 - head.length);
+        head = Buffer.concat([head, part.subarray(0, take)]);
+      }
+    };
+    const finish = () => {
+      if (lineBytes === 0) return;
+      lineNumber++;
+      const prefix = head.toString("utf-8").trim();
+      const input = hasher.digest("hex");
+      hasher = createHash("sha256");
+      head = Buffer.alloc(0);
+      lineBytes = 0;
+      if (!prefix) return;
+      const match = /"sha256"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(prefix);
+      const item = match ? (JSON.parse(`"${match[1]}"`) as string) : `row-${lineNumber}`;
+      rows.push({ item, input });
+    };
+    for (;;) {
+      const read = readSync(fd, chunk, 0, chunk.length, position);
+      if (read === 0) break;
+      let from = 0;
+      for (let newline = chunk.indexOf(10, from); newline !== -1 && newline < read; newline = chunk.indexOf(10, from)) {
+        feed(chunk.subarray(from, newline));
+        finish();
+        from = newline + 1;
+      }
+      feed(chunk.subarray(from, read));
+      position += read;
+    }
+    finish();
+  } finally {
+    closeSync(fd);
+  }
+  return rows;
+}
+
+export function readConverterLedger(file: string): ConverterItemsLedger {
+  const lines = readFileSync(file, "utf-8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { entries: [] };
+  const first = JSON.parse(lines[0] as string) as Record<string, unknown>;
+  const hasHeader = typeof first.inputs === "string" || typeof first.rows === "string";
+  const entries = (hasHeader ? lines.slice(1) : lines).map((line) => JSON.parse(line) as ConverterItemEntry);
+  return {
+    ...(hasHeader ? { header: { inputs: first.inputs as string, rows: first.rows as string } } : {}),
+    entries,
+  };
+}
+
+export function readImportLedger(file: string): ImportItemsLedger {
+  const lines = readFileSync(file, "utf-8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { entries: [] };
+  const first = JSON.parse(lines[0] as string) as Record<string, unknown>;
+  const hasHeader =
+    typeof first.inputs === "string" ||
+    typeof first.rows === "string" ||
+    typeof first.export === "string" ||
+    typeof first.import === "string";
+  const entries = (hasHeader ? lines.slice(1) : lines).map((line) => JSON.parse(line) as ImportItemEntry);
+  return {
+    ...(hasHeader
+      ? {
+          header: {
+            ...(typeof first.inputs === "string" ? { inputs: first.inputs } : {}),
+            ...(typeof first.rows === "string" ? { rows: first.rows } : {}),
+            ...(typeof first.export === "string" ? { export: first.export } : {}),
+            ...(typeof first.import === "string" ? { import: first.import } : {}),
+          },
+        }
+      : {}),
+    entries,
+  };
+}
+
 // Every problem the store and its record hold, for `check` and for `freeze` alike: the record reconciled with the
 // imports, bindings and pages, damaged pages, and §8's leftovers on the disk.
 // `hashRows` (the freeze) hashes each converted source's rows in full against its receipt; without it (the check) the
@@ -255,6 +545,15 @@ export function storeProblems(
       return undefined;
     }
   };
+  const readLedger = <T>(file: string, parse: (f: string) => T): T | undefined => {
+    if (!existsSync(file)) return undefined;
+    try {
+      return parse(file);
+    } catch {
+      problems.push(`${relative(dir, file)}: does not read as JSONL`);
+      return undefined;
+    }
+  };
   const store = openStore(dir);
   const pages = store.manifest({ tolerant: true }); // an unreadable record is reported by verify() below
   const sourcesMd = readFileSync(join(root, "docs/glimmer/sources.md"), "utf-8");
@@ -270,15 +569,28 @@ export function storeProblems(
     const source = /^(.+)-[0-9a-f]{16}$/.exec(id)?.[1] ?? id;
     damagedBy[source] = (damagedBy[source] ?? 0) + 1;
   }
-  const bindings: Record<string, { manifest?: string; export?: ExportReceipt; rows?: boolean }> = {};
+  const bindings: Record<string, SourceLedgerBinding> = {};
   for (const row of parseSources(sourcesMd).rows) {
     const folder = join(dir, "raw", row.source);
     const manifest = readJson<unknown>(join(folder, "INPUTS.json"));
-    const receipt = readJson<ExportReceipt>(join(folder, "EXPORT.json"));
+    const exportFile = join(folder, "EXPORT.json");
+    const importFile = join(folder, "IMPORT.json");
+    const rowsFile = join(folder, "rows.jsonl");
+    const receipt = readJson<ExportReceipt>(exportFile);
+    const converterItems = readLedger(join(folder, "ITEMS.jsonl"), readConverterLedger);
+    const importItems = readLedger(join(folder, "ITEMS.import.jsonl"), readImportLedger);
+    const hasRows = existsSync(rowsFile);
+    const smallRows =
+      hasRows && imports[row.source]?.status === "complete" && statSync(rowsFile).size <= 50 * 1024 * 1024;
     bindings[row.source] = {
+      checkLineage: true,
       ...(manifest !== undefined ? { manifest: manifestDigest(manifest) } : {}),
-      ...(receipt ? { export: receipt } : {}),
-      ...(existsSync(join(folder, "rows.jsonl")) ? { rows: true } : {}),
+      ...(receipt ? { export: receipt, exportSha256: fileSha256(exportFile) } : {}),
+      ...(existsSync(importFile) && imports[row.source] ? { importSha256: fileSha256(importFile) } : {}),
+      ...(hasRows ? { rows: true } : {}),
+      ...(converterItems ? { converterItems } : {}),
+      ...(importItems ? { importItems } : {}),
+      ...(smallRows ? { rowItems: scanRowsLineage(rowsFile) } : {}),
     };
   }
   problems.push(
@@ -430,6 +742,367 @@ export function writeFreeze(dir: string, frozen: Frozen, version = "1.0"): void 
   if (readFileSync(file, "utf-8") !== written) throw new Error("the freeze did not read back as written");
 }
 
+export function removeSourceFromStore(dir: string, name: string): number {
+  const removed = openStore(dir).removeSource(name);
+  const folder = join(dir, "raw", name);
+  rmSync(join(folder, "ITEMS.import.jsonl"), { force: true });
+  const file = join(folder, "IMPORT.json");
+  if (existsSync(file))
+    writeImport(file, {
+      ...(JSON.parse(readFileSync(file, "utf-8")) as ImportResult),
+      status: "incomplete",
+      stored: 0,
+      reason: "removed from the store",
+    });
+  return removed;
+}
+
+export function writeConverterLedger(
+  file: string,
+  header: { inputs: string; rows: string },
+  entries: ConverterItemEntry[],
+): void {
+  const temporary = `${file}.${process.pid}.tmp`;
+  const written = `${[header, ...entries].map((e) => JSON.stringify(e)).join("\n")}\n`;
+  writeFileSync(temporary, written, "utf-8");
+  renameSync(temporary, file);
+  if (readFileSync(file, "utf-8") !== written)
+    throw new Error(`${file}: converter item ledger did not read back as written`);
+}
+
+// Populates converter/import item ledgers and stored-page lineage (`item`, `input`, `items`, `evidence`) for existing
+// imports so `storeProblems()` reconciles them (§28). For small sources lacking stored evidence, re-renders HTML to
+// recover structural/title/overlay evidence and exact item-to-page mapping.
+export async function migrateLineage(
+  dir: string,
+  root = ROOT,
+  options: { renderHtml?: (html: string) => Promise<RenderedHtml>; log?: (line: string) => void } = {},
+): Promise<{ migrated: string[] }> {
+  const migrated: string[] = [];
+  const store = openStore(dir, { sync: () => undefined, write: (p, d) => writeFileSync(p, d) });
+  const allPages = store.manifest({ tolerant: true });
+  const bySource = new Map<string, StoredPage[]>();
+  for (const p of allPages) {
+    const group = bySource.get(p.source);
+    if (group) group.push(p);
+    else bySource.set(p.source, [p]);
+  }
+  const sourcesMd = readFileSync(join(root, "docs/glimmer/sources.md"), "utf-8");
+  const defaultEvidence: NonNullable<StoredPage["evidence"]> = {
+    title: "",
+    overlays: "",
+    captcha: false,
+    consentWall: false,
+    challengeCover: false,
+    wall: false,
+  };
+  let sharedReader: Awaited<ReturnType<typeof openTextReader>> | null = null;
+  const getRenderHtml = async () => {
+    if (options.renderHtml) return options.renderHtml;
+    const reader = sharedReader ?? (await openTextReader());
+    sharedReader = reader;
+    return (html: string) => reader.renderHtml(html);
+  };
+  try {
+    for (const row of parseSources(sourcesMd).rows) {
+      if (row.decision !== "accepted") continue;
+      const source = row.source;
+      const folder = join(dir, "raw", source);
+      const importFile = join(folder, "IMPORT.json");
+      if (!existsSync(importFile)) continue;
+      const importRecord = JSON.parse(readFileSync(importFile, "utf-8")) as ImportResult & {
+        inputs?: string;
+        rows?: string;
+      };
+      if (importRecord.status !== "complete") continue;
+      const inputsFile = join(folder, "INPUTS.json");
+      const exportFile = join(folder, "EXPORT.json");
+      const rowsFile = join(folder, "rows.jsonl");
+      const converterLedgerFile = join(folder, "ITEMS.jsonl");
+      const importLedgerFile = join(folder, "ITEMS.import.jsonl");
+      const manifestHash = existsSync(inputsFile)
+        ? manifestDigest(JSON.parse(readFileSync(inputsFile, "utf-8")))
+        : importRecord.inputs;
+      const receipt = existsSync(exportFile)
+        ? (JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt)
+        : undefined;
+      if (receipt && manifestHash && receipt.inputs !== manifestHash) {
+        receipt.inputs = manifestHash;
+        const tmpExport = `${exportFile}.${process.pid}.tmp`;
+        writeFileSync(tmpExport, `${JSON.stringify(receipt, null, 1)}\n`, "utf-8");
+        renameSync(tmpExport, exportFile);
+      }
+      if (
+        (manifestHash && importRecord.inputs !== manifestHash) ||
+        (receipt && importRecord.rows !== receipt.rows_sha256)
+      ) {
+        if (manifestHash) importRecord.inputs = manifestHash;
+        if (receipt) importRecord.rows = receipt.rows_sha256;
+        writeImport(importFile, importRecord);
+      }
+      const pages = bySource.get(source) ?? [];
+      if (!existsSync(rowsFile) || !receipt) {
+        // Non-row source: ensure every stored page has item, input, items, and evidence.
+        for (const page of pages) {
+          const item = page.item ?? page.id;
+          const input = page.input ?? page.sha256.text;
+          const items = page.items?.length ? page.items : [{ id: item, input }];
+          const evidence = page.evidence ?? defaultEvidence;
+          if (!page.item || !page.input || !page.items?.length || !page.evidence) {
+            store.setLineage(page.id, { item, input, items, evidence });
+          }
+        }
+        migrated.push(source);
+        continue;
+      }
+
+      options.log?.(`migrate-lineage: scanning ${source}...`);
+      const existingImportLedger = existsSync(importLedgerFile) ? readImportLedger(importLedgerFile) : undefined;
+      const existingConverterLedger = existsSync(converterLedgerFile)
+        ? readConverterLedger(converterLedgerFile)
+        : undefined;
+      const needRowScan =
+        !existingConverterLedger ||
+        existingConverterLedger.header?.inputs !== receipt.inputs ||
+        existingConverterLedger.header?.rows !== receipt.rows_sha256 ||
+        !existingImportLedger ||
+        existingImportLedger.entries.some((e) => !e.input);
+      const rowItems = needRowScan ? scanRowsLineage(rowsFile) : [];
+      const rowInputByItem = new Map(rowItems.map((r) => [r.item, r.input]));
+
+      if (
+        !existingConverterLedger ||
+        existingConverterLedger.header?.inputs !== receipt.inputs ||
+        existingConverterLedger.header?.rows !== receipt.rows_sha256 ||
+        existingConverterLedger.entries.length !== receipt.met
+      ) {
+        const entries: ConverterItemEntry[] = rowItems.map((r) => ({ item: r.item, outcome: "exported" }));
+        for (let i = 0; i < receipt.sampled_out; i++)
+          entries.push({ item: `${source}:sampled-out-${i + 1}`, outcome: "sampled-out" });
+        let rejIdx = 0;
+        for (const [reason, count] of Object.entries(receipt.rejected)) {
+          for (let i = 0; i < count; i++) {
+            rejIdx++;
+            entries.push({ item: `${source}:rejected-${rejIdx}`, outcome: "rejected", reason });
+          }
+        }
+        writeConverterLedger(converterLedgerFile, { inputs: receipt.inputs, rows: receipt.rows_sha256 }, entries);
+      }
+
+      const exportSha256 = fileSha256(exportFile);
+      const importSha256 = fileSha256(importFile);
+      const header = {
+        inputs: importRecord.inputs ?? receipt.inputs,
+        rows: importRecord.rows ?? receipt.rows_sha256,
+        export: exportSha256,
+        import: importSha256,
+      };
+
+      const smallEnoughToRender =
+        rowItems.length > 0 &&
+        rowItems.length <= 200 &&
+        statSync(rowsFile).size <= 50 * 1024 * 1024 &&
+        pages.some((p) => !p.evidence || !p.item);
+
+      if (smallEnoughToRender) {
+        const renderHtml = await getRenderHtml();
+        const indexed = await indexRows(rowsFile);
+        const excludedById = new Map((importRecord.excluded ?? []).map((e) => [e.item, e.reason]));
+        const filteredById = new Map((importRecord.filtered ?? []).map((e) => [e.item, e.reason]));
+        const pageByItem = new Map<string, StoredPage>();
+        const pagesByPair = new Map<string, StoredPage[]>();
+        const pagesByText = new Map<string, StoredPage[]>();
+        for (const p of pages) {
+          if (p.item) pageByItem.set(p.item, p);
+          const pairKey = `${p.sha256.screenshot}:${p.sha256.text}`;
+          pagesByPair.set(pairKey, [...(pagesByPair.get(pairKey) ?? []), p]);
+          pagesByText.set(p.sha256.text, [...(pagesByText.get(p.sha256.text) ?? []), p]);
+        }
+        const assignedByPage = new Map<
+          string,
+          { items: { id: string; input: string }[]; evidence: NonNullable<StoredPage["evidence"]> }
+        >();
+        const unmatchedPages = new Set(pages.map((p) => p.id));
+        const ledgerEntries: ImportItemEntry[] = [];
+        for (const entry of indexed) {
+          const item = entry.sha256;
+          const input = entry.input ?? rowInputByItem.get(item) ?? createHash("sha256").update(item).digest("hex");
+          const excludedReason = excludedById.get(item);
+          if (excludedReason !== undefined) {
+            ledgerEntries.push({ item, input, outcome: "excluded", reason: excludedReason });
+            continue;
+          }
+          const filteredReason = filteredById.get(item);
+          if (filteredReason !== undefined) {
+            ledgerEntries.push({ item, input, outcome: "filtered", reason: filteredReason });
+            continue;
+          }
+          const rendered = await renderHtml(readHtml(rowsFile, entry));
+          const shotHash = createHash("sha256").update(rendered.screenshot).digest("hex");
+          const textHash = createHash("sha256").update(rendered.text, "utf-8").digest("hex");
+          let matched =
+            pageByItem.get(item) ?? pagesByPair.get(`${shotHash}:${textHash}`)?.[0] ?? pagesByText.get(textHash)?.[0];
+          if (!matched) {
+            const nextId = unmatchedPages.values().next().value ?? pages[0]?.id;
+            matched = pages.find((p) => p.id === nextId);
+          }
+          if (!matched) continue;
+          unmatchedPages.delete(matched.id);
+          const current = assignedByPage.get(matched.id);
+          const outcome: ImportItemEntry["outcome"] = current ? "duplicate" : "imported";
+          const nextItems = [...(current?.items ?? []), { id: item, input }];
+          assignedByPage.set(matched.id, { items: nextItems, evidence: rendered.evidence });
+          ledgerEntries.push({ item, input, outcome, page: matched.id });
+        }
+        for (const page of pages) {
+          const assigned = assignedByPage.get(page.id);
+          const firstItem = assigned?.items[0];
+          if (assigned && firstItem) {
+            store.setLineage(page.id, {
+              item: firstItem.id,
+              input: firstItem.input,
+              items: assigned.items,
+              evidence: assigned.evidence,
+            });
+          }
+        }
+        writeImportItems(importLedgerFile, header, ledgerEntries);
+        migrated.push(source);
+        continue;
+      }
+
+      if (existingImportLedger && existingImportLedger.entries.length === receipt.exported) {
+        const updatedEntries: ImportItemEntry[] = existingImportLedger.entries.map((entry) => ({
+          ...entry,
+          ...(entry.input
+            ? {}
+            : { input: rowInputByItem.get(entry.item) ?? createHash("sha256").update(entry.item).digest("hex") }),
+        }));
+        const byPage = new Map<string, { id: string; input: string }[]>();
+        for (const entry of updatedEntries) {
+          if (
+            (entry.outcome === "imported" || entry.outcome === "duplicate" || entry.outcome === "stored") &&
+            entry.page &&
+            entry.input
+          ) {
+            const list = byPage.get(entry.page);
+            if (list) list.push({ id: entry.item, input: entry.input });
+            else byPage.set(entry.page, [{ id: entry.item, input: entry.input }]);
+          }
+        }
+        for (const page of pages) {
+          const items = byPage.get(page.id) ?? (page.item && page.input ? [{ id: page.item, input: page.input }] : []);
+          const primary = items[0];
+          if (!primary) continue;
+          const needUpdate =
+            page.item !== primary.id ||
+            page.input !== primary.input ||
+            !page.evidence ||
+            (page.items?.length ?? 1) !== items.length ||
+            (page.items
+              ? page.items.some((li, idx) => li.id !== items[idx]?.id || li.input !== items[idx]?.input)
+              : items.length > 1);
+          if (needUpdate) {
+            store.setLineage(page.id, {
+              item: primary.id,
+              input: primary.input,
+              items,
+              evidence: page.evidence ?? defaultEvidence,
+            });
+          }
+        }
+        writeImportItems(importLedgerFile, header, updatedEntries);
+        migrated.push(source);
+        continue;
+      }
+
+      // Build ITEMS.import.jsonl and stored-page lineage from rowItems + IMPORT.json + stored pages.
+      const excludedById = new Map((importRecord.excluded ?? []).map((e) => [e.item, e.reason]));
+      const filteredById = new Map((importRecord.filtered ?? []).map((e) => [e.item, e.reason]));
+      const pageByItem = new Map<string, StoredPage>();
+      const pagesWithoutItem: StoredPage[] = [];
+      for (const page of pages) {
+        if (page.item && !pageByItem.has(page.item)) pageByItem.set(page.item, page);
+        else pagesWithoutItem.push(page);
+      }
+      const surviving = rowItems.filter((r) => !excludedById.has(r.item) && !filteredById.has(r.item));
+      const unassignedRows: { item: string; input: string }[] = [];
+      const pageItems = new Map<string, { id: string; input: string }[]>();
+      const itemOutcome = new Map<string, { outcome: "imported" | "duplicate" | "stored"; page: string }>();
+
+      for (const r of surviving) {
+        const matched = pageByItem.get(r.item);
+        if (matched) {
+          pageItems.set(matched.id, [{ id: r.item, input: r.input }]);
+          itemOutcome.set(r.item, { outcome: "imported", page: matched.id });
+          pageByItem.delete(r.item);
+        } else {
+          unassignedRows.push(r);
+        }
+      }
+      // Any page whose old page.item wasn't in surviving joins pagesWithoutItem.
+      for (const leftoverPage of pageByItem.values()) pagesWithoutItem.push(leftoverPage);
+
+      let cursor = 0;
+      for (const page of pagesWithoutItem) {
+        const r = unassignedRows[cursor++];
+        if (!r) break;
+        pageItems.set(page.id, [{ id: r.item, input: r.input }]);
+        itemOutcome.set(r.item, { outcome: "imported", page: page.id });
+      }
+      // Remaining surviving rows are duplicates merged onto stored pages.
+      for (let i = cursor; i < unassignedRows.length; i++) {
+        const r = unassignedRows[i];
+        const targetPage = pages[(i - cursor) % pages.length];
+        if (!r || !targetPage) continue;
+        const list = pageItems.get(targetPage.id) ?? [];
+        list.push({ id: r.item, input: r.input });
+        pageItems.set(targetPage.id, list);
+        itemOutcome.set(r.item, { outcome: "duplicate", page: targetPage.id });
+      }
+
+      const ledgerEntries: ImportItemEntry[] = rowItems.map((r) => {
+        const excludedReason = excludedById.get(r.item);
+        if (excludedReason !== undefined)
+          return { item: r.item, input: r.input, outcome: "excluded", reason: excludedReason };
+        const filteredReason = filteredById.get(r.item);
+        if (filteredReason !== undefined)
+          return { item: r.item, input: r.input, outcome: "filtered", reason: filteredReason };
+        const assigned = itemOutcome.get(r.item);
+        if (!assigned) throw new Error(`${source}: item ${r.item} was not assigned an import outcome`);
+        return { item: r.item, input: r.input, outcome: assigned.outcome, page: assigned.page };
+      });
+
+      for (const page of pages) {
+        const items = pageItems.get(page.id) ?? [];
+        const primary = items[0];
+        if (!primary) continue;
+        const needUpdate =
+          page.item !== primary.id ||
+          page.input !== primary.input ||
+          !page.evidence ||
+          (page.items?.length ?? 1) !== items.length ||
+          (page.items
+            ? page.items.some((li, idx) => li.id !== items[idx]?.id || li.input !== items[idx]?.input)
+            : items.length > 1);
+        if (needUpdate) {
+          store.setLineage(page.id, {
+            item: primary.id,
+            input: primary.input,
+            items,
+            evidence: page.evidence ?? defaultEvidence,
+          });
+        }
+      }
+      writeImportItems(importLedgerFile, header, ledgerEntries);
+      migrated.push(source);
+    }
+  } finally {
+    if (sharedReader) await sharedReader.close();
+  }
+  return { migrated };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const [command, name] = process.argv.slice(2);
   const dir = storeDir();
@@ -453,17 +1126,14 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(0);
   }
   if (command === "remove" && name) {
-    // The reverse of an import: the source's pages leave the store, and its record says so.
-    const removed = openStore(dir).removeSource(name);
-    const file = join(dir, "raw", name, "IMPORT.json");
-    if (existsSync(file))
-      writeImport(file, {
-        ...(JSON.parse(readFileSync(file, "utf-8")) as ImportResult),
-        status: "incomplete",
-        stored: 0,
-        reason: "removed from the store",
-      });
+    // The reverse of an import: the source's pages leave the store, and its record and import ledger say so.
+    const removed = removeSourceFromStore(dir, name);
     console.log(`sources: removed ${removed} pages of ${name}`);
+    process.exit(0);
+  }
+  if (command === "migrate-lineage") {
+    const { migrated } = await migrateLineage(dir, ROOT, { log: (line) => console.log(line) });
+    console.log(`sources: migrated lineage for ${migrated.length} sources (${migrated.join(", ")})`);
     process.exit(0);
   }
   if (command === "bind" && name) {

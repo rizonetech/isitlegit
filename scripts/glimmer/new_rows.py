@@ -128,6 +128,7 @@ def convert_ows(folder, receipt, limits, out):
             page = json.loads(line)
             html = page.get("html") or ""
             item = item_id("ows", page.get("url") or "", html)
+            receipt.note_inventory(item)
             if page.get("label") != "Malicious" or page.get("sublabel") != "Phishing":
                 out.reject(item, f"sublabel {page.get('sublabel') or 'unknown'} is not a phishing page")
                 continue
@@ -143,20 +144,26 @@ def convert_phishingeval(folder, receipt, limits, out):
         for name, info in sorted(names.items()):
             if not name.endswith(".html"):
                 continue
+            item = item_id("phishing4190", name)
+            receipt.note_inventory(item)
             html = read_entry(archive, info, limits)
             if html is None:
+                out.reject(item, "over the entry limit")
                 continue
             shot_info = names.get(name[: -len(".html")] + ".png")
             shot = read_entry(archive, shot_info, limits) if shot_info else None
-            out.add(item_id("phishing4190", name), None, decode(html), "phish", screenshot=shot)
+            out.add(item, None, decode(html), "phish", screenshot=shot)
     with zipfile.ZipFile(folder / "crawl_benign.zip") as archive:
         names = {info.filename: info for info in archive.infolist()}
         for name, info in sorted(names.items()):
             if not name.endswith("/login.html"):
                 continue
             brand = name.split("/")[-2]
+            item = item_id("crawl_benign", name)
+            receipt.note_inventory(item)
             html = read_entry(archive, info, limits)
             if html is None:
+                out.reject(item, "over the entry limit")
                 continue
             shot_info = names.get(name[: -len("login.html")] + "login.png")
             shot = read_entry(archive, shot_info, limits) if shot_info else None
@@ -173,20 +180,23 @@ def convert_phishingeval(folder, receipt, limits, out):
                     if value.startswith("http"):
                         url = value
                         break
-            out.add(item_id("crawl_benign", name), url, decode(html), "benign", target=brand, screenshot=shot)
+            out.add(item, url, decode(html), "benign", target=brand, screenshot=shot)
     with zipfile.ZipFile(folder / "archive100.zip") as archive:
         names = {info.filename: info for info in archive.infolist()}
         for name, info in sorted(names.items()):
             if not name.endswith(".html"):
                 continue
             brand = name.split("/")[1] if name.count("/") > 1 else None
+            item = item_id("archive100", name)
+            receipt.note_inventory(item)
             html = read_entry(archive, info, limits)
             if html is None:
+                out.reject(item, "over the entry limit")
                 continue
             shot_name = next((n for n in names if n.startswith(name.rsplit("/", 1)[0] + "/") and n.endswith(".png")), None)
             shot = read_entry(archive, names[shot_name], limits) if shot_name else None
             out.add(
-                item_id("archive100", name),
+                item,
                 f"https://{brand}/" if brand else None,
                 decode(html),
                 "benign",
@@ -212,10 +222,13 @@ def convert_phishingeval(folder, receipt, limits, out):
             for name in sorted(entries):
                 if not name.endswith(".png"):
                     continue
+                item = item_id("expand277", name)
+                receipt.note_inventory(item)
                 shot = read_entry(archive, names[name], limits)
                 if shot is None:
+                    out.reject(item, "over the entry limit")
                     continue
-                out.add(item_id("expand277", name), None, html, "phish", target=brand, screenshot=shot)
+                out.add(item, None, html, "phish", target=brand, screenshot=shot)
 
 
 def convert_phishdecloaker(folder, receipt, limits, out):
@@ -229,14 +242,20 @@ def convert_phishdecloaker(folder, receipt, limits, out):
             if len(parts) > 2 and info.filename.endswith(".html") and not info.is_dir():
                 kits.setdefault(parts[1], []).append(info)
         for kit in sorted(all_kits - set(kits)):
-            out.reject(item_id("kit", kit), "the kit holds no static HTML page")
+            item = item_id("kit", kit)
+            receipt.note_inventory(item)
+            out.reject(item, "the kit holds no static HTML page")
         for kit, infos in sorted(kits.items()):
             largest = max(infos, key=lambda i: i.file_size)
             data = read_entry(archive, largest, limits)
             if data is None:
-                out.reject(item_id("kit", kit), "the kit's largest HTML file is over the entry limit")
+                item = item_id("kit", kit)
+                receipt.note_inventory(item)
+                out.reject(item, "the kit's largest HTML file is over the entry limit")
                 continue
-            out.add(item_id("kit", kit, largest.filename), None, decode(data), "phish")
+            item = item_id("kit", kit, largest.filename)
+            receipt.note_inventory(item)
+            out.add(item, None, decode(data), "phish")
 
 
 def convert_putra(folder, receipt, limits, out):
@@ -262,13 +281,15 @@ def convert_putra(folder, receipt, limits, out):
             sites = sorted({name.split("/")[0] for name in names if "/" in name})
             for site in sites:
                 limits.check_deadline()
+                item = item_id("putra", site)
+                receipt.note_inventory(item)
                 html_info = names.get(f"{site}/original.html") or names.get(f"{site}/index.html")
                 if html_info is None:
-                    out.reject(item_id("putra", site), "the site folder holds no page HTML")
+                    out.reject(item, "the site folder holds no page HTML")
                     continue
                 html = read_entry(archive, html_info, limits)
                 if html is None:
-                    out.reject(item_id("putra", site), "the site's page HTML is over the entry limit")
+                    out.reject(item, "the site's page HTML is over the entry limit")
                     continue
                 shot = None
                 for candidate in ("screenshots/original_js_on.jpg", "screenshots/index_js_on.jpg"):
@@ -279,7 +300,7 @@ def convert_putra(folder, receipt, limits, out):
                             break
                 url, brands, csv_label = by_id.get(site, (None, "", label))
                 if csv_label != label:
-                    out.reject(item_id("putra", site), "the zip and the CSV disagree on the label")
+                    out.reject(item, "the zip and the CSV disagree on the label")
                     continue
                 target = None
                 try:
@@ -288,7 +309,7 @@ def convert_putra(folder, receipt, limits, out):
                         target = str(parsed[0])
                 except json.JSONDecodeError:
                     target = None
-                out.add(item_id("putra", site), url, decode(html), label, target=target, screenshot=shot)
+                out.add(item, url, decode(html), label, target=target, screenshot=shot)
 
 
 def convert_ares(folder, receipt, limits, out, max_per_label=None, seed=20261101):
@@ -309,6 +330,8 @@ def convert_ares(folder, receipt, limits, out, max_per_label=None, seed=20261101
             sites = sorted(
                 {name.split("/")[2] for name in names if name.startswith(f"{root}/files/") and name.count("/") > 2}
             )
+            for site in sites:
+                receipt.note_inventory(item_id("ares", site))
             if max_per_label is not None and len(sites) > max_per_label:
                 kept = set(random.Random(seed).sample(sites, max_per_label))
                 for site in sites:

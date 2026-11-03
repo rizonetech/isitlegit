@@ -175,6 +175,7 @@ def main(argv=None):
     chosen = set(keys)
     for key in sorted(met):
         item = f"7dl-{key.split('-', 1)[0]}"
+        receipt.note_inventory(item)
         if key in written:
             receipt.export(item)
         elif key in chosen:

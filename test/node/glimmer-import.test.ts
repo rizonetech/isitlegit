@@ -538,7 +538,8 @@ describe("the import run", () => {
       .trim()
       .split("\n")
       .map((l) => JSON.parse(l));
-    expect(ledger[0]).toEqual(binding);
+    expect(ledger[0]).toMatchObject(binding);
+    expect(ledger[0].import).toMatch(/^[0-9a-f]{64}$/);
     const outcomeOf = new Map(ledger.slice(1).map((o) => [o.item, o]));
     expect(outcomeOf.get("row-a3")).toEqual({ item: "row-a3", outcome: "excluded", reason: "the render failed" });
     expect(outcomeOf.get("row-b")).toMatchObject({
@@ -628,23 +629,101 @@ describe("the import run", () => {
     expect(again).toMatchObject({ rerendered: 0, skipped: 1 });
   });
 
-  it("excludes a page that renders almost no text", async () => {
+  it("excludes an empty page with no text or form fields, while admitting a sparse logo-and-two-fields lure and filtering structural or title walls", async () => {
     const empty: SourceItem = {
       ...item("blank", "#333"),
       load: async () => ({ screenshot: await jpeg(64, 64), text: " " }),
     };
+    const sparseLure: SourceItem = {
+      ...item("sparse-lure", "#234"),
+      load: async () =>
+        reader.renderHtml(
+          '<!doctype html><html><head><title>Sign in</title></head><body><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="80" height="40"><form><input type="email" name="user"><input type="password" name="pass"></form></body></html>',
+        ),
+    };
+    const title404: SourceItem = {
+      ...item("title-404", "#345"),
+      load: async () =>
+        reader.renderHtml(
+          "<!doctype html><html><head><title>404 Not Found</title></head><body><p>Welcome to our portal with plenty of navigation words.</p></body></html>",
+        ),
+    };
+    const structuralWall: SourceItem = {
+      ...item("captcha-wall", "#456"),
+      load: async () => ({
+        screenshot: await jpeg(64, 64, "#456"),
+        text: "Sign in to continue to your account",
+        has_login_form: true,
+        has_payment_form: false,
+        evidence: {
+          title: "Security Check",
+          overlays: "",
+          captcha: true,
+          consentWall: false,
+          challengeCover: false,
+          wall: false,
+        },
+      }),
+    };
+    const storePath = join(dir, "store");
     const result = await importSource({
       source: "set",
       licence: "CC0",
       items: [
         empty,
+        sparseLure,
+        title404,
+        structuralWall,
         ...Array.from({ length: 20 }, (_, i) => item(`page-${i}`, `#${(i * 7 + 16).toString(16).padStart(3, "0")}`)),
       ],
-      store: openStore(join(dir, "store")),
+      store: openStore(storePath),
+      concurrency: 1,
     });
-    expect(result.filtered).toEqual([{ item: "blank", reason: "renders under 20 characters of text" }]);
+    expect(result.filtered).toEqual([
+      { item: "blank", reason: "an empty page" },
+      { item: "title-404", reason: "an error page" },
+      { item: "captcha-wall", reason: "a CAPTCHA frame" },
+    ]);
     expect(result.excluded).toEqual([]);
     expect(result.status).toBe("complete");
+    const storedSparse = openStore(storePath)
+      .manifest()
+      .find((p) => p.item === "sparse-lure");
+    expect(storedSparse).toBeDefined();
+    expect(storedSparse?.labels.has_login_form).toBe(true);
+    expect(storedSparse?.evidence?.title).toBe("Sign in");
+  });
+
+  it("leaves IMPORT.json incomplete when ITEMS.import.jsonl fails to write, and recovers on rerun", async () => {
+    const storePath = join(dir, "store-ledger-fail");
+    const binding = { inputs: "in-1", rows: "rw-1" };
+    const failed = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("p1", "#123"), item("p2", "#456")],
+      store: openStore(storePath),
+      binding,
+      writeLedger: () => {
+        throw new Error("ENOSPC writing ITEMS.import.jsonl");
+      },
+    });
+    expect(failed.status).toBe("incomplete");
+    expect(failed.reason).toContain("ENOSPC writing ITEMS.import.jsonl");
+    const onDisk = JSON.parse(readFileSync(join(storePath, "raw", "set", "IMPORT.json"), "utf-8"));
+    expect(onDisk.status).toBe("incomplete");
+    const recovered = await importSource({
+      source: "set",
+      licence: "CC0",
+      items: [item("p1", "#123"), item("p2", "#456")],
+      store: openStore(storePath),
+      binding,
+    });
+    expect(recovered.status).toBe("complete");
+    const ledger = readFileSync(join(storePath, "raw", "set", "ITEMS.import.jsonl"), "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l));
+    expect(ledger).toHaveLength(3);
   });
 
   it("keeps a source complete when only filtered pages pass 5 percent", async () => {

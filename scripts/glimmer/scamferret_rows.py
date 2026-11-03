@@ -125,6 +125,7 @@ def export(path, found, out, receipt, limits):
                     if item_id in seen:  # a member the archive holds twice is one item
                         continue
                     seen.add(item_id)
+                    receipt.note_inventory(item_id)
                     # Bounded before the page is read, and again as it is decompressed.
                     limits.check_allocation(member.size, item_id)
                     if member.size > MAX_HTML:

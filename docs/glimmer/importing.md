@@ -25,13 +25,14 @@ Archives are read entry by entry, never run; each entry is bounded in size. Each
 | PhreshPhish | `node scripts/glimmer/import-phreshphish.ts [--concurrency 4]` |
 | The rest | `node scripts/glimmer/import-rows.ts <source> [--concurrency 4]` |
 
-The import writes `<store>/raw/<source>/IMPORT.json` as `running` before it touches a page, and at the end as `complete` or `incomplete` with every item accounted for: imported, a duplicate of a stored page, skipped (already stored from an earlier run, not rendered again), filtered (renders under 20 characters of text) or excluded (with its reason). More than 5 percent excluded, or a stop on a write failure, reads `incomplete`. A source is trained on and evaluated only once its import reads `complete`. A stopped or killed import is resumed by running the same command again.
+The import writes `<store>/raw/<source>/IMPORT.json` as `running` before it touches a page, and at the end as `complete` or `incomplete` with every item accounted for: imported, a duplicate of a stored page, skipped (already stored from an earlier run, not rendered again), filtered (`captureProblem()` in `scripts/glimmer/label-rules.ts`: a CAPTCHA, consent or challenge wall in the DOM or title/text, a 404/error page, a directory listing or suspended host, a parked domain, or a blank page with neither visible text nor login/payment form fields, while a sparse lure with a logo and login or payment fields is admitted) or excluded (with its reason). More than 5 percent excluded, or a stop on a write failure, reads `incomplete`; an import only reads `complete` after `<store>/raw/<source>/ITEMS.import.jsonl` is written and read back whole, bound to `{ inputs, rows, export, import }`. A source is trained on and evaluated only once its import reads `complete`. A stopped or killed import is resumed by running the same command again.
 
 ## 4. Check, inspect and reverse
 
-- `node scripts/glimmer/sources.ts check` reconciles `docs/glimmer/sources.md`, every accepted source's `IMPORT.json` (complete, accounting for every item, at least one page) and the store, and prints `sources: reconciled`.
+- `node scripts/glimmer/sources.ts check` reconciles `docs/glimmer/sources.md`, every accepted source's `INPUTS.json`, `EXPORT.json`, `ITEMS.jsonl`, `IMPORT.json` and `ITEMS.import.jsonl`, and every stored page's `item`, `items`, `input` digest and `evidence` (`title` and `overlays`), and prints `sources: reconciled`.
+- `node scripts/glimmer/sources.ts migrate-lineage` populates `ITEMS.jsonl`, `ITEMS.import.jsonl` and stored-page lineage (`item`, `input`, `items`, `evidence`) for imports written before §28, re-rendering small sources lacking stored evidence.
 - `node scripts/glimmer/sources.ts status` lists each source's pages and its import's status, counts and rate.
-- `node scripts/glimmer/sources.ts remove <source>` takes a source's pages out of the store and marks its `IMPORT.json` as removed; a rejected source must have no page left.
+- `node scripts/glimmer/sources.ts remove <source>` takes a source's pages out of the store, removes `raw/<source>/ITEMS.import.jsonl`, and marks its `IMPORT.json` as removed; a rejected source must have no page left.
 
 ## 5. The sample import's environments: install, verify and recover
 

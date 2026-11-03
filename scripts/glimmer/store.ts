@@ -421,12 +421,42 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     return { id, ...meta };
   }
 
+  // Updates a stored page's lineage and capture evidence (D03 T04 §28), validated and written whole (temp then rename).
+  function setLineage(
+    id: string,
+    update: {
+      item?: string | undefined;
+      input?: string | undefined;
+      items?: PageMeta["items"] | undefined;
+      evidence?: PageMeta["evidence"] | undefined;
+    },
+  ): StoredPage {
+    const folder = join(pages, id);
+    const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+    const meta = PageMeta.parse({
+      ...current,
+      ...(update.item !== undefined ? { item: update.item } : {}),
+      ...(update.input !== undefined ? { input: update.input } : {}),
+      ...(update.items !== undefined ? { items: update.items } : {}),
+      ...(update.evidence !== undefined ? { evidence: update.evidence } : {}),
+    });
+    const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    sync(temporary);
+    renameSync(temporary, join(folder, "meta.json"));
+    sync(folder);
+    return { id, ...meta };
+  }
+
   // Every page's record. A `meta.json` that does not read throws, unless `tolerant`: then that page is left out, for a
   // caller (a resumed import) that finds and repairs damaged pages through `verify()` and `putPage()`.
-  function manifest(options: { tolerant?: boolean } = {}): StoredPage[] {
+  function manifest(options: { tolerant?: boolean; source?: string } = {}): StoredPage[] {
     if (!existsSync(pages)) return [];
+    const own = options.source
+      ? new RegExp(`^${options.source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-[0-9a-f]{16}$`)
+      : null;
     return readdirSync(pages)
-      .filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory())
+      .filter((name) => !name.startsWith(".") && (!own || own.test(name)) && statSync(join(pages, name)).isDirectory())
       .sort()
       .flatMap((id) => {
         try {
@@ -531,6 +561,7 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     addItem,
     keepItems,
     setLabels,
+    setLineage,
     manifest,
     counts,
     readPage,
