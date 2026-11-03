@@ -18,6 +18,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { type ComponentRecords, checkComponentRows, providerFigures } from "./components.ts";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
@@ -83,6 +84,19 @@ export type Report = {
   main: Population;
   challenge: (Population & { pairs: Pairs }) | null;
   targets: Target[];
+  // Component capture (D08 T02 section 8): per-provider false positives and the walkthrough median cost,
+  // computed only over results that carry the capture; a run without it reports null, never zero.
+  components: {
+    providers: {
+      provider: string;
+      checked: number;
+      unchecked: number;
+      genuineChecked: number;
+      falsePositiveRate: number | null;
+    }[];
+    walkthroughMedianCostUsd: number | null;
+    walkthroughCompleted: number;
+  };
 };
 
 const rate = (hits: number, n: number): Rate => ({ n, hits, rate: n === 0 ? null : hits / n });
@@ -219,6 +233,25 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
     state: "not measured",
     note,
   });
+  const providerRecords = results.flatMap((r) => {
+    const s = selected.get(r.sample);
+    if (!s || s.set === CHALLENGE) return [];
+    return (r.providers ?? []).map((pr) => ({
+      provider: pr.provider,
+      checked: pr.checked,
+      listed: pr.listed,
+      genuine: s.label === "genuine",
+    }));
+  });
+  const walked = results.filter(
+    (r) => selected.has(r.sample) && selected.get(r.sample)?.set !== CHALLENGE && r.walkthrough,
+  );
+  const walkedCosts = walked.map((r) => r.costUsd).sort((a, b) => a - b);
+  const components = {
+    providers: providerFigures(providerRecords),
+    walkthroughMedianCostUsd: walkedCosts.length ? (walkedCosts[Math.floor(walkedCosts.length / 2)] as number) : null,
+    walkthroughCompleted: walked.length,
+  };
   const targets: Target[] = [
     {
       name: "detection",
@@ -249,16 +282,43 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
       "median under 60 s, p95 under 180 s",
       "the analysis time is reported above; the forward-to-reply time is measured by the live mail run (D09 T01 §1)",
     ),
-    notMeasured(
-      "median cost with a walkthrough",
-      `under ${usdText(0.25)}`,
-      "needs each case's walkthrough use (D08 T02 §8)",
-    ),
-    notMeasured(
-      "reputation providers' false-positive rates",
-      "reported per provider",
-      "needs each case's provider listings (D08 T02 §8)",
-    ),
+    components.walkthroughCompleted > 0
+      ? {
+          name: "median cost with a walkthrough",
+          figure: components.walkthroughMedianCostUsd,
+          figureText: usdText(components.walkthroughMedianCostUsd),
+          threshold: `under ${usdText(0.25)}`,
+          denominator: components.walkthroughCompleted,
+          state: state(
+            components.walkthroughCompleted,
+            (components.walkthroughMedianCostUsd ?? Number.POSITIVE_INFINITY) < 0.25,
+          ),
+        }
+      : notMeasured(
+          "median cost with a walkthrough",
+          `under ${usdText(0.25)}`,
+          "needs each case's walkthrough use (D08 T02 §8)",
+        ),
+    components.providers.length > 0
+      ? {
+          name: "reputation providers' false-positive rates",
+          figure: null,
+          figureText: components.providers
+            .map(
+              (pr) =>
+                `${pr.provider} ${pr.falsePositiveRate === null ? "not measured" : `${(100 * pr.falsePositiveRate).toFixed(1)}%`}`,
+            )
+            .join(", "),
+          threshold: "reported per provider",
+          denominator: components.providers.reduce((a, pr) => a + pr.genuineChecked, 0),
+          state: "not measured" as TargetState,
+          note: "per-provider figures in components; checked-and-unlisted cases are not persisted yet",
+        }
+      : notMeasured(
+          "reputation providers' false-positive rates",
+          "reported per provider",
+          "needs each case's provider listings (D08 T02 §8)",
+        ),
     notMeasured(
       "checks-only against model-enabled detection",
       "reported side by side",
@@ -266,6 +326,7 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
     ),
   ];
   return {
+    components,
     run: {
       id: run.id,
       mode: run.mode,
@@ -436,6 +497,12 @@ const ResultSchema = z.strictObject({
   criticalFound: z.boolean(),
   httpStatus: z.number().int().min(100).max(599).nullable(),
   detail: z.string().max(200).nullable(),
+  // The component fields the runner stores since section 8 (migration 0079): a run from before them has neither.
+  providers: z
+    .array(z.strictObject({ provider: z.string().min(1).max(80), checked: z.boolean(), listed: z.boolean() }))
+    .max(50)
+    .optional(),
+  walkthrough: z.boolean().nullable().optional(),
 });
 
 // A stored run (from the database or an export) checked whole: its own results only, one row per sample.
@@ -456,7 +523,8 @@ export function checkStored(value: unknown, id: string): { run: RunRow; results:
 }
 
 export const USAGE = [
-  "usage: pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
+  "usage: pnpm eval:metrics --check <RESULTS.md> [--records <dir>]   (exit 0 figures match their records, 3 refused)",
+  "       pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
   "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
   "       pnpm eval:metrics --run <run id> --publish   (store a complete report for the public page; a full run also writes eval/results-summary.json)",
   "       pnpm eval:metrics --republish-summary   (rebuild eval/results-summary.json from the latest published full report)",
@@ -486,13 +554,21 @@ export async function runMetrics(args: {
   let setsDir: string | null = null;
   let publish = false;
   let republish = false;
+  let checkFile: string | null = null;
+  let recordsDir: string | null = null;
   for (let i = 0; i < args.argv.length; i++) {
     const a = args.argv[i];
     if (a === "--json") json = true;
     else if (a === "--publish") publish = true;
     else if (a === "--republish-summary") republish = true;
     else if (a === "--help" || a === "-h") return { code: 0, stdout: `${USAGE}\n`, stderr: "" };
-    else if (a === "--from") {
+    else if (a === "--check") {
+      checkFile = args.argv[++i] ?? null;
+      if (!checkFile) return refuse("--check needs a file");
+    } else if (a === "--records") {
+      recordsDir = args.argv[++i] ?? null;
+      if (!recordsDir) return refuse("--records needs a folder");
+    } else if (a === "--from") {
       from = args.argv[++i] ?? null;
       if (!from) return refuse("--from needs a file");
     } else if (a === "--sets") {
@@ -513,6 +589,32 @@ export async function runMetrics(args: {
     if (!args.pub)
       return { code: 1, stdout: "", stderr: "eval:metrics: no database to read the published reports from\n" };
     return done(await republishSummary({ db: args.pub, root, ...(args.write ? { write: args.write } : {}) }));
+  }
+  if (checkFile) {
+    if (id || publish || from) return refuse("--check stands alone");
+    const { existsSync } = await import("node:fs");
+    const dir = recordsDir ?? join(root, "eval/components");
+    const records: ComponentRecords = {};
+    for (const name of ["cache", "providers", "walkthrough", "floor", "invisible", "ai", "attachments"] as const) {
+      const file = join(dir, `${name}.json`);
+      if (existsSync(file)) {
+        try {
+          records[name] = JSON.parse(readFileSync(file, "utf-8"));
+        } catch {
+          return refuse(`${file}: malformed records`);
+        }
+      }
+    }
+    let text: string;
+    try {
+      text = readFileSync(checkFile, "utf-8");
+    } catch {
+      return refuse(`${checkFile}: unreadable`);
+    }
+    const problems = checkComponentRows(text, records);
+    return problems.length
+      ? refuse(problems.join("; "))
+      : done({ code: 0, message: "eval:metrics: RESULTS figures match their records" });
   }
   if (publish && from) return refuse("--publish reads the run from the database, not from --from");
   if (!id) return refuse("--run is required");
@@ -604,4 +706,27 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
   process.exit(out.code);
+}
+
+// Replay merging (D08 T02 section 12): a replay result replaces its original only when complete; the replaced
+// originals are counted apart as replay consent lines and never enter detection, false-alarm, latency or cost.
+export function mergeReplayResults(
+  original: ResultRow[],
+  replays: ResultRow[][],
+): { results: ResultRow[]; consentLines: number } {
+  // A replay remeasures the whole population (D08 T02 section 12): a terminal replay line replaces its
+  // original from either state, and a non-terminal one never does.
+  const measured = new Map<string, ResultRow>();
+  for (const run of replays)
+    for (const r of run) if (r.outcome === "done" || r.outcome === "partial") measured.set(r.sample, r);
+  let consentLines = 0;
+  const results = original.map((r) => {
+    const replay = measured.get(r.sample);
+    if (replay) {
+      consentLines++;
+      return replay;
+    }
+    return r;
+  });
+  return { results, consentLines };
 }

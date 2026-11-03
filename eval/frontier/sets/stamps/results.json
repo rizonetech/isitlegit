@@ -1,0 +1,322 @@
+[
+ {
+  "file": "pop-01-genuine.png",
+  "arm": "whole",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 17343,
+  "usd": 0
+ },
+ {
+  "file": "pop-01-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-02-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 11881,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-02-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-03-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 10610,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-03-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-04-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 14384,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-04-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-05-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 9450,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-05-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-06-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 11941,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-06-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-07-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 10924,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-07-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-08-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": true,
+  "ms": 3848,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-08-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-09-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 9475,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-09-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-10-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 11414,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-10-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-11-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 10790,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-11-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-12-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 12625,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-12-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-13-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 8300,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-13-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-14-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 9119,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-14-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-15-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 10382,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-15-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-16-doctored.png",
+  "arm": "whole",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 16867,
+  "usd": 0
+ },
+ {
+  "file": "pop-16-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 1,
+  "usd": 0
+ },
+ {
+  "file": "pop-17-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 7603,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-17-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-18-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": true,
+  "ms": 5046,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-18-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-19-genuine.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 10275,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-19-genuine.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 0,
+  "usd": 0
+ },
+ {
+  "file": "pop-20-doctored.png",
+  "arm": "whole",
+  "status": "answered",
+  "doctored": false,
+  "ms": 13333,
+  "usd": 0.02
+ },
+ {
+  "file": "pop-20-doctored.png",
+  "arm": "chain",
+  "status": "malformed",
+  "doctored": null,
+  "ms": 1,
+  "usd": 0
+ }
+]

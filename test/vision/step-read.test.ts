@@ -95,11 +95,17 @@ const samEmpty = () =>
     },
   ]);
 let samResponder: () => Response | Promise<Response> = samEmpty;
+let groundingReply: () => Response = () => reply({ boxes: [{ x_min: 30, y_min: 30, x_max: 190, y_max: 120 }] });
 
 function deps(caseId: string, fetchImpl: typeof fetch, theStore: Store = store): VisionDeps {
   const routed = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { model?: string }) : {};
+    const body =
+      typeof init?.body === "string"
+        ? (JSON.parse(init.body) as { model?: string; text?: { format?: { name?: string } } })
+        : {};
     if (body.model === "sam-3.1") return samResponder();
+    // Logo grounding (D03 T03 §4, the selected detector): one box on the normalised grid.
+    if (body.text?.format?.name === "logo_grounding") return groundingReply();
     return fetchImpl(input, init);
   }) as typeof fetch;
   return {
@@ -149,6 +155,8 @@ describe("visionStep with a stubbed model", () => {
       "vision.requested_action",
       "vision.brand_domain_mismatch",
       "vision.brand_domain_mismatch",
+      "vision.logo_match",
+      "vision.logo_match",
     ]);
     expect(items.every((e) => e.artefacts.length === 1 && e.artefacts[0]?.includes(first))).toBe(true);
     const view = ruleVerdict(await readEvidence(env.DB, first), { headersAvailable: true });
@@ -166,7 +174,7 @@ describe("visionStep with a stubbed model", () => {
       first,
     );
     expect(replay.outcome).toBe("read");
-    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(7);
+    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(9);
 
     // A twin case (the same message and attachment) is served from the cache too, with its own
     // artefact keys in the rebuilt evidence.
@@ -179,7 +187,7 @@ describe("visionStep with a stubbed model", () => {
     );
     expect(out2.outcome).toBe("read");
     const twin = (await readEvidence(env.DB, second)).filter((e) => e.check.startsWith("vision."));
-    expect(twin).toHaveLength(7);
+    expect(twin).toHaveLength(9);
     expect(twin.every((e) => e.artefacts[0]?.includes(second))).toBe(true);
   }, 300_000);
 
@@ -356,7 +364,11 @@ describe("visionStep with a stubbed model", () => {
       expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
       const coverage = items.find((e) => e.check === "vision.coverage");
       expect(JSON.stringify(coverage?.detail)).toContain("segmentation was unavailable");
-      expect(await artefactsOf(store, failedCase, "crop")).toHaveLength(0);
+      // SAM is down, so stamp and signature are lost; the selected logo detector (grounding,
+      // D03 T03 §4) still finds each picture's logo, so only its two crops and manifests land.
+      const downCrops = await artefactsOf(store, failedCase, "crop");
+      expect(downCrops.filter((c) => c.mediaType === "image/png")).toHaveLength(2);
+      expect(downCrops.every((c) => c.mediaType !== "image/png" || c.key.includes("-logo-"))).toBe(true);
     } finally {
       samResponder = samEmpty;
     }
@@ -496,6 +508,7 @@ describe("visionStep with a stubbed model", () => {
 
       // The retry finds nothing: each source's latest manifest now names an empty set.
       samResponder = samEmpty;
+      groundingReply = () => reply({ boxes: [] });
       await visionStep(deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch), caseId);
       const manifests = (await artefactsOf(store, caseId, "crop")).filter((c) => c.mediaType === "application/json");
       expect(manifests).toHaveLength(4);
@@ -539,6 +552,7 @@ describe("visionStep with a stubbed model", () => {
       expect(await artefactsOf(store, stalledCase, "crop")).toHaveLength(0);
     } finally {
       samResponder = samEmpty;
+      groundingReply = () => reply({ boxes: [{ x_min: 30, y_min: 30, x_max: 190, y_max: 120 }] });
     }
   }, 300_000);
 
