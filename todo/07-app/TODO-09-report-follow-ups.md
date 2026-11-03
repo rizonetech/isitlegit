@@ -34,7 +34,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Early results first | D07 T03 §37 | [ ] |
+| 1 | §1 | Early results first | D07 T03 §37 | [x] |
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
@@ -75,11 +75,14 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw o
 - [x] Ask the checks lane (through the coordinator) to store the `auth.*` outcomes and items before the slower checks run, in `src/pipeline/analysis-workflow.ts`. Done when: the producer stores them first and the run's later outcomes join them under the same run id. Cheaper substitute: a second card fed by a separate read, which can disagree with the stored outcomes.
 - [x] Draw the card from those early outcomes in `ReportLive` (`src/web/pages/report-live.tsx`) with no other change. Done when: `test/web/report-status.test.ts` stores only the auth outcomes through the status route and finds the card while the checks step is still running. Cheaper substitute: polling faster, which shows the same late facts sooner.
 - [x] Prove the timing in `test/node/report-status-browser.test.tsx`: the card appears on the first poll after the auth outcomes land. Done when: the test counts one poll between the store and the card. Cheaper substitute: asserting the card eventually appears, which passes however late it lands.
-- [ ] Commit: `web: early authentication results before the slow checks`
+- [x] Commit: `web: early authentication results before the slow checks`
 
 **Corrected 2026-11-03 (completion and round 1 reviews):** the one-poll proof is composed of the checkpoint's two halves: the worker test stores the auth prefix through `saveEvidence` and reads the real status route while checks still run, and the browser test counts exactly one poll between the stored answer and the visible card. A single test driving a database save through a browser poll would need a harness no suite in this repository has; the composed proof can fail in either half.
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with the card drawn from auth outcomes alone.
+
+> **Verified:** 2026-11-03 | §1 | 41ba91c54a67b674cb9a8135a40ca3a676f55643
+> **Review:** `docs/reviews/d07-t09-s1.json`
 
 ## 2. Kinds of auth error
 

@@ -569,7 +569,7 @@ Sections: 193 | Checklist items: 817
 | [ ]    | D07 T08 §23 | Money-at-risk aggregation                                   | none                 | 2     |
 | [ ]    | D07 T08 §24 | Feedback queue search and step                              | none                 | 8     |
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page                   | operator             | 4     |
-| [ ]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
+| [x]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 3     |
 | [x]    | D07 T09 §3  | Dispute from inside the mailbox                             | none                 | 4     |
 | [x]    | D07 T09 §4  | Measured phone attribution                                  | none                 | 4     |
@@ -627,6 +627,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 346/551 verified sections, 134 ready to run now.
+Progress: 347/551 verified sections, 134 ready to run now.
 
-Checklist: 2692/3429 items completed (includes Commit items).
+Checklist: 2693/3429 items completed (includes Commit items).
