@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 196 | Checklist items: 832
+Sections: 196 | Checklist items: 833
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -509,7 +509,7 @@ Sections: 196 | Checklist items: 832
 | [x]    | D07 T02 §25 | Same-device other-browser                                   | none                 | 5     |
 | [x]    | D07 T02 §26 | Export and fresh sign-in before closure                     | none                 | 5     |
 | [ ]    | D07 T02 §27 | Close account control on the Account board                  | operator             | 4     |
-| [ ]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 4     |
+| [ ]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
@@ -632,4 +632,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 351/554 verified sections, 131 ready to run now.
 
-Checklist: 2706/3444 items completed (includes Commit items).
+Checklist: 2706/3445 items completed (includes Commit items).

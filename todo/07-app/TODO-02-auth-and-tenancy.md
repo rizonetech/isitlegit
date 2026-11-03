@@ -779,6 +779,8 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 **Treatment:** one sentence in the prompt's panel naming the phone, the email link kept
 **Chrome:** the passkey prompt (§16)
 
+> **Corrected 2026-11-03 (plan review):** Each cause is paired with its corrective action in the SPEC, the panel and the tests (a cause named without its remedy proves nothing), and the note stays reachable after the ceremony is cancelled or fails: the prompt disappears then, so the same note is shown with the failure reason on the sign-in page, where Try the passkey again and the email route are already offered. The browser test cancels and fails the ceremony, reads the note, and completes a recovery by keyboard.
+
 **Build order:**
 
 1. Word the other device in the prompt, once approved, and prove the journey. Done when: the panel names the phone and a sign-in with a passkey held by another authenticator succeeds.
@@ -1025,9 +1027,10 @@ The passkey prompt names the cross-device steps but offers no help when they fai
 1. Name the troubleshooting in `design/SPEC.md` A1. Done when: A1 names each cause and `python3 design/tools/check-design.py` passes.
 2. Draw it in the panel and prove it. Done when: the browser test below passes.
 
-- [ ] Add the three causes (no phone screen lock, an older browser without cross-device passkeys, Bluetooth off on either device) and what to change for each to `design/SPEC.md` A1's passkey prompt. Done when: A1 names each and `python3 design/tools/check-design.py` passes. Cheaper substitute: a link away to another vendor's help, in words this service does not own.
-- [ ] Draw the note in the `PasskeyPrompt` panel (`src/web/pages/signin.tsx`) beside the cross-device sentence. Done when: the rendered prompt names each cause at phone width in both themes. Cheaper substitute: hiding it behind the email recovery, where a stuck member never looks.
-- [ ] Prove it in `test/node/passkey-signin-browser.test.tsx`: the panel names each cause and the email recovery still works from it. Done when: the test passes and fails with the note removed.
+- [ ] Add the three causes (no phone screen lock, an older browser without cross-device passkeys, Bluetooth off on either device), each paired with what to change for it (set up a screen lock, update the browser, turn Bluetooth on on both devices), to `design/SPEC.md` A1's passkey prompt, including that the note stays reachable after cancellation or failure. Done when: A1 names each cause with its action and `python3 design/tools/check-design.py` passes. Cheaper substitute: a link away to another vendor's help, in words this service does not own.
+- [ ] Draw the note in the `PasskeyPrompt` panel (`src/web/pages/signin.tsx`) beside the cross-device sentence, each cause with its action. Done when: the rendered prompt names each cause and action at phone width in both themes. Cheaper substitute: hiding it behind the email recovery, where a stuck member never looks.
+- [ ] Keep the note reachable after cancellation or failure: when the ceremony ends without signing in, the sign-in page shows the same note with the failure reason (`src/web/client/app.ts` `passkeyEnded`), the passkey retry and the email route still offered. Done when: the browser test cancels the ceremony, reads each cause and action, and completes the email recovery by keyboard. Cheaper substitute: help that vanishes with the browser's own dialog, exactly when it is needed.
+- [ ] Prove it in `test/node/passkey-signin-browser.test.tsx`: the panel names each cause with its action, and after a cancelled ceremony the note and the email recovery still work. Done when: the test passes and fails with the note or any remedy removed.
 - [ ] Commit: `web: passkey troubleshooting on the sign-in page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
