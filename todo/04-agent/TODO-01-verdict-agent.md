@@ -49,7 +49,7 @@ track: day-6
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
-| 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
+| 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [ ] |
 
@@ -403,9 +403,12 @@ Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there
 
 - [x] Name the floor rule revision beside `floorFor` in `src/agent/floor.ts` (a constant changed with any weight or trigger change) and carry it in the `floorApplied` record the loop stores. Done when: `test/agent/floor.test.ts` reads the revision from a raised record and an older decision is reproduced after a revision change in the same suite.
 - [x] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
-- [ ] Commit: `agent: floor record provenance and coverage state`
+- [x] Commit: `agent: floor record provenance and coverage state`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts test/agent/loop.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.
+
+> **Verified:** 2026-11-03 | §13 | 890f8bd0f8ddb2c7f5c9700fc9b1743bee06486b
+> **Review:** `docs/reviews/d04-t01-s13.json`
 ## 14. Ablation flag in the verdict step
 
 > **Started:** 2026-11-02T07:26:31Z

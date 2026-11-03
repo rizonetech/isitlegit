@@ -473,7 +473,7 @@ Sections: 191 | Checklist items: 810
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
 | [x]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 5     |
-| [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
+| [x]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T01 §15 | Fixed action on every critical invoice item      | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
@@ -625,6 +625,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 344/549 verified sections, 135 ready to run now.
+Progress: 345/549 verified sections, 134 ready to run now.
 
-Checklist: 2681/3422 items completed (includes Commit items).
+Checklist: 2682/3422 items completed (includes Commit items).
