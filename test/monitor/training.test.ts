@@ -678,5 +678,86 @@ describe("copyForTraining", () => {
     expect(await bucket.head(`training/${raceKey}screenshot.jpg`)).toBeNull();
     expect(await bucket.head(`training/${raceKey}done.json`)).toBeNull();
     expect(await bucket.head(`training/monitor/${orgId}/${raceHost}/removed.json`)).not.toBeNull();
+
+    // Cross-context interleaving without shared in-memory locks: removal lists while a separate isolate's
+    // copy resumes from source read; the pre-list host tombstone and per-put checks prevent any object
+    // from surviving removal.
+    const crossHost = "cross-context-remove.example";
+    const crossKey = `monitor/${orgId}/${crossHost}/2026-11-02T07:45:00.000Z/`;
+    await seedCapture(crossKey, `https://${crossHost}/`, "Cross-context removal race");
+    const lockSym = Symbol.for("isitlegit.monitor.training.hostLocks");
+    let releaseCrossGet!: () => void;
+    const crossGetGate = new Promise<void>((resolve) => {
+      releaseCrossGet = resolve;
+    });
+    let notifyCrossGetPaused!: () => void;
+    const crossGetPaused = new Promise<void>((resolve) => {
+      notifyCrossGetPaused = resolve;
+    });
+    let releaseCrossList!: () => void;
+    const crossListGate = new Promise<void>((resolve) => {
+      releaseCrossList = resolve;
+    });
+    let notifyCrossListPaused!: () => void;
+    const crossListPaused = new Promise<void>((resolve) => {
+      notifyCrossListPaused = resolve;
+    });
+    const copyIsolateBucket = {
+      head: (k: string) => bucket.head(k),
+      get: async (k: string) => {
+        if (k === `${crossKey}screenshot.jpg`) {
+          notifyCrossGetPaused();
+          await crossGetGate;
+        }
+        return bucket.get(k);
+      },
+      put: (k: string, v: ArrayBuffer | string, o?: R2PutOptions) => bucket.put(k, v, o),
+      delete: (k: string | string[]) => bucket.delete(k),
+      list: (o?: R2ListOptions) => bucket.list(o),
+    } as unknown as R2Bucket;
+    let firstList = true;
+    const removeIsolateBucket = {
+      head: (k: string) => bucket.head(k),
+      get: (k: string) => bucket.get(k),
+      put: (k: string, v: ArrayBuffer | string, o?: R2PutOptions) => bucket.put(k, v, o),
+      delete: (k: string | string[]) => bucket.delete(k),
+      list: async (o?: R2ListOptions) => {
+        const res = await bucket.list(o);
+        if (firstList) {
+          firstList = false;
+          notifyCrossListPaused();
+          await crossListGate;
+        }
+        return res;
+      },
+    } as unknown as R2Bucket;
+    const crossCopyPromise = copyForTraining(copyIsolateBucket, {
+      orgId,
+      host: crossHost,
+      captureKey: crossKey,
+      captureUrl: `https://${crossHost}/`,
+      label: "lure",
+      why: "confirmed",
+      source: "pipeline",
+    });
+    await crossGetPaused;
+    // Simulate a separate execution context by replacing the global lock map before starting removal.
+    Reflect.deleteProperty(globalThis, lockSym);
+    const crossRemovePromise = removeTrainingCopiesForHost(
+      removeIsolateBucket,
+      orgId,
+      crossHost,
+      "requested across isolates",
+      () => new Date("2026-11-02T08:10:00.000Z"),
+    );
+    await crossListPaused;
+    releaseCrossGet();
+    const copyOut = await crossCopyPromise;
+    releaseCrossList();
+    await crossRemovePromise;
+    expect(copyOut).toBe("removed");
+    expect(await bucket.head(`training/${crossKey}screenshot.jpg`)).toBeNull();
+    expect(await bucket.head(`training/${crossKey}done.json`)).toBeNull();
+    expect(await bucket.head(`training/monitor/${orgId}/${crossHost}/removed.json`)).not.toBeNull();
   });
 });
