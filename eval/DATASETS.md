@@ -107,9 +107,9 @@ The challenge set (`eval/sets/synthetic-challenge/`, D08 T01 §7) is 60 messages
 
 | File | Made by | Rights |
 | --- | --- | --- |
-| `eval/sets/payment-docs/*-genuine.png` (20) | `scripts/fixtures/make-doctored.ts` (SVG, sharp) | Project's own |
-| `eval/sets/payment-docs/*-doctored.png` (19) | Muse Image `muse-image-1.0` edits of the genuine files | Project's own synthetic inputs; model output on them |
-| `eval/sets/payment-docs/pair-01-doctored.png` | `scripts/fixtures/make-doctored.ts` in code, after its model edit failed | Project's own |
+| `test/fixtures/payment-docs/*-genuine.png` (20) | `scripts/fixtures/make-doctored.ts` (SVG, sharp) | Project's own |
+| `test/fixtures/payment-docs/*-doctored.png` (19) | Muse Image `muse-image-1.0` edits of the genuine files | Project's own synthetic inputs; model output on them |
+| `test/fixtures/payment-docs/pair-01-doctored.png` | `scripts/fixtures/make-doctored.ts` in code, after its model edit failed | Project's own |
 | `labels.json`, `measurement.json` beside them | the same scripts | Project's own |
 
 - Provenance: generated 2026-11-02. Every document is fictional (invented suppliers, Kestrel Bank (fictional), invented account numbers) and stamped SYNTHETIC TEST DOCUMENT. Each label names its pair, the edited field, the old and new values and whether the model or code made the doctored file. The measurement record names, per file, what the §2 extraction read and whether it named the new value.

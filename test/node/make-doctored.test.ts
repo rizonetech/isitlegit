@@ -19,7 +19,7 @@ describe("make-doctored", () => {
 
   it("makes a pair in code when the model edit fails, and reuses it on a restart", async () => {
     const spec = DOCS[0] as (typeof DOCS)[number];
-    const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp");
+    const tmp = join(import.meta.dirname, "../fixtures/payment-docs-tmp");
     rmSync(tmp, { recursive: true, force: true });
     const failing = async (): Promise<Buffer> => {
       throw Object.assign(new Error("refused"), { kind: "content-policy" });
@@ -45,7 +45,7 @@ describe("make-doctored", () => {
 
   it("makes an unchanged model output in code, never as a model edit", async () => {
     const spec = DOCS[1] as (typeof DOCS)[number];
-    const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp2");
+    const tmp = join(import.meta.dirname, "../fixtures/payment-docs-tmp2");
     rmSync(tmp, { recursive: true, force: true });
     const labels = await makePair(spec, async (_s, genuine) => genuine, tmp);
     expect(labels[1]?.made_by).toBe("code");
@@ -55,7 +55,7 @@ describe("make-doctored", () => {
 });
 
 it("recovers provenance from sidecars on a restart without a manifest", async () => {
-  const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp3");
+  const tmp = join(import.meta.dirname, "../fixtures/payment-docs-tmp3");
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   const spec = DOCS[0] as (typeof DOCS)[number];

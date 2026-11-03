@@ -12,13 +12,17 @@
 // restart; nothing already saved is sent again.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import sharp from "sharp";
+import type sharp from "sharp";
 import { z } from "zod";
 import { metaRaw } from "../../src/meta/client.ts";
 import { localBudget } from "../lib/meta-budget.ts";
 import { GATEWAY_URL, readSecretsFromVault } from "../meta-smoke.ts";
 
-const OUT = join(import.meta.dirname, "../../eval/sets/payment-docs");
+const sharpPkg = "sharp";
+const loadSharp = async (): Promise<typeof sharp> =>
+  ((await import(/* @vite-ignore */ sharpPkg)) as { default: typeof sharp }).default;
+
+const OUT = join(import.meta.dirname, "../../test/fixtures/payment-docs");
 export const CAP_USD = 1.0;
 
 export type DocSpec = {
@@ -80,7 +84,7 @@ export function svgOf(spec: DocSpec, doctored = false): string {
 }
 
 export const pngOf = async (spec: DocSpec, doctored = false): Promise<Buffer> =>
-  sharp(Buffer.from(svgOf(spec, doctored)))
+  (await loadSharp())(Buffer.from(svgOf(spec, doctored)))
     .png()
     .toBuffer();
 
@@ -141,6 +145,7 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
       }
     }
     if (doctored) {
+      const sharp = await loadSharp();
       const meta = await sharp(doctored)
         .metadata()
         .catch(() => null);

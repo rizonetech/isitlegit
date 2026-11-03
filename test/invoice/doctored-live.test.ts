@@ -1,15 +1,15 @@
 // The §4 measurement live (D06 T02 §4): Muse Spark extraction (§2) reads every genuine and
-// doctored image in eval/sets/payment-docs; an edit is caught when the doctored read names the
+// doctored image in test/fixtures/payment-docs; an edit is caught when the doctored read names the
 // new value, and a genuine control is scored on its original value. Runs only with
 // DOCTORED_LIVE=1 and the keys scripts/fixtures/measure-doctored.ts passes, inside the section's
 // stated US$1.00 allowance (reserveSectionSpend through sectionBudget).
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import LABELS from "../../eval/sets/payment-docs/labels.json";
-import { paymentDocImages } from "../../eval/sets/payment-docs/load";
 import { type Label, sectionBudget } from "../../scripts/fixtures/make-doctored.ts";
 import { extractPaymentDocument } from "../../src/invoice/payment-doc";
 import { d1Budget } from "../../src/meta/budget";
+import LABELS from "../fixtures/payment-docs/labels.json";
+import { paymentDocImages } from "../fixtures/payment-docs/load";
 
 const live = env as unknown as Record<string, string | undefined>;
 const LIVE = live.DOCTORED_LIVE === "1";
