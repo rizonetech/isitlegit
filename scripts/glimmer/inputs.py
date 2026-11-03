@@ -215,6 +215,16 @@ INVENTORY_ITEMS = "ITEMS.inventory.jsonl"
 HELD_LEDGER_ENTRY = 200
 
 
+def _utf8_len(text):
+    if text.isascii():
+        return len(text)
+    total = 0
+    for ch in text:
+        code = ord(ch)
+        total += 1 if code < 0x80 else (2 if code < 0x800 else (3 if code < 0x10000 else 4))
+    return total
+
+
 class Receipt:
     """Every item a converter met, by stable id and outcome. An item named when it is counted goes into the item ledger
     (`ITEMS.jsonl`, D03 T04 §28 G3): its id, its outcome and, for a rejection, the reason; an exported item's id is its
@@ -237,16 +247,17 @@ class Receipt:
 
     def note_inventory(self, item):
         """An input item enumerated independently of outcome recording (D03 T04 §28 plan review gap 2)."""
-        text = str(item)
-        self._charge(HELD_LEDGER_ENTRY + len(text.encode("utf-8")))
+        text = item if isinstance(item, str) else str(item)
+        self._charge(HELD_LEDGER_ENTRY + _utf8_len(text))
         self.inventory.append(text)
 
     def _named(self, item, outcome, reason=None):
         if item is not None:
-            text = str(item)
-            extra = len(reason.encode("utf-8")) if reason else 0
-            self._charge(HELD_LEDGER_ENTRY + len(text.encode("utf-8")) + len(outcome) + extra)
-            self.items.append({"item": text, "outcome": outcome, **({"reason": reason} if reason else {})})
+            text = item if isinstance(item, str) else str(item)
+            reason_text = (reason if isinstance(reason, str) else str(reason)) if reason else ""
+            extra = _utf8_len(reason_text) if reason_text else 0
+            self._charge(HELD_LEDGER_ENTRY + _utf8_len(text) + len(outcome) + extra)
+            self.items.append({"item": text, "outcome": outcome, **({"reason": reason_text} if reason_text else {})})
 
     def export(self, item=None):
         self.met += 1
@@ -260,8 +271,37 @@ class Receipt:
 
     def reject(self, reason, item=None):
         self.met += 1
+        if reason not in self.rejected:
+            reason_text = reason if isinstance(reason, str) else str(reason)
+            self._charge(HELD_LEDGER_ENTRY + _utf8_len(reason_text))
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
         self._named(item, "rejected", reason)
+
+    def _serialized_record_bytes(self, record, base_bytes, label):
+        """Exact UTF-8 byte length of `json.dumps(record) + '\\n'`, checked against allocation limits before any
+        string or buffer is constructed."""
+        size = 3  # '{', '}', and trailing '\n'
+        for idx, (key, value) in enumerate(record.items()):
+            if idx > 0:
+                size += 2  # ', '
+            size += 2  # ': '
+            for text in (str(key), str(value)):
+                size += 2  # surrounding quotes
+                for ch in text:
+                    code = ord(ch)
+                    if ch in ('"', "\\", "\b", "\f", "\n", "\r", "\t"):
+                        size += 2
+                    elif code < 0x20 or (0x80 <= code <= 0xFFFF):
+                        size += 6
+                    elif code > 0xFFFF:
+                        size += 12
+                    else:
+                        size += 1
+                    if self.limits is not None:
+                        self.limits.check_allocation(base_bytes + size, label)
+        if self.limits is not None:
+            self.limits.check_allocation(base_bytes + size, label)
+        return size
 
     def _write_jsonl_streamed(self, path, records_fn, label):
         temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -271,20 +311,19 @@ class Receipt:
                 for record in records_fn():
                     if self.limits is not None:
                         self.limits.check_deadline()
-                        est_len = sum(len(str(k)) + len(str(v)) + 6 for k, v in record.items()) + 3
-                        self.limits.check_allocation(total_bytes + est_len, label)
-                    raw = (json.dumps(record) + "\n").encode("utf-8")
-                    line_len = len(raw)
-                    total_bytes += line_len
-                    if self.limits is not None:
-                        self.limits.check_allocation(total_bytes, label)
-                        self.limits.charge_retained(line_len)
+                    line_len = self._serialized_record_bytes(record, total_bytes, f"{label} serialization")
+                    held_line = HELD_LEDGER_ENTRY + line_len * 2
+                    raw = b""
                     try:
+                        if self.limits is not None:
+                            self.limits.charge_retained(held_line)
+                        raw = (json.dumps(record) + "\n").encode("utf-8")
+                        total_bytes += len(raw)
                         handle.write(raw)
                     finally:
-                        del raw
+                        raw = b""
                         if self.limits is not None:
-                            self.limits.release_retained(line_len)
+                            self.limits.release_retained(held_line)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, path)
@@ -293,22 +332,23 @@ class Receipt:
                 for record in records_fn():
                     if self.limits is not None:
                         self.limits.check_deadline()
-                    expected = (json.dumps(record) + "\n").encode("utf-8")
-                    exp_len = len(expected)
-                    read_total += exp_len
-                    if self.limits is not None:
-                        self.limits.check_allocation(read_total, f"{label} read-back")
-                        self.limits.charge_retained(exp_len * 2)
+                    exp_len = self._serialized_record_bytes(record, read_total, f"{label} read-back")
+                    held_read = HELD_LEDGER_ENTRY + exp_len * 3
+                    expected = b""
                     actual = b""
                     try:
+                        if self.limits is not None:
+                            self.limits.charge_retained(held_read)
+                        expected = (json.dumps(record) + "\n").encode("utf-8")
                         actual = handle.read(exp_len)
+                        read_total += len(actual)
                         if actual != expected:
                             raise Refused(f"{path} did not read back as written")
                     finally:
-                        del expected
-                        del actual
+                        expected = b""
+                        actual = b""
                         if self.limits is not None:
-                            self.limits.release_retained(exp_len * 2)
+                            self.limits.release_retained(held_read)
                 extra = handle.read(1)
                 if extra:
                     raise Refused(f"{path} did not read back as written")
@@ -325,66 +365,78 @@ class Receipt:
         if len(self.items) != self.met:
             raise Refused(f"the item ledger names {len(self.items)} of {self.met} items")
         inv_source = inventory if inventory is not None else self.inventory
-        scratch = 0
+        keep_external_inv = inventory is not None
+        recon_scratch = 0
+        inv_retained = 0
         seen_ids = set()
         seen_inv = set()
-        inv_list = []
+        external_inv_list = []
         try:
-            for entry in self.items:
-                if self.limits is not None:
-                    self.limits.check_deadline()
-                item_id = entry["item"]
-                cost = HELD_LEDGER_ENTRY + len(item_id.encode("utf-8"))
-                if self.limits is not None:
-                    self.limits.check_allocation(scratch + cost, "item ledger reconciliation")
-                    scratch += cost
-                    self.limits.charge_retained(cost)
-                else:
-                    scratch += cost
-                if item_id in seen_ids:
-                    raise Refused("the item ledger names an item twice")
-                seen_ids.add(item_id)
-            if inv_source:
-                for raw_item in inv_source:
+            try:
+                for entry in self.items:
                     if self.limits is not None:
                         self.limits.check_deadline()
-                    item_id = str(raw_item)
-                    cost = HELD_LEDGER_ENTRY + len(item_id.encode("utf-8"))
+                    item_id = entry["item"]
+                    cost = HELD_LEDGER_ENTRY + _utf8_len(item_id)
+                    recon_scratch += cost
                     if self.limits is not None:
-                        self.limits.check_allocation(scratch + cost, "item ledger reconciliation")
-                        scratch += cost
                         self.limits.charge_retained(cost)
-                    else:
-                        scratch += cost
-                    if item_id in seen_inv:
-                        raise Refused("the input inventory names an item twice")
-                    seen_inv.add(item_id)
-                    inv_list.append(item_id)
-                if seen_inv != seen_ids or len(inv_list) != len(self.items):
-                    raise Refused(
-                        f"the item ledger ({len(self.items)} items) does not match the input inventory ({len(inv_list)} items)"
-                    )
+                    if item_id in seen_ids:
+                        raise Refused("the item ledger names an item twice")
+                    seen_ids.add(item_id)
+                if inv_source:
+                    for raw_item in inv_source:
+                        if self.limits is not None:
+                            self.limits.check_deadline()
+                        item_id = raw_item if isinstance(raw_item, str) else str(raw_item)
+                        cost = HELD_LEDGER_ENTRY + _utf8_len(item_id)
+                        recon_scratch += cost
+                        if self.limits is not None:
+                            self.limits.charge_retained(cost)
+                        if item_id in seen_inv:
+                            raise Refused("the input inventory names an item twice")
+                        seen_inv.add(item_id)
+                        if keep_external_inv:
+                            inv_retained += cost
+                            if self.limits is not None:
+                                self.limits.charge_retained(cost)
+                            external_inv_list.append(item_id)
+                    inv_count = len(external_inv_list) if keep_external_inv else len(self.inventory)
+                    if seen_inv != seen_ids or inv_count != len(self.items):
+                        raise Refused(
+                            f"the item ledger ({len(self.items)} items) does not match the input inventory ({inv_count} items)"
+                        )
+            finally:
+                seen_ids.clear()
+                seen_inv.clear()
+                del seen_ids
+                del seen_inv
+                if self.limits is not None and recon_scratch:
+                    self.limits.release_retained(recon_scratch)
+            path = Path(folder) / ITEMS
+
+            def iter_items():
+                yield {"inputs": inputs_digest, "rows": rows_digest}
+                for entry in self.items:
+                    yield entry
+
+            self._write_jsonl_streamed(path, iter_items, ITEMS)
+            inv_items = external_inv_list if keep_external_inv else self.inventory
+            if inv_items:
+                inv_path = Path(folder) / INVENTORY_ITEMS
+
+                def iter_inventory():
+                    yield {"inputs": inputs_digest}
+                    for item_id in inv_items:
+                        yield {"item": item_id}
+
+                self._write_jsonl_streamed(inv_path, iter_inventory, INVENTORY_ITEMS)
+            return path
         finally:
-            seen_ids.clear()
-            seen_inv.clear()
-            del seen_ids
-            del seen_inv
-            if self.limits is not None:
-                self.limits.release_retained(scratch)
-        path = Path(folder) / ITEMS
-        self._write_jsonl_streamed(
-            path,
-            lambda: [{"inputs": inputs_digest, "rows": rows_digest}, *self.items],
-            ITEMS,
-        )
-        if inv_list:
-            inv_path = Path(folder) / INVENTORY_ITEMS
-            self._write_jsonl_streamed(
-                inv_path,
-                lambda: [{"inputs": inputs_digest}, *({"item": item} for item in inv_list)],
-                INVENTORY_ITEMS,
-            )
-        return path
+            external_inv_list.clear()
+            del external_inv_list
+            if self.limits is not None and inv_retained:
+                self.limits.release_retained(inv_retained)
 
     def write(self, folder, rows, converter, inputs_digest, parameters=None):
         """Writes EXPORT.json beside the rows, once its totals reconcile; returns it. `parameters` are the run's own

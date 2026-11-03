@@ -6,6 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "inputs.py"
@@ -229,24 +230,52 @@ class ItemLedger(unittest.TestCase):
         with self.assertRaisesRegex(inputs.Refused, "bytes retained at once"):
             bounded.export("row-a")
         # Allocation limit breached during write_items serialization before building a 3,000-byte ledger (Round 1 finding 1).
-        tight_alloc = inputs.Limits(retained=50_000, allocation=1000)
+        tight_alloc = inputs.Limits(retained=100_000, allocation=1000)
         alloc_receipt = inputs.Receipt(tight_alloc)
         for idx in range(60):
             item_id = f"row-{idx:04d}"
             alloc_receipt.note_inventory(item_id)
             alloc_receipt.export(item_id)
         before_retained = tight_alloc.retained
-        with self.assertRaisesRegex(inputs.Refused, "allocation limit"):
-            alloc_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        serialized_chunks = []
+        orig_dumps = inputs.json.dumps
+
+        def spy_dumps(*args, **kwargs):
+            out = orig_dumps(*args, **kwargs)
+            serialized_chunks.append(len(out))
+            return out
+
+        with unittest.mock.patch.object(inputs.json, "dumps", side_effect=spy_dumps):
+            with self.assertRaisesRegex(inputs.Refused, "ITEMS.jsonl serialization .* passes the 1000 byte allocation limit"):
+                alloc_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertLessEqual(sum(serialized_chunks), 1000)
         self.assertEqual(tight_alloc.retained, before_retained)
+        self.assertEqual(list(self.dir.iterdir()), [])
+        # Escape-heavy single record (500 NUL chars -> >3,000 JSON bytes) refused before json.dumps runs on it (Round 2 finding 1).
+        escape_limits = inputs.Limits(retained=50_000, allocation=1000)
+        escape_receipt = inputs.Receipt(escape_limits)
+        escape_receipt.note_inventory("row-a")
+        escape_receipt.reject("\x00" * 500, "row-a")
+        escape_before = escape_limits.retained
+        escape_chunks = []
+
+        def spy_escape_dumps(*args, **kwargs):
+            out = orig_dumps(*args, **kwargs)
+            escape_chunks.append(len(out))
+            return out
+
+        with unittest.mock.patch.object(inputs.json, "dumps", side_effect=spy_escape_dumps):
+            with self.assertRaisesRegex(inputs.Refused, "ITEMS.jsonl serialization .* passes the 1000 byte allocation limit"):
+                escape_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertTrue(all(c < 200 for c in escape_chunks))
+        self.assertEqual(escape_limits.retained, escape_before)
         self.assertEqual(list(self.dir.iterdir()), [])
         # Within limits: writes both ITEMS.jsonl and ITEMS.inventory.jsonl and releases all scratch retained bytes.
         ok_limits = inputs.Limits()
         ok = inputs.Receipt(ok_limits)
-        ok.note_inventory("row-a")
         ok.export("row-a")
         held_before_write = ok_limits.retained
-        ok.write_items(self.dir, "i" * 64, "r" * 64)
+        ok.write_items(self.dir, "i" * 64, "r" * 64, inventory=["row-a"])
         self.assertEqual(ok_limits.retained, held_before_write)
         inv_lines = [json.loads(line) for line in (self.dir / inputs.INVENTORY_ITEMS).read_text().splitlines()]
         self.assertEqual(inv_lines, [{"inputs": "i" * 64}, {"item": "row-a"}])
