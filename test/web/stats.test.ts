@@ -567,7 +567,10 @@ describe("the Friday weekly counts (D07 T04 §20)", () => {
       body: new URLSearchParams({ action: "weekly-report", org: a, weekly: "on" }).toString(),
     });
     expect(post.status).toBe(303);
-    const held = await db.prepare(`SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`).bind(a, uid).first();
+    const held = await db
+      .prepare(`SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`)
+      .bind(a, uid)
+      .first();
     expect(held).not.toBeNull();
     const pageHtml = await (await get("/settings/account", cookie)).text();
     expect(pageHtml).toContain("Email me this organisation&#39;s weekly counts on Fridays");

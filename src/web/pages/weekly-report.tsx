@@ -26,20 +26,45 @@ const message = (title: string, body: string, status = 200) =>
 weeklyReportRoutes.get("/weekly-report/unsubscribe", async (c) => {
   const token = new URL(c.req.url).searchParams.get("token") ?? "";
   const held = await readWeeklyToken(c.env.BETTER_AUTH_SECRET ?? "", token).catch(() => null);
-  if (!held) return message("That link does not work", "It may have been copied incompletely. You can stop the weekly counts in your account settings instead.", 400);
+  if (!held)
+    return message(
+      "That link does not work",
+      "It may have been copied incompletely. You can stop the weekly counts in your account settings instead.",
+      400,
+    );
   try {
     const row = await c.env.DB.prepare(`SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`)
       .bind(held.orgId, held.userId)
       .first<{ opted_in_at: string }>();
-    if (!row) return message("Already unsubscribed", "You are not receiving the weekly counts. You can start them again in your account settings.");
+    if (!row)
+      return message(
+        "Already unsubscribed",
+        "You are not receiving the weekly counts. You can start them again in your account settings.",
+      );
     if (row.opted_in_at !== held.optedInAt)
-      return message("Already changed", "That link belongs to an earlier choice. Your current setting stands; you can change it in your account settings.");
-    const done = await c.env.DB.prepare(`DELETE FROM weekly_report_optins WHERE org_id = ? AND user_id = ? AND opted_in_at = ?`)
+      return message(
+        "Already changed",
+        "That link belongs to an earlier choice. Your current setting stands; you can change it in your account settings.",
+      );
+    const done = await c.env.DB.prepare(
+      `DELETE FROM weekly_report_optins WHERE org_id = ? AND user_id = ? AND opted_in_at = ?`,
+    )
       .bind(held.orgId, held.userId, held.optedInAt)
       .run();
-    if (!done.meta.changes) return message("Already unsubscribed", "You are not receiving the weekly counts. You can start them again in your account settings.");
-    return message("Unsubscribed", "You will not receive the weekly counts again unless you switch them back on in your account settings.");
+    if (!done.meta.changes)
+      return message(
+        "Already unsubscribed",
+        "You are not receiving the weekly counts. You can start them again in your account settings.",
+      );
+    return message(
+      "Unsubscribed",
+      "You will not receive the weekly counts again unless you switch them back on in your account settings.",
+    );
   } catch {
-    return message("That did not work", "We could not change your setting just now. Try the link again, or use your account settings.", 500);
+    return message(
+      "That did not work",
+      "We could not change your setting just now. Try the link again, or use your account settings.",
+      500,
+    );
   }
 });

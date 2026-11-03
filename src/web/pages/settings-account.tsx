@@ -145,7 +145,9 @@ accountRoutes.get(
               orgName: shell.organization.name,
               optedInAt:
                 (
-                  await c.env.DB.prepare(`SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`)
+                  await c.env.DB.prepare(
+                    `SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`,
+                  )
                     .bind(membership.org.id, signedIn.user.id)
                     .first<{ opted_in_at: string }>()
                 )?.opted_in_at ?? null,

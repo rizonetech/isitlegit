@@ -7,19 +7,29 @@
 // accounts and organisation are never sent to.
 
 import { isProtectedAccount, isProtectedOrganisation } from "../auth/protected";
-import { weeklyStats } from "../db/case-stats";
-import { weekStart } from "../db/case-stats";
+import { weeklyStats, weekStart } from "../db/case-stats";
 import { sendMail } from "./smtp2go";
 import { weeklyReportEmail } from "./templates/auth-mail";
 
-export type WeeklyReportEnv = { DB: D1Database; APP_URL: string; BETTER_AUTH_SECRET?: string; SMTP2GO_API_KEY?: string; OPERATOR_EMAIL?: string };
+export type WeeklyReportEnv = {
+  DB: D1Database;
+  APP_URL: string;
+  BETTER_AUTH_SECRET?: string;
+  SMTP2GO_API_KEY?: string;
+  OPERATOR_EMAIL?: string;
+};
 export type WeeklyCounts = { sent: number; failed: number; uncertain: number; skipped: number };
 
 const encoder = new TextEncoder();
 async function sign(secret: string, text: string) {
-  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(`weekly-unsubscribe\n${text}`)));
-  return btoa(String.fromCharCode(...mac)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(String.fromCharCode(...mac))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 // The one-step unsubscribe token: the organisation, the member and the opt-in time it was issued under, signed.
@@ -57,7 +67,10 @@ export function inWeeklyWindow(now: Date): boolean {
   return false;
 }
 
-export async function sendWeeklyReports(env: WeeklyReportEnv, clock: () => Date = () => new Date()): Promise<WeeklyCounts> {
+export async function sendWeeklyReports(
+  env: WeeklyReportEnv,
+  clock: () => Date = () => new Date(),
+): Promise<WeeklyCounts> {
   const counts: WeeklyCounts = { sent: 0, failed: 0, uncertain: 0, skipped: 0 };
   const now = clock();
   if (!inWeeklyWindow(now)) return counts;

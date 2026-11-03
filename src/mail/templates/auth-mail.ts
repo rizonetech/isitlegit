@@ -317,7 +317,9 @@ export function weeklyReportEmail(input: {
       : input.medianSeconds < 60
         ? `${input.medianSeconds} s`
         : `${Math.floor(input.medianSeconds / 60)} min ${input.medianSeconds % 60 ? `${input.medianSeconds % 60} s` : ""}`.trim();
-  const subject = clean(`Your week so far at ${input.organisation}: ${input.checked} checked, ${input.flagged} malicious or suspicious`);
+  const subject = clean(
+    `Your week so far at ${input.organisation}: ${input.checked} checked, ${input.flagged} malicious or suspicious`,
+  );
   const heading = clean(`Your week so far at ${input.organisation}`);
   const lines = [
     `Checked this week: ${input.checked}`,
