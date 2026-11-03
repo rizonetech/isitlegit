@@ -14,9 +14,11 @@ import {
   removeTrainingCopiesForHost,
   type StoredTrainingMeta,
 } from "../../src/monitor/training";
+import { runMonitor } from "../../src/monitor/workflow";
 import { screened } from "../../src/vision/page-screen";
 import type { GlimmerSession } from "../../src/vision/screen";
 import { fakeJpeg } from "../fixtures/jpeg";
+import { business, runRow, START, world } from "./world";
 
 const bucket = env.ARTEFACTS;
 const db = env.DB;
@@ -1181,5 +1183,42 @@ describe("copyForTraining", () => {
     ) as StoredTrainingMeta;
     expect(metaAfterRace.retracted).toBe(true);
     expect(metaAfterRace.source).toBe("restore");
+
+    // 5. Recovery failures in later stages (pipeline and findings) persist outcome = 'partial' and training: errors on monitor_runs.
+    const wfOrg = await business();
+    const w = world(START);
+    const stepRunner = {
+      do: async (_name: string, _opts: unknown, work: () => Promise<unknown>) => work(),
+    } as unknown as Parameters<typeof runMonitor>[0];
+    const wfDeps = {
+      ...w.deps,
+      heldSince: async () => null,
+    };
+    const wfSummary = await runMonitor(
+      stepRunner,
+      wfDeps,
+      wfOrg.orgId,
+      "run-wf-partial",
+      async () => ({
+        investigated: 0,
+        trainingRecoveryFailed: 1,
+        trainingRecoveryErrors: ["pipeline R2 outage"],
+      }),
+      async () => ({
+        created: 0,
+        alerted: 0,
+        reopened: 0,
+        trainingRecoveryFailed: 1,
+        trainingRecoveryErrors: ["findings R2 outage"],
+      }),
+    );
+    expect(wfSummary.outcome).toBe("partial");
+    expect(wfSummary.errors).toContain("training:pipeline R2 outage");
+    expect(wfSummary.errors).toContain("training:findings R2 outage");
+    const persistedRun = await runRow(wfOrg.orgId);
+    expect(persistedRun?.outcome).toBe("partial");
+    const persistedErrors = JSON.parse(String(persistedRun?.errors_json ?? "[]")) as string[];
+    expect(persistedErrors).toContain("training:pipeline R2 outage");
+    expect(persistedErrors).toContain("training:findings R2 outage");
   });
 });

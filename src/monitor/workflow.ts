@@ -301,8 +301,18 @@ export async function runMonitor(
   deps: MonitorDeps & { heldSince: (id: string) => Promise<number | null> },
   orgId: string,
   runId: string,
-  pipeline?: (orgId: string) => Promise<{ investigated: number }>,
-  findings?: (orgId: string) => Promise<{ created: number; alerted: number; reopened: number }>,
+  pipeline?: (orgId: string) => Promise<{
+    investigated: number;
+    trainingRecoveryFailed?: number;
+    trainingRecoveryErrors?: string[];
+  }>,
+  findings?: (orgId: string) => Promise<{
+    created: number;
+    alerted: number;
+    reopened: number;
+    trainingRecoveryFailed?: number;
+    trainingRecoveryErrors?: string[];
+  }>,
 ): Promise<RunSummary> {
   let summary: RunSummary | undefined;
   let failure: unknown;
@@ -321,43 +331,104 @@ export async function runMonitor(
     { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
     () => settleAgain(deps, held),
   );
+  const markPartialWithErrors = async (stepName: string, extraErrors: string[]) => {
+    const updatedErrors = [...(summary?.errors ?? [])];
+    for (const e of extraErrors) {
+      if (!updatedErrors.includes(e)) updatedErrors.push(e);
+    }
+    await step.do(
+      stepName,
+      { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+      async () => {
+        const existingRow = await deps.db
+          .prepare("SELECT errors_json FROM monitor_runs WHERE org_id = ? AND run_id = ?")
+          .bind(orgId, runId)
+          .first<{ errors_json: string | null }>();
+        let dbErrors: string[] = [];
+        if (existingRow?.errors_json) {
+          try {
+            const parsed = JSON.parse(existingRow.errors_json);
+            if (Array.isArray(parsed)) dbErrors = parsed.filter((x): x is string => typeof x === "string");
+          } catch {
+            // ignore
+          }
+        }
+        for (const e of extraErrors) {
+          if (!dbErrors.includes(e)) dbErrors.push(e);
+        }
+        await deps.db
+          .prepare(
+            "UPDATE monitor_runs SET outcome = CASE WHEN outcome = 'failed' THEN 'failed' ELSE 'partial' END, errors_json = ? WHERE org_id = ? AND run_id = ?",
+          )
+          .bind(JSON.stringify(dbErrors.slice(0, 20)), orgId, runId)
+          .run();
+        return { marked: true };
+      },
+    );
+    if (summary) {
+      summary = {
+        ...summary,
+        outcome: summary.outcome === "failed" ? "failed" : "partial",
+        errors: updatedErrors.slice(0, 20),
+      };
+    }
+  };
   // The full pipeline on the run's flagged pages (D05 T04 §4), after settlement, in its own step: a
   // page that fails settles partial on its own row and never fails the run.
-  if (pipeline)
-    await step.do(
+  if (pipeline) {
+    const pipeSummary = await step.do(
       "pipeline",
       { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
       async () => pipeline(orgId),
     );
+    if (pipeSummary?.trainingRecoveryFailed && pipeSummary.trainingRecoveryFailed > 0) {
+      const errs = (pipeSummary.trainingRecoveryErrors ?? ["recovery-failed"]).map((e) => `training:${e}`);
+      await markPartialWithErrors("pipeline-training-partial", errs);
+    }
+  }
   // Findings and their alerts (D05 T04 §5), after the pipeline settles. An exhausted failure
   // marks the persisted run partial, so the console warns instead of a clean success with
   // findings or alerts missing.
-  if (findings)
-    await step
-      .do(
+  if (findings) {
+    let findSummary:
+      | {
+          created: number;
+          alerted: number;
+          reopened: number;
+          trainingRecoveryFailed?: number;
+          trainingRecoveryErrors?: string[];
+        }
+      | undefined;
+    try {
+      findSummary = await step.do(
         "findings",
         { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "5 minutes" },
         async () => findings(orgId),
-      )
-      .catch(async (error: unknown) => {
-        console.log(
-          JSON.stringify({ event: "monitor-findings", outcome: "failed", error: (error as Error).name || "Error" }),
-        );
-        // The partial mark is itself a retried step: if it cannot be written, the failure
-        // propagates instead of a clean summary over a successful-looking run.
-        await step.do(
-          "findings-partial",
-          { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
-          async () => {
-            await deps.db
-              .prepare("UPDATE monitor_runs SET outcome = 'partial' WHERE org_id = ? AND run_id = ?")
-              .bind(orgId, runId)
-              .run();
-            return { marked: true };
-          },
-        );
-        if (summary) summary = { ...summary, outcome: "partial" };
-      });
+      );
+    } catch (error: unknown) {
+      console.log(
+        JSON.stringify({ event: "monitor-findings", outcome: "failed", error: (error as Error).name || "Error" }),
+      );
+      // The partial mark is itself a retried step: if it cannot be written, the failure
+      // propagates instead of a clean summary over a successful-looking run.
+      await step.do(
+        "findings-partial",
+        { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+        async () => {
+          await deps.db
+            .prepare("UPDATE monitor_runs SET outcome = 'partial' WHERE org_id = ? AND run_id = ?")
+            .bind(orgId, runId)
+            .run();
+          return { marked: true };
+        },
+      );
+      if (summary) summary = { ...summary, outcome: "partial" };
+    }
+    if (findSummary?.trainingRecoveryFailed && findSummary.trainingRecoveryFailed > 0) {
+      const errs = (findSummary.trainingRecoveryErrors ?? ["recovery-failed"]).map((e) => `training:${e}`);
+      await markPartialWithErrors("findings-training-partial", errs);
+    }
+  }
   if (failure !== undefined) throw failure;
   return summary as RunSummary;
 }
