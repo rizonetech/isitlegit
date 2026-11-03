@@ -365,12 +365,18 @@ export function checkLog(
 export type StampStepBox = { left: number; top: number; width: number; height: number };
 export type StampSegmentResult = StampStepBox[] | { boxes: StampStepBox[]; usd?: number; attempts?: number };
 export type StampAskResult = { doctored: boolean; usd?: number; attempts?: number };
+export type StampCallMeta = {
+  file: string;
+  arm: "whole" | "chain";
+  fingerprint: string;
+};
 
 export type StampDeps = {
-  segment: (png: Buffer, concept: "stamp" | "signature") => Promise<StampSegmentResult>;
-  ask: (images: Buffer[]) => Promise<StampAskResult>;
+  segment: (png: Buffer, concept: "stamp" | "signature", meta?: StampCallMeta) => Promise<StampSegmentResult>;
+  ask: (images: Buffer[], meta?: StampCallMeta) => Promise<StampAskResult>;
   spentUsd: () => number;
   drainFailedStep?: () => { usd: number; attempts: number };
+  reconcilePrior?: (meta: StampCallMeta) => Promise<{ usd: number; attempts: number } | null>;
 };
 
 function clampCropBox(
@@ -415,6 +421,7 @@ export async function runStamps(
   const save = () => writeAtomic(resultsFile, `${JSON.stringify(outcomes, null, 1)}\n`);
   const reference = readFileSync(join(dir, "reference-stamp.png"));
   let stopped: string | null = null;
+  let fatalStop = false;
   const upsert = (row: ArmOutcome) => {
     const idx = outcomes.findIndex((o) => o.file === row.file && o.arm === row.arm);
     if (idx >= 0) outcomes[idx] = row;
@@ -423,15 +430,19 @@ export async function runStamps(
   };
 
   for (const entry of entries) {
+    if (fatalStop) break;
     const page = readFileSync(join(dir, entry.file));
     for (const arm of ["whole", "chain"] as const) {
+      if (fatalStop) break;
       const prev = outcomes.find((o) => o.file === entry.file && o.arm === arm);
       if (prev) {
         if (prev.status === "answered" || prev.status === "empty-segmentation") continue;
         if (prev.status !== "budget-stopped" && !retryFailed) continue;
       }
-      const priorUsd = prev?.usd ?? 0;
-      const priorAttempts = prev?.attempts ?? 0;
+      const meta: StampCallMeta = { file: entry.file, arm, fingerprint };
+      const reconciled = prev ? await deps.reconcilePrior?.(meta) : null;
+      const priorUsd = reconciled ? reconciled.usd : (prev?.usd ?? 0);
+      const priorAttempts = reconciled ? reconciled.attempts : (prev?.attempts ?? 0);
       if (deps.spentUsd() >= RUN_CAP_USD) {
         stopped = `budget cap US$${RUN_CAP_USD} reached`;
         if (!prev) {
@@ -475,7 +486,7 @@ export async function runStamps(
         } else {
           const crops: Buffer[] = [reference];
           for (const concept of ["stamp", "signature"] as const) {
-            const rawSeg = await deps.segment(page, concept);
+            const rawSeg = await deps.segment(page, concept, meta);
             const boxes = Array.isArray(rawSeg) ? rawSeg : rawSeg.boxes;
             segCost += Array.isArray(rawSeg) ? ESTIMATE_USD.segment : (rawSeg.usd ?? ESTIMATE_USD.segment);
             segAttempts += Array.isArray(rawSeg) ? 1 : (rawSeg.attempts ?? 1);
@@ -503,7 +514,7 @@ export async function runStamps(
           images = crops;
         }
         askStarted = true;
-        const answer = await deps.ask(images);
+        const answer = await deps.ask(images, meta);
         const callUsd = (answer.usd ?? ESTIMATE_USD.spark) + segCost;
         const callAttempts = segAttempts + (answer.attempts ?? 1);
         upsert({
@@ -524,7 +535,12 @@ export async function runStamps(
           usd: arm === "whole" || askStarted ? ESTIMATE_USD.spark : ESTIMATE_USD.segment,
           attempts: 1,
         };
-        const status = /timeout|timed out/i.test(msg) ? "timeout" : /refus/i.test(msg) ? "refused" : "malformed";
+        const isFatalStop = /^accounting:|^budget:|would pass its cap|shared ledger/i.test(msg);
+        const status = /timeout|timed out/i.test(msg)
+          ? "timeout"
+          : /refus|^accounting:|^budget:|would pass its cap|shared ledger/i.test(msg)
+            ? "refused"
+            : "malformed";
         upsert({
           file: entry.file,
           arm,
@@ -537,6 +553,10 @@ export async function runStamps(
           fingerprint,
           ...(arm === "chain" ? { samBoxes } : {}),
         });
+        if (isFatalStop) {
+          stopped = msg;
+          fatalStop = true;
+        }
       }
     }
   }
@@ -555,12 +575,23 @@ export async function createBudgetedStampDeps(opts: {
   structuredFn: typeof import("../../src/meta/structured.ts").structured;
 }): Promise<StampDeps> {
   const { attemptsOf, ledgeredBudget } = await import("./digits.ts");
-  let callNo = 0;
+  let fallbackCallNo = 0;
   let totalSpent = 0;
   let failedStep = { usd: 0, attempts: 0 };
+  let fatalAccounting: string | null = null;
 
-  async function runStep<T>(fn: (ctx: unknown) => Promise<T>): Promise<{ value: T; usd: number; attempts: number }> {
-    const callKey = `call-${++callNo}`;
+  const stepCallKey = (meta: StampCallMeta | undefined, stepName: string) =>
+    meta ? `${meta.fingerprint.slice(0, 12)}:${meta.file}:${meta.arm}:${stepName}` : `call-${++fallbackCallNo}`;
+
+  async function runStep<T>(
+    callKey: string,
+    fn: (ctx: unknown) => Promise<T>,
+  ): Promise<{ value: T; usd: number; attempts: number }> {
+    if (fatalAccounting) {
+      failedStep = { usd: 0, attempts: 0 };
+      throw new Error(`accounting: a settlement could not be written (${fatalAccounting})`);
+    }
+    const priorIds = new Set((await opts.ledger.entries(callKey)).map((e) => e.id));
     const spend = ledgeredBudget(opts.guard, opts.ledger, callKey);
     const late: Promise<unknown>[] = [];
     const ctx = {
@@ -572,30 +603,41 @@ export async function createBudgetedStampDeps(opts: {
       },
     };
     failedStep = { usd: 0, attempts: 0 };
-    const collect = async () => {
+    let collected: { usd: number; attempts: number } | null = null;
+    const collectOnce = async () => {
+      if (collected) return collected;
       await Promise.allSettled(late);
-      const entries = await opts.ledger.entries(callKey);
+      const entries = (await opts.ledger.entries(callKey)).filter((e) => !priorIds.has(e.id));
       const a = attemptsOf(entries, spend.usage);
       const usd = Number((a.usd + a.uncertainUsd).toFixed(6));
       totalSpent = Number((totalSpent + usd).toFixed(6));
-      return { usd, attempts: Math.max(a.attempts, spend.attempts()) };
+      collected = { usd, attempts: Math.max(a.attempts, spend.attempts()) };
+      return collected;
     };
     try {
       const value = await fn(ctx);
-      const step = await collect();
+      const step = await collectOnce();
       const acct = spend.accounting();
-      if (acct) throw new Error(`accounting: a settlement could not be written (${acct})`);
+      if (acct) {
+        fatalAccounting ??= acct;
+        throw new Error(`accounting: a settlement could not be written (${fatalAccounting})`);
+      }
       return { value, usd: step.usd, attempts: step.attempts };
     } catch (err) {
-      failedStep = await collect().catch(() => ({ usd: 0, attempts: spend.attempts() }));
+      failedStep = await collectOnce().catch(() => ({ usd: 0, attempts: spend.attempts() }));
+      const acct = spend.accounting();
+      if (acct) {
+        fatalAccounting ??= acct;
+        throw new Error(`accounting: a settlement could not be written (${fatalAccounting})`);
+      }
       throw err;
     }
   }
 
   return {
-    segment: async (png, concept) => {
+    segment: async (png, concept, meta) => {
       const dataUrl = `data:image/png;base64,${png.toString("base64")}`;
-      const step = await runStep((ctx) => opts.segmentFn(ctx, dataUrl, concept));
+      const step = await runStep(stepCallKey(meta, concept), (ctx) => opts.segmentFn(ctx, dataUrl, concept));
       return {
         boxes: step.value.map((b) => ({
           left: b.left,
@@ -607,8 +649,8 @@ export async function createBudgetedStampDeps(opts: {
         attempts: step.attempts,
       };
     },
-    ask: async (images) => {
-      const step = await runStep((ctx) =>
+    ask: async (images, meta) => {
+      const step = await runStep(stepCallKey(meta, "ask"), (ctx) =>
         opts.structuredFn(
           STAMP_ANSWER,
           {
@@ -642,6 +684,19 @@ export async function createBudgetedStampDeps(opts: {
       const out = failedStep;
       failedStep = { usd: 0, attempts: 0 };
       return out;
+    },
+    reconcilePrior: async (meta) => {
+      const combined = [
+        ...(await opts.ledger.entries(stepCallKey(meta, "stamp"))),
+        ...(await opts.ledger.entries(stepCallKey(meta, "signature"))),
+        ...(await opts.ledger.entries(stepCallKey(meta, "ask"))),
+      ];
+      if (combined.length === 0) return null;
+      const a = attemptsOf(combined, () => undefined);
+      return {
+        usd: Number((a.usd + a.uncertainUsd).toFixed(6)),
+        attempts: a.attempts,
+      };
     },
   };
 }

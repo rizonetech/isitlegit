@@ -389,5 +389,75 @@ describe("the stamps experiment", () => {
       JSON.stringify(out.outcomes.map((o) => ({ ...o, fingerprint: "stale", fileSha256: "wrong" }))),
     );
     expect(await main(["score", "--dir", setDir, "--results", stalePath])).toBe(1);
+
+    // Restarting on the same persistent ledger does not misattribute prior calls to later outcomes, and stops immediately on accounting failure.
+    const resumeResults = join(dir, "resume-results.json");
+    const resumeLedger = sharedLedger(join(dir, "resume-ledger.json"), "stamps-resume", { capUsd: 2.0 });
+    let failSettle = false;
+    let callsSent = 0;
+    const makeResumeDeps = () =>
+      createBudgetedStampDeps({
+        env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://example.test" },
+        guard: {
+          ...guard,
+          settle: async (id, actualUsd) => {
+            if (failSettle) throw new Error("D1 settlement write failed");
+            guardSettled.push({ id, actualUsd });
+          },
+        },
+        ledger: resumeLedger,
+        segmentFn: async (ctx: unknown) => {
+          callsSent++;
+          const b = (ctx as { budget: Budget }).budget;
+          const id = await b.reserve("sam-3.1", ESTIMATE_USD.segment, 1);
+          await b.settle(id, 0.0025, { ms: 5, outcome: "ok", certainty: "none", source: "estimate" });
+          return [];
+        },
+        structuredFn: (async (_schema: unknown, _req: unknown, ctx: unknown) => {
+          callsSent++;
+          const b = (ctx as { budget: Budget }).budget;
+          const id = await b.reserve("muse-spark-1.3", ESTIMATE_USD.spark, 1);
+          await b.settle(id, 0.003, {
+            ms: 10,
+            outcome: "ok",
+            certainty: "measured",
+            source: "meta-usage",
+            inputTokens: 80,
+            outputTokens: 15,
+          });
+          return { value: { doctored: false, reason: "clean" }, callId: id, attempts: 1 };
+        }) as never,
+      });
+
+    // Invocation 1: run one whole outcome ($0.003 / 1 attempt), then mark the rest budget-stopped to simulate an interrupted run.
+    const deps1 = await makeResumeDeps();
+    const fp = out.outcomes[0]?.fingerprint ?? "";
+    const firstEntry = entries[0];
+    const secondEntry = entries[1];
+    expect(firstEntry && secondEntry).toBeTruthy();
+    const firstAsk = await deps1.ask([Buffer.from("a")], {
+      file: firstEntry?.file ?? "",
+      arm: "whole",
+      fingerprint: fp,
+    });
+    expect(firstAsk).toEqual({ doctored: false, usd: 0.003, attempts: 1 });
+
+    // Invocation 2 (fresh deps on same persistent ledger): single $0.003 call for a different file returns $0.003 / 1 attempt, never $0.006 / 2.
+    const deps2 = await makeResumeDeps();
+    const secondAsk = await deps2.ask([Buffer.from("b")], {
+      file: secondEntry?.file ?? "",
+      arm: "whole",
+      fingerprint: fp,
+    });
+    expect(secondAsk).toEqual({ doctored: false, usd: 0.003, attempts: 1 });
+
+    // Accounting failure stops runStamps immediately without sending subsequent calls or double-counting spentUsd.
+    failSettle = true;
+    callsSent = 0;
+    const deps3 = await makeResumeDeps();
+    const stoppedRun = await runStamps(setDir, deps3, { resultsFile: resumeResults });
+    expect(stoppedRun.stopped).toMatch(/accounting:/);
+    expect(callsSent).toBe(1);
+    expect(deps3.spentUsd()).toBeCloseTo(0.003, 6);
   });
 });
