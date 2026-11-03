@@ -129,6 +129,15 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
   } catch (error) {
     throw new StoreError("storage", `writing ${item.key}: ${(error as Error).message}`);
   }
+  // Whether the case is still there, `null` when the check itself could not be made (completion review):
+  // an unknown answer is never silently read as "still there".
+  const caseStillThere = async (): Promise<boolean | null> => {
+    try {
+      return (await store.db.prepare("SELECT id FROM cases WHERE id = ?").bind(item.caseId).first()) !== null;
+    } catch {
+      return null;
+    }
+  };
   if (created === null) {
     // Already there: an earlier attempt's, or another writer's. Only the same content is the same object.
     let existing: R2Object | null;
@@ -137,9 +146,13 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
     } catch (error) {
       throw new StoreError("storage", `reading ${item.key}: ${(error as Error).message}`);
     }
-    // Gone between the two calls (the lifecycle rule or the purge): nothing is wrong with the content, so a retry can
-    // complete it.
-    if (!existing) throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
+    // Gone between the two calls: a removal sweeping it is the removal fence below, not a retry; the
+    // lifecycle rule or the purge, with the case still there, can be completed by a retry.
+    if (!existing) {
+      if ((await caseStillThere()) === false)
+        throw new StoreError("storage", `${item.key} was fenced: its case is gone`);
+      throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
+    }
     // Objects this store wrote carry the SHA-256 it supplied; one written without it is checked by its bytes.
     let stored = hex(existing.checksums.sha256);
     if (stored === null) {
@@ -149,7 +162,11 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
       } catch (error) {
         throw new StoreError("storage", `reading ${item.key}: ${(error as Error).message}`);
       }
-      if (stored === null) throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
+      if (stored === null) {
+        if ((await caseStillThere()) === false)
+          throw new StoreError("storage", `${item.key} was fenced: its case is gone`);
+        throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
+      }
     }
     if (stored !== item.sha256) throw new StoreError("conflict", `${item.key} already holds other content`);
     // The stored object's media type wins: the same bytes declared differently by a later writer are recorded as the
@@ -159,13 +176,11 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
   // A write across its case's removal is fenced (D01 T01 §24): the insert below joins the case, so a case
   // gone at insert time records no row; an object this call just created is removed again, while an
   // earlier attempt's object is recorded work the removal flow's prefix sweep owns, never deleted here.
-  const caseStillThere = async (): Promise<boolean> => {
-    try {
-      return (await store.db.prepare("SELECT id FROM cases WHERE id = ?").bind(item.caseId).first()) !== null;
-    } catch {
-      return true;
-    }
-  };
+  const uncheckedCase = () =>
+    new StoreError(
+      "storage",
+      `${item.key} could not be checked against its case; its object is left for the removal sweep`,
+    );
   const fencedByRemoval = async (): Promise<StoreError> => {
     if (created !== null) {
       try {
@@ -183,7 +198,9 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
   // insert's own SQL as it executes, so a write delayed past it (a stalled lookup, a slow object
   // write) records no row and is never listed, whatever lands in the bucket meanwhile.
   if (fenceAt !== undefined && Date.now() > fenceAt) {
-    if (!(await caseStillThere())) throw await fencedByRemoval();
+    const there = await caseStillThere();
+    if (there === false) throw await fencedByRemoval();
+    if (there === null) throw uncheckedCase();
     throw new StoreError("storage", `${item.key} was fenced after its deadline`);
   }
   let row: Row | null;
@@ -205,7 +222,9 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
     throw new StoreError("database", `recording ${item.key}: ${(error as Error).message}`);
   }
   if (!row) {
-    if (!(await caseStillThere())) throw await fencedByRemoval();
+    const there = await caseStillThere();
+    if (there === false) throw await fencedByRemoval();
+    if (there === null) throw uncheckedCase();
     if (fenceAt !== undefined && Date.now() > fenceAt)
       throw new StoreError("storage", `${item.key} was fenced after its deadline`);
   }
