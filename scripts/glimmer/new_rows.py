@@ -27,6 +27,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import zipfile
 from pathlib import Path
@@ -38,6 +39,67 @@ from staging import remove_dead_staging
 
 MAX_ENTRY = 20 * 1024 * 1024
 LICENCE = "CC BY 4.0"
+MIN_FREE_BYTES = 300 * 1000 * 1000 * 1000
+
+NEW_SOURCE_POLICY = {
+    "van-dooremaal-ares-2021": {
+        "default_max": 30000,
+        "seed": 20261101,
+        "max_sampled_out": 95938,
+        "min_exported": {"phish": 14999, "benign": 14993},
+    },
+    "putra": {
+        "default_max": None,
+        "seed": 20261101,
+        "max_sampled_out": 0,
+        "min_exported": {"phish": 1994, "benign": 500},
+    },
+    "ows": {
+        "default_max": None,
+        "seed": 20261101,
+        "max_sampled_out": 0,
+        "min_exported": {"phish": 25189, "benign": 0},
+    },
+    "phishdecloaker": {
+        "default_max": None,
+        "seed": 20261101,
+        "max_sampled_out": 0,
+        "min_exported": {"phish": 60, "benign": 0},
+    },
+    "phishingeval-ji": {
+        "default_max": None,
+        "seed": 20261101,
+        "max_sampled_out": 0,
+        "min_exported": {"phish": 7202, "benign": 2610},
+    },
+}
+
+
+def check_free_space(folder, min_free=MIN_FREE_BYTES, usage_fn=shutil.disk_usage):
+    if not min_free or min_free <= 0:
+        return 0
+    free = int(usage_fn(folder).free)
+    if free < min_free:
+        raise inputs_module.Refused(
+            f"only {free} bytes free under {folder}; at least {min_free} bytes must stay free"
+        )
+    return free
+
+
+def check_export_coverage(source, receipt, by_label, policy=NEW_SOURCE_POLICY):
+    spec = policy.get(source)
+    if not spec:
+        return
+    if receipt.sampled_out > spec["max_sampled_out"]:
+        raise inputs_module.Refused(
+            f"{source}: sampled out {receipt.sampled_out} items, over the {spec['max_sampled_out']} sampling cap"
+        )
+    for label, floor in spec["min_exported"].items():
+        actual = int(by_label.get(label, 0))
+        if actual < floor:
+            raise inputs_module.Refused(
+                f"{source}: exported {actual} {label} rows, below the {floor} policy floor"
+            )
 
 
 def store_dir():
@@ -87,30 +149,41 @@ def ensure_inputs(folder, names):
 
 
 class Rows:
-    def __init__(self, folder, receipt, limits):
+    def __init__(self, folder, receipt, limits, min_free=0, usage_fn=shutil.disk_usage):
         self.folder = folder
         self.receipt = receipt
         self.limits = limits
+        self.min_free = min_free
+        self.usage_fn = usage_fn
+        self.by_label = {"phish": 0, "benign": 0}
+        self.check_space()
         self.temporary = folder / f".rows.jsonl.{os.getpid()}.tmp"
         self.sink = self.temporary.open("w", encoding="utf-8")
+
+    def check_space(self):
+        check_free_space(self.folder, self.min_free, self.usage_fn)
 
     def add(self, item, url, html, label, target=None, screenshot=None):
         self.limits.check_deadline()
         self.limits.count_entry()
+        self.check_space()
         row = {"sha256": item, "url": url, "html": html, "label": label, "target": target}
         if screenshot is not None:
             row["screenshot"] = base64.b64encode(screenshot).decode("ascii")
         self.sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+        self.by_label[label] = self.by_label.get(label, 0) + 1
         self.receipt.export(item)
 
     def reject(self, item, reason):
         self.receipt.reject(reason, item)
 
     def close(self):
+        self.check_space()
         self.sink.close()
         os.replace(self.temporary, self.folder / "rows.jsonl")
 
     def close_staged(self):
+        self.check_space()
         self.sink.close()
         return self.temporary
 
@@ -355,10 +428,12 @@ def convert_ares(folder, receipt, limits, out, max_per_label=None, seed=20261101
             if db_name is not None:
                 db_info = names[db_name]
                 limits.count_entry(db_info.file_size)
+                out.check_space()
                 temporary = folder / f".ares-{root}.db"
-                with temporary.open("wb") as handle:
-                    handle.write(archive.read(db_info))
                 try:
+                    with temporary.open("wb") as handle:
+                        handle.write(archive.read(db_info))
+                    out.check_space()
                     connection = sqlite3.connect(temporary)
                     try:
                         wanted = set(sites)
@@ -421,37 +496,59 @@ CONVERTERS = {
 }
 
 
+def convert_source(
+    source,
+    folder,
+    max_rows=None,
+    seed=20261101,
+    min_free=MIN_FREE_BYTES,
+    usage_fn=shutil.disk_usage,
+    policy=NEW_SOURCE_POLICY,
+):
+    convert, names = CONVERTERS[source]
+    check_free_space(folder, min_free, usage_fn)
+    _, inputs_digest = ensure_inputs(folder, names)
+    remove_dead_staging(folder)
+    limits = Limits()
+    receipt = Receipt(limits)
+    out = Rows(folder, receipt, limits, min_free=min_free, usage_fn=usage_fn)
+    try:
+        if source == "van-dooremaal-ares-2021":
+            spec = (policy or {}).get(source) or {}
+            effective_max = max_rows if max_rows is not None else spec.get("default_max")
+            convert(
+                folder,
+                receipt,
+                limits,
+                out,
+                max_per_label=(effective_max // 2 if effective_max else None),
+                seed=seed,
+            )
+        else:
+            convert(folder, receipt, limits, out)
+        if policy is not None:
+            check_export_coverage(source, receipt, out.by_label, policy=policy)
+        staged = out.close_staged()
+        check_free_space(folder, min_free, usage_fn)
+        receipt.publish(folder, staged, folder / "rows.jsonl", Path(__file__), inputs_digest)
+    except BaseException:
+        out.cleanup()
+        raise
+    return receipt, out.by_label
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", choices=sorted(CONVERTERS))
     parser.add_argument("--max", type=int, default=None, help="sample at most this many rows (ARES: half a label)")
     parser.add_argument("--seed", type=int, default=20261101)
     args = parser.parse_args()
-    convert, names = CONVERTERS[args.source]
     folder = store_dir() / "raw" / args.source
     try:
-        _, inputs_digest = ensure_inputs(folder, names)
+        receipt, _ = convert_source(args.source, folder, max_rows=args.max, seed=args.seed)
     except inputs_module.Refused as error:
         print(f"new-rows: refused ({error})", file=sys.stderr)
         return 1
-    remove_dead_staging(folder)
-    limits = Limits()
-    receipt = Receipt(limits)
-    out = Rows(folder, receipt, limits)
-    try:
-        if args.source == "van-dooremaal-ares-2021":
-            convert(folder, receipt, limits, out, max_per_label=(args.max // 2 if args.max else None), seed=args.seed)
-        else:
-            convert(folder, receipt, limits, out)
-        staged = out.close_staged()
-        receipt.publish(folder, staged, folder / "rows.jsonl", Path(__file__), inputs_digest)
-    except inputs_module.Refused as error:
-        out.cleanup()
-        print(f"new-rows: refused ({error})", file=sys.stderr)
-        return 1
-    except BaseException:
-        out.cleanup()
-        raise
     print(f"new-rows: {args.source}: {receipt.exported} rows exported, {sum(receipt.rejected.values())} rejected")
     return 0
 

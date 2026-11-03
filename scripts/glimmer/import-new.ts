@@ -5,12 +5,25 @@
 //
 // Brand (`target` in a row) is stored with label source `grouping-only`: it groups and caps pages, and is never
 // a trusted label, taught truth or score (D03 T04 §45). The lure label is the source's own, ground truth.
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { indexRows, type PhreshIndex, readHtml, readShot } from "./import-phreshphish.ts";
-import { concurrencyArg, exportBinding, importSource, type SourceItem } from "./import-source.ts";
+import {
+  checkFreeSpace,
+  concurrencyArg,
+  exportBinding,
+  type ImportResult,
+  importSource,
+  type SourceItem,
+  writeImport,
+} from "./import-source.ts";
 import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
+import { checkNewSourceCoverage, type ExportReceipt, NEW_SOURCE_FLOORS, scanRowsLineage } from "./sources.ts";
 import { openStore, storeDir } from "./store.ts";
+
+export { checkFreeSpace, checkNewSourceCoverage, NEW_SOURCE_FLOORS };
+
+export const MIN_FREE_BYTES = 300 * 1000 * 1000 * 1000;
 
 export const NEW_SOURCES: Record<string, string> = {
   ows: "CC BY 4.0",
@@ -65,6 +78,65 @@ export function newItem(
   };
 }
 
+export async function importNewSource(options: {
+  source: string;
+  dir: string;
+  reader: Awaited<ReturnType<typeof openTextReader>>;
+  concurrency?: number;
+  minFreeBytes?: number;
+  freeBytes?: (dir: string) => number;
+  enforceCoverage?: boolean;
+  log?: (line: string) => void;
+}): Promise<ImportResult> {
+  const { source, dir, reader } = options;
+  const licence = NEW_SOURCES[source];
+  if (!licence) throw new Error(`unknown 1.1 source "${source}"`);
+  const rowsFile = join(dir, "raw", source, "rows.jsonl");
+  if (!existsSync(rowsFile)) {
+    throw new Error(`import-new: ${rowsFile} is missing; run scripts/glimmer/new_rows.py ${source} first`);
+  }
+  const minFreeBytes = options.minFreeBytes ?? MIN_FREE_BYTES;
+  if (minFreeBytes > 0) checkFreeSpace(dir, minFreeBytes, options.freeBytes);
+  const store = openStore(dir);
+  const indexed = await indexRows(rowsFile);
+  const result = await importSource({
+    source,
+    licence,
+    items: indexed.map((entry) =>
+      newItem(
+        entry,
+        () => readHtml(rowsFile, entry),
+        reader,
+        entry.shot ? () => readShot(rowsFile, entry) : undefined,
+      ),
+    ),
+    store,
+    binding: exportBinding(rowsFile),
+    ...(options.log ? { log: options.log } : {}),
+    concurrency: options.concurrency ?? 4,
+    minFreeBytes,
+    ...(options.freeBytes ? { freeBytes: options.freeBytes } : {}),
+  });
+  if (result.status === "complete" && options.enforceCoverage !== false) {
+    const exportFile = join(dirname(rowsFile), "EXPORT.json");
+    const exportReceipt = existsSync(exportFile)
+      ? (JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt)
+      : undefined;
+    const stored = store.manifest({ tolerant: true, source }).filter((page) => page.source === source);
+    const coverageProblems = checkNewSourceCoverage(source, {
+      exportReceipt,
+      rowItems: scanRowsLineage(rowsFile),
+      stored,
+    });
+    if (coverageProblems.length > 0) {
+      result.status = "incomplete";
+      result.reason = coverageProblems[0] as string;
+      writeImport(join(dir, "raw", source, "IMPORT.json"), result);
+    }
+  }
+  return result;
+}
+
 if (import.meta.filename === process.argv[1]) {
   const source = process.argv[2] ?? "";
   const licence = NEW_SOURCES[source];
@@ -80,21 +152,12 @@ if (import.meta.filename === process.argv[1]) {
   }
   const reader = await openTextReader();
   try {
-    const result = await importSource({
+    const result = await importNewSource({
       source,
-      licence,
-      items: (await indexRows(rowsFile)).map((entry) =>
-        newItem(
-          entry,
-          () => readHtml(rowsFile, entry),
-          reader,
-          entry.shot ? () => readShot(rowsFile, entry) : undefined,
-        ),
-      ),
-      store: openStore(dir),
-      binding: exportBinding(rowsFile),
-      log: (line) => console.log(line),
+      dir,
+      reader,
       concurrency: concurrencyArg(),
+      log: (line) => console.log(line),
     });
     console.log(
       `${source}: ${JSON.stringify({ ...result, excluded: result.excluded.length, filtered: result.filtered.length })}`,

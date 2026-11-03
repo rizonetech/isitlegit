@@ -145,6 +145,113 @@ export type SourceLedgerBinding = {
   rowItems?: { item: string; input: string; lure?: boolean }[];
 };
 
+export type NewSourceCoverageFloor = {
+  maxSampledOut: number;
+  exported: number;
+  exportedLure: number;
+  exportedBenign: number;
+  stored: number;
+  storedLure: number;
+  storedBenign: number;
+};
+
+// Measured conversion scope, sampling policy and usable stored-page coverage floors for the five Loupe 1.1 sources
+// (D03 T04 §44 plan review gap 1): an unexpectedly truncated or over-sampled import fails reconciliation even when its
+// receipts and ledgers internally balance.
+export const NEW_SOURCE_FLOORS: Record<string, NewSourceCoverageFloor> = {
+  "van-dooremaal-ares-2021": {
+    maxSampledOut: 95_938,
+    exported: 29_992,
+    exportedLure: 14_999,
+    exportedBenign: 14_993,
+    stored: 17_381,
+    storedLure: 5_819,
+    storedBenign: 11_562,
+  },
+  putra: {
+    maxSampledOut: 0,
+    exported: 2_494,
+    exportedLure: 1_994,
+    exportedBenign: 500,
+    stored: 1_623,
+    storedLure: 1_128,
+    storedBenign: 495,
+  },
+  ows: {
+    maxSampledOut: 0,
+    exported: 25_189,
+    exportedLure: 25_189,
+    exportedBenign: 0,
+    stored: 15_499,
+    storedLure: 15_499,
+    storedBenign: 0,
+  },
+  phishdecloaker: {
+    maxSampledOut: 0,
+    exported: 60,
+    exportedLure: 60,
+    exportedBenign: 0,
+    stored: 50,
+    storedLure: 50,
+    storedBenign: 0,
+  },
+  "phishingeval-ji": {
+    maxSampledOut: 0,
+    exported: 9_812,
+    exportedLure: 7_202,
+    exportedBenign: 2_610,
+    stored: 8_532,
+    storedLure: 6_195,
+    storedBenign: 2_337,
+  },
+};
+
+export function checkNewSourceCoverage(
+  source: string,
+  input: {
+    exportReceipt?: ExportReceipt | undefined;
+    rowItems?: { item: string; input: string; lure?: boolean | undefined }[] | undefined;
+    stored: Pick<StoredPage, "labels">[];
+  },
+): string[] {
+  const floor = NEW_SOURCE_FLOORS[source];
+  if (!floor) return [];
+  const problems: string[] = [];
+  if (input.exportReceipt) {
+    if (input.exportReceipt.sampled_out > floor.maxSampledOut)
+      problems.push(
+        `${source}: EXPORT.json sampled out ${input.exportReceipt.sampled_out} items, over the ${floor.maxSampledOut} sampling cap`,
+      );
+    if (input.exportReceipt.exported < floor.exported)
+      problems.push(
+        `${source}: EXPORT.json exported ${input.exportReceipt.exported} rows, below the ${floor.exported} floor`,
+      );
+  }
+  if (input.rowItems) {
+    let exportedLure = 0;
+    let exportedBenign = 0;
+    for (const r of input.rowItems) {
+      if (r.lure === true) exportedLure++;
+      else if (r.lure === false) exportedBenign++;
+    }
+    if (exportedLure < floor.exportedLure || exportedBenign < floor.exportedBenign)
+      problems.push(
+        `${source}: exported rows by label (${exportedLure} lure, ${exportedBenign} benign) are below the (${floor.exportedLure} lure, ${floor.exportedBenign} benign) floor`,
+      );
+  }
+  let storedLure = 0;
+  let storedBenign = 0;
+  for (const page of input.stored) {
+    if (page.labels.lure === true) storedLure++;
+    else if (page.labels.lure === false) storedBenign++;
+  }
+  if (input.stored.length < floor.stored || storedLure < floor.storedLure || storedBenign < floor.storedBenign)
+    problems.push(
+      `${source}: stored usable pages by label (${input.stored.length} total, ${storedLure} lure, ${storedBenign} benign) are below the (${floor.stored} total, ${floor.storedLure} lure, ${floor.storedBenign} benign) floor`,
+    );
+  return problems;
+}
+
 // The table's rows; a row that does not parse is itself a problem, never skipped.
 export function parseSources(markdown: string): { rows: SourceRow[]; problems: string[] } {
   const rows: SourceRow[] = [];
@@ -428,6 +535,13 @@ export function reconcile(input: {
           }
         }
       }
+      problems.push(
+        ...checkNewSourceCoverage(row.source, {
+          exportReceipt: bound.export,
+          rowItems: bound.rowItems,
+          stored,
+        }),
+      );
     }
     if (row.labelErrors !== null && row.labelErrors > MAX_LABEL_ERRORS) {
       const trusted = stored.filter((page) => page.label_source.lure === "ground-truth").length;

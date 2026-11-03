@@ -10,7 +10,17 @@
 // survivor refusals exclude about 12 percent of the sample items, every one of which stays excluded from every
 // dataset. Reversal cost: this one constant back to 0.05 and one re-import.
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  statfsSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { captureProblem } from "./label-rules.ts";
@@ -21,6 +31,28 @@ export const MIN_TEXT_CHARACTERS = 20;
 // An item gets this long to load, whatever its loader does: a load that never settles becomes the item's exclusion,
 // so no worker waits forever (the reader's own page deadline is 30 seconds; this is the backstop around it).
 export const ITEM_DEADLINE_MS = 120_000;
+
+export function defaultFreeBytes(dir: string): number {
+  const st = statfsSync(dir);
+  return Number(st.bavail) * Number(st.bsize);
+}
+
+export function checkFreeSpace(
+  dir: string,
+  minFreeBytes: number,
+  freeBytes: (dir: string) => number = defaultFreeBytes,
+): number {
+  if (!minFreeBytes || minFreeBytes <= 0) return 0;
+  const free = freeBytes(dir);
+  if (free < minFreeBytes) {
+    const err = new Error(
+      `only ${free} bytes free under ${dir}; at least ${minFreeBytes} bytes must stay free`,
+    ) as NodeJS.ErrnoException;
+    err.code = "ENOSPC";
+    throw err;
+  }
+  return free;
+}
 
 function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -199,9 +231,15 @@ export async function importSource(options: {
   // Test hooks for interrupted or failing ledger writes (D03 T04 §28 plan review gap 5).
   afterImportWrite?: () => void;
   writeLedger?: (path: string, data: string) => void;
+  // Minimum free bytes on the store filesystem during conversion and import (D03 T04 §44 plan review gap 2).
+  minFreeBytes?: number;
+  freeBytes?: (dir: string) => number;
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
+  if (options.minFreeBytes && options.minFreeBytes > 0) {
+    checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes);
+  }
   // Tolerant: a page whose record does not read is damaged, and this run repairs it rather than failing on it.
   const manifest = store.manifest({ tolerant: true });
   const before = new Set(manifest.map((page) => page.id));
@@ -250,6 +288,14 @@ export async function importSource(options: {
   let next = 0;
   async function worker() {
     while (!stopped && next < items.length) {
+      if (options.minFreeBytes && options.minFreeBytes > 0) {
+        try {
+          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes);
+        } catch (error) {
+          stopped = (error as Error).message.split("\n")[0] ?? "low disk space";
+          break;
+        }
+      }
       const item = items[next++] as SourceItem;
       let stored = intactByItem.get(item.id);
       // An item whose input changed since its page was rendered (§28 G4): it leaves that page (the page is removed when
@@ -302,7 +348,12 @@ export async function importSource(options: {
       try {
         page = await withDeadline(item.load(), options.itemMs ?? ITEM_DEADLINE_MS);
       } catch (error) {
-        excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
+        const reason = (error as Error).message.split("\n")[0] ?? "load failed";
+        if ((error as NodeJS.ErrnoException).code === "ENOSPC") {
+          stopped = reason;
+          break;
+        }
+        excluded.push({ item: item.id, reason });
         record({
           item: item.id,
           input: itemDigest(item),
@@ -338,6 +389,9 @@ export async function importSource(options: {
       const host = hostOf(item.url);
       const digest = itemDigest(item);
       try {
+        if (options.minFreeBytes && options.minFreeBytes > 0) {
+          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes);
+        }
         const id = await store.putPage(source, {
           screenshot: page.screenshot,
           text: page.text,

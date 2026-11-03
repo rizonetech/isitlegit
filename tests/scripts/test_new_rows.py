@@ -100,5 +100,134 @@ class AresTest(unittest.TestCase):
             self.assertTrue(all(r["url"] == "https://real.example/" for r in rows))
 
 
+class PhishDecloakerAndPutraTest(unittest.TestCase):
+    def test_phishdecloaker_exports_largest_kit_html_and_rejects_kit_without_html(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for empty_zip in ("ablation-dataset.zip", "landscape-dataset.zip"):
+                with zipfile.ZipFile(folder / empty_zip, "w"):
+                    pass
+            with zipfile.ZipFile(folder / "phishing-kits-dataset.zip", "w") as z:
+                z.writestr("kits/kit-a/small.html", "<p>a</p>")
+                z.writestr("kits/kit-a/login.html", "<p>larger login page</p>")
+                z.writestr("kits/kit-b/index.php", "<?php echo 1; ?>")
+            rows, receipt = run(new_rows.convert_phishdecloaker, folder)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["label"], "phish")
+            self.assertIn("larger login page", rows[0]["html"])
+            self.assertEqual(receipt.exported, 1)
+            self.assertEqual(sum(receipt.rejected.values()), 1)
+
+    def test_putra_exports_five_zips_and_maps_brand_target(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / "phishing.csv").write_text(
+                '_id,url,brands\nsite-p1,https://fake.example/,"[""Acme""]"\n', encoding="utf-8"
+            )
+            (folder / "not-phishing.csv").write_text(
+                '_id,url,brands\nsite-b1,https://real.example/,"[""Acme""]"\n', encoding="utf-8"
+            )
+            (folder / "brands.csv").write_text("brand\nAcme\n", encoding="utf-8")
+            for name in (
+                "phishing_0501-1000.zip",
+                "phishing_1001-1500.zip",
+                "phishing_1501-2000.zip",
+            ):
+                with zipfile.ZipFile(folder / name, "w"):
+                    pass
+            with zipfile.ZipFile(folder / "phishing_0001-0500.zip", "w") as z:
+                z.writestr("site-p1/original.html", "<p>fake login</p>")
+                z.writestr("site-p1/screenshots/original_js_on.jpg", b"\xff\xd8\xff\xd9")
+            with zipfile.ZipFile(folder / "not-phishing_0001-0500.zip", "w") as z:
+                z.writestr("site-b1/index.html", "<p>real home</p>")
+            rows, receipt = run(new_rows.convert_putra, folder)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual({(r["label"], r["target"]) for r in rows}, {("phish", "Acme"), ("benign", "Acme")})
+            self.assertEqual(receipt.exported, 2)
+
+
+class FreeSpaceAndCoverageGuardTest(unittest.TestCase):
+    def _write_ows_fixture(self, folder: Path):
+        import hashlib
+
+        jsonl = folder / "malicious_OWS_URL_HTML_DS.jsonl"
+        csv_file = folder / "OWS_URL_DS.csv"
+        records = [
+            {"url": "https://a.example", "label": "Malicious", "sublabel": "Phishing", "html": "<p>Sign in 1</p>"},
+            {"url": "https://b.example", "label": "Malicious", "sublabel": "Phishing", "html": "<p>Sign in 2</p>"},
+        ]
+        jsonl.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+        csv_file.write_text("url\nhttps://a.example\n", encoding="utf-8")
+        downloads = [
+            {"dest": str(jsonl), "md5": hashlib.md5(jsonl.read_bytes()).hexdigest()},
+            {"dest": str(csv_file), "md5": hashlib.md5(csv_file.read_bytes()).hexdigest()},
+        ]
+        (folder / "download.jsonl").write_text("".join(json.dumps(d) + "\n" for d in downloads), encoding="utf-8")
+
+    def test_low_free_space_refuses_preserving_previous_outputs_and_resumes_when_freed(self):
+        from collections import namedtuple
+        import inputs as inputs_module
+
+        Usage = namedtuple("Usage", ["total", "used", "free"])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self._write_ows_fixture(folder)
+            policy = {"ows": {"default_max": None, "seed": 20261101, "max_sampled_out": 0, "min_exported": {"phish": 2, "benign": 0}}}
+            # First run succeeds with 400 GB free.
+            receipt, by_label = new_rows.convert_source(
+                "ows",
+                folder,
+                usage_fn=lambda _: Usage(500 * 10**9, 100 * 10**9, 400 * 10**9),
+                policy=policy,
+            )
+            self.assertEqual(receipt.exported, 2)
+            self.assertEqual(by_label["phish"], 2)
+            previous_rows = (folder / "rows.jsonl").read_text(encoding="utf-8")
+            previous_export = (folder / "EXPORT.json").read_text(encoding="utf-8")
+
+            # Second run drops below 300 GB on the second row write: refuses and preserves previous outputs intact.
+            calls = {"n": 0}
+
+            def dropping_usage(_):
+                calls["n"] += 1
+                free = 400 * 10**9 if calls["n"] < 3 else 250 * 10**9
+                return Usage(500 * 10**9, 500 * 10**9 - free, free)
+
+            with self.assertRaises(inputs_module.Refused) as ctx:
+                new_rows.convert_source("ows", folder, usage_fn=dropping_usage, policy=policy)
+            self.assertIn("must stay free", str(ctx.exception))
+            self.assertEqual((folder / "rows.jsonl").read_text(encoding="utf-8"), previous_rows)
+            self.assertEqual((folder / "EXPORT.json").read_text(encoding="utf-8"), previous_export)
+            self.assertEqual(list(folder.glob(".*.tmp")), [])
+
+            # Resuming once space recovers succeeds cleanly.
+            receipt2, _ = new_rows.convert_source(
+                "ows",
+                folder,
+                usage_fn=lambda _: Usage(500 * 10**9, 100 * 10**9, 450 * 10**9),
+                policy=policy,
+            )
+            self.assertEqual(receipt2.exported, 2)
+
+    def test_coverage_guard_rejects_truncated_export(self):
+        from collections import namedtuple
+        import inputs as inputs_module
+
+        Usage = namedtuple("Usage", ["total", "used", "free"])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            self._write_ows_fixture(folder)
+            with self.assertRaises(inputs_module.Refused) as ctx:
+                new_rows.convert_source(
+                    "ows",
+                    folder,
+                    usage_fn=lambda _: Usage(500 * 10**9, 100 * 10**9, 400 * 10**9),
+                    policy=new_rows.NEW_SOURCE_POLICY,
+                )
+            self.assertIn("below the 25189 policy floor", str(ctx.exception))
+            self.assertFalse((folder / "rows.jsonl").exists())
+            self.assertFalse((folder / "EXPORT.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()
