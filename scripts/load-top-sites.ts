@@ -203,7 +203,7 @@ const chunks = <T>(list: readonly T[], size: number): T[][] => {
 
 export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   const run = options.run ?? wrangler;
-  const clock = options.nowMs ?? Date.now;
+  const clock = options.nowMs ?? (() => Date.now());
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const where = `--${options.target}`;
   const commandMs = options.commandMs ?? 30_000;
@@ -305,8 +305,9 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
     // a refused write into an uncertain one.
     for (let first = true; first || deadline - clock() > 0; first = false) {
       try {
-        last = getMany([META_KEY], bulkMs, first ? clock() + bulkMs : deadline).get(META_KEY) ?? null;
-      } catch {
+        last = getMany([META_KEY], bulkMs, first ? clock() + bulkMs : deadline, first).get(META_KEY) ?? null;
+      } catch (error) {
+        if (error instanceof LoadRefused && error.message === DEADLINE_PASSED && last !== undefined) break;
         return "unknown";
       }
       if (last === metaText) return "live";

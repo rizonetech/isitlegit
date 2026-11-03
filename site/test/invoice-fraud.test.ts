@@ -6,7 +6,6 @@ import { describe, it } from "node:test";
 import { claims } from "../src/lib/claims.ts";
 import { app, site } from "../src/lib/links.ts";
 import {
-  FBI_BEC,
   IC3_2025,
   invoiceFigures,
   SABRIC_2025,
@@ -14,6 +13,7 @@ import {
   SABRIC_QUOTE,
   SABRIC_STAY_SAFE,
   SAPS_REPORT_CRIME,
+  STANDARD_BANK_DETAILS_SCAM,
 } from "../src/lib/sources.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
 import { proven, provenIds } from "./lib/proven.ts";
@@ -105,15 +105,18 @@ describe("Invoice fraud", () => {
     assert.equal(steps.length, 4, "the recovery steps are not four list items");
     const expected: [string, string][] = [
       ["Phone your bank's fraud line now", SABRIC_STAY_SAFE.url],
-      ["Keep the email and the documents", FBI_BEC.url],
+      ["Keep the email and the documents", SABRIC_STAY_SAFE.url],
       ["nearest South African Police Service station", SAPS_REPORT_CRIME.url],
-      ["Warn the real supplier", FBI_BEC.url],
+      ["Warn the real supplier", STANDARD_BANK_DETAILS_SCAM.url],
     ];
     for (const [i, [words, url]] of expected.entries()) {
       assert.ok(text(steps[i] ?? "").includes(words), `step ${i + 1} is not "${words}"`);
       assert.ok(hrefs(steps[i] ?? "").includes(url), `step ${i + 1} has no link to its source`);
     }
     has(recovery, "keep the case (CAS) reference", "the SAPS step");
+    has(recovery, "ask your bank to contact the receiving bank at once", "the bank step");
+    has(recovery, "unchanged; your bank and the police will ask for them", "the keep step");
+    has(recovery, "never the one in the email", "the supplier step");
   });
 
   it("closes with sign-up and the protect page", () => {

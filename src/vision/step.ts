@@ -734,8 +734,10 @@ async function runVision(
               }
               // Each variant in turn (D03 T03 §5): a match on any is the brand's; when none
               // matches, the wordmark judgement speaks for the crop. A variant that fails loses
-              // only itself; every variant failing states the crop not compared.
+              // only itself; every variant failing states the crop not compared. The evidence
+              // records the variant that produced the judgement (D03 T03 §7).
               let judgement: Awaited<ReturnType<typeof compareLogo>> | null = null;
+              let compared: (typeof reference)[number] | null = null;
               let firstError: unknown = null;
               for (const variant of reference) {
                 try {
@@ -752,15 +754,24 @@ async function runVision(
                   );
                   if (judged.same_brand) {
                     judgement = judged;
+                    compared = variant;
                     break;
                   }
-                  judgement ??= judged;
+                  if (!judgement) {
+                    judgement = judged;
+                    compared = variant;
+                  }
                 } catch (error) {
                   firstError ??= error;
                 }
               }
-              if (!judgement) throw firstError ?? new Error("comparison-failed");
-              logoItems.push(logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged"));
+              if (!judgement || !compared) throw firstError ?? new Error("comparison-failed");
+              logoItems.push(
+                logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged", {
+                  key: compared.key,
+                  sha256: compared.sha256,
+                }),
+              );
             } catch (error) {
               const reason =
                 error instanceof LogoReferenceError || error instanceof Error ? error.name : "comparison-failed";

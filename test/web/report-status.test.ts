@@ -597,6 +597,36 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T09 §10: a stored examined set reaches the finished report through storage, for both readers.
+  it("reads a clean check's examined set from storage into the finished report", async () => {
+    const { cookie, id, orgId } = await setup();
+    await saveEvidence(db, id, [], undefined, undefined, [
+      {
+        check: "domain.lookalike",
+        outcome: "ran",
+        reason: null,
+        findings: 0,
+        examined: { targets: ["one.example", "last.example"], omitted: 2 },
+      },
+    ]);
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("See what this check examined");
+      expect(html).toContain("one.example");
+      expect(html).toContain("last.example");
+      expect(html).toContain("2 more targets were examined but are not listed.");
+    }
+    // The finished page itself, on its first read and the next, for a member.
+    for (let i = 0; i < 2; i++) {
+      const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+      expect(page).toContain("See what this check examined");
+      expect(page).toContain("last.example");
+      expect(page).toContain("2 more targets were examined but are not listed.");
+    }
+  });
+
   // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
   // next; if the report drops the summary the clean check falls back to "nothing found" and this fails.
   it("reads a clean check's summary from storage into the report, twice", async () => {
@@ -984,6 +1014,156 @@ describe("the status poll", () => {
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
     html = await (await poll(id, cookie)).text();
     expect(html).not.toContain("What the receiving mail system recorded");
+  });
+
+  // D07 T09 §1: from the producer's early save alone (D01 T01 §23), while the slower checks still run.
+  it("draws the early card from only the auth outcomes the producer stored first, while checks still run", async () => {
+    const { cookie, id } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "auth.spf",
+          severity: "medium",
+          summary: "SPF failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dkim",
+          severity: "info",
+          summary: "DKIM passed for sender.example, as your receiving system recorded.",
+          detail: { state: "passed", results: [{ result: "pass", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dmarc",
+          severity: "high",
+          summary: "DMARC failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
+      ],
+    );
+    const html = await (await poll(id, cookie)).text();
+    expect(html).toContain("What the receiving mail system recorded");
+    expect(html).toContain("Early authentication results are in.");
+    // Still running: the page is still investigating, with no finished verdict drawn.
+    expect(html).toContain("We are investigating this message.");
+  });
+
+  // D07 T09 §5: the stored per-provider rows read back through the status route, for a member and a link holder.
+  it("draws the stored per-provider reputation rows through the status route for both views", async () => {
+    const { cookie, id, orgId } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "reputation.listing",
+          severity: "high",
+          summary: "A reputation provider lists this address.",
+          detail: {
+            provider: "Web Risk",
+            listed: "https://pay.example/reset",
+            granularity: "url",
+            corroborated: false,
+          },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [{ check: "reputation.listing", outcome: "ran", reason: null, findings: 1 }],
+    );
+    const run = await db
+      .prepare("SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?")
+      .bind(id)
+      .first<{ run: string }>();
+    for (const [provider, subject, state, cached] of [
+      ["google-web-risk", "https://pay.example/reset", "listed", 0],
+      ["cloudflare", "pay.example", "clear", 1],
+      ["well-known", "pay.example", "known", 0],
+    ] as const)
+      await db
+        .prepare(
+          "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
+        )
+        .bind(id, run?.run, provider, subject, state, "2026-10-27T08:00:00Z", cached)
+        .run();
+    const member = await (await poll(id, cookie)).text();
+    expect(member).toContain("Google Web Risk</strong>: Listed");
+    expect(member).toContain("Well-known list</strong>: On the well-known list");
+    expect(member).toContain("from cache");
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    const holder = await (await poll(id, undefined, link)).text();
+    expect(holder).toContain("Google Web Risk</strong>: Listed");
+    // Another case's rows never join this report.
+    const other = await setup();
+    const otherRun = await db
+      .prepare("SELECT COALESCE(run_id, id) AS run FROM cases WHERE id = ?")
+      .bind(other.id)
+      .first<{ run: string }>();
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, ?, 'cloudflare', 'other.example', 'listed', '2026-10-27T08:00:00Z', 0, NULL)",
+      )
+      .bind(other.id, otherRun?.run)
+      .run();
+    const again = await (await poll(id, cookie)).text();
+    expect(again).not.toContain("other.example");
+    // Rows stored under another run of this same case never join this run's report.
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, 'another-run', 'cloudflare', 'stale.example', 'listed', '2026-10-27T08:00:00Z', 0, NULL)",
+      )
+      .bind(id)
+      .run();
+    expect(await (await poll(id, cookie)).text()).not.toContain("stale.example");
+    // A retry's new run replaces the answers: the old run's rows go, the new run's rows arrive.
+    await db.prepare("UPDATE cases SET run_id = 'run-b' WHERE id = ?").bind(id).run();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "reputation.listing",
+          severity: "high",
+          summary: "A reputation provider lists this address.",
+          detail: {
+            provider: "Web Risk",
+            listed: "https://new.example/reset",
+            granularity: "url",
+            corroborated: false,
+          },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [{ check: "reputation.listing", outcome: "ran", reason: null, findings: 1 }],
+    );
+    await db
+      .prepare(
+        "INSERT INTO reputation_results (case_id, run_id, provider, subject, state, obtained_at, cached, note) VALUES (?, 'run-b', 'google-web-risk', 'https://new.example/reset', 'clear', '2026-10-27T09:00:00Z', 0, NULL)",
+      )
+      .bind(id)
+      .run();
+    const retried = await (await poll(id, cookie)).text();
+    expect(retried).not.toContain("pay.example");
+    expect(retried).toContain("Not listed by this provider");
   });
 
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);

@@ -2369,6 +2369,49 @@
    }
   ]
  },
+ "N10": {
+  "items": [
+   {
+    "name": "the three Cases tiles' numbers for the week and a link to Cases",
+    "kind": "control",
+    "deferred": "D07 T04 §20",
+    "reason": "the Email-Weekly board awaits operator approval; the built weekly counts email is proven by its mail tests"
+   },
+   {
+    "name": "Fridays at 16h00 SAST",
+    "kind": "state",
+    "deferred": "D07 T04 §20",
+    "reason": "the Email-Weekly board awaits operator approval; the Friday send window is proven by its mail tests"
+   },
+   {
+    "name": "never message content",
+    "kind": "state",
+    "deferred": "D07 T04 §20",
+    "reason": "the Email-Weekly board awaits operator approval; the counts-only content is proven by its mail tests"
+   },
+   {
+    "name": "with a one-step unsubscribe",
+    "kind": "control",
+    "deferred": "D07 T04 §20",
+    "reason": "the Email-Weekly board awaits operator approval; the one-step unsubscribe is proven by its mail tests"
+   },
+   {
+    "name": "loading",
+    "kind": "state",
+    "not_applicable": "email message, delivered whole"
+   },
+   {
+    "name": "empty",
+    "kind": "state",
+    "not_applicable": "email message, always sent with its content"
+   },
+   {
+    "name": "error",
+    "kind": "state",
+    "not_applicable": "email message; a send failure is retried by the mail queue and never shown to the recipient"
+   }
+  ]
+ },
  "P1": {
   "items": [
    {

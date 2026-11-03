@@ -43,7 +43,10 @@ track: day-6
 | 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
-| 13 | §13 | Source-versus-replay comparison | §12 | [ ] |
+| 13 | §13 | Source-versus-replay comparison | §12 | [x] |
+| 14 | §14 | Paired-evidence investigation | §13 | [x] |
+| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
+| 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -417,6 +420,8 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after 
 
 ## 13. Source-versus-replay comparison
 
+> **Started:** 2026-11-03T04:00:00+02:00
+
 Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a replay exists to measure a deployment change, yet comparing its source and replay reports is manual, and the public history marks a different deployed commit as not comparable. This section adds one comparison that pairs a source run with its replay, verifies the populations are equal, and reports what changed.
 
 **Phase:** 6
@@ -429,12 +434,83 @@ Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a repla
 2. Report metric and per-sample deltas. Done when: detection, false positives, cost and time deltas, and the samples that changed verdict in either direction, print from the two stored reports.
 3. Keep the ablation comparability rules. Done when: replay comparison never feeds the ablation table, and ablation arms still compare only on one deployment.
 
-- [ ] Add the pairing check in `eval/metrics.ts` (or a named sibling): two stored runs pair only when the second's mode is `replay:<first id>`, both are complete, and their populations and set versions are equal. Done when: tests refuse a non-replay pair, an incomplete run and a drifted population, each naming why. Cheaper substitute: none (an unequal comparison is a false claim).
-- [ ] Print the comparison from the paired reports: detection, false-positive, median cost and median time deltas, plus per-sample verdict changes in both directions. Done when: a test pairs two stored runs and reads back every delta and changed sample. Cheaper substitute: none (the operator assembles this by hand today).
-- [ ] Expose it as `pnpm eval:metrics --compare <replay run id>` resolving its source from the stored mode. Done when: the command prints the comparison for a stored replay and refuses a run that is not a replay. Cheaper substitute: none (a library nobody can invoke does not exist for the operator).
-- [ ] Commit: `eval: source-versus-replay comparison`
+- [x] Add the pairing check in `eval/metrics.ts` (or a named sibling): two stored runs pair only when the second's mode is `replay:<first id>`, both are complete, and their populations and set versions are equal. Done when: tests refuse a non-replay pair, an incomplete run and a drifted population, each naming why. Cheaper substitute: none (an unequal comparison is a false claim). **Corrected 2026-11-03 (plan review P1):** complete means complete measured coverage too: every selected sample in both runs has a terminal row with a verdict, so an outage cannot masquerade as a detection or false-positive change; a complete run holding a null verdict or a missing result refuses, tested.
+- [x] Print the comparison from the paired reports: detection, false-positive, median cost and median time deltas, plus per-sample verdict changes in both directions. Done when: a test pairs two stored runs and reads back every delta and changed sample. Cheaper substitute: none (the operator assembles this by hand today). **Corrected 2026-11-03 (plan review P2):** main and challenge populations are compared apart (challenge never enters a main figure), rate deltas are percentage points, an absent denominator or median reads `not measured` never zero, and tests pin exact expected values for challenge-only, zero-denominator, unchanged and mixed improvement/regression pairs.
+- [x] Expose it as `pnpm eval:metrics --compare <replay run id>` resolving its source from the stored mode. Done when: the command prints the comparison for a stored replay and refuses a run that is not a replay. Cheaper substitute: none (a library nobody can invoke does not exist for the operator). **Corrected 2026-11-03 (plan review P2):** the command also refuses a missing replay or source record, a malformed argument and any conflict with `--run`, `--publish`, `--republish-summary`, `--check` or `--from` (exit 3, actionable, no publication side effects), and a database read failure exits 1; all exercised through the command entry with persisted read-back.
+- [x] Commit: `eval: source-versus-replay comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts test/node/eval-replay.test.ts` passes with the pairing, refusal and delta cases.
+
+> **Verified:** 2026-11-03 | §13 | 3e0d1feb3ad1a3a9ce8ed6b39dce821bfe10e2e8
+> **Review:** `docs/reviews/d08-t02-s13.json`
+
+## 14. Paired-evidence investigation
+
+> **Started:** 2026-11-03T04:15:00+02:00
+
+Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a changed verdict in the comparison names the sample but not the two cases behind it, so investigating why a verdict moved starts with manual retrieval. This section gives each changed sample a documented path to its paired evidence under the existing access controls.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Name the paired cases in the comparison output. Done when: each changed sample prints its source and replay case ids beside the verdict change.
+2. Give one documented action from a changed sample to the paired evidence. Done when: the comparison text names the exact command or view that opens both cases, and a test proves the named target resolves for a stored pair.
+
+- [x] Print the paired case ids in `comparisonText` in `eval/metrics.ts` for every changed sample. Done when: a comparison test reads back both case ids for a changed sample and none are invented for a missing case. Cheaper substitute: none (the operator retrieves them by hand today). **Corrected 2026-11-03 (plan review P1, P2):** the ids name the existing case report route (`/cases/<case id>`, `src/web/pages/report.tsx`), the output states that opening a case needs eval-organisation membership (comparison database access grants no report access), and a side whose case id is missing prints that it has no paired evidence instead of a blank or invented id, the available side unaffected.
+- [x] Name the evidence action in the comparison output (the stored report or case view that shows both cases) and prove the named target resolves from a stored pair. Done when: the test follows the named target from the comparison output to both stored results. Cheaper substitute: none (a pointer that resolves nowhere is decoration). **Corrected 2026-11-03 (plan review P1):** resolving means each printed id equals the case id on its stored result row (persisted read-back through the command), and the named route is the report route the Worker serves; per-side missing, unavailable and denied handling is printed guidance tested as text, since report access itself is the console's existing control, not this command's to grant.
+- [x] Commit: `eval: paired-evidence investigation`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the paired-evidence cases.
+
+> **Verified:** 2026-11-03 | §14 | cf4e56d5033eccc4f50e1c27b2a0c00cb0948029
+> **Review:** `docs/reviews/d08-t02-s14.json`
+
+## 15. Paired evidence view
+
+Filed 2026-11-03 from §14's completion review (G4, out-of-scope there): the comparison names both reports, but aligning their evidence to explain a verdict change is still manual. This section adds one paired view, designed with the console owner (D07 T04 §2), that opens both cases' evidence together for a changed sample.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` (the paired view's entry is this section's first item, agreed with the D07 T04 §2 owner; no board yet)
+**Job:** an operator investigating a changed verdict sees both cases' evidence together and learns which evidence moved the verdict
+**Treatment:** tokens only, both reports in the member shell, phone width holds
+**Chrome:** the member shell of D07 T04 §2; the paired view is its content, not a new frame
+
+**Build order:**
+
+1. Agree the paired view's surface with the console owner and record it in `design/SPEC.md` before any page work. Done when: the SPEC names the view, its route and its states, or the section is re-scoped to a CLI-only diff with the reason recorded.
+2. Show both cases' evidence together with the verdict change. Done when: a changed sample opens one view naming both verdicts and each side's evidence, and an unavailable side leaves the other readable with its reason.
+
+- [ ] Record the agreed surface in `design/SPEC.md` with its route, controls and states (empty, one-side-missing, denied), agreed with the D07 T04 §2 owner through the coordinator. Done when: the SPEC entry exists and names the section that builds it. Cheaper substitute: none (an undesigned surface is a defect).
+- [ ] Build the paired view at the agreed route: both cases' verdicts and evidence side by side, the changed sample named, an unavailable or denied side explained while the other stays readable. Done when: browser tests open the view for a stored changed pair and for a one-side-missing pair. Cheaper substitute: none (two separate reports are today's manual path).
+- [ ] Commit: `eval: paired evidence view`
+
+**Test checkpoint:** the agreed surface's browser tests pass, and `pnpm exec vitest run test/node/eval-metrics.test.ts` still passes.
+
+## 16. Blinded comprehension comparison
+
+Filed 2026-11-03 from the app lane's D07 T03 §10 completion review, relayed by the coordinator: a verdict is only as good as the action it produces, and nobody has measured whether a reader of an IsItLegit summary does the right next thing compared with the strongest comparable checker's summary. This section runs that comparison blind: readers see verdict summaries with the source hidden and are scored on what they would do next.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Name the comparable checker and the scoring rubric. Done when: the section records which checker's summaries are compared, where its summaries lawfully come from, and the rubric that scores a reader's chosen next action as right or wrong per case.
+2. Build the blind instrument. Done when: summaries from both sources are sampled from the same cases, stripped of source-identifying marks, and presented in randomised order with the scoring recorded per reader and case.
+3. Run and report it. Done when: comprehension scores per source are computed from the recorded answers with counts, and the result lands in `eval/RESULTS.md` under its own heading, or reads `not measured` with the blocker named.
+
+- [ ] Record the comparison design in the section before any data moves: the comparable checker, the lawful source of its summaries for the same cases, the reader panel (who, how many, how recruited), the right-action rubric per case category, and the spend cap. Done when: the design names all five and the coordinator has seen it in the section's plan review. Cheaper substitute: none (an undesigned study measures nothing).
+- [ ] Add the blind instrument under `eval/`: sample paired summaries for the same cases from both sources, strip source-identifying marks, randomise presentation order, and record each reader's chosen next action per case. Done when: tests prove no summary carries its source, the pairing is by case, and a recorded answer scores against the rubric. Cheaper substitute: none (an unblinded comparison is marketing, not measurement).
+- [ ] Run the study inside the recorded cap and publish the counts in `eval/RESULTS.md`: readers, cases, right-action rate per source with the difference. Done when: the published figures recompute from the recorded answers, checked by `pnpm eval:metrics --check` or the study's own named check. Cheaper substitute: none (readers cannot be simulated).
+- [ ] Commit: `eval: blinded comprehension comparison`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the blinding, pairing and scoring cases, and the published figures recompute from the recorded answers.
 
 ## Verification
 

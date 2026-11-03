@@ -1000,9 +1000,28 @@ def metadata(result):
     return lines + [f"- Skipped: {f['reviewer']} ({f['reason']})" for f in result["failover"]]
 
 
+def returned_pass(entry, kind):
+    """A recorded pass the stamp would count: returned by a reviewer of another model family than its writer, and
+    closing with that pass's verdict lines (the stamp's own rule, in scripts/lib/todo_graph.py). A reply that
+    never reached its verdict (a malformed or blocked answer) is sealed in the file but is not the one pass, so
+    a fresh pass may still be recorded beside it."""
+    if not entry["reviewer"] or entry["writer"] not in WRITER_FAMILY:
+        return False
+    if FAMILY.get(entry["cli"]) in (None, WRITER_FAMILY[entry["writer"]]):
+        return False
+    lines = verdict_lines(entry.get("review"))
+    if kind == "plan":
+        return len(lines) >= 2 and lines[-2] in ("PLAN: complete", "PLAN: gaps") \
+            and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
+    if kind == "completion":
+        return bool(lines) and lines[-1] in ("COMPLETION: complete", "COMPLETION: gaps")
+    return True
+
+
 def record_completion(path, result, when, candidate, kind="completion"):
     """Append the completion review (or, with kind "plan", the plan review). Each is one pass: a findings file that
-    already holds a returned one gets nothing appended (`Unrecorded`), and neither does one the reader cannot read."""
+    already holds a returned one (see `returned_pass`) gets nothing appended (`Unrecorded`), and neither does one
+    the reader cannot read."""
     prefix, _, key = PASSES[kind]
     what = f"{kind} review"
     existing = existing_findings(path, what)
@@ -1010,7 +1029,7 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if found is None:
         raise Unrecorded(f"{path} cannot be read back (a heading or line is not in the format --record writes"
                          f"{unreadable_heading(existing)}; {RESERVED_NAMES}), so the {what} was not recorded")
-    if any(entry["reviewer"] for entry in found[key]):
+    if any(returned_pass(entry, kind) for entry in found[key]):
         raise Unrecorded(f"{path} already holds a {what}; it is one pass, so this one was not recorded")
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
     review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval.", path))

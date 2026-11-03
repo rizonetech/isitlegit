@@ -527,6 +527,7 @@ export const USAGE = [
   "       pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
   "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
   "       pnpm eval:metrics --run <run id> --publish   (store a complete report for the public page; a full run also writes eval/results-summary.json)",
+  "       pnpm eval:metrics --compare <replay run id> [--json]   (compare a replay with its source run: same population, per-scope deltas, changed verdicts)",
   "       pnpm eval:metrics --republish-summary   (rebuild eval/results-summary.json from the latest published full report)",
 ].join("\n");
 
@@ -542,6 +543,8 @@ export async function runMetrics(args: {
   // Reconciliation of the stored results against their cases before publication. The live command always passes it;
   // a caller without case access (an offline `--from` read) cannot publish.
   verify?: (id: string) => Promise<{ ok: boolean; problems: string[] }>;
+  // Read progress for the operator, on stderr only: stdout stays machine-readable.
+  onProgress?: (line: string) => void;
 }): Promise<Outcome> {
   const refuse = (message: string): Outcome => ({
     code: 3,
@@ -556,10 +559,14 @@ export async function runMetrics(args: {
   let republish = false;
   let checkFile: string | null = null;
   let recordsDir: string | null = null;
+  let compare: string | null = null;
   for (let i = 0; i < args.argv.length; i++) {
     const a = args.argv[i];
     if (a === "--json") json = true;
-    else if (a === "--publish") publish = true;
+    else if (a === "--compare") {
+      compare = args.argv[++i] ?? null;
+      if (!compare || !/^[a-z0-9-]{8,64}$/.test(compare)) return refuse("--compare needs a replay run id");
+    } else if (a === "--publish") publish = true;
     else if (a === "--republish-summary") republish = true;
     else if (a === "--help" || a === "-h") return { code: 0, stdout: `${USAGE}\n`, stderr: "" };
     else if (a === "--check") {
@@ -584,6 +591,40 @@ export async function runMetrics(args: {
     o.code === 0
       ? { code: 0, stdout: `${o.message}\n`, stderr: "" }
       : { code: o.code, stdout: "", stderr: `eval:metrics: ${o.message}\n` };
+  if (compare) {
+    if (id || publish || republish || checkFile || from) return refuse("--compare stands alone");
+    if (!args.db) return { code: 1, stdout: "", stderr: "eval:metrics: no database to read the runs from\n" };
+    let replayStored: Awaited<ReturnType<Db["readRun"]>>;
+    let sourceStored: Awaited<ReturnType<Db["readRun"]>>;
+    try {
+      args.onProgress?.(`eval:metrics: reading replay run ${compare}`);
+      replayStored = await args.db.readRun(compare);
+      if (!replayStored) return refuse(`no run ${compare} to compare`);
+      const checkedReplay = checkStored(replayStored, compare);
+      if (typeof checkedReplay === "string") return refuse(`the stored replay is damaged: ${checkedReplay}`);
+      replayStored = checkedReplay;
+      const sourceId = replayStored.run.mode.startsWith("replay:")
+        ? replayStored.run.mode.slice("replay:".length)
+        : null;
+      if (!sourceId) return refuse(`run ${compare} is not a replay (its mode is ${replayStored.run.mode})`);
+      args.onProgress?.(`eval:metrics: reading source run ${sourceId}`);
+      sourceStored = await args.db.readRun(sourceId);
+      if (!sourceStored) return refuse(`no source run ${sourceId} for replay ${compare}`);
+      const checkedSource = checkStored(sourceStored, sourceId);
+      if (typeof checkedSource === "string") return refuse(`the stored source is damaged: ${checkedSource}`);
+      sourceStored = checkedSource;
+    } catch (error) {
+      return { code: 1, stdout: "", stderr: `eval:metrics: the runs could not be read: ${(error as Error).message}\n` };
+    }
+    const problem = pairForCompare(sourceStored, replayStored);
+    if (problem) return refuse(problem);
+    const comparison = compareRuns(sourceStored, replayStored);
+    return {
+      code: 0,
+      stdout: json ? `${JSON.stringify(comparison, null, 1)}\n` : `${comparisonText(comparison)}\n`,
+      stderr: "",
+    };
+  }
   if (republish) {
     if (publish || from || id) return refuse("--republish-summary stands alone");
     if (!args.pub)
@@ -699,6 +740,7 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   }
   const out = await runMetrics({
     argv,
+    onProgress: (line) => console.error(line),
     ...(db ? { db } : {}),
     ...(pub ? { pub } : {}),
     ...(db ? { verify: (runId: string) => verifyRun(db, runId) } : {}),
@@ -708,8 +750,8 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   process.exit(out.code);
 }
 
-// Replay merging (D08 T02 section 12): a replay result replaces its original only when complete; the replaced
-// originals are counted apart as replay consent lines and never enter detection, false-alarm, latency or cost.
+// Replay merging (D08 T02 section 12): a terminal replay result replaces its original from either state; the
+// replaced originals are counted apart as replay consent lines.
 export function mergeReplayResults(
   original: ResultRow[],
   replays: ResultRow[][],
@@ -729,4 +771,163 @@ export function mergeReplayResults(
     return r;
   });
   return { results, consentLines };
+}
+
+// ---- source-versus-replay comparison (D08 T02 section 13) ------------------------------------------------------
+
+export type ScopeDelta = {
+  detection: { source: Rate; replay: Rate; deltaPp: number | null };
+  falsePositives: { source: Rate; replay: Rate; deltaPp: number | null };
+  medianMs: { source: number | null; replay: number | null; delta: number | null };
+  medianCostUsd: { source: number | null; replay: number | null; delta: number | null };
+};
+
+export type RunComparison = {
+  sourceId: string;
+  replayId: string;
+  sourceCommit: string;
+  replayCommit: string;
+  main: ScopeDelta;
+  challenge: ScopeDelta | null;
+  changed: {
+    sample: string;
+    label: "attack" | "genuine";
+    scope: "main" | "challenge";
+    sourceVerdict: string | null;
+    replayVerdict: string | null;
+    // The two cases behind the change (D08 T02 section 14): the paired evidence an operator opens next.
+    sourceCaseId: string | null;
+    replayCaseId: string | null;
+    // An improvement flags an attack the source missed, or clears a genuine false alarm; a regression is the
+    // inverse. A change between two flagged or two clear verdicts is neither, and reads "changed".
+    change: "improvement" | "regression" | "changed";
+  }[];
+};
+
+// Two stored runs pair for comparison only as a full measured replay of its source: the replay's stored mode
+// names the source, both runs are complete with complete measured coverage (every selected sample terminal
+// with a verdict, so an outage cannot read as a detection change), and the populations are one population.
+export function pairForCompare(
+  source: { run: RunRow; results: ResultRow[] },
+  replay: { run: RunRow; results: ResultRow[] },
+): string | null {
+  if (replay.run.mode !== `replay:${source.run.id}`)
+    return `run ${replay.run.id} is not a replay of run ${source.run.id} (its mode is ${replay.run.mode})`;
+  for (const [name, stored] of [
+    ["source", source],
+    ["replay", replay],
+  ] as const) {
+    if (stored.run.status !== "complete")
+      return `the ${name} run ${stored.run.id} is ${stored.run.status}, not complete`;
+    if (stored.results.length !== stored.run.selected)
+      return `the ${name} run ${stored.run.id} holds ${stored.results.length} results for ${stored.run.selected} selected samples`;
+    const uncovered = stored.results.filter((r) => !isTerminal(r.outcome) || r.verdict === null);
+    if (uncovered.length > 0)
+      return `the ${name} run ${stored.run.id} is not fully measured: ${uncovered.length} samples ended without a verdict (first: ${uncovered[0]?.sample})`;
+  }
+  if (source.run.setVersion !== replay.run.setVersion)
+    return `the runs were measured on different set versions (${source.run.setVersion.slice(0, 12)} and ${replay.run.setVersion.slice(0, 12)})`;
+  const bySample = new Map(replay.results.map((r) => [r.sample, r]));
+  for (const r of source.results) {
+    const other = bySample.get(r.sample);
+    if (!other) return `sample ${r.sample} is in run ${source.run.id} but not in run ${replay.run.id}`;
+    if (other.label !== r.label) return `sample ${r.sample} changed label between the runs`;
+  }
+  if (bySample.size !== source.results.length)
+    return `run ${replay.run.id} holds samples run ${source.run.id} does not`;
+  return null;
+}
+
+function scopeDelta(sourceRows: ResultRow[], replayRows: ResultRow[]): ScopeDelta {
+  const figures = (rows: ResultRow[]) => {
+    const attacks = rows.filter((r) => r.label === "attack");
+    const genuine = rows.filter((r) => r.label === "genuine");
+    return {
+      detection: rate(attacks.filter((r) => flagged(r.verdict)).length, attacks.length),
+      falsePositives: rate(genuine.filter((r) => flagged(r.verdict)).length, genuine.length),
+      ms: spread(rows.map((r) => r.ms).filter((v): v is number => v !== null)),
+      cost: spread(rows.map((r) => r.costUsd)),
+    };
+  };
+  const a = figures(sourceRows);
+  const b = figures(replayRows);
+  const pp = (x: Rate, y: Rate) => (x.rate === null || y.rate === null ? null : (y.rate - x.rate) * 100);
+  const delta = (x: number | null, y: number | null) => (x === null || y === null ? null : y - x);
+  return {
+    detection: { source: a.detection, replay: b.detection, deltaPp: pp(a.detection, b.detection) },
+    falsePositives: {
+      source: a.falsePositives,
+      replay: b.falsePositives,
+      deltaPp: pp(a.falsePositives, b.falsePositives),
+    },
+    medianMs: { source: a.ms.median, replay: b.ms.median, delta: delta(a.ms.median, b.ms.median) },
+    medianCostUsd: { source: a.cost.median, replay: b.cost.median, delta: delta(a.cost.median, b.cost.median) },
+  };
+}
+
+export function compareRuns(
+  source: { run: RunRow; results: ResultRow[] },
+  replay: { run: RunRow; results: ResultRow[] },
+): RunComparison {
+  const inScope = (rows: ResultRow[], challenge: boolean) =>
+    rows.filter((r) => (r.sample.split("/")[0] === CHALLENGE) === challenge);
+  const replayBySample = new Map(replay.results.map((r) => [r.sample, r]));
+  const changed = source.results
+    .filter((r) => replayBySample.get(r.sample)?.verdict !== r.verdict)
+    .map((r) => {
+      const replayVerdict = replayBySample.get(r.sample)?.verdict ?? null;
+      const was = flagged(r.verdict);
+      const now = flagged(replayVerdict);
+      const change = was === now ? "changed" : now === (r.label === "attack") ? "improvement" : ("regression" as const);
+      return {
+        sample: r.sample,
+        label: r.label,
+        scope: (r.sample.split("/")[0] === CHALLENGE ? "challenge" : "main") as "main" | "challenge",
+        sourceVerdict: r.verdict,
+        replayVerdict,
+        sourceCaseId: r.caseId,
+        replayCaseId: replayBySample.get(r.sample)?.caseId ?? null,
+        change: change as "improvement" | "regression" | "changed",
+      };
+    })
+    .sort((x, y) => (x.sample < y.sample ? -1 : 1));
+  const hasChallenge = source.results.some((r) => r.sample.split("/")[0] === CHALLENGE);
+  return {
+    sourceId: source.run.id,
+    replayId: replay.run.id,
+    sourceCommit: source.run.commitSha,
+    replayCommit: replay.run.commitSha,
+    main: scopeDelta(inScope(source.results, false), inScope(replay.results, false)),
+    challenge: hasChallenge ? scopeDelta(inScope(source.results, true), inScope(replay.results, true)) : null,
+    changed,
+  };
+}
+
+function signed(v: number | null, unit: string, digits = 1): string {
+  return v === null ? "not measured" : `${v >= 0 ? "+" : ""}${v.toFixed(digits)}${unit}`;
+}
+
+export function comparisonText(c: RunComparison): string {
+  const scope = (name: string, d: ScopeDelta) => [
+    `${name}:`,
+    `  detection ${pct(d.detection.source)} -> ${pct(d.detection.replay)} (${signed(d.detection.deltaPp, " pp")})`,
+    `  false positives ${pct(d.falsePositives.source)} -> ${pct(d.falsePositives.replay)} (${signed(d.falsePositives.deltaPp, " pp")})`,
+    `  median time ${d.medianMs.source === null ? "not measured" : `${Math.round(d.medianMs.source)} ms`} -> ${d.medianMs.replay === null ? "not measured" : `${Math.round(d.medianMs.replay)} ms`} (${signed(d.medianMs.delta === null ? null : Math.round(d.medianMs.delta), " ms", 0)})`,
+    `  median cost ${d.medianCostUsd.source === null ? "not measured" : `US$${d.medianCostUsd.source.toFixed(4)}`} -> ${d.medianCostUsd.replay === null ? "not measured" : `US$${d.medianCostUsd.replay.toFixed(4)}`} (${signed(d.medianCostUsd.delta, "", 4)})`,
+  ];
+  const counts = (name: "main" | "challenge") => {
+    const rows = c.changed.filter((x) => x.scope === name);
+    return `${rows.filter((x) => x.change === "improvement").length} improvements, ${rows.filter((x) => x.change === "regression").length} regressions, ${rows.filter((x) => x.change === "changed").length} other changes`;
+  };
+  return [
+    `comparison: run ${c.sourceId} (${c.sourceCommit}) -> replay ${c.replayId} (${c.replayCommit})`,
+    ...scope("main sets", c.main),
+    ...(c.challenge ? scope("challenge set", c.challenge) : []),
+    `changed verdicts: ${c.changed.length} (main: ${counts("main")}${c.challenge ? `; challenge: ${counts("challenge")}` : ""})`,
+    ...c.changed.map((x) => {
+      const report = (id: string | null) => (id ? `https://app.isitlegit.co.za/cases/${id}` : "none recorded");
+      return `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}; source report: ${report(x.sourceCaseId)}; replay report: ${report(x.replayCaseId)}`;
+    }),
+    "paired evidence: each report opens under eval-organisation membership. If a report will not open, check the membership first: a missing case and a case outside the organisation answer the same 404, so the address cannot tell them apart. The other side still opens on its own; a side with no case recorded has no paired evidence. On a failed read, rerun the comparison: it stores nothing.",
+  ].join("\n");
 }

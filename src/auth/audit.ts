@@ -136,6 +136,26 @@ export type TeamChange = {
 // a page at a time: each page ends with the cursor of its last row, `at` then its insertion order (`rowid`; completion
 // review G5, final review), so rows sharing a time keep the order they happened in and are never skipped or repeated. Dates are compared as the stored ISO timestamps (G4: the route
 // normalises them first).
+// A cursor a page gave: a real stored timestamp (calendar-correct, UTC) and a rowid inside the safe integer range.
+export function validHistoryCursor(value: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z\|(\d+)$/.exec(value);
+  if (!m) return false;
+  const d = new Date(
+    Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]), Number(m[7] ?? 0)),
+  );
+  if (
+    d.getUTCFullYear() !== Number(m[1]) ||
+    d.getUTCMonth() !== Number(m[2]) - 1 ||
+    d.getUTCDate() !== Number(m[3]) ||
+    d.getUTCHours() !== Number(m[4]) ||
+    d.getUTCMinutes() !== Number(m[5]) ||
+    d.getUTCSeconds() !== Number(m[6])
+  )
+    return false;
+  const seq = Number(m[8]);
+  return Number.isSafeInteger(seq) && seq >= 1;
+}
+
 export const HISTORY_PAGE = 100;
 export async function readTeamHistory(
   db: D1Database,
@@ -145,6 +165,11 @@ export async function readTeamHistory(
     from?: string | undefined;
     to?: string | undefined;
     after?: string | undefined;
+    // One person, as actor, as target, or as either (`person`, D07 T04 §24): predicates at the database layer,
+    // before the page limit, always inside this organisation.
+    actor?: string | undefined;
+    target?: string | undefined;
+    person?: string | undefined;
   } = {},
 ): Promise<{ changes: TeamChange[]; next: string | null }> {
   const actions =
@@ -152,7 +177,7 @@ export async function readTeamHistory(
   const [afterAt, afterId] = filter.after ? filter.after.split("|") : [null, null];
   const rows = await db
     .prepare(
-      `SELECT rowid AS seq, id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND rowid < ?)) ORDER BY at DESC, rowid DESC LIMIT ?`,
+      `SELECT rowid AS seq, id, at, kind, outcome, actor_id, target_id, detail_json FROM auth_events WHERE org_id = ? AND kind IN (${actions.map(() => "?").join(", ")}) AND at >= ? AND at <= ? AND (? IS NULL OR at < ? OR (at = ? AND rowid < ?)) AND (? IS NULL OR actor_id = ?) AND (? IS NULL OR target_id = ?) AND (? IS NULL OR actor_id = ? OR target_id = ?) ORDER BY at DESC, rowid DESC LIMIT ?`,
     )
     .bind(
       orgId,
@@ -163,6 +188,13 @@ export async function readTeamHistory(
       afterAt ?? null,
       afterAt ?? null,
       afterId === null || afterId === undefined ? null : Number(afterId),
+      filter.actor ?? null,
+      filter.actor ?? null,
+      filter.target ?? null,
+      filter.target ?? null,
+      filter.person ?? null,
+      filter.person ?? null,
+      filter.person ?? null,
       HISTORY_PAGE + 1,
     )
     .all<TeamChange>();
