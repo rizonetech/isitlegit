@@ -14,7 +14,7 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
-import { type CaseFilters, PAGE_SIZE } from "../../db/case-filters";
+import { type CaseFilters, filtersFrom, PAGE_SIZE } from "../../db/case-filters";
 import { caseNeighbours, checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
