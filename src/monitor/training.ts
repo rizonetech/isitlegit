@@ -142,12 +142,46 @@ export async function resolveCaptureUrl(
 
 const hostRemovedKey = (orgId: string, host: string) => `training/monitor/${orgId}/${host}/removed.json`;
 
+const hostLocks = new Map<string, Promise<unknown>>();
+
+async function withHostLock<T>(orgId: string, host: string, fn: () => Promise<T>): Promise<T> {
+  const key = `${orgId}\0${host}`;
+  const prev = hostLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const chain = prev.then(
+    () => gate,
+    () => gate,
+  );
+  hostLocks.set(key, chain);
+  try {
+    await prev.catch(() => null);
+    return await fn();
+  } finally {
+    release();
+    if (hostLocks.get(key) === chain) {
+      hostLocks.delete(key);
+    }
+  }
+}
+
 async function isRemoved(bucket: R2Bucket, orgId: string, host: string, prefix: string): Promise<boolean> {
   const [hostTombstone, captureTombstone] = await Promise.all([
     bucket.head(hostRemovedKey(orgId, host)),
     bucket.head(`${prefix}removed.json`),
   ]);
   return hostTombstone !== null || captureTombstone !== null;
+}
+
+async function cleanupCaptureObjects(bucket: R2Bucket, prefix: string): Promise<void> {
+  await Promise.all([
+    bucket.delete(`${prefix}done.json`).catch(() => null),
+    bucket.delete(`${prefix}meta.json`).catch(() => null),
+    bucket.delete(`${prefix}screenshot.jpg`).catch(() => null),
+    bucket.delete(`${prefix}text.txt`).catch(() => null),
+  ]);
 }
 
 async function readExistingMeta(bucket: R2Bucket, prefix: string): Promise<StoredTrainingMeta | null> {
@@ -164,131 +198,142 @@ export async function copyForTraining(
   const parsed = parseCaptureKey(copy.captureKey, copy.orgId, copy.host);
   if (!parsed) return "ineligible-source";
   const { prefix, trainingId, fetchedAt } = parsed;
-  if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) return "removed";
+  return withHostLock(copy.orgId, copy.host, async () => {
+    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) return "removed";
 
-  const [doneHead, shotHead, textHead, existingMeta] = await Promise.all([
-    bucket.head(`${prefix}done.json`),
-    bucket.head(`${prefix}screenshot.jpg`),
-    bucket.head(`${prefix}text.txt`),
-    readExistingMeta(bucket, prefix),
-  ]);
-  const complete = doneHead !== null && shotHead !== null && textHead !== null && existingMeta !== null;
+    const [doneHead, shotHead, textHead, existingMeta] = await Promise.all([
+      bucket.head(`${prefix}done.json`),
+      bucket.head(`${prefix}screenshot.jpg`),
+      bucket.head(`${prefix}text.txt`),
+      readExistingMeta(bucket, prefix),
+    ]);
+    const complete = doneHead !== null && shotHead !== null && textHead !== null && existingMeta !== null;
 
-  let effectiveCopy: TrainingCopy = copy;
-  if (existingMeta) {
-    // Precedence: restore (retracted) > human dismissal > automated pipeline / second-look.
-    // Precedence holds even when an earlier write was interrupted before done.json or before the
-    // page bytes landed: automated recovery repairs missing objects without downgrading a human
-    // dismissal or retraction.
-    if (existingMeta.retracted || existingMeta.source === "restore") {
-      if (copy.source !== "dismissal") {
-        if (doneHead !== null) return "exists";
-        const nowIso = now().toISOString();
-        await bucket.put(
-          `${prefix}done.json`,
-          JSON.stringify({
-            at: existingMeta.updatedAt ?? existingMeta.copiedAt ?? nowIso,
+    let effectiveCopy: TrainingCopy = copy;
+    if (existingMeta) {
+      // Precedence: restore (retracted) > human dismissal > automated pipeline / second-look.
+      // Precedence holds even when an earlier write was interrupted before done.json or before the
+      // page bytes landed: automated recovery repairs missing objects without downgrading a human
+      // dismissal or retraction.
+      if (existingMeta.retracted || existingMeta.source === "restore") {
+        if (copy.source !== "dismissal") {
+          if (doneHead !== null) return "exists";
+          const nowIso = now().toISOString();
+          await bucket.put(
+            `${prefix}done.json`,
+            JSON.stringify({
+              at: existingMeta.updatedAt ?? existingMeta.copiedAt ?? nowIso,
+              label: existingMeta.label,
+              source: "restore",
+              sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
+              retracted: true,
+            }),
+            { httpMetadata: { contentType: "application/json" } },
+          );
+          if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) {
+            await cleanupCaptureObjects(bucket, prefix);
+            return "removed";
+          }
+          return "updated";
+        }
+      } else if (existingMeta.source === "dismissal") {
+        if (copy.source !== "dismissal") {
+          if (complete) return "exists";
+          effectiveCopy = {
+            ...copy,
             label: existingMeta.label,
-            source: "restore",
+            why: existingMeta.why,
+            source: "dismissal",
             sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
-            retracted: true,
-          }),
-          { httpMetadata: { contentType: "application/json" } },
-        );
-        return "updated";
-      }
-    } else if (existingMeta.source === "dismissal") {
-      if (copy.source !== "dismissal") {
-        if (complete) return "exists";
-        effectiveCopy = {
-          ...copy,
-          label: existingMeta.label,
-          why: existingMeta.why,
-          source: "dismissal",
-          sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
-          captureUrl: existingMeta.url ?? copy.captureUrl ?? null,
-        };
-      } else if (complete && existingMeta.label === copy.label && existingMeta.why === copy.why) {
+            captureUrl: existingMeta.url ?? copy.captureUrl ?? null,
+          };
+        } else if (complete && existingMeta.label === copy.label && existingMeta.why === copy.why) {
+          return "exists";
+        }
+      } else if (complete && existingMeta.source === copy.source && existingMeta.label === copy.label) {
         return "exists";
       }
-    } else if (complete && existingMeta.source === copy.source && existingMeta.label === copy.label) {
-      return "exists";
     }
-  }
-  const effectiveSourceRef = effectiveCopy.sourceRef ?? defaultSourceRef(effectiveCopy);
+    const effectiveSourceRef = effectiveCopy.sourceRef ?? defaultSourceRef(effectiveCopy);
 
-  let shotBytes: ArrayBuffer | null = null;
-  let textBytes: ArrayBuffer | null = null;
-  if (!shotHead || !textHead) {
-    const [shot, text] = await Promise.all([
-      bucket.get(`${effectiveCopy.captureKey}screenshot.jpg`).catch(() => null),
-      bucket.get(`${effectiveCopy.captureKey}text.txt`).catch(() => null),
-    ]);
-    if (!shot || !text) return "missing-source";
-    [shotBytes, textBytes] = await Promise.all([shot.arrayBuffer(), text.arrayBuffer()]);
-  }
-  const resolvedUrl =
-    effectiveCopy.captureUrl ??
-    existingMeta?.url ??
-    (await resolveCaptureUrl(null, bucket, effectiveCopy.orgId, effectiveCopy.host, effectiveCopy.captureKey, null));
+    let shotBytes: ArrayBuffer | null = null;
+    let textBytes: ArrayBuffer | null = null;
+    if (!shotHead || !textHead) {
+      const [shot, text] = await Promise.all([
+        bucket.get(`${effectiveCopy.captureKey}screenshot.jpg`).catch(() => null),
+        bucket.get(`${effectiveCopy.captureKey}text.txt`).catch(() => null),
+      ]);
+      if (!shot || !text) return "missing-source";
+      [shotBytes, textBytes] = await Promise.all([shot.arrayBuffer(), text.arrayBuffer()]);
+    }
+    const resolvedUrl =
+      effectiveCopy.captureUrl ??
+      existingMeta?.url ??
+      (await resolveCaptureUrl(null, bucket, effectiveCopy.orgId, effectiveCopy.host, effectiveCopy.captureKey, null));
 
-  if (shotBytes && textBytes) {
-    await bucket.put(`${prefix}screenshot.jpg`, shotBytes, { httpMetadata: { contentType: "image/jpeg" } });
-    await bucket.put(`${prefix}text.txt`, textBytes, { httpMetadata: { contentType: "text/plain" } });
-  }
-  const nowIso = now().toISOString();
-  const sameMetaAsExisting =
-    existingMeta !== null &&
-    !existingMeta.retracted &&
-    existingMeta.source === effectiveCopy.source &&
-    existingMeta.label === effectiveCopy.label &&
-    existingMeta.why === effectiveCopy.why;
-  const history: TrainingHistoryEntry[] =
-    existingMeta && !sameMetaAsExisting
-      ? [
-          ...(existingMeta.history ?? []),
-          {
-            label: existingMeta.label,
-            source: existingMeta.source,
-            sourceRef: existingMeta.sourceRef ?? defaultSourceRef({ ...effectiveCopy, source: "pipeline" }),
-            why: existingMeta.why,
-            at: existingMeta.updatedAt ?? existingMeta.copiedAt,
-            ...(existingMeta.retracted ? { retracted: true } : {}),
-          },
-        ]
-      : (existingMeta?.history ?? []);
-  const meta: StoredTrainingMeta = {
-    trainingId,
-    orgId: effectiveCopy.orgId,
-    host: effectiveCopy.host,
-    captureKey: effectiveCopy.captureKey,
-    url: resolvedUrl,
-    fetchedAt,
-    label: effectiveCopy.label,
-    why: effectiveCopy.why,
-    source: effectiveCopy.source,
-    sourceRef: effectiveSourceRef,
-    copiedAt: existingMeta?.copiedAt ?? nowIso,
-    updatedAt: sameMetaAsExisting ? (existingMeta?.updatedAt ?? nowIso) : nowIso,
-    retracted: false,
-    ...(history.length ? { history } : {}),
-  };
-  await bucket.put(`${prefix}meta.json`, JSON.stringify(meta), {
-    httpMetadata: { contentType: "application/json" },
-  });
-  // The completion marker last: a copy without it is partial and is redone, never exported.
-  await bucket.put(
-    `${prefix}done.json`,
-    JSON.stringify({
-      at: meta.updatedAt,
+    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) return "removed";
+    if (shotBytes && textBytes) {
+      await bucket.put(`${prefix}screenshot.jpg`, shotBytes, { httpMetadata: { contentType: "image/jpeg" } });
+      await bucket.put(`${prefix}text.txt`, textBytes, { httpMetadata: { contentType: "text/plain" } });
+    }
+    const nowIso = now().toISOString();
+    const sameMetaAsExisting =
+      existingMeta !== null &&
+      !existingMeta.retracted &&
+      existingMeta.source === effectiveCopy.source &&
+      existingMeta.label === effectiveCopy.label &&
+      existingMeta.why === effectiveCopy.why;
+    const history: TrainingHistoryEntry[] =
+      existingMeta && !sameMetaAsExisting
+        ? [
+            ...(existingMeta.history ?? []),
+            {
+              label: existingMeta.label,
+              source: existingMeta.source,
+              sourceRef: existingMeta.sourceRef ?? defaultSourceRef({ ...effectiveCopy, source: "pipeline" }),
+              why: existingMeta.why,
+              at: existingMeta.updatedAt ?? existingMeta.copiedAt,
+              ...(existingMeta.retracted ? { retracted: true } : {}),
+            },
+          ]
+        : (existingMeta?.history ?? []);
+    const meta: StoredTrainingMeta = {
+      trainingId,
+      orgId: effectiveCopy.orgId,
+      host: effectiveCopy.host,
+      captureKey: effectiveCopy.captureKey,
+      url: resolvedUrl,
+      fetchedAt,
       label: effectiveCopy.label,
+      why: effectiveCopy.why,
       source: effectiveCopy.source,
       sourceRef: effectiveSourceRef,
+      copiedAt: existingMeta?.copiedAt ?? nowIso,
+      updatedAt: sameMetaAsExisting ? (existingMeta?.updatedAt ?? nowIso) : nowIso,
       retracted: false,
-    }),
-    { httpMetadata: { contentType: "application/json" } },
-  );
-  return complete ? "updated" : "copied";
+      ...(history.length ? { history } : {}),
+    };
+    await bucket.put(`${prefix}meta.json`, JSON.stringify(meta), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    // The completion marker last: a copy without it is partial and is redone, never exported.
+    await bucket.put(
+      `${prefix}done.json`,
+      JSON.stringify({
+        at: meta.updatedAt,
+        label: effectiveCopy.label,
+        source: effectiveCopy.source,
+        sourceRef: effectiveSourceRef,
+        retracted: false,
+      }),
+      { httpMetadata: { contentType: "application/json" } },
+    );
+    if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) {
+      await cleanupCaptureObjects(bucket, prefix);
+      return "removed";
+    }
+    return complete ? "updated" : "copied";
+  });
 }
 
 // Retracts a dismissed capture's training copy when the business restores the finding.
@@ -300,83 +345,97 @@ export async function retractTrainingCopy(
   reason = "finding restored by business",
   now: () => Date = () => new Date(),
 ): Promise<"retracted" | "missing" | "removed"> {
-  const parsed = parseCaptureKey(captureKey, orgId, host);
+  const cleanKey = captureKey.replace(/^restored:/, "");
+  const parsed = parseCaptureKey(cleanKey, orgId, host);
   if (!parsed) return "missing";
   const { prefix, trainingId, fetchedAt } = parsed;
-  if (await isRemoved(bucket, orgId, host, prefix)) return "removed";
-  const [existing, doneHead] = await Promise.all([readExistingMeta(bucket, prefix), bucket.head(`${prefix}done.json`)]);
-  const nowIso = now().toISOString();
-  const sourceRef = `finding:${orgId}:${host}:${captureKey}`;
-  if (existing?.retracted) {
-    if (!doneHead) {
-      await bucket.put(
-        `${prefix}done.json`,
-        JSON.stringify({
-          at: existing.updatedAt ?? existing.copiedAt ?? nowIso,
-          label: existing.label,
+  return withHostLock(orgId, host, async () => {
+    if (await isRemoved(bucket, orgId, host, prefix)) return "removed";
+    const [existing, doneHead] = await Promise.all([
+      readExistingMeta(bucket, prefix),
+      bucket.head(`${prefix}done.json`),
+    ]);
+    const nowIso = now().toISOString();
+    const sourceRef = `finding:${orgId}:${host}:${cleanKey}`;
+    if (existing?.retracted) {
+      if (!doneHead) {
+        await bucket.put(
+          `${prefix}done.json`,
+          JSON.stringify({
+            at: existing.updatedAt ?? existing.copiedAt ?? nowIso,
+            label: existing.label,
+            source: "restore",
+            sourceRef,
+            retracted: true,
+          }),
+          { httpMetadata: { contentType: "application/json" } },
+        );
+        if (await isRemoved(bucket, orgId, host, prefix)) {
+          await cleanupCaptureObjects(bucket, prefix);
+          return "removed";
+        }
+      }
+      return "retracted";
+    }
+    const history: TrainingHistoryEntry[] = existing
+      ? [
+          ...(existing.history ?? []),
+          {
+            label: existing.label,
+            source: existing.source,
+            sourceRef: existing.sourceRef ?? sourceRef,
+            why: existing.why,
+            at: existing.updatedAt ?? existing.copiedAt,
+          },
+        ]
+      : [];
+    const updated: StoredTrainingMeta = existing
+      ? {
+          ...existing,
           source: "restore",
           sourceRef,
+          why: reason,
+          updatedAt: nowIso,
           retracted: true,
-        }),
-        { httpMetadata: { contentType: "application/json" } },
-      );
+          retractedAt: nowIso,
+          ...(history.length ? { history } : {}),
+        }
+      : {
+          trainingId,
+          orgId,
+          host,
+          captureKey: cleanKey,
+          url: await resolveCaptureUrl(null, bucket, orgId, host, cleanKey, null),
+          fetchedAt,
+          label: "lure",
+          why: reason,
+          source: "restore",
+          sourceRef,
+          copiedAt: nowIso,
+          updatedAt: nowIso,
+          retracted: true,
+          retractedAt: nowIso,
+        };
+    await bucket.put(`${prefix}meta.json`, JSON.stringify(updated), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    await bucket.put(
+      `${prefix}done.json`,
+      JSON.stringify({
+        at: nowIso,
+        label: updated.label,
+        source: "restore",
+        sourceRef,
+        retracted: true,
+      }),
+      { httpMetadata: { contentType: "application/json" } },
+    );
+    if (await isRemoved(bucket, orgId, host, prefix)) {
+      await cleanupCaptureObjects(bucket, prefix);
+      return "removed";
     }
     return "retracted";
-  }
-  const history: TrainingHistoryEntry[] = existing
-    ? [
-        ...(existing.history ?? []),
-        {
-          label: existing.label,
-          source: existing.source,
-          sourceRef: existing.sourceRef ?? sourceRef,
-          why: existing.why,
-          at: existing.updatedAt ?? existing.copiedAt,
-        },
-      ]
-    : [];
-  const updated: StoredTrainingMeta = existing
-    ? {
-        ...existing,
-        source: "restore",
-        sourceRef,
-        why: reason,
-        updatedAt: nowIso,
-        retracted: true,
-        retractedAt: nowIso,
-        ...(history.length ? { history } : {}),
-      }
-    : {
-        trainingId,
-        orgId,
-        host,
-        captureKey,
-        url: await resolveCaptureUrl(null, bucket, orgId, host, captureKey, null),
-        fetchedAt,
-        label: "lure",
-        why: reason,
-        source: "restore",
-        sourceRef,
-        copiedAt: nowIso,
-        updatedAt: nowIso,
-        retracted: true,
-        retractedAt: nowIso,
-      };
-  await bucket.put(`${prefix}meta.json`, JSON.stringify(updated), {
-    httpMetadata: { contentType: "application/json" },
   });
-  await bucket.put(
-    `${prefix}done.json`,
-    JSON.stringify({
-      at: nowIso,
-      label: updated.label,
-      source: "restore",
-      sourceRef,
-      retracted: true,
-    }),
-    { httpMetadata: { contentType: "application/json" } },
-  );
-  return "retracted";
 }
 
 // Authorised removal procedure (D05 T04 §10): deletes stored training copies for `(orgId, host)` in
@@ -390,79 +449,85 @@ export async function removeTrainingCopiesForHost(
   reason = "removed at the business's request",
   now: () => Date = () => new Date(),
 ): Promise<{ removed: string[] }> {
-  const basePrefix = `training/monitor/${orgId}/${host}/`;
-  const allObjects: { key: string }[] = [];
-  let cursor: string | undefined;
-  while (true) {
-    const listed = await bucket.list({ prefix: basePrefix, ...(cursor ? { cursor } : {}) });
-    allObjects.push(...listed.objects);
-    if (!listed.truncated) break;
-    cursor = listed.cursor;
-    if (!cursor) break;
-  }
-  const capturePrefixes = new Set<string>();
-  const extraKeysByPrefix = new Map<string, string[]>();
-  for (const obj of allObjects) {
-    const rel = obj.key.slice(basePrefix.length);
-    const moment = rel.split("/")[0];
-    if (moment && /^\d{4}-\d{2}-\d{2}T/.test(moment)) {
-      const prefix = `${basePrefix}${moment}/`;
-      capturePrefixes.add(prefix);
-      if (!obj.key.endsWith("/removed.json")) {
-        const list = extraKeysByPrefix.get(prefix) ?? [];
-        list.push(obj.key);
-        extraKeysByPrefix.set(prefix, list);
+  return withHostLock(orgId, host, async () => {
+    const basePrefix = `training/monitor/${orgId}/${host}/`;
+    const allObjects: { key: string }[] = [];
+    let cursor: string | undefined;
+    while (true) {
+      const listed = await bucket.list({ prefix: basePrefix, ...(cursor ? { cursor } : {}) });
+      allObjects.push(...listed.objects);
+      if (!listed.truncated) break;
+      cursor = listed.cursor;
+      if (!cursor) break;
+    }
+    const capturePrefixes = new Set<string>();
+    const extraKeysByPrefix = new Map<string, string[]>();
+    for (const obj of allObjects) {
+      const rel = obj.key.slice(basePrefix.length);
+      const moment = rel.split("/")[0];
+      if (moment && /^\d{4}-\d{2}-\d{2}T/.test(moment)) {
+        const prefix = `${basePrefix}${moment}/`;
+        capturePrefixes.add(prefix);
+        if (!obj.key.endsWith("/removed.json")) {
+          const list = extraKeysByPrefix.get(prefix) ?? [];
+          list.push(obj.key);
+          extraKeysByPrefix.set(prefix, list);
+        }
       }
     }
-  }
-  const nowIso = now().toISOString();
-  const removed: string[] = [];
-  const failedCaptures: string[] = [];
-  for (const prefix of [...capturePrefixes].sort()) {
-    const trainingId = prefix.replace(/^training\//, "").replace(/\/$/, "");
-    const keysToDelete = [
-      ...new Set<string>([
-        `${prefix}done.json`,
-        `${prefix}meta.json`,
-        `${prefix}screenshot.jpg`,
-        `${prefix}text.txt`,
-        ...(extraKeysByPrefix.get(prefix) ?? []),
-      ]),
-    ];
-    let deleteFailed = false;
-    for (const key of keysToDelete) {
-      try {
-        await bucket.delete(key);
-      } catch {
-        deleteFailed = true;
+    const nowIso = now().toISOString();
+    const removed: string[] = [];
+    const failedCaptures: string[] = [];
+    for (const prefix of [...capturePrefixes].sort()) {
+      const trainingId = prefix.replace(/^training\//, "").replace(/\/$/, "");
+      const keysToDelete = [
+        ...new Set<string>([
+          `${prefix}done.json`,
+          `${prefix}meta.json`,
+          `${prefix}screenshot.jpg`,
+          `${prefix}text.txt`,
+          ...(extraKeysByPrefix.get(prefix) ?? []),
+        ]),
+      ];
+      let deleteFailed = false;
+      for (const key of keysToDelete) {
+        try {
+          await bucket.delete(key);
+        } catch {
+          deleteFailed = true;
+        }
       }
+      const verifyHeads = await Promise.all(
+        keysToDelete.map((key) =>
+          bucket
+            .head(key)
+            .then((res) => res !== null)
+            .catch(() => true),
+        ),
+      );
+      if (deleteFailed || verifyHeads.some(Boolean)) {
+        failedCaptures.push(trainingId);
+        continue;
+      }
+      await bucket.put(
+        `${prefix}removed.json`,
+        JSON.stringify({ trainingId, orgId, host, reason, removedAt: nowIso }),
+        {
+          httpMetadata: { contentType: "application/json" },
+        },
+      );
+      removed.push(trainingId);
     }
-    const verifyHeads = await Promise.all(
-      keysToDelete.map((key) =>
-        bucket
-          .head(key)
-          .then((res) => res !== null)
-          .catch(() => true),
-      ),
+    if (failedCaptures.length > 0) {
+      throw new Error(`failed to remove R2 training objects for: ${failedCaptures.join(", ")}`);
+    }
+    await bucket.put(
+      hostRemovedKey(orgId, host),
+      JSON.stringify({ orgId, host, reason, removedAt: nowIso, captures: removed }),
+      { httpMetadata: { contentType: "application/json" } },
     );
-    if (deleteFailed || verifyHeads.some(Boolean)) {
-      failedCaptures.push(trainingId);
-      continue;
-    }
-    await bucket.put(`${prefix}removed.json`, JSON.stringify({ trainingId, orgId, host, reason, removedAt: nowIso }), {
-      httpMetadata: { contentType: "application/json" },
-    });
-    removed.push(trainingId);
-  }
-  if (failedCaptures.length > 0) {
-    throw new Error(`failed to remove R2 training objects for: ${failedCaptures.join(", ")}`);
-  }
-  await bucket.put(
-    hostRemovedKey(orgId, host),
-    JSON.stringify({ orgId, host, reason, removedAt: nowIso, captures: removed }),
-    { httpMetadata: { contentType: "application/json" } },
-  );
-  return { removed };
+    return { removed };
+  });
 }
 
 // Durable pending-copy recovery (D05 T04 §10): scans settled labels in D1 (`monitor_screens` with
@@ -567,9 +632,30 @@ export async function recoverPendingTrainingCopies(
     );
 
   for (const row of findings) {
-    const targetKey = row.dismissed_capture_key ?? row.capture_key;
+    const rawDismissedKey = row.dismissed_capture_key;
+    const isExplicitRestore = row.status !== "dismissed" && Boolean(rawDismissedKey?.startsWith("restored:"));
+    const targetKey = (rawDismissedKey ?? row.capture_key).replace(/^restored:/, "");
     try {
-      if (row.status === "dismissed" && row.dismissed_reason && isBenignDismissalReason(row.dismissed_reason)) {
+      if (isExplicitRestore) {
+        const parsed = parseCaptureKey(targetKey, orgId, row.host);
+        if (parsed) {
+          const [meta, doneHead] = await Promise.all([
+            readExistingMeta(bucket, parsed.prefix),
+            bucket.head(`${parsed.prefix}done.json`),
+          ]);
+          if (!meta?.retracted || !doneHead) {
+            const out = await retractTrainingCopy(
+              bucket,
+              orgId,
+              row.host,
+              targetKey,
+              "finding restored by business",
+              now,
+            );
+            if (out === "retracted") recovered++;
+          }
+        }
+      } else if (row.dismissed_reason && isBenignDismissalReason(row.dismissed_reason)) {
         const url = await resolveCaptureUrl(db, bucket, orgId, row.host, targetKey);
         const out = await copyForTraining(
           bucket,
@@ -587,25 +673,6 @@ export async function recoverPendingTrainingCopies(
         );
         if (out === "copied" || out === "updated") recovered++;
         else if (out === "missing-source") failed++;
-      } else if (row.status !== "dismissed" && row.dismissed_capture_key) {
-        const parsed = parseCaptureKey(row.dismissed_capture_key, orgId, row.host);
-        if (parsed) {
-          const [meta, doneHead] = await Promise.all([
-            readExistingMeta(bucket, parsed.prefix),
-            bucket.head(`${parsed.prefix}done.json`),
-          ]);
-          if (!meta?.retracted || !doneHead) {
-            const out = await retractTrainingCopy(
-              bucket,
-              orgId,
-              row.host,
-              row.dismissed_capture_key,
-              "finding restored by business",
-              now,
-            );
-            if (out === "retracted") recovered++;
-          }
-        }
       }
     } catch {
       failed++;

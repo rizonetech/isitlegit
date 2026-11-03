@@ -345,10 +345,54 @@ describe("copyForTraining", () => {
     ) as StoredTrainingMeta;
     expect(stillDismissed.label).toBe("benign");
 
+    // Automatic reopening on a newer confirmed capture B leaves capture A benign (unretracted) across recovery,
+    // while copying capture B as a confirmed lure.
+    const captureKeyB = `monitor/${orgId}/${host}/2026-11-02T05:12:00.000Z/`;
+    await seedCapture(captureKeyB, `https://${host}/new-phish`, "New confirmed lure after benign dismissal");
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-prec-2', ?, 'confirmed', '["E2"]', '2026-11-02T05:12:30.000Z', '2026-11-02T05:12:30.000Z')`,
+      )
+      .bind(orgId, host, captureKeyB, `https://${host}/new-phish`)
+      .run();
+    const reopened = await findingsFromInvestigations(
+      db,
+      orgId,
+      { mail: null, appUrl: "https://app.isitlegit.co.za" },
+      () => new Date("2026-11-02T05:13:00.000Z"),
+      bucket,
+    );
+    expect(reopened.reopened).toBe(1);
+    const metaA = JSON.parse(
+      (await (await bucket.get(`training/${captureKey}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    const metaB = JSON.parse(
+      (await (await bucket.get(`training/${captureKeyB}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(metaA.label).toBe("benign");
+    expect(metaA.retracted).toBe(false);
+    expect(metaA.source).toBe("dismissal");
+    expect(metaB.label).toBe("lure");
+    expect(metaB.retracted).toBe(false);
+    expect(metaB.source).toBe("pipeline");
+
+    // Re-dismiss the finding on capture B and then explicitly restore it via restoreFinding.
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        host,
+        "Not a fake, this is our own test site",
+        () => new Date("2026-11-02T05:14:00.000Z"),
+        bucket,
+      ),
+    ).toBe(true);
+
     // Restore retracts the training copy in R2, and automated retries still cannot un-retract it.
     expect(await restoreFinding(db, orgId, host, () => new Date("2026-11-02T05:15:00.000Z"), bucket)).toBe(true);
     const afterRestore = JSON.parse(
-      (await (await bucket.get(`training/${captureKey}meta.json`))?.text()) ?? "{}",
+      (await (await bucket.get(`training/${captureKeyB}meta.json`))?.text()) ?? "{}",
     ) as StoredTrainingMeta;
     expect(afterRestore.retracted).toBe(true);
     expect(afterRestore.source).toBe("restore");
@@ -356,8 +400,8 @@ describe("copyForTraining", () => {
       await copyForTraining(bucket, {
         orgId,
         host,
-        captureKey,
-        captureUrl: `https://${host}/`,
+        captureKey: captureKeyB,
+        captureUrl: `https://${host}/new-phish`,
         label: "lure",
         why: "pipeline retry",
         source: "pipeline",
@@ -582,5 +626,57 @@ describe("copyForTraining", () => {
       }),
     ).toBe("removed");
     expect(await bucket.head(`training/${captureKey}done.json`)).toBeNull();
+
+    // Concurrent interleaving: an in-flight copy paused during source read while removal runs must not
+    // recreate removed data after removal completes.
+    const raceHost = "race-remove.example";
+    const raceKey = `monitor/${orgId}/${raceHost}/2026-11-02T07:30:00.000Z/`;
+    await seedCapture(raceKey, `https://${raceHost}/`, "Concurrent removal race");
+    let releaseGet!: () => void;
+    const getGate = new Promise<void>((resolve) => {
+      releaseGet = resolve;
+    });
+    let notifyPaused!: () => void;
+    const paused = new Promise<void>((resolve) => {
+      notifyPaused = resolve;
+    });
+    const racingBucket = new Proxy(bucket, {
+      get(target, prop, receiver) {
+        if (prop === "get") {
+          return async (key: string) => {
+            if (key === `${raceKey}screenshot.jpg`) {
+              notifyPaused();
+              await getGate;
+            }
+            return target.get(key);
+          };
+        }
+        const val = Reflect.get(target, prop, receiver);
+        return typeof val === "function" ? val.bind(target) : val;
+      },
+    });
+    const copyPromise = copyForTraining(racingBucket, {
+      orgId,
+      host: raceHost,
+      captureKey: raceKey,
+      captureUrl: `https://${raceHost}/`,
+      label: "lure",
+      why: "confirmed",
+      source: "pipeline",
+    });
+    await paused;
+    const removePromise = removeTrainingCopiesForHost(
+      bucket,
+      orgId,
+      raceHost,
+      "requested during copy",
+      () => new Date("2026-11-02T08:05:00.000Z"),
+    );
+    releaseGet();
+    const [, removeOut] = await Promise.all([copyPromise, removePromise]);
+    expect(removeOut.removed).toEqual([`monitor/${orgId}/${raceHost}/2026-11-02T07:30:00.000Z`]);
+    expect(await bucket.head(`training/${raceKey}screenshot.jpg`)).toBeNull();
+    expect(await bucket.head(`training/${raceKey}done.json`)).toBeNull();
+    expect(await bucket.head(`training/monitor/${orgId}/${raceHost}/removed.json`)).not.toBeNull();
   });
 });

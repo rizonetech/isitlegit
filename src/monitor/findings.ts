@@ -114,14 +114,16 @@ export async function findingsFromInvestigations(
       const captureAt = /^\d{4}-\d{2}-\d{2}T/.test(keyMoment) ? keyMoment : inv.created_at;
       if (
         inv.state === "confirmed" &&
-        inv.capture_key !== existing.dismissed_capture_key &&
+        inv.capture_key !== existing.dismissed_capture_key?.replace(/^restored:/, "") &&
         captureAt > (existing.dismissed_at ?? "")
       ) {
         // A reopen lands offline, never live, when current evidence already settles it there.
+        // Preserve dismissed_reason alongside dismissed_capture_key so recovery still knows the
+        // older capture was a qualifying dismissal, never an explicit business restore.
         const reopenOffline = await settledOffline(db, orgId, host, inv.resolves);
         const done = await db
           .prepare(
-            "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed' AND dismissed_at = ?",
+            "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed' AND dismissed_at = ?",
           )
           .bind(
             reopenOffline ? "offline" : "new",
@@ -295,15 +297,15 @@ export async function restoreFinding(
     .bind(orgId, host)
     .first<{ capture_key: string; dismissed_capture_key: string | null }>();
   if (!existing) return false;
+  const targetKey = (existing.dismissed_capture_key ?? existing.capture_key).replace(/^restored:/, "");
   const result = await db
     .prepare(
-      "UPDATE monitor_findings SET status = 'watching', dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
+      "UPDATE monitor_findings SET status = 'watching', dismissed_reason = NULL, dismissed_at = NULL, dismissed_capture_key = ?, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
     )
-    .bind(now().toISOString(), orgId, host)
+    .bind(`restored:${targetKey}`, now().toISOString(), orgId, host)
     .run();
   const changed = (result.meta?.changes ?? 0) > 0;
   if (changed && bucket) {
-    const targetKey = existing.dismissed_capture_key ?? existing.capture_key;
     await retractTrainingCopy(bucket, orgId, host, targetKey, "finding restored by business", now).catch(
       () => "missing",
     );
