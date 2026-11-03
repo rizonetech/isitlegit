@@ -155,6 +155,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
         reader={state.reader}
         outcome={outcome}
         lost={lost}
+        find={url.searchParams.get("find") ?? undefined}
         history={
           state.reader.role === "owner"
             ? {
@@ -458,4 +459,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
       await context.close();
     }
   });
+
+  it("finds a person and keeps the focus in the find field (D07 T04 §26)", async () => {
+    const { p, context } = await open("/team");
+    await p.locator("#team-find").fill("sipho");
+    await p.getByRole("button", { name: "Find", exact: true }).click();
+    await expect.poll(() => p.url()).toContain("find=sipho");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("team-find");
+    expect(await p.getByText("Sipho Mokoena").first().textContent()).toBeTruthy();
+    expect(await p.getByText("No one on the team matches.").count()).toBe(0);
+    await p.locator("#team-find").fill("nobody-like-this");
+    await p.getByRole("button", { name: "Find", exact: true }).click();
+    await expect.poll(() => p.getByText("No one on the team matches.").textContent()).toBeTruthy();
+    await p.getByRole("link", { name: "Clear" }).click();
+    await expect.poll(() => p.url()).not.toContain("find=");
+    await context.close();
+  });
+
 });

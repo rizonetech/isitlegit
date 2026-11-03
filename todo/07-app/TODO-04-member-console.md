@@ -1019,10 +1019,10 @@ A search over the team's names and emails that finds one person in one step, key
 1. Record the owner's decision on the find control in `design/SPEC.md` M7. Done when: the SPEC names it.
 2. Filter the members by name or email in `src/web/pages/team.tsx`. Done when: `test/web/team-page.test.ts` finds one member and reads the no-results line.
 
-- [ ] Record the find control (place, what it matches, its no-results words) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: the browser's own find.
-- [ ] Filter the members by a name or email substring, case- and accent-insensitive as the Cases search folds (`src/db/search-fold.ts`), in the query string. Done when: the page test finds one member by a name part and by an email part, reads "No one on the team matches", and never another organisation's member. Cheaper substitute: filtering in the browser only.
-- [ ] Prove the find in the browser: focus kept after submitting, refining and clearing, the management round trip keeping the find, with scripts off and on at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
-- [ ] Commit: `web: find a person on the team page`
+- [x] Record the find control (place, what it matches, its no-results words) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: the browser's own find.
+- [x] Filter the members by a name or email substring, case- and accent-insensitive as the Cases search folds (`src/db/search-fold.ts`), in the query string. Done when: the page test finds one member by a name part and by an email part, reads "No one on the team matches", and never another organisation's member. Cheaper substitute: filtering in the browser only.
+- [x] Prove the find in the browser: focus kept after submitting, refining and clearing, the management round trip keeping the find, with scripts off and on at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
+- [x] Commit: `web: find a person on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a search shows another organisation's member.
 
