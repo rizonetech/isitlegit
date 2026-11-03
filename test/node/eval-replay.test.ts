@@ -106,6 +106,19 @@ describe("eval replay", () => {
         JSON.stringify(labels.map((l) => (l.label === "attack" ? { ...l, category: "invoice-bank-change" } : l))),
       );
       expect(replayPopulation(stored, select)).toMatchObject({ error: expect.stringMatching(/not those of run/) });
+      // A run interrupted before its first result still replays: its saved selection is the population.
+      const current = select(["synthetic-sa"], null);
+      const interrupted = { run: run({ setVersion: current.setVersion, selected: 2, status: "running" }), results: [] };
+      const revived = replayPopulation(interrupted, select);
+      expect("error" in revived).toBe(false);
+      if (!("error" in revived)) expect(revived.samples).toHaveLength(2);
+      // Only a full run replays: an ablation arm or an earlier replay refuses by name.
+      expect(replayPopulation({ run: run({ mode: "ablate:no-sam" }), results: stored.results }, select)).toMatchObject({
+        error: expect.stringMatching(/not full/),
+      });
+      expect(
+        replayPopulation({ run: run({ mode: "replay:source-run-1" }), results: stored.results }, select),
+      ).toMatchObject({ error: expect.stringMatching(/not full/) });
       // A stored result the disk no longer holds refuses as a different population.
       const second = select(["synthetic-sa"], null);
       const foreign = {
@@ -134,7 +147,7 @@ describe("eval replay", () => {
       };
       const storedResults = selection.samples.map((s) => row(s.id, "done", { verdict: "safe" }));
       const runs = new Map<string, RunRow>([[source.id, source]]);
-      const results = new Map<string, ResultRow[]>();
+      const results = new Map<string, ResultRow[]>([[source.id, storedResults]]);
       const sentReplayIds: (string | null)[] = [];
       let seq = 0;
       const db: Db = {
@@ -154,8 +167,14 @@ describe("eval replay", () => {
         }),
         insertRun: async (r) => void runs.set(r.id, r),
         putResult: async (r) => void results.set(r.runId, [...(results.get(r.runId) ?? []), r]),
-        finishRun: async () => {},
-        readRun: async (id) => (id === source.id ? { run: source, results: storedResults } : null),
+        finishRun: async (id, status, costUsd, finishedAt) => {
+          const r = runs.get(id);
+          if (r) runs.set(id, { ...r, status, costUsd, finishedAt });
+        },
+        readRun: async (id) => {
+          const r = runs.get(id);
+          return r ? { run: r, results: results.get(id) ?? [] } : null;
+        },
       };
       const api: Api = {
         commit: async () => "newcommit",
@@ -197,6 +216,48 @@ describe("eval replay", () => {
       );
       expect(refused).toBe(3);
       expect(sentReplayIds).toHaveLength(0);
+      // A drifted source (its set version no longer matches the files) refuses the same way.
+      const drifted: RunRow = { ...source, id: "drifted-run", setVersion: "0".repeat(64) };
+      runs.set(drifted.id, drifted);
+      results.set(drifted.id, storedResults);
+      const drift = await main(
+        ["--replay", drifted.id, "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db, api, env },
+      );
+      expect(drift).toBe(3);
+      expect(sentReplayIds).toHaveLength(0);
+      // The persisted replay reads back through the same store the command wrote.
+      const readBack = await db.readRun(replayRun?.id ?? "");
+      expect(readBack?.run.status).toBe("complete");
+      expect(readBack?.results).toHaveLength(2);
+      // An interrupted replay resumes under its own identity through the same entry.
+      let failOnce = true;
+      const flaky: Api = {
+        ...api,
+        upload: async (_sample, _bytes, opts) => {
+          if (failOnce) {
+            failOnce = false;
+            return { status: 401 };
+          }
+          return api.upload(_sample, _bytes, opts);
+        },
+      };
+      const interruptedExit = await main(
+        ["--replay", source.id, "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db, api: flaky, env },
+      );
+      expect(interruptedExit).toBe(1);
+      const interruptedRun = [...runs.values()].filter((r) => r.mode === `replay:${source.id}`).at(-1);
+      expect(interruptedRun?.status).not.toBe("complete");
+      const resumedExit = await main(
+        ["--resume", interruptedRun?.id ?? "", "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db, api, env },
+      );
+      expect(resumedExit).toBe(0);
+      expect((await db.readRun(interruptedRun?.id ?? ""))?.run.status).toBe("complete");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

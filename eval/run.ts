@@ -902,7 +902,12 @@ export function replayPopulation(
   stored: { run: RunRow; results: ResultRow[] },
   select: (sets: readonly string[], limit: number | null) => { samples: RunSample[]; setVersion: string },
 ): { samples: RunSample[]; setVersion: string } | { error: string } {
-  if (stored.results.length === 0) return { error: `run ${stored.run.id} stored no results to replay` };
+  // Only a full run replays (D08 T02 section 12): an ablation arm measures a different pipeline, and a
+  // replay of a replay would attribute the new measurement to the wrong source.
+  if (stored.run.mode !== "full")
+    return {
+      error: `run ${stored.run.id} was measured as ${stored.run.mode}, not full; only a full run replays as a full measurement`,
+    };
   const restored = select(stored.run.sets, stored.run.sampleLimit);
   if (restored.setVersion !== stored.run.setVersion)
     return {
