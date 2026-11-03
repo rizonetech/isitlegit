@@ -9,7 +9,7 @@ import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 import { Checkbox } from "../components/Checkbox";
 import { Document } from "../components/Document";
-import { Field } from "../components/Field";
+import { Field, INLINE_INPUT } from "../components/Field";
 import { Pill } from "../components/Pill";
 import { EmptyState, ErrorState, referenceLine } from "../components/States";
 
@@ -858,10 +858,7 @@ export function SuppliersPage(props: SuppliersView) {
                     value={view.query}
                     placeholder="Search name, domain or last 3 digits"
                     maxlength={120}
-                    class={cx(
-                      "h-control px-16 border border-control-border rounded-control font-text text-16 text-ink bg-surface w-full min-w-0 placeholder:text-muted focus:border-orange",
-                      FOCUS,
-                    )}
+                    class={cx(INLINE_INPUT, "w-full min-w-0 placeholder:text-muted")}
                   />
                   <Button type="submit" variant="ghost" size="small">
                     Search

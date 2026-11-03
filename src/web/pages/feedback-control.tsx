@@ -1,7 +1,7 @@
 // The dispute control (D07 T03 §6, §21, §22; design/SPEC.md M3, board `Report-Dispute`): one press on a button
 // naming the opposite verdict sends the dispute; the note is offered after, and Change reopens the choice form.
 // Kept apart from its route (./feedback) so the report can be drawn with no storage.
-import { cx, FOCUS } from "../components/attrs";
+import { cx, FIELD_FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 
 export type FeedbackKind = "false_alarm" | "missed";
@@ -77,7 +77,7 @@ export function FeedbackControl(props: FeedbackState) {
               rows={3}
               maxlength={MAX_NOTE}
               aria-describedby="feedback-note-hint"
-              class={cx("p-12 bg-surface border border-line-strong rounded-control text-14", FOCUS)}
+              class={cx("p-12 bg-surface border border-control-border rounded-control text-14", FIELD_FOCUS)}
             >
               {saved.note ?? ""}
             </textarea>
@@ -179,11 +179,7 @@ export function FeedbackControl(props: FeedbackState) {
               name="note"
               rows={3}
               maxlength={MAX_NOTE}
-              class={cx(
-                "p-12 bg-surface border rounded-control text-14",
-                errors.note ? "border-mal" : "border-line-strong",
-                FOCUS,
-              )}
+              class={cx("p-12 bg-surface border border-control-border rounded-control text-14", FIELD_FOCUS)}
               {...(errors.note ? { "aria-invalid": "true", "aria-describedby": "feedback-note-error" } : {})}
               {...(focus === "note" ? { "data-focus": "" } : {})}
             >

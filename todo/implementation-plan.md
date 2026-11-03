@@ -307,8 +307,8 @@ Sections: 108 | Checklist items: 680
 | [x]    | D04 T01 §5  | Citation validator with fallback             | none                  | 5     |
 | [x]    | D04 T01 §9  | Impersonation family in rule verdict         | none                  | 3     |
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
-| [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
-| [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
+| [x]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
+| [x]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks           | cloudflare            | 9     |
@@ -346,7 +346,7 @@ Sections: 108 | Checklist items: 680
 | [x]    | D07 T06 §18 | Public repository and advisory read-back     | none                  | 2     |
 | [x]    | D07 T06 §21 | Drop the 3 November repository note          | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                    | cloudflare            | 8     |
-| [ ]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
+| [x]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
 | [x]    | D07 T08 §1  | App and site error pages                     | none                  | 5     |
 | [x]    | D07 T08 §2  | First-run onboarding checklist               | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys                | none                  | 7     |
@@ -633,11 +633,11 @@ Sections: 221 | Checklist items: 987
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 8 | Checklist items: 38
+Sections: 8 | Checklist items: 39
 
 | Status | Reference   | Deliverable                                          | Needs                | Items |
 | ------ | ----------- | ---------------------------------------------------- | -------------------- | ----- |
-| [ ]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 5     |
+| [x]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 6     |
 | [ ]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 9     |
 | [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis    | meta-api             | 4     |
 | [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing           | cloudflare, meta-api | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 402/597 verified sections, 122 ready to run now.
+Progress: 406/597 verified sections, 120 ready to run now.
 
-Checklist: 2991/3686 items completed (includes Commit items).
+Checklist: 3006/3687 items completed (includes Commit items).

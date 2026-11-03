@@ -149,12 +149,17 @@ describe("scripts/seed-demo.ts", () => {
     expect(withBootstrap.text).toMatch(/reads only/);
   }, 300_000);
 
-  it("the judge fixtures are five synthetic files named by their manifest", () => {
+  it("the judge fixtures are five synthetic files named by their manifest", async () => {
+    const judgesPath = "../../src/demo/judges.ts";
+    const { judgeFixtureBytes } = (await import(judgesPath)) as {
+      judgeFixtureBytes: (file: string, fixturesPrefix?: string) => Uint8Array;
+    };
     const manifest = JSON.parse(readFileSync(join(ROOT, "data/demo/judge/fixtures.json"), "utf8"));
     expect(manifest.cases).toHaveLength(5);
     for (const spec of manifest.cases) {
       const path = join(ROOT, "data/demo/judge", spec.file);
       expect(existsSync(path), path).toBe(true);
+      expect(Buffer.from(judgeFixtureBytes(spec.file)).equals(readFileSync(path))).toBe(true);
       if (spec.kind === "mail") {
         const mail = readFileSync(path, "utf8");
         expect(mail).toContain("X-IsItLegit-Synthetic: true");

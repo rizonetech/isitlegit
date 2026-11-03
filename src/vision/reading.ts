@@ -203,12 +203,30 @@ export function readingItems(reading: MailReading, images: readonly ReadingImage
 
 // The picture was not whole (the render lost content, a PDF is partial, images past the cap were left
 // out): stated on the case in the terms the verdict reads, `checked: false`, with the losses named.
-export function coverageItem(losses: readonly string[]): EvidenceDraft {
+export function coverageItem(losses: readonly string[], ablated?: "no-sam"): EvidenceDraft {
   return {
     check: "vision.coverage",
     severity: "info",
     summary: plainSummary(`Part of the message could not be pictured: ${losses.join("; ")}.`),
-    detail: { checked: false, complete: false, losses: [...losses] },
+    detail: {
+      checked: false,
+      complete: false,
+      losses: [...losses],
+      ...(ablated ? { ablated } : {}),
+    },
+    artefacts: [],
+  };
+}
+
+// Image segmentation was skipped for the `no-sam` eval ablation arm while the picture itself was whole
+// (D03 T03 §6): stated on `vision.coverage` without `checked: false`, so the reading and rule verdict
+// are not treated as failed coverage.
+export function ablatedSamCoverageItem(): EvidenceDraft {
+  return {
+    check: "vision.coverage",
+    severity: "info",
+    summary: "Image segmentation (SAM 3.1) was not run for this check: it is ablated for measurement.",
+    detail: { ablated: "no-sam", complete: true, losses: [] },
     artefacts: [],
   };
 }

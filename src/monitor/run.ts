@@ -75,7 +75,7 @@ export type MonitorDeps = ScreenDeps & {
   capture: (host: string) => Promise<Capture>;
   // The run's one Loupe session (D03 T04 §1), opened for this many pages before the first capture so its warm-up
   // overlaps them, and closed after the screening; a failed close is handed to the Workflow's settle step.
-  open: (calls: number) => Promise<GlimmerSession>;
+  open: (calls: number, orgId?: string) => Promise<GlimmerSession>;
   close: (session: GlimmerSession) => Promise<Settled>;
   // The settle step's own settlement of a burst the run could not settle, to the cutoff the run named.
   settle: (burst: Burst, until: number) => Promise<Settled>;
@@ -404,7 +404,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const owed = (await owedDomains(deps.db, orgId)).filter((d) => !inactiveSeeds.has(d));
     const workload = new Set([...hosts, ...owed]);
     calls = Math.min(workload.size, SCREEN_CALLS_PER_RUN);
-    if (workload.size) session = await deps.open(calls);
+    if (workload.size) session = await deps.open(calls, orgId);
     // The pages already captured and owed a screening go first, while the session is warm and before the slow captures:
     // their results do not wait for the batch (completion review G3), but at most `SCREEN_BACKLOG_SHARE` of the day's 50,
     // the rest held for the pages this run captures (D05 T04 §8, correction 7). A host about to be captured again is

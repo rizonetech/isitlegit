@@ -10,6 +10,7 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { z } from "zod";
+import { JUDGE_CODE_LABEL, markJudgeOrg } from "../demo/judges";
 import { NAME_LIMIT } from "./names";
 import { validOrganisationName } from "./schema";
 import { CODE_COOKIE, HANDLE_COOKIE, newHandle, readHandle } from "./signin-code";
@@ -36,8 +37,9 @@ type Redemption = { id: string; status: string; user_id: string | null; org_id: 
 // (the sign-in limit), which the magic-link endpoint does not tell apart from a send.
 // The first link's sender, given the signup browser's code handle (D07 T02 §11).
 export type SendFirstLink = (email: string, handle: string) => Promise<boolean>;
+export type OnJudgeSignup = (orgId: string, userId: string) => Promise<void>;
 
-export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirstLink) {
+export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirstLink, onJudgeSignup?: OnJudgeSignup) {
   return {
     id: "invite-signup",
     endpoints: {
@@ -168,6 +170,14 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
             .catch(async (error) => {
               if (!(await adapter.findOne({ model: "member", where: ownership }))) throw error;
             });
+        const codeRow = await db
+          .prepare("SELECT c.label FROM invite_redemptions r JOIN invite_codes c ON c.id = r.code_id WHERE r.id = ?")
+          .bind(redemption.id)
+          .first<{ label: string }>();
+        if (codeRow?.label === JUDGE_CODE_LABEL) {
+          await markJudgeOrg(db, organization.id);
+          await onJudgeSignup?.(organization.id, user.id);
+        }
         await db
           .prepare(
             "UPDATE invite_redemptions SET status = 'complete', user_id = ?, org_id = ?, consented_at = ? WHERE id = ?",

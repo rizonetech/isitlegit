@@ -3,7 +3,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import manifest from "../../data/demo/judge/fixtures.json";
-import { checkJudges, JUDGE_CODE_LABEL, type JudgeCaseSpec, markJudgeOrg } from "../../src/demo/judges";
+import { checkJudges, JUDGE_CODE_LABEL, type JudgeCaseSpec, markJudgeOrg, seedJudgePack } from "../../src/demo/judges";
+import { call, stubSmtp2go } from "../auth/helpers";
 
 const db = env.DB;
 const ORG = "judge-org";
@@ -84,5 +85,142 @@ describe("checkJudges", () => {
     expect(problems["fynbos-impersonation"]).toContain("safe");
     expect(problems["genuine-supplier"]).toContain("missing");
     expect(problems["director-voice-note"]).toContain("missing");
+  });
+});
+
+describe("judge signup hook and pack", () => {
+  async function insertInviteCode(code: string, label: string) {
+    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code)))]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 86_400_000).toISOString();
+    await db
+      .prepare(
+        "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, 50, 0, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), hash, label, expiresAt, now.toISOString())
+      .run();
+  }
+
+  it("redeems a judge-labelled code and marks the fresh organisation with its five cases started, while an ordinary code leaves its organisation unmarked with none", async () => {
+    const judgeCode = `JUDGE-${crypto.randomUUID().slice(0, 8)}`;
+    const ordinaryCode = `ORDINARY-${crypto.randomUUID().slice(0, 8)}`;
+    await insertInviteCode(judgeCode, JUDGE_CODE_LABEL);
+    await insertInviteCode(ordinaryCode, "ordinary-pilot");
+
+    const judgeEmail = `judge-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const ordinaryEmail = `member-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const smtp = stubSmtp2go();
+    try {
+      const judgeRes = await call("/api/auth/sign-up/invite-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: judgeEmail,
+          code: judgeCode,
+          organizationName: "Judge Panel Org",
+          consent: true,
+        }),
+      });
+      expect(judgeRes.status).toBe(201);
+
+      const ordinaryRes = await call("/api/auth/sign-up/invite-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: ordinaryEmail,
+          code: ordinaryCode,
+          organizationName: "Ordinary Pilot Org",
+          consent: true,
+        }),
+      });
+      expect(ordinaryRes.status).toBe(201);
+    } finally {
+      smtp.restore();
+    }
+
+    const judgeOrg = await db
+      .prepare(
+        'SELECT o.id, o.metadata FROM "organization" o JOIN "member" m ON m."organizationId" = o.id JOIN "user" u ON u.id = m."userId" WHERE u.email = ?',
+      )
+      .bind(judgeEmail)
+      .first<{ id: string; metadata: string | null }>();
+    expect(judgeOrg).toBeTruthy();
+    expect(JSON.parse(judgeOrg?.metadata ?? "{}")).toEqual({ judgeDemo: true });
+
+    const judgeChecks = await checkJudges(db, judgeOrg?.id ?? "", specs);
+    expect(judgeChecks).toHaveLength(5);
+    for (const c of judgeChecks) {
+      expect(c.caseId, c.name).toBeTruthy();
+      expect(c.status, c.name).not.toBeNull();
+    }
+
+    const ordinaryOrg = await db
+      .prepare(
+        'SELECT o.id, o.metadata FROM "organization" o JOIN "member" m ON m."organizationId" = o.id JOIN "user" u ON u.id = m."userId" WHERE u.email = ?',
+      )
+      .bind(ordinaryEmail)
+      .first<{ id: string; metadata: string | null }>();
+    expect(ordinaryOrg).toBeTruthy();
+    expect(ordinaryOrg?.metadata ?? null).toBeNull();
+    const ordinaryCases = await db
+      .prepare("SELECT id FROM cases WHERE org_id = ?")
+      .bind(ordinaryOrg?.id ?? "")
+      .all();
+    expect(ordinaryCases.results).toHaveLength(0);
+  });
+
+  it("resumes and admits a new voice case on retry when the first attempt failed storage and left a partial RawMissing row", async () => {
+    const orgId = `judge-retry-${crypto.randomUUID().slice(0, 8)}`;
+    const userId = `user-${crypto.randomUUID().slice(0, 8)}`;
+    const at = new Date().toISOString();
+    await db
+      .prepare('INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)')
+      .bind(orgId, "Retry Judge Org", orgId, at)
+      .run();
+
+    const realBucket = env.ARTEFACTS;
+    let failVoice = true;
+    const flakyBucket = new Proxy(realBucket, {
+      get(target, prop, receiver) {
+        if (prop === "put") {
+          return async (key: string, ...rest: unknown[]) => {
+            if (failVoice && key.includes("director-voice-note.ogg")) {
+              throw new Error("simulated R2 outage on voice attachment");
+            }
+            return (target.put as (...a: unknown[]) => unknown).call(target, key, ...rest);
+          };
+        }
+        const val = Reflect.get(target, prop, receiver);
+        return typeof val === "function" ? val.bind(target) : val;
+      },
+    });
+    const fakeAnalysis = { create: async () => ({ id: "ok" }) } as unknown as Env["ANALYSIS"];
+
+    await expect(
+      seedJudgePack({ DB: db, ARTEFACTS: flakyBucket, ANALYSIS: fakeAnalysis }, orgId, userId),
+    ).rejects.toThrow(/the delivery could not be stored/);
+
+    const partialRow = await db
+      .prepare("SELECT id, status FROM cases WHERE org_id = ? AND upload_name = ?")
+      .bind(orgId, "director-voice-note.ogg")
+      .first<{ id: string; status: string }>();
+    expect(partialRow?.status).toBe("partial");
+
+    failVoice = false;
+    const ids = await seedJudgePack({ DB: db, ARTEFACTS: flakyBucket, ANALYSIS: fakeAnalysis }, orgId, userId);
+    expect(ids).toHaveLength(5);
+    expect(ids[4]).not.toBe(partialRow?.id);
+
+    const voiceRows = await db
+      .prepare("SELECT id, status FROM cases WHERE org_id = ? AND upload_name = ? ORDER BY created_at ASC")
+      .bind(orgId, "director-voice-note.ogg")
+      .all<{ id: string; status: string }>();
+    expect(voiceRows.results.map((r) => r.status)).toEqual(["partial", "received"]);
+
+    const checks = await checkJudges(db, orgId, specs);
+    expect(checks.find((c) => c.name === "director-voice-note")?.caseId).toBe(ids[4]);
+    expect(checks.find((c) => c.name === "director-voice-note")?.status).toBe("received");
   });
 });

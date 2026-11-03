@@ -40,6 +40,7 @@ export { ESCALATION_BAND, inEscalationBand } from "./page-screen.ts";
 
 // Why Loupe did not answer a page.
 export type GlimmerReason =
+  | "ablated"
   | "not_configured"
   | "refused"
   | "burst_closed"
@@ -89,8 +90,16 @@ export type Screened =
       tier: Tier;
       escalation: Escalation;
       spark_calls: SparkCall[];
+      // Set when Loupe was skipped for the `no-screening` ablation arm (D03 T02 §6).
+      ablated?: "no-screening";
     }
-  | { ok: false; glimmer_reason: GlimmerReason; spark_reason: SparkReason; spark_calls: SparkCall[] };
+  | {
+      ok: false;
+      glimmer_reason: GlimmerReason;
+      spark_reason: SparkReason;
+      spark_calls: SparkCall[];
+      ablated?: "no-screening";
+    };
 
 export type Page = { image?: Uint8Array; text: string; host: string | null; mode: ScreenMode; nonce?: string };
 
@@ -104,6 +113,15 @@ const unsettledOf = (outcome: object) => {
 
 // Wakes Loupe for a run (§15). The session says, for every page after, whether Loupe may be asked.
 export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
+  const flag = await ctx.ablateFlag?.().catch(() => null);
+  if (flag === "no-screening")
+    return {
+      ctx,
+      burst: null,
+      state: { down: "ablated" },
+      reservedUntil: 0,
+      lastRequestEnd: null,
+    };
   const woken = await wakeGlimmer(ctx);
   if (woken.outcome !== "woken")
     return {
@@ -206,6 +224,12 @@ export async function screenPage(
   });
   const host = page.host ?? "none";
   let reason: GlimmerReason | null = null;
+  if (
+    !(typeof session.state === "object" && session.state.down === "ablated") &&
+    (await session.ctx?.ablateFlag?.().catch(() => null)) === "no-screening"
+  ) {
+    session.state = { down: "ablated" };
+  }
   if (session.state === "unknown" && session.burst) {
     const warm = await untilWarm(session.ctx, session.burst);
     session.state = warm.outcome === "ready" ? "ready" : { down: warm.outcome };
@@ -236,6 +260,7 @@ export async function screenPage(
     } else reason = asked.reason;
   } else if (session.state !== "unknown") reason = session.state.down;
   else reason = "not_configured";
+  const ablatedMark = reason === "ablated" ? ({ ablated: "no-screening" as const } as const) : {};
   // Spark, once, then once more only when its own answer is unsure: at most two Spark calls settle a page.
   const calls: SparkCall[] = [];
   const askSpark = async () => {
@@ -264,7 +289,13 @@ export async function screenPage(
   try {
     first = await askSpark();
   } catch (error) {
-    return { ok: false, glimmer_reason: reason, spark_reason: sparkReason(error), spark_calls: calls };
+    return {
+      ok: false,
+      glimmer_reason: reason,
+      spark_reason: sparkReason(error),
+      spark_calls: calls,
+      ...ablatedMark,
+    };
   }
   if (!inEscalationBand(first.confidence))
     return {
@@ -275,13 +306,20 @@ export async function screenPage(
       tier: "spark",
       escalation,
       spark_calls: calls,
+      ...ablatedMark,
     };
   // The second pass settles the page even when it is unsure again: it is the last tier, never a loop.
   let second: PageAnswer;
   try {
     second = await askSpark();
   } catch (error) {
-    return { ok: false, glimmer_reason: reason, spark_reason: sparkReason(error), spark_calls: calls };
+    return {
+      ok: false,
+      glimmer_reason: reason,
+      spark_reason: sparkReason(error),
+      spark_calls: calls,
+      ...ablatedMark,
+    };
   }
   return {
     ok: true,
@@ -291,5 +329,6 @@ export async function screenPage(
     tier: "spark-second",
     escalation: escalation ?? "spark-unsure",
     spark_calls: calls,
+    ...ablatedMark,
   };
 }

@@ -845,12 +845,12 @@ describe("the date range (D07 T04 §8)", () => {
     expect(html).toContain('id="case-from"');
     expect(html).toContain('name="from" value="2026-10-03"');
     expect(html).toContain('name="to" value="2026-10-09"');
-    expect(html).toMatch(/id="case-period"[^>]*disabled/);
+    expect(html).toMatch(/id="case-period"[^>]*\sdisabled(?:=|[\s>])/);
     expect(html).toContain("Clear dates");
     expect(html).toContain("/cases?verdict=safe");
     expect(listed(html)).toHaveLength(1);
     const cleared = await page("/cases?verdict=safe", cookie);
-    expect(cleared).not.toMatch(/id="case-period"[^>]*disabled/);
+    expect(cleared).not.toMatch(/id="case-period"[^>]*\sdisabled(?:=|[\s>])/);
   });
 
   it("names the range in the filtered-empty heading and offers to swap a reversed pair", async () => {
