@@ -76,9 +76,10 @@
     {
       "slug": "adobe",
       "brand": "Adobe",
-      "url": "https://www.adobe.com/",
+      "url": "https://blog.adobe.com/",
       "kind": "header",
-      "selector": "a.gnav-logo"
+      "selector": "a[href*='adobe.com'] svg",
+      "zoom": 4
     },
     {
       "slug": "sars",
@@ -112,9 +113,10 @@
     {
       "slug": "fedex",
       "brand": "FedEx",
-      "url": "https://www.fedex.com/en-za/home.html",
+      "url": "https://developer.fedex.com/",
       "kind": "header",
-      "selector": "img.fxg-header__logo"
+      "selector": "img[alt*='FedEx']",
+      "zoom": 3
     },
     {
       "slug": "aramex",

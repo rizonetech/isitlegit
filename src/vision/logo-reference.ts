@@ -42,6 +42,8 @@ const logoEntry = z.strictObject({
   height: z.int().positive(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
   fictional: z.boolean(),
+  // Absent on generations published before variants (D03 T03 §5): read as the wordmark.
+  variant: z.enum(["wordmark", "icon"]).optional(),
 });
 const logoIndex = z.strictObject({
   version: z.literal(1),
@@ -53,6 +55,7 @@ const logoIndex = z.strictObject({
 
 export type ReferenceLogo = {
   brand: string;
+  variant: "wordmark" | "icon";
   slug: string;
   key: string;
   mediaType: "image/png" | "image/jpeg" | "image/webp";
@@ -73,10 +76,35 @@ const slugOf = (name: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "");
 
-// One brand's reference logo from the store, by the brand's name as the reading states it (the
-// index's brand name or its slug). The image's bytes are checked against the indexed hash before
-// they are returned, so a replaced or corrupt object is a typed failure, not a wrong reference.
-export async function referenceLogo(bucket: R2Bucket, brand: string): Promise<ReferenceLogo> {
+// One stored entry's image, checked against its indexed hash before it is returned, so a
+// replaced or corrupt object is a typed failure, not a wrong reference.
+async function loadEntry(bucket: R2Bucket, entry: z.infer<typeof logoEntry>): Promise<ReferenceLogo> {
+  const image = await bucket.get(entry.key);
+  if (!image) throw new LogoReferenceError("missing-image", `the reference logo at ${entry.key} is not stored`);
+  if (image.size > MAX_LOGO_IMAGE_BYTES)
+    throw new LogoReferenceError("too-large", `the reference logo at ${entry.key} is oversized`);
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  if (bytes.byteLength > MAX_LOGO_IMAGE_BYTES)
+    throw new LogoReferenceError("too-large", `the reference logo at ${entry.key} is oversized`);
+  const sha256 = await sha256Hex(bytes);
+  if (sha256 !== entry.sha256)
+    throw new LogoReferenceError("hash-mismatch", `the reference logo at ${entry.key} does not match its indexed hash`);
+  return {
+    brand: entry.brand,
+    variant: entry.variant ?? "wordmark",
+    slug: entry.slug,
+    key: entry.key,
+    mediaType: entry.media_type,
+    bytes,
+    sha256,
+    fictional: entry.fictional,
+  };
+}
+
+// Every reference stored for one brand (its wordmark, and its icon when the store holds one,
+// D03 T03 §5), by the brand's name as the reading states it (the index's brand name or its
+// slug), wordmark first.
+export async function referenceLogos(bucket: R2Bucket, brand: string): Promise<ReferenceLogo[]> {
   const indexObject = await bucket.get(LOGO_INDEX_KEY);
   if (!indexObject) throw new LogoReferenceError("missing-index", "the reference logo index is not stored");
   if (indexObject.size > MAX_LOGO_INDEX_BYTES)
@@ -90,25 +118,17 @@ export async function referenceLogo(bucket: R2Bucket, brand: string): Promise<Re
   const parsed = logoIndex.safeParse(raw);
   if (!parsed.success) throw new LogoReferenceError("invalid-index", "the reference logo index fails its schema");
   const wanted = normaliseBrand(brand);
-  const entry = parsed.data.logos.find((logo) => normaliseBrand(logo.brand) === wanted || logo.slug === slugOf(brand));
-  if (!entry) throw new LogoReferenceError("missing-brand", `no reference logo is stored for ${brand}`);
-  const image = await bucket.get(entry.key);
-  if (!image) throw new LogoReferenceError("missing-image", `the reference logo at ${entry.key} is not stored`);
-  if (image.size > MAX_LOGO_IMAGE_BYTES)
-    throw new LogoReferenceError("too-large", `the reference logo at ${entry.key} is oversized`);
-  const bytes = new Uint8Array(await image.arrayBuffer());
-  if (bytes.byteLength > MAX_LOGO_IMAGE_BYTES)
-    throw new LogoReferenceError("too-large", `the reference logo at ${entry.key} is oversized`);
-  const sha256 = await sha256Hex(bytes);
-  if (sha256 !== entry.sha256)
-    throw new LogoReferenceError("hash-mismatch", `the reference logo at ${entry.key} does not match its indexed hash`);
-  return {
-    brand: entry.brand,
-    slug: entry.slug,
-    key: entry.key,
-    mediaType: entry.media_type,
-    bytes,
-    sha256,
-    fictional: entry.fictional,
-  };
+  const entries = parsed.data.logos.filter(
+    (logo) => normaliseBrand(logo.brand) === wanted || logo.slug === slugOf(brand),
+  );
+  if (!entries.length) throw new LogoReferenceError("missing-brand", `no reference logo is stored for ${brand}`);
+  const ordered = [...entries].sort((a, b) => (a.variant === "icon" ? 1 : 0) - (b.variant === "icon" ? 1 : 0));
+  return Promise.all(ordered.map((entry) => loadEntry(bucket, entry)));
+}
+
+// One brand's first (wordmark) reference, for callers that compare against a single logo.
+export async function referenceLogo(bucket: R2Bucket, brand: string): Promise<ReferenceLogo> {
+  const [first] = await referenceLogos(bucket, brand);
+  if (!first) throw new LogoReferenceError("missing-brand", `no reference logo is stored for ${brand}`);
+  return first;
 }

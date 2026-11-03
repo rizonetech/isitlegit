@@ -91,7 +91,7 @@ const counts: ProductionCounts = {
 };
 const ablations: AblationRow[] = [
   {
-    mode: "no-sam",
+    mode: "ablate:no-sam",
     runId: "run-00000002",
     comparable: true,
     detection: rate(100, 90),
@@ -103,7 +103,12 @@ const ablations: AblationRow[] = [
     msDelta: -100,
     usdDelta: -0.001,
   },
-  { mode: "no-spark", runId: "run-00000003", comparable: false, reason: "another deployed commit than the full run" },
+  {
+    mode: "ablate:no-agent-reasoning",
+    runId: "run-00000003",
+    comparable: false,
+    reason: "another deployed commit than the full run",
+  },
 ];
 const history: HistoryRow[] = [
   { report, publishedAt: "2026-11-05T11:00:00.000Z", comparable: true, reason: null },

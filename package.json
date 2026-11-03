@@ -23,7 +23,8 @@
     "build": "wrangler deploy --dry-run --outdir build/dry",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
-    "db:auth-schema": "node scripts/auth-schema.ts"
+    "db:auth-schema": "node scripts/auth-schema.ts",
+    "eval:ablate": "node eval/ablate-run.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.13",
