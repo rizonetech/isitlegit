@@ -162,7 +162,7 @@ casesRoutes.get(
         return bad("Give both dates as real calendar dates, From and To, and try again.");
       const span = Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
       if (span < 0) return bad("The To date is before the From date. Swap them and try again.");
-      if (span > 731) return bad("That period is longer than two years. Choose a shorter one and try again.");
+      if (span > 730) return bad("That period is longer than two years. Choose a shorter one and try again.");
       try {
         const weeks = await periodWeeks(c.env.DB, membership.org.id, from, to);
         return new Response(countsCsv(weeks), {

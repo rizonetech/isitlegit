@@ -501,13 +501,33 @@ describe("GET /cases/stats.csv with a chosen period (D07 T04 §19)", () => {
       "from=2026-10-01",
       "from=2026-02-30&to=2026-10-01",
       "from=soon&to=2026-10-01",
+      "from=&to=2026-10-01",
+      "to=2026-10-01&from=",
     ]) {
       const res = await get(`/cases/stats.csv?org=${a}&${q}`, cookie);
       expect(res.status, q).toBe(400);
+      expect(res.headers.get("content-type"), q).toContain("text/html");
       expect(res.headers.get("content-disposition"), q).toBeNull();
       const html = await res.text();
       expect(html, q).toContain("That period does not work");
       expect(html, q).toContain('href="/cases"');
     }
+  });
+});
+
+describe("GET /cases/stats.csv period boundaries (D07 T04 §19)", () => {
+  it("accepts a 731-day inclusive span and refuses 732, and reads an old same-day range", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const ok = await get(`/cases/stats.csv?org=${a}&from=2024-01-01&to=2025-12-31`, cookie);
+    expect(ok.status).toBe(200);
+    const weeks = (await ok.text()).trimEnd().split("\r\n");
+    expect(weeks.length).toBeGreaterThan(13);
+    const over = await get(`/cases/stats.csv?org=${a}&from=2024-01-01&to=2026-01-01`, cookie);
+    expect(over.status).toBe(400);
+    const sameDay = await get(`/cases/stats.csv?org=${a}&from=2026-10-15&to=2026-10-15`, cookie);
+    expect(sameDay.status).toBe(200);
+    const lines = (await sameDay.text()).trimEnd().split("\r\n");
+    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual(["2026-10-12"]);
   });
 });
