@@ -92,12 +92,15 @@ async function answer(req: IncomingMessage): Promise<Response> {
       new Response(null, { status: 303, headers: { location: `/team?r=${r}&n=${encodeURIComponent(n)}` } });
     const email = (form.get("email") ?? "").trim();
     if (form.get("action") === "invite" && (email.includes("\n") || email.includes(",") || form.get("batch"))) {
-      const addresses = email.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+      const addresses = email
+        .split(/[,\n]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
       const retrying = form.get("batch") === "1";
       const results = addresses.map((address, i) => ({
         email: address,
         word: !retrying && i === 1 ? "Not sent" : "Sent",
-        ...( !retrying && i === 1 ? { detail: "The invitation stands below; its email did not go." } : {}),
+        ...(!retrying && i === 1 ? { detail: "The invitation stands below; its email did not go." } : {}),
       }));
       return page(null, undefined, 200, {
         role: form.get("role") as InviteBatch["role"],

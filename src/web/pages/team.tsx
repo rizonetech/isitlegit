@@ -352,7 +352,10 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
         if (addresses.length > 20)
           return await refuse(draft("Up to 20 addresses at a time. Remove some and try again."), 400);
         if (!addresses.length) return await refuse(draft("Enter the email addresses to invite."), 400);
-        const [memberRows, pendingRows] = await Promise.all([readMembers(c.env.DB, orgId), readInvitations(c.env.DB, orgId)]);
+        const [memberRows, pendingRows] = await Promise.all([
+          readMembers(c.env.DB, orgId),
+          readInvitations(c.env.DB, orgId),
+        ]);
         const memberEmails = new Set(memberRows.map((m) => m.email.toLowerCase()));
         const pendingByEmail = new Map(pendingRows.map((i) => [i.email.toLowerCase(), i] as const));
         const results: InviteBatch["results"] = [];
@@ -379,7 +382,11 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
             continue;
           }
           if (held === "unknown") {
-            results.push({ email, word: "Unknown", detail: "Its invitation is below; whether its email went is not known." });
+            results.push({
+              email,
+              word: "Unknown",
+              detail: "Its invitation is below; whether its email went is not known.",
+            });
             continue;
           }
           if (held === "not-sent" && heldRow && !(inviteRoles(reader) as string[]).includes(heldRow.role)) {
@@ -412,7 +419,9 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
               .first<{ status: string }>();
             const spent =
               nowRow?.status !== "pending" &&
-              (await c.env.DB.prepare(`SELECT 1 AS spent FROM invitation_uses WHERE invitation_id = ?`).bind(heldRow.id).first());
+              (await c.env.DB.prepare(`SELECT 1 AS spent FROM invitation_uses WHERE invitation_id = ?`)
+                .bind(heldRow.id)
+                .first());
             if (nowRow?.status !== "pending" && !spent) {
               const made = await c.env.DB.prepare(
                 `SELECT id FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?) AND status = 'pending' AND id <> ? AND "createdAt" >= ?`,
@@ -424,19 +433,26 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
                 const cancelled = await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
                 if (!cancelled?.ok) tidied = false;
               }
-              if (!tidied)
-                console.log(JSON.stringify({ event: "team", outcome: "revoked-not-tidied", email }));
+              if (!tidied) console.log(JSON.stringify({ event: "team", outcome: "revoked-not-tidied", email }));
               results.push(
                 tidied
                   ? { email, word: "Refused", detail: "That invitation was revoked while this was sending." }
-                  : { email, word: "Unknown", detail: "It was revoked while this was sending, and tidying up did not finish. Check the invitations below." },
+                  : {
+                      email,
+                      word: "Unknown",
+                      detail:
+                        "It was revoked while this was sending, and tidying up did not finish. Check the invitations below.",
+                    },
               );
               continue;
             }
           }
           if (res?.ok) {
             results.push({ email, word: "Sent", ...(dup ? { detail: dup } : {}) });
-            pendingByEmail.set(email.toLowerCase(), { ...(heldRow ?? ({} as PendingInvite)), delivery: "sent" } as PendingInvite);
+            pendingByEmail.set(email.toLowerCase(), {
+              ...(heldRow ?? ({} as PendingInvite)),
+              delivery: "sent",
+            } as PendingInvite);
           } else if (res?.status === 401) return signin();
           else if (res?.status === 502) {
             // A 502 covers both a confirmed refusal and a lost answer (the auth hook's own mapping): the stored
@@ -444,7 +460,11 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
             const now = await readInvitations(c.env.DB, orgId);
             const heldNow = now.find((i) => i.email.toLowerCase() === email.toLowerCase());
             if (heldNow?.delivery === "unknown") {
-              results.push({ email, word: "Unknown", detail: "The invitation was made; check it below before sending again." });
+              results.push({
+                email,
+                word: "Unknown",
+                detail: "The invitation was made; check it below before sending again.",
+              });
               pendingByEmail.set(email.toLowerCase(), heldNow);
             } else {
               results.push({ email, word: "Not sent", detail: "The invitation stands below; its email did not go." });
@@ -468,16 +488,31 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
               stopped = "Not tried: the batch stopped.";
             }
           } else if (res?.status === 429) {
-            results.push({ email, word: "Refused", detail: "Too many invitations just now. Try again in a little while." });
+            results.push({
+              email,
+              word: "Refused",
+              detail: "Too many invitations just now. Try again in a little while.",
+            });
             stopped = "Not tried: too many invitations just now.";
           } else if (res === null || res.status >= 500) {
             // The answer was lost: what storage holds decides whether Retry may send this one again.
             const now = await readInvitations(c.env.DB, orgId);
             if (now.some((i) => i.email.toLowerCase() === email.toLowerCase())) {
-              results.push({ email, word: "Unknown", detail: "The invitation was made; check it below before sending again." });
-              pendingByEmail.set(email.toLowerCase(), now.find((i) => i.email.toLowerCase() === email.toLowerCase()) ?? heldRow!);
+              results.push({
+                email,
+                word: "Unknown",
+                detail: "The invitation was made; check it below before sending again.",
+              });
+              pendingByEmail.set(
+                email.toLowerCase(),
+                now.find((i) => i.email.toLowerCase() === email.toLowerCase()) ?? heldRow!,
+              );
             } else {
-              results.push({ email, word: "Unknown", detail: "We could not tell whether it went. Retry sends it again." });
+              results.push({
+                email,
+                word: "Unknown",
+                detail: "We could not tell whether it went. Retry sends it again.",
+              });
               retry.push(email);
             }
           } else {

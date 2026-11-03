@@ -531,7 +531,10 @@ export function TeamPage(props: {
           </p>
           {mayInvite && <InvitePanel reader={reader} orgId={shell.organization.id} draft={draft} />}
           {inviteBatch && (
-            <section aria-labelledby="invite-batch-heading" class="bg-surface border border-line rounded-card-large p-24">
+            <section
+              aria-labelledby="invite-batch-heading"
+              class="bg-surface border border-line rounded-card-large p-24"
+            >
               <h2 id="invite-batch-heading" class="type-h3" tabindex={-1} data-announce="">
                 Invitations
               </h2>
