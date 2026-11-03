@@ -220,7 +220,8 @@ async function historyFor(
     const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
     return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
   };
-  if (action && !HISTORY_WORDS[action]) return { ...base, error: "Choose one of the listed actions." };
+  if (action && !["update-member-role", "cancel-invitation", "remove-member", "leave-organization"].includes(action))
+    return { ...base, error: "Choose one of the listed actions." };
   if ((from && !dateOk(from)) || (to && !dateOk(to))) return { ...base, error: "Give real calendar dates, or leave a date empty." };
   if (from && to && from > to) return { ...base, error: "The To date is before the From date. Swap them and try again." };
   try {
@@ -258,9 +259,13 @@ async function historyFor(
           : null;
         whom = held?.email ?? "An invitation that is gone";
       } else whom = nameOf(change.target_id);
-      let outcome = change.outcome === "done" || change.outcome === "ok" ? "Done" : "Refused";
-      if (change.kind === "remove-member" && typeof detail.sessionsEnded === "number")
-        outcome = `Done, ${detail.sessionsEnded} ${detail.sessionsEnded === 1 ? "session" : "sessions"} ended`;
+      // The writers' own words for a success (src/auth/auth.ts): a change, a revocation, a leaving, a removal.
+      let outcome = ["changed", "revoked", "left", "removed", "resent", "made", "done", "ok"].includes(change.outcome)
+        ? "Done"
+        : "Refused";
+      if (change.kind === "remove-member" && outcome === "Done")
+        outcome =
+          detail.sessionsEnded === false ? "Done, but its sessions could not be ended" : "Done, sessions ended";
       rows.push({ at: change.at, what, who: nameOf(change.actor_id), whom, outcome });
     }
     return { rows, action, from, to, more: next !== null };

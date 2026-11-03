@@ -1105,7 +1105,7 @@ describe("team history for owners (D07 T04 §23)", () => {
     db
       .prepare(
         `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
-         VALUES (?, ?, ?, 'done', ?, ?, ?, ?, 'x', ?)`,
+         VALUES (?, ?, ?, 'changed', ?, ?, ?, ?, 'x', ?)`,
       )
       .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target, detail)
       .run();
@@ -1116,16 +1116,16 @@ describe("team history for owners (D07 T04 §23)", () => {
     const colleague = await person("Colleague");
     await join(orgId, colleague, "member");
     await event(orgId, "update-member-role", owner.id, colleague.id, "2026-10-27T08:00:00.000Z", JSON.stringify({ from: "member", to: "admin" }));
-    await event(orgId, "remove-member", owner.id, colleague.id, "2026-10-28T08:00:00.000Z", JSON.stringify({ sessionsEnded: 2 }));
+    await event(orgId, "remove-member", owner.id, colleague.id, "2026-10-28T08:00:00.000Z", JSON.stringify({ sessionsEnded: true }));
     const html = text((await page(owner.cookie)).html);
     expect(html).toContain("Team history");
     expect(html).toContain("Role changed, Member to Admin");
-    expect(html).toContain("Done, 2 sessions ended");
+    expect(html).toContain("Done, sessions ended");
     const section = html.slice(html.indexOf("Team history")).split("When")[1] ?? "";
     expect(section.indexOf("Member removed")).toBeLessThan(section.indexOf("Role changed"));
     const filtered = text((await page(owner.cookie, "/team?action=update-member-role")).html);
     expect(filtered).toContain("Role changed, Member to Admin");
-    expect(filtered).not.toContain("2 sessions ended");
+    expect(filtered).not.toContain("sessions ended");
     const byDate = text((await page(owner.cookie, "/team?from=2026-10-28&to=2026-10-28")).html);
     expect(byDate).toContain("Member removed");
     expect(byDate).not.toContain("Role changed, Member to Admin");
@@ -1155,5 +1155,21 @@ describe("team history for owners (D07 T04 §23)", () => {
     vi.restoreAllMocks();
     const again = text((await page(owner.cookie)).html);
     expect(again).toContain("No team changes in this period.");
+  });
+});
+
+describe("team history after a real change (D07 T04 §23)", () => {
+  it("reads a role change the page itself made, as Done, and refuses a prototype action", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    const memberId = await join(orgId, colleague, "member");
+    await post(owner.cookie, { action: "role", org: orgId, member: memberId, role: "admin" });
+    const html = text((await page(owner.cookie)).html);
+    expect(html).toContain("Role changed, Member to Admin");
+    expect(html).toContain("Done");
+    expect(html).not.toContain("Refused");
+    const proto = text((await page(owner.cookie, "/team?action=constructor")).html);
+    expect(proto).toContain("Choose one of the listed actions.");
   });
 });
