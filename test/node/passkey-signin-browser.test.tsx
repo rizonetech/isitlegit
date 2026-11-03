@@ -80,7 +80,9 @@ describe("the passkey prompt and its recoveries", () => {
       const text = (await p.textContent("[data-passkey-prompt]"))?.replace(/\s+/g, " ") ?? "";
       for (const cause of causes) {
         expect(text, theme).toContain(cause);
-        expect(await p.locator("[data-passkey-prompt]").getByText(cause, { exact: true }).isVisible(), theme).toBe(true);
+        expect(await p.locator("[data-passkey-prompt]").getByText(cause, { exact: true }).isVisible(), theme).toBe(
+          true,
+        );
       }
       expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(360);
     }
