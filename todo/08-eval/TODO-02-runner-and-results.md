@@ -43,6 +43,7 @@ track: day-6
 | 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
+| 13 | §13 | Source-versus-replay comparison | §12 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -410,6 +411,27 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after 
 - [ ] Commit: `eval: eval replay after deploy`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-run.test.ts test/node/eval-replay.test.ts test/node/eval-publish.test.ts test/node/eval-metrics.test.ts` passes, and the D01 intake tests still pass unchanged.
+
+## 13. Source-versus-replay comparison
+
+Filed 2026-11-03 from §12's completion review (G4, out-of-scope there): a replay exists to measure a deployment change, yet comparing its source and replay reports is manual, and the public history marks a different deployed commit as not comparable. This section adds one comparison that pairs a source run with its replay, verifies the populations are equal, and reports what changed.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Pair a source run with its replay and verify population equality. Done when: the comparison refuses two runs whose populations, set versions or labels differ, naming the difference.
+2. Report metric and per-sample deltas. Done when: detection, false positives, cost and time deltas, and the samples that changed verdict in either direction, print from the two stored reports.
+3. Keep the ablation comparability rules. Done when: replay comparison never feeds the ablation table, and ablation arms still compare only on one deployment.
+
+- [ ] Add the pairing check in `eval/metrics.ts` (or a named sibling): two stored runs pair only when the second's mode is `replay:<first id>`, both are complete, and their populations and set versions are equal. Done when: tests refuse a non-replay pair, an incomplete run and a drifted population, each naming why. Cheaper substitute: none (an unequal comparison is a false claim).
+- [ ] Print the comparison from the paired reports: detection, false-positive, median cost and median time deltas, plus per-sample verdict changes in both directions. Done when: a test pairs two stored runs and reads back every delta and changed sample. Cheaper substitute: none (the operator assembles this by hand today).
+- [ ] Expose it as `pnpm eval:metrics --compare <replay run id>` resolving its source from the stored mode. Done when: the command prints the comparison for a stored replay and refuses a run that is not a replay. Cheaper substitute: none (a library nobody can invoke does not exist for the operator).
+- [ ] Commit: `eval: source-versus-replay comparison`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts test/node/eval-replay.test.ts` passes with the pairing, refusal and delta cases.
 
 ## Verification
 
