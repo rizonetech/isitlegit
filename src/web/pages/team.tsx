@@ -265,7 +265,11 @@ async function historyFor(
         : "Refused";
       if (change.kind === "remove-member" && outcome === "Done")
         outcome =
-          detail.sessionsEnded === false ? "Done, but its sessions could not be ended" : "Done, sessions ended";
+          detail.sessionsEnded === true
+            ? "Done, sessions ended"
+            : detail.sessionsEnded === false
+              ? "Done, but its sessions could not be ended"
+              : "Done";
       rows.push({ at: change.at, what, who: nameOf(change.actor_id), whom, outcome });
     }
     return { rows, action, from, to, more: next !== null };
