@@ -1,7 +1,7 @@
 {
   "$comment": "Every figure video 03 shows, pinned to the glimmer lane's commit and an exact quote from its source; media/tools/check-facts.py refuses a render when a quote is missing. Planned values are marked planned. Nothing here names a client, an account, a key, a store path or a budget.",
-  "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26",
-  "asOf": "31 Oct 2026",
+  "commit": "f270f9603d888a43daa601222f5519e2305dadfd",
+  "asOf": "3 Nov 2026",
   "facts": {
     "baseModel": {
       "value": "Muse Glimmer 30B",
@@ -291,7 +291,8 @@
       "status": "planned",
       "source": "scripts/glimmer/version-gate.py",
       "quote": "lure recall at least the previous one's and a false-alarm rate no higher, overall and on the South African slice",
-      "label": true
+      "label": true,
+      "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26"
     },
     "gateHeldOut": {
       "value": "same held-out file",
@@ -323,13 +324,15 @@
       "value": "7",
       "status": "measured",
       "source": "docs/glimmer/sources.md",
-      "count": "^\\| `[^`]+` \\|.*\\| accepted"
+      "count": "^\\| `[^`]+` \\|.*\\| accepted",
+      "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26"
     },
     "rejected": {
       "value": "46",
       "status": "measured",
       "source": "docs/glimmer/sources.md",
-      "count": "^\\| `[^`]+` \\|.*\\| rejected"
+      "count": "^\\| `[^`]+` \\|.*\\| rejected",
+      "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26"
     },
     "evalLures": {
       "value": "400 lures",
