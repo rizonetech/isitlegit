@@ -216,7 +216,10 @@ describe("saveVerdict", () => {
     };
     expect(await saveVerdict(env.DB, raised, revised)).toMatchObject({ ok: false, error: { code: "conflict" } });
     // A new raise that names no revision is refused at both stores.
-    const unnamed = { ...floored, floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"] } };
+    const unnamed = {
+      ...floored,
+      floorApplied: { from: "safe" as const, to: "malicious" as const, evidenceIds: ["E1"] },
+    };
     const fresh = await newCase();
     expect(await saveVerdict(env.DB, fresh, unnamed)).toMatchObject({ ok: false, error: { code: "invalid" } });
     await setStatus(env.DB, "org-verdicts", fresh, "running");
@@ -238,6 +241,28 @@ describe("saveVerdict", () => {
     expect(await getVerdict(env.DB, legacy)).toMatchObject({
       ok: true,
       value: { floorCoverage: "raised", floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"] } },
+    });
+    // An identical replay of that historical revisionless raise answers its row at both stores (round 1),
+    // using the stored row's own view, as the older implementation produced it.
+    const storedLegacy = await getVerdict(env.DB, legacy);
+    expect(storedLegacy).toMatchObject({ ok: true });
+    if (storedLegacy?.ok) {
+      const { caseId: _case, createdAt: _at, floorCoverage: _cov, ...rest } = storedLegacy.value;
+      expect(await saveVerdict(env.DB, legacy, rest as never)).toMatchObject({ ok: true });
+      await setStatus(env.DB, "org-verdicts", legacy, "running");
+      await env.DB.prepare("UPDATE cases SET verdict = 'malicious' WHERE id = ?").bind(legacy).run();
+      expect(await storeVerdict(env.DB, "org-verdicts", legacy, rest as never)).toMatchObject({ ok: true });
+    }
+    // A malformed stored floor value reads as unrecorded, never as a raise.
+    const altered = await newCase("org-verdicts", 0);
+    await env.DB.prepare(
+      "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, floor_applied, created_at) VALUES (?, 'suspicious', 'h', 0.5, '[]', '[]', 'stub', ' null ', 'now')",
+    )
+      .bind(altered)
+      .run();
+    expect(await getVerdict(env.DB, altered)).toMatchObject({
+      ok: true,
+      value: { floorApplied: null, floorCoverage: "unrecorded" },
     });
   });
 

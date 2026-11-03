@@ -390,6 +390,8 @@ Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there
 
 **Corrected 2026-11-03** (plan review, `docs/reviews/04-agent/D04-T01-s13.md`): (1) reproducibility is a replay capability, not only a label: `replayFloor` in `src/agent/floor.ts` replays a stored decision under its revision, the old rules stay under their revision when the rules change, and an unknown revision replays as null; (2) the coverage boundary is honest about history: any row stored without the marker (§11-era no-raise rows included) reads `unrecorded`, and only a verdict stored since this section (its JSON null written at save) reads `measured`, no migration needed; (3) the consumer contract for the eval (D08 T02 §8) is the read's three states, `raised`, `measured` and `unrecorded`, with unrecorded cases reported apart from measured negatives, handed to the eval lane through the coordinator at this stamp.
 
+**Corrected 2026-11-03** (round 1, same findings file): (4) the coverage item above is read at the marker-introduction boundary of correction (2), not at migration 0081; an identical replay of a historical revisionless raise answers its stored row at both stores, and a malformed stored floor value reads as unrecorded.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no

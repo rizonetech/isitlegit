@@ -75,15 +75,22 @@ type Row = {
   created_at: string;
 };
 // The stored floor outcome (D04 T01 §11 and §13): a JSON record is a raise; the JSON null written since
-// §13 is a measured no-raise; SQL null is a row stored before the outcome was kept at all.
+// §13 is a measured no-raise; SQL null is a row stored before the outcome was kept at all. Anything else
+// (a malformed or altered value) reads as unrecorded, never as a raise it cannot prove.
 const floorOf = (
   stored: string | null,
-): { floorApplied: FloorApplied | null; floorCoverage: StoredVerdict["floorCoverage"] } =>
-  stored === null
-    ? { floorApplied: null, floorCoverage: "unrecorded" }
-    : stored === "null"
-      ? { floorApplied: null, floorCoverage: "measured" }
-      : { floorApplied: JSON.parse(stored) as FloorApplied, floorCoverage: "raised" };
+): { floorApplied: FloorApplied | null; floorCoverage: StoredVerdict["floorCoverage"] } => {
+  if (stored === null) return { floorApplied: null, floorCoverage: "unrecorded" };
+  if (stored === "null") return { floorApplied: null, floorCoverage: "measured" };
+  try {
+    const parsed = FloorApplied.safeParse(JSON.parse(stored));
+    return parsed.success
+      ? { floorApplied: parsed.data, floorCoverage: "raised" }
+      : { floorApplied: null, floorCoverage: "unrecorded" };
+  } catch {
+    return { floorApplied: null, floorCoverage: "unrecorded" };
+  }
+};
 
 const toVerdict = (row: Row): StoredVerdict => ({
   caseId: row.case_id,
@@ -136,9 +143,7 @@ async function citesUnknown(db: D1Database, caseId: string, v: VerdictView): Pro
 // A newly stored raise must name its floor rule revision (D04 T01 §13); records stored before revisions
 // were named are read, never written, so the schema itself keeps the field optional.
 const unnamedRevision = (v: VerdictView): VerdictResult | null =>
-  v.floorApplied && !v.floorApplied.revision
-    ? fail("invalid", "a floor record names no rule revision")
-    : null;
+  v.floorApplied && !v.floorApplied.revision ? fail("invalid", "a floor record names no rule revision") : null;
 
 export async function saveVerdict(
   db: D1Database,
@@ -147,13 +152,18 @@ export async function saveVerdict(
 ): Promise<VerdictResult> {
   const parsed = VerdictView.safeParse(view);
   if (!parsed.success) return fail("invalid", parsed.error.issues.map((i) => i.message).join("; "));
-  const unnamed = unnamedRevision(parsed.data);
-  if (unnamed) return unnamed;
   if (!caseId) return fail("invalid", "a verdict needs its case id");
   const v = parsed.data;
   try {
     const unknown = await citesUnknown(db, caseId, v);
     if (unknown) return fail("invalid", unknown);
+    // An identical replay of a historical revisionless raise answers its stored row; only a verdict
+    // with no row yet must name its revision (round 1).
+    const before = await db.prepare("SELECT case_id FROM case_verdicts WHERE case_id = ?").bind(caseId).first();
+    if (!before) {
+      const unnamed = unnamedRevision(v);
+      if (unnamed) return unnamed;
+    }
     await db
       .prepare(
         "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, ablated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
@@ -206,8 +216,6 @@ export async function storeVerdict(
 ): Promise<VerdictResult | { ok: false; error: { code: "transition"; message: string } }> {
   const parsed = VerdictView.safeParse(view);
   if (!parsed.success) return fail("invalid", parsed.error.issues.map((i) => i.message).join("; "));
-  const unnamed = unnamedRevision(parsed.data);
-  if (unnamed) return unnamed;
   if (!caseId || !orgId) return fail("invalid", "a verdict needs its case and organisation");
   const v = parsed.data;
   const now = new Date().toISOString();
@@ -215,6 +223,11 @@ export async function storeVerdict(
   try {
     const unknown = await citesUnknown(db, caseId, v);
     if (unknown) return fail("invalid", unknown);
+    const before = await db.prepare("SELECT case_id FROM case_verdicts WHERE case_id = ?").bind(caseId).first();
+    if (!before) {
+      const unnamed = unnamedRevision(v);
+      if (unnamed) return unnamed;
+    }
     await db.batch([
       db
         .prepare(
