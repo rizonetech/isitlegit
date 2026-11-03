@@ -4,6 +4,7 @@
 // request without the prefix is a 404. The chains end on `example.org` (IANA's reserved documentation domain), so a changed
 // registrable domain needs no other zone of ours; D04 T02 §1 adds its fictional-brand pages beside them.
 
+import fynbosLookalike from "../../fixtures/fynbos-lookalike/index.html";
 import nimbusmailLure from "../../fixtures/nimbusmail/index.html";
 import nimbusmailLogin from "../../fixtures/nimbusmail/login.html";
 import proteabankCard from "../../fixtures/proteabank/index.html";
@@ -64,6 +65,11 @@ export async function fixturesResponse(
       return go(here("proteabank/"), 301);
     case "proteabank/":
       return htmlPage(proteabankCard);
+    // The demo lookalike (D05 T04 §6): a fictional Fynbos Freight login copy the daily monitor finds.
+    case "fynbos-lookalike":
+      return go(here("fynbos-lookalike/"), 301);
+    case "fynbos-lookalike/":
+      return htmlPage(fynbosLookalike);
   }
   switch (path) {
     // Two redirects, then another site: the registrable domain changes.

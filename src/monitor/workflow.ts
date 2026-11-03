@@ -75,6 +75,7 @@ export async function browserCapture(
   browser: Env["BROWSER"],
   host: string,
   launch: Launch = (b) => puppeteer.launch(b),
+  path = "",
 ): Promise<Capture> {
   const session = await launch(browser);
   try {
@@ -84,7 +85,10 @@ export async function browserCapture(
     let response: Awaited<ReturnType<typeof page.goto>> = null;
     for (const scheme of ["https", "http"] as const) {
       try {
-        response = await page.goto(`${scheme}://${host}/`, { waitUntil: "domcontentloaded", timeout: CAPTURE_MS });
+        response = await page.goto(`${scheme}://${host}/${path}`, {
+          waitUntil: "domcontentloaded",
+          timeout: CAPTURE_MS,
+        });
         break;
       } catch (error) {
         if (scheme === "http" || !NO_HTTPS.test(String((error as Error)?.message ?? error))) throw error;
@@ -135,6 +139,15 @@ export function monitorDeps(
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
+    // A seeded host's page (D05 T04 §6): the fixtures prefix is the Worker's own secret,
+    // applied here and never stored in the seed.
+    captureSeed: (host: string, path: string) =>
+      browserCapture(
+        env.BROWSER,
+        host,
+        undefined,
+        `${(env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX ?? ""}/${path}`,
+      ),
     // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
     // settles it again to the same cutoff.
     open: (calls) => openGlimmer(wakeCtx(calls)),

@@ -26,6 +26,7 @@ import { candidatesForBusiness, MAX_CANDIDATES } from "./candidates";
 import { brandTokens, type CtResult } from "./ct";
 import type { Signals } from "./parked";
 import { MAX_SCREENS_PER_RUN, newScreenCounts, owedDomains, type ScreenDeps, screenOwed } from "./screen";
+import { seedsFor } from "./seeds";
 
 export const DNS_CONCURRENCY = 20;
 export const MAX_CAPTURES_PER_RUN = 50;
@@ -68,6 +69,9 @@ export type MonitorDeps = ScreenDeps & {
   // Certificate-transparency candidates for the day's brand tokens (D05 T04 §7); absent in
   // tests that do not exercise it, stated as failed tokens on the run when a query fails.
   ct?: (tokens: string[]) => Promise<CtResult>;
+  // Capture of a seeded host's page path (D05 T04 §6), applying the fixtures prefix in the
+  // Worker; absent, a seed host is captured at its root like any other.
+  captureSeed?: (host: string, path: string) => Promise<Capture>;
   capture: (host: string) => Promise<Capture>;
   // The run's one Loupe session (D03 T04 §1), opened for this many pages before the first capture so its warm-up
   // overlaps them, and closed after the screening; a failed close is handed to the Workflow's settle step.
@@ -322,9 +326,11 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     // Inside the shared cap, the least recently observed go first (new discoveries have no
     // observation yet), so each day spends the whole cap on the hosts waiting longest and a
     // saturated list defers the rest visibly instead of starving the same hosts forever.
-    const merged = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])].filter(
-      (h) => !own.has(h),
-    );
+    const seeds = await seedsFor(deps.db, orgId).catch(() => []);
+    const seedPaths = new Map(seeds.map((s) => [s.host, s.path]));
+    const merged = [
+      ...new Set([...seeds.map((s) => s.host), ...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated]),
+    ].filter((h) => !own.has(h));
     // The window advances by a full cap each day, so a saturated list covers every host in
     // turn (a 5,000-host list in 17 days) instead of rechecking the same first 300; hosts
     // whose lookups fail rotate with everyone else.
@@ -407,7 +413,10 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       let stored = false;
       const moment = clock().toISOString();
       try {
-        const capture = await deps.capture(host);
+        const capture =
+          seedPaths.has(host) && deps.captureSeed
+            ? await deps.captureSeed(host, seedPaths.get(host) as string)
+            : await deps.capture(host);
         const prefix = `monitor/${orgId}/${host}/${moment}/`;
         await deps.store.put(`${prefix}screenshot.jpg`, capture.screenshot);
         await deps.store.put(`${prefix}text.txt`, capture.text);
