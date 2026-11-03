@@ -393,7 +393,7 @@ Sections: 96 | Checklist items: 621
 
 ### Phase 7: After the event
 
-Sections: 197 | Checklist items: 859
+Sections: 198 | Checklist items: 863
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -541,7 +541,7 @@ Sections: 197 | Checklist items: 859
 | [ ]    | D07 T04 §20 | Opt-in weekly counts                                        | none                 | 4     |
 | [x]    | D07 T04 §22 | Invite several colleagues at once                           | none                 | 4     |
 | [x]    | D07 T04 §23 | Team history for owners                                     | none                 | 4     |
-| [ ]    | D07 T04 §24 | Team history by person                                      | none                 | 2     |
+| [ ]    | D07 T04 §24 | Team history by person                                      | none                 | 3     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page                 | none                 | 5     |
 | [x]    | D07 T04 §26 | Find a person on the Team page                              | none                 | 4     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
@@ -553,6 +553,7 @@ Sections: 197 | Checklist items: 859
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
 | [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 3     |
 | [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
+| [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
@@ -632,6 +633,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 360/556 verified sections, 128 ready to run now.
+Progress: 360/557 verified sections, 128 ready to run now.
 
-Checklist: 2787/3479 items completed (includes Commit items).
+Checklist: 2790/3483 items completed (includes Commit items).

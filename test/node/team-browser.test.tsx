@@ -142,12 +142,14 @@ async function answer(req: IncomingMessage): Promise<Response> {
         outcome: "Done",
       },
     ];
-    const rows =
+    const personAsked = url.searchParams.get("person") ?? "";
+    const rows = (
       historyAction === "remove-member"
         ? allRows.slice(0, 1)
         : historyAction === "update-member-role"
           ? allRows.slice(1)
-          : allRows;
+          : allRows
+    ).filter((r) => !personAsked || r.whom !== "Sipho Mokoena" || personAsked === "u-sipho");
     return html(
       <TeamPage
         shell={shell()}
@@ -160,6 +162,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
         history={
           state.reader.role === "owner"
             ? {
+                people: state.members.map((m) => ({ id: m.userId, label: m.name || m.email })),
+                person: url.searchParams.get("person") ?? "",
+                next: url.searchParams.get("after") ? null : "2026-10-27T08:00:00.000Z|1",
                 rows,
                 action: historyAction,
                 from: url.searchParams.get("from") ?? "",
@@ -482,4 +487,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     expect(await p.locator("#team-find").inputValue()).toBe("");
     await context.close();
   });
+
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [360, 1280] as const)
+      for (const js of [true, false])
+        it(`filters the history by person and pages with More (${theme}, ${width} px, ${js ? "with" : "without"} JavaScript) (D07 T04 §24)`, async () => {
+          const { p, context } = await open("/team", { width, js });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          // By keyboard: type the person's name in the select, then press Apply with Enter.
+          await p.locator("#history-person").focus();
+          await p.keyboard.type("Sipho");
+          await p.getByRole("button", { name: "Apply" }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("person=u-sipho");
+          await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await expect.poll(() => p.getByText("Member removed").first().textContent()).toBeTruthy();
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          if (js) {
+            await p.addScriptTag({ path: AXE });
+            expect(problems(await scan(p)), "person-filtered history").toEqual([]);
+          }
+          await p.getByRole("link", { name: "More changes" }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("after=");
+          await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await context.close();
+        });
 });

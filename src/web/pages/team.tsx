@@ -214,7 +214,10 @@ async function historyFor(
   const action = url.searchParams.get("action") ?? "";
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
-  const base: TeamHistory = { rows: [], action, from, to };
+  const person = url.searchParams.get("person") ?? "";
+  const after = url.searchParams.get("after") ?? "";
+  const people = members.map((m) => ({ id: m.userId, label: m.name || m.email }));
+  const base: TeamHistory = { rows: [], action, from, to, person, people, after };
   const dateOk = (v: string) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
     if (!m) return false;
@@ -229,12 +232,17 @@ async function historyFor(
     return { ...base, error: "Give real calendar dates, or leave a date empty." };
   if (from && to && from > to)
     return { ...base, error: "The To date is before the From date. Swap them and try again." };
+  if (person && !members.some((m) => m.userId === person)) return { ...base, error: "Choose a person on this team." };
   try {
-    const { readTeamHistory } = await import("../../auth/audit");
+    const { readTeamHistory, validHistoryCursor } = await import("../../auth/audit");
+    if (after && !validHistoryCursor(after))
+      return { ...base, error: "That page of the history is not readable. Clear the filters to start again." };
     const { changes, next } = await readTeamHistory(db, orgId, {
       ...(action ? { action } : {}),
       ...(from ? { from: new Date(`${from}T00:00:00+02:00`).toISOString() } : {}),
       ...(to ? { to: new Date(`${to}T23:59:59.999+02:00`).toISOString() } : {}),
+      ...(person ? { person } : {}),
+      ...(after ? { after } : {}),
     });
     const byUser = new Map(members.map((m) => [m.userId, m]));
     const nameOf = (id: string | null): string => {
@@ -277,7 +285,7 @@ async function historyFor(
               : "Done";
       rows.push({ at: change.at, what, who: nameOf(change.actor_id), whom, outcome });
     }
-    return { rows, action, from, to, more: next !== null };
+    return { rows, action, from, to, person, people, next, more: next !== null };
   } catch {
     return { ...base, failed: true };
   }

@@ -66,6 +66,7 @@ track: day-6
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
 | 34 | §34 | Exact calendar-period counts export | §19 | [ ] |
 | 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [ ] |
+| 36 | §36 | Choose a departed person in the team history | §23 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -941,6 +942,10 @@ The organisation's role changes, revocations and removals (D07 T02 §6's owner-o
 
 Filter the team history by one person, as the actor or the target, in one step, paging through every match. Moved 2026-10-31 from §3.
 
+> **Started:** 2026-11-03T02:56:56Z
+
+**Corrected 2026-11-03 (checked against the tree, plan review `docs/reviews/07-app/D07-T04-s24.md`):** `readTeamHistory` takes only action, dates and cursor today, so the person predicate goes into it at the database layer, before its 100-row limit: organisation, action and dates, AND (actor is the person OR target is the person). The endpoint `GET /api/team/history` (D07 T02 §6) gains separate `actor` and `target` parameters with the same predicates. The page's person filter is one select of the organisation's members (plus Anyone), populated from the whole membership however §26's find stands, its selection restored on reload. Paging follows the reader's cursor: a More link carrying the cursor and every filter (person, action, dates, find), hidden at the end, and any filter change restarts from the first page. A malformed person, a person from another organisation, or a malformed cursor is refused in words on the page and as the endpoint's 400, never silently widened; a member who leaves after being chosen is answered plainly. People who have left stay named as §23 names them and are not offered in the select; choosing a departed person by name is D07 T04 §36's.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
@@ -953,10 +958,13 @@ Filter the team history by one person, as the actor or the target, in one step, 
 
 1. Add `actor` and `target` to `GET /api/team/history` and a person filter to the history. Done when: a rendered test pages through one person's changes.
 
-- [ ] Add `actor` and `target` to `GET /api/team/history` (D07 T02 §6) and a person filter, paging through every match. Done when: a rendered test picks a member and reads every change by and to them across pages. Cheaper substitute: filtering one page in the browser. Source: D07 T02 §6 completion review (E2).
-- [ ] Commit: `web: team history by person`
+- [x] Add `actor` and `target` to `GET /api/team/history` (D07 T02 §6) and a person filter, paging through every match. Done when: a rendered test picks a member and reads every change by and to them across pages, with endpoint tests in `test/auth/audit.test.ts` for the two parameters. Cheaper substitute: filtering one page in the browser. Source: D07 T02 §6 completion review (E2).
+- [x] Prove the person select and More in the browser: keyboard and scripts-off, retained selection, both layouts, at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
+- [x] Commit: `web: team history by person`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if another person's change appears under the filter.
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run test/auth/audit.test.ts` pass and fail if another person's change appears under the filter.
+
+> **Deferred:** choosing a departed person in the history -> XREF: D07 T04 §36
 
 ## 25. Protected accounts refused on the Team page
 
@@ -1273,6 +1281,29 @@ The Cases first-run page tells a member on a phone how to forward mail from desk
 - [ ] Commit: `web: phone forwarding guidance on the Cases page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/cases-browser.test.tsx` passes with the phone guidance read at 360 px in both themes.
+
+## 36. Choose a departed person in the team history
+
+An owner investigating someone who has left the team cannot pick them in §24's person select, because the page offers only current members and names the departed alike. Filed 2026-11-03 from D07 T04 §24's plan review (P3). Needs the auth owner's agreement on which historical identities may be shown, organisation-scoped, and for how long.
+
+**Phase:** 7
+**Needs:** third-party
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, as §23 records it
+**Job:** an owner sees everything one departed person did or had done to them
+**Treatment:** departed people offered in the history's person select by the name they were known by here
+**Chrome:** §23's history
+
+**Build order:**
+
+1. Record with the auth owner which stored identity a departed person keeps here, and its retention. Done when: the section and SPEC M7 name it.
+2. Offer departed people in the person select, scoped to this organisation's history. Done when: the rendered test picks a departed person and reads only their changes.
+
+- [ ] Record the departed person's shown identity and its retention in `design/SPEC.md` M7 and here, agreed with the auth owner (D07 T02). Done when: both name it. Cheaper substitute: one "A member who has left" entry for everyone who left.
+- [ ] Add departed people, by their scoped stored identity, to the person select in `src/web/pages/team.tsx`, filtered exactly as §24 filters. Done when: `test/web/team-page.test.ts` picks a departed person and reads their changes and no one else's. Cheaper substitute: filtering in the browser only.
+- [ ] Commit: `web: choose a departed person in the team history`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a departed person's changes mix with another's.
 
 ## Verification
 

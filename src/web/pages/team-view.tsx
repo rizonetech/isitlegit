@@ -44,6 +44,10 @@ export type TeamHistory = {
   action: string;
   from: string;
   to: string;
+  person?: string;
+  after?: string;
+  people?: { id: string; label: string }[];
+  next?: string | null;
   error?: string;
   failed?: boolean;
   more?: boolean;
@@ -557,6 +561,19 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
           </select>
         </label>
         <label class="flex flex-col gap-4">
+          <span class="type-small weight-text-strong">Person</span>
+          <select id="history-person" name="person" class={SELECT}>
+            <option value="" selected={!history.person}>
+              Anyone
+            </option>
+            {(history.people ?? []).map((person) => (
+              <option value={person.id} selected={history.person === person.id}>
+                {person.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="flex flex-col gap-4">
           <span class="type-small weight-text-strong">From</span>
           <input id="history-from" type="date" name="from" value={history.from} class={SELECT} />
         </label>
@@ -583,7 +600,7 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
         <p class="px-24 pb-24 type-small">
           The team history could not be read just now.{" "}
           <a
-            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
+            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}&person=${encodeURIComponent(history.person ?? "")}${history.after ? `&after=${encodeURIComponent(history.after)}` : ""}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
             class="text-orange-text underline underline-offset-4"
           >
             Try again
@@ -636,7 +653,19 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
               </li>
             ))}
           </ul>
-          {history.more && <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>}
+          {history.more && !history.next && (
+            <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>
+          )}
+          {history.next && (
+            <p class="px-24 py-12">
+              <a
+                href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}&person=${encodeURIComponent(history.person ?? "")}&after=${encodeURIComponent(history.next)}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
+                class="type-small text-orange-text underline underline-offset-4"
+              >
+                More changes
+              </a>
+            </p>
+          )}
         </>
       )}
     </section>
@@ -733,6 +762,7 @@ export function TeamPage(props: {
           </p>
           <form method="get" action="/team" class="flex flex-wrap items-end gap-12" aria-label="Find a person">
             {history?.action ? <input type="hidden" name="action" value={history.action} /> : null}
+            {history?.person ? <input type="hidden" name="person" value={history.person} /> : null}
             {history?.from ? <input type="hidden" name="from" value={history.from} /> : null}
             {history?.to ? <input type="hidden" name="to" value={history.to} /> : null}
             <label class="flex flex-col gap-4">
@@ -753,7 +783,7 @@ export function TeamPage(props: {
             </Button>
             {find ? (
               <a
-                href={`/team?focus=find${history?.action ? `&action=${encodeURIComponent(history.action)}` : ""}${history?.from ? `&from=${encodeURIComponent(history.from)}` : ""}${history?.to ? `&to=${encodeURIComponent(history.to)}` : ""}`}
+                href={`/team?focus=find${history?.action ? `&action=${encodeURIComponent(history.action)}` : ""}${history?.from ? `&from=${encodeURIComponent(history.from)}` : ""}${history?.to ? `&to=${encodeURIComponent(history.to)}` : ""}${history?.person ? `&person=${encodeURIComponent(history.person)}` : ""}`}
                 class="type-small text-orange-text underline underline-offset-4"
               >
                 Clear
