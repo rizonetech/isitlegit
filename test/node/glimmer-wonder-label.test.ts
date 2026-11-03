@@ -151,6 +151,23 @@ describe("wonder-label", () => {
     expect(firstRecord.page).toBe("p1");
     expect(secondExec).not.toHaveBeenCalled();
 
+    // A stale lock left by a killed worker (dead PID) is recovered on retry without blocking new work.
+    const dirStale = mkdtempSync(join(tmpdir(), "wonder-stale-"));
+    writeFileSync(
+      join(dirStale, "p1.json.lock"),
+      JSON.stringify({ pid: 99999999, nonce: "dead", startedAt: Date.now() }),
+    );
+    const recovered = labelPage({
+      page: page(),
+      screenshot: shot,
+      text: "Sign in",
+      outDir: dirStale,
+      exec: () => VALID,
+      now: () => 1000,
+    });
+    expect(recovered.page).toBe("p1");
+    expect(existsSync(join(dirStale, "p1.json.lock"))).toBe(false);
+
     const dir2 = mkdtempSync(join(tmpdir(), "wonder-"));
     expect(() =>
       labelPage({ page: page(), screenshot: shot, text: "Sign in", outDir: dir2, exec: () => "rubbish" }),

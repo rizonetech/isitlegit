@@ -13,14 +13,14 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
-  closeSync,
   existsSync,
   linkSync,
   mkdirSync,
-  openSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -234,23 +234,85 @@ export function validateExistingWonderRecord(file: string, page: StoredPage): Wo
   return { ...parsed, test: parsed.test ?? null };
 }
 
+const STALE_LOCK_MAX_AGE_MS = 15 * 60 * 1000;
+
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (pid === process.pid) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+function isLockActive(lockFile: string, nowMs: number): { active: boolean; ino: number | null } {
+  try {
+    const stat = statSync(lockFile);
+    const raw = readFileSync(lockFile, "utf-8");
+    const parsed = JSON.parse(raw) as { pid?: unknown; nonce?: unknown; startedAt?: unknown };
+    const pid = typeof parsed.pid === "number" ? parsed.pid : -1;
+    const startedAt = typeof parsed.startedAt === "number" ? parsed.startedAt : 0;
+    const fresh = startedAt > 0 && nowMs - startedAt < STALE_LOCK_MAX_AGE_MS;
+    return { active: fresh && isProcessAlive(pid), ino: stat.ino };
+  } catch {
+    return { active: false, ino: null };
+  }
+}
+
 export function claimExclusiveLabelSlot(file: string, teacherName: string): { release: () => void } {
   if (existsSync(file)) throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
   const lockFile = `${file}.lock`;
-  let lockFd: number;
+  const nonce = `${process.pid}.${randomBytes(6).toString("hex")}`;
+  const tempLock = `${lockFile}.${nonce}.tmp`;
+  const nowMs = Date.now();
+  writeFileSync(tempLock, `${JSON.stringify({ pid: process.pid, nonce, startedAt: nowMs })}\n`, { flag: "wx" });
+  let claimedIno: number | null = null;
   try {
-    lockFd = openSync(lockFile, "wx");
-  } catch {
-    throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
+    try {
+      linkSync(tempLock, lockFile);
+      claimedIno = statSync(lockFile).ino;
+    } catch {
+      if (existsSync(file)) {
+        throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
+      }
+      const status = isLockActive(lockFile, nowMs);
+      if (status.active) {
+        throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
+      }
+      if (status.ino !== null) {
+        try {
+          if (statSync(lockFile).ino === status.ino) unlinkSync(lockFile);
+        } catch {
+          // another contender already removed or replaced the stale lock
+        }
+      }
+      try {
+        linkSync(tempLock, lockFile);
+        claimedIno = statSync(lockFile).ino;
+      } catch {
+        throw new Error(`${teacherName} label already exists or is in progress for this page and is never overwritten`);
+      }
+    }
+  } finally {
+    rmSync(tempLock, { force: true });
   }
-  closeSync(lockFd);
   if (existsSync(file)) {
-    rmSync(lockFile, { force: true });
+    try {
+      if (claimedIno !== null && statSync(lockFile).ino === claimedIno) unlinkSync(lockFile);
+    } catch {
+      // ignore cleanup error
+    }
     throw new Error(`${teacherName} label already exists for this page and is never overwritten`);
   }
   return {
     release: () => {
-      rmSync(lockFile, { force: true });
+      try {
+        if (claimedIno !== null && statSync(lockFile).ino === claimedIno) unlinkSync(lockFile);
+      } catch {
+        // already released or superseded
+      }
     },
   };
 }

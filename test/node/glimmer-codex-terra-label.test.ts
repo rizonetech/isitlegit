@@ -191,6 +191,26 @@ describe("codex-terra-label", () => {
     });
     expect(secondExec).not.toHaveBeenCalled();
 
+    // A stale lock left by a killed worker (dead PID) is recovered on retry.
+    const dirStale = mkdtempSync(join(tmpdir(), "terra-stale-"));
+    writeFileSync(
+      join(dirStale, "p1.json.lock"),
+      JSON.stringify({ pid: 99999999, nonce: "dead", startedAt: Date.now() }),
+    );
+    const recovered = labelPageTerra({
+      page: page(),
+      screenshot: shot,
+      text: "Sign in",
+      outDir: dirStale,
+      exec: (_argv, _prompt, outFile) => {
+        writeFileSync(outFile, VALID);
+        return { jsonl: "" };
+      },
+      now: () => 1000,
+    });
+    expect(recovered.page).toBe("p1");
+    expect(existsSync(join(dirStale, "p1.json.lock"))).toBe(false);
+
     const dir2 = mkdtempSync(join(tmpdir(), "terra-"));
     expect(() =>
       labelPageTerra({
