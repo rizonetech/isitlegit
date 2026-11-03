@@ -410,7 +410,7 @@ Sections: 193 | Checklist items: 820
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                            | attended             | 6     |
 | [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward                    | none                 | 4     |
-| [ ]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
+| [x]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
 | [x]    | D01 T01 §13 | Compressed-RTF message bodies                               | none                 | 4     |
 | [ ]    | D01 T01 §14 | Near-limit forward, live                                    | operator, live-mail  | 3     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                                   | operator             | 7     |
@@ -628,6 +628,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 356/552 verified sections, 128 ready to run now.
+Progress: 357/552 verified sections, 127 ready to run now.
 
 Checklist: 2741/3440 items completed (includes Commit items).

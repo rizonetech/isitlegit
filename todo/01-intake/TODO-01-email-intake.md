@@ -50,7 +50,7 @@ track: day-1
 | 9 | §9 | check@ routing and live smoke | §7, D01 T02 §3, D07 T06 §9, D07 T02 §10 | [x] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [x] |
-| 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
+| 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [x] |
 | 13 | §13 | Compressed-RTF message bodies | §6 | [x] |
 | 14 | §14 | Near-limit forward on the | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
@@ -467,6 +467,9 @@ A member who attaches several suspicious messages to one forward gets only the f
 **Settled 2026-11-03** (completion review gap 5): original one is the original §4 chooses (its type precedence is shipped behaviour this section does not change); the further originals, and the grouped reply's blocks after the first, follow attachment order, the chosen one excluded wherever it sat. A bound cut therefore drops the latest-attached originals, never an earlier one for a later attachment's format.
 
 **Corrected 2026-11-03** (plan review, 2 P1 and 5 P2, `docs/reviews/01-intake/D01-T01-s12.md`; the design the build follows): (1) The already-admitted case is original one: it parses and proceeds exactly as today, so a single-original forward is unchanged by construction. In its `parse` step, `extractOriginals` returns every supported original in attachment order (type precedence applies within each attached message, not across the forward), bounded at 5; originals past the bound are counted as bound-excluded and named not checked in the reply. (2) Children are durable before they are started: one `case_children` row per admitted child (migration, coordinator number requested 2026-11-03) keyed by the parent case and position, holding the stable child case ID (derived from the parent case ID and position), its state (admitted, refused-cap, started) and its original's subject; the row is written before the child's raw bytes and Workflow, each step idempotent on retry (the child case insert reuses `admitCase` with the stable ID, the raw write is the same key, the Workflow instance ID is the child case ID, so a lost create response retries into the same instance). Cap refusals are recorded rows, never silent, and a retry never re-decides across midnight: the manifest is the admitted set. (3) A child case is a full case of the same organisation and channel with its own Workflow; its parse reads its own stored original (marked as a fan-out child, so it never fans out again, even when its original itself carries attachments, which stay its attachments as today). (4) Replies: a child never sends its own reply; the parent's reply step reads the manifest and, until every admitted child is terminal (done or partial, with or without a verdict), sends nothing; the grouped reply is sent once under a group send key derived from the parent case, through the existing send claim, listing each original in order with its subject, its verdict or "no verdict" when its case ended partial, its own signed report link, and the bound-excluded and cap-refused originals named as not checked. A child finishing after the parent cannot send alone: the last terminal child re-enters the same group-send claim, which exactly one sender wins. (5) `otherOriginals` keeps counting originals beyond the first for evidence, and the SPEC's N1 grouped variant names the all-success, mixed, all-failed, partly capped and bound-exceeded presentations with no primary button change (each line carries its own signed link).
+
+> **Verified:** 2026-11-03 | §12 | 7e854a1e3fa36612c617b501661ae12039d3b926
+> **Review:** `docs/reviews/d01-t01-s12.json`
 
 
 ## 13. Compressed-RTF message bodies
