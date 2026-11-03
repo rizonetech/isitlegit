@@ -482,6 +482,8 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 
 The verdict banner's third line is one sentence on what the verdict means for this message (`design/SPEC.md` M3, board `Main`: "The link leads to a lookalike login page that sends your password to someone else. Do not use it."). Filed 2026-10-31 from §2's validation: the stored verdict holds a headline but no such sentence, so §2 draws a fixed sentence per verdict until the verdict carries one (asked of the checks lane through the coordinator for D04 T01 §2's VerdictView change).
 
+> **Corrected 2026-11-03 (plan review):** The prerequisite has shipped: migration `0069_verdict_meaning.sql` and `src/db/verdicts.ts` already store and read `meaning` and structured reasons, so no reader is waited on; the remaining work is consumer rendering and its coverage. The band's "wraps" proof belongs in a browser test (serialized HTML cannot prove layout), the route proof carries the distinctive sentence as well as its reasons, and the reply's hostile stored sentence needs an escaping proof in both bodies: `meaningWords` supplies the plain text, `replyDesign` draws the HTML band independently.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
@@ -494,12 +496,13 @@ The verdict banner's third line is one sentence on what the verdict means for th
 
 1. Draw the stored sentence. Done when: a verdict with its sentence draws it and an older one draws the fixed sentence.
 
-- [ ] Draw the verdict's stored meaning sentence as the band's sentence in `src/web/pages/report-verdict.tsx`, and the fixed per-verdict sentence (§2) only when the stored verdict has none. Done when: `test/web/report-verdict.test.ts` draws a stored sentence, an older verdict draws its fixed one, and a hostile sentence (markup, 300 characters) renders as text and wraps.
-- [ ] Read a stored structured reason back through the report route once the checks lane's reader returns `{ text, evidenceIds }` (D04 T01 §2): the route test stores a structured verdict and finds its pills. Done when: `test/web/report-verdict.test.ts` reads one back through the route. **Added 2026-10-31** (D07 T03 §2's plan review).
-- [ ] Draw the stored sentence in the reply too: `meaningWords` in `src/mail/templates/reply.ts` uses the stored `meaning` for the plain-text body and the HTML band, and the fixed per-verdict sentence only when it is null. Done when: `test/mail/reply-design.test.ts` draws a distinctive stored sentence in both bodies and a null one draws the fixed sentence. Source: D04 T01 §2's completion review, 2026-11-01.
+- [ ] Draw the verdict's stored meaning sentence as the band's sentence in `src/web/pages/report-verdict.tsx`, and the fixed per-verdict sentence (§2) only when the stored verdict has none. Done when: `test/web/report-verdict.test.ts` draws a stored sentence, an older verdict draws its fixed one, and a hostile sentence (markup, 300 characters) renders as text; its wrapping is proven in the browser item below.
+- [ ] Read a stored structured reason back through the report route (the checks lane's reader returns `{ text, evidenceIds }`, D04 T01 §2, shipped): the route test stores a structured verdict and finds its pills and its distinctive stored sentence. Done when: `test/web/report-verdict.test.ts` reads one back through the route. **Added 2026-10-31** (D07 T03 §2's plan review).
+- [ ] Draw the stored sentence in the reply too: `meaningWords` in `src/mail/templates/reply.ts` uses the stored `meaning` for the plain-text body, `replyDesign`'s HTML band uses it too, and the fixed per-verdict sentence only when it is null. Done when: `test/mail/reply-design.test.ts` draws a distinctive stored sentence in both bodies, a null one draws the fixed sentence, and hostile stored markup stays literal in the plain text and escaped text with no injected element in the HTML. Source: D04 T01 §2's completion review, 2026-11-01.
+- [ ] Prove the long stored sentence in a browser: `test/node/report-verdict-browser.test.tsx` draws a 300-character stored sentence in the band at phone and desktop widths, fully visible with no sideways scroll. Done when: the test passes at both widths. Cheaper substitute: asserting on serialized HTML, which cannot prove the sentence wraps.
 - [ ] Commit: `web: the verdict banner draws its stored sentence`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
+**Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts test/mail/reply-design.test.ts test/node/report-verdict-browser.test.tsx` passes with the stored sentence drawn in the band and the reply.
 
 ## 11. Follow-up question from
 

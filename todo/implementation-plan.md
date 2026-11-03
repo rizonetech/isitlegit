@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 197 | Checklist items: 837
+Sections: 197 | Checklist items: 838
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -512,7 +512,7 @@ Sections: 197 | Checklist items: 837
 | [x]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
 | [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
-| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 4     |
+| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 2     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 2     |
@@ -633,4 +633,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 352/555 verified sections, 131 ready to run now.
 
-Checklist: 2711/3449 items completed (includes Commit items).
+Checklist: 2711/3450 items completed (includes Commit items).
