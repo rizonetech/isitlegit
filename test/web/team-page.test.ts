@@ -627,7 +627,7 @@ describe("invitations", () => {
     expect(taken.status).toBe(400);
     const takenHtml = await taken.text();
     expect(text(takenHtml)).toContain("already a member");
-    expect(takenHtml).toContain(`value="${colleague.email}"`);
+    expect(takenHtml).toContain(`>${colleague.email}</textarea>`);
     expect(await stored(orgId, colleague.email)).toBeNull();
     const bad = await send(owner.cookie, orgId, "not an address");
     expect(bad.status).toBe(400);
@@ -1026,5 +1026,58 @@ describe("protected accounts on the Team page (D07 T04 §25)", () => {
     const res = await post(owner.cookie, { action: "remove", org: orgId, member: demo.memberId });
     expect(text(await landed(owner.cookie, res))).toContain(NOTICE("Demo Account"));
     expect(await memberRow(demo.memberId)).toEqual({ role: "member" });
+  });
+});
+
+describe("inviting several colleagues at once (D07 T04 §22)", () => {
+  const stored = (orgId: string, email: string) =>
+    db
+      .prepare(`SELECT role, status FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?)`)
+      .bind(orgId, email)
+      .first<{ role: string; status: string }>();
+  const send = (cookie: string, orgId: string, email: string, role = "member", batch = "") =>
+    post(cookie, { action: "invite", org: orgId, email, role, ...(batch ? { batch } : {}) });
+
+  it("invites ten with one submit, lists ten outcomes, and retries only the one that did not go", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    let calls = 0;
+    const smtp = stubSmtp2go(() => (++calls === 3 ? "refused" : "sent"));
+    const emails = Array.from({ length: 10 }, (_, i) => `bulk-${i}-${tag()}@example.com`);
+    const res = await send(owner.cookie, orgId, emails.join("\n"));
+    expect(res.status).toBe(200);
+    const html = text(await res.text());
+    for (const email of emails) expect(html).toContain(email);
+    expect(html).toContain("Not sent");
+    expect(html).toContain("Retry the ones that did not go");
+    expect(smtp.sends.map((s) => s.to).sort()).toEqual(emails.filter((_, i) => i !== 2).sort());
+    for (const email of emails) expect(await stored(orgId, email)).toMatchObject({ status: "pending" });
+    // Retry: only the failed address is sent again.
+    calls = 0;
+    const beforeRetry = smtp.sends.length;
+    const retry = await send(owner.cookie, orgId, emails[2] as string, "member", "1");
+    expect(retry.status).toBe(200);
+    expect(smtp.sends.slice(beforeRetry).map((s) => s.to)).toEqual([emails[2]]);
+    expect(text(await retry.text())).toContain("Sent");
+    smtp.restore();
+  });
+
+  it("refuses twenty-one without sending any, invites a duplicate once, and keeps a member out", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const smtp = stubSmtp2go();
+    const many = Array.from({ length: 21 }, (_, i) => `many-${i}-${tag()}@example.com`).join(", ");
+    const refused = await send(owner.cookie, orgId, many);
+    expect(refused.status).toBe(400);
+    expect(text(await refused.text())).toContain("Up to 20 addresses at a time");
+    expect(smtp.sends).toEqual([]);
+    const one = `dup-${tag()}@example.com`;
+    const res = await send(owner.cookie, orgId, `${one}\n${one.toUpperCase()}`);
+    expect(text(await res.text())).toContain("Listed twice, invited once");
+    expect(smtp.sends.map((s) => s.to)).toEqual([one]);
+    const member = await person("Member");
+    await join(orgId, member, "member");
+    expect((await send(member.cookie, orgId, `x-${tag()}@example.com\ny-${tag()}@example.com`)).status).toBe(403);
+    smtp.restore();
   });
 });

@@ -14,6 +14,7 @@ import { isProtectedAccount, PROTECTED_ACCOUNT } from "../../auth/protected";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import {
+  type InviteBatch,
   type InviteDraft,
   inviteRoles,
   mayRemove,
@@ -275,7 +276,7 @@ type InviteAction = {
   secret: string;
   orgId: string;
   origin: string;
-  form: { email: string; role: string; id: string };
+  form: { email: string; role: string; id: string; batch?: string };
 };
 
 // An invitation made, sent again or revoked through Better Auth's own handler (its hooks, allowlist and send key run as
@@ -321,6 +322,141 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
   };
   try {
     if (action === "invite") {
+      // Several addresses at once (D07 T04 §22): split on commas or lines, trim, drop empties, and invite a
+      // case-insensitive duplicate once. More than one address (or a Retry, marked `batch`) takes the batch
+      // answer below; one address keeps the flow after it, word for word.
+      const parts = a.form.email
+        .split(/[,\n]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const seen = new Set<string>();
+      const addresses: string[] = [];
+      const duplicates = new Set<string>();
+      for (const part of parts) {
+        const key = part.toLowerCase();
+        if (seen.has(key)) duplicates.add(key);
+        else {
+          seen.add(key);
+          addresses.push(part);
+        }
+      }
+      if (parts.length > 1 || a.form.batch === "1") {
+        const role = a.form.role;
+        const draft = (error: string): InviteDraft => ({
+          email: a.form.email,
+          role: (inviteRoles(reader) as string[]).includes(role) ? (role as InviteDraft["role"]) : "member",
+          error,
+        });
+        if (!(inviteRoles(reader) as string[]).includes(role))
+          return await refuse(draft("Choose a role you can give."), 400);
+        if (addresses.length > 20)
+          return await refuse(draft("Up to 20 addresses at a time. Remove some and try again."), 400);
+        if (!addresses.length) return await refuse(draft("Enter the email addresses to invite."), 400);
+        const [memberRows, pendingRows] = await Promise.all([readMembers(c.env.DB, orgId), readInvitations(c.env.DB, orgId)]);
+        const memberEmails = new Set(memberRows.map((m) => m.email.toLowerCase()));
+        const pendingEmails = new Map(pendingRows.map((i) => [i.email.toLowerCase(), i.delivery] as const));
+        const results: InviteBatch["results"] = [];
+        const retry: string[] = [];
+        let stopped: string | null = null;
+        for (const email of addresses) {
+          const dup = duplicates.has(email.toLowerCase()) ? "Listed twice, invited once." : undefined;
+          if (stopped) {
+            results.push({ email, word: "Not invited", detail: stopped });
+            continue;
+          }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            results.push({ email, word: "Refused", detail: "Enter a real email address." });
+            continue;
+          }
+          if (memberEmails.has(email.toLowerCase())) {
+            results.push({ email, word: "Refused", detail: "That person is already a member of this organisation." });
+            continue;
+          }
+          const held = pendingEmails.get(email.toLowerCase());
+          if (held === "sent") {
+            results.push({ email, word: "Refused", detail: "That address already has an invitation below." });
+            continue;
+          }
+          if (held === "unknown") {
+            results.push({ email, word: "Unknown", detail: "Its invitation is below; whether its email went is not known." });
+            continue;
+          }
+          let res: Response | null = null;
+          try {
+            res = await call("invite-member", { email, role, organizationId: orgId, ...(held === "not-sent" ? { resend: true } : {}) });
+          } catch {
+            res = null;
+          }
+          if (res?.ok) {
+            results.push({ email, word: "Sent", ...(dup ? { detail: dup } : {}) });
+            pendingEmails.set(email.toLowerCase(), "sent");
+          } else if (res?.status === 401) return signin();
+          else if (res?.status === 502) {
+            results.push({ email, word: "Not sent", detail: "The invitation stands below; its email did not go." });
+            retry.push(email);
+            pendingEmails.set(email.toLowerCase(), "not-sent");
+          } else if (res?.status === 403) {
+            const said = (await res
+              .clone()
+              .json()
+              .catch(() => null)) as { code?: string; message?: string } | null;
+            if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`)) {
+              results.push({
+                email,
+                word: "Refused",
+                detail: "This organisation has too many open invitations. Revoke one, or wait for one to lapse.",
+              });
+              stopped = "Not tried: too many open invitations.";
+            } else {
+              results.push({ email, word: "Refused", detail: "You can no longer change the team." });
+              stopped = "Not tried: the batch stopped.";
+            }
+          } else if (res?.status === 429) {
+            results.push({ email, word: "Refused", detail: "Too many invitations just now. Try again in a little while." });
+            stopped = "Not tried: too many invitations just now.";
+          } else if (res === null || res.status >= 500) {
+            // The answer was lost: what storage holds decides whether Retry may send this one again.
+            const now = await readInvitations(c.env.DB, orgId);
+            if (now.some((i) => i.email.toLowerCase() === email.toLowerCase())) {
+              results.push({ email, word: "Unknown", detail: "The invitation was made; check it below before sending again." });
+              pendingEmails.set(email.toLowerCase(), "unknown");
+            } else {
+              results.push({ email, word: "Unknown", detail: "We could not tell whether it went. Retry sends it again." });
+              retry.push(email);
+            }
+          } else {
+            const said = (await res
+              .clone()
+              .json()
+              .catch(() => null)) as { code?: string; message?: string } | null;
+            const text = `${said?.code ?? ""} ${said?.message ?? ""}`.toUpperCase();
+            results.push({
+              email,
+              word: "Refused",
+              detail: /ALREADY.*MEMBER/.test(text)
+                ? "That person is already a member of this organisation."
+                : "That address cannot be invited.",
+            });
+          }
+        }
+        const [members, shell, invites] = await Promise.all([
+          readMembers(c.env.DB, orgId),
+          memberShell(c.env.DB, signedIn.user, orgId, "team"),
+          readInvitations(c.env.DB, orgId),
+        ]);
+        return html(
+          <TeamPage
+            shell={shell}
+            members={members}
+            reader={reader}
+            outcome={null}
+            invites={invites}
+            inviteBatch={{ role: role as InviteBatch["role"], results, retry }}
+            now={new Date()}
+          />,
+          200,
+        );
+      }
       const email = a.form.email.trim();
       const role = a.form.role;
       const draft = (error: string): InviteDraft => ({
@@ -474,7 +610,8 @@ teamRoutes.post(
       action: 20,
       member: 200,
       role: 20,
-      email: 320,
+      email: 7000,
+      batch: 20,
       invitation: 200,
     });
     if (!form) return back(secret, orgId, { r: "refused" });
@@ -491,7 +628,7 @@ teamRoutes.post(
         secret,
         orgId,
         origin,
-        form: { email: field("email"), role, id: field("invitation") },
+        form: { email: field("email"), role, id: field("invitation"), batch: field("batch") },
       });
     // Not a request this page sends (an unknown action, a role that does not exist): refused, nothing claimed.
     if (action !== "remove" && !(action === "role" && ["owner", "admin", "member"].includes(role)))

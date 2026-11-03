@@ -35,6 +35,13 @@ export type PendingInvite = {
 // The invite panel as the member left it after a refusal: the address and why.
 export type InviteDraft = { email: string; role: Role; error: string | null };
 
+// One submit's per-address outcomes (D07 T04 §22): every address listed, and the ones Retry may send again.
+export type InviteBatch = {
+  role: Role;
+  results: { email: string; word: string; detail?: string }[];
+  retry: string[];
+};
+
 // What a change did, carried back signed in the address (./team.tsx).
 export const OUTCOMES = [
   "role-changed",
@@ -324,11 +331,12 @@ function InvitePanel(props: { reader: Reader; orgId: string; draft: InviteDraft 
           <Field
             id="invite-email"
             name="email"
-            type="email"
-            label="Email address"
+            label="Email addresses"
+            hint="One per line or separated by commas, up to 20. Everyone gets the role you choose."
             value={draft?.email ?? ""}
             {...(draft?.error ? { error: draft.error } : {})}
             autocomplete="off"
+            rows={4}
             required
           />
         </div>
@@ -487,9 +495,10 @@ export function TeamPage(props: {
   // Owners and admins only: the stored pending invitations, and the panel as it was left after a refusal.
   invites?: PendingInvite[];
   draft?: InviteDraft;
+  inviteBatch?: InviteBatch;
   now: Date;
 }) {
-  const { shell, members, reader, outcome, lost, now, invites, draft } = props;
+  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch } = props;
   const mayInvite = reader.role !== "member";
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
@@ -521,6 +530,33 @@ export function TeamPage(props: {
             )}
           </p>
           {mayInvite && <InvitePanel reader={reader} orgId={shell.organization.id} draft={draft} />}
+          {inviteBatch && (
+            <section aria-labelledby="invite-batch-heading" class="bg-surface border border-line rounded-card-large p-24">
+              <h2 id="invite-batch-heading" class="type-h3">
+                Invitations
+              </h2>
+              <ul class="mt-12 flex flex-col gap-8">
+                {inviteBatch.results.map((r) => (
+                  <li class="type-small wrap-anywhere">
+                    <strong class="text-ink">{r.email}</strong>: {r.word}
+                    {r.detail ? <span class="text-muted"> {r.detail}</span> : null}
+                  </li>
+                ))}
+              </ul>
+              {inviteBatch.retry.length > 0 && (
+                <form method="post" action="/team" class="mt-16" data-busy>
+                  <input type="hidden" name="action" value="invite" />
+                  <input type="hidden" name="batch" value="1" />
+                  <input type="hidden" name="org" value={shell.organization.id} />
+                  <input type="hidden" name="role" value={inviteBatch.role} />
+                  <input type="hidden" name="email" value={inviteBatch.retry.join("\n")} />
+                  <Button type="submit" variant="primary" data-busy-label="Sending…">
+                    Retry the ones that did not go
+                  </Button>
+                </form>
+              )}
+            </section>
+          )}
           <p class="type-small text-muted">
             <strong class="text-ink">Owner</strong>: everything, including the plan and removing people.{" "}
             <strong class="text-ink">Admin</strong>: suppliers, protection, domains and invites.{" "}

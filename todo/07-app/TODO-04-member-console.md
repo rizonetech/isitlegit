@@ -881,10 +881,10 @@ One submit invites several addresses with one shared role, each address's outcom
 1. Record the owner's decision on the multi-address invite in `design/SPEC.md` M7. Done when: the SPEC names it.
 2. Send one invite request per address. Done when: `test/web/team-page.test.ts` reads ten outcomes.
 
-- [ ] Record the multi-address invite (separator, limit, outcome list) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: a comma-separated field with one result.
-- [ ] Invite each address through its own request (the allowlist and its own send key, D07 T02 §3) and list each outcome (sent, not sent, unknown, refused), retrying only the ones that did not go. Done when: `test/web/team-page.test.ts` invites ten addresses with one submit, one refused by SMTP2GO, reads ten outcomes with their stored invitations, and a retry sends only that one; twenty addresses pass, twenty-one send nothing, duplicates send once, and a member or an over-reaching admin is refused on the batch and on Retry. Cheaper substitute: one request with a single overall result. Source: D07 T02 §3 completion review (Part 2 item 2).
-- [ ] Prove the batch in the browser in `test/node/team-invites-browser.test.tsx`: multiline field, shared role, keyboard and scripts-off submission, failure-only Retry, retained input and announced results at phone and desktop widths in both themes. Done when: the browser test reads each.
-- [ ] Commit: `web: invite several colleagues at once`
+- [x] Record the multi-address invite (separator, limit, outcome list) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: a comma-separated field with one result.
+- [x] Invite each address through its own request (the allowlist and its own send key, D07 T02 §3) and list each outcome (sent, not sent, unknown, refused), retrying only the ones that did not go. Done when: `test/web/team-page.test.ts` invites ten addresses with one submit, one refused by SMTP2GO, reads ten outcomes with their stored invitations, and a retry sends only that one; twenty addresses pass, twenty-one send nothing, duplicates send once, and a member or an over-reaching admin is refused on the batch and on Retry. Cheaper substitute: one request with a single overall result. Source: D07 T02 §3 completion review (Part 2 item 2).
+- [x] Prove the batch in the browser in `test/node/team-invites-browser.test.tsx`: multiline field, shared role, keyboard and scripts-off submission, failure-only Retry, retained input and announced results at phone and desktop widths in both themes. Done when: the browser test reads each.
+- [x] Commit: `web: invite several colleagues at once`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a retry resends an address that went.
 
