@@ -375,7 +375,8 @@ async function open(
   if (cards !== evidence)
     await p.evaluate(async () => {
       for (const img of document.querySelectorAll("img[data-evidence-image]")) {
-        (img.parentElement ?? img).scrollIntoView();
+        (img.closest("[data-evidence-frame]") ?? img.parentElement ?? img).scrollIntoView();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       window.scrollTo(0, 0);

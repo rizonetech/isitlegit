@@ -609,7 +609,7 @@ describe("metrics.json", () => {
       mkdirSync(runs, { recursive: true });
       const lines = PAGES.map((p) => ({
         id: p.id,
-        answer: p.type === "none" ? NONE : lure(p.type as "credential"),
+        answer: p.type === "none" || (version === "1.0" && p.id === "L2") ? NONE : lure(p.type as "credential"),
         error: null,
         latency_ms: 5,
         cost_usd: 0,
@@ -647,7 +647,9 @@ describe("metrics.json", () => {
       env: { ...process.env, GLIMMER_DATA_DIR: root },
       encoding: "utf-8",
     });
-    expect(out.trim()).toBe("promote");
+    expect(out).toContain("1.1 (new) overall:");
+    expect(out).toContain("1.0 (previous) overall:");
+    expect(out.trim().split("\n").at(-1)).toBe("promote");
   });
 
   it("draws no bar while Spark has pages not yet asked, so a run in progress is not scored as Spark's misses", async () => {
