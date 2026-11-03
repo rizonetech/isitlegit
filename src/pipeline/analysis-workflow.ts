@@ -1403,11 +1403,11 @@ async function groupedReply(
     summaryOtherOriginals === null ||
     (parentTerminal &&
       (children.length < Math.min(summaryOtherOriginals, MAX_ORIGINALS - 1) ||
-        children.some((c) => c.state === "pending")));
+        children.some((c) => c.state === "pending" || c.state === "admitted")));
   if (needExtracted) {
-    const parentRaw = await withinDeadline(readArtefact(store, parentId, rawKey(parentId))).catch(() => null);
+    const parentRaw = await withinDeadline(readArtefact(store, parentId, rawKey(parentId)));
     if (parentRaw && "body" in parentRaw) {
-      extracted = await extractOriginals(parentRaw.body).catch(() => null);
+      extracted = await extractOriginals(parentRaw.body);
     }
   }
   const otherOriginals = summaryOtherOriginals ?? extracted?.chosen.otherOriginals ?? null;
@@ -1492,9 +1492,14 @@ async function groupedReply(
         await markChildStarted(db, child.childCaseId);
         continue;
       }
-      const raw = await withinDeadline(readArtefact(store, child.childCaseId, rawKey(child.childCaseId))).catch(
-        () => null,
-      );
+      let raw = await withinDeadline(readArtefact(store, child.childCaseId, rawKey(child.childCaseId)));
+      if ((!raw || !("body" in raw)) && extracted) {
+        const other = extracted.others[child.position - 2];
+        if (other) {
+          await putRaw(store, child.childCaseId, other.original);
+          raw = await withinDeadline(readArtefact(store, child.childCaseId, rawKey(child.childCaseId)));
+        }
+      }
       if (raw && "body" in raw) {
         let running = false;
         try {
@@ -1622,37 +1627,28 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
   if (sendKey?.startsWith("reply:group:") || (await childrenOf(env.DB, caseId)).length)
     return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
 
-  // The summary and the forward's header block are optional: either unreadable (gone, a storage fault, or still not
-  // read after OPTIONAL_READ_MS, so a stalled read cannot use up the attempt) and the reply still goes, with no
-  // other-originals note and the fallback subject and threading. When the summary was never written (for example,
-  // parse exhausted its retries before the manifest batch committed), the stored raw forward still tells whether
-  // additional originals exist so grouped recovery runs instead of a single-case reply (round 3).
-  const summaryOrRaw = await withinDeadline(
-    (async () => {
-      const summary = await readArtefact(store, caseId, parsedKey(caseId));
-      if (summary && "body" in summary) {
-        return {
-          otherOriginals: Number(
-            (JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0,
-          ),
-          hasAdditionalOriginals: false,
-        };
-      }
-      if (found.channel === "email" && found.sourceKind === "mail") {
-        const raw = await readArtefact(store, caseId, rawKey(caseId));
-        if (raw && "body" in raw) {
-          const extracted = await extractOriginals(raw.body);
-          return {
-            otherOriginals: extracted.chosen.otherOriginals,
-            hasAdditionalOriginals: extracted.others.length > 0,
-          };
-        }
-      }
-      return { otherOriginals: 0, hasAdditionalOriginals: false };
-    })(),
-  ).catch(() => ({ otherOriginals: 0, hasAdditionalOriginals: false }));
-  if (summaryOrRaw.otherOriginals > 0 || summaryOrRaw.hasAdditionalOriginals)
-    return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
+  // When the case ended in admit or parse before the summary was recorded (and not from a ParseError after
+  // fan-out or a missing raw message), fan-out may never have committed its manifest. Discovery from the
+  // stored raw forward is required and retryable: a storage failure or timeout here must throw so the reply
+  // step retries instead of sending a single-case reply that drops additional originals (round 4).
+  const hasSummaryRow = !!(await env.DB.prepare("SELECT 1 FROM artefacts WHERE r2_key = ? AND case_id = ?")
+    .bind(parsedKey(caseId), caseId)
+    .first());
+  const needsDiscovery =
+    !hasSummaryRow &&
+    found.channel === "email" &&
+    found.sourceKind === "mail" &&
+    state.status === "partial" &&
+    (state.failedStep === "admit" ||
+      (state.failedStep === "parse" && state.errorClass !== "ParseError" && state.errorClass !== "RawMissing"));
+  if (needsDiscovery) {
+    const raw = await withinDeadline(readArtefact(store, caseId, rawKey(caseId)));
+    if (raw && "body" in raw) {
+      const extracted = await extractOriginals(raw.body);
+      if (extracted.others.length > 0)
+        return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
+    }
+  }
 
   let report: ReplyReport;
   if (state.status === "ready") {
@@ -1662,7 +1658,16 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
   } else {
     report = { status: "partial", failedStep: state.failedStep, errorClass: state.errorClass };
   }
-  const otherOriginals = summaryOrRaw.otherOriginals;
+  const otherOriginals = hasSummaryRow
+    ? await withinDeadline(readArtefact(store, caseId, parsedKey(caseId)))
+        .then((summary) =>
+          summary && "body" in summary
+            ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
+            : 0,
+        )
+        .catch(() => 0)
+    : 0;
+  if (otherOriginals > 0) return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
   const head = await withinDeadline(
     env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } }).then(async (object) =>
       object ? new Uint8Array(await object.arrayBuffer()) : null,

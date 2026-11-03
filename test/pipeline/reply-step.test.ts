@@ -4,7 +4,7 @@ import { saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus } from "../../src/db/cases";
 
 import { storeVerdict } from "../../src/db/verdicts";
-import { putRaw, type Store } from "../../src/intake/store";
+import { putParsed, putRaw, type Store } from "../../src/intake/store";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { STUB_VERDICT } from "../../src/pipeline/analysis-workflow";
 import { verifyReportLink } from "../../src/web/report-link";
@@ -227,6 +227,7 @@ describe("the reply step", () => {
     for (const bucket of broken) {
       const requests = stubSmtp2go(["sent"]);
       const id = await caseFrom(forwards["inline-forward"]);
+      await putParsed(store, id, { forward: { headersAvailable: false } });
       const result = await reply({ ...env, ARTEFACTS: bucket as unknown as R2Bucket }, id, partial);
       expect(result.mail).toBe("sent");
       expect(requests).toHaveLength(1);
@@ -243,6 +244,7 @@ describe("the reply step", () => {
       const { reply, OPTIONAL_READ_MS } = await import("../../src/pipeline/analysis-workflow");
       const requests = stubSmtp2go(["sent"]);
       const id = await caseFrom(forwards["inline-forward"]);
+      await putParsed(store, id, { forward: { headersAvailable: false } });
       const stalled = { ...env.ARTEFACTS, get: () => new Promise(() => {}) } as unknown as R2Bucket;
       const pending = reply({ ...env, ARTEFACTS: stalled }, id, {
         status: "partial",

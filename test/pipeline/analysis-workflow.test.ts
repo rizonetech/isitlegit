@@ -2042,8 +2042,6 @@ describe("several originals in one forward (D01 T01 §12)", () => {
     await recordFailure(env.DB, parentId, "parse", "Error");
     const firstChildId = children[0]?.childCaseId as string;
     const secondChildId = children[1]?.childCaseId as string;
-    // Remove the unstarted second child's raw bytes (or simulate unstartable child) so it cannot start.
-    await env.ARTEFACTS.delete(rawKey(secondChildId));
     await parse(store, firstChildId, MAIL, { start: async () => {} });
     await setStatus(env.DB, ORG, firstChildId, "running");
     await storeVerdict(env.DB, ORG, firstChildId, {
@@ -2065,8 +2063,15 @@ describe("several originals in one forward (D01 T01 §12)", () => {
       requests.push(JSON.parse(String(init?.body ?? "{}")));
       return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-1" } });
     });
+    const unstartableEnv: Env = {
+      ...env,
+      ANALYSIS: {
+        create: () => Promise.reject(new Error("workflow unavailable")),
+        get: () => Promise.reject(new Error("workflow unavailable")),
+      } as unknown as Env["ANALYSIS"],
+    };
     try {
-      const sent = await reply(env, firstChildId, { status: "ready", verdict: "safe" });
+      const sent = await reply(unstartableEnv, firstChildId, { status: "ready", verdict: "safe" });
       expect(sent.mail).toBe("sent");
       expect((await caseRow(secondChildId))?.status).toBe("partial");
       expect(requests).toHaveLength(1);
@@ -2286,11 +2291,7 @@ describe("several originals in one forward (D01 T01 §12)", () => {
 
     const firstChildId = recorded[0]?.childCaseId as string;
     const secondChildId = recorded[1]?.childCaseId as string;
-    // First groupedReply recovers position 3 (admitting it and storing its raw bytes) and starts/settles unstarted children.
-    // Remove raw bytes for the two children after recovery or before so groupedReply settles unstartable children, or parse and finish them:
-    // First call recovers position 3 and writes its raw bytes; remove raw bytes of firstChildId so firstChildId settles partial,
-    // and let secondChildId start or settle partial when its raw bytes are removed on the next pass.
-    await env.ARTEFACTS.delete(rawKey(firstChildId));
+    await recordFailure(env.DB, firstChildId, "parse", "Error");
     await reply(env, parentId, { status: "partial", failedStep: "parse", errorClass: "Error" });
     const afterRecovery = await childrenOf(env.DB, parentId);
     expect(afterRecovery).toHaveLength(2);
@@ -2417,6 +2418,81 @@ describe("several originals in one forward (D01 T01 §12)", () => {
       expect(requests[0]?.text_body).toContain("1. A message with no subject");
       expect(requests[0]?.text_body).toContain("Check failed · no verdict");
       expect(requests[0]?.text_body).toContain("2. Updated banking details");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("retries failed raw discovery and restores missing raw bytes for admitted unstarted children (round 4 findings 1, 2)", async () => {
+    const parentId = await caseWith(forwards["two-originals"]);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    const brokenReadBucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "get" ? () => Promise.reject(new Error("R2 read down")) : Reflect.get(target, name).bind(target),
+    }) as unknown as R2Bucket;
+    // Finding 1: R2 reads fail through parse exhaustion and the first reply attempt. With no manifest or summary,
+    // reply throws so discovery retries instead of sending a single-case reply that drops original 2.
+    await expect(
+      parse({ db: env.DB, bucket: brokenReadBucket }, parentId, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/R2 read down/);
+    await recordFailure(env.DB, parentId, "parse", "StoreError");
+    await expect(
+      reply({ ...env, ARTEFACTS: brokenReadBucket }, parentId, {
+        status: "partial",
+        failedStep: "parse",
+        errorClass: "StoreError",
+      }),
+    ).rejects.toThrow(/R2 read down/);
+
+    // Finding 2: child admission succeeds in fanOut, then child raw put fails throughout parse retries;
+    // when storage recovers before reply, groupedReply restores the admitted child's raw bytes from the parent forward.
+    const parent2Id = await caseWith(forwards["two-originals"]);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parent2Id)
+      .run();
+    const brokenPutBucket = new Proxy(env.ARTEFACTS, {
+      get: (target, name) =>
+        name === "put" ? () => Promise.reject(new Error("R2 put down")) : Reflect.get(target, name).bind(target),
+    }) as unknown as R2Bucket;
+    await expect(
+      parse({ db: env.DB, bucket: brokenPutBucket }, parent2Id, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/R2 put down/);
+    const { childrenOf } = await import("../../src/intake/children");
+    const children = await childrenOf(env.DB, parent2Id);
+    expect(children).toHaveLength(1);
+    expect(children[0]?.state).toBe("admitted");
+    const childId = children[0]?.childCaseId as string;
+    expect(await readArtefact(store, childId, rawKey(childId))).toBeNull();
+    await recordFailure(env.DB, parent2Id, "parse", "StoreError");
+
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-r4" } });
+    });
+    try {
+      const firstReply = await reply(env, parent2Id, {
+        status: "partial",
+        failedStep: "parse",
+        errorClass: "StoreError",
+      });
+      expect(firstReply.mail).toBe("waiting");
+      expect(await readArtefact(store, childId, rawKey(childId))).toMatchObject({ body: expect.any(Uint8Array) });
+      const childInstance = await introspectWorkflowInstance(env.ANALYSIS, childId);
+      try {
+        await childInstance.waitForStatus("complete");
+      } finally {
+        await childInstance.dispose();
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("2. Updated banking details");
+      expect(requests[0]?.text_body).toContain("Looks legitimate");
     } finally {
       vi.restoreAllMocks();
     }
