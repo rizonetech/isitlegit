@@ -929,3 +929,79 @@ describe("completion review", () => {
     expect(Date.now() - started).toBeLessThan(5_000);
   });
 });
+
+describe("brand-free 1.1 evaluation (D03 T04 §45)", () => {
+  it("accepts BrandFreePageAnswer replies, rejects replies with a brand field, and omits brand scoring on 1.1", async () => {
+    const dir = datasetDir(root, "1.1");
+    mkdirSync(dir, { recursive: true });
+    const brandFreeNone = {
+      has_login_form: false,
+      has_payment_form: false,
+      lure: false,
+      lure_type: "none" as const,
+      confidence: 0.05,
+    };
+    const brandFreeLure = (lure_type: "credential" | "payment" | "fake_shop" | "impersonation") => ({
+      has_login_form: lure_type === "credential",
+      has_payment_form: lure_type === "payment",
+      lure: true,
+      lure_type,
+      confidence: 0.95,
+    });
+    const lines = PAGES.map((page) => {
+      const request = buildScreenRequest({
+        image: fakeJpeg(1280, 800, 400),
+        host: "example.com",
+        text: TEXT(page.id),
+        mode: "image",
+        nonce: createHash("sha256").update(page.id).digest("hex").slice(0, 32),
+        brandAsTruth: false,
+      });
+      return buildTrainingLine(
+        request,
+        page.type === "none" ? brandFreeNone : brandFreeLure(page.type as "credential"),
+      );
+    });
+    const evaluation = `${lines.join("\n")}\n`;
+    writeFileSync(join(dir, "eval.jsonl"), evaluation);
+    const metas = PAGES.map(
+      (page): PageMeta => ({
+        id: page.id,
+        source: page.source,
+        origin: page.origin,
+        lure_type: page.type,
+        brand: page.type === "none" ? "Unseen Brand" : "Acme",
+        south_africa: page.sa,
+        screenshot: "0".repeat(64),
+      }),
+    );
+    writeFileSync(join(dir, "eval.meta.jsonl"), `${metas.map((m) => JSON.stringify(m)).join("\n")}\n`);
+    writeFileSync(
+      join(dir, "train.meta.jsonl"),
+      `${JSON.stringify({ lure_type: "credential", brand_identity: "acme" })}\n`,
+    );
+    const sha = createHash("sha256").update(evaluation).digest("hex");
+    writeFileSync(join(dir, "summary.json"), JSON.stringify({ brandAsTruth: false, sha256: { evaluation: sha } }));
+
+    const replies: Record<string, string> = Object.fromEntries(
+      PAGES.map((p) => [
+        p.id,
+        JSON.stringify(p.type === "none" ? brandFreeNone : brandFreeLure(p.type as "credential")),
+      ]),
+    );
+    // B2 carries a forbidden `brand` key in its reply, which `BrandFreePageAnswer` must reject.
+    replies.B2 = JSON.stringify({ ...brandFreeNone, brand: null });
+    await runLoupe("1.1", replies);
+    const saved = readAnswers(join(runDir(root, "1.1"), "loupe.answers.jsonl"));
+    expect(saved.get("L1")?.error).toBeNull();
+    expect("brand" in (saved.get("L1")?.answer ?? {})).toBe(false);
+    expect(saved.get("B2")).toMatchObject({
+      answer: null,
+      error: "the reply was not a valid BrandFreePageAnswer",
+    });
+    const metrics = scoreVersion(root, "1.1");
+    expect(metrics.overall.answered).toBe(9);
+    expect(metrics.overall.unanswered).toBe(1);
+    expect(metrics.overall.lure_recall).toBe(1);
+  });
+});

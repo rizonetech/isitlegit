@@ -974,6 +974,137 @@ export function writeFreeze(dir: string, frozen: Frozen, version = "1.0"): void 
   if (readFileSync(file, "utf-8") !== written) throw new Error("the freeze did not read back as written");
 }
 
+const isSamplePageId = (id: string): boolean => id.startsWith("samples-body-") || id.startsWith("samples-attachment-");
+
+// Verifies an existing freeze (`raw/FROZEN.json` or `raw/FROZEN-<version>.json`) against the current store without
+// replacing the immutable freeze file (D03 T04 §45). Reconciles lineage-migrated `IMPORT.json` bindings (`ITEMS.import.jsonl`)
+// and post-freeze sample re-imports under the current redaction key while refusing any drifted non-sample source or page.
+export function verifyExistingFreeze(
+  dir: string,
+  version = "1.0",
+  root = ROOT,
+): { problems: string[]; frozen?: Frozen; reconciledPages?: Set<string> } {
+  const file = freezeFile(dir, version);
+  if (!existsSync(file)) return { problems: [`${file}: does not exist`] };
+  let record: Frozen;
+  try {
+    record = JSON.parse(readFileSync(file, "utf-8")) as Frozen;
+  } catch {
+    return { problems: [`${file}: does not read as JSON`] };
+  }
+  if (!Array.isArray(record.pages) || !record.sources || !record.renders?.majestic || !record.renders["benign-sa"])
+    return { problems: [`${file}: is not a whole freeze (its pages, sources or both renders are missing)`] };
+
+  const { problems, imports, pages, sourcesMd } = storeProblems(dir, root);
+  const accepted = new Set(
+    parseSources(sourcesMd)
+      .rows.filter((r) => r.decision === "accepted")
+      .map((r) => r.source),
+  );
+  for (const source of accepted) {
+    if (!(source in record.sources)) problems.push(`${source}: accepted in sources.md, but absent from the freeze`);
+  }
+  for (const [source, frozenSource] of Object.entries(record.sources)) {
+    if (!accepted.has(source)) {
+      problems.push(`${source}: in the freeze, but no longer accepted in sources.md`);
+      continue;
+    }
+    const importFile = join(dir, "raw", source, "IMPORT.json");
+    if (!existsSync(importFile)) {
+      problems.push(`${source}: missing IMPORT.json`);
+      continue;
+    }
+    const currentSha = createHash("sha256").update(readFileSync(importFile)).digest("hex");
+    if (currentSha !== frozenSource.import_sha256) {
+      const currentImport = imports[source];
+      const importLedgerFile = join(dir, "raw", source, "ITEMS.import.jsonl");
+      const ledgerHeader = existsSync(importLedgerFile) ? readImportLedger(importLedgerFile).header : undefined;
+      const lineageMigrated =
+        currentImport?.status === "complete" &&
+        (currentImport.stored ?? 0) === frozenSource.stored &&
+        (currentImport.rows ?? null) === (frozenSource.rows ?? null) &&
+        ledgerHeader?.import === currentSha &&
+        (frozenSource.rows === null || ledgerHeader?.rows === frozenSource.rows);
+      if (!lineageMigrated) problems.push(`imported again since the freeze: ${source}`);
+    }
+  }
+
+  const journal = join(dir, "raw", "benign", "progress.jsonl");
+  const store = openStore(dir);
+  const named = new Set<string>();
+  for (const [name, listPath] of [
+    ["majestic", join(dir, "raw", "majestic", "top.csv")],
+    ["benign-sa", join(root, "eval", "glimmer", "benign-sa-urls.txt")],
+  ] as const) {
+    const frozenRender = record.renders[name];
+    if (!existsSync(listPath) || !existsSync(journal) || !frozenRender) {
+      problems.push(`${name}: no list or no render journal to verify its frozen render`);
+      continue;
+    }
+    const text = readFileSync(listPath, "utf-8");
+    const receipt = renderReceipt(name === "majestic" ? majesticList(text) : saList(text), journal, store);
+    if (receipt.unfinished.length || receipt.missing_pages.length)
+      problems.push(
+        `${name}: its render is not finished (${receipt.unfinished.length} unfinished, ${receipt.missing_pages.length} missing)`,
+      );
+    for (const outcome of Object.values(receipt.outcomes)) {
+      if ("stored" in outcome) named.add(outcome.stored);
+    }
+    if (
+      receipt.list_sha256 !== frozenRender.list_sha256 ||
+      receipt.urls !== frozenRender.urls ||
+      receipt.stored !== frozenRender.stored
+    )
+      problems.push(`${name}: render receipt drifted from the freeze`);
+  }
+
+  const storedNonSample = new Set(
+    pages.filter((p) => p.origin !== "samples" && (p.origin !== "benign" || named.has(p.id))).map((p) => p.id),
+  );
+  const frozenNonSample = new Set(record.pages.filter((id) => !isSamplePageId(id)));
+  const missingNonSample = [...frozenNonSample].filter((id) => !storedNonSample.has(id));
+  const extraNonSample = [...storedNonSample].filter((id) => !frozenNonSample.has(id));
+  if (missingNonSample.length || extraNonSample.length)
+    problems.push(
+      `non-sample pages drifted from the freeze (${missingNonSample.length} missing, ${extraNonSample.length} added)`,
+    );
+
+  const frozenSamples = record.pages.filter(isSamplePageId);
+  const storedSamples = pages
+    .filter((p) => p.origin === "samples")
+    .map((p) => p.id)
+    .sort();
+  const sameSamples =
+    frozenSamples.length === storedSamples.length && frozenSamples.every((id, idx) => id === storedSamples[idx]);
+  if (!sameSamples && frozenSamples.length > 0) {
+    const redactionFile = join(dir, "raw", "samples", "REDACTION.json");
+    const redaction = existsSync(redactionFile)
+      ? (JSON.parse(readFileSync(redactionFile, "utf-8")) as { key?: string | null; building?: string | null })
+      : {};
+    const bodyImport = existsSync(join(dir, "raw", "samples-body", "IMPORT.json"))
+      ? (JSON.parse(readFileSync(join(dir, "raw", "samples-body", "IMPORT.json"), "utf-8")) as { status?: string })
+      : {};
+    const attImport = existsSync(join(dir, "raw", "samples-attachment", "IMPORT.json"))
+      ? (JSON.parse(readFileSync(join(dir, "raw", "samples-attachment", "IMPORT.json"), "utf-8")) as {
+          status?: string;
+        })
+      : {};
+    if (
+      !redaction.key ||
+      redaction.building ||
+      bodyImport.status !== "complete" ||
+      attImport.status !== "complete" ||
+      storedSamples.length === 0
+    ) {
+      problems.push("sample pages drifted from the freeze without a complete re-import under the current redaction");
+    }
+  }
+
+  if (problems.length) return { problems };
+  const reconciledPages = sameSamples ? new Set(record.pages) : new Set([...frozenNonSample, ...storedSamples].sort());
+  return { problems, frozen: record, reconciledPages };
+}
+
 export function removeSourceFromStore(dir: string, name: string): number {
   const removed = openStore(dir).removeSource(name);
   const folder = join(dir, "raw", name);
@@ -1588,6 +1719,14 @@ if (import.meta.filename === process.argv[1]) {
     const version = at >= 0 ? (process.argv[at + 1] ?? "") : "1.0";
     const target = freezeFile(dir, version);
     if (existsSync(target)) {
+      const verified = verifyExistingFreeze(dir, version);
+      if (verified.problems.length === 0 && verified.frozen) {
+        console.log(
+          `sources: existing freeze at ${target} verified (${verified.reconciledPages?.size ?? verified.frozen.pages.length} pages, ${Object.keys(verified.frozen.sources).length} sources); a freeze is never replaced`,
+        );
+        process.exit(0);
+      }
+      for (const problem of verified.problems) console.error(`sources: ${problem}`);
       console.error(`sources: ${target} already exists: a freeze is never replaced (move it aside by hand to redo)`);
       process.exit(1);
     }

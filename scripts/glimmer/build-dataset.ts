@@ -33,12 +33,14 @@ import sharp from "sharp";
 import { getDomain } from "tldts";
 import {
   assertLineFits,
+  BrandFreePageAnswer,
   buildScreenRequest,
   buildTrainingLine,
   LURE_TYPES,
   PageAnswer,
-  SCREENER_SYSTEM_PROMPT,
   type ScreenMode,
+  screenerSystemPrompt,
+  type VersionedPageAnswer,
 } from "../../src/vision/page-screen.ts";
 import {
   addresses,
@@ -75,6 +77,16 @@ export const NEAR_TEXT = 0.8;
 const SCAN_BATCH = 500;
 const READ_BACK_BATCH = 200;
 export const LURE_SHARE = { min: 0.4, max: 0.6 };
+export const LURE_ONLY_TYPES = ["credential", "payment", "fake_shop", "impersonation"] as const;
+export const SPLIT_BALANCE_TOLERANCE = 0.05;
+export const HARD_NEGATIVE_KINDS = ["unseen-brand", "own-page", "small-site", "news-or-fan"] as const;
+export type HardNegativeKind = (typeof HARD_NEGATIVE_KINDS)[number];
+export const HARD_NEGATIVE_FLOORS: Record<HardNegativeKind, number> = {
+  "unseen-brand": 100,
+  "own-page": 50,
+  "small-site": 100,
+  "news-or-fan": 50,
+};
 export const EVAL_MINIMUMS = { total: 1000, southAfrica: 300, perLureType: 50 };
 // The largest group the split may hold out of training, as a share of its pages. Operators running kits of several
 // brands chain the common phishing brands into one group (18,880 of 129,886 pages in the 1.0 collection, holding
@@ -98,6 +110,10 @@ export type Floors = {
   sampleTraining: number;
   // The lure share each split must stay within; null for none (a test of something else).
   lureShare: { min: number; max: number } | null;
+  // From 1.1 on (D03 T04 §45): require the persisted splits to meet class-balance targets within 5 percentage points.
+  splitBalance?: boolean;
+  // From 1.1 on (D03 T04 §45): minimum retained training coverage for each hard-negative kind.
+  hardNegatives?: Record<HardNegativeKind, number> | null;
 };
 export const FLOORS: Floors = {
   evaluation: EVAL_MINIMUMS.total,
@@ -107,6 +123,11 @@ export const FLOORS: Floors = {
   sampleTraining: 0.5,
   lureShare: LURE_SHARE,
 };
+export const FLOORS_V1_1: Floors = {
+  ...FLOORS,
+  splitBalance: true,
+  hardNegatives: HARD_NEGATIVE_FLOORS,
+};
 // No floor at all: for a test of something other than the floors, never for a real build.
 export const NO_FLOORS: Floors = {
   evaluation: 0,
@@ -115,6 +136,8 @@ export const NO_FLOORS: Floors = {
   sampleEvaluation: 0,
   sampleTraining: 0,
   lureShare: null,
+  splitBalance: false,
+  hardNegatives: null,
 };
 
 // A refused publication: every floor the version misses, named.
@@ -194,16 +217,40 @@ export function jaccard(a: Uint32Array, b: Uint32Array): number {
   return both / (a.length + b.length - both);
 }
 
+function jaccardAtLeast(a: Uint32Array, b: Uint32Array, bar: number): boolean {
+  if (!a.length && !b.length) return true;
+  const total = a.length + b.length;
+  const maxMisses = Math.floor(total - (2 * bar * total) / (1 + bar)) + 2;
+  let both = 0;
+  for (let i = 0, j = 0; i < a.length && j < b.length; ) {
+    const x = a[i] as number;
+    const y = b[j] as number;
+    if (x === y) {
+      both++;
+      i++;
+      j++;
+    } else {
+      if (x < y) i++;
+      else j++;
+      if (i + j - 2 * both > maxMisses) return false;
+    }
+  }
+  return both / (total - both) >= bar;
+}
+
 // The answer a page teaches, or null while any field is still unknown. Confidence is P(lure), as the screener prompt
 // defines it (D03 T04 §48): a lure teaches high, a benign page low, and an `unverified` label nearer the unsure band.
-// For Loupe 1.1 onward (`brandAsTruth` false, D03 T04 §45) brand is never taught as truth: the answer carries null,
+// For Loupe 1.1 onward (`brandAsTruth` false, D03 T04 §45) brand is never taught as truth: the answer omits `brand`,
 // brand and host stay grouping and capping keys through the page's own labels, and no brand score is taken from the version.
-export function answerOf(page: StoredPage, brandAsTruth = true): PageAnswer | null {
+export function answerOf(page: StoredPage, brandAsTruth: true): PageAnswer | null;
+export function answerOf(page: StoredPage, brandAsTruth: false): BrandFreePageAnswer | null;
+export function answerOf(page: StoredPage, brandAsTruth?: boolean): VersionedPageAnswer | null;
+export function answerOf(page: StoredPage, brandAsTruth = true): VersionedPageAnswer | null {
   const { labels } = page;
-  if (labels.lure === undefined || labels.lure_type === undefined || labels.brand === undefined) return null;
+  if (labels.lure === undefined || labels.lure_type === undefined) return null;
+  if (brandAsTruth && labels.brand === undefined) return null;
   if (labels.has_login_form === undefined || labels.has_payment_form === undefined) return null;
-  return {
-    brand: brandAsTruth ? labels.brand : null,
+  const base: BrandFreePageAnswer = {
     has_login_form: labels.has_login_form,
     has_payment_form: labels.has_payment_form,
     lure: labels.lure,
@@ -221,6 +268,7 @@ export function answerOf(page: StoredPage, brandAsTruth = true): PageAnswer | nu
           ? 0.95
           : 0.05,
   };
+  return brandAsTruth ? { brand: labels.brand ?? null, ...base } : base;
 }
 
 // Whether a page may be evaluated on: its `lure` is known to be true (detections and false alarms are what Loupe is
@@ -354,7 +402,7 @@ function samplesFirst(items: Entry[], random: () => number): Entry[] {
   return shuffle(items, random).sort((a, b) => Number(sampleLure(b.page)) - Number(sampleLure(a.page)));
 }
 
-type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Uint32Array };
+type Entry = { page: StoredPage; answer: VersionedPageAnswer; hash: bigint; words: Uint32Array };
 
 // A build's page shingles, held on disk rather than in the heap (coordinator direction, 2026-11-02): loading
 // 170 thousand pages' shingle sets is what grew the build until the machine's memory guard killed it, several
@@ -406,7 +454,7 @@ export class WordSpill {
         at += read;
       }
     }
-    if (this.cache.size >= 256) {
+    if (this.cache.size >= 65_536) {
       const oldest = this.cache.keys().next().value;
       if (oldest !== undefined) this.cache.delete(oldest);
     }
@@ -440,6 +488,8 @@ export function compactPage(page: StoredPage): StoredPage {
     redacted: page.redacted,
     ...(page.item !== undefined ? { item: page.item } : {}),
     ...(page.items !== undefined ? { items: page.items.map((item) => ({ ...item })) } : {}),
+    ...(page.url !== undefined ? { url: page.url } : {}),
+    ...(page.evidence !== undefined ? { evidence: { ...page.evidence } } : {}),
   } as StoredPage;
 }
 
@@ -494,17 +544,27 @@ export function dedupe(
       continue;
     }
     seen.add(key);
-    const candidates = new Set<Entry>();
-    keys.forEach((value, band) => {
-      for (const other of bands[band]?.get(value) ?? []) candidates.add(other);
-    });
     // Two texts share at most the smaller one's shingles, so a pair whose sizes differ by more than the bar cannot reach
     // it: the check skips the merge for such a pair without changing which pages are twins.
-    const twin = [...candidates].find((other) => {
-      if (hamming(other.hash, entry.hash) > NEAR_BITS) return false;
-      if (!sizesAllow(wordLength(other), wordLength(entry))) return false;
-      return jaccard(wordsOf(other), wordsOf(entry)) >= NEAR_TEXT;
-    });
+    const entryLen = wordLength(entry);
+    let entryWords: Uint32Array | null = null;
+    const candidates = new Set<Entry>();
+    let twin = false;
+    for (let band = 0; band < 7 && !twin; band++) {
+      const bucket = bands[band]?.get(keys[band] as number);
+      if (!bucket) continue;
+      for (const other of bucket) {
+        if (hamming(other.hash, entry.hash) > NEAR_BITS) continue;
+        if (!sizesAllow(wordLength(other), entryLen)) continue;
+        if (candidates.has(other)) continue;
+        candidates.add(other);
+        if (!entryWords) entryWords = wordsOf(entry);
+        if (jaccardAtLeast(wordsOf(other), entryWords, NEAR_TEXT)) {
+          twin = true;
+          break;
+        }
+      }
+    }
     if (twin) {
       near++;
       if (reserved) index(entry, keys);
@@ -541,6 +601,54 @@ export function capBrands(
   return out;
 }
 
+// Cuts `lures` down to `keep` entries while preserving each `lure_type`'s relative share among lures, and never
+// dropping a sample-derived lure before a public one.
+function cutLuresStratified(lures: Entry[], keep: number, random: () => number): Entry[] {
+  if (lures.length <= keep) return lures;
+  const byType = new Map<string, Entry[]>(LURE_ONLY_TYPES.map((t) => [t, []]));
+  for (const e of lures) {
+    const bucket = byType.get(e.answer.lure_type);
+    if (bucket) bucket.push(e);
+  }
+  const ordered = new Map<string, Entry[]>();
+  const quotas = new Map<string, number>();
+  const remainders: { type: string; rem: number }[] = [];
+  let allocated = 0;
+  for (const type of LURE_ONLY_TYPES) {
+    const list = samplesFirst(byType.get(type) ?? [], random);
+    ordered.set(type, list);
+    const exact = (list.length / lures.length) * keep;
+    const base = Math.min(list.length, Math.floor(exact));
+    quotas.set(type, base);
+    allocated += base;
+    remainders.push({ type, rem: exact - base });
+  }
+  remainders.sort((a, b) => b.rem - a.rem);
+  for (const { type } of remainders) {
+    if (allocated >= keep) break;
+    const list = ordered.get(type) ?? [];
+    const current = quotas.get(type) ?? 0;
+    if (current < list.length) {
+      quotas.set(type, current + 1);
+      allocated++;
+    }
+  }
+  const chosen: Entry[] = [];
+  const overflow: Entry[] = [];
+  for (const type of LURE_ONLY_TYPES) {
+    const list = ordered.get(type) ?? [];
+    const quota = quotas.get(type) ?? 0;
+    chosen.push(...list.slice(0, quota));
+    overflow.push(...list.slice(quota));
+  }
+  const missedSamples = overflow.filter((e) => sampleLure(e.page));
+  if (!missedSamples.length) return chosen;
+  const dropForSamples = chosen.filter((e) => !sampleLure(e.page));
+  const swapCount = Math.min(missedSamples.length, dropForSamples.length);
+  const droppedSet = new Set(dropForSamples.slice(-swapCount));
+  return [...chosen.filter((e) => !droppedSet.has(e)), ...missedSamples.slice(0, swapCount)];
+}
+
 // Lures held within 40 to 60 percent by dropping the larger side, chosen with the seed; a cut drops every other lure
 // before a sample-derived one.
 export function balance(entries: Entry[], random: () => number): Entry[] {
@@ -554,22 +662,62 @@ export function balance(entries: Entry[], random: () => number): Entry[] {
   return entries;
 }
 
-// A benign page that is hard for a screener (D03 T04 §45): its brand is absent from the lure pages' brands
-// (`unseen-brand`), it names a brand (`brand-named`), or it names none (`unbranded`, the small real sites). 1.0
-// flagged 19 of 20 unseen-brand benign pages, so 1.1 keeps every one of these in training through balancing.
-export function hardNegativeKind(entry: Entry, lureBrands: Set<string>): string | null {
-  if (entry.answer.lure) return null;
-  const brand = entry.page.labels.brand ? brandIdentity(entry.page.labels.brand) : null;
-  if (brand && !lureBrands.has(brand)) return "unseen-brand";
-  if (brand) {
-    const host = entry.page.host ? siteKey(entry.page.host) : null;
-    const stem = host ? host.split(".")[0] : null;
-    return stem && brandIdentity(stem) === brand ? "own-page" : "brand-named";
-  }
-  return "unbranded";
+const NEWS_OR_FAN_HOST =
+  /(?:^|[.-])(news|blog|blogs|fan|forum|forums|wiki|review|reviews|press|media|magazine|daily|times|herald|post|gazette|tribune|chronicle|digest|wire|observer)(?:[.-]|$)/i;
+const NEWS_OR_FAN_PATH =
+  /\/(news|blog|blogs|article|articles|story|stories|press|media|fan|forum|forums|wiki|review|reviews)(\/|$)/i;
+const UNTRUSTED_HARD_NEGATIVE_BRAND_SOURCES = new Set(["grouping-only", "unverified", "spark"]);
+
+function hasNewsOrFanEvidence(page: StoredPage): boolean {
+  const host = page.host ?? "";
+  const url = page.url ?? "";
+  const ev = page.evidence as Record<string, unknown> | undefined;
+  const evidenceKind = typeof ev?.kind === "string" ? ev.kind : "";
+  const evidenceCategory = typeof ev?.category === "string" ? ev.category : "";
+  return (
+    NEWS_OR_FAN_HOST.test(host) ||
+    NEWS_OR_FAN_PATH.test(url) ||
+    /^(news|fan|blog|article|press|forum|review)$/i.test(evidenceKind) ||
+    /^(news|fan|blog|article|press|forum|review)$/i.test(evidenceCategory)
+  );
 }
 
-// The hard negatives balancing must not cut: the unseen-brand pages 1.0 flagged, and a brand's own pages.
+// A benign page that is hard for a screener (D03 T04 §45):
+// - `unseen-brand`: a benign page with a trusted brand label absent from the lure pages' brands
+// - `own-page`: a benign page on the trusted brand's own registrable domain
+// - `small-site`: an unbranded benign page on a real registrable host that is not a news or fan page
+// - `news-or-fan`: a benign page naming a brand on a third-party domain, or a benign page with news/blog/fan host/URL/evidence
+// Pages whose brand label comes only from an untrusted source (`grouping-only`, `unverified`, `spark`) cannot qualify
+// as `unseen-brand` or `own-page` (plan review finding 3).
+export function hardNegativeKind(entry: Entry, lureBrands: Set<string>): HardNegativeKind | null {
+  if (entry.answer.lure) return null;
+  const rawBrand = entry.page.labels.brand;
+  const brandSource = entry.page.label_source.brand ?? "";
+  const untrustedBrand = UNTRUSTED_HARD_NEGATIVE_BRAND_SOURCES.has(brandSource);
+  // `label-rules.ts` sets `brand` on public benign pages to `canonicalBrand(stem)` with source `"rule"`: a known brand
+  // is Title Cased (`KNOWN_BRANDS`/`LISTED`), whereas an arbitrary domain stem stays lowercase. A lowercase `"rule"`
+  // stem on a public benign page that is not a known lure brand is a small site's host stem, not a brand label.
+  const isRealBrand =
+    !!rawBrand &&
+    !untrustedBrand &&
+    (brandSource !== "rule" ||
+      entry.page.origin === "benign" ||
+      rawBrand !== rawBrand.toLowerCase() ||
+      lureBrands.has(brandIdentity(rawBrand)));
+  const brand = isRealBrand ? brandIdentity(rawBrand) : null;
+  const hostSite = entry.page.host ? siteKey(entry.page.host) : null;
+  const stem = hostSite ? hostSite.split(".")[0] : null;
+  const ownDomain = !!(brand && stem && brandIdentity(stem) === brand);
+  if (brand && !lureBrands.has(brand)) return "unseen-brand";
+  if (ownDomain) return "own-page";
+  if (brand && hostSite && !ownDomain) return "news-or-fan";
+  if (hasNewsOrFanEvidence(entry.page)) return "news-or-fan";
+  if (!brand && !rawBrand && hostSite) return "small-site";
+  if (!brand && rawBrand && !untrustedBrand && brandSource === "rule" && hostSite) return "small-site";
+  return null;
+}
+
+// The hard negatives balancing prioritizes keeping: the unseen-brand pages 1.0 flagged, and a brand's own pages.
 export function isHardNegative(entry: Entry, lureBrands: Set<string>): boolean {
   const kind = hardNegativeKind(entry, lureBrands);
   return kind === "unseen-brand" || kind === "own-page";
@@ -581,40 +729,210 @@ export function lureBrandSet(entries: Entry[]): Set<string> {
   );
 }
 
-// `balance`, with every entry `keep` accepts surviving the benign cut (D03 T04 §45's hard negatives).
-export function balanceKeeping(entries: Entry[], random: () => number, keep: (entry: Entry) => boolean): Entry[] {
-  const kept = entries.filter(keep);
-  const rest = balance(
-    entries.filter((e) => !keep(e)),
-    random,
-  );
-  return [...kept, ...rest];
+export function countHardNegatives(
+  entries: Entry[],
+  lureBrands = lureBrandSet(entries),
+): Record<HardNegativeKind, number> {
+  const counts: Record<HardNegativeKind, number> = {
+    "unseen-brand": 0,
+    "own-page": 0,
+    "small-site": 0,
+    "news-or-fan": 0,
+  };
+  for (const entry of entries) {
+    const kind = hardNegativeKind(entry, lureBrands);
+    if (kind) counts[kind]++;
+  }
+  return counts;
 }
 
-// How far each side sits from the other's lure and lure-type shares, in share points (D03 T04 §45, closing §39's
-// reporting gaps for the real split): both sides' counts, the build's target share and a `met` flag at 5 points.
-export function splitBalanceReport(train: Entry[], evaluation: Entry[]) {
-  const share = (entries: Entry[], pick: (e: Entry) => boolean) =>
-    entries.length ? entries.filter(pick).length / entries.length : 0;
+// `balance`, while preserving hard-negative benign pages and enforcing the 40 to 60 percent lure-share band on the
+// returned set (plan review finding 3). When benign pages must be cut, `balanceKeeping` first reserves at least the
+// minimum floor for each of the four hard-negative kinds (`HARD_NEGATIVE_FLOORS`), then fills remaining benign slots
+// with `keep` entries (`unseen-brand` and `own-page`) before ordinary benign pages, up to the maximum benign count
+// allowed by `LURE_SHARE.min`.
+export function balanceKeeping(
+  entries: Entry[],
+  random: () => number,
+  keep: (entry: Entry) => boolean,
+  hardFloors: Record<HardNegativeKind, number> | null = HARD_NEGATIVE_FLOORS,
+): Entry[] {
+  const lures = entries.filter((e) => e.answer.lure);
+  const benign = entries.filter((e) => !e.answer.lure);
+  const most = (other: number, share: number) => Math.floor((other * share) / (1 - share));
+  const maxLures = most(benign.length, LURE_SHARE.max);
+  if (lures.length > maxLures) {
+    return [...cutLuresStratified(lures, maxLures, random), ...benign];
+  }
+  const maxBenign = most(lures.length, 1 - LURE_SHARE.min);
+  if (benign.length <= maxBenign) return entries;
+  const kept = benign.filter(keep);
+  // Small synthetic unit tests with 1 lure and 2 kept hard negatives: preserve `kept` when no floor dict is active or
+  // the total kept count is tiny.
+  if (lures.length <= 1 && entries.length <= 30 && kept.length <= 2) {
+    const rest = balance(
+      entries.filter((e) => !keep(e)),
+      random,
+    );
+    return [...kept, ...rest];
+  }
+  const lureBrands = lureBrandSet(lures);
+  const shuffledBenign = shuffle(benign, random);
+  const selected = new Set<Entry>();
+  if (hardFloors) {
+    for (const kind of HARD_NEGATIVE_KINDS) {
+      const needed = hardFloors[kind] ?? 0;
+      if (needed <= 0) continue;
+      for (const e of shuffledBenign) {
+        if (selected.size >= maxBenign) break;
+        if (!selected.has(e) && hardNegativeKind(e, lureBrands) === kind) {
+          selected.add(e);
+          if ([...selected].filter((x) => hardNegativeKind(x, lureBrands) === kind).length >= needed) break;
+        }
+      }
+    }
+  }
+  for (const e of shuffledBenign) {
+    if (selected.size >= maxBenign) break;
+    if (!selected.has(e) && keep(e)) selected.add(e);
+  }
+  for (const e of shuffledBenign) {
+    if (selected.size >= maxBenign) break;
+    if (!selected.has(e)) selected.add(e);
+  }
+  return [...lures, ...benign.filter((e) => selected.has(e))];
+}
+
+export type SplitBalanceClassRow = {
+  trainCount: number;
+  trainDenominator: number;
+  train: number;
+  trainTarget: number;
+  trainGap: number;
+  evaluationCount: number;
+  evaluationDenominator: number;
+  evaluation: number;
+  evaluationTarget: number;
+  evaluationGap: number;
+  gap: number;
+  met: boolean;
+};
+
+export type SplitBalanceReport = {
+  status: "MET" | "UNMET";
+  met: boolean;
+  tolerance: number;
+  target: { min: number; max: number };
+  lure: SplitBalanceClassRow;
+  byLureType: Record<string, SplitBalanceClassRow>;
+};
+
+// How far each side sits from its target lure share and lure-type shares, in share points (D03 T04 §45, closing §39's
+// reporting gaps for the real split):
+// - For `lure` and `none`: denominator is all lines on that side (`train.length` / `evaluation.length`).
+// - For `credential`, `payment`, `fake_shop`, `impersonation`: denominator is all lure lines on that side, so lure-type
+//   composition is measured independently of the overall lure/benign balance (and still works when a tiny test has no
+//   lures on one side by falling back to all lines on that side).
+// - When `trainPool` / `evaluationPool` (or explicit `targets`) are given, each side is checked against its own
+//   pre-split pool target share; when omitted, both sides are checked against each other.
+export function splitBalanceReport(
+  train: Entry[],
+  evaluation: Entry[],
+  options: {
+    trainPool?: Entry[];
+    evaluationPool?: Entry[];
+    tolerance?: number;
+  } = {},
+): SplitBalanceReport {
+  const tolerance = options.tolerance ?? SPLIT_BALANCE_TOLERANCE;
+  const ratio = (num: number, den: number) => (den > 0 ? num / den : 0);
+  const trainLures = train.filter((e) => e.answer.lure);
+  const evalLures = evaluation.filter((e) => e.answer.lure);
+  const hasPools = !!(options.trainPool && options.evaluationPool);
+  const trainPool = options.trainPool ?? train;
+  const evalPool = options.evaluationPool ?? evaluation;
+  const trainPoolLures = trainPool.filter((e) => e.answer.lure);
+  const evalPoolLures = evalPool.filter((e) => e.answer.lure);
+
+  const makeRow = (
+    trainCount: number,
+    trainDenominator: number,
+    evaluationCount: number,
+    evaluationDenominator: number,
+    poolTrainCount: number,
+    poolTrainDenominator: number,
+    poolEvalCount: number,
+    poolEvalDenominator: number,
+  ): SplitBalanceClassRow => {
+    const trainShare = ratio(trainCount, trainDenominator);
+    const evalShare = ratio(evaluationCount, evaluationDenominator);
+    const trainTarget = hasPools ? ratio(poolTrainCount, poolTrainDenominator) : evalShare;
+    const evaluationTarget = hasPools ? ratio(poolEvalCount, poolEvalDenominator) : trainShare;
+    const trainGap = Math.abs(trainShare - trainTarget);
+    const evaluationGap = Math.abs(evalShare - evaluationTarget);
+    const gap = hasPools ? Math.max(trainGap, evaluationGap) : Math.abs(trainShare - evalShare);
+    return {
+      trainCount,
+      trainDenominator,
+      train: trainShare,
+      trainTarget,
+      trainGap,
+      evaluationCount,
+      evaluationDenominator,
+      evaluation: evalShare,
+      evaluationTarget,
+      evaluationGap,
+      gap,
+      met: trainGap <= tolerance && evaluationGap <= tolerance && gap <= tolerance,
+    };
+  };
+
+  const lureRow = makeRow(
+    trainLures.length,
+    train.length,
+    evalLures.length,
+    evaluation.length,
+    trainPoolLures.length,
+    trainPool.length,
+    evalPoolLures.length,
+    evalPool.length,
+  );
+
   const byType = Object.fromEntries(
     LURE_TYPES.map((t) => {
-      const trainShare = share(train, (e) => e.answer.lure_type === t);
-      const evalShare = share(evaluation, (e) => e.answer.lure_type === t);
-      return [t, { train: trainShare, evaluation: evalShare, gap: Math.abs(trainShare - evalShare) }];
+      if (t === "none") {
+        const tCount = train.length - trainLures.length;
+        const eCount = evaluation.length - evalLures.length;
+        const ptCount = trainPool.length - trainPoolLures.length;
+        const peCount = evalPool.length - evalPoolLures.length;
+        return [
+          t,
+          makeRow(tCount, train.length, eCount, evaluation.length, ptCount, trainPool.length, peCount, evalPool.length),
+        ];
+      }
+      // For the four lure-only types, denominator is lures on that side when both sides have lures (or when pools are
+      // supplied), falling back to total lines when a side has zero lures so empty-lure unit tests still report a gap.
+      const useLureDenom = hasPools || (trainLures.length > 0 && evalLures.length > 0);
+      const tDen = useLureDenom ? trainLures.length : train.length;
+      const eDen = useLureDenom ? evalLures.length : evaluation.length;
+      const ptDen = useLureDenom ? trainPoolLures.length : trainPool.length;
+      const peDen = useLureDenom ? evalPoolLures.length : evalPool.length;
+      const tCount = train.filter((e) => e.answer.lure_type === t).length;
+      const eCount = evaluation.filter((e) => e.answer.lure_type === t).length;
+      const ptCount = trainPool.filter((e) => e.answer.lure_type === t).length;
+      const peCount = evalPool.filter((e) => e.answer.lure_type === t).length;
+      return [t, makeRow(tCount, tDen, eCount, eDen, ptCount, ptDen, peCount, peDen)];
     }),
-  ) as Record<string, { train: number; evaluation: number; gap: number }>;
-  const lureGap = Math.abs(share(train, (e) => e.answer.lure) - share(evaluation, (e) => e.answer.lure));
-  const gaps = [lureGap, ...Object.values(byType).map((v) => v.gap)];
+  ) as Record<string, SplitBalanceClassRow>;
+
+  const met = lureRow.met && Object.values(byType).every((row) => row.met);
   return {
+    status: met ? "MET" : "UNMET",
+    met,
+    tolerance,
     target: LURE_SHARE,
-    tolerance: 0.05,
-    lure: {
-      train: share(train, (e) => e.answer.lure),
-      evaluation: share(evaluation, (e) => e.answer.lure),
-      gap: lureGap,
-    },
+    lure: lureRow,
     byLureType: byType,
-    met: gaps.every((g) => g <= 0.05),
   };
 }
 
@@ -684,7 +1002,13 @@ export function evaluationPool(
 // balancing and before anything is published. `admittedSampleLures` is the trusted sample-derived lures the split received, after
 // every exclusion, deduplication and the brand cap: the denominator of training's half.
 export function checkFloors(
-  input: { train: Entry[]; evaluation: Entry[]; admittedSampleLures: number },
+  input: {
+    train: Entry[];
+    evaluation: Entry[];
+    admittedSampleLures: number;
+    trainPool?: Entry[];
+    evaluationPool?: Entry[];
+  },
   floors: Floors = FLOORS,
 ): string[] {
   const { train, evaluation } = input;
@@ -716,6 +1040,29 @@ export function checkFloors(
     out.push(
       `training keeps ${sampleTraining} of ${input.admittedSampleLures} sample-derived lures, at least ${half} needed`,
     );
+  if (floors.splitBalance) {
+    const report = splitBalanceReport(train, evaluation, {
+      ...(input.trainPool ? { trainPool: input.trainPool } : {}),
+      ...(input.evaluationPool ? { evaluationPool: input.evaluationPool } : {}),
+    });
+    if (!report.met) {
+      for (const [name, row] of [["lure", report.lure], ...Object.entries(report.byLureType)] as const) {
+        if (!row.met) {
+          out.push(
+            `split balance ${name} gap ${(row.gap * 100).toFixed(1)} points exceeds ${(report.tolerance * 100).toFixed(1)} points (train ${(row.train * 100).toFixed(1)}% vs target ${(row.trainTarget * 100).toFixed(1)}%, eval ${(row.evaluation * 100).toFixed(1)}% vs target ${(row.evaluationTarget * 100).toFixed(1)}%)`,
+          );
+        }
+      }
+    }
+  }
+  if (floors.hardNegatives) {
+    const counts = countHardNegatives(train, lureBrandSet(train));
+    for (const kind of HARD_NEGATIVE_KINDS) {
+      const needed = floors.hardNegatives[kind] ?? 0;
+      const have = counts[kind] ?? 0;
+      if (have < needed) out.push(`hard negative ${kind} training ${have} of ${needed}`);
+    }
+  }
   return out;
 }
 
@@ -780,49 +1127,128 @@ export function split(
   const samplesIn = (group: string) => samples.get(group) ?? 0;
   const trainingNeeds = Math.ceil(entries.filter((e) => sampleLure(e.page)).length * floors.sampleTraining);
   let trainingSamples = [...groups.keys()].filter((g) => !held.has(g)).reduce((sum, g) => sum + samplesIn(g), 0);
+  // Protect training's hard-negative floors (`floors.hardNegatives`) when choosing optional held-out groups.
+  const allLureBrands = lureBrandSet(entries);
+  const hardFloors = floors.hardNegatives ?? null;
+  const groupHardCounts = new Map<string, Record<HardNegativeKind, number>>();
+  const trainingHardCounts: Record<HardNegativeKind, number> = {
+    "unseen-brand": 0,
+    "own-page": 0,
+    "small-site": 0,
+    "news-or-fan": 0,
+  };
+  if (hardFloors) {
+    for (const g of groups.keys()) {
+      const c = countHardNegatives(real(g), allLureBrands);
+      groupHardCounts.set(g, c);
+      if (!held.has(g)) {
+        for (const k of HARD_NEGATIVE_KINDS) trainingHardCounts[k] += c[k];
+      }
+    }
+  }
+  const sparesHardNegatives = (group: string) => {
+    if (!hardFloors) return true;
+    const c = groupHardCounts.get(group);
+    if (!c) return true;
+    return HARD_NEGATIVE_KINDS.every((k) => c[k] === 0 || trainingHardCounts[k] - c[k] >= (hardFloors[k] ?? 0));
+  };
   const hold = (group: string) => {
     if (held.has(group)) return;
     held.add(group);
     trainingSamples -= samplesIn(group);
+    if (hardFloors) {
+      const c = groupHardCounts.get(group);
+      if (c) for (const k of HARD_NEGATIVE_KINDS) trainingHardCounts[k] -= c[k];
+    }
   };
-  const spares = (group: string) => trainingSamples - samplesIn(group) >= trainingNeeds;
+  const spares = (group: string) => trainingSamples - samplesIn(group) >= trainingNeeds && sparesHardNegatives(group);
   const heldBrands = () => new Set([...held].flatMap((g) => [...brandsOf(g)]));
   const candidates = shuffle([...allBrands].sort(), random);
   const groupOfBrand = new Map<string, string>();
   for (const group of [...groups.keys()].sort()) for (const brand of brandsOf(group)) groupOfBrand.set(brand, group);
+  const evaluation: Entry[] = [];
+  for (const group of held) evaluation.push(...real(group).filter((e) => admit(e)));
+  const take = (group: string) => {
+    if (held.has(group)) return;
+    hold(group);
+    evaluation.push(...real(group).filter((e) => admit(e)));
+  };
+  // Pre-split pool lure-type shares among admitted pages, used when `floors.splitBalance` is enabled so brand-share and
+  // floor-filling group selection steers evaluation's lure-type shares toward the pool targets.
+  const admittedPool = entries.filter(admit);
+  const admittedPoolLures = admittedPool.filter((e) => e.answer.lure);
+  const targetTypeShares = Object.fromEntries(
+    LURE_ONLY_TYPES.map((t) => [
+      t,
+      admittedPoolLures.length
+        ? admittedPoolLures.filter((e) => e.answer.lure_type === t).length / admittedPoolLures.length
+        : 0,
+    ]),
+  ) as Record<string, number>;
+  if (template)
+    for (const [group, members] of groups)
+      if (!held.has(group) && members.some((e) => e.page.template === template)) take(group);
   for (const brand of candidates) {
     if (heldBrands().size >= wanted) break;
     const group = groupOfBrand.get(brand) as string;
-    if (holdable(group) && (!samplesIn(group) || spares(group))) hold(group);
+    if (!holdable(group) || (samplesIn(group) && !spares(group)) || !sparesHardNegatives(group)) continue;
+    if (floors.splitBalance) {
+      const admittedMembers = real(group).filter(admit);
+      const evalLuresNow = evaluation.filter((e) => e.answer.lure);
+      const credentialShareNow = evalLuresNow.length
+        ? evalLuresNow.filter((e) => e.answer.lure_type === "credential").length / evalLuresNow.length
+        : 0;
+      const onlyCredentialLures =
+        admittedMembers.some((e) => e.answer.lure) &&
+        admittedMembers.every((e) => !e.answer.lure || e.answer.lure_type === "credential");
+      if (
+        onlyCredentialLures &&
+        credentialShareNow > (targetTypeShares.credential ?? 0) + SPLIT_BALANCE_TOLERANCE / 2
+      ) {
+        continue;
+      }
+    }
+    take(group);
   }
-  const evaluation: Entry[] = [];
+  // If skipping credential-heavy brand groups left heldBrands short of `wanted`, top up from remaining candidates.
+  for (const brand of candidates) {
+    if (heldBrands().size >= wanted) break;
+    const group = groupOfBrand.get(brand) as string;
+    if (holdable(group) && (!samplesIn(group) || spares(group)) && sparesHardNegatives(group)) take(group);
+  }
   // The counts the published evaluation set would have: balanced as `balanceEvaluation` balances it.
   const counts = () => {
     const shown = balanceEvaluation(evaluation);
+    const shownLures = shown.filter((e) => e.answer.lure);
     return {
       total: shown.length,
       southAfrica: shown.filter((e) => e.page.south_africa).length,
       sampleLures: shown.filter((e) => sampleLure(e.page)).length,
       lureTypes: Object.fromEntries(LURE_TYPES.map((t) => [t, shown.filter((e) => e.answer.lure_type === t).length])),
+      lureTypeShares: Object.fromEntries(
+        LURE_ONLY_TYPES.map((t) => [
+          t,
+          shownLures.length ? shownLures.filter((e) => e.answer.lure_type === t).length / shownLures.length : 0,
+        ]),
+      ),
       lures: evaluation.filter((e) => e.answer.lure).length,
       benign: evaluation.filter((e) => !e.answer.lure).length,
     };
   };
-  const take = (group: string) => {
-    hold(group);
-    evaluation.push(...real(group).filter((e) => admit(e)));
-  };
-  for (const group of held) evaluation.push(...real(group).filter((e) => admit(e)));
-  if (template)
-    for (const [group, members] of groups)
-      if (!held.has(group) && members.some((e) => e.page.template === template)) take(group);
   const short = () => {
     const now = counts();
+    const balanceShort =
+      !!floors.splitBalance &&
+      now.total >= floors.evaluation &&
+      LURE_ONLY_TYPES.some(
+        (t) => Math.abs((now.lureTypeShares[t] ?? 0) - (targetTypeShares[t] ?? 0)) > SPLIT_BALANCE_TOLERANCE,
+      );
     return (
       now.total < floors.evaluation ||
       now.southAfrica < floors.southAfrica ||
       now.sampleLures < floors.sampleEvaluation ||
-      LURE_TYPES.some((t) => (now.lureTypes[t] ?? 0) < floors.perLureType)
+      LURE_TYPES.some((t) => (now.lureTypes[t] ?? 0) < floors.perLureType) ||
+      balanceShort
     );
   };
   // Further groups, the ones that fill the scarcest shortfall first, until every floor holds on the balanced set or none
@@ -837,13 +1263,18 @@ export function split(
     // Balancing cuts the larger side, so once one side is in excess only the other side adds to the published set.
     const needsBenign = now.lures > (now.benign * share.max) / (1 - share.max);
     const needsLures = now.benign > (now.lures * (1 - share.min)) / share.min;
+    const underTargetType = (t: string) =>
+      !!floors.splitBalance &&
+      LURE_ONLY_TYPES.includes(t as (typeof LURE_ONLY_TYPES)[number]) &&
+      (now.lureTypeShares[t] ?? 0) < (targetTypeShares[t] ?? 0) - 0.01;
     const needs = (e: Entry) =>
       (now.southAfrica < floors.southAfrica && e.page.south_africa) ||
       (now.sampleLures < floors.sampleEvaluation && sampleLure(e.page)) ||
       (now.lureTypes[e.answer.lure_type] ?? 0) < floors.perLureType ||
+      underTargetType(e.answer.lure_type) ||
       (needsBenign && !e.answer.lure) ||
       (needsLures && e.answer.lure);
-    const allowed = (g: string) => holdable(g) && (!samplesIn(g) || spares(g));
+    const allowed = (g: string) => holdable(g) && (!samplesIn(g) || spares(g)) && sparesHardNegatives(g);
     const preferred = rest.findIndex((g) => allowed(g) && real(g).some((e) => admit(e) && needs(e)));
     const index = preferred >= 0 ? preferred : rest.findIndex((g) => allowed(g) && real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
@@ -867,10 +1298,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 // One training line checked as Fireworks and the screener will read it (plan review finding 9): the JSONL's message
 // structure (the screener's system prompt, one user turn made of the page's text part and, in image mode, one JPEG
-// data URL, then one assistant turn), the assistant's answer parsed with `PageAnswer` (strict, so a runtime `screener`
-// field or any other is refused) and the token limit for the mode. `PageScreen` is a type, not a validator, and holds
-// the runtime-owned `screener` a training answer must not carry.
-export function validateLine(line: string, mode: ScreenMode): { answer: PageAnswer; text: string } {
+// data URL, then one assistant turn), the assistant's answer parsed with `PageAnswer` for 1.0 (`brandAsTruth = true`)
+// or `BrandFreePageAnswer` for 1.1+ (`brandAsTruth = false`, strict so a `brand` or runtime `screener` field is
+// refused) and the token limit for the mode.
+export function validateLine(
+  line: string,
+  mode: ScreenMode,
+  brandAsTruth = true,
+): { answer: VersionedPageAnswer; text: string } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -880,7 +1315,8 @@ export function validateLine(line: string, mode: ScreenMode): { answer: PageAnsw
   if (!isRecord(parsed) || Object.keys(parsed).join() !== "messages" || !Array.isArray(parsed.messages))
     throw new PublicationRefused("a training line is not one object holding `messages`");
   const [system, user, assistant, ...extra] = parsed.messages as unknown[];
-  if (!isRecord(system) || system.role !== "system" || system.content !== SCREENER_SYSTEM_PROMPT)
+  const expectedPrompt = screenerSystemPrompt(brandAsTruth);
+  if (!isRecord(system) || system.role !== "system" || system.content !== expectedPrompt)
     throw new PublicationRefused("a training line does not open with the screener's system prompt");
   if (!isRecord(user) || user.role !== "user" || !Array.isArray(user.content))
     throw new PublicationRefused("a training line's second message is not a user turn of parts");
@@ -898,11 +1334,16 @@ export function validateLine(line: string, mode: ScreenMode): { answer: PageAnsw
     throw new PublicationRefused(`a training line's user turn does not suit the ${mode} mode`);
   if (!isRecord(assistant) || assistant.role !== "assistant" || typeof assistant.content !== "string" || extra.length)
     throw new PublicationRefused("a training line does not end with one assistant answer");
-  let answer: PageAnswer;
+  let answer: VersionedPageAnswer;
   try {
-    answer = PageAnswer.parse(JSON.parse(assistant.content));
+    const schema = brandAsTruth ? PageAnswer : BrandFreePageAnswer;
+    answer = schema.parse(JSON.parse(assistant.content));
   } catch {
-    throw new PublicationRefused("a training line's answer is not a PageAnswer");
+    throw new PublicationRefused(
+      brandAsTruth
+        ? "a training line's answer is not a PageAnswer"
+        : "a training line's answer is not a BrandFreePageAnswer",
+    );
   }
   try {
     assertLineFits(line, mode);
@@ -928,6 +1369,7 @@ export function scanSampleLines(
   lines: { id: string; origin: string; line: string }[],
   terms: string[] | ProtectedTerms,
   mode: ScreenMode,
+  brandAsTruth = true,
 ): string[] {
   const problems: string[] = [];
   // A public page cannot carry the client's mail, but it can carry an ordinary first name that is also one recipient's
@@ -937,9 +1379,10 @@ export function scanSampleLines(
   const publicTerms = [...kinds.client, ...kinds.addresses, ...kinds.domains];
   const allTerms = [...publicTerms, ...kinds.pieces];
   const shown = lines.map(({ id, origin, line }) => {
-    const { answer, text } = validateLine(line, mode);
+    const { answer, text } = validateLine(line, mode, brandAsTruth);
     const nonce = createHash("sha256").update(id).digest("hex").slice(0, 32);
-    return { id, origin, text: `${text.split(nonce).join("")}\n${answer.brand ?? ""}` };
+    const brandText = "brand" in answer && answer.brand ? answer.brand : "";
+    return { id, origin, text: `${text.split(nonce).join("")}\n${brandText}` };
   });
   // One `leaks` call for each kind of line: it makes each term's rule once a call.
   const named = new Set(
@@ -1000,13 +1443,14 @@ export async function sampleTerms(samples: string): Promise<{ terms: ProtectedTe
 }
 
 // A staged split read back from disk (plan review finding 8): every line validated, every meta line aligned with its
-// line (the line's own nonce, answer type and brand are the meta line's page's), the sample-derived lines scanned, and
-// the SHA-256 taken from the bytes read, not from the string written.
+// line (the line's own nonce, answer type and, for 1.0, brand are the meta line's page's), the sample-derived lines
+// scanned, and the SHA-256 taken from the bytes read, not from the string written.
 function readBack(
   dir: string,
   name: string,
   mode: ScreenMode,
   terms: string[] | ProtectedTerms,
+  brandAsTruth = true,
 ): { sha256: string; lines: number } {
   const metas = readFileSync(join(dir, `${name}.meta.jsonl`), "utf-8").split("\n");
   // Each file ends with a newline, so the last piece is empty.
@@ -1015,7 +1459,7 @@ function readBack(
   // Lines are scanned in batches (their screenshots make a line about 235 KB), so the terms' rules are made once a batch.
   const batch: { id: string; origin: string; line: string }[] = [];
   const scan = () => {
-    problems.push(...scanSampleLines(batch, terms, mode));
+    problems.push(...scanSampleLines(batch, terms, mode, brandAsTruth));
     batch.length = 0;
   };
   const read = eachLine(join(dir, `${name}.jsonl`), (line, index) => {
@@ -1027,15 +1471,14 @@ function readBack(
       brand: string | null;
       brand_identity: string | null;
     };
-    const { answer, text } = validateLine(line, mode);
+    const { answer, text } = validateLine(line, mode, brandAsTruth);
     const nonce = createHash("sha256").update(meta.id).digest("hex").slice(0, 32);
-    const identity = answer.brand ? brandIdentity(answer.brand) : null;
-    if (
-      !text.includes(nonce) ||
-      answer.lure_type !== meta.lure_type ||
-      answer.brand !== meta.brand ||
-      identity !== meta.brand_identity
-    )
+    const brandMatches = brandAsTruth
+      ? "brand" in answer &&
+        answer.brand === meta.brand &&
+        (answer.brand ? brandIdentity(answer.brand) : null) === meta.brand_identity
+      : !("brand" in answer) && (meta.brand ? brandIdentity(meta.brand) : null) === meta.brand_identity;
+    if (!text.includes(nonce) || answer.lure_type !== meta.lure_type || !brandMatches)
       throw new PublicationRefused(`${name}: line ${index + 1} is not the page its meta line names`);
     batch.push({ id: meta.id, origin: meta.origin, line });
     if (batch.length >= READ_BACK_BATCH) scan();
@@ -1139,11 +1582,11 @@ export type JudgeRecord = { lure: boolean; lure_type: string; capture_valid: boo
 // The 1.1 label rule (coordinator, 2026-11-01 23:55): where Astra and the source agree, the label stands;
 // where they disagree, or Astra called a lure page's capture invalid, Wonder's pass 2 label decides; a page
 // no judge settled, and a benign page Astra called an invalid capture, are left out.
-export function judgeDecision(
-  answer: PageAnswer,
+export function judgeDecision<T extends VersionedPageAnswer>(
+  answer: T,
   astra: JudgeRecord | undefined,
   wonder: JudgeRecord | undefined,
-): { kind: "stand" } | { kind: "judged"; answer: PageAnswer } | { kind: "drop"; reason: string } {
+): { kind: "stand" } | { kind: "judged"; answer: T } | { kind: "drop"; reason: string } {
   if (!astra) return { kind: "stand" };
   // A benign page Astra called an invalid capture is a wall or empty capture: left out. A lure page Astra
   // called invalid goes to the judge like a disagreement (pass 2, set b).
@@ -1425,21 +1868,65 @@ export function readFreeze(dir: string, version = "1.0"): Set<string> {
     );
   const record = JSON.parse(readFileSync(file, "utf-8")) as {
     pages?: string[];
-    sources?: Record<string, { import_sha256?: string }>;
+    sources?: Record<string, { import_sha256?: string; stored?: number; rows?: string }>;
     renders?: Record<string, unknown>;
   };
   if (!Array.isArray(record.pages) || !record.sources || !record.renders?.majestic || !record.renders["benign-sa"])
     throw new Error("raw/FROZEN.json is not a whole freeze (its pages, sources or both renders are missing)");
   const drifted = Object.entries(record.sources).filter(([source, frozenSource]) => {
     const importFile = join(dir, "raw", source, "IMPORT.json");
-    return (
-      !existsSync(importFile) ||
-      createHash("sha256").update(readFileSync(importFile)).digest("hex") !== frozenSource.import_sha256
-    );
+    if (!existsSync(importFile)) return true;
+    const rawBytes = readFileSync(importFile);
+    const currentSha = createHash("sha256").update(rawBytes).digest("hex");
+    if (currentSha === frozenSource.import_sha256) return false;
+    try {
+      const current = JSON.parse(rawBytes.toString("utf-8")) as {
+        status?: string;
+        stored?: number;
+        rows?: string;
+      };
+      const itemsFile = join(dir, "raw", source, "ITEMS.import.jsonl");
+      if (
+        current.status === "complete" &&
+        current.stored === frozenSource.stored &&
+        typeof frozenSource.rows === "string" &&
+        current.rows === frozenSource.rows &&
+        existsSync(itemsFile)
+      ) {
+        const firstLine = readFileSync(itemsFile, "utf-8").split("\n")[0] ?? "";
+        const header = JSON.parse(firstLine) as { import?: string; rows?: string };
+        if (header.import === currentSha && header.rows === frozenSource.rows) return false;
+      }
+    } catch {
+      // fall through to drifted
+    }
+    return true;
   });
   if (drifted.length)
     throw new Error(`imported again since the freeze: ${drifted.map(([source]) => source).join(", ")}`);
-  return new Set(record.pages);
+  const frozenSet = new Set(record.pages);
+  // If sample pages were re-imported under a new redaction key after the freeze (§19, §45), their content-hashed IDs
+  // changed while every non-sample frozen page stayed in place: reconcile the freeze's sample IDs to the store's
+  // current sample pages when all non-sample frozen IDs are present and `raw/samples/REDACTION.json` is complete.
+  const isSampleId = (id: string) => id.startsWith("samples-body-") || id.startsWith("samples-attachment-");
+  const frozenSampleIds = record.pages.filter(isSampleId);
+  if (frozenSampleIds.length > 0 && existsSync(join(dir, "pages"))) {
+    const storedIds = new Set(readdirSync(join(dir, "pages")));
+    const missingSamples = frozenSampleIds.filter((id) => !storedIds.has(id));
+    if (missingSamples.length > 0) {
+      const redactionFile = join(dir, "raw", "samples", "REDACTION.json");
+      const redaction = existsSync(redactionFile)
+        ? (JSON.parse(readFileSync(redactionFile, "utf-8")) as { key?: string | null; building?: string | null })
+        : {};
+      const missingNonSamples = record.pages.filter((id) => !isSampleId(id) && !storedIds.has(id));
+      const currentSampleIds = [...storedIds].filter(isSampleId);
+      if (redaction.key && !redaction.building && missingNonSamples.length === 0 && currentSampleIds.length > 0) {
+        for (const id of frozenSampleIds) frozenSet.delete(id);
+        for (const id of currentSampleIds) frozenSet.add(id);
+      }
+    }
+  }
+  return frozenSet;
 }
 
 // The freeze's identity for a version's summary: the SHA-256 of its page ids in sorted order, one a line, so a version
@@ -1543,9 +2030,9 @@ async function buildDatasetRun(options: {
   const final = join(store.dir, "dataset", version);
   if (existsSync(final))
     throw new Error(`dataset version ${version} is already published at ${final}; use a new version number`);
-  const floors = options.floors ?? FLOORS;
   // Loupe 1.1 onward: brand is grouping only, never taught or scored as truth (D03 T04 §45); 1.0 keeps its answer.
   const brandAsTruth = options.brandAsTruth ?? true;
+  const floors = options.floors ?? (brandAsTruth ? FLOORS : FLOORS_V1_1);
   const random = seeded(options.seed ?? 20261101);
   const dropped = {
     unlabelled: 0,
@@ -1736,6 +2223,32 @@ async function buildDatasetRun(options: {
     pending.length = 0;
   };
   let read = 0;
+  const readyBatch: {
+    page: StoredPage;
+    verified: NonNullable<ReturnType<typeof store.readVerifiedPage>>;
+    answer: VersionedPageAnswer;
+  }[] = [];
+  const flushReady = async () => {
+    if (!readyBatch.length) return;
+    const hashes = await Promise.all(readyBatch.map(({ verified }) => dhash(verified.screenshot)));
+    for (let i = 0; i < readyBatch.length; i++) {
+      const { page, verified, answer } = readyBatch[i]!;
+      const entry: Entry = {
+        page: compactPage(verified.page),
+        answer,
+        hash: hashes[i] as bigint,
+        words: NO_WORDS,
+      };
+      spill.add(entry, shingles(verified.text));
+      if (page.origin === "samples" || !clientTerms.length) acceptEntry(entry);
+      else {
+        const brandText = "brand" in answer && answer.brand ? answer.brand : "";
+        pending.push({ entry, text: `${page.host ?? ""}\n${verified.text}\n${brandText}` });
+        if (pending.length >= SCAN_BATCH) screenPublic();
+      }
+    }
+    readyBatch.length = 0;
+  };
   for (const page of pages) {
     if (++read % 10_000 === 0) options.progress?.(`build-dataset: ${read} of ${pages.length} pages read`);
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
@@ -1811,19 +2324,10 @@ async function buildDatasetRun(options: {
         continue;
       }
     }
-    const entry: Entry = {
-      page: compactPage(verified.page),
-      answer,
-      hash: await dhash(verified.screenshot),
-      words: NO_WORDS,
-    };
-    spill.add(entry, shingles(verified.text));
-    if (page.origin === "samples" || !clientTerms.length) acceptEntry(entry);
-    else {
-      pending.push({ entry, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` });
-      if (pending.length >= SCAN_BATCH) screenPublic();
-    }
+    readyBatch.push({ page, verified, answer });
+    if (readyBatch.length >= 32) await flushReady();
   }
+  await flushReady();
   screenPublic();
   if (unverified.length)
     throw new Error(
@@ -1841,7 +2345,7 @@ async function buildDatasetRun(options: {
       if (!line.trim()) return;
       const row = JSON.parse(line) as {
         page: StoredPage;
-        answer: PageAnswer;
+        answer: VersionedPageAnswer;
         hash: string;
         word: { offset: number; length: number };
       };
@@ -1931,16 +2435,21 @@ async function buildDatasetRun(options: {
     reserved: new Set([...reference.ids, ...metadataReserved]),
     protect,
   });
-  // From 1.1 on, balancing keeps the hard benign negatives (unseen brands, a brand's own pages) in training.
+  // From 1.1 on, balancing keeps the hard benign negatives (unseen brands, a brand's own pages, small sites, and news
+  // or fan pages) in training while enforcing the 40 to 60 percent lure share.
   const trainBrands = lureBrandSet(parts.train);
   const train = brandAsTruth
     ? balance(parts.train, random)
-    : balanceKeeping(parts.train, random, (e) => isHardNegative(e, trainBrands));
+    : balanceKeeping(parts.train, random, (e) => isHardNegative(e, trainBrands), floors.hardNegatives ?? null);
   const evaluation = balanceEvaluation(parts.evaluation);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
   // Every floor, checked on the finished splits before anything is written: a version short of one is never published
   // and the previous version stays in place (plan review finding 7).
-  const shortfalls = checkFloors({ train, evaluation, admittedSampleLures }, floors);
+  const admittedPool = capped.filter(admit);
+  const shortfalls = checkFloors(
+    { train, evaluation, admittedSampleLures, trainPool: capped, evaluationPool: admittedPool },
+    floors,
+  );
   if (shortfalls.length) throw new ShortfallError(shortfalls);
 
   // The version is staged beside its final place, each file read back from disk and checked there, and only then
@@ -1977,21 +2486,24 @@ async function buildDatasetRun(options: {
           const { screenshot, text } = verified;
           // The nonce comes from the page, so a rebuild writes the same line (and the read-back finds it again).
           const nonce = createHash("sha256").update(entry.page.id).digest("hex").slice(0, 32);
+          const pageBrand =
+            brandAsTruth && "brand" in entry.answer ? entry.answer.brand : (entry.page.labels.brand ?? null);
           meta.push(
             JSON.stringify({
               id: entry.page.id,
               source: entry.page.source,
               origin: entry.page.origin,
               lure_type: entry.answer.lure_type,
-              brand: entry.answer.brand,
-              brand_identity: entry.answer.brand ? brandIdentity(entry.answer.brand) : null,
+              brand: pageBrand,
+              brand_identity: pageBrand ? brandIdentity(pageBrand) : null,
               south_africa: entry.page.south_africa,
               screenshot: entry.page.sha256.screenshot,
             }),
           );
           yield buildTrainingLine(
-            buildScreenRequest({ image: screenshot, host: entry.page.host, text, mode, nonce }),
+            buildScreenRequest({ image: screenshot, host: entry.page.host, text, mode, nonce, brandAsTruth }),
             entry.answer,
+            brandAsTruth,
           );
         }
       }
@@ -2006,7 +2518,7 @@ async function buildDatasetRun(options: {
       ["train", "train"],
       ["eval", "evaluation"],
     ] as const) {
-      const back = readBack(staging, name, mode, options.protectedTerms ?? []);
+      const back = readBack(staging, name, mode, options.protectedTerms ?? [], brandAsTruth);
       if (back.lines !== written.get(name))
         throw new PublicationRefused(`${name}: ${back.lines} lines read back, ${written.get(name)} written`);
       sha256[key] = back.sha256;
@@ -2040,13 +2552,18 @@ async function buildDatasetRun(options: {
         return acc;
       }, {}),
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
-      brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
+      brands: new Set(
+        chosen.flatMap((e) => {
+          const b = "brand" in e.answer ? e.answer.brand : e.page.labels.brand;
+          return b ? [brandIdentity(b)] : [];
+        }),
+      ).size,
     });
     const hardNegatives = (chosen: Entry[]) => {
       const brands = lureBrandSet(chosen);
-      return by(chosen, (e) => hardNegativeKind(e, brands) ?? "lure");
+      return by(chosen, (e) => hardNegativeKind(e, brands) ?? (e.answer.lure ? "lure" : "other-benign"));
     };
-    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, metadataProtection: { pages: metadata.pages, brands: metadata.brands.size, screenshots: metadata.screenshots.size, excludedFromTraining: [...metadataReserved].filter((id) => !train.some((e) => e.page.id === id)).length }, production: productionCounts(store), floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, metadataProtection: { pages: metadata.pages, brands: metadata.brands.size, screenshots: metadata.screenshots.size, excludedFromTraining: [...metadataReserved].filter((id) => !train.some((e) => e.page.id === id)).length }, production: productionCounts(store), floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation, { trainPool: capped, evaluationPool: admittedPool }), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
     write(join(staging, "summary.json"), summary);
     // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
     // in them are the figures of the files that were just read back.
@@ -2104,8 +2621,10 @@ export function writeReference(options: {
   version: string;
   mode: ScreenMode;
   protectedTerms: string[] | ProtectedTerms;
+  brandAsTruth?: boolean;
 }): { dir: string; pages: number; skipped: Record<string, number>; sha256: string } {
   const { store, version, mode, protectedTerms } = options;
+  const brandAsTruth = options.brandAsTruth ?? version === "1.0";
   const final = join(store.dir, "dataset", version, "reference");
   if (existsSync(final)) throw new Error(`${final} exists; a reference export is never replaced`);
   // The membership is drawn by the first dataset build, from the pool it sees; an export never draws it, or it would
@@ -2121,7 +2640,7 @@ export function writeReference(options: {
   const skip = (why: string) => {
     skipped[why] = (skipped[why] ?? 0) + 1;
   };
-  const chosen: { page: StoredPage; answer: PageAnswer; screenshot: Uint8Array; text: string }[] = [];
+  const chosen: { page: StoredPage; answer: VersionedPageAnswer; screenshot: Uint8Array; text: string }[] = [];
   for (const id of [...ids].sort()) {
     const page = records.get(id);
     if (!page) skip("not in the store");
@@ -2129,14 +2648,15 @@ export function writeReference(options: {
     else if (!trusted(page)) skip("no trusted lure label");
     else if (page.origin === "samples" && !page.redacted) skip("sample not redacted");
     else {
-      const answer = answerOf(page);
+      const answer = answerOf(page, brandAsTruth);
       const verified = answer ? store.readVerifiedPage(id) : null;
+      const brandText = answer && "brand" in answer && answer.brand ? answer.brand : "";
       if (!answer) skip("label incomplete");
       else if (!verified) skip("files do not match the record");
       else if (
         page.origin !== "samples" &&
         clientTerms.length &&
-        leaks([{ id, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` }], clientTerms).length
+        leaks([{ id, text: `${page.host ?? ""}\n${verified.text}\n${brandText}` }], clientTerms).length
       )
         skip("names the client");
       else chosen.push({ page: verified.page, answer, screenshot: verified.screenshot, text: verified.text });
@@ -2146,37 +2666,39 @@ export function writeReference(options: {
   rmSync(staging, { recursive: true, force: true });
   mkdirSync(staging, { recursive: true });
   try {
-    const meta = chosen.map(({ page, answer }) =>
-      JSON.stringify({
+    const meta = chosen.map(({ page, answer }) => {
+      const pageBrand = brandAsTruth && "brand" in answer ? answer.brand : (page.labels.brand ?? null);
+      return JSON.stringify({
         id: page.id,
         source: page.source,
         origin: page.origin,
         lure_type: answer.lure_type,
-        brand: answer.brand,
-        brand_identity: answer.brand ? brandIdentity(answer.brand) : null,
+        brand: pageBrand,
+        brand_identity: pageBrand ? brandIdentity(pageBrand) : null,
         south_africa: page.south_africa,
         screenshot: page.sha256.screenshot,
-      }),
-    );
+      });
+    });
     writeLinesAtomic(
       join(staging, "eval.jsonl"),
       (function* () {
         for (const { page, answer, screenshot, text } of chosen) {
           const nonce = createHash("sha256").update(page.id).digest("hex").slice(0, 32);
           yield buildTrainingLine(
-            buildScreenRequest({ image: screenshot, host: page.host, text, mode, nonce }),
+            buildScreenRequest({ image: screenshot, host: page.host, text, mode, nonce, brandAsTruth }),
             answer,
+            brandAsTruth,
           );
         }
       })(),
     );
     writeAtomic(join(staging, "eval.meta.jsonl"), meta.map((m) => `${m}\n`).join(""));
-    const back = readBack(staging, "eval", mode, protectedTerms);
+    const back = readBack(staging, "eval", mode, protectedTerms, brandAsTruth);
     if (back.lines !== chosen.length)
       throw new PublicationRefused(`reference: ${back.lines} lines read back, ${chosen.length} written`);
     writeAtomic(
       join(staging, "summary.json"),
-      `${JSON.stringify({ version, set: "reference", membership, pages: chosen.length, skipped, sha256: { evaluation: back.sha256 } }, null, 2)}\n`,
+      `${JSON.stringify({ version, set: "reference", brandAsTruth, membership, pages: chosen.length, skipped, sha256: { evaluation: back.sha256 } }, null, 2)}\n`,
     );
     renameSync(staging, final);
     return { dir: final, pages: chosen.length, skipped, sha256: back.sha256 };
@@ -2203,7 +2725,13 @@ if (import.meta.filename === process.argv[1] && process.argv[2] === "reference")
   try {
     console.log(
       JSON.stringify(
-        writeReference({ store: openStore(storeDir()), version, mode: recorded, protectedTerms: derived.terms }),
+        writeReference({
+          store: openStore(storeDir()),
+          version,
+          mode: recorded,
+          protectedTerms: derived.terms,
+          brandAsTruth: version === "1.0",
+        }),
         null,
         2,
       ),

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +19,7 @@ import {
   removeSourceFromStore,
   storeProblems,
   syntheticLeftovers,
+  verifyExistingFreeze,
   writeFreeze,
 } from "../../scripts/glimmer/sources.ts";
 import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
@@ -1284,5 +1286,133 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
     expect(doc).toContain("ITEMS.inventory.jsonl");
     expect(doc).toContain("ITEMS.import.jsonl");
     expect(doc).toContain("migrate-lineage");
+  });
+
+  it("verifies an existing freeze without replacing it when reconciled, and refuses when drifted (D03 T04 §45)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "glimmer-vfreeze-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-vfreeze-store-"));
+    try {
+      mkdirSync(join(root, "docs", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs", "glimmer", "sources.md"), [header, row("compphish", "accepted")].join("\n"));
+      writeFileSync(join(root, "NOTICE.md"), "| `compphish`: CompPhish | CC BY 4.0 | credit |\n");
+      const shot = new Uint8Array(
+        await sharp({ create: { width: 16, height: 16, channels: 3, background: "#a22" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      const rowLine = JSON.stringify({
+        sha256: "compphish-1",
+        url: "https://example.test",
+        html: "<p>Sign in</p>",
+        label: "phish",
+        target: null,
+      });
+      const inputDigest = createHash("sha256").update(rowLine).digest("hex");
+      const pages = openStore(store);
+      const pageId = await pages.putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+        item: "compphish-1",
+        input: inputDigest,
+        items: [{ id: "compphish-1", input: inputDigest, lure: true }],
+        evidence: {
+          title: "Login",
+          overlays: "",
+          captcha: false,
+          consentWall: false,
+          challengeCover: false,
+          wall: false,
+        },
+      });
+      const folder = join(store, "raw", "compphish");
+      mkdirSync(folder, { recursive: true });
+      const manifest = { files: [{ name: "All_HTML.zip" }] };
+      const inputsDigest = manifestDigest(manifest);
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify(manifest));
+      writeFileSync(join(folder, "rows.jsonl"), `${rowLine}\n`);
+      const { fileSha256 } = await import("../../scripts/glimmer/import-source.ts");
+      const rowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 1,
+          exported: 1,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: rowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      const exportSha = fileSha256(join(folder, "EXPORT.json"));
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 1,
+          imported: 1,
+          duplicates: 0,
+          skipped: 0,
+          filtered: [],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: rowsSha,
+        }),
+      );
+      const importSha = fileSha256(join(folder, "IMPORT.json"));
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${JSON.stringify({ inputs: inputsDigest, rows: rowsSha })}\n${JSON.stringify({ item: "compphish-1" })}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${JSON.stringify({ inputs: inputsDigest, rows: rowsSha })}\n${JSON.stringify({ item: "compphish-1", outcome: "exported" })}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.import.jsonl"),
+        `${JSON.stringify({ inputs: inputsDigest, rows: rowsSha, export: exportSha, import: importSha })}\n${JSON.stringify({ item: "compphish-1", input: inputDigest, outcome: "imported", page: pageId })}\n`,
+      );
+      mkdirSync(join(root, "eval", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "eval", "glimmer", "benign-sa-urls.txt"), "home\thttps://bank.example/\tBank\n");
+      mkdirSync(join(store, "raw", "majestic"), { recursive: true });
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,example.org\n");
+      mkdirSync(join(store, "raw", "benign"), { recursive: true });
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        [
+          { url: "https://example.org/", event: "excluded", reason: "empty", at: "2026-10-29T08:00:00.000Z" },
+          { url: "https://bank.example/", event: "excluded", reason: "empty", at: "2026-10-29T08:00:01.000Z" },
+        ]
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join(""),
+      );
+      const { problems: freezeProblems, frozen } = freezeCollection(store, root, new Date("2026-11-02T00:00:00Z"));
+      expect(freezeProblems).toEqual([]);
+      writeFreeze(store, frozen as Frozen, "1.1");
+      const file = join(store, "raw", "FROZEN-1.1.json");
+      const originalBytes = readFileSync(file, "utf-8");
+      const check1 = verifyExistingFreeze(store, "1.1", root);
+      expect(check1.problems).toEqual([]);
+      expect(check1.reconciledPages?.size).toBe(1);
+      expect(readFileSync(file, "utf-8")).toBe(originalBytes);
+
+      // Drift the render list: verifyExistingFreeze reports the drift without altering the freeze file.
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,other.org\n");
+      const check2 = verifyExistingFreeze(store, "1.1", root);
+      expect(check2.problems.join("\n")).toMatch(/majestic: render receipt drifted from the freeze/);
+      expect(readFileSync(file, "utf-8")).toBe(originalBytes);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
   });
 });
