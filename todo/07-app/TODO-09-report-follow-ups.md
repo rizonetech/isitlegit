@@ -38,7 +38,7 @@ track: day-2
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
-| 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
+| 5 | §5 | Per-provider reputation results | D07 T03 §12 | [x] |
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [x] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
@@ -189,9 +189,12 @@ Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards sho
 - [x] Record the rows in `design/SPEC.md` M3: one row per provider and subject on the reputation card, with its state in plain words, when it was obtained, and a cached mark; counts per exact subject over answered rows only, the well-known list counted apart, and a subject with no listing shown in the same block. Done when: `python3 design/tools/check-design.py` passes with the extension recorded. Cheaper substitute: drawing rows the SPEC does not describe.
 - [x] Read and thread the stored rows: `src/web/pages/report.tsx` reads `readReputationResults(db, id, run)` beside the evidence and outcomes it already pins to the run, and passes them through `ReportDocument` and `ReportLive` (both the page and the status poll, member and signed-link views alike) into `EvidenceCards`. Done when: `test/web/report-status.test.ts` stores rows in the table and reads them back on the report for both views, and a retry's new run shows only its own rows. Cheaper substitute: reading the table in the renderer, which has no database and would mix runs.
 - [x] Draw the per-provider rows in `src/web/components/evidence/cards.tsx`: on the reputation card for their subject, and in one "What the reputation providers said" block for subjects no card names, each row with its provider, its state in plain words (listed; not listed by this provider; could not be checked, with its recorded reason; on the well-known list; not on the well-known list), when it was obtained, and a cached mark. Counts per exact subject count answered rows only and keep the well-known list apart; no count implies a verdict. Done when: `test/web/evidence-cards.test.ts` draws listed, clear, unavailable, known and unknown rows with their times, an unsupported count absent, and a hostile subject as text. Cheaper substitute: the listing alone, which hides how many providers were asked.
-- [ ] Commit: `web: per-provider reputation results`
+- [x] Commit: `web: per-provider reputation results`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` passes with per-provider rows drawn from the stored table through the real routes.
+
+> **Verified:** 2026-11-03 | §5 | 61e6d84a0ed0c0ec16d1ceaaaa14e5b3127465a2
+> **Review:** `docs/reviews/d07-t09-s5.json`
 
 ## 6. The voice note's player and transcript
 
