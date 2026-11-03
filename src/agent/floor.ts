@@ -28,18 +28,16 @@ function weight(item: Pick<Evidence, "check" | "severity" | "detail">): Verdict 
 // The floor rules by revision, kept so a stored record's decision can be reproduced after the rules
 // change (D04 T01 §13): when the weights or triggers change, the old implementation stays here under its
 // revision and FLOOR_REVISION names the new one. An unknown revision replays as null, never as today's.
-const FLOOR_RULES: Readonly<
-  Record<string, (evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]) => Floor>
-> = {
-  [FLOOR_REVISION]: (evidence) => floorFor(evidence),
-};
+type FloorRules = (evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]) => Floor;
+const FLOOR_RULES: ReadonlyMap<string, FloorRules> = new Map([[FLOOR_REVISION, (evidence) => floorFor(evidence)]]);
 
 export function replayFloor(
   revision: string,
   evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[],
+  rules: ReadonlyMap<string, FloorRules> = FLOOR_RULES,
 ): Floor | null {
-  const rules = FLOOR_RULES[revision];
-  return rules ? rules(evidence) : null;
+  const replay = rules.get(revision);
+  return replay ? replay(evidence) : null;
 }
 
 export function floorFor(evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]): Floor {

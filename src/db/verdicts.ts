@@ -53,8 +53,8 @@ export type StoredVerdict = Omit<VerdictView, "reasons"> & {
   caseId: string;
   createdAt: string;
   // Whether the floor was evaluated for this verdict (D04 T01 §13): `raised` (a floor record is stored),
-  // `measured` (stored since the floor outcome was recorded, with no raise), or `unrecorded` (stored
-  // before migration 0081, so nothing about the floor was kept). Always set on a read row.
+  // `measured` (stored since the coverage marker was written, with no raise), or `unrecorded` (stored
+  // before the marker existed, so nothing about the floor was kept). Always set on a read row.
   floorCoverage?: "raised" | "measured" | "unrecorded" | undefined;
 };
 

@@ -145,8 +145,24 @@ describe("applyFloor", () => {
     const evidence = [item("attachment.executable", "critical"), item("sender.first_time", "info")];
     expect(replayFloor(FLOOR_REVISION, evidence)).toEqual(floorFor(evidence));
     expect(replayFloor(FLOOR_REVISION, evidence)?.verdict).toBe("malicious");
-    // A revision these rules do not know replays as unknown, never as today's rules.
-    expect(replayFloor("99", evidence)).toBeNull();
+    // A revision these rules do not know replays as unknown, never as today's rules, inherited
+    // object-property names included.
+    for (const unknown of ["99", "toString", "constructor", "__proto__", "hasOwnProperty"])
+      expect(replayFloor(unknown, evidence), unknown).toBeNull();
+    // Two revisions that weigh an item differently give different outcomes on the same evidence, and
+    // the older stored decision still replays exactly under its own revision.
+    const older: typeof floorFor = (items) => {
+      const critical = items.filter((i) => i.severity === "critical");
+      return critical.length
+        ? { verdict: "suspicious", evidenceIds: critical.map((i) => i.id) }
+        : { verdict: "safe", evidenceIds: [] };
+    };
+    const retained = new Map([
+      ["0", older],
+      [FLOOR_REVISION, floorFor],
+    ]);
+    expect(replayFloor("0", evidence, retained)?.verdict).toBe("suspicious");
+    expect(replayFloor(FLOOR_REVISION, evidence, retained)?.verdict).toBe("malicious");
   });
 
   it("does not share the floor's id list with the record", () => {

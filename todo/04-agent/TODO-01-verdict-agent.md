@@ -403,7 +403,7 @@ Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there
 - [x] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
 - [ ] Commit: `agent: floor record provenance and coverage state`
 
-**Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.
+**Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts test/agent/loop.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.
 ## 14. Ablation flag in the verdict step
 
 > **Started:** 2026-11-02T07:26:31Z
