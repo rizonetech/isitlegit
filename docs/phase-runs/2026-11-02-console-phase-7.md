@@ -196,3 +196,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 2026-11-03 00:35 SAST (console lane): §15 built, stamp blocked by a malformed plan record
 
 §15 (slash focuses the Cases search, with the WCAG 2.1.4 off switch) is built, gates green (browser 39/39, typecheck, check-design 0), completion gaps implemented, round 1 fixed, round 2 approve with no findings. The stamp is refused: the recorded plan review (docs/reviews/07-app/D07-T04-s15.md) ends `PLAN: gaps` / `HIGHEST: P2` with no closing `OVERALL:` line, because my plan prompt named the wrong ending, and the dispatcher both recorded it and refuses a second plan pass. I have not edited the record. Coordinator ask recorded in the outbox. Next: D07 T04 §16.
+
+## Resume 2026-11-03 00:50 SAST (console lane): §18 stamped
+
+§18 stamped (receipt docs/reviews/d07-t04-s18.json): threat kinds under Malicious or suspicious, positive-evidence buckets on the current run, SQL flags, one snapshot batch. Gates: stats 15/15, cases browser 40/40, typecheck, check-design 0. §16 parked (coordinator seed + attended phone, operator skipped it). §15 stamp still waits on the coordinator ruling for its malformed plan record. Next ready row in dependency order.
