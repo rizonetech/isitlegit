@@ -1619,7 +1619,39 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
   const activeCaller = sendKey ? null : caseId;
   const childRow = await parentOf(env.DB, caseId);
   if (childRow) return { ...base, ...(await groupedReply(env, childRow.parentCaseId, activeCaller, state, sendKey)) };
-  if ((await childrenOf(env.DB, caseId)).length)
+  if (sendKey?.startsWith("reply:group:") || (await childrenOf(env.DB, caseId)).length)
+    return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
+
+  // The summary and the forward's header block are optional: either unreadable (gone, a storage fault, or still not
+  // read after OPTIONAL_READ_MS, so a stalled read cannot use up the attempt) and the reply still goes, with no
+  // other-originals note and the fallback subject and threading. When the summary was never written (for example,
+  // parse exhausted its retries before the manifest batch committed), the stored raw forward still tells whether
+  // additional originals exist so grouped recovery runs instead of a single-case reply (round 3).
+  const summaryOrRaw = await withinDeadline(
+    (async () => {
+      const summary = await readArtefact(store, caseId, parsedKey(caseId));
+      if (summary && "body" in summary) {
+        return {
+          otherOriginals: Number(
+            (JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0,
+          ),
+          hasAdditionalOriginals: false,
+        };
+      }
+      if (found.channel === "email" && found.sourceKind === "mail") {
+        const raw = await readArtefact(store, caseId, rawKey(caseId));
+        if (raw && "body" in raw) {
+          const extracted = await extractOriginals(raw.body);
+          return {
+            otherOriginals: extracted.chosen.otherOriginals,
+            hasAdditionalOriginals: extracted.others.length > 0,
+          };
+        }
+      }
+      return { otherOriginals: 0, hasAdditionalOriginals: false };
+    })(),
+  ).catch(() => ({ otherOriginals: 0, hasAdditionalOriginals: false }));
+  if (summaryOrRaw.otherOriginals > 0 || summaryOrRaw.hasAdditionalOriginals)
     return { ...base, ...(await groupedReply(env, caseId, activeCaller, state, sendKey)) };
 
   let report: ReplyReport;
@@ -1630,16 +1662,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
   } else {
     report = { status: "partial", failedStep: state.failedStep, errorClass: state.errorClass };
   }
-  // The summary and the forward's header block are optional: either unreadable (gone, a storage fault, or still not
-  // read after OPTIONAL_READ_MS, so a stalled read cannot use up the attempt) and the reply still goes, with no
-  // other-originals note and the fallback subject and threading.
-  const otherOriginals = await withinDeadline(readArtefact(store, caseId, parsedKey(caseId)))
-    .then((summary) =>
-      summary && "body" in summary
-        ? Number((JSON.parse(new TextDecoder().decode(summary.body)) as ParsedSummary).forward?.otherOriginals ?? 0)
-        : 0,
-    )
-    .catch(() => 0);
+  const otherOriginals = summaryOrRaw.otherOriginals;
   const head = await withinDeadline(
     env.ARTEFACTS.get(rawKey(caseId), { range: { offset: 0, length: HEADER_RANGE } }).then(async (object) =>
       object ? new Uint8Array(await object.arrayBuffer()) : null,

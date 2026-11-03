@@ -2369,4 +2369,56 @@ describe("several originals in one forward (D01 T01 §12)", () => {
       vi.restoreAllMocks();
     }
   });
+
+  it("recovers from an empty manifest when recordExpectedChildren fails throughout parse (round 3 finding 1)", async () => {
+    const parentId = await caseWith(forwards["two-originals"]);
+    await env.DB.prepare("UPDATE cases SET forwarded_by = ? WHERE id = ?")
+      .bind("member@demo.isitlegit.co.za", parentId)
+      .run();
+    const failBatchDb = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "batch"
+          ? () => Promise.reject(new Error("manifest batch D1 down"))
+          : Reflect.get(target, name).bind(target),
+    }) as unknown as D1Database;
+    await expect(
+      parse({ db: failBatchDb, bucket: store.bucket }, parentId, MAIL, { start: async () => {} }),
+    ).rejects.toThrow(/manifest batch D1 down/);
+    const { childrenOf } = await import("../../src/intake/children");
+    expect(await childrenOf(env.DB, parentId)).toHaveLength(0);
+    await recordFailure(env.DB, parentId, "parse", "Error");
+
+    const requests: { text_body: string }[] = [];
+    const real = globalThis.fetch;
+    const { SMTP2GO_URL } = await import("../../src/mail/smtp2go");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-r3" } });
+    });
+    try {
+      // With an empty manifest and no summary, reply still inspects the stored raw forward, enters grouped
+      // recovery, records and admits the second original, starts its Workflow and waits instead of sending a
+      // single-case reply that drops original 2.
+      const firstReply = await reply(env, parentId, { status: "partial", failedStep: "parse", errorClass: "Error" });
+      expect(firstReply.mail).toBe("waiting");
+      expect(requests).toHaveLength(0);
+      const children = await childrenOf(env.DB, parentId);
+      expect(children).toHaveLength(1);
+      const childId = children[0]?.childCaseId as string;
+      const childInstance = await introspectWorkflowInstance(env.ANALYSIS, childId);
+      try {
+        await childInstance.waitForStatus("complete");
+      } finally {
+        await childInstance.dispose();
+      }
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.text_body).toContain("1. A message with no subject");
+      expect(requests[0]?.text_body).toContain("Check failed · no verdict");
+      expect(requests[0]?.text_body).toContain("2. Updated banking details");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
 });
