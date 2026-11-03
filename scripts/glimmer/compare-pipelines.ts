@@ -884,6 +884,117 @@ export function readCorpus(dir: string): {
   }
   return { pages: parsed.pages ?? [], seed: parsed.seed ?? null, file, pageFiles: [] };
 }
+export async function conventionalReadOnBrowser(
+  browser: { newContext: (options: Record<string, unknown>) => Promise<import("playwright-core").BrowserContext> },
+  page: CorpusPage,
+  limitMs = 60_000,
+): Promise<ViewedCapture & { title?: string; dhash?: string }> {
+  const { replayResponder, SETTLE_MS } = await import("./render.ts");
+  const { normaliseScreenshot } = await import("./source-pages.ts");
+  const { MAX_HEIGHT, MAX_WIDTH } = await import("./store.ts");
+  const { dhash } = await import("./build-dataset.ts");
+  let timer: NodeJS.Timeout | undefined;
+  let context: import("playwright-core").BrowserContext | undefined;
+  let abandoned = false;
+  const work = (async () => {
+    const made = await browser.newContext({
+      viewport: { width: MAX_WIDTH, height: MAX_HEIGHT },
+      acceptDownloads: false,
+      serviceWorkers: "block",
+      permissions: [],
+      ignoreHTTPSErrors: false,
+    });
+    if (abandoned) {
+      await made.close().catch(() => undefined);
+      throw new Error(`the conventional read passed ${limitMs / 1000} seconds`);
+    }
+    context = made;
+    const respond = replayResponder(page.archive);
+    await context.routeWebSocket(/.*/, (socket) => socket.close());
+    await context.route("**/*", async (route) => {
+      const req = route.request();
+      const entry = respond(req.url(), req.method(), req.postData() ?? "");
+      if (!entry) return route.abort();
+      return route.fulfill({
+        status: entry.status ?? 200,
+        headers: entry.headers ?? {},
+        body: Buffer.from(entry.bodyBase64, "base64"),
+      });
+    });
+    const tab = await context.newPage();
+    let status: number | undefined;
+    tab.on("response", (answer) => {
+      if (answer.request().isNavigationRequest() && answer.frame() === tab.mainFrame()) status = answer.status();
+    });
+    await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch((error: Error) => {
+      if (status !== undefined && status >= 400) return;
+      throw error;
+    });
+    await tab.waitForLoadState("networkidle", { timeout: SETTLE_MS }).catch(() => undefined);
+    // Main-world reads in the page and every frame it shows: a sign-in form inside a frame is still shown.
+    const read = await tab.evaluate(() => ({
+      // biome-ignore lint/performance/useDomNodeTextContent: conventional crawler reads rendered text
+      text: document.body?.innerText ?? "",
+      title: document.title,
+      height: document.documentElement?.scrollHeight ?? 0,
+      has_login_form: false,
+      has_payment_form: false,
+    }));
+    for (const frame of tab.frames()) {
+      if (frame.isDetached()) continue;
+      const forms = await frame
+        .evaluate(() => {
+          const inputs = [...document.querySelectorAll("input")];
+          return {
+            has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
+            has_payment_form: inputs.some(
+              (i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card"),
+            ),
+          };
+        })
+        .catch((error: Error) => {
+          if (frame.isDetached()) return { has_login_form: false, has_payment_form: false };
+          throw error;
+        });
+      read.has_login_form = read.has_login_form || forms.has_login_form;
+      read.has_payment_form = read.has_payment_form || forms.has_payment_form;
+    }
+    const shot = await tab.screenshot({
+      type: "png",
+      clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, read.height)) },
+      timeout: 10_000,
+    });
+    const normalised = await normaliseScreenshot(new Uint8Array(shot));
+    return {
+      status: status ?? 0,
+      finalUrl: tab.url(),
+      text: read.text,
+      title: read.title,
+      has_login_form: read.has_login_form,
+      has_payment_form: read.has_payment_form,
+      dhash: (await dhash(normalised)).toString(16).padStart(16, "0"),
+    };
+  })();
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`the conventional read passed ${limitMs / 1000} seconds`)), limitMs);
+  });
+  try {
+    return await Promise.race([work, limit]);
+  } finally {
+    abandoned = true;
+    clearTimeout(timer);
+    work.catch(() => undefined);
+    if (context) {
+      let closeTimer: NodeJS.Timeout | undefined;
+      await Promise.race([
+        context.close().catch(() => undefined),
+        new Promise<void>((r) => {
+          closeTimer = setTimeout(r, 5_000);
+        }),
+      ]).finally(() => clearTimeout(closeTimer));
+    }
+  }
+}
 // Run both pipelines over the recorded corpus. The production side renders each page through the replay seam and
 // applies `unusable()` unchanged; a replayed capture that differs from the viewed one is a replay failure, counted
 // apart and never scored. An injected renderer keeps the test off the browser.
@@ -924,9 +1035,7 @@ export async function compareBenign(
   if (missing) return missing;
   const coverage = benignCoverage(pages);
   if (coverage.insufficient.length) return { status: "incomplete", name, inputs, missing: coverage.insufficient };
-  const { openRenderer, replayResponder, SETTLE_MS, unusable } = await import("./render.ts");
-  const { normaliseScreenshot } = await import("./source-pages.ts");
-  const { MAX_HEIGHT, MAX_WIDTH } = await import("./store.ts");
+  const { openRenderer, unusable } = await import("./render.ts");
   const { dhash } = await import("./build-dataset.ts");
   const { chromium } = await import("playwright-core");
   const { chromiumPath } = await import("../lib/chromium.ts");
@@ -950,82 +1059,7 @@ export async function compareBenign(
         });
   const conventionalRead = async (page: CorpusPage): Promise<ViewedCapture & { title?: string; dhash?: string }> => {
     if (!browser) throw new Error("no browser for the conventional read");
-    const context = await browser.newContext({
-      viewport: { width: MAX_WIDTH, height: MAX_HEIGHT },
-      acceptDownloads: false,
-      serviceWorkers: "block",
-      permissions: [],
-      ignoreHTTPSErrors: false,
-    });
-    const respond = replayResponder(page.archive);
-    try {
-      await context.routeWebSocket(/.*/, (socket) => socket.close());
-      await context.route("**/*", async (route) => {
-        const req = route.request();
-        const entry = respond(req.url(), req.method(), req.postData() ?? "");
-        if (!entry) return route.abort();
-        return route.fulfill({
-          status: entry.status ?? 200,
-          headers: entry.headers ?? {},
-          body: Buffer.from(entry.bodyBase64, "base64"),
-        });
-      });
-      const tab = await context.newPage();
-      let status: number | undefined;
-      tab.on("response", (answer) => {
-        if (answer.request().isNavigationRequest() && answer.frame() === tab.mainFrame()) status = answer.status();
-      });
-      await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch((error: Error) => {
-        if (status !== undefined && status >= 400) return;
-        throw error;
-      });
-      await tab.waitForLoadState("networkidle", { timeout: SETTLE_MS }).catch(() => undefined);
-      // Main-world reads in the page and every frame it shows: a sign-in form inside a frame is still shown.
-      const read = await tab.evaluate(() => ({
-        // biome-ignore lint/performance/useDomNodeTextContent: conventional crawler reads rendered text
-        text: document.body?.innerText ?? "",
-        title: document.title,
-        height: document.documentElement?.scrollHeight ?? 0,
-        has_login_form: false,
-        has_payment_form: false,
-      }));
-      for (const frame of tab.frames()) {
-        if (frame.isDetached()) continue;
-        const forms = await frame
-          .evaluate(() => {
-            const inputs = [...document.querySelectorAll("input")];
-            return {
-              has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
-              has_payment_form: inputs.some(
-                (i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card"),
-              ),
-            };
-          })
-          .catch((error: Error) => {
-            if (frame.isDetached()) return { has_login_form: false, has_payment_form: false };
-            throw error;
-          });
-        read.has_login_form = read.has_login_form || forms.has_login_form;
-        read.has_payment_form = read.has_payment_form || forms.has_payment_form;
-      }
-      const shot = await tab.screenshot({
-        type: "png",
-        clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, read.height)) },
-        timeout: 10_000,
-      });
-      const normalised = await normaliseScreenshot(new Uint8Array(shot));
-      return {
-        status: status ?? 0,
-        finalUrl: tab.url(),
-        text: read.text,
-        title: read.title,
-        has_login_form: read.has_login_form,
-        has_payment_form: read.has_payment_form,
-        dhash: (await dhash(normalised)).toString(16).padStart(16, "0"),
-      };
-    } finally {
-      await context.close();
-    }
+    return conventionalReadOnBrowser(browser, page, 60_000);
   };
   const replaying = renderPage ? null : await openRenderer({ replay: {} });
   const rows: BenignPipelinePage[] = new Array(pages.length);
@@ -1068,22 +1102,21 @@ export async function compareBenign(
                       }) === null,
                   };
                 })())();
+          let renderTimer: NodeJS.Timeout | undefined;
           const got = await Promise.race([
             work,
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000),
-            ),
-          ]);
+            new Promise<never>((_, reject) => {
+              renderTimer = setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000);
+            }),
+          ]).finally(() => {
+            clearTimeout(renderTimer);
+            work.catch(() => undefined);
+          });
           const conv = readConventional
             ? await readConventional(page)
             : renderPage
               ? got
-              : await Promise.race([
-                  conventionalRead(page),
-                  new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error("the conventional read passed 60 seconds")), 60_000),
-                  ),
-                ]);
+              : await conventionalRead(page);
           // Fidelity: both visits must reproduce the viewed status, landed URL, title and picture, and production
           // must also reproduce the viewed text, forms, overlays and wall evidence.
           const reasons: string[] = [

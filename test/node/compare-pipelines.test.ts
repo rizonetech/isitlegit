@@ -17,6 +17,7 @@ import {
   compareBenign,
   compareLabels,
   compareSplit,
+  conventionalReadOnBrowser,
   conventionalReplayMismatches,
   describeInput,
   groupShuffleSplit,
@@ -260,6 +261,31 @@ describe("the benign comparison's evidence (§38, round 1)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("closes the browser context when a conventional read exceeds its deadline", async () => {
+    let closed = 0;
+    const fakeBrowser = {
+      newContext: async () =>
+        ({
+          routeWebSocket: async () => undefined,
+          route: async () => undefined,
+          newPage: async () => ({
+            on: () => undefined,
+            mainFrame: () => ({}),
+            goto: async () => undefined,
+            waitForLoadState: async () => undefined,
+            evaluate: () => new Promise<never>(() => undefined),
+          }),
+          close: async () => {
+            closed++;
+          },
+        }) as unknown as import("playwright-core").BrowserContext,
+    };
+    await expect(conventionalReadOnBrowser(fakeBrowser, filePage("g0", "none", true) as never, 20)).rejects.toThrow(
+      "the conventional read passed 0.02 seconds",
+    );
+    expect(closed).toBe(1);
   });
 
   it("refuses a manifest that names a page twice, a page whose file changed and a missing page file", async () => {
