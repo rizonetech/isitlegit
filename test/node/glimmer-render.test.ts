@@ -115,7 +115,7 @@ describe("recording and replaying one visit (§38, round 1)", () => {
         screenshot: { file: "x.jpg", sha256: "0".repeat(64), dhash: await hex(live.screenshot) },
       };
       const replay = async (recorded: typeof archive) => {
-        const replaying = await openRenderer({ replay: recorded });
+        const replaying = await openRenderer({ replay: recorded, ocr: async () => "" });
         try {
           const c = await replaying.render(`${origin}/replay-mix`);
           return { ...seen(c), admitted: true, dhash: await hex(c.screenshot) };
