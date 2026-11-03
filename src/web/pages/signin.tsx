@@ -145,7 +145,10 @@ export function PasskeyPrompt() {
       >
         <div class="rounded-card bg-subtle px-16 py-12 flex flex-col gap-4">
           <p class="text-14 weight-text-strong">No passkey found on this device?</p>
-          <p class="text-14 text-muted">If your passkey is on your phone or tablet, scan the QR code your browser shows with it (Bluetooth on both), or sign in with an email link, then add a passkey under Account.</p>
+          <p class="text-14 text-muted">
+            If your passkey is on your phone or tablet, scan the QR code your browser shows with it (Bluetooth on both),
+            or sign in with an email link, then add a passkey under Account.
+          </p>
         </div>
         <div class="flex flex-col gap-12">
           <Button type="button" variant="dark" data-passkey-start>

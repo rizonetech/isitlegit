@@ -52,6 +52,18 @@ describe("the passkey prompt and its recoveries", () => {
     await context.close();
   });
 
+  it("names the phone, its QR scan and Bluetooth in the prompt's panel", async () => {
+    const { p, context } = await signinWith("/signin");
+    stub.optionsDelayMs = 600;
+    await press(p);
+    await expect
+      .poll(() => p.textContent("main"))
+      .toContain("scan the QR code your browser shows with it (Bluetooth on both)");
+    expect(await p.getByRole("button", { name: "Email me a link instead" }).isVisible()).toBe(true);
+    stub.optionsDelayMs = 0;
+    await context.close();
+  });
+
   it("shows the prompt with focus on its heading and the button busy, then lands on the return path", async () => {
     const { p, context } = await signinWith("/signin");
     stub.optionsDelayMs = 600;
