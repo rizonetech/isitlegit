@@ -373,12 +373,18 @@ export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
       runId,
       (orgId) => monitorPipeline(pipelineDeps(this.env), orgId, since),
       (orgId) =>
-        findingsFromInvestigations(this.env.DB, orgId, {
-          mail: this.env.SMTP2GO_API_KEY
-            ? { db: this.env.DB, apiKey: this.env.SMTP2GO_API_KEY, operator: this.env.OPERATOR_EMAIL }
-            : null,
-          appUrl: this.env.APP_URL,
-        }),
+        findingsFromInvestigations(
+          this.env.DB,
+          orgId,
+          {
+            mail: this.env.SMTP2GO_API_KEY
+              ? { db: this.env.DB, apiKey: this.env.SMTP2GO_API_KEY, operator: this.env.OPERATOR_EMAIL }
+              : null,
+            appUrl: this.env.APP_URL,
+          },
+          () => new Date(),
+          this.env.ARTEFACTS,
+        ),
     );
   }
 }

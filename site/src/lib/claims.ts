@@ -164,7 +164,7 @@ export const claims = {
   "privacy.what.security": { text: "Sign-in and security records, to keep accounts safe.", owners: ["D07 T02 §6"] },
   "privacy.what.members": { text: "We accept mail only from members' verified addresses and domains.", owners: ["D01 T01 §3"] },
   "privacy.training": {
-    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. That training copy is not deleted after 30 days, and closing your account does not remove it; we have not set a fixed period for it. Loupe, the model that screens lookalike websites, is also trained on public web pages.",
+    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. That training copy is not deleted after 30 days, and closing your account does not remove it; we have not set a fixed period for it. Loupe, the model that screens lookalike websites, is also trained on public web pages, and public lookalike pages the monitor finds are kept to train Loupe with no fixed expiry; a business can ask for its findings' pages to be removed.",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.screening": { text: "When Loupe screens a website for you, it receives that public page only.", owners: ["D05 T04 §3"] },

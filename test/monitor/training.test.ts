@@ -1,20 +1,46 @@
-// Training copies (D05 T04 §10): one copy per labelled finding, the completion marker last,
-// none for an unlabelled or missing page, and the copy kept after the case artefacts go.
+// Training copies (D05 T04 §10): tenant-scoped capture identity, sourceRef provenance,
+// completion marker written last, declined second-look hook through `screenOwed`, successive
+// captures and multi-org isolation, qualifying dismissal overrides and restore retractions,
+// durable pending-copy recovery across boundaries, authorised removal tombstones, and boundary
+// exclusion of post-form walkthrough and member-account artefacts.
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { copyForTraining } from "../../src/monitor/training";
+import { dismissFinding, findingsFromInvestigations, restoreFinding } from "../../src/monitor/findings";
+import { screenOwed } from "../../src/monitor/screen";
+import {
+  copyForTraining,
+  isBenignDismissalReason,
+  recoverPendingTrainingCopies,
+  removeTrainingCopiesForHost,
+  type StoredTrainingMeta,
+} from "../../src/monitor/training";
+import { screened } from "../../src/vision/page-screen";
+import type { GlimmerSession } from "../../src/vision/screen";
 import { fakeJpeg } from "../fixtures/jpeg";
 
 const bucket = env.ARTEFACTS;
+const db = env.DB;
 const KEY = "monitor/org-1/fake.example/2026-11-02T03:00:00.000Z/";
 
-async function seedCapture() {
-  await bucket.put(`${KEY}screenshot.jpg`, fakeJpeg(1280, 800, 1000));
-  await bucket.put(`${KEY}text.txt`, "Sign in to your Fynbos account");
+async function ensureOrg(orgId: string) {
+  await db
+    .prepare(`INSERT OR IGNORE INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(orgId, `Org ${orgId}`, orgId, "2026-11-01T00:00:00.000Z")
+    .run();
+}
+
+async function seedCapture(
+  captureKey = KEY,
+  url = "https://fake.example/login",
+  text = "Sign in to your Fynbos account",
+) {
+  await bucket.put(`${captureKey}screenshot.jpg`, fakeJpeg(1280, 800, 1000));
+  await bucket.put(`${captureKey}text.txt`, text);
+  await bucket.put(`${captureKey}url.txt`, url);
 }
 
 describe("copyForTraining", () => {
-  it("copies the fetched page once with its provenance, marker last", async () => {
+  it("copies the fetched page once with tenant-scoped identity and sourceRef, marker last, surviving 30-day artefact deletion", async () => {
     await seedCapture();
     const copy = {
       orgId: "org-1",
@@ -29,14 +55,13 @@ describe("copyForTraining", () => {
     expect(await copyForTraining(bucket, copy)).toBe("exists");
     const meta = await bucket.get(`training/${KEY}meta.json`);
     expect(meta).not.toBeNull();
-    const parsed = JSON.parse(await (meta as NonNullable<typeof meta>).text()) as {
-      label: string;
-      host: string;
-      url: string;
-    };
+    const parsed = JSON.parse(await (meta as NonNullable<typeof meta>).text()) as StoredTrainingMeta;
+    expect(parsed.trainingId).toBe("monitor/org-1/fake.example/2026-11-02T03:00:00.000Z");
+    expect(parsed.sourceRef).toBe(`investigation:org-1:${KEY}`);
     expect(parsed.label).toBe("lure");
     expect(parsed.host).toBe("fake.example");
     expect(parsed.url).toBe("https://fake.example/");
+    expect(parsed.retracted).toBe(false);
     expect(await bucket.head(`training/${KEY}done.json`)).not.toBeNull();
     // The case's own artefacts are deleted at 30 days; the training copy stays.
     await bucket.delete(`${KEY}screenshot.jpg`);
@@ -56,5 +81,383 @@ describe("copyForTraining", () => {
     });
     expect(missing).toBe("missing-source");
     expect(await bucket.head("training/monitor/org-1/gone.example/2026-11-02T03:00:00.000Z/done.json")).toBeNull();
+  });
+
+  it("refuses post-form walkthrough captures, member-account artefacts, and mismatched tenant keys", async () => {
+    for (const badKey of [
+      "walkthrough/case-1/step-2/",
+      "art/case-1/page-1/",
+      "raw/case-1/mail.eml",
+      "monitor/org-2/fake.example/2026-11-02T03:00:00.000Z/",
+      "monitor/org-1/other.example/2026-11-02T03:00:00.000Z/",
+      "monitor/org-1/fake.example/../2026-11-02T03:00:00.000Z/",
+    ]) {
+      expect(
+        await copyForTraining(bucket, {
+          orgId: "org-1",
+          host: "fake.example",
+          captureKey: badKey,
+          captureUrl: null,
+          label: "lure",
+          why: "confirmed",
+          source: "pipeline",
+        }),
+      ).toBe("ineligible-source");
+    }
+  });
+
+  it("copies a Spark-declined flag as benign through screenOwed with screen sourceRef", async () => {
+    const orgId = "org-screen-decline";
+    await ensureOrg(orgId);
+    const host = "declined-lookalike.example";
+    const captureKey = `monitor/${orgId}/${host}/2026-11-02T04:00:00.000Z/`;
+    await seedCapture(captureKey, `https://${host}/welcome`, "Welcome to our benign page");
+    const h64 = "b".repeat(64);
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_hosts (org_id, domain, resolves, dns_hash, dns_at, content_hash, captured_at, capture_key, captured_dns_hash, capture_url, capture_failures, screen_failures, first_seen, last_seen, status)
+         VALUES (?, ?, 1, ?, '2026-11-02T04:00:00.000Z', ?, '2026-11-02T04:00:00.000Z', ?, ?, ?, 0, 0, '2026-11-02T04:00:00.000Z', '2026-11-02T04:00:00.000Z', 'watching')`,
+      )
+      .bind(orgId, host, h64, h64, captureKey, h64, `https://${host}/welcome`)
+      .run();
+
+    const session = { state: "ready", lastRequestEnd: null } as unknown as GlimmerSession;
+    const counts = await screenOwed(
+      {
+        db,
+        store: bucket,
+        screen: async () => ({
+          ok: true,
+          screen: screened(
+            {
+              brand: "Fynbos",
+              has_login_form: true,
+              has_payment_form: false,
+              lure: true,
+              lure_type: "credential",
+              confidence: 0.91,
+            } as never,
+            "glimmer",
+          ),
+          glimmer_reason: null,
+          spark_call: null,
+          tier: "glimmer",
+          escalation: null,
+          spark_calls: [],
+        }),
+        second: async () => ({
+          verdict: "declined",
+          lureType: "none",
+          callId: "call-sec-1",
+          logId: "log-sec-1",
+        }),
+      },
+      orgId,
+      "run-decline-1",
+      session,
+      () => new Date("2026-11-02T04:01:00.000Z"),
+    );
+
+    expect(counts.screened).toBe(1);
+    expect(counts.lures).toBe(0);
+    const metaObj = await bucket.get(`training/${captureKey}meta.json`);
+    expect(metaObj).not.toBeNull();
+    const meta = JSON.parse(await (metaObj as NonNullable<typeof metaObj>).text()) as StoredTrainingMeta;
+    expect(meta).toMatchObject({
+      trainingId: `monitor/${orgId}/${host}/2026-11-02T04:00:00.000Z`,
+      orgId,
+      host,
+      captureKey,
+      url: `https://${host}/welcome`,
+      label: "benign",
+      source: "second-look",
+      sourceRef: `screen:${orgId}:${host}:${captureKey}`,
+      retracted: false,
+    });
+    expect(await bucket.head(`training/${captureKey}done.json`)).not.toBeNull();
+  });
+
+  it("isolates successive captures of one host and two organisations sharing a host, and preserves an older capture's URL after host advancement", async () => {
+    const org1 = "org-multi-1";
+    const org2 = "org-multi-2";
+    await ensureOrg(org1);
+    await ensureOrg(org2);
+    const host = "shared-lookalike.example";
+    const cap1 = `monitor/${org1}/${host}/2026-11-01T03:00:00.000Z/`;
+    const cap2 = `monitor/${org1}/${host}/2026-11-02T03:00:00.000Z/`;
+    const capOrg2 = `monitor/${org2}/${host}/2026-11-01T03:00:00.000Z/`;
+
+    await seedCapture(cap1, `https://${host}/old-redirect`, "First capture text");
+    await seedCapture(cap2, `https://${host}/new-landing`, "Second capture text");
+    await seedCapture(capOrg2, `https://${host}/org2-landing`, "Org 2 capture text");
+
+    // Advance monitor_hosts for org1 to cap2 before copying cap1: cap1 must still keep its own URL.
+    const h64 = "c".repeat(64);
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_hosts (org_id, domain, resolves, dns_hash, dns_at, content_hash, captured_at, capture_key, captured_dns_hash, capture_url, capture_failures, screen_failures, first_seen, last_seen, status)
+         VALUES (?, ?, 1, ?, '2026-11-02T03:00:00.000Z', ?, '2026-11-02T03:00:00.000Z', ?, ?, ?, 0, 0, '2026-11-01T03:00:00.000Z', '2026-11-02T03:00:00.000Z', 'watching')`,
+      )
+      .bind(org1, host, h64, h64, cap2, h64, `https://${host}/new-landing`)
+      .run();
+
+    expect(
+      await copyForTraining(bucket, {
+        orgId: org1,
+        host,
+        captureKey: cap1,
+        captureUrl: null,
+        label: "lure",
+        why: "confirmed first capture",
+        source: "pipeline",
+      }),
+    ).toBe("copied");
+    expect(
+      await copyForTraining(bucket, {
+        orgId: org1,
+        host,
+        captureKey: cap2,
+        captureUrl: null,
+        label: "lure",
+        why: "confirmed second capture",
+        source: "pipeline",
+      }),
+    ).toBe("copied");
+    expect(
+      await copyForTraining(bucket, {
+        orgId: org2,
+        host,
+        captureKey: capOrg2,
+        captureUrl: null,
+        label: "benign",
+        why: "declined for org 2",
+        source: "second-look",
+      }),
+    ).toBe("copied");
+
+    const meta1 = JSON.parse(
+      (await (await bucket.get(`training/${cap1}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    const meta2 = JSON.parse(
+      (await (await bucket.get(`training/${cap2}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    const metaOrg2 = JSON.parse(
+      (await (await bucket.get(`training/${capOrg2}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+
+    expect(meta1.url).toBe(`https://${host}/old-redirect`);
+    expect(meta2.url).toBe(`https://${host}/new-landing`);
+    expect(metaOrg2.url).toBe(`https://${host}/org2-landing`);
+    expect(meta1.trainingId).not.toBe(meta2.trainingId);
+    expect(meta1.trainingId).not.toBe(metaOrg2.trainingId);
+    expect(meta1.label).toBe("lure");
+    expect(metaOrg2.label).toBe("benign");
+  });
+
+  it("enforces qualifying dismissal semantics, label precedence (confirmation -> dismissal -> restore), and ignores non-qualifying reasons", async () => {
+    expect(isBenignDismissalReason("duplicate alert already handled")).toBe(false);
+    expect(isBenignDismissalReason("expired domain")).toBe(false);
+    expect(isBenignDismissalReason("Not a fake, this is our own campaign site")).toBe(true);
+    expect(isBenignDismissalReason("legitimate partner domain")).toBe(true);
+
+    const orgId = "org-precedence";
+    await ensureOrg(orgId);
+    const host = "precedence.example";
+    const captureKey = `monitor/${orgId}/${host}/2026-11-02T05:00:00.000Z/`;
+    await seedCapture(captureKey, `https://${host}/`, "Sign in to Fynbos");
+
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-prec-1', ?, 'confirmed', '["E1"]', '2026-11-02T05:01:00.000Z', '2026-11-02T05:01:00.000Z')`,
+      )
+      .bind(orgId, host, captureKey, `https://${host}/`)
+      .run();
+
+    await copyForTraining(bucket, {
+      orgId,
+      host,
+      captureKey,
+      captureUrl: `https://${host}/`,
+      label: "lure",
+      why: "the full pipeline confirmed this page as a lure",
+      source: "pipeline",
+    });
+
+    await findingsFromInvestigations(db, orgId, { mail: null, appUrl: "https://app.isitlegit.co.za" });
+
+    // 1. Non-qualifying dismissal ("duplicate") leaves the R2 copy labelled "lure".
+    expect(
+      await dismissFinding(db, orgId, host, "duplicate ticket", () => new Date("2026-11-02T05:05:00.000Z"), bucket),
+    ).toBe(true);
+    const afterNonQualifying = JSON.parse(
+      (await (await bucket.get(`training/${captureKey}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(afterNonQualifying.label).toBe("lure");
+    expect(afterNonQualifying.source).toBe("pipeline");
+
+    // Restore and then dismiss with a qualifying benign reason.
+    await restoreFinding(db, orgId, host, () => new Date("2026-11-02T05:06:00.000Z"), bucket);
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        host,
+        "Not a fake, this is our own test site",
+        () => new Date("2026-11-02T05:10:00.000Z"),
+        bucket,
+      ),
+    ).toBe(true);
+
+    const afterDismissal = JSON.parse(
+      (await (await bucket.get(`training/${captureKey}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(afterDismissal.label).toBe("benign");
+    expect(afterDismissal.source).toBe("dismissal");
+    expect(afterDismissal.sourceRef).toBe(`finding:${orgId}:${host}:${captureKey}`);
+    expect(afterDismissal.retracted).toBe(false);
+    expect(afterDismissal.history?.[0]?.label).toBe("lure");
+
+    // Automated pipeline retry cannot overwrite a human dismissal.
+    expect(
+      await copyForTraining(bucket, {
+        orgId,
+        host,
+        captureKey,
+        captureUrl: `https://${host}/`,
+        label: "lure",
+        why: "pipeline retry",
+        source: "pipeline",
+      }),
+    ).toBe("exists");
+    const stillDismissed = JSON.parse(
+      (await (await bucket.get(`training/${captureKey}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(stillDismissed.label).toBe("benign");
+
+    // Restore retracts the training copy in R2, and automated retries still cannot un-retract it.
+    expect(await restoreFinding(db, orgId, host, () => new Date("2026-11-02T05:15:00.000Z"), bucket)).toBe(true);
+    const afterRestore = JSON.parse(
+      (await (await bucket.get(`training/${captureKey}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(afterRestore.retracted).toBe(true);
+    expect(afterRestore.source).toBe("restore");
+    expect(
+      await copyForTraining(bucket, {
+        orgId,
+        host,
+        captureKey,
+        captureUrl: `https://${host}/`,
+        label: "lure",
+        why: "pipeline retry",
+        source: "pipeline",
+      }),
+    ).toBe("exists");
+  });
+
+  it("recovers pending and partial R2 copies across crash boundaries without changing settled outcomes", async () => {
+    const orgId = "org-recovery";
+    await ensureOrg(orgId);
+    const hostConfirmed = "crash-confirmed.example";
+    const hostPartial = "crash-partial.example";
+    const keyConfirmed = `monitor/${orgId}/${hostConfirmed}/2026-11-02T06:00:00.000Z/`;
+    const keyPartial = `monitor/${orgId}/${hostPartial}/2026-11-02T06:05:00.000Z/`;
+    await seedCapture(keyConfirmed, `https://${hostConfirmed}/`, "Confirmed lure text");
+    await seedCapture(keyPartial, `https://${hostPartial}/`, "Partial R2 write lure text");
+
+    // Boundary 1: D1 settled confirmed, but zero R2 training files were written before crash.
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-rec-1', ?, 'confirmed', '["E1"]', '2026-11-02T06:01:00.000Z', '2026-11-02T06:01:00.000Z')`,
+      )
+      .bind(orgId, hostConfirmed, keyConfirmed, `https://${hostConfirmed}/`)
+      .run();
+
+    // Boundary 2: D1 settled confirmed, and R2 wrote screenshot.jpg and meta.json but crashed before done.json.
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-rec-2', ?, 'confirmed', '["E2"]', '2026-11-02T06:06:00.000Z', '2026-11-02T06:06:00.000Z')`,
+      )
+      .bind(orgId, hostPartial, keyPartial, `https://${hostPartial}/`)
+      .run();
+    await bucket.put(`training/${keyPartial}screenshot.jpg`, fakeJpeg(1280, 800, 1000));
+    await bucket.put(
+      `training/${keyPartial}meta.json`,
+      JSON.stringify({
+        trainingId: `monitor/${orgId}/${hostPartial}/2026-11-02T06:05:00.000Z`,
+        orgId,
+        host: hostPartial,
+        captureKey: keyPartial,
+        url: `https://${hostPartial}/`,
+        fetchedAt: "2026-11-02T06:05:00.000Z",
+        label: "lure",
+        why: "confirmed",
+        source: "pipeline",
+        sourceRef: `investigation:${orgId}:${keyPartial}`,
+        copiedAt: "2026-11-02T06:06:00.000Z",
+        updatedAt: "2026-11-02T06:06:00.000Z",
+      }),
+    );
+
+    const recovery = await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T06:10:00.000Z"));
+    expect(recovery).toEqual({ recovered: 2, failed: 0 });
+    expect(await bucket.head(`training/${keyConfirmed}done.json`)).not.toBeNull();
+    expect(await bucket.head(`training/${keyPartial}done.json`)).not.toBeNull();
+    expect(await bucket.head(`training/${keyPartial}text.txt`)).not.toBeNull();
+
+    // A second recovery run sees both complete and recovers nothing again.
+    expect(await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T06:11:00.000Z"))).toEqual({
+      recovered: 0,
+      failed: 0,
+    });
+  });
+
+  it("removes training copies for a host with durable tombstones and prevents re-copying", async () => {
+    const orgId = "org-removal";
+    await ensureOrg(orgId);
+    const host = "remove-me.example";
+    const captureKey = `monitor/${orgId}/${host}/2026-11-02T07:00:00.000Z/`;
+    await seedCapture(captureKey, `https://${host}/`, "Remove this page");
+
+    expect(
+      await copyForTraining(bucket, {
+        orgId,
+        host,
+        captureKey,
+        captureUrl: `https://${host}/`,
+        label: "lure",
+        why: "confirmed",
+        source: "pipeline",
+      }),
+    ).toBe("copied");
+
+    const removed = await removeTrainingCopiesForHost(
+      bucket,
+      orgId,
+      host,
+      "requested by business owner",
+      () => new Date("2026-11-02T08:00:00.000Z"),
+    );
+    expect(removed.removed).toEqual([`monitor/${orgId}/${host}/2026-11-02T07:00:00.000Z`]);
+    expect(await bucket.head(`training/${captureKey}done.json`)).toBeNull();
+    expect(await bucket.head(`training/${captureKey}screenshot.jpg`)).toBeNull();
+    expect(await bucket.head(`training/${captureKey}removed.json`)).not.toBeNull();
+    expect(await bucket.head(`training/monitor/${orgId}/${host}/removed.json`)).not.toBeNull();
+
+    // Attempting to copy again returns "removed" and writes no files.
+    expect(
+      await copyForTraining(bucket, {
+        orgId,
+        host,
+        captureKey,
+        captureUrl: `https://${host}/`,
+        label: "lure",
+        why: "confirmed",
+        source: "pipeline",
+      }),
+    ).toBe("removed");
+    expect(await bucket.head(`training/${captureKey}done.json`)).toBeNull();
   });
 });

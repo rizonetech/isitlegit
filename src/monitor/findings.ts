@@ -5,6 +5,13 @@
 // flagging settles taken offline.
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { identityContact } from "../trust/identity";
+import {
+  copyForTraining,
+  isBenignDismissalReason,
+  recoverPendingTrainingCopies,
+  resolveCaptureUrl,
+  retractTrainingCopy,
+} from "./training";
 
 export type FindingStatus = "new" | "watching" | "offline" | "dismissed";
 export type Finding = {
@@ -46,6 +53,7 @@ export async function findingsFromInvestigations(
   orgId: string,
   deps: AlertDeps,
   now: () => Date = () => new Date(),
+  bucket?: R2Bucket,
 ): Promise<{ created: number; alerted: number; reopened: number }> {
   const settled = (
     await db
@@ -156,6 +164,7 @@ export async function findingsFromInvestigations(
       .run();
   }
   const alerted = await alertNewFindings(db, orgId, deps, now);
+  if (bucket) await recoverPendingTrainingCopies(db, bucket, orgId, now).catch(() => null);
   return { created, alerted, reopened };
 }
 
@@ -237,6 +246,7 @@ export async function dismissFinding(
   host: string,
   reason: string,
   now: () => Date = () => new Date(),
+  bucket?: R2Bucket,
 ): Promise<boolean> {
   const trimmed = reason.trim();
   if (!trimmed || trimmed.length > 500) return false;
@@ -251,6 +261,23 @@ export async function dismissFinding(
     )
     .bind(trimmed, now().toISOString(), finding.capture_key, now().toISOString(), orgId, host)
     .run();
+  if (bucket && isBenignDismissalReason(trimmed)) {
+    const captureUrl = await resolveCaptureUrl(db, bucket, orgId, host, finding.capture_key);
+    await copyForTraining(
+      bucket,
+      {
+        orgId,
+        host,
+        captureKey: finding.capture_key,
+        captureUrl,
+        label: "benign",
+        why: `dismissed as not a fake: ${trimmed.slice(0, 120)}`,
+        source: "dismissal",
+        sourceRef: `finding:${orgId}:${host}:${finding.capture_key}`,
+      },
+      now,
+    ).catch(() => "missing-source");
+  }
   return true;
 }
 
@@ -259,14 +286,29 @@ export async function restoreFinding(
   orgId: string,
   host: string,
   now: () => Date = () => new Date(),
+  bucket?: R2Bucket,
 ): Promise<boolean> {
+  const existing = await db
+    .prepare(
+      "SELECT capture_key, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ? AND status = 'dismissed'",
+    )
+    .bind(orgId, host)
+    .first<{ capture_key: string; dismissed_capture_key: string | null }>();
+  if (!existing) return false;
   const result = await db
     .prepare(
       "UPDATE monitor_findings SET status = 'watching', dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
     )
     .bind(now().toISOString(), orgId, host)
     .run();
-  return (result.meta?.changes ?? 0) > 0;
+  const changed = (result.meta?.changes ?? 0) > 0;
+  if (changed && bucket) {
+    const targetKey = existing.dismissed_capture_key ?? existing.capture_key;
+    await retractTrainingCopy(bucket, orgId, host, targetKey, "finding restored by business", now).catch(
+      () => "missing",
+    );
+  }
+  return changed;
 }
 
 export async function listFindings(db: D1Database, orgId: string): Promise<Finding[]> {

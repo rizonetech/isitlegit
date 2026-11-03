@@ -420,6 +420,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
         const prefix = `monitor/${orgId}/${host}/${moment}/`;
         await deps.store.put(`${prefix}screenshot.jpg`, capture.screenshot);
         await deps.store.put(`${prefix}text.txt`, capture.text);
+        if (capture.url) await deps.store.put(`${prefix}url.txt`, capture.url);
         // What the parking rules read: the counts and the tree's own text, or null, which screens the page.
         await deps.store.put(
           `${prefix}signals.json`,

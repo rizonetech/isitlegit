@@ -15,7 +15,7 @@ import { compareLogo, type LogoImage, logoMatchItem, logoNotComparedItem } from 
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "../vision/reading";
 import { type Flagged, flaggedForWalkthrough } from "./flagged";
 import { protectedOrgs } from "./run";
-import { copyForTraining } from "./training";
+import { copyForTraining, recoverPendingTrainingCopies, resolveCaptureUrl } from "./training";
 
 export type InvestigationState = "investigating" | "confirmed" | "unconfirmed" | "partial";
 
@@ -208,29 +208,21 @@ async function investigate(
     // copy states itself in the log and is retried by the next settlement read, never
     // changing the investigation's outcome.
     if (state === "confirmed") {
-      const storedCaptureUrl = await db
-        .prepare("SELECT capture_url FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
-        .bind(orgId, page.capture_key)
-        .first<{ capture_url: string | null }>()
-        .then((row) => row?.capture_url ?? null)
-        .catch(() => null);
-      const hostCaptureUrl =
-        storedCaptureUrl ??
-        (await db
-          .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ? AND capture_key = ?")
-          .bind(orgId, page.domain, page.capture_key)
-          .first<{ capture_url: string | null }>()
-          .then((row) => row?.capture_url ?? null)
-          .catch(() => null));
-      await copyForTraining(bucket, {
-        orgId,
-        host: page.domain,
-        captureKey: page.capture_key,
-        captureUrl: hostCaptureUrl,
-        label: "lure",
-        why: "the full pipeline confirmed this page as a lure",
-        source: "pipeline",
-      }).catch((error: Error) =>
+      const hostCaptureUrl = await resolveCaptureUrl(db, bucket, orgId, page.domain, page.capture_key);
+      await copyForTraining(
+        bucket,
+        {
+          orgId,
+          host: page.domain,
+          captureKey: page.capture_key,
+          captureUrl: hostCaptureUrl,
+          label: "lure",
+          why: "the full pipeline confirmed this page as a lure",
+          source: "pipeline",
+          sourceRef: `investigation:${orgId}:${page.capture_key}`,
+        },
+        now,
+      ).catch((error: Error) =>
         console.log(JSON.stringify({ event: "monitor-training", outcome: "copy-failed", error: error.name })),
       );
     }
@@ -462,6 +454,7 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
   // The monitor's own eligibility gate (round 4): no protection on, no investigation, whatever
   // outstanding rows an earlier run left.
   if (!(await protectedOrgs(deps.db)).includes(orgId)) return summary;
+  await recoverPendingTrainingCopies(deps.db, deps.bucket, orgId, now).catch(() => null);
   // Outstanding investigations and rollover-eligible allowance refusals are recovered whatever
   // their age or whether a newer capture replaced them (completion review gap 5; D05 T04 §12).
   const outstandingRows = (
