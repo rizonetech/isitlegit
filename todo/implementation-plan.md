@@ -395,7 +395,7 @@ Sections: 108 | Checklist items: 680
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
 | [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
-| [ ]    | D10 T01 §2  | Remotion licence basis                       | operator              | 3     |
+| [ ]    | D10 T01 §2  | Remotion licence basis                       | none                  | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
 | [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive      | none                  | 10    |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 400/597 verified sections, 120 ready to run now.
+Progress: 400/597 verified sections, 121 ready to run now.
 
-Checklist: 2982/3686 items completed (includes Commit items).
+Checklist: 2983/3686 items completed (includes Commit items).

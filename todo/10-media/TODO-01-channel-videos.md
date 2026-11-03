@@ -77,7 +77,7 @@ The self-contained Remotion package every video renders from: its own pnpm root 
 Remotion is free for individuals and for companies of up to three people; a larger company needs a paid company licence (coordinator caution, 2026-10-30). The hackathon requires rights to everything used (`docs/hackathon-criteria.md`). Rizonetech's headcount decides which applies, and only the operator knows it. Phase 6, not 99, because the renders in §3 and §4 wait on it.
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -86,7 +86,7 @@ Remotion is free for individuals and for companies of up to three people; a larg
 
 - [x] Operator: check Rizonetech's headcount against the Remotion licence terms at `https://www.remotion.dev/license` and buy a company licence if over three people. Done when: the operator states which licence applies.
 - [x] Record the line `Remotion licence: <free (up to 3 people) | company licence, <reference>>, confirmed YYYY-MM-DD` under this section. Done when: the line is written. Cheaper substitute: assuming the free tier from the hackathon team size fails, since the licence counts the company.
-- [ ] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
+- [x] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
 
 **Test checkpoint:** `grep -cE '^Remotion licence: ' todo/10-media/TODO-01-channel-videos.md` prints `1`.
 
