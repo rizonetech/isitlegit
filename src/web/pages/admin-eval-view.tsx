@@ -18,7 +18,7 @@ const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-car
 const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden min-w-0";
 const TH = "text-left text-13 text-muted weight-text-strong px-16 py-12 border-b border-line";
 const TD = "text-14 px-16 py-12 border-b border-line align-top";
-const STICKY = "sticky left-0 bg-surface";
+const STICKY = "sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere";
 const NUM = "text-right tabular-nums";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
@@ -250,7 +250,12 @@ function RunsTable(props: { runs: EvalRunRow[] }) {
                   <td class={cx(TD, STICKY)}>
                     <span class="weight-text-strong">{sastShort(run.startedAt)}</span>
                     <br />
-                    <span class="text-13 text-muted">{run.id}</span>
+                    <span
+                      title={run.id}
+                      class="text-13 text-muted block max-w-evidence-figure md:max-w-sidebar truncate"
+                    >
+                      {run.id}
+                    </span>
                   </td>
                   <td class={cx(TD, "font-mono text-13")}>{run.commit.slice(0, 7)}</td>
                   <td class={TD}>

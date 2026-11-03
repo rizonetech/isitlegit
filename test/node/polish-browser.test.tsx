@@ -525,6 +525,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         msDelta: -8000,
         usdDelta: -0.012,
       };
+      const longCaseTitle = "INV-2026-0841-Bloemfonteinvervoerdienstverskaffers-revised-bank-details-changed.pdf";
       const wideGallery = String(GalleryState(anchorOf("state", "polish/wide-table")));
       const feedbackPage = String(
         <FeedbackQueuePage
@@ -535,7 +536,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           items={[
             {
               id: "fb-1",
-              caseTitle: "INV-2026-0841 bank details changed",
+              caseTitle: longCaseTitle,
               caseHref: "/r/01CASE",
               orgName: "Karoo Couriers",
               verdict: "Malicious",
@@ -571,7 +572,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           threats={[{ name: "Invoice fraud", count: 4, top: 4 }]}
           feedback={[
             {
-              caseTitle: "INV-2026-0841 bank details changed",
+              caseTitle: longCaseTitle,
               caseHref: "/r/01CASE",
               verdict: "Malicious",
               theySay: "Safe",
@@ -636,33 +637,67 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const wrap = table.closest(".overflow-x-auto") as HTMLElement;
           const headFirst = table.querySelector("thead th:first-child") as HTMLElement;
           const firstCell = table.querySelector("tbody td, tbody th") as HTMLElement;
-          const lastCell = table.querySelector("tbody td:last-child") as HTMLElement;
+          const otherCells = [
+            ...table.querySelectorAll("tbody tr:first-child > td, tbody tr:first-child > th"),
+          ].slice(1) as HTMLElement[];
+          const lastCell = otherCells[otherCells.length - 1] as HTMLElement;
           const beforeLeft = firstCell.getBoundingClientRect().left;
+          lastCell.scrollIntoView({ block: "center" });
+          const allOtherCellsUncovered = otherCells.every((cell) => {
+            const firstW = firstCell.getBoundingClientRect().width;
+            wrap.scrollLeft = Math.max(0, cell.offsetLeft - firstW - 8);
+            const cRect = cell.getBoundingClientRect();
+            const fRect = firstCell.getBoundingClientRect();
+            const wRect = wrap.getBoundingClientRect();
+            const visibleX = Math.max(cRect.left, fRect.right + 2) + 8;
+            const visibleY = cRect.top + cRect.height / 2;
+            const hit = document.elementFromPoint(visibleX, visibleY);
+            return cRect.right > fRect.right + 4 && visibleX < wRect.right && Boolean(hit && cell.contains(hit));
+          });
           wrap.scrollLeft = wrap.scrollWidth;
-          const afterLeft = firstCell.getBoundingClientRect().left;
+          const firstRect = firstCell.getBoundingClientRect();
           const lastRect = lastCell.getBoundingClientRect();
           const wrapRect = wrap.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            lastRect.left + lastRect.width / 2,
+            lastRect.top + lastRect.height / 2,
+          );
+          const link = firstCell.querySelector("a") as HTMLAnchorElement | null;
           return {
             overflowX: getComputedStyle(wrap).overflowX,
             headSticky: getComputedStyle(headFirst).position,
             stickyPosition: getComputedStyle(firstCell).position,
             scrollable: wrap.scrollWidth > wrap.clientWidth,
-            pinnedFirstColumn: Math.round(beforeLeft) === Math.round(afterLeft),
-            lastCellReachable: lastRect.right <= wrapRect.right + 2,
+            pinnedFirstColumn: Math.round(beforeLeft) === Math.round(firstRect.left),
+            stickyBounded: firstRect.width <= 200,
+            allOtherCellsUncovered,
+            lastCellVisible: lastRect.left >= firstRect.right && lastRect.right <= wrapRect.right + 2,
+            lastCellUncovered: Boolean(hit && lastCell.contains(hit)),
+            linkTruncated: link ? getComputedStyle(link).textOverflow === "ellipsis" && link.scrollWidth > link.clientWidth : true,
+            linkTitle: link ? link.getAttribute("title") : null,
           };
         });
       });
       expect(tableCheck.length).toBe(7);
       for (const item of tableCheck) {
-        expect(item).toEqual({
+        expect(item).toMatchObject({
           overflowX: "auto",
           headSticky: "sticky",
           stickyPosition: "sticky",
           scrollable: true,
           pinnedFirstColumn: true,
-          lastCellReachable: true,
+          stickyBounded: true,
+          allOtherCellsUncovered: true,
+          lastCellVisible: true,
+          lastCellUncovered: true,
+          linkTruncated: true,
         });
       }
+      expect(tableCheck.slice(0, 3).map((item) => item.linkTitle)).toEqual([
+        longCaseTitle,
+        longCaseTitle,
+        longCaseTitle,
+      ]);
       await close();
     });
 

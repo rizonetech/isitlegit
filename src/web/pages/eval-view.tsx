@@ -330,7 +330,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
               <caption class="sr-only">Each model switched off against the full pipeline</caption>
               <thead>
                 <tr>
-                  <th scope="col" class={cx(TH, "sticky left-0 bg-subtle")}>
+                  <th
+                    scope="col"
+                    class={cx(
+                      TH,
+                      "sticky left-0 bg-subtle w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                    )}
+                  >
                     Switched off
                   </th>
                   <th scope="col" class={TH}>
@@ -352,7 +358,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row" class={cx(TD, "text-left weight-text-strong sticky left-0 bg-surface")}>
+                  <th
+                    scope="row"
+                    class={cx(
+                      TD,
+                      "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
+                    )}
+                  >
                     Nothing (full pipeline)
                   </th>
                   <td class={TD}>None</td>
@@ -365,7 +377,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                   const words = MODES[row.mode] ?? { off: row.mode, replacedBy: "Not described" };
                   return row.comparable ? (
                     <tr>
-                      <th scope="row" class={cx(TD, "text-left weight-text-strong sticky left-0 bg-surface")}>
+                      <th
+                        scope="row"
+                        class={cx(
+                          TD,
+                          "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
+                        )}
+                      >
                         {words.off}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
@@ -384,7 +402,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                     </tr>
                   ) : (
                     <tr>
-                      <th scope="row" class={cx(TD, "text-left weight-text-strong sticky left-0 bg-surface")}>
+                      <th
+                        scope="row"
+                        class={cx(
+                          TD,
+                          "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
+                        )}
+                      >
                         {words.off}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
@@ -430,7 +454,13 @@ function History(props: { rows: HistoryRow[] }) {
             <caption class="sr-only">Every published full eval run, newest first</caption>
             <thead>
               <tr>
-                <th scope="col" class={cx(TH, "sticky left-0 bg-subtle")}>
+                <th
+                  scope="col"
+                  class={cx(
+                    TH,
+                    "sticky left-0 bg-subtle w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                  )}
+                >
                   Date
                 </th>
                 <th scope="col" class={TH}>
@@ -458,10 +488,20 @@ function History(props: { rows: HistoryRow[] }) {
                 const r = row.report;
                 return (
                   <tr>
-                    <td class={cx(TD, "sticky left-0 bg-surface")}>
+                    <td
+                      class={cx(
+                        TD,
+                        "sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                      )}
+                    >
                       {stamp.format(new Date(row.publishedAt))} SAST
                       <br />
-                      <span class="text-13 text-muted">{r.run.id}</span>
+                      <span
+                        title={r.run.id}
+                        class="text-13 text-muted block max-w-evidence-figure md:max-w-sidebar truncate"
+                      >
+                        {r.run.id}
+                      </span>
                     </td>
                     <td class={cx(TD, "font-mono text-13")}>{r.run.commit.slice(0, 7)}</td>
                     <td class={TD}>

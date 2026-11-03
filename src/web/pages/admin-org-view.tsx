@@ -186,7 +186,9 @@ function FeedbackCard(props: { feedback: OrgFeedbackRow[]; href: string }) {
           <table class="table min-w-[520px] w-full">
             <thead>
               <tr>
-                <th class="sticky left-0 bg-surface">Case</th>
+                <th class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+                  Case
+                </th>
                 <th>Our verdict</th>
                 <th>They said</th>
                 <th>Status</th>
@@ -195,8 +197,12 @@ function FeedbackCard(props: { feedback: OrgFeedbackRow[]; href: string }) {
             <tbody>
               {props.feedback.map((row) => (
                 <tr>
-                  <td class="sticky left-0 bg-surface">
-                    <a href={row.caseHref} class="weight-text-strong">
+                  <td class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+                    <a
+                      href={row.caseHref}
+                      title={row.caseTitle}
+                      class="block max-w-evidence-figure md:max-w-sidebar truncate weight-text-strong"
+                    >
                       {row.caseTitle}
                     </a>
                   </td>

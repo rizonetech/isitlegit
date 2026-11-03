@@ -102,7 +102,9 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
       <table class="table min-w-[640px] w-full">
         <thead>
           <tr>
-            <th class="sticky left-0 bg-surface">Case</th>
+            <th class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+              Case
+            </th>
             <th>Organisation</th>
             <th>Our verdict</th>
             <th>They say</th>
@@ -113,10 +115,16 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
         <tbody>
           {props.items.map((item) => (
             <tr class={item.id === props.selected ? "bg-subtle" : undefined}>
-              <td class={cx("sticky left-0", item.id === props.selected ? "bg-subtle" : "bg-surface")}>
+              <td
+                class={cx(
+                  "sticky left-0 w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                  item.id === props.selected ? "bg-subtle" : "bg-surface",
+                )}
+              >
                 <a
                   href={`/admin/feedback?triage=${props.tab}&page=${props.page}&selected=${item.id}`}
-                  class="weight-text-strong"
+                  title={item.caseTitle}
+                  class="block max-w-evidence-figure md:max-w-sidebar truncate weight-text-strong"
                 >
                   {item.caseTitle}
                 </a>

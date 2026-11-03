@@ -470,7 +470,10 @@ export const GALLERY_STATES: State[] = [
         <table class="w-full min-w-[640px] text-left border-collapse">
           <thead>
             <tr class="type-small text-muted border-b border-line bg-subtle">
-              <th scope="col" class="sticky left-0 bg-subtle px-16 py-12 weight-text-strong">
+              <th
+                scope="col"
+                class="sticky left-0 bg-subtle px-16 py-12 weight-text-strong w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar"
+              >
                 Case
               </th>
               <th scope="col" class="px-16 py-12 weight-text-strong">
@@ -489,9 +492,13 @@ export const GALLERY_STATES: State[] = [
           </thead>
           <tbody>
             <tr>
-              <td class="sticky left-0 bg-surface px-16 py-12 weight-text-strong">
-                <a href="/r/01CASE" class="text-ink underline underline-offset-4">
-                  INV-2026-0841 bank details changed
+              <td class="sticky left-0 bg-surface px-16 py-12 weight-text-strong w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+                <a
+                  href="/r/01CASE"
+                  title="INV-2026-0841-Bloemfonteinvervoerdienstverskaffers-revised-bank-details-changed.pdf"
+                  class="block max-w-evidence-figure md:max-w-sidebar truncate text-ink underline underline-offset-4"
+                >
+                  INV-2026-0841-Bloemfonteinvervoerdienstverskaffers-revised-bank-details-changed.pdf
                 </a>
               </td>
               <td class="px-16 py-12">Karoo Couriers</td>
