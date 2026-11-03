@@ -22,6 +22,7 @@ track: day-2
 - -> XREF: D01 T01 §4 -- the forward's path (`rfc822`, `eml`, `msg` or `inline`) that §1 writes as the `intake.forward` evidence item
 - -> XREF: D07 T03 §18 -- the report's count line and "Checks that found nothing" panel, which read §3's stored outcomes (`ran` with no findings is clean; `partial`, `skipped` and `failed` are not; null is "coverage not recorded")
 - -> XREF: D04 T02 §5 -- the walkthrough's evidence items, the first later producer that §5's `addEvidence` writes for
+- -> XREF: D07 T09 §10 -- the report's examined-target disclosure, whose completion review filed §10 and §11 here
 
 ## Outcome
 
@@ -45,6 +46,8 @@ track: day-2
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 | 8 | §8 | Examined set stored for a clean check | §3 | [x] |
 | 9 | §9 | Protected-identity candidate for the trust match | §3 | [ ] |
+| 10 | §10 | Every examined target kept past the stored bound | §8 | [ ] |
+| 11 | §11 | Relation of each examined target to the message | §8 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -307,6 +310,48 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the t
 - [ ] Commit: `checks: protected-identity candidate for the trust match`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a candidate names a business the case's organisation does not protect.
+
+## 10. Every examined target kept past the stored bound
+
+Filed 2026-11-03 from D07 T09 §10's completion review (`docs/reviews/07-app/D07-T09-s10.md`, missing-out-of-scope, against VirusTotal's URL report, which pages a URL's contacted domains with a continuation cursor): §8 stores at most 50 targets of at most 255 characters in at most 8,000 bytes and counts the rest as `omitted`, so a reader of a clean check sees how many targets were left out but can never inspect them. This section keeps the whole examined set for a clean check and reads it back a page at a time; drawing the pages on the report is D07 T09's.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the targets §8 leaves out. Done when: a clean check whose examined set passes §8's bound has every target stored once, in order, beside the bounded summary §8 already stores.
+2. Read the whole set back in pages. Done when: a reader asking for the next page after the last target it saw gets the following targets in order and a cursor, or no cursor at the end.
+
+- [ ] Add the overflow store for a clean check's examined targets beyond §8's bound in `src/checks/evidence.ts` (one row per target, keyed by case, check and position, each target as stored text at §8's 255-character cut), under a migration numbered by the coordinator. Done when: `test/checks/examined-overflow.test.ts` stores a 120-target clean check and reads all 120 back in order, and §8's bounded `{targets, omitted}` reads back unchanged. Cheaper substitute: raising §8's 50-target bound, which only moves the cut.
+- [ ] Write the overflow rows in the same batch as the outcome in `saveEvidence` (`src/checks/evidence.ts`), so a failed save leaves neither. Done when: a test that fails the batch after the outcome finds no outcome and no overflow rows for the case.
+- [ ] Add `readExaminedPage(caseId, check, after?)` in `src/checks/evidence.ts`, returning at most 50 targets after the cursor and the next cursor. Done when: paging a 120-target set yields 50, 50 and 20 targets with a cursor on the first two pages only, and a cursor from another case or check is refused.
+- [ ] Keep the overflow rows under the case's own removal and retention, beside its outcomes (`src/db/` case removal and the retention sweep). Done when: removing a case removes its overflow rows, proven by a test that counts them before and after.
+- [ ] Commit: `checks: every examined target kept past the stored bound`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined-overflow.test.ts test/checks/examined.test.ts` passes, and fails if a target past the bound cannot be read back.
+
+## 11. Relation of each examined target to the message
+
+Filed 2026-11-03 from D07 T09 §10's completion review (`docs/reviews/07-app/D07-T09-s10.md`, missing-out-of-scope, against VirusTotal's URL report, which tells contacted domains, outgoing links and redirect destinations apart): §8 stores each examined target as plain text, so a reader cannot tell a link in the message from the page it redirected to, a header domain or an attachment. This section stores, per target, the relation that put it in the set; drawing it on the report is D07 T09's.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Name each target's relation when a check examines it. Done when: every target an `examined` hook returns carries one relation from a closed list, and a stored set reads back with each target's relation.
+
+- [ ] Define the closed relation list in `src/checks/registry.ts` (`message-link`, `redirect-step`, `landing-page`, `header-address`, `header-domain`, `attachment`, `message-part`), the `examined` hook returning `{target, relation}` entries. Done when: the type refuses an entry without a relation at `pnpm typecheck`.
+- [ ] Return the relation from each of §8's 17 audited hooks (the `intake`, `sender`, `domain`, `attachment` and `link` checks listed in §8's correction 3). Done when: `test/checks/examined.test.ts` proves each producer's exact `{target, relation}` list through runner, storage and `readCheckOutcomes`.
+- [ ] Store the relation in §8's examined JSON and in §10's overflow rows (`src/checks/evidence.ts`), counted inside §8's 8,000-byte bound. Done when: a set at the byte bound reads back with every kept target's relation and the same `omitted` count rule, and a set stored before this section reads back with no relation and no failure.
+- [ ] Commit: `checks: relation of each examined target to the message`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined.test.ts` passes, and fails if a stored target carries no relation.
 
 ## Verification
 

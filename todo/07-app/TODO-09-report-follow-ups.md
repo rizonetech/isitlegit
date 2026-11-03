@@ -19,6 +19,8 @@ track: day-2
 - -> XREF: D07 T03 §37 -- the early card these sections extend; its completion review filed both
 - -> XREF: D07 T03 §13 -- the walkthrough card renderer §7 extends
 - -> XREF: D04 T02 §6 -- the walk producer whose refusal and reuse shapes §7 draws
+- -> XREF: D02 T01 §10 -- every examined target kept past the stored bound, filed by §10's completion review
+- -> XREF: D02 T01 §11 -- each examined target's relation to the message, filed by §10's completion review
 - The stored check outcomes (D02 T01 §3) the card reads, whose storage order §1 changes
 
 ## Outcome
@@ -344,7 +346,10 @@ Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence 
 - [x] Extend `design/SPEC.md` M3 with the examined-set view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the omissions sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the set with no SPEC entry.
 - [x] Draw the stored set in `CleanChecks` (`src/web/pages/report-live.tsx`), reached by one keyboard-accessible activation from the clean list, omissions stated, targets drawn as text, and the list as §44 drew it when no set is stored. A stored empty set reads "No targets were recorded for this check." with no disclosure. Done when: `test/web/evidence-cards.test.ts` draws a set longer than a summary holds (every target's whole text, including a 255-character one and the last), with its omissions stated, a hostile target as text, the stored-empty wording, and `test/web/report-status.test.ts` reads a stored set back through the report route. Cheaper substitute: the summary alone, which is what ships today.
 - [x] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-verdict-browser.test.tsx` opens the set by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
-- [ ] Commit: `web: every target a clean check examined`
+- [x] Commit: `web: every target a clean check examined`
+
+> **Deferred:** inspecting the targets left out of the stored bound -> XREF: D02 T01 §10
+> **Deferred:** each target's relation to the message (link, redirect step, landing page) -> XREF: D02 T01 §11
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the whole set readable.
 

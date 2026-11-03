@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 193 | Checklist items: 819
+Sections: 195 | Checklist items: 828
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -428,6 +428,8 @@ Sections: 193 | Checklist items: 819
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item                  | none                 | 3     |
 | [x]    | D02 T01 §8  | Examined set stored for a clean check                       | none                 | 3     |
 | [ ]    | D02 T01 §9  | Protected-identity candidate for the trust match            | none                 | 3     |
+| [ ]    | D02 T01 §10 | Every examined target kept past the stored bound            | none                 | 5     |
+| [ ]    | D02 T01 §11 | Relation of each examined target to the message             | none                 | 4     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                             | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 3     |
@@ -627,6 +629,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 349/551 verified sections, 132 ready to run now.
+Progress: 349/553 verified sections, 134 ready to run now.
 
-Checklist: 2707/3431 items completed (includes Commit items).
+Checklist: 2708/3440 items completed (includes Commit items).
