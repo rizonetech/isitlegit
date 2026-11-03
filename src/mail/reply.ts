@@ -251,7 +251,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     // The band's confidence and meaning (N1, D07 T03 §7) follow the verdict line, and the further findings the reasons.
     lines = [
       `${VERDICT_WORDS[view.verdict]}: ${oneLine(view.headline)}`,
-      meaningWords(view),
+      oneLine(meaningWords(view)),
       ...(reasons.length
         ? ["", "Why:", ...reasons.map((r) => `- ${oneLine(typeof r === "string" ? r : r.text)}`)]
         : []),
