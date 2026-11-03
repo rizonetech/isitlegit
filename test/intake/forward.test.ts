@@ -1,6 +1,6 @@
 import PostalMime from "postal-mime";
 import { describe, expect, it, vi } from "vitest";
-import { extractOriginal, ParseError } from "../../src/intake/forward";
+import { extractOriginal, extractOriginals, MAX_ORIGINALS, ParseError } from "../../src/intake/forward";
 import { forwards, inners } from "../fixtures/forward/load";
 
 // D01 T01 §4: the original inside a forward, its precedence, the inline fallback and the parser's refusal.
@@ -68,6 +68,33 @@ describe("extractOriginal", () => {
       original: inners["first-of-two"],
       otherOriginals: 1,
     });
+  });
+
+  it("returns every original in order up to the bound, the excess counted (D01 T01 §12)", async () => {
+    const two = await extractOriginals(forwards["two-originals"]);
+    expect(two.total).toBe(2);
+    expect(two.chosen).toMatchObject({ original: inners["first-of-two"], otherOriginals: 1 });
+    expect(two.others).toHaveLength(1);
+    expect(two.others[0]?.original).not.toEqual(inners["first-of-two"]);
+    expect(new TextDecoder().decode(two.others[0]?.original)).toContain("Subject: Updated banking details");
+    // Six attached originals: the chosen one plus four more, in attachment order, and six counted.
+    const part = (n: number) =>
+      `--b\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename="o${n}.eml"\r\n\r\nFrom: a@bank.example\r\nSubject: Original ${n}\r\n\r\nPay ${n}.\r\n`;
+    const six = new TextEncoder().encode(
+      `From: member@example.com\r\nSubject: Fwd: six\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="b"\r\n\r\n${[1, 2, 3, 4, 5, 6].map(part).join("")}--b--\r\n`,
+    );
+    const all = await extractOriginals(six);
+    expect(all.total).toBe(6);
+    expect(MAX_ORIGINALS).toBe(5);
+    expect(all.others).toHaveLength(4);
+    const subjects = [all.chosen, ...all.others].map(
+      (o) => /Subject: (Original \d)/.exec(new TextDecoder().decode(o.original))?.[1],
+    );
+    expect(subjects).toEqual(["Original 1", "Original 2", "Original 3", "Original 4", "Original 5"]);
+    // No attached message: the forward itself, and nothing counted.
+    const inline = await extractOriginals(forwards["inline-forward"]);
+    expect(inline).toMatchObject({ total: 0, others: [] });
+    expect(inline.chosen.path).toBe("inline");
   });
 
   it("falls back to the forward itself, unchanged and without headers, when nothing is attached as a message", async () => {

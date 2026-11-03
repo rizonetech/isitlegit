@@ -33,7 +33,7 @@ const IDENTITY = new Set(["", "7bit", "8bit", "binary"]);
 
 type Candidate = { kind: "rfc822" | "eml" | "msg"; content: Uint8Array };
 
-export async function extractOriginal(raw: Uint8Array): Promise<Forward> {
+async function candidatesOf(raw: Uint8Array): Promise<Candidate[]> {
   const { root } = await readTree(raw);
   const found: Candidate[] = [];
   for (const leaf of leaves(root)) collect(leaf, found);
@@ -47,8 +47,15 @@ export async function extractOriginal(raw: Uint8Array): Promise<Forward> {
     IDENTITY.has(root.contentTransferEncoding.encoding)
   )
     found[0] = { kind: "rfc822", content: bodyOf(raw) ?? (found[0] as Candidate).content };
-  const pick = (kind: Candidate["kind"]) => found.find((c) => c.kind === kind);
-  const chosen = pick("rfc822") ?? pick("eml") ?? pick("msg");
+  return found;
+}
+
+const chosenOf = (found: Candidate[]): Candidate | undefined =>
+  found.find((c) => c.kind === "rfc822") ?? found.find((c) => c.kind === "eml") ?? found.find((c) => c.kind === "msg");
+
+export async function extractOriginal(raw: Uint8Array): Promise<Forward> {
+  const found = await candidatesOf(raw);
+  const chosen = chosenOf(found);
   if (!chosen) return { original: raw, format: "eml", headersAvailable: false, path: "inline", otherOriginals: 0 };
   return {
     original: chosen.content,
@@ -56,6 +63,46 @@ export async function extractOriginal(raw: Uint8Array): Promise<Forward> {
     headersAvailable: true,
     path: chosen.kind,
     otherOriginals: found.length - 1,
+  };
+}
+
+// The most originals one forward gets checked (D01 T01 §12): the chosen one and up to four more, each its own
+// case; the rest are counted, named not checked in the reply, and never silently dropped.
+export const MAX_ORIGINALS = 5;
+
+export type Originals = {
+  // The original §4 chooses, exactly as `extractOriginal` returns it.
+  chosen: Forward;
+  // The further originals in attachment order, up to the bound with the chosen one.
+  others: { original: Uint8Array; format: "eml" | "msg"; path: "rfc822" | "eml" | "msg" }[];
+  // Every supported original found, before the bound.
+  total: number;
+};
+
+export async function extractOriginals(raw: Uint8Array): Promise<Originals> {
+  const found = await candidatesOf(raw);
+  const chosen = chosenOf(found);
+  if (!chosen)
+    return {
+      chosen: { original: raw, format: "eml", headersAvailable: false, path: "inline", otherOriginals: 0 },
+      others: [],
+      total: 0,
+    };
+  const rest = found.filter((c) => c !== chosen);
+  return {
+    chosen: {
+      original: chosen.content,
+      format: chosen.kind === "msg" ? "msg" : "eml",
+      headersAvailable: true,
+      path: chosen.kind,
+      otherOriginals: found.length - 1,
+    },
+    others: rest.slice(0, MAX_ORIGINALS - 1).map((c) => ({
+      original: c.content,
+      format: (c.kind === "msg" ? "msg" : "eml") as "eml" | "msg",
+      path: c.kind,
+    })),
+    total: found.length,
   };
 }
 
