@@ -36,7 +36,10 @@ export const STEPS: [string, string][] = [
 
 // A step only some cases run, drawn only when the case recorded it (D07 T03 §38): a voice note is transcribed after
 // `parse`, and a message without one keeps its list. [step, plain words, the step it follows].
-const CONDITIONAL: [string, string, string][] = [["transcribe", "Transcribed the voice note", "parse"]];
+const CONDITIONAL: [string, string, string][] = [
+  ["transcribe", "Transcribed the voice note", "parse"],
+  ["walkthrough", "Sign-in page walk in a contained browser", "checks"],
+];
 
 export function progressOf(events: readonly StepEvent[]): Progress {
   const recorded = new Set(events.map((e) => e.step));

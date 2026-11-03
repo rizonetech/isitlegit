@@ -382,7 +382,11 @@ describe("reputationDeps, the production wiring", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
       const present = reputationDeps({ CACHE: env.CACHE, DB: env.DB, WEB_RISK_API_KEY: "test-key" }, id, ORG);
       fetchSpy.mockImplementation(async () => Response.json({}));
-      expect(await present.webRisk("https://clean.example/")).toEqual({ state: "not_listed", cached: false });
+      expect(await present.webRisk("https://clean.example/")).toEqual({
+        state: "not_listed",
+        cached: false,
+        obtainedAt: expect.any(String),
+      });
       expect(fetchSpy).toHaveBeenCalled();
     } finally {
       fetchSpy.mockRestore();
