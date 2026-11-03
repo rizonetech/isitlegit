@@ -52,7 +52,7 @@ track: day-6
 | 19 | §19 | Chosen reporting period for the | §2 | [x] |
 | 20 | §20 | Opt-in weekly counts | §2 | [ ] |
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
-| 22 | §22 | Invite several colleagues at once | §21 | [ ] |
+| 22 | §22 | Invite several colleagues at once | §21 | [x] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
@@ -887,6 +887,9 @@ One submit invites several addresses with one shared role, each address's outcom
 - [x] Commit: `web: invite several colleagues at once`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a retry resends an address that went.
+
+> **Verified:** 2026-11-03 | §22 | a08cf551a9719cf44ac57e6c11cc5b43f86dc79c
+> **Review:** `docs/reviews/d07-t04-s22.json`
 
 ## 23. Team history for owners
 

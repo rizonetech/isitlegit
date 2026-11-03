@@ -534,7 +534,7 @@ Sections: 186 | Checklist items: 800
 | [x]    | D07 T04 §18 | Threat kinds by verdict                             | none                 | 4     |
 | [x]    | D07 T04 §19 | Reporting period choice                             | none                 | 4     |
 | [ ]    | D07 T04 §20 | Opt-in weekly counts                                | none                 | 4     |
-| [ ]    | D07 T04 §22 | Invite several colleagues at once                   | none                 | 4     |
+| [x]    | D07 T04 §22 | Invite several colleagues at once                   | none                 | 4     |
 | [ ]    | D07 T04 §23 | Team history for owners                             | none                 | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                              | none                 | 2     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page         | none                 | 5     |
@@ -620,6 +620,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 334/544 verified sections, 138 ready to run now.
+Progress: 335/544 verified sections, 137 ready to run now.
 
 Checklist: 2664/3412 items completed (includes Commit items).
