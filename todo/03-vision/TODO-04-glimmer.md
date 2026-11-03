@@ -1202,11 +1202,15 @@ Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the ve
 
 ## 33. Early-wake latency on monitor runs
 
+> **Started:** 2026-11-02T18:00:43Z
+
 Filed 2026-10-31 from D03 T04 §15's completion review (excellence, out of scope). §15 wakes Loupe as a monitor run starts so the warm-up overlaps the DNS work; §13 measured the deployment's warm-up (137.8 s and 195.0 s) but nothing measures what the early wake saves a run.
 
 **Phase:** 6
 **Needs:** meta-api
 **Surface:** no
+
+> **Plan corrected 2026-11-02 (vision lane):** this section is a live measurement (six shipped monitor runs over three days), so it cannot stamp inside wave 1; its runs start on the first shipped day after §47's promotion deploy and it stamps when the six runs are recorded in `docs/glimmer/training.md`. The late order (wake at the first page) is not a shipped mode, so the run's order is chosen by the wake's call site for the measurement runs only, under the day's 30 minutes each, and never left as a shipped regression. No figures are recorded before the runs exist.
 
 **Build order:**
 
@@ -1552,6 +1556,8 @@ Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next tr
 
 ## 47. Loupe 1.1 promoted on a better-than-1.0 gate
 
+> **Started:** 2026-11-02T18:02:00Z
+
 Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is that it is better than Loupe 1.0; if it is, 1.1 ships before submission. This supersedes the 2026-11-01 note pausing 1.1 until after the event for promotion only (§42 to §44 stay Phase 7). Better means, on the §13 held-out set with its stratified grouped split (§39): higher lure recall at no more false alarms, or fewer false alarms at no less recall, each with its denominator printed. Owning layer: the promotion gate in `scripts/glimmer/version-gate.py` and the one stored active-version file §32 built.
 
 **Phase:** 6
@@ -1562,7 +1568,8 @@ Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is t
 
 1. Compare 1.1 against 1.0 on the held-out set and promote on the one gate. Done when: the gate prints both versions' recall, false alarms and denominators, and 1.1 is the active version exactly when it is better.
 
-- [ ] Amend `decide()` in `scripts/glimmer/version-gate.py` to the operator's one gate: on the same held-out file with complete records, pass exactly when lure recall is higher with false alarms no higher, or false alarms lower with recall no lower; the more-training-lines rule and the separate South African slice rule stop being gates (the slice still prints). Done when: `tests/scripts/test_version_gate.py` passes a strictly-better candidate, refuses an equal one, refuses a recall gain bought with more false alarms, and promotes a candidate trained on fewer lines that is strictly better. Cheaper substitute: keeping the extra rules lets a better 1.1 stay undeployed on a technicality, which the operator's decision forbids.
+- [x] Amend `decide()` in `scripts/glimmer/version-gate.py` to the operator's one gate: on the same held-out file with complete records, pass exactly when lure recall is higher with false alarms no higher, or false alarms lower with recall no lower; the more-training-lines rule and the separate South African slice rule stop being gates (the slice still prints, with its denominators). Done when: `tests/scripts/test_version_gate.py` passes a strictly-better candidate on each improvement branch, refuses an equal one, refuses a recall gain bought with more false alarms, promotes a candidate trained on fewer lines that is strictly better, promotes a strictly better overall candidate whose South African slice is worse, and the command prints both versions' recall, false alarms and denominators on acceptance and on refusal. Cheaper substitute: keeping the extra rules lets a better 1.1 stay undeployed on a technicality, which the operator's decision forbids.
+- [ ] Take the candidate only from its measured handoff (plan review gaps 1 and 2): Loupe 1.1's training and evaluation are the loupe lane's sections (D03 T04 §38 and §39 on `loupe-1.1`, records `runs/loupe-1.1` and `runs/eval-1.1` in the shared store beside 1.0's, on the same held-out file the gate's `eval_sha256` equality already proves). Done when: missing, incomplete or differently-measured candidate records stop this section as unready (never recorded as a failing gate), and only complete records on the same file reach `decide()`. Cheaper substitute: comparing records from different held-out files or an unfinished run manufactures a verdict no measurement supports.
 - [ ] Promote a passing 1.1 through §32's stored active-version file and §36's release path, recording both versions' figures in `docs/glimmer/training.md` and the model card (§17). Done when: the active version reads 1.1 after a passing gate and 1.0 after a failing one, with the figures recorded either way. Cheaper substitute: deploying the new weights by hand leaves the stored version and the running deployment disagreeing.
 - [ ] Close §36's live proof in this section's cycle (plan review gap 5 on §36): on a passing gate, record §36's timed promotion release (1.0 to 1.1), then its timed rollback release (back to 1.0), then promote and release 1.1 again as the final serving state; on a failing gate no promotion or rollback is run, the gate is never bypassed, §36's live records stay unwritten and §36 stays unstamped until a later passing candidate. Done when: `docs/glimmer/training.md` holds both timed records and the final active version, or the failing gate's figures with 1.0 still active. Cheaper substitute: leaving the rollback unrecorded leaves §36 unprovable and the incident path untested live.
 - [ ] Commit: `glimmer: promote Loupe 1.1 on a better-than-1.0 gate`
