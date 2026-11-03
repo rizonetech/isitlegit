@@ -36,7 +36,7 @@ track: day-6
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [x] |
 | 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [x] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [x] |
-| 6 | §6 | Demo lookalike site found by | §5 | [ ] |
+| 6 | §6 | Demo lookalike site found by | §5 | [x] |
 | 7 | §7 | Certificate-transparency search for | §5 | [x] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
@@ -241,6 +241,9 @@ The demo needs the monitor to find a real live page: a lookalike of the fictiona
 - [x] Commit: `monitor: demo lookalike found by the daily run`
 
 **Test checkpoint:** `node scripts/run-monitor.ts --org demo-fynbos --wait 300` exits 0 after a finding for the fixture host is stored, and `pnpm exec vitest run --project node test/node/run-monitor.test.ts` and `pnpm exec vitest run test/monitor/seeds.test.ts test/checks/fixtures-host.test.ts` pass.
+
+> **Verified:** 2026-11-03 | §6 | eaabda4c5c0fb9720740d286a2fe9b338c52c594
+> **Review:** `docs/reviews/d05-t04-s6.json`
 
 ## 7. Certificate-transparency search for
 
