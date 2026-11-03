@@ -224,7 +224,7 @@ async function read(
   const htmlBytes = data.html?.length ? data.html : null;
   const htmlString = htmlBytes ? null : (rootProperty(file, HTML_UNICODE) ?? rootProperty(file, HTML_8BIT));
   const hasBody = !!(textEntry?.size || htmlBytes || htmlString?.size);
-  if (!hasBody && !subject && !transport && !data.attachments?.length)
+  if (!hasBody && !data.compressedRtf?.length && !subject && !transport && !data.attachments?.length)
     throw new ParseError("the .msg holds nothing readable (an empty or cut-off file)");
 
   // The bodies, cut to §5's limits with each cut part kept whole in its own charset. A cut part's kept text ends at its

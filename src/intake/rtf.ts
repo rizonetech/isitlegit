@@ -52,17 +52,18 @@ export function decompressRtf(input: Uint8Array, maxOutput: number): Uint8Array 
   const crc = u32(input, 12);
   if (rawSize > maxOutput) throw new ParseError("the compressed RTF claims a body past the limit, so it is not read");
   if (type === TYPE_UNCOMPRESSED) {
-    if (input.length < HEADER + rawSize) throw new ParseError("the uncompressed RTF stream is cut off");
+    if (compSize - 12 !== rawSize || input.length < HEADER + rawSize)
+      throw new ParseError("the uncompressed RTF stream does not hold the body it declares");
     return input.slice(HEADER, HEADER + rawSize);
   }
   if (type !== TYPE_COMPRESSED) throw new ParseError("the RTF stream's compression type is not one Outlook writes");
-  const payload = input.subarray(HEADER, Math.min(input.length, HEADER + Math.max(0, compSize - 12)));
+  if (input.length < HEADER + Math.max(0, compSize - 12)) throw new ParseError("the compressed RTF stream is cut off");
+  const payload = input.subarray(HEADER, HEADER + Math.max(0, compSize - 12));
   if (rtfCrc(payload) !== crc) throw new ParseError("the compressed RTF stream fails its checksum");
   const dictionary = new Uint8Array(DICTIONARY_SIZE);
   const initial = new TextEncoder().encode(INITIAL_DICTIONARY);
   dictionary.set(initial);
   let write = initial.length;
-  const start = write;
   const out: number[] = [];
   const emit = (byte: number) => {
     if (out.length >= rawSize) throw new ParseError("the compressed RTF writes past its declared size");
@@ -92,8 +93,10 @@ export function decompressRtf(input: Uint8Array, maxOutput: number): Uint8Array 
         emit(payload[at++] as number);
       }
     }
-    if (write === start && out.length > 0) ended = true;
   }
+  // The stream ends at its terminator, or exactly at the declared size with nothing left unread.
+  if (!ended && !(out.length === rawSize && at >= payload.length))
+    throw new ParseError("the compressed RTF ends without its terminator");
   if (out.length !== rawSize) throw new ParseError("the compressed RTF ends before the body it declares");
   return new Uint8Array(out);
 }
@@ -146,7 +149,15 @@ const FONT_CHARSETS: Record<number, string> = {
   238: "windows-1250",
 };
 
-type Frame = { skipped: boolean; suppressed: boolean; fontTable: boolean };
+type Frame = {
+  skipped: boolean;
+  suppressed: boolean;
+  fontTable: boolean;
+  // The group-scoped reading state: a \uc, \f or \ansicpg inside a group ends with it.
+  fallback: number;
+  font: number | null;
+  label: string;
+};
 
 const isLetter = (b: number) => (b >= 65 && b <= 90) || (b >= 97 && b <= 122);
 
@@ -158,16 +169,21 @@ function walkRtf(
   sink: { text: (bytes: Uint8Array, label: string) => void; unicode: (cp: number) => void; html: boolean },
 ): { fromHtml: boolean } {
   let fromHtml = false;
-  let label = ansiLabel;
-  let fallback = 1;
-  let font: number | null = null;
   const fonts = new Map<number, string>();
-  const stack: Frame[] = [{ skipped: false, suppressed: false, fontTable: false }];
+  const base: Frame = {
+    skipped: false,
+    suppressed: false,
+    fontTable: false,
+    fallback: 1,
+    font: null,
+    label: ansiLabel,
+  };
+  const stack: Frame[] = [base];
   const frame = () => stack[stack.length - 1] as Frame;
   const active = () => !frame().skipped && !frame().suppressed;
   let run: number[] = [];
   const flush = () => {
-    if (run.length && active()) sink.text(new Uint8Array(run), fonts.get(font ?? -1) ?? label);
+    if (run.length && active()) sink.text(new Uint8Array(run), fonts.get(frame().font ?? -1) ?? frame().label);
     run = [];
   };
   let i = 0;
@@ -175,13 +191,14 @@ function walkRtf(
     const b = rtf[i] as number;
     if (b === 0x7b) {
       flush();
-      stack.push({ skipped: frame().skipped, suppressed: frame().suppressed, fontTable: frame().fontTable });
+      stack.push({ ...frame() });
       i++;
       continue;
     }
     if (b === 0x7d) {
       flush();
-      if (stack.length > 1) stack.pop();
+      if (stack.length === 1) throw new ParseError("the RTF body closes a group it did not open");
+      stack.pop();
       i++;
       continue;
     }
@@ -200,19 +217,19 @@ function walkRtf(
     }
     // A control sequence.
     const next = rtf[i + 1];
-    if (next === undefined) break;
+    if (next === undefined) throw new ParseError("the RTF body ends inside a control sequence");
     if (next === 0x27) {
       // \'xx: one byte in the current code page.
       const hex = new TextDecoder().decode(rtf.subarray(i + 2, i + 4));
-      const byte = /^[0-9a-fA-F]{2}$/.test(hex) ? parseInt(hex, 16) : null;
-      if (byte !== null && !frame().fontTable) run.push(byte);
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) throw new ParseError("the RTF body holds a malformed byte escape");
+      if (!frame().fontTable) run.push(parseInt(hex, 16));
       i += 4;
       continue;
     }
     if (!isLetter(next)) {
       flush();
       if (next === 0x5c || next === 0x7b || next === 0x7d) {
-        if (active()) sink.text(new Uint8Array([next]), label);
+        if (active()) sink.text(new Uint8Array([next]), frame().label);
       } else if (next === 0x2a) {
         frame().skipped = true; // \*: the group is a destination the reader does not know.
       } else if (next === 0x7e && active()) {
@@ -244,32 +261,36 @@ function walkRtf(
         frame().suppressed = arg !== 0;
         break;
       case "htmltag":
-        // Its text is literal HTML: read, not skipped.
+        // Its text is literal HTML: in HTML mode it ends a starred destination's skip; as plain text it is
+        // markup, not body text, and stays skipped.
+        if (sink.html) frame().skipped = false;
         break;
       case "fonttbl":
         frame().fontTable = true;
         frame().skipped = true;
         break;
-      case "fcharset":
-        if (frame().fontTable && font !== null && arg !== null) fonts.set(font, FONT_CHARSETS[arg] ?? label);
+      case "fcharset": {
+        const current = frame();
+        if (current.fontTable && current.font !== null && arg !== null)
+          fonts.set(current.font, FONT_CHARSETS[arg] ?? current.label);
         break;
+      }
       case "f":
-        if (frame().fontTable) font = arg;
-        else font = arg;
+        frame().font = arg;
         break;
       case "ansicpg":
         if (arg !== null)
-          label = arg === 932 ? "shift_jis" : arg === 936 ? "gbk" : arg === 950 ? "big5" : `windows-${arg}`;
+          frame().label = arg === 932 ? "shift_jis" : arg === 936 ? "gbk" : arg === 950 ? "big5" : `windows-${arg}`;
         break;
       case "uc":
-        fallback = arg ?? 1;
+        frame().fallback = arg ?? 1;
         break;
       case "u": {
         if (arg !== null && active() && !frame().fontTable) {
           sink.unicode(arg < 0 ? arg + 65536 : arg);
         }
         // Skip the fallback bytes the writer left for readers without Unicode: \'xx runs or plain characters.
-        let skip = fallback;
+        let skip = frame().fallback;
         while (skip > 0 && k < rtf.length) {
           if (rtf[k] === 0x5c && rtf[k + 1] === 0x27) k += 4;
           else k++;
@@ -291,6 +312,7 @@ function walkRtf(
     i = k;
   }
   flush();
+  if (stack.length !== 1) throw new ParseError("the RTF body's groups do not close");
   return { fromHtml };
 }
 

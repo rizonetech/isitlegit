@@ -67,6 +67,35 @@ describe("parseMsg", () => {
     expect(parsed.html).toBeNull();
   });
 
+  it("reads an RTF-only body with nothing else readable, and states the RTF failures (D01 T01 §13)", async () => {
+    const mela = (rtf: string) => {
+      const body = new TextEncoder().encode(rtf);
+      const out = new Uint8Array(16 + body.length);
+      const view = new DataView(out.buffer);
+      view.setUint32(0, body.length + 12, true);
+      view.setUint32(4, body.length, true);
+      view.setUint32(8, 0x414c454d, true);
+      out.set(body, 16);
+      return out;
+    };
+    // No subject, no transport headers, no attachments: the RTF alone makes the message readable.
+    const only = await parseMsg(
+      makeMsg({ transportHeaders: false, rtfOnly: true, subject: "", rtf: mela("{\\rtf1\\ansi Only RTF here.\\par}") }),
+    );
+    expect(only.parsed.text).toContain("Only RTF here.");
+    // A well-formed RTF with no text is an empty body, not a refusal.
+    const empty = await parseMsg(makeMsg({ transportHeaders: true, rtfOnly: true, rtf: mela("{\\rtf1\\ansi}") }));
+    expect(empty.parsed.text ?? "").toBe("");
+    // Content that is not RTF refuses, and a malformed RTF beside a native body is never read.
+    await expect(
+      parseMsg(makeMsg({ transportHeaders: true, rtfOnly: true, rtf: mela("hello world, not rtf at all") })),
+    ).rejects.toBeInstanceOf(ParseError);
+    const native = await parseMsg(
+      makeMsg({ transportHeaders: true, extraRtf: new TextEncoder().encode("not a stream, never read") }),
+    );
+    expect(native.parsed.text).toContain("Please pay");
+  });
+
   it("stores the parse with storeParsed, the inline image under its content id", async () => {
     const made = await createCase(env.DB, { orgId: "org-msg", channel: "email", headersAvailable: true });
     if (!made.ok) throw new Error(made.error.message);

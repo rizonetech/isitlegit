@@ -88,6 +88,15 @@ describe("decompressRtf", () => {
     expect(() => decompressRtf(lying, LIMIT)).toThrow(/past its declared size/);
   });
 
+  it("refuses a MELA stream whose sizes disagree and an LZFu stream with no terminator", () => {
+    const body = enc("abcdef");
+    expect(() => decompressRtf(header(body.length + 12, 3, 0x414c454d, 0, body), LIMIT)).toThrow(ParseError);
+    // Eight literals in one control group, the declared body longer, and nothing ends the stream.
+    const payload = new Uint8Array([0, ...enc("12345678")]);
+    const unterminated = header(payload.length + 12, 100, 0x4c5a4675, rtfCrc(payload), payload);
+    expect(() => decompressRtf(unterminated, LIMIT)).toThrow(/terminator|declared size/);
+  });
+
   it("refuses a bad checksum, a cut-off stream and an unknown compression type", () => {
     const good = compress("{\\rtf1\\ansi Pay.}");
     const badCrc = new Uint8Array(good);
@@ -123,5 +132,26 @@ describe("rtfToHtml", () => {
       "{\\htmlrtf <i>formatting only</i>} please</body></html>}";
     expect(rtfToHtml(enc(rtf), "windows-1252")).toBe("<html><body>Pay <b>now</b> please</body></html>");
     expect(rtfToHtml(enc("{\\rtf1\\ansi Plain.}"), "windows-1252")).toBeNull();
+  });
+
+  it("reads starred htmltag destinations as the tags they carry", () => {
+    const rtf = "{\\rtf1\\fromhtml1{\\*\\htmltag1 <p>}Pay{\\*\\htmltag1 </p>}}";
+    expect(rtfToHtml(enc(rtf), "windows-1252")).toBe("<p>Pay</p>");
+  });
+});
+
+describe("scoped state and syntax", () => {
+  it("keeps the Unicode fallback count and the font inside their group", () => {
+    expect(rtfToText(enc("{\\rtf1\\uc1 {\\uc0\\u945}\\u946?X}"), "windows-1252")).toBe("αβX");
+    expect(rtfToText(enc("{\\rtf1\\ansi\\u-254 ?}"), "windows-1252")).toBe("\uFF02");
+    // The Cyrillic font applies inside its group only: the same byte after it reads as Western again.
+    const fonts = "{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;}{\\f1\\fcharset204 Arial;}}{\\f1 \\'f1} \\'f1}";
+    expect(rtfToText(enc(fonts), "windows-1252")).toBe("с ñ");
+  });
+
+  it("refuses unbalanced groups and malformed escapes instead of reading them as text", () => {
+    expect(() => rtfToText(enc("{\\rtf1 Pay"), "windows-1252")).toThrow(ParseError);
+    expect(() => rtfToText(enc("{\\rtf1 Pay \\'zz}"), "windows-1252")).toThrow(ParseError);
+    expect(rtfToText(enc("{\\rtf1\\ansi}"), "windows-1252")).toBe("");
   });
 });

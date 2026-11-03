@@ -80,6 +80,10 @@ function addProperties(cfb: CFB.CFB$Container, path: string, header: Uint8Array,
 export type Variant = {
   transportHeaders: boolean;
   rtfOnly?: boolean;
+  // The compressed-RTF stream for an rtfOnly message (the MELA default otherwise), and one stored beside
+  // the native bodies.
+  rtf?: Uint8Array;
+  extraRtf?: Uint8Array;
   bodyRepeat?: number;
   htmlRepeat?: number;
   // `fileName` gives the first attachment an 8-bit file name in the same code page (msgreader decodes it).
@@ -104,6 +108,8 @@ export type Variant = {
 export function makeMsg({
   transportHeaders,
   rtfOnly = false,
+  rtf,
+  extraRtf,
   bodyRepeat = 1,
   htmlRepeat = 1,
   ansi,
@@ -150,13 +156,14 @@ export function makeMsg({
     unicode(0x0e04, `${TO_NAME} <${TO}>`),
     ...(rtfOnly
       ? // Only a compressed RTF body: the "MELA" (uncompressed) form of [MS-OXRTFCP], no text and no HTML.
-        [binary(0x1009, rtfUncompressed("{\\rtf1\\ansi Please pay invoice 77 today.\\par}"))]
+        [binary(0x1009, rtf ?? rtfUncompressed("{\\rtf1\\ansi Please pay invoice 77 today.\\par}"))]
       : [
           ...(ansi ? [] : [unicode(0x1000, TEXT.repeat(bodyRepeat))]),
           html8
             ? { tag: 0x1013, type: PT_STRING8, value: html8 }
             : binary(0x1013, html ?? cp1252(HTML.repeat(htmlRepeat))),
           long(0x3fde, internetCodepage ?? 1252),
+          ...(extraRtf ? [binary(0x1009, extraRtf)] : []),
         ]),
     ...(transportHeaders
       ? [
