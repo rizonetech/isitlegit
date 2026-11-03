@@ -438,6 +438,8 @@ After a forward, the member hears nothing until the verdict reply (D01 T02 §3),
 
 ## 12. Several originals in one forward
 
+> **Started:** 2026-11-03T02:35Z
+
 A member who attaches several suspicious messages to one forward gets only the first checked and is asked to forward the rest one by one (§4 counts them; D01 T02 §3 says so). Outlook's own Report button takes several selected messages at once (D01 T01 §4 completion review, Part 2 item 2). Checking each attached original as its own case, with its own outcome, removes that extra work for the member, within the daily cap and the model budget.
 
 **Phase:** 7
