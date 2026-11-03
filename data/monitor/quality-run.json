@@ -1,0 +1,1825 @@
+{
+  "version": "1.0",
+  "corpusVersion": "1.0",
+  "ranAt": "2026-11-03T07:52:41.060Z",
+  "maxSpendUsd": 1.5,
+  "totalSpendUsd": 0.811757,
+  "complete": true,
+  "arms": {
+    "full": {
+      "arm": "full",
+      "complete": true,
+      "stopReason": "completed",
+      "evaluatedCases": 40,
+      "totalCorpusCases": 40,
+      "destinationAccuracy": {
+        "numerator": 40,
+        "denominator": 40,
+        "rate": 1
+      },
+      "formRecall": {
+        "numerator": 15,
+        "denominator": 15,
+        "rate": 1
+      },
+      "formSpecificity": {
+        "numerator": 22,
+        "denominator": 25,
+        "rate": 0.88
+      },
+      "confirmationRecall": {
+        "numerator": 20,
+        "denominator": 20,
+        "rate": 1
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 20,
+        "rate": 0
+      },
+      "partialRate": {
+        "numerator": 0,
+        "denominator": 40,
+        "rate": 0,
+        "refusedCount": 0
+      },
+      "latencyMs": {
+        "medianMs": 9445.8584,
+        "p95Ms": 13756.2641
+      },
+      "costUsd": {
+        "totalUsd": 0.269207,
+        "meanUsdPerCase": 0.00673
+      },
+      "cases": [
+        {
+          "id": "lure-01",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 12206.8434,
+          "costUsd": 0.006436
+        },
+        {
+          "id": "lure-02",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 11762.3589,
+          "costUsd": 0.0065
+        },
+        {
+          "id": "lure-03",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 9883.4639,
+          "costUsd": 0.006718
+        },
+        {
+          "id": "lure-04",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 7640.6694,
+          "costUsd": 0.006343
+        },
+        {
+          "id": "lure-05",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 11580.3553,
+          "costUsd": 0.006745
+        },
+        {
+          "id": "lure-06",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 39417.3232,
+          "costUsd": 0.007601
+        },
+        {
+          "id": "lure-07",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 7451.9755,
+          "costUsd": 0.006173
+        },
+        {
+          "id": "lure-08",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 7254.8073,
+          "costUsd": 0.006437
+        },
+        {
+          "id": "lure-09",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 9286.1772,
+          "costUsd": 0.006804
+        },
+        {
+          "id": "lure-10",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 6509.4875,
+          "costUsd": 0.006228
+        },
+        {
+          "id": "lure-11",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 12003.6866,
+          "costUsd": 0.00848
+        },
+        {
+          "id": "lure-12",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 10801.5085,
+          "costUsd": 0.007425
+        },
+        {
+          "id": "lure-13",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 11957.7669,
+          "costUsd": 0.008785
+        },
+        {
+          "id": "lure-14",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 10542.467,
+          "costUsd": 0.007526
+        },
+        {
+          "id": "lure-15",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 17540.8698,
+          "costUsd": 0.010717
+        },
+        {
+          "id": "lure-16",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 13756.2641,
+          "costUsd": 0.008637
+        },
+        {
+          "id": "lure-17",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 9437.2522,
+          "costUsd": 0.007093
+        },
+        {
+          "id": "lure-18",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 7950.9002,
+          "costUsd": 0.006272
+        },
+        {
+          "id": "lure-19",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 11958.7648,
+          "costUsd": 0.008206
+        },
+        {
+          "id": "lure-20",
+          "arm": "full",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 7863.7717,
+          "costUsd": 0.006209
+        },
+        {
+          "id": "benign-01",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 9100.7336,
+          "costUsd": 0.006891
+        },
+        {
+          "id": "benign-02",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 9454.4646,
+          "costUsd": 0.006222
+        },
+        {
+          "id": "benign-03",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 7533.5192,
+          "costUsd": 0.005577
+        },
+        {
+          "id": "benign-04",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 6797.5876,
+          "costUsd": 0.005491
+        },
+        {
+          "id": "benign-05",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 8729.8169,
+          "costUsd": 0.005565
+        },
+        {
+          "id": "benign-06",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 10746.1243,
+          "costUsd": 0.006063
+        },
+        {
+          "id": "benign-07",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 11368.6555,
+          "costUsd": 0.006049
+        },
+        {
+          "id": "benign-08",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 13608.762,
+          "costUsd": 0.006997
+        },
+        {
+          "id": "benign-09",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 10143.134,
+          "costUsd": 0.005742
+        },
+        {
+          "id": "benign-10",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 10195.971,
+          "costUsd": 0.006249
+        },
+        {
+          "id": "benign-11",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 8908.4475,
+          "costUsd": 0.005659
+        },
+        {
+          "id": "benign-12",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 7725.8691,
+          "costUsd": 0.006171
+        },
+        {
+          "id": "benign-13",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 6725.1318,
+          "costUsd": 0.005859
+        },
+        {
+          "id": "benign-14",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 11756.3486,
+          "costUsd": 0.009253
+        },
+        {
+          "id": "benign-15",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 12872.6365,
+          "costUsd": 0.008279
+        },
+        {
+          "id": "benign-16",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 7302.5644,
+          "costUsd": 0.00625
+        },
+        {
+          "id": "benign-17",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "log_in",
+          "latencyMs": 6587.474,
+          "costUsd": 0.005987
+        },
+        {
+          "id": "benign-18",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "log_in",
+          "latencyMs": 7308.5136,
+          "costUsd": 0.005122
+        },
+        {
+          "id": "benign-19",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 6260.3175,
+          "costUsd": 0.00524
+        },
+        {
+          "id": "benign-20",
+          "arm": "full",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 8144.9083,
+          "costUsd": 0.005206
+        }
+      ]
+    },
+    "no_reading": {
+      "arm": "no_reading",
+      "complete": true,
+      "stopReason": "completed",
+      "evaluatedCases": 40,
+      "totalCorpusCases": 40,
+      "destinationAccuracy": {
+        "numerator": 40,
+        "denominator": 40,
+        "rate": 1
+      },
+      "formRecall": {
+        "numerator": 0,
+        "denominator": 15,
+        "rate": 0
+      },
+      "formSpecificity": {
+        "numerator": 25,
+        "denominator": 25,
+        "rate": 1
+      },
+      "confirmationRecall": {
+        "numerator": 16,
+        "denominator": 20,
+        "rate": 0.8
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 20,
+        "rate": 0
+      },
+      "partialRate": {
+        "numerator": 4,
+        "denominator": 40,
+        "rate": 0.1,
+        "refusedCount": 0
+      },
+      "latencyMs": {
+        "medianMs": 3295.7406,
+        "p95Ms": 6331.6857
+      },
+      "costUsd": {
+        "totalUsd": 0.081687,
+        "meanUsdPerCase": 0.002042
+      },
+      "cases": [
+        {
+          "id": "lure-01",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2599.8681,
+          "costUsd": 0.001515
+        },
+        {
+          "id": "lure-02",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2420.8647,
+          "costUsd": 0.00149
+        },
+        {
+          "id": "lure-03",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3086.6351,
+          "costUsd": 0.002008
+        },
+        {
+          "id": "lure-04",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2300.721,
+          "costUsd": 0.001192
+        },
+        {
+          "id": "lure-05",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2754.9865,
+          "costUsd": 0.001711
+        },
+        {
+          "id": "lure-06",
+          "arm": "no_reading",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 5145.1651,
+          "costUsd": 0.003572
+        },
+        {
+          "id": "lure-07",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2451.59,
+          "costUsd": 0.001384
+        },
+        {
+          "id": "lure-08",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3047.9507,
+          "costUsd": 0.001932
+        },
+        {
+          "id": "lure-09",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2912.6717,
+          "costUsd": 0.001711
+        },
+        {
+          "id": "lure-10",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2607.1395,
+          "costUsd": 0.00163
+        },
+        {
+          "id": "lure-11",
+          "arm": "no_reading",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 6166.2503,
+          "costUsd": 0.003572
+        },
+        {
+          "id": "lure-12",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2618.5816,
+          "costUsd": 0.001575
+        },
+        {
+          "id": "lure-13",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3438.8528,
+          "costUsd": 0.001583
+        },
+        {
+          "id": "lure-14",
+          "arm": "no_reading",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 8017.0456,
+          "costUsd": 0.003572
+        },
+        {
+          "id": "lure-15",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 5237.9396,
+          "costUsd": 0.002183
+        },
+        {
+          "id": "lure-16",
+          "arm": "no_reading",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 9463.8676,
+          "costUsd": 0.003572
+        },
+        {
+          "id": "lure-17",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 4497.6151,
+          "costUsd": 0.002354
+        },
+        {
+          "id": "lure-18",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3588.5895,
+          "costUsd": 0.001715
+        },
+        {
+          "id": "lure-19",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 5645.322,
+          "costUsd": 0.002391
+        },
+        {
+          "id": "lure-20",
+          "arm": "no_reading",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3615.4696,
+          "costUsd": 0.001946
+        },
+        {
+          "id": "benign-01",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 3539.4192,
+          "costUsd": 0.001694
+        },
+        {
+          "id": "benign-02",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 5762.4315,
+          "costUsd": 0.002272
+        },
+        {
+          "id": "benign-03",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 3387.6222,
+          "costUsd": 0.001367
+        },
+        {
+          "id": "benign-04",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 3713.9672,
+          "costUsd": 0.001583
+        },
+        {
+          "id": "benign-05",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 2655.6073,
+          "costUsd": 0.001511
+        },
+        {
+          "id": "benign-06",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 4145.2812,
+          "costUsd": 0.002001
+        },
+        {
+          "id": "benign-07",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 3293.9572,
+          "costUsd": 0.00183
+        },
+        {
+          "id": "benign-08",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 2656.8085,
+          "costUsd": 0.001915
+        },
+        {
+          "id": "benign-09",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 2154.2971,
+          "costUsd": 0.001235
+        },
+        {
+          "id": "benign-10",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 2907.6977,
+          "costUsd": 0.0018
+        },
+        {
+          "id": "benign-11",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3102.1304,
+          "costUsd": 0.002089
+        },
+        {
+          "id": "benign-12",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3790.3828,
+          "costUsd": 0.002365
+        },
+        {
+          "id": "benign-13",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2833.6257,
+          "costUsd": 0.001974
+        },
+        {
+          "id": "benign-14",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3094.4816,
+          "costUsd": 0.00203
+        },
+        {
+          "id": "benign-15",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 6331.6857,
+          "costUsd": 0.002909
+        },
+        {
+          "id": "benign-16",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3297.524,
+          "costUsd": 0.002365
+        },
+        {
+          "id": "benign-17",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 2939.4814,
+          "costUsd": 0.002204
+        },
+        {
+          "id": "benign-18",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 2258.9805,
+          "costUsd": 0.001392
+        },
+        {
+          "id": "benign-19",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 4365.3924,
+          "costUsd": 0.00228
+        },
+        {
+          "id": "benign-20",
+          "arm": "no_reading",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3433.8071,
+          "costUsd": 0.002263
+        }
+      ]
+    },
+    "no_logo": {
+      "arm": "no_logo",
+      "complete": true,
+      "stopReason": "completed",
+      "evaluatedCases": 40,
+      "totalCorpusCases": 40,
+      "destinationAccuracy": {
+        "numerator": 40,
+        "denominator": 40,
+        "rate": 1
+      },
+      "formRecall": {
+        "numerator": 15,
+        "denominator": 15,
+        "rate": 1
+      },
+      "formSpecificity": {
+        "numerator": 20,
+        "denominator": 25,
+        "rate": 0.8
+      },
+      "confirmationRecall": {
+        "numerator": 17,
+        "denominator": 20,
+        "rate": 0.85
+      },
+      "falsePositiveRate": {
+        "numerator": 1,
+        "denominator": 20,
+        "rate": 0.05
+      },
+      "partialRate": {
+        "numerator": 22,
+        "denominator": 40,
+        "rate": 0.55,
+        "refusedCount": 0
+      },
+      "latencyMs": {
+        "medianMs": 5580.9274,
+        "p95Ms": 9878.2591
+      },
+      "costUsd": {
+        "totalUsd": 0.183617,
+        "meanUsdPerCase": 0.00459
+      },
+      "cases": [
+        {
+          "id": "lure-01",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 9619.8248,
+          "costUsd": 0.004377
+        },
+        {
+          "id": "lure-02",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 5155.3859,
+          "costUsd": 0.004453
+        },
+        {
+          "id": "lure-03",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 7685.5486,
+          "costUsd": 0.004947
+        },
+        {
+          "id": "lure-04",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 6359.2254,
+          "costUsd": 0.004701
+        },
+        {
+          "id": "lure-05",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 5285.6624,
+          "costUsd": 0.003953
+        },
+        {
+          "id": "lure-06",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 9769.3599,
+          "costUsd": 0.004692
+        },
+        {
+          "id": "lure-07",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 4543.9225,
+          "costUsd": 0.003998
+        },
+        {
+          "id": "lure-08",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 5218.4772,
+          "costUsd": 0.004605
+        },
+        {
+          "id": "lure-09",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7005.1708,
+          "costUsd": 0.005188
+        },
+        {
+          "id": "lure-10",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 10862.072,
+          "costUsd": 0.006949
+        },
+        {
+          "id": "lure-11",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 6934.6492,
+          "costUsd": 0.004832
+        },
+        {
+          "id": "lure-12",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7336.4079,
+          "costUsd": 0.00621
+        },
+        {
+          "id": "lure-13",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7013.1157,
+          "costUsd": 0.005929
+        },
+        {
+          "id": "lure-14",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 9912.629,
+          "costUsd": 0.004601
+        },
+        {
+          "id": "lure-15",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7222.6377,
+          "costUsd": 0.005356
+        },
+        {
+          "id": "lure-16",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 8554.5195,
+          "costUsd": 0.005354
+        },
+        {
+          "id": "lure-17",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7080.6708,
+          "costUsd": 0.005458
+        },
+        {
+          "id": "lure-18",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 9532.6431,
+          "costUsd": 0.005358
+        },
+        {
+          "id": "lure-19",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 5876.1924,
+          "costUsd": 0.005112
+        },
+        {
+          "id": "lure-20",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 4758.9729,
+          "costUsd": 0.004518
+        },
+        {
+          "id": "benign-01",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 4424.0473,
+          "costUsd": 0.003424
+        },
+        {
+          "id": "benign-02",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 6361.9185,
+          "costUsd": 0.005428
+        },
+        {
+          "id": "benign-03",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 4371.1189,
+          "costUsd": 0.004285
+        },
+        {
+          "id": "benign-04",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 4784.7304,
+          "costUsd": 0.00465
+        },
+        {
+          "id": "benign-05",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 3796.3986,
+          "costUsd": 0.004054
+        },
+        {
+          "id": "benign-06",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 4606.0312,
+          "costUsd": 0.003285
+        },
+        {
+          "id": "benign-07",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 6231.8553,
+          "costUsd": 0.004356
+        },
+        {
+          "id": "benign-08",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 3601.925,
+          "costUsd": 0.003601
+        },
+        {
+          "id": "benign-09",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 9878.2591,
+          "costUsd": 0.004567
+        },
+        {
+          "id": "benign-10",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 4576.4304,
+          "costUsd": 0.004078
+        },
+        {
+          "id": "benign-11",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 4183.5938,
+          "costUsd": 0.003951
+        },
+        {
+          "id": "benign-12",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3576.4749,
+          "costUsd": 0.003825
+        },
+        {
+          "id": "benign-13",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 2826.8135,
+          "costUsd": 0.002985
+        },
+        {
+          "id": "benign-14",
+          "arm": "no_logo",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 8740.6846,
+          "costUsd": 0.00666
+        },
+        {
+          "id": "benign-15",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 6798.9364,
+          "costUsd": 0.005462
+        },
+        {
+          "id": "benign-16",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 4042.3267,
+          "costUsd": 0.003751
+        },
+        {
+          "id": "benign-17",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "log_in",
+          "latencyMs": 2692.9416,
+          "costUsd": 0.003165
+        },
+        {
+          "id": "benign-18",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "log_in",
+          "latencyMs": 3900.1999,
+          "costUsd": 0.003886
+        },
+        {
+          "id": "benign-19",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 3771.5285,
+          "costUsd": 0.003236
+        },
+        {
+          "id": "benign-20",
+          "arm": "no_logo",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 4863.1389,
+          "costUsd": 0.004377
+        }
+      ]
+    },
+    "no_walkthrough": {
+      "arm": "no_walkthrough",
+      "complete": true,
+      "stopReason": "completed",
+      "evaluatedCases": 40,
+      "totalCorpusCases": 40,
+      "destinationAccuracy": {
+        "numerator": 40,
+        "denominator": 40,
+        "rate": 1
+      },
+      "formRecall": {
+        "numerator": 15,
+        "denominator": 15,
+        "rate": 1
+      },
+      "formSpecificity": {
+        "numerator": 20,
+        "denominator": 25,
+        "rate": 0.8
+      },
+      "confirmationRecall": {
+        "numerator": 18,
+        "denominator": 20,
+        "rate": 0.9
+      },
+      "falsePositiveRate": {
+        "numerator": 0,
+        "denominator": 20,
+        "rate": 0
+      },
+      "partialRate": {
+        "numerator": 2,
+        "denominator": 40,
+        "rate": 0.05,
+        "refusedCount": 0
+      },
+      "latencyMs": {
+        "medianMs": 10365.1932,
+        "p95Ms": 15815.0429
+      },
+      "costUsd": {
+        "totalUsd": 0.277241,
+        "meanUsdPerCase": 0.006931
+      },
+      "cases": [
+        {
+          "id": "lure-01",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 6162.8162,
+          "costUsd": 0.005757
+        },
+        {
+          "id": "lure-02",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 8585.0752,
+          "costUsd": 0.007243
+        },
+        {
+          "id": "lure-03",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 7731.469,
+          "costUsd": 0.006635
+        },
+        {
+          "id": "lure-04",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 8359.8707,
+          "costUsd": 0.006852
+        },
+        {
+          "id": "lure-05",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 7303.9581,
+          "costUsd": 0.006851
+        },
+        {
+          "id": "lure-06",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 11179.8363,
+          "costUsd": 0.008106
+        },
+        {
+          "id": "lure-07",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 6845.0904,
+          "costUsd": 0.006627
+        },
+        {
+          "id": "lure-08",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "log_in",
+          "latencyMs": 6208.8317,
+          "costUsd": 0.005751
+        },
+        {
+          "id": "lure-09",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7472.2432,
+          "costUsd": 0.00635
+        },
+        {
+          "id": "lure-10",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 11108.6544,
+          "costUsd": 0.008245
+        },
+        {
+          "id": "lure-11",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 12162.7505,
+          "costUsd": 0.006897
+        },
+        {
+          "id": "lure-12",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 12805.6093,
+          "costUsd": 0.007833
+        },
+        {
+          "id": "lure-13",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 18815.1794,
+          "costUsd": 0.009002
+        },
+        {
+          "id": "lure-14",
+          "arm": "no_walkthrough",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 15815.0429,
+          "costUsd": 0.010007
+        },
+        {
+          "id": "lure-15",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 14937.5981,
+          "costUsd": 0.009617
+        },
+        {
+          "id": "lure-16",
+          "arm": "no_walkthrough",
+          "state": "partial",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 7999.9047,
+          "costUsd": 0.007741
+        },
+        {
+          "id": "lure-17",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "pay",
+          "latencyMs": 8516.2056,
+          "costUsd": 0.006696
+        },
+        {
+          "id": "lure-18",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 10379.5105,
+          "costUsd": 0.007555
+        },
+        {
+          "id": "lure-19",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 12548.763,
+          "costUsd": 0.008108
+        },
+        {
+          "id": "lure-20",
+          "arm": "no_walkthrough",
+          "state": "confirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 7390.5919,
+          "costUsd": 0.006262
+        },
+        {
+          "id": "benign-01",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 5929.6076,
+          "costUsd": 0.005399
+        },
+        {
+          "id": "benign-02",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 9691.4868,
+          "costUsd": 0.00632
+        },
+        {
+          "id": "benign-03",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 11848.2389,
+          "costUsd": 0.007742
+        },
+        {
+          "id": "benign-04",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 11652.2158,
+          "costUsd": 0.007244
+        },
+        {
+          "id": "benign-05",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 10124.1726,
+          "costUsd": 0.0058
+        },
+        {
+          "id": "benign-06",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 11192.4627,
+          "costUsd": 0.006671
+        },
+        {
+          "id": "benign-07",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 9911.6885,
+          "costUsd": 0.006373
+        },
+        {
+          "id": "benign-08",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "pay",
+          "latencyMs": 15620.0868,
+          "costUsd": 0.008047
+        },
+        {
+          "id": "benign-09",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 8119.5166,
+          "costUsd": 0.005028
+        },
+        {
+          "id": "benign-10",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "none",
+          "latencyMs": 10463.0412,
+          "costUsd": 0.005989
+        },
+        {
+          "id": "benign-11",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 10629.6623,
+          "costUsd": 0.006401
+        },
+        {
+          "id": "benign-12",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 12312.4775,
+          "costUsd": 0.007029
+        },
+        {
+          "id": "benign-13",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 11309.0999,
+          "costUsd": 0.006541
+        },
+        {
+          "id": "benign-14",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 8200.3216,
+          "costUsd": 0.006235
+        },
+        {
+          "id": "benign-15",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 12290.5205,
+          "costUsd": 0.008402
+        },
+        {
+          "id": "benign-16",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 7340.7475,
+          "costUsd": 0.006134
+        },
+        {
+          "id": "benign-17",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "log_in",
+          "latencyMs": 17654.3942,
+          "costUsd": 0.006093
+        },
+        {
+          "id": "benign-18",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "official",
+          "formDetected": "log_in",
+          "latencyMs": 8292.7721,
+          "costUsd": 0.005907
+        },
+        {
+          "id": "benign-19",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 10350.8759,
+          "costUsd": 0.005397
+        },
+        {
+          "id": "benign-20",
+          "arm": "no_walkthrough",
+          "state": "unconfirmed",
+          "refusedByAllowance": false,
+          "destinationAssessed": "mismatch",
+          "formDetected": "none",
+          "latencyMs": 11425.6847,
+          "costUsd": 0.006354
+        }
+      ]
+    }
+  },
+  "ablationDeltas": {
+    "no_reading": {
+      "formRecallDelta": -1,
+      "formSpecificityDelta": 0.12,
+      "confirmationRecallDelta": -0.2,
+      "falsePositiveRateDelta": 0,
+      "partialRateDelta": 0.1
+    },
+    "no_logo": {
+      "formRecallDelta": 0,
+      "formSpecificityDelta": -0.08,
+      "confirmationRecallDelta": -0.15,
+      "falsePositiveRateDelta": 0.05,
+      "partialRateDelta": 0.55
+    },
+    "no_walkthrough": {
+      "formRecallDelta": 0,
+      "formSpecificityDelta": -0.08,
+      "confirmationRecallDelta": -0.1,
+      "falsePositiveRateDelta": 0,
+      "partialRateDelta": 0.05
+    }
+  }
+}

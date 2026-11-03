@@ -5,6 +5,7 @@
 // to send.
 import { raw } from "hono/html";
 import type { Finding } from "../../monitor/findings";
+import { parseAllowanceRefusal } from "../../monitor/pipeline";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { Button } from "../components/Button";
 import { Document } from "../components/Document";
@@ -28,9 +29,11 @@ const STATUS: Record<Finding["status"], { label: string; pill: PillVariant }> = 
   dismissed: { label: "Dismissed", pill: "neutral" },
 };
 
-export function outcomeWords(outcome: Finding["outcome"]): string {
+export function outcomeWords(outcome: Finding["outcome"], evidenceRefs?: string | null): string {
   if (outcome === "confirmed") return "Confirmed fake site";
   if (outcome === "unconfirmed") return "Not confirmed as impersonation";
+  const refusal = parseAllowanceRefusal(evidenceRefs ?? null);
+  if (refusal) return `Investigation incomplete (${refusal.reason})`;
   return "Investigation incomplete";
 }
 
@@ -137,7 +140,7 @@ export function MonitorPage(props: {
                   <Pill variant={STATUS[selected.status].pill}>{STATUS[selected.status].label}</Pill>
                   <h2 class="mt-8 text-20 font-semibold">{selected.host}</h2>
                   <p class="text-14 text-muted">
-                    {outcomeWords(selected.outcome)} · first seen {sastDay(selected.first_seen)}
+                    {outcomeWords(selected.outcome, selected.evidence_refs)} · first seen {sastDay(selected.first_seen)}
                   </p>
                   {props.shots?.[selected.host] ? (
                     <img
@@ -188,7 +191,9 @@ export function MonitorPage(props: {
                       <a class="block text-13 underline" href={`/monitor?finding=${encodeURIComponent(finding.host)}`}>
                         Details
                       </a>
-                      <span class="block text-13 text-muted">{outcomeWords(finding.outcome)}</span>
+                      <span class="block text-13 text-muted">
+                        {outcomeWords(finding.outcome, finding.evidence_refs)}
+                      </span>
                       {finding.case_id && (
                         <a class="text-13 underline" href={`/cases/${finding.case_id}`}>
                           See the evidence

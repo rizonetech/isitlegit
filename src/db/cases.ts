@@ -183,7 +183,7 @@ import {
   sastDayStart,
 } from "./cap-rule";
 
-export { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, sastDayStart };
+export { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, MONITOR_CASES_PER_DAY, MONITOR_CASES_TODAY, sastDayStart };
 
 // The only way the email and upload paths create a case: one statement inserts it only while the organisation is under
 // its daily cap, so two arrivals for the last slot cannot both get in. A refused case is not created (`capped`); the
@@ -224,16 +224,22 @@ export async function admitCase(
     // deleted) gives its slot back.
     const day = sastDayStart(now);
     const counterparty = row.origin === "counterparty";
+    const monitor = row.uploaded_by === "monitor";
     const room = counterparty
       ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
          AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
          ON CONFLICT (id) DO NOTHING`
-      : `${MEMBER_CASES_TODAY()} < ${dailyCapSql()}
+      : monitor
+        ? `${MONITOR_CASES_TODAY()} < ?
+         ON CONFLICT (id) DO NOTHING`
+        : `${MEMBER_CASES_TODAY()} < ${dailyCapSql()}
          ON CONFLICT (id) DO NOTHING`;
     // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
     const roomArgs = counterparty
       ? [row.forwarded_by, day, COUNTERPARTY_PER_SENDER, row.org_id, day, COUNTERPARTY_PER_IDENTITY]
-      : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
+      : monitor
+        ? [row.org_id, day, MONITOR_CASES_PER_DAY]
+        : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
     const inserted = await db
       .prepare(
         `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room}`,
@@ -268,17 +274,26 @@ export async function admitCase(
           .first<Row>();
         if (existing) return { ok: true, value: toCase(existing) };
       }
-      return fail("capped", "the organisation's daily case limit is reached");
+      return fail(
+        "capped",
+        monitor
+          ? "the daily monitor allowance is reached; the page is investigated on a later run"
+          : "the organisation's daily case limit is reached",
+      );
     }
     return { ok: true, value: toCase(row) };
   });
 }
 
-export async function createCase(db: D1Database, input: z.input<typeof NewCase>): Promise<CaseResult<Case>> {
+export async function createCase(
+  db: D1Database,
+  input: z.input<typeof NewCase>,
+  now = new Date(),
+): Promise<CaseResult<Case>> {
   const parsed = NewCase.safeParse(input);
   if (!parsed.success) return invalid(parsed.error);
   return guarded(async () => {
-    const now = new Date().toISOString();
+    const at = now.toISOString();
     const row: Row = {
       id: parsed.data.id ?? ulid(),
       org_id: parsed.data.orgId,
@@ -295,8 +310,8 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
       original_subject: null,
       original_from_name: null,
       original_from_address: null,
-      created_at: now,
-      updated_at: now,
+      created_at: at,
+      updated_at: at,
     };
     // A monitor case (the system uploader's) is admitted only inside the monitor's own daily
     // allowance (D05 T04 §12), in the same statement as its insert, so two investigations
@@ -305,7 +320,7 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
     const inserted = await db
       .prepare(
         monitor
-          ? `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${MONITOR_CASES_TODAY()} < ?`
+          ? `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${MONITOR_CASES_TODAY()} < ? ON CONFLICT (id) DO NOTHING`
           : "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
@@ -325,11 +340,19 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.updated_at,
         // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
         searchText({ uploadName: row.upload_name }),
-        ...(monitor ? [row.org_id, sastDayStart(new Date(row.created_at)), MONITOR_CASES_PER_DAY] : []),
+        ...(monitor ? [row.org_id, sastDayStart(now), MONITOR_CASES_PER_DAY] : []),
       )
       .run();
-    if (monitor && inserted.meta.changes !== 1)
+    if (monitor && inserted.meta.changes !== 1) {
+      if (parsed.data.id) {
+        const existing = await db
+          .prepare("SELECT * FROM cases WHERE id = ? AND org_id = ?")
+          .bind(row.id, row.org_id)
+          .first<Row>();
+        if (existing) return { ok: true, value: toCase(existing) };
+      }
       return fail("capped", "the daily monitor allowance is reached; the page is investigated on a later run");
+    }
     return { ok: true, value: toCase(row) };
   });
 }

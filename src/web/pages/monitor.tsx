@@ -9,6 +9,7 @@ import { readSmallForm } from "../../auth/form";
 import { type GateEnv, type SignedIn, sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
 import { dismissFinding, type Finding, listFindings, restoreFinding } from "../../monitor/findings";
+import { parseAllowanceRefusal, RETRY_SAST_DAY_PREFIX } from "../../monitor/pipeline";
 import { rdapContacts } from "../../monitor/rdap-contacts";
 import { takedownMarkdown, takedownPdf } from "../../monitor/takedown";
 import { copyForTraining } from "../../monitor/training";
@@ -59,7 +60,15 @@ async function draw(
   for (const finding of findings) {
     shots[finding.host] =
       (await c.env.ARTEFACTS.head(`${finding.capture_key}screenshot.jpg`).catch(() => null)) !== null;
-    if (!finding.case_id) continue;
+    if (!finding.case_id) {
+      const refusal = parseAllowanceRefusal(finding.evidence_refs);
+      if (refusal) {
+        evidence[finding.host] = [
+          `${refusal.reason}: no case was created before the daily monitor allowance rolled over${refusal.retrySastDay ? `; queued for retry on ${refusal.retrySastDay} SAST` : ""}.`,
+        ];
+      }
+      continue;
+    }
     const rows = await c.env.DB.prepare("SELECT summary FROM evidence WHERE case_id = ? ORDER BY seq LIMIT 8")
       .bind(finding.case_id)
       .all<{ summary: string }>();
@@ -219,9 +228,17 @@ async function buildPack(c: Context<GateEnv>, finding: Finding) {
       .all<{ summary: string }>();
     for (const row of rows.results) if (row.summary) summaries.push(row.summary);
   }
-  if (!summaries.length && finding.evidence_refs)
-    for (const ref of JSON.parse(finding.evidence_refs) as string[])
-      summaries.push(`Evidence ${ref} on the case record.`);
+  if (!summaries.length && finding.evidence_refs) {
+    const refusal = parseAllowanceRefusal(finding.evidence_refs);
+    if (refusal) {
+      summaries.push(
+        `Investigation incomplete (${refusal.reason}): no case was created because the daily monitor allowance was reached${refusal.retrySastDay ? `; queued for retry on ${refusal.retrySastDay} SAST` : ""}.`,
+      );
+    } else if (finding.case_id) {
+      for (const ref of JSON.parse(finding.evidence_refs) as string[])
+        if (!ref.startsWith(RETRY_SAST_DAY_PREFIX)) summaries.push(`Evidence ${ref} on the case record.`);
+    }
+  }
   const shot = await c.env.ARTEFACTS.get(`${finding.capture_key}screenshot.jpg`).catch(() => null);
   const screenshotJpeg = shot ? new Uint8Array(await shot.arrayBuffer()) : null;
   const bootstrap = await fetch("https://data.iana.org/rdap/dns.json", {

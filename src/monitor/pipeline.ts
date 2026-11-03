@@ -5,9 +5,11 @@
 // the reading finds a login or payment form. Mail-only checks never run. One failed page never stops
 // the next; every investigation settles confirmed, unconfirmed or partial for §5 to read.
 import { addEvidence, type EvidenceDraft, saveEvidence } from "../checks/evidence";
-import { createCase, setStatus, setVerdict } from "../db/cases";
+import { sastDayStart } from "../db/cap-rule";
+import { createCase, setStatus, setVerdict, unstartedPartial } from "../db/cases";
 import { putAttachment, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
+import { eventStatement } from "../pipeline/events";
 import { getIdentity } from "../trust/identity";
 import { compareLogo, type LogoImage, logoMatchItem, logoNotComparedItem } from "../vision/logo-compare";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "../vision/reading";
@@ -16,6 +18,42 @@ import { protectedOrgs } from "./run";
 import { copyForTraining } from "./training";
 
 export type InvestigationState = "investigating" | "confirmed" | "unconfirmed" | "partial";
+
+export const ALLOWANCE_REFUSAL_REASON = "not investigated: daily monitor allowance reached";
+export const RETRY_SAST_DAY_PREFIX = "retry-sast-day:";
+
+const SAST_OFFSET_MS = 2 * 60 * 60_000;
+const sastDateKey = (at: Date): string => new Date(at.getTime() + SAST_OFFSET_MS).toISOString().slice(0, 10);
+
+export function allowanceRefusalRefs(now: Date): string[] {
+  const nextStartMs = Date.parse(sastDayStart(now)) + 86_400_000;
+  const nextSastDay = sastDateKey(new Date(nextStartMs));
+  return [ALLOWANCE_REFUSAL_REASON, `${RETRY_SAST_DAY_PREFIX}${nextSastDay}`];
+}
+
+export function parseAllowanceRefusal(raw: string | null): { reason: string; retrySastDay: string | null } | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const strings = parsed.filter((x): x is string => typeof x === "string");
+    if (!strings.includes(ALLOWANCE_REFUSAL_REASON)) return null;
+    const retryToken = strings.find((s) => s.startsWith(RETRY_SAST_DAY_PREFIX));
+    return {
+      reason: ALLOWANCE_REFUSAL_REASON,
+      retrySastDay: retryToken ? retryToken.slice(RETRY_SAST_DAY_PREFIX.length) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function isAllowanceRecoveryEligible(raw: string | null, now: Date): boolean {
+  const refusal = parseAllowanceRefusal(raw);
+  if (!refusal) return false;
+  if (!refusal.retrySastDay) return true;
+  return sastDateKey(now) >= refusal.retrySastDay;
+}
 
 export type PipelineDeps = {
   db: D1Database;
@@ -69,30 +107,47 @@ async function investigate(
 ): Promise<InvestigationState> {
   const { db, bucket } = deps;
   const existing = await db
-    .prepare("SELECT state, case_id FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
+    .prepare("SELECT state, case_id, evidence_refs FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
     .bind(orgId, page.capture_key)
-    .first<{ state: string; case_id: string | null }>();
-  if (existing && existing.state !== "investigating") return existing.state as InvestigationState;
+    .first<{ state: string; case_id: string | null; evidence_refs: string | null }>();
+  const recoveringAllowance =
+    existing?.state === "partial" &&
+    existing.case_id === null &&
+    isAllowanceRecoveryEligible(existing.evidence_refs, now());
+  if (existing && existing.state !== "investigating" && !recoveringAllowance)
+    return existing.state as InvestigationState;
+  if (recoveringAllowance) {
+    await db
+      .prepare(
+        "UPDATE monitor_investigations SET state = 'investigating', evidence_refs = NULL, updated_at = ? WHERE org_id = ? AND capture_key = ?",
+      )
+      .bind(now().toISOString(), orgId, page.capture_key)
+      .run();
+  }
   // The row lands before the case, so an interruption at any later point is recoverable and
-  // settleable (completion review gaps 4 and 8).
-  const urlAtStart = await db
-    .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ?")
-    .bind(orgId, page.domain)
+  // settleable (completion review gaps 4 and 8). Match `capture_key` first so a replaced capture in
+  // `monitor_hosts` never overwrites an older capture's destination URL.
+  const urlForCapture = await db
+    .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ? AND capture_key = ?")
+    .bind(orgId, page.domain, page.capture_key)
     .first<{ capture_url: string | null }>();
+  const urlFallback = urlForCapture
+    ? null
+    : await db
+        .prepare("SELECT capture_url, captured_at FROM monitor_hosts WHERE org_id = ? AND domain = ?")
+        .bind(orgId, page.domain)
+        .first<{ capture_url: string | null; captured_at: string | null }>();
+  const momentAtStart = page.capture_key.replace(/\/$/, "").split("/").at(-1);
+  const initialCaptureUrl =
+    urlForCapture?.capture_url ??
+    (urlFallback?.capture_url && urlFallback.captured_at === momentAtStart ? urlFallback.capture_url : null);
   await db
     .prepare(
       `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
        VALUES (?, ?, ?, NULL, ?, 'investigating', NULL, ?, ?)
        ON CONFLICT (org_id, capture_key) DO NOTHING`,
     )
-    .bind(
-      orgId,
-      page.domain,
-      page.capture_key,
-      urlAtStart?.capture_url ?? null,
-      now().toISOString(),
-      now().toISOString(),
-    )
+    .bind(orgId, page.domain, page.capture_key, initialCaptureUrl, now().toISOString(), now().toISOString())
     .run();
   let caseId = existing?.case_id ?? null;
   if (!caseId) {
@@ -114,18 +169,30 @@ async function investigate(
         .run();
     }
   }
+  let createdHere = false;
   if (!caseId) {
-    const made = await createCase(db, {
-      orgId,
-      channel: "upload",
-      headersAvailable: false,
-      uploadedBy: "monitor",
-      sourceKind: "image",
-      uploadName: `${page.domain}@${page.capture_key.replace(/\/$/, "").split("/").at(-1) ?? ""}`,
-      uploadMediaType: "image/jpeg",
-    });
-    if (!made.ok) throw new Error(`monitor case refused: ${made.error.message}`);
+    const made = await createCase(
+      db,
+      {
+        orgId,
+        channel: "upload",
+        headersAvailable: false,
+        uploadedBy: "monitor",
+        sourceKind: "image",
+        uploadName: `${page.domain}@${page.capture_key.replace(/\/$/, "").split("/").at(-1) ?? ""}`,
+        uploadMediaType: "image/jpeg",
+      },
+      now(),
+    );
+    if (!made.ok) {
+      if (made.error.code === "capped") {
+        await settle(db, orgId, page.capture_key, "partial", allowanceRefusalRefs(now()), now());
+        throw new Error(ALLOWANCE_REFUSAL_REASON);
+      }
+      throw new Error(`monitor case refused: ${made.error.message}`);
+    }
     caseId = made.value.id;
+    createdHere = true;
     await db
       .prepare(
         `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, state, evidence_refs, created_at, updated_at)
@@ -142,23 +209,33 @@ async function investigate(
     // copied for Loupe's training before anything can delete the case's artefacts. A failed
     // copy states itself in the log and is retried by the next settlement read, never
     // changing the investigation's outcome.
-    if (state === "confirmed")
-      await copyForTraining(bucket, {
-        orgId,
-        host: page.domain,
-        captureKey: page.capture_key,
-        captureUrl: await db
+    if (state === "confirmed") {
+      const storedCaptureUrl = await db
+        .prepare("SELECT capture_url FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
+        .bind(orgId, page.capture_key)
+        .first<{ capture_url: string | null }>()
+        .then((row) => row?.capture_url ?? null)
+        .catch(() => null);
+      const hostCaptureUrl =
+        storedCaptureUrl ??
+        (await db
           .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ? AND capture_key = ?")
           .bind(orgId, page.domain, page.capture_key)
           .first<{ capture_url: string | null }>()
           .then((row) => row?.capture_url ?? null)
-          .catch(() => null),
+          .catch(() => null));
+      await copyForTraining(bucket, {
+        orgId,
+        host: page.domain,
+        captureKey: page.capture_key,
+        captureUrl: hostCaptureUrl,
         label: "lure",
         why: "the full pipeline confirmed this page as a lure",
         source: "pipeline",
       }).catch((error: Error) =>
         console.log(JSON.stringify({ event: "monitor-training", outcome: "copy-failed", error: error.name })),
       );
+    }
     // The shared case leaves `received` with the investigation (round 4): confirmed carries a
     // malicious verdict and finishes; anything else finishes partial, never a clean verdict.
     if (state === "confirmed") {
@@ -181,7 +258,33 @@ async function investigate(
   }
   const screenshot = new Uint8Array(await shot.arrayBuffer());
   const visibleText = textObj ? await textObj.text() : "";
-  const stored = await putAttachment(deps.store, caseId, "screenshot.jpg", screenshot, "image/jpeg");
+  let stored: Awaited<ReturnType<typeof putAttachment>>;
+  try {
+    stored = await putAttachment(deps.store, caseId, "screenshot.jpg", screenshot, "image/jpeg");
+  } catch (error) {
+    // If raw attachment admission fails before any evidence is written, record the `admit` RawMissing
+    // event so `COUNTS_TOWARD_CAP` releases its daily monitor allowance slot.
+    if (createdHere) {
+      await db
+        .batch([
+          eventStatement(
+            db,
+            {
+              caseId,
+              step: "admit",
+              status: "failed",
+              startedAt: now().toISOString(),
+              ms: null,
+              error: "RawMissing",
+            },
+            true,
+          ),
+          unstartedPartial(db, orgId, caseId),
+        ])
+        .catch(() => null);
+    }
+    throw error;
+  }
   const artefactKey = stored.key;
   const image: ReadingImage = {
     id: "P1",
@@ -338,14 +441,26 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
   // The monitor's own eligibility gate (round 4): no protection on, no investigation, whatever
   // outstanding rows an earlier run left.
   if (!(await protectedOrgs(deps.db)).includes(orgId)) return summary;
-  // Outstanding investigations are recovered whatever their age or whether a newer capture
-  // replaced them (completion review gap 5): their rows, not the run's window, name the work.
-  const outstanding = (
+  // Outstanding investigations and rollover-eligible allowance refusals are recovered whatever
+  // their age or whether a newer capture replaced them (completion review gap 5; D05 T04 §12).
+  const outstandingRows = (
     await deps.db
-      .prepare("SELECT domain, capture_key FROM monitor_investigations WHERE org_id = ? AND state = 'investigating'")
+      .prepare(
+        `SELECT domain, capture_key, state, case_id, evidence_refs FROM monitor_investigations
+         WHERE org_id = ? AND (state = 'investigating' OR (state = 'partial' AND case_id IS NULL AND evidence_refs LIKE '%daily monitor allowance reached%'))`,
+      )
       .bind(orgId)
-      .all<{ domain: string; capture_key: string }>()
+      .all<{
+        domain: string;
+        capture_key: string;
+        state: string;
+        case_id: string | null;
+        evidence_refs: string | null;
+      }>()
   ).results;
+  const outstanding = outstandingRows.filter(
+    (row) => row.state === "investigating" || isAllowanceRecoveryEligible(row.evidence_refs, now()),
+  );
   const pages: Flagged[] = [...(await flaggedForWalkthrough(deps.db, orgId, since))];
   for (const row of outstanding)
     if (!pages.some((p) => p.capture_key === row.capture_key))
@@ -360,10 +475,14 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
       });
   for (const page of pages) {
     const existing = await deps.db
-      .prepare("SELECT state FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
+      .prepare("SELECT state, case_id, evidence_refs FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
       .bind(orgId, page.capture_key)
-      .first<{ state: string }>();
-    if (existing && existing.state !== "investigating") {
+      .first<{ state: string; case_id: string | null; evidence_refs: string | null }>();
+    const eligibleAllowanceRetry =
+      existing?.state === "partial" &&
+      existing.case_id === null &&
+      isAllowanceRecoveryEligible(existing.evidence_refs, now());
+    if (existing && existing.state !== "investigating" && !eligibleAllowanceRetry) {
       summary.skipped++;
       continue;
     }
@@ -373,15 +492,23 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
     } catch (error) {
       summary.failed++;
       // A capped creation (the daily monitor allowance, D05 T04 §12) is named apart from a
-      // failure: the investigation settles partial either way, and a later run retries it.
+      // failure: the investigation settles partial with its allowance reason and retry SAST day.
+      const isAllowance = (error as Error).message.includes(ALLOWANCE_REFUSAL_REASON);
       console.log(
         JSON.stringify({
           event: "monitor-pipeline",
-          outcome: (error as Error).message.includes("daily monitor allowance") ? "allowance" : "failed",
+          outcome: isAllowance ? "allowance" : "failed",
           error: (error as Error).name || "Error",
         }),
       );
-      await settle(deps.db, orgId, page.capture_key, "partial", [], now()).catch(() => null);
+      await settle(
+        deps.db,
+        orgId,
+        page.capture_key,
+        "partial",
+        isAllowance ? allowanceRefusalRefs(now()) : [],
+        now(),
+      ).catch(() => null);
     }
   }
   return summary;

@@ -3,6 +3,7 @@
 // carry the same content; the PDF embeds the settled screenshot, and a capture artefact that
 // cannot be read states itself in both.
 import type { Finding } from "./findings";
+import { parseAllowanceRefusal } from "./pipeline";
 import type { RdapContacts } from "./rdap-contacts";
 
 export type PackInput = {
@@ -18,6 +19,7 @@ export type PackInput = {
 export function takedownMarkdown(input: PackInput): string {
   const { finding, contacts } = input;
   const branding = input.brandingConfirmed === true;
+  const refusal = parseAllowanceRefusal(finding.evidence_refs);
   const claim =
     finding.outcome === "confirmed"
       ? branding
@@ -25,7 +27,14 @@ export function takedownMarkdown(input: PackInput): string {
         : `A site at ${finding.host} was first seen on ${finding.first_seen} and confirmed as impersonation by IsItLegit's impersonation monitor, on the evidence below. Ask the registrar and host to judge it on that evidence.`
       : finding.outcome === "unconfirmed"
         ? `A site at ${finding.host} may be impersonating our business. It was first seen on ${finding.first_seen}. IsItLegit's monitor has not confirmed it as impersonation, so this pack asks the registrar and host to judge it on the evidence below, not on a confirmed finding.`
-        : `A site at ${finding.host} may be impersonating our business. It was first seen on ${finding.first_seen}. The investigation is incomplete, so this pack asks the registrar and host to judge it on the evidence below.`;
+        : refusal
+          ? `A site at ${finding.host} may be impersonating our business. It was first seen on ${finding.first_seen}. The investigation is incomplete (${refusal.reason}: no case was created before the daily monitor allowance rolled over), so this pack asks the registrar and host to judge it on the captured domain and screenshot below.`
+          : `A site at ${finding.host} may be impersonating our business. It was first seen on ${finding.first_seen}. The investigation is incomplete, so this pack asks the registrar and host to judge it on the evidence below.`;
+  const defaultEvidenceLine = refusal
+    ? `- Investigation incomplete (${refusal.reason}): no case was created because the daily monitor allowance was reached${refusal.retrySastDay ? `; queued for retry on ${refusal.retrySastDay} SAST` : ""}.`
+    : finding.case_id
+      ? "- The investigation evidence is on the case record."
+      : "- Investigation incomplete: no case record exists for this capture.";
   const lines = [
     `# Takedown request: ${finding.host}`,
     "",
@@ -45,9 +54,7 @@ export function takedownMarkdown(input: PackInput): string {
     "",
     "## Evidence",
     "",
-    ...(input.evidenceSummaries.length
-      ? input.evidenceSummaries.map((s) => `- ${s}`)
-      : ["- The investigation evidence is on the case record."]),
+    ...(input.evidenceSummaries.length ? input.evidenceSummaries.map((s) => `- ${s}`) : [defaultEvidenceLine]),
     `- Screenshot: ${input.screenshotName ?? "the settled capture could not be read back"}`,
     "",
     "## What we ask",
