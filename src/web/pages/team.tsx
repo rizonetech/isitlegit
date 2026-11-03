@@ -178,10 +178,10 @@ async function outcomeOf(secret: string, orgId: string, url: URL): Promise<Outco
 }
 
 // A change that failed or whose answer was lost: its reference logged, the page redrawn with it named as unconfirmed.
-function failed(secret: string, orgId: string, why: string, name?: string) {
+function failed(secret: string, orgId: string, why: string, name?: string, find = "") {
   const ref = reference(500);
   console.log(JSON.stringify({ event: "team", outcome: "change-failed", reference: ref, error: why }));
-  return back(secret, orgId, { r: "failed", ...(name ? { name } : {}) });
+  return back(secret, orgId, { r: "failed", ...(name ? { name } : {}) }, find);
 }
 
 // The signed-in member of the active organisation, or the page that refuses them.
@@ -313,6 +313,7 @@ teamRoutes.get(
           invites={invites}
           history={history}
           find={new URL(c.req.url).searchParams.get("find") ?? undefined}
+          findFocus={new URL(c.req.url).searchParams.get("focus") === "find"}
           now={new Date()}
         />,
       );
@@ -857,13 +858,13 @@ teamRoutes.post(
         });
       // A failure or an uncertain answer: logged, and the page redrawn from the stored state with the change named as
       // unconfirmed, never as done. A notice, not the 503 page, so htmx draws it in place as it draws every answer.
-      if (answer === "failed") return failed(secret, orgId, `auth-${res.status}`, name);
+      if (answer === "failed") return failed(secret, orgId, `auth-${res.status}`, name, findBack);
       // Better Auth names an admin's refused removal of the only owner as the last-owner rule; to the admin it is a
       // permission they lack, and the guard's words are the owner's own.
       const said = answer === "last-owner" && roleOf(who.org.role) !== "owner" ? "no-permission" : answer;
       return back(secret, orgId, { r: said, name }, findBack);
     } catch (error) {
-      return failed(secret, orgId, (error as Error).name);
+      return failed(secret, orgId, (error as Error).name, undefined, findBack);
     }
   },
 );

@@ -471,8 +471,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     await p.locator("#team-find").fill("nobody-like-this");
     await p.getByRole("button", { name: "Find", exact: true }).click();
     await expect.poll(() => p.getByText("No one on the team matches.").textContent()).toBeTruthy();
-    await p.getByRole("link", { name: "Clear" }).click();
-    await expect.poll(() => p.url()).not.toContain("find=");
+    await p.locator("form").filter({ has: p.locator("#team-find") }).getByRole("link", { name: "Clear" }).click();
+    await expect.poll(() => p.url()).toContain("focus=find");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("team-find");
+    expect(await p.locator("#team-find").inputValue()).toBe("");
     await context.close();
   });
 });

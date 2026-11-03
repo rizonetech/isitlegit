@@ -224,7 +224,7 @@ function RoleCell(props: {
       // A change whose answer never came (no connection, a gateway's error page) may still have been made. The app script
       // loads the asked address as a page after any failed request, so the address asked is the page that says so:
       // `GET /team?unanswered=1` redraws the stored team with that notice. A change that answers is redirected as usual.
-      hx-post="/team?unanswered=1"
+      hx-post={find ? `/team?unanswered=1&find=${encodeURIComponent(find)}` : "/team?unanswered=1"}
       hx-trigger="change"
       hx-target="#team-main"
       hx-select="#team-main"
@@ -567,7 +567,10 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
         <Button type="submit" variant="dark">
           Apply
         </Button>
-        <a href="/team" class="type-small text-orange-text underline underline-offset-4">
+        <a
+          href={`/team${props.find ? `?find=${encodeURIComponent(props.find)}` : ""}`}
+          class="type-small text-orange-text underline underline-offset-4"
+        >
           Clear
         </a>
       </form>
@@ -580,7 +583,7 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
         <p class="px-24 pb-24 type-small">
           The team history could not be read just now.{" "}
           <a
-            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}`}
+            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
             class="text-orange-text underline underline-offset-4"
           >
             Try again
@@ -653,9 +656,10 @@ export function TeamPage(props: {
   inviteBatch?: InviteBatch;
   history?: TeamHistory | undefined;
   find?: string | undefined;
+  findFocus?: boolean | undefined;
   now: Date;
 }) {
-  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history, find } = props;
+  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history, find, findFocus } = props;
   const findTooLong = (find ?? "").length > 200;
   const visible =
     find && !findTooLong ? members.filter((m) => fold(`${m.name} ${m.email}`).includes(fold(find))) : members;
@@ -739,14 +743,17 @@ export function TeamPage(props: {
                 placeholder="Name or email"
                 autocomplete="off"
                 class={SELECT}
-                {...(find && !outcome ? { autofocus: true } : {})}
+                {...((find || findFocus) && !outcome && !lost ? { autofocus: true } : {})}
               />
             </label>
             <Button type="submit" variant="dark">
               Find
             </Button>
             {find ? (
-              <a href="/team" class="type-small text-orange-text underline underline-offset-4">
+              <a
+                href={`/team?focus=find${history?.action ? `&action=${encodeURIComponent(history.action)}` : ""}${history?.from ? `&from=${encodeURIComponent(history.from)}` : ""}${history?.to ? `&to=${encodeURIComponent(history.to)}` : ""}`}
+                class="type-small text-orange-text underline underline-offset-4"
+              >
                 Clear
               </a>
             ) : null}
