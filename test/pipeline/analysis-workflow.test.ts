@@ -225,6 +225,48 @@ describe("AnalysisWorkflow", () => {
     ]);
   });
 
+  it("ablates the walkthrough for the case's own organisation flag, and walks again once cleared (D04 T02 §9)", async () => {
+    const page = "https://phish-workflow.example/signin";
+    const flagged = await caseWith(forwards["attached-rfc822"]);
+    await saveEvidence(env.DB, flagged, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page },
+        artefacts: [],
+      },
+    ]);
+    await env.CACHE.put(`ablate:${ORG}`, "no-walkthrough");
+    try {
+      await run(flagged, async (m) => {
+        await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+      });
+    } finally {
+      await env.CACHE.delete(`ablate:${ORG}`);
+    }
+    const items = await readEvidence(env.DB, flagged);
+    expect(items.find((e) => e.check === "walkthrough.ablated")?.detail).toMatchObject({
+      ablated: "no-walkthrough",
+      url: page,
+    });
+    // Cleared: the same organisation's next case is not ablated (its walk states it could not run here).
+    const cleared = await caseWith(forwards["attached-rfc822"]);
+    await saveEvidence(env.DB, cleared, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page },
+        artefacts: [],
+      },
+    ]);
+    await run(cleared, async (m) => {
+      await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+    });
+    expect((await readEvidence(env.DB, cleared)).some((e) => e.check === "walkthrough.ablated")).toBe(false);
+  });
+
   it("hands the verdict this case's stored evidence in its order, not_checked lines included", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     const other = await caseWith(forwards["inline-forward"]);

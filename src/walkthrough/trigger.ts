@@ -191,7 +191,7 @@ export async function walkthroughStep(deps: StepDeps, caseId: string): Promise<S
   // contribution being measured away. The case states the ablation instead: one info item naming it, without
   // `checked: false`, so the verdict does not read the walk as coverage it could not get. A failed write
   // propagates, so the result is claimed only once the marker is stored.
-  if ((await deps.ablateFlag?.()) === "no-walkthrough") {
+  if ((await deps.ablateFlag?.().catch(() => null)) === "no-walkthrough") {
     await addEvidence(deps.db, caseId, "walkthrough", [
       {
         check: "walkthrough.ablated",

@@ -265,5 +265,29 @@ describe("the ablated walk (D04 T02 §9)", () => {
     expect(
       (await walkthroughStep(plain.d, await newCase([draft("link.credential_form", "high", urlFor())]))).outcome,
     ).toBe("walked");
+    // A reader that fails reads as no ablation, never as a failed case.
+    const failing = deps({
+      ablateFlag: async () => {
+        throw new Error("flag store down");
+      },
+    });
+    expect(
+      (await walkthroughStep(failing.d, await newCase([draft("link.credential_form", "high", urlFor())]))).outcome,
+    ).toBe("walked");
+  });
+
+  it("propagates a failed marker write instead of claiming ablated", async () => {
+    const id = await newCase([draft("link.credential_form", "high", urlFor())]);
+    const brokenDb = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "prepare"
+          ? (sql: string) => {
+              if (sql.includes("INSERT INTO evidence")) throw new Error("evidence store down");
+              return target.prepare(sql);
+            }
+          : Reflect.get(target, name).bind(target),
+    }) as unknown as D1Database;
+    const { d } = deps({ db: brokenDb, ablateFlag: async () => "no-walkthrough" });
+    await expect(walkthroughStep(d, id)).rejects.toThrow(/evidence store down/);
   });
 });
