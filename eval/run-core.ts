@@ -267,6 +267,7 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
 export const USAGE = [
   "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--mode <full|ablate:flag>] [--dry]",
   "       pnpm eval:run --resume <run id>   (keeps the cap, the selection and the mode the run began with)",
+  "       pnpm eval:run --replay <run id> --cap-usd <usd>   (remeasures the stored run's whole population on the current deployment under a fresh run id; the stored selection is restored and verified first, and a drifted population is refused with nothing sent)",
   "       pnpm eval:run --verify <run id>",
   `sets: ${SETS.join(", ")} (all by default). Needs EVAL_SESSION_COOKIE; exit 0 complete, 1 fault, 2 incomplete, 3 refused.`,
 ].join("\n");

@@ -1,12 +1,12 @@
 // The replay orchestration and merging (D08 T02 section 12): injected clients, no spend.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { mergeReplayResults } from "../../eval/metrics.ts";
 import { parseReplayArgs, replayableResults, runReplay } from "../../eval/replay.ts";
-import type { ResultRow, RunRow } from "../../eval/run.ts";
-import { liveApi, replayPopulation } from "../../eval/run.ts";
+import type { Api, Db, Env, ResultRow, RunRow } from "../../eval/run.ts";
+import { liveApi, main, replayPopulation } from "../../eval/run.ts";
 import { selectSamples } from "../../eval/run-core.ts";
 
 const run = (over: Partial<RunRow> = {}): RunRow => ({
@@ -115,6 +115,88 @@ describe("eval replay", () => {
       expect(replayPopulation(foreign, select)).toMatchObject({
         error: expect.stringMatching(/is not the population/),
       });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("drives the command entry: a replay through main() persists a fresh whole-population run", async () => {
+    const root = mkdtempSync(join(tmpdir(), "eval-replay-main-"));
+    try {
+      const selection = selectSamples(join(process.cwd(), "eval/sets"), ["synthetic-sa"], 2);
+      const source: RunRow = {
+        ...run({ status: "complete" }),
+        id: "source-run-1",
+        setVersion: selection.setVersion,
+        selected: 2,
+        sampleLimit: 2,
+        commitSha: "oldcommit",
+      };
+      const storedResults = selection.samples.map((s) => row(s.id, "done", { verdict: "safe" }));
+      const runs = new Map<string, RunRow>([[source.id, source]]);
+      const results = new Map<string, ResultRow[]>();
+      const sentReplayIds: (string | null)[] = [];
+      let seq = 0;
+      const db: Db = {
+        orgId: async () => "org-eval",
+        memberships: async () => ["org-eval"],
+        allowance: async () => ({ used: 0, limit: 500 }),
+        spent: async () => ({ daySpentUsd: 0, totalSpentUsd: 0 }),
+        lastCostPerCase: async () => 0.01,
+        caseState: async (caseId) => ({
+          status: "done",
+          verdict: "malicious",
+          costUsd: 0.01,
+          critical: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          ...(caseId ? {} : {}),
+        }),
+        insertRun: async (r) => void runs.set(r.id, r),
+        putResult: async (r) => void results.set(r.runId, [...(results.get(r.runId) ?? []), r]),
+        finishRun: async () => {},
+        readRun: async (id) => (id === source.id ? { run: source, results: storedResults } : null),
+      };
+      const api: Api = {
+        commit: async () => "newcommit",
+        whoami: async () => "user-1",
+        upload: async (_sample, _bytes, opts) => {
+          sentReplayIds.push(opts.replayRunId);
+          return { status: 201, caseId: `fresh-${++seq}` };
+        },
+      };
+      const env: Env = {
+        now: () => Date.now(),
+        sleep: async () => {},
+        id: () => `replay-run-${++seq}`,
+        journalDir: root,
+        bytes: (file) => new Uint8Array(readFileSync(file)),
+        log: () => {},
+        ticker: () => () => {},
+        timeout: async (_ms, work) => work(),
+      };
+      const code = await main(
+        ["--replay", source.id, "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db, api, env },
+      );
+      expect(code).toBe(0);
+      // Both samples of the stored population were sent, under the new run's own identity.
+      expect(sentReplayIds).toHaveLength(2);
+      expect(new Set(sentReplayIds).size).toBe(1);
+      expect(sentReplayIds[0]).not.toBe(source.id);
+      const replayRun = [...runs.values()].find((r) => r.mode === `replay:${source.id}`);
+      expect(replayRun?.id).toBe(sentReplayIds[0]);
+      expect(results.get(replayRun?.id ?? "")?.every((r) => r.outcome === "done")).toBe(true);
+      // An unknown source refuses through the same entry, with nothing sent.
+      sentReplayIds.length = 0;
+      const refused = await main(
+        ["--replay", "no-such-run", "--cap-usd", "5"],
+        { EVAL_SESSION_COOKIE: "x" },
+        { db, api, env },
+      );
+      expect(refused).toBe(3);
+      expect(sentReplayIds).toHaveLength(0);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

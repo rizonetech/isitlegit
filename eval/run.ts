@@ -921,7 +921,12 @@ export function replayPopulation(
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export async function main(argv: string[], environment: NodeJS.ProcessEnv = process.env): Promise<number> {
+export async function main(
+  argv: string[],
+  environment: NodeJS.ProcessEnv = process.env,
+  // Injected by the command-entry tests; the live command builds its own from the environment.
+  deps?: { db: Db; api: Api; env: Env },
+): Promise<number> {
   const options = parseArgs(argv);
   if ("error" in options) {
     console.error(`eval:run: ${options.error}\n${USAGE}`);
@@ -932,7 +937,9 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     return 0;
   }
   const { execute } = await import("../scripts/lib/meta-budget.ts");
-  const db = liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inlineLong(s), params: [] }));
+  const db =
+    deps?.db ??
+    liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inlineLong(s), params: [] }));
   if (options.verify) {
     const result = await verifyRun(db, options.verify);
     for (const p of result.problems) console.error(`eval:run: ${p}`);
@@ -958,9 +965,11 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     return EXIT.refused;
   }
   let { sets, limit } = picked;
-  const selectedAll = selectSamples(join(ROOT, "eval/sets"), sets, limit);
-  let { samples, setVersion } = selectedAll;
+  let samples: RunSample[];
+  let setVersion: string;
   if (options.replay) {
+    // The source run is read before any set is loaded: only its stored selection is ever read from disk, so
+    // an unrelated missing or malformed corpus cannot refuse a replay (D08 T02 section 12).
     const stored = await db.readRun(options.replay).catch(() => null);
     if (!stored) {
       console.error(`eval:run: no stored run ${options.replay} to replay`);
@@ -975,9 +984,13 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     limit = stored.run.sampleLimit;
     samples = restored.samples;
     setVersion = restored.setVersion;
+  } else {
+    const selectedAll = selectSamples(join(ROOT, "eval/sets"), sets, limit);
+    samples = selectedAll.samples;
+    setVersion = selectedAll.setVersion;
   }
-  const api = liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
-  const env: Env = {
+  const api = deps?.api ?? liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
+  const env: Env = deps?.env ?? {
     now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     id: () => randomUUID(),
