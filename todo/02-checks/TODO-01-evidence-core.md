@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: active
+status: done
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -44,7 +44,7 @@ track: day-2
 | 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 | 8 | §8 | Examined set stored for a clean check | §3 | [x] |
-| 9 | §9 | Protected-identity candidate for the trust match | §3 | [ ] |
+| 9 | §9 | Protected-identity candidate for the trust match | §3 | [x] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -313,6 +313,9 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the t
 **Corrected 2026-11-03** (plan review, 1 P1 and 5 P2, `docs/reviews/02-checks/D02-T01-s9.md`; the consumer contract is trust D05 T02 §2 correction (1)): (1) candidates are discovered across organisations, not from the case's own organisation: every effectively protected identity is a candidate, so an admitted member of business A forwarding mail that impersonates protected business B carries B as a candidate; the checkpoint below is corrected to match. (2) Filtering is at read time through the identity's own effective test: protection switched off, the last verified domain removed, or the finance contact's verification removed each exclude the identity. (3) The discovery projection is a new allowlisted reader owned by the identity store, `protectedIdentities` in `src/trust/identity.ts`, returning org id, display names, verified domains and the registered logo reference (key and media type, never bytes) for each effectively protected identity in org-id order; neither `getIdentity` (one known org, carries the finance contact) nor `findIdentityByClaim` (exact claims only, no logo, no bound) supplies it. The checks step stays the filler and the registered check stays pure. (4) Bounds live in `src/checks/case-view.ts`: at most 25 candidates, 10 names and 10 domains per candidate, each overflow counted (`omitted` on the set, `namesOmitted` and `domainsOmitted` per candidate), duplicates by org id removed, so a cut set is distinguishable from an exhaustive no-match. (5) A failed candidate read fails the checks step like its other awaited store reads, so the Workflow retries it; it never reads as an empty candidate set. An empty set means no identity is effectively protected. (6) The projection is allowlisted: no finance contact, bank detail, registered baseline value or logo bytes reach the view, and the tests assert the candidate's exact keys. The checks step persists evidence and outcomes, not the view; acceptance is the reader's tests, the view bound's test, and a checks-step test whose stored outcomes read back beside a case that carries a candidate.
 
 **Test checkpoint (corrected):** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts test/checks/case-view.test.ts` passes, fails if a candidate names a business that is not effectively protected, and passes for a member of one business checking mail that impersonates another protected business.
+
+> **Verified:** 2026-11-03 | §9 | 09816762b8d9e1a65aa6df97a137eb2a03bb3f3a
+> **Review:** `docs/reviews/d02-t01-s9.json`
 
 ## Verification
 

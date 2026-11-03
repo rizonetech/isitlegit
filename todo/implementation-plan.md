@@ -427,7 +427,7 @@ Sections: 191 | Checklist items: 810
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
 | [x]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 3     |
-| [ ]    | D02 T01 §9  | Protected-identity candidate for the trust match | none                 | 3     |
+| [x]    | D02 T01 §9  | Protected-identity candidate for the trust match | none                 | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -625,6 +625,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 346/549 verified sections, 133 ready to run now.
+Progress: 347/549 verified sections, 132 ready to run now.
 
 Checklist: 2688/3422 items completed (includes Commit items).
