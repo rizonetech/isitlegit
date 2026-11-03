@@ -6,7 +6,7 @@ from pathlib import Path
 
 MEDIA = Path(__file__).resolve().parent.parent
 SCRIPT = MEDIA / "tools" / "check-pdf-facts.mjs"
-SPEC = MEDIA / "data" / "pdf-facts.json"
+SPEC = MEDIA / "data" / "pdf-sources.json"
 
 
 class CheckPdfFactsTest(unittest.TestCase):

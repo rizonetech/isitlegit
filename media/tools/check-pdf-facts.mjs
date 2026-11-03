@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_SPEC = path.resolve(HERE, "../data/pdf-facts.json");
+const DEFAULT_SPEC = path.resolve(HERE, "../data/pdf-sources.json");
 const DEFAULT_DIR = process.env.MEDIA_SOURCES_DIR || path.join(os.homedir(), "isitlegit-data", "media", "sources");
 
 export async function extractPageText(pdfBytes, pageNumber) {

@@ -215,8 +215,8 @@ A 60 to 90 second Judge Getting-Started walkthrough video rendered in Remotion (
 
 1. Build and render `media/out/04-judge-getting-started.mp4` at 1920 x 1080 (60 to 90 s). Done when: the MP4 renders and covers both the live web quickstart and `pnpm judge:demo`.
 
-- [ ] Build the Judge Getting-Started Remotion composition in `media/src/videos/` combining live Playwright captures of `isitlegit.co.za` (`?trace=1`, `/eval`, Hugging Face) and the `pnpm judge:demo` local replay terminal and browser view, with Brian's voiceover and the abstract animated background. Done when: `cd media && pnpm render:04` writes `media/out/04-judge-getting-started.mp4`.
-- [ ] Commit: `media: judge getting-started video (D10 T01 §8)`
+- [x] Build the Judge Getting-Started Remotion composition in `media/src/videos/` combining live Playwright captures of `isitlegit.co.za` (`?trace=1`, `/eval`, Hugging Face) and the `pnpm judge:demo` local replay terminal and browser view, with Brian's voiceover and the abstract animated background. Done when: `cd media && pnpm render:04` writes `media/out/04-judge-getting-started.mp4`.
+- [x] Commit: `media: judge getting-started video (D10 T01 §8)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/04-judge-getting-started.mp4` prints `1920,1080`.
 
