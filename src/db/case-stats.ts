@@ -32,16 +32,22 @@ export function median(values: number[]): number | null {
 }
 
 // The counts of the `weeks` weeks ending with the one holding `now`, newest first, from one scoped read.
-export async function weeklyCounts(db: D1Database, orgId: string, now: Date, weeks: number): Promise<WeekCounts[]> {
+export async function weeklyCounts(
+  db: D1Database,
+  orgId: string,
+  now: Date,
+  weeks: number,
+  endExclusive?: string,
+): Promise<WeekCounts[]> {
   const current = Date.parse(weekStart(now));
   const from = new Date(current - (weeks - 1) * WEEK_MS).toISOString();
   const rowsStatement = db
     .prepare(
       `SELECT c.id, c.created_at, c.verdict, c.status, v.created_at AS decided_at
        FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
-       WHERE c.org_id = ? AND c.created_at >= ?`,
+       WHERE c.org_id = ? AND c.created_at >= ?${endExclusive ? " AND c.created_at < ?" : ""}`,
     )
-    .bind(orgId, from);
+    .bind(...(endExclusive ? [orgId, from, endExclusive] : [orgId, from]));
   const out: WeekCounts[] = Array.from({ length: weeks }, (_, i) => ({
     weekStart: new Date(current - i * WEEK_MS).toISOString(),
     checked: 0,
@@ -124,7 +130,8 @@ export async function periodWeeks(db: D1Database, orgId: string, fromDate: strin
   const fromMonday = Date.parse(weekStart(new Date(`${fromDate}T00:00:00+02:00`)));
   const toMonday = Date.parse(weekStart(new Date(`${toDate}T00:00:00+02:00`)));
   const count = Math.round((toMonday - fromMonday) / WEEK_MS) + 1;
-  const weeks = await weeklyCounts(db, orgId, new Date(`${toDate}T12:00:00+02:00`), count);
+  const endExclusive = new Date(toMonday + WEEK_MS).toISOString();
+  const weeks = await weeklyCounts(db, orgId, new Date(`${toDate}T12:00:00+02:00`), count, endExclusive);
   const todayMonday = Date.parse(weekStart(new Date()));
   return weeks
     .filter((w) => {
