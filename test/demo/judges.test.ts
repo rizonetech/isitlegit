@@ -4,6 +4,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import manifest from "../../data/demo/judge/fixtures.json";
 import { checkJudges, JUDGE_CODE_LABEL, type JudgeCaseSpec, markJudgeOrg } from "../../src/demo/judges";
+import { call, stubSmtp2go } from "../auth/helpers";
 
 const db = env.DB;
 const ORG = "judge-org";
@@ -84,5 +85,89 @@ describe("checkJudges", () => {
     expect(problems["fynbos-impersonation"]).toContain("safe");
     expect(problems["genuine-supplier"]).toContain("missing");
     expect(problems["director-voice-note"]).toContain("missing");
+  });
+});
+
+describe("judge signup hook and pack", () => {
+  async function insertInviteCode(code: string, label: string) {
+    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code)))]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 86_400_000).toISOString();
+    await db
+      .prepare(
+        "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, 50, 0, ?, ?)",
+      )
+      .bind(crypto.randomUUID(), hash, label, expiresAt, now.toISOString())
+      .run();
+  }
+
+  it("redeems a judge-labelled code and marks the fresh organisation with its five cases started, while an ordinary code leaves its organisation unmarked with none", async () => {
+    const judgeCode = `JUDGE-${crypto.randomUUID().slice(0, 8)}`;
+    const ordinaryCode = `ORDINARY-${crypto.randomUUID().slice(0, 8)}`;
+    await insertInviteCode(judgeCode, JUDGE_CODE_LABEL);
+    await insertInviteCode(ordinaryCode, "ordinary-pilot");
+
+    const judgeEmail = `judge-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const ordinaryEmail = `member-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const smtp = stubSmtp2go();
+    try {
+      const judgeRes = await call("/api/auth/sign-up/invite-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: judgeEmail,
+          code: judgeCode,
+          organizationName: "Judge Panel Org",
+          consent: true,
+        }),
+      });
+      expect(judgeRes.status).toBe(201);
+
+      const ordinaryRes = await call("/api/auth/sign-up/invite-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: ordinaryEmail,
+          code: ordinaryCode,
+          organizationName: "Ordinary Pilot Org",
+          consent: true,
+        }),
+      });
+      expect(ordinaryRes.status).toBe(201);
+    } finally {
+      smtp.restore();
+    }
+
+    const judgeOrg = await db
+      .prepare(
+        'SELECT o.id, o.metadata FROM "organization" o JOIN "member" m ON m."organizationId" = o.id JOIN "user" u ON u.id = m."userId" WHERE u.email = ?',
+      )
+      .bind(judgeEmail)
+      .first<{ id: string; metadata: string | null }>();
+    expect(judgeOrg).toBeTruthy();
+    expect(JSON.parse(judgeOrg?.metadata ?? "{}")).toEqual({ judgeDemo: true });
+
+    const judgeChecks = await checkJudges(db, judgeOrg?.id ?? "", specs);
+    expect(judgeChecks).toHaveLength(5);
+    for (const c of judgeChecks) {
+      expect(c.caseId, c.name).toBeTruthy();
+      expect(c.status, c.name).not.toBeNull();
+    }
+
+    const ordinaryOrg = await db
+      .prepare(
+        'SELECT o.id, o.metadata FROM "organization" o JOIN "member" m ON m."organizationId" = o.id JOIN "user" u ON u.id = m."userId" WHERE u.email = ?',
+      )
+      .bind(ordinaryEmail)
+      .first<{ id: string; metadata: string | null }>();
+    expect(ordinaryOrg).toBeTruthy();
+    expect(ordinaryOrg?.metadata ?? null).toBeNull();
+    const ordinaryCases = await db
+      .prepare("SELECT id FROM cases WHERE org_id = ?")
+      .bind(ordinaryOrg?.id ?? "")
+      .all();
+    expect(ordinaryCases.results).toHaveLength(0);
   });
 });
