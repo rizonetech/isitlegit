@@ -38,6 +38,7 @@ track: day-4
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 | 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
+| 7 | §7 | Compared reference in logo_match detail | §3 | [ ] |
 
 ## 1. SAM 3.1 client, parser and crops
 
@@ -237,6 +238,26 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 - [ ] Commit: `vision: ablation flag in segmentation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/step.test.ts` passes, and fails if a flagged case sends a SAM request.
+
+## 7. Compared reference in logo_match detail
+
+Filed 2026-11-03 from the app lane's D07 T03 §14 plan review, relayed by the coordinator: a report card must draw the exact reference a crop was judged against, not the brand's current reference. The compared reference's store key and hash therefore ride in the `vision.logo_match` evidence detail; until this lands, the app card draws the brand's current reference beside the crop, labelled as the reference, with the stored differences carrying the comparison.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Record the compared reference in the judgement evidence. Done when: every `checked: true` `vision.logo_match` detail carries the reference store key and hash it was judged against.
+2. Prove it at the step. Done when: a case read back from storage names the exact reference key its logo crop was compared with.
+
+- [ ] Extend `logoMatchItem` in `src/vision/logo-compare.ts` to take the compared reference (`key` and `sha256` from `ReferenceLogo` in `src/vision/logo-reference.ts`) and write `reference_key` and `reference_sha256` into the evidence `detail`. Done when: `test/vision/logo-compare.test.ts` asserts both fields on a same-brand and a different-brand item. Cheaper substitute: the reference slug alone, refused because two generations can share a slug while the key and hash name the exact stored object.
+- [ ] Pass the loaded reference through in `src/vision/step.ts` where `logoMatchItem` is called after `compareLogo`, so the recorded key is the object actually compared. Done when: `test/vision/step-read.test.ts` reads back a `vision.logo_match` item whose `reference_key` is the seeded reference's key. Cheaper substitute: recording the brand name only, refused because it cannot identify which stored reference was drawn.
+- [ ] Keep un-compared items honest: `logoNotComparedItem` in `src/vision/logo-compare.ts` gains no `reference_key`, because `checked: false` means no comparison happened. Done when: `test/vision/logo-compare.test.ts` asserts the field's absence on a not-compared item.
+- [ ] Commit: `vision: record compared reference in logo match detail`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts test/vision/step-read.test.ts` passes, and fails if a compared item lacks the reference key it was judged against.
 
 ## Verification
 
