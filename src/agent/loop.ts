@@ -74,20 +74,25 @@ export function fixedActionsFor(evidence: readonly Evidence[]): string[] {
   const request = evidence.find((e) => e.check === "voice.request");
   const identity = evidence.find((e) => e.check === "voice.claimed_identity");
   const asked = typeof request?.detail.request === "string" ? request.detail.request : null;
-  const bankItems = evidence.filter(
-    (e) => (e.check === "agent.ledger_lookup" && e.detail.match === false) || e.check === "invoice.bank_changed",
+  // Every bank-change trigger in evidence order (D04 T01 §15): each ledger mismatch and every critical invoice
+  // item, each carrying its fixed action with the ledger's own number its producer put in its detail (§12),
+  // never a number from the mail. Identical actions deduplicate to one, and when any numbered action stands the
+  // generic numberless one is suppressed (the §12 numbered-wins rule), so a numberless trigger beside a numbered
+  // one yields the numbered action.
+  const triggers = evidence.filter(
+    (e) =>
+      (e.check === "agent.ledger_lookup" && e.detail.match === false) ||
+      (e.check.startsWith("invoice.") && e.severity === "critical"),
   );
-  // Any trigger carrying a number wins over one that does not (round 1): two lookups, or a ledger and an
-  // invoice finding, can disagree on whether the supplier's record holds a phone.
-  const bankItem = bankItems.find((e) => typeof e.detail.phone === "string") ?? bankItems[0];
-  const bank = asked === "change_bank_details" || bankItem !== undefined;
+  const perTrigger = triggers.map((e) =>
+    bankChangeAction(typeof e.detail.phone === "string" ? e.detail.phone : undefined),
+  );
+  const numbered = perTrigger.filter((a) => a !== bankChangeAction());
+  const bankActions = [...new Set(numbered.length ? numbered : perTrigger)];
+  if (!triggers.length && asked === "change_bank_details") bankActions.push(bankChangeAction());
   const pop = evidence.some((e) => e.check === "document.proof_of_payment");
   const name = typeof identity?.detail.identity === "string" ? identity.detail.identity : null;
-  // The ledger's own number for the supplier, carried in the trigger item's detail by its producer
-  // (D04 T01 §12); never a number from the mail.
-  const phone = typeof bankItem?.detail.phone === "string" ? bankItem.detail.phone : null;
-  const out: string[] = [];
-  if (bank) out.push(bankChangeAction(phone ?? undefined));
+  const out: string[] = [...bankActions];
   if (pop) out.push(POP_ACTION);
   if ((asked === "pay" || asked === "change_bank_details") && name) out.push(callBackAction(name));
   return out;

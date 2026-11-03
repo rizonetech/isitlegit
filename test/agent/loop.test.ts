@@ -1,13 +1,13 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { type AgentContext, runAgent } from "../../src/agent/loop";
+import { type AgentContext, fixedActionsFor, runAgent } from "../../src/agent/loop";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { getVerdict, storeVerdict } from "../../src/db/verdicts";
 import { readArtefact, type Store } from "../../src/intake/store";
-import { bankChangeAction, callBackAction } from "../../src/invoice/fixed-actions";
+import { bankChangeAction, callBackAction, POP_ACTION } from "../../src/invoice/fixed-actions";
 import { importSuppliers, siteOf } from "../../src/invoice/ledger";
 import { checkImport } from "../../src/invoice/ledger-csv";
 import { d1Budget } from "../../src/meta/budget";
@@ -410,6 +410,93 @@ describe("caseSummary and finalisation edges", () => {
     expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok && stored.value.actions[0]).toBe(bankChangeAction("+27115550123"));
+  });
+
+  it("carries a fixed action for every critical invoice trigger, deduplicated (D04 T01 §15)", async () => {
+    const ev = (
+      check: string,
+      severity: "critical" | "high" | "info",
+      detail: Record<string, string | boolean | null> = {},
+    ): Parameters<typeof fixedActionsFor>[0][number] => ({
+      id: "E1",
+      check,
+      severity,
+      summary: "Seen.",
+      detail,
+      artefacts: [],
+    });
+    const numbered = bankChangeAction("+27115550123");
+    const other = bankChangeAction("+27215550124");
+    // Two critical items with distinct numbers yield two actions, in evidence order.
+    expect(
+      fixedActionsFor([
+        ev("invoice.bank_changed", "critical", { phone: "+27115550123" }),
+        ev("invoice.supplier_domain_changed", "critical", { phone: "+27215550124" }),
+      ]),
+    ).toEqual([numbered, other]);
+    // The registry bank_changed and a ledger mismatch count too; identical numbers deduplicate to one.
+    expect(
+      fixedActionsFor([
+        ev("invoice.bank_changed", "critical", { phone: "+27115550123", against: "registry" }),
+        ev("agent.ledger_lookup", "critical", { match: false, phone: "+27115550123" }),
+      ]),
+    ).toEqual([numbered]);
+    // A numberless trigger beside a numbered one yields the numbered action alone, in either order; the
+    // change-language item carries no phone, so it is the numberless one here.
+    expect(
+      fixedActionsFor([
+        ev("invoice.change_language", "critical"),
+        ev("invoice.bank_changed", "critical", { phone: "+27115550123" }),
+      ]),
+    ).toEqual([numbered]);
+    expect(
+      fixedActionsFor([
+        ev("invoice.bank_changed", "critical", { phone: "+27115550123" }),
+        ev("invoice.change_language", "critical"),
+      ]),
+    ).toEqual([numbered]);
+    // All numberless triggers yield the one generic action; noncritical items and matched lookups add nothing.
+    expect(
+      fixedActionsFor([
+        ev("invoice.change_language", "critical"),
+        ev("invoice.comparison_unavailable", "info"),
+        ev("agent.ledger_lookup", "info", { match: true }),
+      ]),
+    ).toEqual([bankChangeAction()]);
+    // A voice bank-change request with no trigger item keeps its generic action, and proof-of-payment items
+    // still yield one POP action after the bank actions.
+    expect(
+      fixedActionsFor([
+        ev("voice.request", "info", { request: "change_bank_details" }),
+        ev("document.proof_of_payment", "high"),
+        ev("document.proof_of_payment", "high"),
+      ]),
+    ).toEqual([bankChangeAction(), POP_ACTION]);
+    // Stored read-back on the agent and fallback paths carries the same two actions.
+    const caseId = await newCase([
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+      draft("invoice.supplier_domain_changed", "critical", "The invoice domain differs from the ledger.", {
+        phone: "+27215550124",
+      }),
+    ]);
+    const m = model([() => message("done"), () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] })]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.actions.slice(0, 2)).toEqual([numbered, other]);
+    const stored = await getVerdict(env.DB, caseId);
+    expect(stored?.ok && stored.value.actions.slice(0, 2)).toEqual([numbered, other]);
+    const fallbackId = await newCase([
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+      draft("invoice.supplier_domain_changed", "critical", "The invoice domain differs from the ledger.", {
+        phone: "+27215550124",
+      }),
+    ]);
+    const fallback = await runAgent(agent(fallbackId, model([], 0).fetchStub).ctx, fallbackId);
+    expect(fallback.source).toBe("rules");
+    expect(fallback.actions.slice(0, 2)).toEqual([numbered, other]);
   });
 
   it("reads real stored headers and only visible HTML text", async () => {

@@ -540,6 +540,23 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
     });
   });
 
+  it("carries every critical invoice item's action on the rule-only branch (D04 T01 §15)", async () => {
+    const { id } = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+      draft("invoice.supplier_domain_changed", "critical", "The invoice domain differs from the ledger.", {
+        phone: "+27215550124",
+      }),
+    ]);
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view.actions.slice(0, 2)).toEqual([
+      "Confirm by phoning the supplier on +27115550123, the number in your records, never one from this email.",
+      "Confirm by phoning the supplier on +27215550124, the number in your records, never one from this email.",
+    ]);
+  });
+
   it("keeps the confidence cap without headers and the warning when a check could not run", async () => {
     const { id } = await ablatedCase(
       "no-agent-reasoning",
