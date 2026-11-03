@@ -51,7 +51,7 @@ track: day-6
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
-| 15 | §15 | Fixed action on every critical invoice item | §12 | [ ] |
+| 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -460,6 +460,9 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3)
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if a second critical invoice item yields no action of its own.
 
 **Corrected 2026-11-03** (plan review, 4 P2, `docs/reviews/04-agent/D04-T01-s15.md`): (1) the per-item rule is exact: triggers in evidence order each yield `bankChangeAction(phone)` for a string `detail.phone`, else the numberless action; identical strings deduplicate to one (distinct phones two actions, identical phones one, all-numberless one generic); when any numbered action stands, the generic numberless action is suppressed (the §12 numbered-wins rule), and surviving bank actions keep first-occurrence evidence order, followed by the proof-of-payment action, then the voice call-back. (2) Triggers are every critical `invoice.*` item (`invoice.bank_changed` from the ledger and the registry, `invoice.supplier_domain_changed`, `invoice.change_language`, whose detail carries no phone) and each `agent.ledger_lookup` mismatch; a noncritical invoice item and a matched lookup add nothing, a voice `change_bank_details` request with no trigger item keeps its generic action, and several proof-of-payment items still yield one `POP_ACTION`. (3) Overflow: fixed actions occupy the first slots of the verdict's existing ten-action stored cap (`src/db/verdicts.ts`), so a model or rule action never displaces one; past ten distinct fixed actions the earliest stand and the rest are cut by the paths' existing slice, which the tests state rather than hide. No schema change: the consumer's cases carry a handful of critical items, and raising the stored cap is a report-shape decision for its owner. (4) Read-back covers all three paths that compose fixed actions: the successful agent answer, the forced fallback (both `src/agent/loop.ts`), and the Workflow's rule-only branch (`src/pipeline/analysis-workflow.ts`, which is where fixed actions join a rule verdict), each storing the same fixed-action prefix.
+
+> **Verified:** 2026-11-03 | §15 | 8cc033b3ead34dcb30340c5fec068d99ebda5dd4
+> **Review:** `docs/reviews/d04-t01-s15.json`
 
 ## Verification
 
