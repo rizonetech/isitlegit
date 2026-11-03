@@ -2,6 +2,10 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { d1Budget } from "../../src/meta/budget";
 import type { StructuredContext } from "../../src/meta/structured";
+import { type MonitorDeps, monitorOrg } from "../../src/monitor/run";
+import { monitorDeps } from "../../src/monitor/workflow";
+import { ablateKey } from "../../src/pipeline/ablate";
+import { setIdentity } from "../../src/trust/identity";
 import { DEPLOYED_MODEL, TAIL_MINUTES } from "../../src/vision/glimmer-caps";
 import { d1Exec, dayMinutes, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
 import type { WakeCtx } from "../../src/vision/glimmer-wake";
@@ -16,6 +20,7 @@ import {
   screenPage,
 } from "../../src/vision/screen";
 import { fakeJpeg } from "../fixtures/jpeg";
+import { protectableOrg } from "../trust/helpers";
 
 // The page screener (D03 T04 §1): Loupe through a stand-in Fireworks on the real runtime ledger (§14) and wake (§15),
 // Spark through the real Meta client and budget on a stand-in transport.
@@ -401,5 +406,254 @@ describe("confidence escalation (§45)", () => {
       escalation: "spark-unsure",
       glimmer_reason: "deployment_missing",
     });
+  });
+});
+
+describe("no-screening ablation (D03 T02 §6)", () => {
+  const UNSURE_BENIGN = { ...BENIGN, confidence: 0.5 };
+  const UNSURE_LURE = { ...LURE, confidence: 0.5 };
+  const SURE_BENIGN = { ...BENIGN, confidence: 0.1 };
+
+  it("skips Loupe wake and screening on no-screening, and uses Loupe for other flags or a failed reader", async () => {
+    const fw = fireworks([() => completion(JSON.stringify(LURE))]);
+    const session = await openGlimmer(fw.ctx({ ablateFlag: async () => "no-screening" }));
+    expect(session.burst).toBeNull();
+    expect(session.state).toEqual({ down: "ablated" });
+    expect(fw.sent).toHaveLength(0);
+    expect(await findBurst(ledger, "monitor-run-7")).toBeNull();
+
+    const meta = spark(() => metaText(JSON.stringify(LURE)));
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({
+      ok: true,
+      screen: { ...LURE, screener: "spark" },
+      glimmer_reason: "ablated",
+      ablated: "no-screening",
+      tier: "spark",
+      escalation: null,
+    });
+    expect(got.ok && got.spark_calls).toHaveLength(1);
+    expect(fw.sent).toHaveLength(0);
+    expect(await closeGlimmer(session)).toBeNull();
+
+    // Non-matching flags, null and a throwing reader all wake and screen on Loupe as usual.
+    for (const reader of [
+      async () => "no-sam" as const,
+      async () => "no-walkthrough" as const,
+      async () => null,
+      async () => {
+        throw new Error("kv down");
+      },
+    ]) {
+      await db.prepare("DELETE FROM glimmer_runtime").run();
+      const fwOk = fireworks([() => completion("p"), () => completion(JSON.stringify(BENIGN))]);
+      const open = await openGlimmer(fwOk.ctx({ ablateFlag: reader }));
+      const out = await screenPage(PAGE, open, spark(() => metaText(JSON.stringify(LURE))).ctx, "monitor-run-7");
+      expect(out).toMatchObject({
+        ok: true,
+        screen: { ...BENIGN, screener: "glimmer" },
+        glimmer_reason: null,
+        tier: "glimmer",
+      });
+      expect("ablated" in out).toBe(false);
+      expect(fwOk.sent).toHaveLength(2);
+    }
+  });
+
+  it("escalates an unsure Spark answer under no-screening with the two-call ceiling, and keeps failures failed without Loupe fallback", async () => {
+    const fw = fireworks([() => completion(JSON.stringify(LURE))]);
+    const session = await openGlimmer(fw.ctx({ ablateFlag: async () => "no-screening" }));
+    const meta = spark(
+      () => metaText(JSON.stringify(UNSURE_BENIGN)),
+      () => metaText(JSON.stringify(UNSURE_LURE)),
+      () => metaText(JSON.stringify(SURE_BENIGN)),
+    );
+    const escalated = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(escalated).toMatchObject({
+      ok: true,
+      screen: { ...UNSURE_LURE, screener: "spark" },
+      glimmer_reason: "ablated",
+      ablated: "no-screening",
+      tier: "spark-second",
+      escalation: "spark-unsure",
+    });
+    expect(meta.bodies).toHaveLength(2);
+    expect(escalated.ok && escalated.spark_calls).toHaveLength(2);
+    expect(escalated.ok && new Set(escalated.spark_calls.map((c) => c.callId)).size).toBe(2);
+    expect(fw.sent).toHaveLength(0);
+
+    // Invalid schema output on pass 1 fails without Loupe fallback.
+    const invalid = await screenPage(PAGE, session, spark(() => metaText('{"lure": "maybe"}')).ctx, "monitor-run-7");
+    expect(invalid).toMatchObject({
+      ok: false,
+      glimmer_reason: "ablated",
+      spark_reason: "output-invalid",
+      ablated: "no-screening",
+    });
+    expect(!invalid.ok && invalid.spark_calls).toHaveLength(1);
+
+    // Provider 500 fails without Loupe fallback.
+    const serverErr = await screenPage(
+      PAGE,
+      session,
+      spark(() => new Response(JSON.stringify({ error: { message: "boom" } }), { status: 500 })).ctx,
+      "monitor-run-7",
+    );
+    expect(serverErr).toMatchObject({
+      ok: false,
+      glimmer_reason: "ablated",
+      spark_reason: "model-server",
+      ablated: "no-screening",
+    });
+    expect(!serverErr.ok && serverErr.spark_calls).toHaveLength(1);
+
+    // Budget refusal fails without Loupe fallback.
+    await db
+      .prepare(
+        "INSERT INTO model_spend (id, at, day, source, caller, model, attempt, estimate_usd, state) VALUES ('cap-ablate', ?1, ?2, 'worker', 't', 'muse-spark-1.3', 1, 1000, 'reserved')",
+      )
+      .bind(new Date().toISOString(), new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 10))
+      .run();
+    const budgetErr = await screenPage(PAGE, session, spark(() => metaText(JSON.stringify(LURE))).ctx, "monitor-run-7");
+    expect(budgetErr).toEqual({
+      ok: false,
+      glimmer_reason: "ablated",
+      spark_reason: "budget",
+      spark_calls: [],
+      ablated: "no-screening",
+    });
+    expect(fw.sent).toHaveLength(0);
+  });
+
+  it("wires ablate:<orgId> through monitorDeps and monitorOrg with org isolation, flag clearing, and no Loupe fallback on Spark failure", async () => {
+    const kv = (env as unknown as Env).CACHE;
+    const tag = crypto.randomUUID().slice(0, 6);
+    const domainA = `fynbos-ablate-${tag}.co.za`;
+    const orgA = await protectableOrg(domainA, `accounts@${domainA}`, `Fynbos A ${tag}`);
+    await setIdentity(db, orgA, "owner", {
+      displayNames: ["Fynbos A"],
+      financeContact: `accounts@${domainA}`,
+      protected: true,
+    });
+    const domainB = `proteas-ablate-${tag}.co.za`;
+    const orgB = await protectableOrg(domainB, `accounts@${domainB}`, `Proteas B ${tag}`);
+    await setIdentity(db, orgB, "owner", {
+      displayNames: ["Proteas B"],
+      financeContact: `accounts@${domainB}`,
+      protected: true,
+    });
+
+    const hostA1 = `fynbos-ablate-${tag}.com`;
+    const hostA2 = `fynbos-ablate-${tag}.net`;
+    const hostB1 = `proteas-ablate-${tag}.com`;
+    const seedOwed = async (orgId: string, host: string, capturedAt: string) => {
+      const prefix = `monitor/${orgId}/${host}/${capturedAt}/`;
+      await env.ARTEFACTS.put(`${prefix}screenshot.jpg`, fakeJpeg(640, 480, 30_000));
+      await env.ARTEFACTS.put(`${prefix}text.txt`, `Sign in to ${host}. ${"Ordinary freight copy. ".repeat(12)}`);
+      await env.ARTEFACTS.put(
+        `${prefix}signals.json`,
+        JSON.stringify({
+          inputs: 2,
+          passwords: 1,
+          forms: 1,
+          iframes: 0,
+          components: 0,
+          hidden: 0,
+          text: `Sign in to ${host}`,
+        }),
+      );
+      const h64 = "a".repeat(64);
+      await db
+        .prepare(
+          `INSERT INTO monitor_hosts (org_id, domain, resolves, dns_hash, captured_at, capture_key, captured_dns_hash, first_seen, last_seen)
+           VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (org_id, domain) DO UPDATE SET captured_at = excluded.captured_at, capture_key = excluded.capture_key, screen_failures = 0`,
+        )
+        .bind(orgId, host, h64, capturedAt, prefix, h64, capturedAt, capturedAt)
+        .run();
+    };
+    const capturedAt = "2026-11-03T06:00:00.000Z";
+    await seedOwed(orgA, hostA1, capturedAt);
+    await seedOwed(orgB, hostB1, capturedAt);
+
+    const fwSent: string[] = [];
+    const fwFetch = (async (input: RequestInfo | URL) => {
+      fwSent.push(String(input));
+      if (fwSent.length === 1) return completion("p");
+      return completion(JSON.stringify(BENIGN));
+    }) as typeof fetch;
+
+    let sparkShouldFail = false;
+    const sparkFetch = (async () => {
+      if (sparkShouldFail) return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
+      return metaText(JSON.stringify(BENIGN));
+    }) as typeof fetch;
+
+    const fullEnv = { ...(env as unknown as Env), ...FW, ...META } as Env;
+    const makeDeps = (runId: string): MonitorDeps => ({
+      ...monitorDeps(fullEnv, runId, {
+        fetcher: fwFetch,
+        sparkFetch,
+        now: () => Date.parse("2026-11-03T07:00:00Z"),
+      }),
+      resolve: async () => ({ status: "none" }),
+      capture: async () => {
+        throw new Error("no capture owed");
+      },
+      now: () => new Date("2026-11-03T07:00:00Z"),
+    });
+
+    await kv.put(ablateKey(orgA), "no-screening");
+    try {
+      // Flagged orgA screens on Spark with glimmer_reason = "ablated", zero Fireworks calls, and no runtime burst.
+      const sumA = await monitorOrg(makeDeps(`run-${orgA}-1`), orgA, `run-${orgA}-1`);
+      expect(sumA.screened).toBe(1);
+      expect(fwSent).toHaveLength(0);
+      expect(await findBurst(ledger, `run-${orgA}-1`)).toBeNull();
+      const rowA1 = await db
+        .prepare("SELECT screener, glimmer_reason, tier FROM monitor_screens WHERE org_id = ? AND domain = ?")
+        .bind(orgA, hostA1)
+        .first<{ screener: string; glimmer_reason: string | null; tier: string }>();
+      expect(rowA1).toEqual({ screener: "spark", glimmer_reason: "ablated", tier: "spark" });
+
+      // Unflagged orgB is isolated: it wakes and screens on Loupe.
+      const sumB = await monitorOrg(makeDeps(`run-${orgB}-1`), orgB, `run-${orgB}-1`);
+      expect(sumB.screened).toBe(1);
+      expect(fwSent.length).toBeGreaterThan(0);
+      const rowB1 = await db
+        .prepare("SELECT screener, glimmer_reason, tier FROM monitor_screens WHERE org_id = ? AND domain = ?")
+        .bind(orgB, hostB1)
+        .first<{ screener: string; glimmer_reason: string | null; tier: string }>();
+      expect(rowB1).toEqual({ screener: "glimmer", glimmer_reason: null, tier: "glimmer" });
+
+      // Under no-screening, a Spark failure on orgA stays failed/partial with no screening row and no Loupe fallback.
+      await seedOwed(orgA, hostA2, "2026-11-03T06:30:00.000Z");
+      const fwBeforeFail = fwSent.length;
+      sparkShouldFail = true;
+      const sumFail = await monitorOrg(makeDeps(`run-${orgA}-fail`), orgA, `run-${orgA}-fail`);
+      expect(sumFail.outcome).toBe("partial");
+      expect(sumFail.screenFailed).toBe(1);
+      expect(sumFail.errors).toContain("screen:ablated/model-server");
+      expect(fwSent).toHaveLength(fwBeforeFail);
+      const rowA2Missing = await db
+        .prepare("SELECT screener FROM monitor_screens WHERE org_id = ? AND domain = ?")
+        .bind(orgA, hostA2)
+        .first();
+      expect(rowA2Missing).toBeNull();
+    } finally {
+      sparkShouldFail = false;
+      await kv.delete(ablateKey(orgA));
+    }
+
+    // Clearing ablate:<orgA> restores Loupe on the next run for the still-owed hostA2.
+    fwSent.length = 0;
+    const sumRestored = await monitorOrg(makeDeps(`run-${orgA}-restored`), orgA, `run-${orgA}-restored`);
+    expect(sumRestored.screened).toBe(1);
+    expect(fwSent.length).toBeGreaterThan(0);
+    const rowA2Restored = await db
+      .prepare("SELECT screener, glimmer_reason, tier FROM monitor_screens WHERE org_id = ? AND domain = ?")
+      .bind(orgA, hostA2)
+      .first<{ screener: string; glimmer_reason: string | null; tier: string }>();
+    expect(rowA2Restored).toEqual({ screener: "glimmer", glimmer_reason: null, tier: "glimmer" });
   });
 });
