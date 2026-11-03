@@ -860,6 +860,10 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 
 One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
 
+> **Started:** 2026-11-03T00:41:41Z
+
+**Corrected 2026-11-03 (checked against the tree):** the invite field becomes a several-line field taking up to 20 addresses separated by commas or new lines, one shared role. Each address goes through its own `invite-member` request, as today, so the allowlist and send key run per address. The answer is the Team page with one outcome per address (sent, not sent, unknown, refused with its reason), and a Retry button that resubmits only the addresses that did not go. A single address keeps today's one-address flow and messages.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Multi-address invite approved: comma or newline separated, up to 20 addresses per submit, one shared role, an outcome listed per address and only the failures retried (recorded in SPEC M7 first).
 

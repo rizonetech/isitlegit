@@ -857,6 +857,7 @@ Controls:
 - members: Members table. (Team)
 - roles: Role select and role descriptions. (Team)
 - invites: Invite by email; Resend and Revoke on pending invitations. (Team)
+- invite several: The invite field takes up to 20 addresses separated by commas or new lines with one shared role; the answer lists one outcome per address (sent, not sent, unknown, refused with its reason) with a Retry that resubmits only the addresses that did not go. (Team) (D07 T04 §22, operator decision 2026-11-02)
 - remove: Per member. (Team)
 
 States:
