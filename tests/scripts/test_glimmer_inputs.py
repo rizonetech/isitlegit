@@ -228,19 +228,26 @@ class ItemLedger(unittest.TestCase):
         bounded.note_inventory("row-a")
         with self.assertRaisesRegex(inputs.Refused, "bytes retained at once"):
             bounded.export("row-a")
-        # Allocation limit breached during write_items serialization.
-        tight_alloc = inputs.Limits(retained=10_000, allocation=50)
+        # Allocation limit breached during write_items serialization before building a 3,000-byte ledger (Round 1 finding 1).
+        tight_alloc = inputs.Limits(retained=50_000, allocation=1000)
         alloc_receipt = inputs.Receipt(tight_alloc)
-        alloc_receipt.note_inventory("row-a")
-        alloc_receipt.export("row-a")
+        for idx in range(60):
+            item_id = f"row-{idx:04d}"
+            alloc_receipt.note_inventory(item_id)
+            alloc_receipt.export(item_id)
+        before_retained = tight_alloc.retained
         with self.assertRaisesRegex(inputs.Refused, "allocation limit"):
             alloc_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertEqual(tight_alloc.retained, before_retained)
         self.assertEqual(list(self.dir.iterdir()), [])
-        # Within limits: writes both ITEMS.jsonl and ITEMS.inventory.jsonl.
-        ok = inputs.Receipt(inputs.Limits())
+        # Within limits: writes both ITEMS.jsonl and ITEMS.inventory.jsonl and releases all scratch retained bytes.
+        ok_limits = inputs.Limits()
+        ok = inputs.Receipt(ok_limits)
         ok.note_inventory("row-a")
         ok.export("row-a")
+        held_before_write = ok_limits.retained
         ok.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertEqual(ok_limits.retained, held_before_write)
         inv_lines = [json.loads(line) for line in (self.dir / inputs.INVENTORY_ITEMS).read_text().splitlines()]
         self.assertEqual(inv_lines, [{"inputs": "i" * 64}, {"item": "row-a"}])
 

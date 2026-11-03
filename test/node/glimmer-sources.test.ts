@@ -5,6 +5,8 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { readFreeze } from "../../scripts/glimmer/build-dataset.ts";
+import { captureProblem } from "../../scripts/glimmer/label-rules.ts";
+import { recoverHtmlEvidence } from "../../scripts/glimmer/source-pages.ts";
 import {
   type Frozen,
   freezeCollection,
@@ -965,6 +967,75 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
       writeFileSync(join(folder, "INPUTS.json"), JSON.stringify({ files: [{ name: "New_HTML.zip" }] }));
       await expect(migrateLineage(store, root)).rejects.toThrow(/other inputs than INPUTS\.json names/);
       writeFileSync(join(folder, "INPUTS.json"), JSON.stringify(manifest));
+
+      // Round 1 finding 2: migrateLineage preserves Python's {"inputs": ...}-only ITEMS.inventory.jsonl and refuses
+      // when ITEMS.jsonl names rejected item C while ITEMS.inventory.jsonl names rejected item B, without overwriting it.
+      const invWithB = `${[
+        { inputs: inputsDigest },
+        { item: "compphish-1" },
+        { item: "compphish-2" },
+        { item: "compphish-rejected-B" },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n")}\n`;
+      const ledgerWithC = `${[
+        { inputs: inputsDigest, rows: rowsSha },
+        { item: "compphish-1", outcome: "exported" },
+        { item: "compphish-2", outcome: "exported" },
+        { item: "compphish-rejected-C", outcome: "rejected", reason: "no html" },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n")}\n`;
+      writeFileSync(join(folder, "ITEMS.inventory.jsonl"), invWithB);
+      writeFileSync(join(folder, "ITEMS.jsonl"), ledgerWithC);
+      await expect(migrateLineage(store, root)).rejects.toThrow(/does not match ITEMS\.inventory\.jsonl/);
+      expect(readFileSync(join(folder, "ITEMS.inventory.jsonl"), "utf-8")).toBe(invWithB);
+
+      // Round 1 finding 3: recoverHtmlEvidence detects stylesheet-defined (<style>) full-screen image covers with
+      // challenge-vendor scripts, and migrateLineage refuses when a re-rendered page has a capture-problem wall.
+      const cssCoverHtml =
+        '<html><head><style>.cover { position: fixed; inset: 0; width: 100vw; height: 100vh; background-image: url("/bg.png"); }</style><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script></head><body><div class="cover"></div></body></html>';
+      const cssEvidence = recoverHtmlEvidence(cssCoverHtml, "");
+      expect(cssEvidence.challengeCover).toBe(true);
+      expect(captureProblem("Sign in", cssEvidence, { has_login_form: true, has_payment_form: false })).toBe(
+        "a bot challenge drawn over the page",
+      );
+
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${[{ inputs: inputsDigest }, { item: "compphish-1" }, { item: "compphish-2" }, { item: "compphish-3" }]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: rowsSha },
+          { item: "compphish-1", outcome: "exported" },
+          { item: "compphish-2", outcome: "exported" },
+          { item: "compphish-3", outcome: "rejected", reason: "no html" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      await expect(
+        migrateLineage(store, root, {
+          renderHtml: async () => ({
+            screenshot: shot,
+            text: "Sign in to your account",
+            has_login_form: false,
+            has_payment_form: false,
+            evidence: {
+              title: "Verify you are human",
+              overlays: "",
+              captcha: false,
+              consentWall: false,
+              challengeCover: true,
+              wall: true,
+            },
+          }),
+        }),
+      ).rejects.toThrow(/capture-problem wall/);
 
       // Removing a source cleans ITEMS.import.jsonl alongside marking IMPORT.json incomplete.
       expect(removeSourceFromStore(store, "compphish")).toBe(1);

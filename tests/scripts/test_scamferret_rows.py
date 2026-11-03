@@ -92,7 +92,7 @@ class ScamFerretRows(unittest.TestCase):
         self.assertEqual(receipt["inputs"], rows.inputs_module.verify(self.folder, rows.INPUT_FILES)[1])
         self.assertEqual(receipt["rows_sha256"], rows.inputs_module.file_digest(self.folder / "rows.jsonl"))
         self.assertEqual(sorted(p.name for p in self.folder.iterdir()),
-                         sorted(["INPUTS.json", "EXPORT.json", "ITEMS.jsonl", "rows.jsonl", rows.ARCHIVE]))
+                         sorted(["INPUTS.json", "EXPORT.json", "ITEMS.inventory.jsonl", "ITEMS.jsonl", "rows.jsonl", rows.ARCHIVE]))
         # The item ledger names all 4 pages met, the rejected one with its reason (§28 G3).
         ledger = [json.loads(l) for l in (self.folder / "ITEMS.jsonl").read_text().splitlines()]
         self.assertEqual(ledger[0], {"inputs": receipt["inputs"], "rows": receipt["rows_sha256"]})

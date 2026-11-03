@@ -353,14 +353,64 @@ export function recoverHtmlEvidence(
       .trim();
   const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
   const title = titleMatch ? stripTags(titleMatch[1] ?? "").slice(0, 500) : "";
-  const overlayMatches = [
-    ...html.matchAll(
-      /<([a-z0-9-]+)\b[^>]*\bstyle\s*=\s*["'][^"']*?\bposition\s*:\s*(?:fixed|absolute)\b[^"']*["'][^>]*>([\s\S]*?)<\/\1>/gi,
-    ),
+  const styleBlocks = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1] ?? "").join("\n");
+  const positionedRules: { selector: string; css: string }[] = [];
+  for (const ruleMatch of styleBlocks.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = (ruleMatch[1] ?? "").trim();
+    const css = (ruleMatch[2] ?? "").trim();
+    if (
+      /\bposition\s*:\s*(?:fixed|absolute)\b/i.test(css) &&
+      !/\b(?:display\s*:\s*none|visibility\s*:\s*hidden)\b/i.test(css)
+    ) {
+      positionedRules.push({ selector, css });
+    }
+  }
+  const selectorMatchesElement = (selector: string, tag: string, attrs: string): boolean => {
+    for (const part of selector.split(",").map((s) =>
+      s
+        .trim()
+        .replace(/::?(?:before|after)\b/gi, "")
+        .trim(),
+    )) {
+      if (!part) continue;
+      if (part.startsWith("#")) {
+        const id = part.slice(1).replace(/[^a-zA-Z0-9_-].*$/, "");
+        if (id && new RegExp(`\\bid\\s*=\\s*["']?${id}\\b`, "i").test(attrs)) return true;
+      } else if (part.startsWith(".")) {
+        const cls = part.slice(1).replace(/[^a-zA-Z0-9_-].*$/, "");
+        const classAttr = /\bclass\s*=\s*["']([^"']*)["']/i.exec(attrs)?.[1] ?? "";
+        if (cls && classAttr.split(/\s+/).includes(cls)) return true;
+      } else if (part.toLowerCase() === tag.toLowerCase()) {
+        return true;
+      }
+    }
+    return false;
+  };
+  const allElements = [
+    ...html.matchAll(/<([a-z0-9-]+)\b([^>]*)>([\s\S]*?)<\/\1>/gi),
+    ...html.matchAll(/<(img|canvas|svg|iframe|video|object|embed)\b([^>]*)\/?>/gi),
   ];
-  const overlays = overlayMatches
-    .map((m) => stripTags(m[2] ?? ""))
-    .filter((s) => s.length > 0)
+  const overlayElements: { raw: string; css: string; inner: string }[] = [];
+  for (const m of allElements) {
+    const raw = m[0] ?? "";
+    const tag = m[1] ?? "";
+    const attrs = m[2] ?? "";
+    const inner = m[3] ?? "";
+    if (/\b(?:hidden|display\s*:\s*none|visibility\s*:\s*hidden)\b/i.test(attrs)) continue;
+    const inlineMatch = /\bstyle\s*=\s*["']([^"']*?\bposition\s*:\s*(?:fixed|absolute)\b[^"']*)["']/i.exec(attrs);
+    const matchedRules = positionedRules.filter((r) => selectorMatchesElement(r.selector, tag, attrs));
+    if (inlineMatch || matchedRules.length > 0) {
+      const combinedCss = [inlineMatch?.[1] ?? "", ...matchedRules.map((r) => r.css)].join("; ");
+      overlayElements.push({ raw, css: combinedCss, inner });
+    }
+  }
+  const pseudoTexts: string[] = [];
+  for (const rule of positionedRules) {
+    for (const cm of rule.css.matchAll(/\bcontent\s*:\s*["']([^"']+)["']/gi)) {
+      if (cm[1]?.trim()) pseudoTexts.push(cm[1].trim());
+    }
+  }
+  const overlays = [...overlayElements.map((e) => stripTags(e.inner)).filter((s) => s.length > 0), ...pseudoTexts]
     .join("\n")
     .slice(0, 2000);
   const frames = [...html.matchAll(/<iframe\b([^>]*)>/gi)].map((m) => m[1] ?? "");
@@ -389,12 +439,17 @@ export function recoverHtmlEvidence(
     /<script\b[^>]*\bsrc\s*=\s*["'][^"']*(?:perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs|funcaptcha|cdn-cgi\/challenge-platform|challenges\.cloudflare\.com|geetest|kasada|\/TSPD\/|_bm\/|sec-cpt|recaptcha\/(?:api|enterprise))/i.test(
       html,
     );
-  const hasCover = overlayMatches.some(
-    (m) =>
-      /(?:width\s*:\s*100%|inset\s*:\s*0|left\s*:\s*0[^"']*right\s*:\s*0)/i.test(m[0] ?? "") &&
-      stripTags(m[2] ?? "").length < 40 &&
-      /(?:<img|<canvas|<svg|<iframe|<video|<object|<embed|background-image\s*:)/i.test(m[0] ?? ""),
-  );
+  const fullScreenCss = (css: string) =>
+    /(?:width\s*:\s*(?:100%|100vw|[6-9]\d\dpx|\d{4,}px)|inset\s*:\s*0|left\s*:\s*0[\s\S]*?right\s*:\s*0)/i.test(css) &&
+    /(?:height\s*:\s*(?:100%|100vh|[5-9]\d\dpx|\d{4,}px)|inset\s*:\s*0|top\s*:\s*0[\s\S]*?bottom\s*:\s*0)/i.test(css);
+  const hasCover =
+    overlayElements.some(
+      (e) =>
+        fullScreenCss(`${e.raw}; ${e.css}`) &&
+        stripTags(e.inner).length < 40 &&
+        (/(?:<img|<canvas|<svg|<iframe|<video|<object|<embed)/i.test(e.raw) ||
+          /background(?:-image)?\s*:\s*[^;]*url\(/i.test(e.css)),
+    ) || positionedRules.some((r) => fullScreenCss(r.css) && /background(?:-image)?\s*:\s*[^;]*url\(/i.test(r.css));
   const challengeCover = vendorScript && hasCover;
   const wall = wallShown({ title, text, overlays });
   return { title, overlays, captcha, consentWall, challengeCover, wall };

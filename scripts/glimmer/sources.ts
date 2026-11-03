@@ -42,7 +42,7 @@ import {
   writeImportItems,
 } from "./import-source.ts";
 import { assessCapture, majesticList, renderReceipt, saList } from "./render.ts";
-import { openTextReader, type RenderedHtml, recoverHtmlEvidence } from "./source-pages.ts";
+import { openTextReader, type RenderedHtml } from "./source-pages.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -572,12 +572,19 @@ export function readInventoryLedger(file: string): { header?: { inputs?: string;
     return parsed.item;
   });
   return {
-    ...(hasHeader ? { header: { inputs: first.inputs as string, rows: first.rows as string } } : {}),
+    ...(hasHeader
+      ? {
+          header: {
+            ...(typeof first.inputs === "string" ? { inputs: first.inputs } : {}),
+            ...(typeof first.rows === "string" ? { rows: first.rows } : {}),
+          },
+        }
+      : {}),
     items,
   };
 }
 
-export function writeInventoryLedger(file: string, header: { inputs: string; rows: string }, items: string[]): void {
+export function writeInventoryLedger(file: string, header: { inputs: string; rows?: string }, items: string[]): void {
   const temporary = `${file}.${process.pid}.tmp`;
   const written = `${[header, ...items.map((item) => ({ item }))].map((e) => JSON.stringify(e)).join("\n")}\n`;
   writeFileSync(temporary, written, "utf-8");
@@ -981,6 +988,17 @@ export async function migrateLineage(
         throw new Error(`${source}: converter ledger contains synthetic placeholder IDs; re-run converter`);
       }
 
+      if (existingInventoryLedger?.header) {
+        if (existingInventoryLedger.header.inputs && existingInventoryLedger.header.inputs !== receipt.inputs) {
+          throw new Error(`${source}: ITEMS.inventory.jsonl was made from other inputs than INPUTS.json names`);
+        }
+        if (existingInventoryLedger.header.rows && existingInventoryLedger.header.rows !== receipt.rows_sha256) {
+          throw new Error(`${source}: ITEMS.inventory.jsonl was made for other rows than EXPORT.json names`);
+        }
+      }
+
+      const rejectedReasons = Object.entries(receipt.rejected).filter(([, c]) => c > 0);
+      const rejectedTotal = rejectedReasons.reduce((sum, [, c]) => sum + c, 0);
       let converterEntries = existingConverterLedger?.entries;
       if (
         !existingConverterLedger ||
@@ -988,8 +1006,6 @@ export async function migrateLineage(
         existingConverterLedger.header?.rows !== receipt.rows_sha256 ||
         existingConverterLedger.entries.length !== receipt.met
       ) {
-        const rejectedReasons = Object.entries(receipt.rejected).filter(([, c]) => c > 0);
-        const rejectedTotal = rejectedReasons.reduce((sum, [, c]) => sum + c, 0);
         const entries: ConverterItemEntry[] = rowItems.map((r) => ({ item: r.item, outcome: "exported" }));
         if (receipt.sampled_out === 0 && rejectedTotal === 0 && entries.length === receipt.met) {
           converterEntries = entries;
@@ -1022,17 +1038,27 @@ export async function migrateLineage(
         );
       }
 
-      if (
-        converterEntries &&
-        (!existingInventoryLedger ||
-          existingInventoryLedger.header?.inputs !== receipt.inputs ||
-          existingInventoryLedger.header?.rows !== receipt.rows_sha256 ||
-          existingInventoryLedger.items.length !== converterEntries.length)
-      ) {
+      if (existingInventoryLedger) {
+        const invSet = new Set(existingInventoryLedger.items);
+        const convSet = new Set((converterEntries ?? []).map((e) => e.item));
+        if (
+          invSet.size !== existingInventoryLedger.items.length ||
+          invSet.size !== convSet.size ||
+          [...invSet].some((id) => !convSet.has(id))
+        ) {
+          throw new Error(
+            `${source}: ITEMS.jsonl (${convSet.size} items) does not match ITEMS.inventory.jsonl (${existingInventoryLedger.items.length} items); re-run converter`,
+          );
+        }
+      } else if (receipt.sampled_out === 0 && rejectedTotal === 0 && rowItems.length === receipt.met) {
         writeInventoryLedger(
           inventoryLedgerFile,
-          { inputs: receipt.inputs, rows: receipt.rows_sha256 },
-          converterEntries.map((e) => e.item),
+          { inputs: receipt.inputs },
+          rowItems.map((r) => r.item),
+        );
+      } else {
+        throw new Error(
+          `${source}: missing ITEMS.inventory.jsonl for source with non-exported items; re-run converter`,
         );
       }
 
@@ -1089,6 +1115,14 @@ export async function migrateLineage(
             continue;
           }
           const rendered = await renderHtml(readHtml(rowsFile, entry));
+          if (
+            rendered.evidence.wall ||
+            rendered.evidence.captcha ||
+            rendered.evidence.consentWall ||
+            rendered.evidence.challengeCover
+          ) {
+            throw new Error(`${source}: item ${item} rendered with a capture-problem wall; re-import ${source}`);
+          }
           const shotHash = createHash("sha256").update(rendered.screenshot).digest("hex");
           const textHash = createHash("sha256").update(rendered.text, "utf-8").digest("hex");
           const matched =
@@ -1127,12 +1161,13 @@ export async function migrateLineage(
         continue;
       }
 
-      // Recover HTML evidence for any page lacking evidence, and index HTML hashes when duplicate items need matching.
+      // Recover HTML evidence by rendering any page lacking evidence, and index HTML hashes when duplicate items need matching.
       const pagesMissingEvidence = new Set(pages.filter((p) => !p.evidence).map((p) => p.id));
       const needLedgerBuild = !existingImportLedger || existingImportLedger.entries.length !== receipt.exported;
       const recoveredEvidenceByPage = new Map<string, NonNullable<StoredPage["evidence"]>>();
       const htmlByItem = new Map<string, string>();
       if (pagesMissingEvidence.size > 0 || needLedgerBuild) {
+        const renderHtml = pagesMissingEvidence.size > 0 ? await getRenderHtml() : undefined;
         const indexed = await indexRows(rowsFile);
         const wantedPrimaryItems = new Map<string, StoredPage>();
         for (const p of pages) {
@@ -1143,9 +1178,19 @@ export async function migrateLineage(
             const html = readHtml(rowsFile, entry);
             if (needLedgerBuild) htmlByItem.set(entry.sha256, html);
             const primaryPage = wantedPrimaryItems.get(entry.sha256);
-            if (primaryPage && pagesMissingEvidence.has(primaryPage.id)) {
-              const text = readFileSync(join(dir, "pages", primaryPage.id, "text.txt"), "utf-8");
-              recoveredEvidenceByPage.set(primaryPage.id, recoverHtmlEvidence(html, text));
+            if (primaryPage && pagesMissingEvidence.has(primaryPage.id) && renderHtml) {
+              const rendered = await renderHtml(html);
+              if (
+                rendered.evidence.wall ||
+                rendered.evidence.captcha ||
+                rendered.evidence.consentWall ||
+                rendered.evidence.challengeCover
+              ) {
+                throw new Error(
+                  `${source}: stored page ${primaryPage.id} rendered with a capture-problem wall; re-import ${source}`,
+                );
+              }
+              recoveredEvidenceByPage.set(primaryPage.id, rendered.evidence);
             }
           }
         }
