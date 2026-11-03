@@ -349,6 +349,8 @@ const ownFailure = (event       ) => {
   form.dispatchEvent(new Event("busy:release"));
   return true;
 };
+let casesRecoverySeq = 0;
+let casesRecoveryAbort                         = null;
 const casesFailure = (name        , event       ) => {
   const el = event.target                  ;
   const inCases = el?.closest?.("#case-filters") ?? (el?.getAttribute?.("hx-target") === "#case-results" ? el : null);
@@ -373,27 +375,74 @@ const casesFailure = (name        , event       ) => {
   retry.className = "text-orange-text underline underline-offset-4";
   retry.textContent = "Try again";
   alert.appendChild(retry);
+  casesRecoveryAbort?.abort();
+  casesRecoveryAbort = null;
+  const seq = ++casesRecoverySeq;
   if (name === "htmx:sendError" && navigator.onLine !== false) {
-    void fetch(href, { credentials: "same-origin" })
+    const ctrl = new AbortController();
+    casesRecoveryAbort = ctrl;
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    const hxHeaders = form.closest("[hx-headers]")?.getAttribute("hx-headers") ?? null;
+    const headers                         = {};
+    if (hxHeaders) {
+      try {
+        const parsed = JSON.parse(hxHeaders)                          ;
+        if (parsed["x-cases-org"]) headers["x-cases-org"] = parsed["x-cases-org"];
+      } catch {}
+    }
+    void fetch(href, { credentials: "same-origin", headers, signal: ctrl.signal })
       .then(async (res) => {
+        if (seq !== casesRecoverySeq || ctrl.signal.aborted) return;
+        const redirect = res.headers.get("hx-redirect");
+        if (redirect) {
+          location.assign(redirect);
+          return;
+        }
+        if (res.redirected) {
+          location.assign(res.url);
+          return;
+        }
         if (!res.ok) return;
-        const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+        const text = await res.text();
+        if (seq !== casesRecoverySeq || ctrl.signal.aborted) return;
+        const doc = new DOMParser().parseFromString(text, "text/html");
+        const nextHeaders = doc.querySelector("[hx-headers]")?.getAttribute("hx-headers") ?? null;
+        if (hxHeaders && nextHeaders !== hxHeaders) {
+          location.assign(href);
+          return;
+        }
         const nextResults = doc.getElementById("case-results");
         const curResults = document.getElementById("case-results");
         if (nextResults && curResults) {
           curResults.replaceWith(nextResults);
+          for (const id of [
+            "case-count",
+            "case-stats",
+            "case-period-state",
+            "case-range-state",
+            "case-checker-state",
+          ]) {
+            const nextEl = doc.getElementById(id);
+            const curEl = document.getElementById(id);
+            if (nextEl && curEl) curEl.replaceWith(nextEl);
+          }
           document.getElementById("case-filter-error")?.remove();
           history.replaceState(history.state, "", href);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => clearTimeout(timer));
   }
   return true;
 };
 document.addEventListener("htmx:beforeRequest", (event) => {
   const el = event.target                  ;
-  if (el?.closest?.("#case-filters") || el?.getAttribute?.("hx-target") === "#case-results")
+  if (el?.closest?.("#case-filters") || el?.getAttribute?.("hx-target") === "#case-results") {
+    casesRecoverySeq++;
+    casesRecoveryAbort?.abort();
+    casesRecoveryAbort = null;
     document.getElementById("case-filter-error")?.remove();
+  }
 });
 const toggleOrgReveal = (el             ) => {
   const open = el.getAttribute("aria-expanded") === "true";

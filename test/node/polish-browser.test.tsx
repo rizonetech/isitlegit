@@ -100,8 +100,12 @@ let origin = "";
 
 const serverState = {
   delayMs: 0,
+  recoveryDelayMs: 0,
   fail: false,
   dropConnection: false,
+  dropHtmxOnly: false,
+  activeOrgId: "org-long",
+  seenOrgHeaders: [] as string[],
   pollFinished: false,
 };
 
@@ -109,8 +113,16 @@ async function handleRequest(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/cases") {
     const filters: CaseFilters = filtersFrom(url.searchParams);
+    const drawnFor = req.headers["x-cases-org"];
+    if (typeof drawnFor === "string") serverState.seenOrgHeaders.push(drawnFor);
     if (serverState.delayMs > 0 && req.headers["hx-request"] === "true") {
       await new Promise((done) => setTimeout(done, serverState.delayMs));
+    }
+    if (serverState.recoveryDelayMs > 0 && req.headers["hx-request"] !== "true") {
+      await new Promise((done) => setTimeout(done, serverState.recoveryDelayMs));
+    }
+    if (typeof drawnFor === "string" && drawnFor !== serverState.activeOrgId) {
+      return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     }
     if (serverState.fail) {
       return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
@@ -129,8 +141,11 @@ async function handleRequest(req: IncomingMessage): Promise<Response> {
     const singleOrg = url.searchParams.get("singleOrg") === "1";
     const { children: _, ...shell } = member({
       organization: {
-        id: "org-long",
-        name: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
+        id: serverState.activeOrgId,
+        name:
+          serverState.activeOrgId === "org-other"
+            ? "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated"
+            : "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
       },
       otherOrganizations: singleOrg
         ? []
@@ -283,7 +298,10 @@ beforeAll(async () => {
   browser = await launch();
   server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    if (serverState.dropConnection && url.pathname === "/cases") {
+    if (
+      url.pathname === "/cases" &&
+      (serverState.dropConnection || (serverState.dropHtmxOnly && req.headers["hx-request"] === "true"))
+    ) {
       req.socket.destroy();
       return;
     }
@@ -1110,6 +1128,33 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await page.locator("#case-filter-retry").click();
       await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(25);
       expect(page.url()).toContain("verdict=suspicious");
+
+      // 5e. Delayed recovery fetch is cancelled when a newer filter request starts, so stale recovery never overwrites newer filter results or URL
+      serverState.dropHtmxOnly = true;
+      serverState.recoveryDelayMs = 350;
+      await page.locator("fieldset label").filter({ hasText: /^Malicious$/ }).click();
+      await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
+      serverState.dropHtmxOnly = false;
+      await page.locator("fieldset label").filter({ hasText: /^Safe$/ }).click();
+      await expect
+        .poll(async () => page.locator("#case-results").textContent(), { timeout: 5000 })
+        .toContain("No cases match Safe");
+      await new Promise((done) => setTimeout(done, 450));
+      expect(await page.locator("#case-results").textContent()).toContain("No cases match Safe");
+      expect(page.url()).toContain("verdict=safe");
+      serverState.recoveryDelayMs = 0;
+
+      // 5f. Recovery fetch sends x-cases-org and honours the organisation-switch guard (reloading the whole page when the active org changed)
+      serverState.seenOrgHeaders = [];
+      serverState.activeOrgId = "org-other";
+      serverState.dropHtmxOnly = true;
+      await page.locator("fieldset label").filter({ hasText: /^All$/ }).click();
+      await expect
+        .poll(async () => page.locator("header p").textContent(), { timeout: 5000 })
+        .toContain("Holdings Incorporated");
+      expect(serverState.seenOrgHeaders).toContain("org-long");
+      serverState.dropHtmxOnly = false;
+      serverState.activeOrgId = "org-long";
 
       // 6. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
       serverState.pollFinished = false;
