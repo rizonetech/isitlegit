@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { LURE_TYPES } from "../../src/vision/page-screen.ts";
+import { LURE_TYPES, MAX_TEXT_CHARACTERS } from "../../src/vision/page-screen.ts";
 import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT, shingles } from "./build-dataset.ts";
 import type { ListEntry } from "./render.ts";
 
@@ -583,13 +583,17 @@ export function publishedDatasetPages(dir: string, version: string, missingIds: 
         const shot = new Uint8Array(Buffer.from(imgUrl.slice(comma + 1), "base64"));
         if (meta.screenshot && sha(shot) !== meta.screenshot)
           throw new Error(`published line for ${meta.id} does not match its meta screenshot sha256`);
-        const hostMatch = /^Host: ([^\n]+)\n\n/.exec(textPart);
-        const hostRaw = hostMatch?.[1] ?? "none";
-        const host = hostRaw === "none" ? null : hostRaw;
-        const blockMatch = /<<UNTRUSTED:page-text:[0-9a-f]{32}>>\n([\s\S]*)\n<<\/UNTRUSTED:page-text:[0-9a-f]{32}>>/.exec(
+        const blockMatch = /^Host: ([^\n]+)\n\n<<UNTRUSTED:page-text:([0-9a-f]{32})>>\n([\s\S]*)\n<<END:\2>>$/.exec(
           textPart,
         );
-        const text = blockMatch?.[1] ?? textPart;
+        if (!blockMatch) throw new Error(`published line for ${meta.id} has no valid untrusted text block`);
+        const hostRaw = blockMatch[1] ?? "none";
+        const host = hostRaw === "none" ? null : hostRaw;
+        const text = blockMatch[3] ?? "";
+        if (Array.from(text).length >= MAX_TEXT_CHARACTERS)
+          throw new Error(
+            `published line for ${meta.id} reached the ${MAX_TEXT_CHARACTERS}-character prompt limit and may be truncated`,
+          );
         const ans = JSON.parse(assistantMsg.content) as {
           brand?: string | null;
           lure?: boolean;

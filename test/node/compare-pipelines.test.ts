@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { shingles } from "../../scripts/glimmer/build-dataset.ts";
+import { buildScreenRequest, buildTrainingLine } from "../../src/vision/page-screen.ts";
+import { jaccard, shingles } from "../../scripts/glimmer/build-dataset.ts";
 import {
   type Annotation,
   annotationSample,
@@ -28,6 +29,7 @@ import {
   measurementLine,
   type Page,
   parseArgs,
+  publishedDatasetPages,
   readCorpus,
   recordMeasurement,
   replayMismatches,
@@ -893,6 +895,74 @@ describe("the split comparison over a store", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("reconstructs a replaced store page losslessly from its published line and refuses truncated or malformed prompts", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "compare-published-fallback-"));
+    try {
+      await build(dir, [
+        { id: "a", side: "train", brand: "FNB", host: "fnb.co.za", lure: true, shade: 8 },
+        { id: "b", side: "eval", brand: "Absa", host: "absa.co.za", lure: false, shade: 56 },
+      ]);
+      const originalText = readFileSync(join(dir, "pages", "a", "text.txt"), "utf-8");
+      const originalShot = new Uint8Array(readFileSync(join(dir, "pages", "a", "screenshot.jpg")));
+      const shotSha = createHash("sha256").update(originalShot).digest("hex");
+      const line = buildTrainingLine(
+        buildScreenRequest({
+          image: originalShot,
+          host: "fnb.co.za",
+          text: originalText,
+          mode: "image",
+          nonce: "0".repeat(32),
+        }),
+        {
+          brand: "FNB",
+          has_login_form: true,
+          has_payment_form: false,
+          lure: true,
+          lure_type: "credential",
+          confidence: 0.95,
+        },
+      );
+      writeFileSync(
+        join(dir, "dataset", "1.0", "train.meta.jsonl"),
+        `${JSON.stringify({ id: "a", screenshot: shotSha })}\n`,
+      );
+      writeFileSync(join(dir, "dataset", "1.0", "train.jsonl"), `${line}\n`);
+      rmSync(join(dir, "pages", "a"), { recursive: true });
+      const recovered = publishedDatasetPages(dir, "1.0", new Set(["a"])).get("a");
+      expect(recovered?.text).toBe(originalText);
+      expect(jaccard(shingles(recovered?.text ?? ""), shingles(originalText))).toBe(1);
+      expect(( await compareSplit(dir)).status).toBe("complete");
+
+      // Round 1 finding 2: a prompt at the 6,000-character limit may have been truncated, so reconstruction refuses it.
+      const longText = Array.from({ length: 1800 }, (_, i) => `word${i}`).join(" ");
+      const truncatedLine = buildTrainingLine(
+        buildScreenRequest({
+          image: originalShot,
+          host: "fnb.co.za",
+          text: longText,
+          mode: "image",
+          nonce: "0".repeat(32),
+        }),
+        {
+          brand: "FNB",
+          has_login_form: true,
+          has_payment_form: false,
+          lure: true,
+          lure_type: "credential",
+          confidence: 0.95,
+        },
+      );
+      writeFileSync(join(dir, "dataset", "1.0", "train.jsonl"), `${truncatedLine}\n`);
+      expect(() => publishedDatasetPages(dir, "1.0", new Set(["a"]))).toThrow(/6000-character prompt limit/);
+      expect(await compareSplit(dir)).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("6000-character prompt limit")],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("recording a result", () => {
