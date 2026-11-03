@@ -353,7 +353,7 @@ const casesFailure = (name        , event       ) => {
   const el = event.target                  ;
   const inCases = el?.closest?.("#case-filters") ?? (el?.getAttribute?.("hx-target") === "#case-results" ? el : null);
   if (!inCases) return false;
-  if (name !== "htmx:timeout" && (name !== "htmx:sendError" || navigator.onLine !== false)) return false;
+  if (name !== "htmx:timeout" && name !== "htmx:sendError") return false;
   document.getElementById("case-loading")?.classList.remove("htmx-request");
   const form = document.getElementById("case-filters");
   if (!form) return true;
@@ -373,6 +373,21 @@ const casesFailure = (name        , event       ) => {
   retry.className = "text-orange-text underline underline-offset-4";
   retry.textContent = "Try again";
   alert.appendChild(retry);
+  if (name === "htmx:sendError" && navigator.onLine !== false) {
+    void fetch(href, { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+        const nextResults = doc.getElementById("case-results");
+        const curResults = document.getElementById("case-results");
+        if (nextResults && curResults) {
+          curResults.replaceWith(nextResults);
+          document.getElementById("case-filter-error")?.remove();
+          history.replaceState(history.state, "", href);
+        }
+      })
+      .catch(() => {});
+  }
   return true;
 };
 document.addEventListener("htmx:beforeRequest", (event) => {

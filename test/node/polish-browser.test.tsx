@@ -101,6 +101,7 @@ let origin = "";
 const serverState = {
   delayMs: 0,
   fail: false,
+  dropConnection: false,
   pollFinished: false,
 };
 
@@ -281,6 +282,11 @@ beforeAll(async () => {
   siteCss = readFileSync(siteOut, "utf-8");
   browser = await launch();
   server = createServer(async (req, res) => {
+    const url = new URL(req.url ?? "/", "http://127.0.0.1");
+    if (serverState.dropConnection && url.pathname === "/cases") {
+      req.socket.destroy();
+      return;
+    }
     const out = await handleRequest(req);
     res.writeHead(out.status, Object.fromEntries(out.headers));
     res.end(Buffer.from(await out.arrayBuffer()));
@@ -1089,6 +1095,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await page.locator("#case-filter-retry").click();
       await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(25);
       expect(page.url()).toContain("verdict=malicious");
+
+      // 5d. Online connection drop (navigator.onLine === true, socket destroyed) keeps existing rows and filters intact in place without navigating to a browser error page, announces failure, and recovers via Try again
+      await page.evaluate(() => {
+        document.getElementById("case-filter-error")?.remove();
+      });
+      expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+      serverState.dropConnection = true;
+      await page.locator("fieldset label").filter({ hasText: /^Suspicious$/ }).click();
+      await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
+      expect(await page.locator("#case-filter-retry").getAttribute("href")).toContain("verdict=suspicious");
+      serverState.dropConnection = false;
+      await page.locator("#case-filter-retry").click();
+      await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(25);
+      expect(page.url()).toContain("verdict=suspicious");
 
       // 6. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
       serverState.pollFinished = false;
