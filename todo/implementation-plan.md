@@ -581,7 +581,7 @@ Sections: 196 | Checklist items: 832
 | [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards                         | none                 | 5     |
 | [x]    | D07 T09 §8  | Bounded preview image transfer                              | none                 | 3     |
 | [x]    | D07 T09 §9  | Complete decoded run on the card                            | none                 | 5     |
-| [ ]    | D07 T09 §10 | Every target a clean check examined                         | none                 | 5     |
+| [x]    | D07 T09 §10 | Every target a clean check examined                         | none                 | 5     |
 | [x]    | D07 T09 §11 | Outcome and reason beside each version                      | none                 | 4     |
 | [x]    | D07 T09 §12 | Detection data beside each version                          | none                 | 4     |
 | [ ]    | D07 T09 §13 | A fresh walk from a reused card                             | none                 | 4     |
@@ -630,6 +630,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 350/554 verified sections, 135 ready to run now.
+Progress: 351/554 verified sections, 134 ready to run now.
 
 Checklist: 2709/3444 items completed (includes Commit items).

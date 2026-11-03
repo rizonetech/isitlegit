@@ -45,7 +45,7 @@ track: day-2
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [x] |
-| 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
+| 10 | §10 | Every target a clean check examined | D07 T03 §44 | [x] |
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [x] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
@@ -352,6 +352,9 @@ Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence 
 > **Deferred:** each target's relation to the message (link, redirect step, landing page) -> XREF: D02 T01 §11
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the whole set readable.
+
+> **Verified:** 2026-11-03 | §10 | 5359924e220b2407d850680e6fe33adae9f9c2c7
+> **Review:** `docs/reviews/d07-t09-s10.json`
 
 ## 11. Outcome and reason beside each version
 
