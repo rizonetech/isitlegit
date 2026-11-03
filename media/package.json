@@ -15,7 +15,8 @@
     "capture:demo": "node capture/run.ts",
     "test:capture": "node --test capture/mail.test.ts capture/beats.test.ts capture/index.test.ts",
     "capture:index": "node capture/index.ts",
-    "still:demo": "pnpm run capture:index && remotion still src/index.ts Demo"
+    "still:demo": "pnpm run capture:index && remotion still src/index.ts Demo",
+    "render:banner": "pnpm run stats && pnpm run capture:index && python3 tools/voice-index.py demo && remotion still src/index.ts ChannelBanner out/youtube-banner-derickpaynedev.png --frame=0 --image-format=png"
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",

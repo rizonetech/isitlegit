@@ -3,6 +3,7 @@ import { Composition } from "remotion";
 import devProcess from "../data/storyboards/01-development-process.json";
 import techDeepDive from "../data/storyboards/02-technical-deep-dive.json";
 import { Storyboard, type StoryboardSpec, storyboardFrames } from "./kit/Storyboard";
+import { BANNER, ChannelBanner } from "./videos/ChannelBanner";
 import { Demo, demoFrames } from "./videos/Demo";
 import { LogoReveal, DURATION as LOGO } from "./videos/LogoReveal";
 import { LoupeV1, loupeFrames } from "./videos/LoupeV1";
@@ -28,6 +29,7 @@ export const Root: React.FC = () => (
     {Object.keys(THUMBS).map((video) => (
       <Composition key={video} id={`Thumbnail${video}`} component={Thumbnail} defaultProps={{ video }} durationInFrames={60} {...VIDEO} />
     ))}
+    <Composition id="ChannelBanner" component={ChannelBanner} durationInFrames={1} {...BANNER} />
     <Composition id="LogoReveal" component={LogoReveal} durationInFrames={LOGO} {...VIDEO} />
   </>
 );

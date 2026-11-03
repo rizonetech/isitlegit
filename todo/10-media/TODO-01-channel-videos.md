@@ -249,8 +249,8 @@ A personal developer YouTube channel banner (`2560 x 1440` PNG with all key typo
 
 1. Render `media/out/youtube-banner-derickpaynedev.png` at 2560 x 1440. Done when: the PNG exists and passes the safe-zone dimensions check.
 
-- [ ] Build a `ChannelBanner` still composition in `media/src/videos/` at `2560 x 1440` (`1546 x 423` safe area) for `@DerickPayneDev` (unrelated to IsItLegit) and render to `media/out/youtube-banner-derickpaynedev.png`. Done when: the file exists at `2560 x 1440`.
-- [ ] Commit: `media: @DerickPayneDev YouTube channel banner (D10 T01 §10)`
+- [x] Build a `ChannelBanner` still composition in `media/src/videos/` at `2560 x 1440` (`1546 x 423` safe area) for `@DerickPayneDev` (unrelated to IsItLegit) and render to `media/out/youtube-banner-derickpaynedev.png`. Done when: the file exists at `2560 x 1440`.
+- [x] Commit: `media: @DerickPayneDev YouTube channel banner (D10 T01 §10)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/youtube-banner-derickpaynedev.png` prints `2560,1440`.
 
