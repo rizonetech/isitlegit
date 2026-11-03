@@ -384,6 +384,8 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 
 ## 13. Floor record provenance and coverage state
 
+> **Started:** 2026-11-03T02:12+02:00
+
 Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there): a stored floor record names the transition and its evidence but not which revision of the floor rules produced it, so after the rules change an old decision cannot be reproduced from its record; and a null record reads the same for a case stored before §11 (never recorded) as for one evaluated with no raise (measured), so floor metrics cannot tell coverage from outcome.
 
 **Phase:** 7
