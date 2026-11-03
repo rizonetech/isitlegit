@@ -475,7 +475,7 @@ Sections: 207 | Checklist items: 908
 | [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 3     |
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version                      | none                 | 2     |
 | [x]    | D03 T04 §44 | Five new sources for Loupe 1.1                              | none                 | 7     |
-| [ ]    | D03 T04 §46 | Muse Wonder teacher pilot                                   | none                 | 3     |
+| [x]    | D03 T04 §46 | Muse Wonder teacher pilot                                   | none                 | 3     |
 | [ ]    | D03 T04 §45 | The Loupe 1.1 dataset                                       | none                 | 5     |
 | [ ]    | D03 T04 §47 | Twelve to seventeen thousand more training pages            | none                 | 5     |
 | [x]    | D04 T01 §6  | Prompt-injection fixture suite                              | none                 | 5     |
@@ -646,6 +646,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 376/570 verified sections, 125 ready to run now.
+Progress: 377/570 verified sections, 125 ready to run now.
 
 Checklist: 2854/3544 items completed (includes Commit items).

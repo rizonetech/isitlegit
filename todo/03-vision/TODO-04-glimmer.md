@@ -81,7 +81,7 @@ track: day-6
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 | 44 | §44 | Five new sources for Loupe 1.1 | §27 | [x] |
 | 45 | §45 | The Loupe 1.1 dataset | §44, §46 | [ ] |
-| 46 | §46 | Muse Wonder teacher pilot | §44 | [ ] |
+| 46 | §46 | Muse Wonder teacher pilot | §44 | [x] |
 | 47 | §47 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
 | 48 | §48 | Confidence escalation from Loupe to Spark | §1 | [x] |
 | 49 | §49 | Every screened page captured and labelled | §48 | [x] |
@@ -1562,6 +1562,9 @@ Filed 2026-11-01 under the operator's 1.1 approval. The teacher is Muse Wonder 1
 - [x] Commit: `glimmer: Muse Wonder labels for Loupe 1.1, pilot first`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-wonder-label.test.ts test/node/glimmer-codex-terra-label.test.ts test/node/glimmer-codex-astra-label.test.ts` passes and `verifyPilotRecords()` verifies the pilot's 20 pinned labels, hard-negative composition, timing, valid-answer rate and disagreements against the schema.
+
+> **Verified:** 2026-11-03 | §46 | 50a2387904b3134c63866e65f19c93bf27d14827
+> **Review:** `docs/reviews/d03-t04-s46.json`
 
 ## 47. Twelve to seventeen thousand more training pages
 
