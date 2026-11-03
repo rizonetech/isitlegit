@@ -53,7 +53,7 @@ track: day-6
 | 20 | §20 | Opt-in weekly counts | §2 | [ ] |
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [x] |
-| 23 | §23 | Team history for owners | §3 | [ ] |
+| 23 | §23 | Team history for owners | §3 | [x] |
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
@@ -932,6 +932,9 @@ The organisation's role changes, revocations and removals (D07 T02 §6's owner-o
 > **Deferred:** paging through history matches -> XREF: D07 T04 §24
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if an admin sees the history.
+
+> **Verified:** 2026-11-03 | §23 | eba24b50ee941887bdb36f68d419c4024515f8b1
+> **Review:** `docs/reviews/d07-t04-s23.json`
 
 ## 24. Team history by person
 
