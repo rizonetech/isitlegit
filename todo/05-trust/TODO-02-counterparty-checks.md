@@ -34,7 +34,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
-| 2 | §2 | Claims found: name, domain, logo, | §1, D03 T03 §3 | [ ] |
+| 2 | §2 | Claims found: name, domain, logo, | §1, D03 T03 §3, D02 T01 §9 | [x] |
 | 3 | §3 | Registry comparison evidence that | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
@@ -43,6 +43,9 @@ track: day-5
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
 | 10 | §10 | Signature badge checked in real mail editors | §7 | [x] |
+| 11 | §11 | Workflow and global registry wiring for claims | §2, D07 T03 §17 | [ ] |
+| 12 | §12 | Claim-aware candidate selection before bounds | §2, D02 T01 §9 | [ ] |
+| 13 | §13 | Comparative impersonation and logo ablation | §2, D08 T02 §3 | [ ] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -80,6 +83,8 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 
 ## 2. Claims found in a check
 
+> **Started:** 2026-11-02T22:44Z
+
 A mail "claims" a protected identity through its display name, From or Reply-To domain lookalike, its logo (SAM crop matched against the registered logo), its signature block text, or a voice claim (D01 T03 §4). Each claim is evidence the comparison uses.
 
 **Scope 2026-10-31** (D05 T02 §1's plan review, correction 9): the logo, signature and voice claims detected here act on cases already admitted; a non-member's forward is admitted only on a display-name or From-domain claim (§1), so one claiming only by logo, signature or voice is not a counterparty case.
@@ -92,12 +97,19 @@ A mail "claims" a protected identity through its display name, From or Reply-To 
 
 1. Register `trust.claim`. Done when: each claim route on a fixture yields the claimed identity.
 
-- [ ] Detect claims by display name, domain (exact or lookalike from D02 T03 §2), signature text (company name in the last 15 lines), and `voice.claimed_identity`. Done when: `test/trust/claim.test.ts` covers each route.
-- [ ] Compare the mail's logo crops with the registered logo using `compareLogo` (D03 T03 §3). Done when: a fixture with the Fynbos Freight logo yields a logo claim.
-- [ ] Register `trust.claim` (info) with the routes that matched. Done when: the fixture yields it.
-- [ ] Commit: `trust: claim detection`
+- [x] Detect claims by display name, domain (exact or lookalike from D02 T03 §2), signature text (company name in the last 15 lines), and `voice.claimed_identity`. Done when: `test/trust/claim.test.ts` covers each route. Done 2026-11-03: `detectClaims`, `claimInputFromView` and `persistClaimOutcome` in `src/trust/claim.ts`; `test/trust/claim.test.ts` covers display name (including >300-char headers), From and Reply-To exact and lookalike independently, 15-line signature boundary, and `VoiceRead` states.
+- [x] Compare the mail's logo crops with the registered logo using `compareLogo` (D03 T03 §3). Done when: a fixture with the Fynbos Freight logo yields a logo claim. Done 2026-11-03: `compareClaimLogos`, `fitSvgDimensions`, `plainUnavailableReason`, `withClaimLogos` and `runClaimDetectionWithLogos` in `src/trust/claim.ts` read the latest generation of case-owned SAM crop manifests (`art/<caseId>/crop/*-manifest-<n>.json`), distinguish missing crop production from a completed zero-logo manifest, validate registered PNG logos (`pngPixelsProblem`) and sanitise/rasterise registered SVG logos (`sanitiseSvg` + aspect-preserving `rasteriseSvg`) before calling `compareLogo` within a bounded 60-second phase (`MAX_CLAIM_CROPS = 4`, `MAX_CLAIM_LOGO_COMPARISONS = 8`, `MIN_LOGO_CLAIM_CONFIDENCE = 0.5`).
+- [x] Register `trust.claim` (info) with the routes that matched. Done when: the fixture yields it. Done 2026-11-03: `registerClaimCheck`, `claimInputFromView`, `claimEvidence` and `readTrustClaimDetail` in `src/trust/claim.ts`; global wiring into `src/checks/index.ts` and `src/pipeline/analysis-workflow.ts` is filed in D05 T02 §11 once `D07 T03 §17` (`trust` family evidence cards on the app lane) lands.
+- [x] Commit: `trust: claim detection`
+
+**Corrected 2026-11-02** (plan review, 2 P1 and 4 P2, `docs/reviews/05-trust/D05-T02-s2.md`): (1) a registered check is pure and store-free (`src/checks/registry.ts`), so the protected identities it matches against reach it as a typed `CaseView` input filled by the checks step in `src/pipeline/analysis-workflow.ts` (checks-lane files, coordinator agreement asked 2026-11-02): a bounded candidate set with effective-protection filtering, the registered logo reference for each, working for an admitted member case claiming another business, not only the case's own organisation; trust supplies the matching and evidence contract. (2) The mail's logo crops do not exist yet on a case: the crop producer, its case-owned manifest, registered-logo retrieval and raster conversion, and the bounded comparison phase are specified before the check reads them; checks run before vision in the Workflow, so the ordering is named in the build (the comparison is its own bounded step whose validated judgement the pure check reads). (3) Routes are separate From and Reply-To exact and lookalike routes on the original message's headers; the voice value is `view.voice.claim.claimedIdentity` when its state is `read` (`src/voice/schema.ts`), with silent, failed and incomplete reads named; section 1's admission boundary is unchanged (a Reply-To-only claim does not admit a non-member's mail). (4) The evidence contract section 3 consumes: the claimed organisation and name, every matched route for it, the supporting header text, signature line or voice quote observed, the logo judgement and crop artefact references, at info severity with a plain summary; multiple identities each get their item, routes deduped per identity, and no registered baseline detail or registered-logo storage reference in the evidence. (5) Unavailable is never no-match: a failed identity read, missing or unreadable crop or registered logo, unsupported or oversized image, model refusal, timeout or budget end states itself on the item while textual claims still land. (6) `test/trust/claim.test.ts` asserts the full matrix: display name; From and Reply-To exact and lookalike independently; signature at the 15-line boundary and outside it; voice matched, absent, silent and unavailable; stubbed positive, negative and failed logo comparisons; combined routes, multiple identities, no match, inactive protection; real input population, registry execution, evidence contents, artefact provenance, privacy and stored read-back.
+
+**Corrected 2026-11-03** (after `D02 T01 §9` shipped on `main` at `09816762`): `claimInputFromView` in `src/trust/claim.ts` reads `view.protectedCandidates` (populated by `boundProtectedCandidates(await protectedIdentities(db))` in `src/pipeline/analysis-workflow.ts`, bounded by `MAX_PROTECTED_CANDIDATES = 25`, `MAX_CANDIDATE_NAMES = 10` and `MAX_CANDIDATE_DOMAINS = 10`), `originalHeaderOf(view.headers)` and `Reply-To` headers when `view.tenant.headersAvailable` is true, the last 15 lines of `view.text` (marking truncated plain-text bodies unavailable), `view.voice` (`VoiceRead` in `src/voice/schema.ts`), and `view.claimLogos` (`compareClaimLogos` over `art/<caseId>/crop/*-manifest-<n>.json` and `ident/<orgId>/logo-*`); `readTrustClaimDetail` validates the stored `trust.claim` detail for §3, and global registration in `src/checks/index.ts` waits on `D07 T03 §17` (`trust` family evidence cards).
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/claim.test.ts` passes.
+
+> **Verified:** 2026-11-03 | §2 | 6cebe0b1773f5afb86b72c2fcbeca980d243881a
+> **Review:** `docs/reviews/d05-t02-s2.json`
 
 ## 3. Registry comparison evidence that
 
@@ -325,6 +337,65 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 
 > **Verified:** 2026-11-02 | §10 | ab5dbed59d4b97ee277f69da5a0fef003e11e293
 > **Review:** `docs/reviews/d05-t02-s10.json`
+
+## 11. Workflow and global registry wiring for claims
+
+Filed 2026-11-03 from D05 T02 §2's completion review (`docs/reviews/05-trust/D05-T02-s2.md`, gap G7): `registerClaimCheck` and `runClaimDetectionWithLogos` in `src/trust/claim.ts` are built and tested through `CheckRegistry` and `saveEvidence`, but registering `trust.claim` in the global `defaultRegistry` (`src/checks/index.ts`) and invoking the post-vision registered-logo comparison step in `src/pipeline/analysis-workflow.ts` wait on `D07 T03 §17` (`trust` family evidence cards) and checks-lane workflow coordination.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Register `trust.claim` in the global check registry once `trust` evidence cards (`D07 T03 §17`) are mapped. Done when: `defaultRegistry()` includes `trust.claim` and `test/web/evidence-cards.test.ts` passes.
+2. Run the post-vision registered-logo comparison phase in the analysis workflow and persist its updated `trust.claim` evidence and outcomes. Done when: an admitted email, document/image upload, and voice upload each produces persisted `trust.claim` evidence through `AnalysisWorkflow` without manual `CaseView` construction.
+
+- [ ] Register `registerClaimCheck` in `defaultRegistry` (`src/checks/index.ts`) once `D07 T03 §17` maps the `trust` family in `src/web/components/evidence/cards.tsx`. Done when: `test/checks/registry.test.ts` and `test/web/evidence-cards.test.ts` pass with `trust.claim` registered in `defaultRegistry()`. Cheaper substitute: leaving `registerClaimCheck` only in unit tests. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G7).
+- [ ] Invoke `compareClaimLogos` and `withClaimLogos` (`src/trust/claim.ts`) in `src/pipeline/analysis-workflow.ts` after the `vision` step stores SAM crop manifests, updating the case's stored `trust.claim` evidence and check outcome via `saveEvidence` (`src/checks/evidence.ts`). Done when: `test/pipeline/analysis-workflow.test.ts` proves a message with a registered logo crop persists the `"logo"` route on `trust.claim` in D1. Cheaper substitute: running `trust.claim` only before `vision`, which misses SAM logo crops. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G7).
+- [ ] Prove end-to-end workflow execution across an admitted email forward, a document/image upload, and a voice upload in `test/pipeline/analysis-workflow.test.ts`, reading back stored `evidence` and `check_outcomes` rows with `readEvidence`, `readCheckOutcomes` and `readTrustClaimDetail`. Done when: all three intake surfaces persist `trust.claim` evidence and outcomes through `AnalysisWorkflow`. Cheaper substitute: testing `runClaimDetectionWithLogos` only outside the workflow. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G7).
+- [ ] Commit: `trust: workflow and global registry wiring for claims`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/pipeline/analysis-workflow.test.ts test/trust/claim.test.ts` passes and fails if `trust.claim` is omitted from `defaultRegistry()`.
+
+## 12. Claim-aware candidate selection before bounds
+
+Filed 2026-11-03 from D05 T02 §2's completion review (`docs/reviews/05-trust/D05-T02-s2.md`, gap G8, against Mimecast Impersonation Protect): `protectedIdentities` (`src/trust/identity.ts`) returns effectively protected businesses in `org_id` order and `boundProtectedCandidates` (`src/checks/case-view.ts`) keeps the first 25 (`MAX_PROTECTED_CANDIDATES`), so once more than 25 businesses are protected, an identity at position 26 or later is omitted even when the message explicitly claims its name or domain. This section pre-selects candidates matching the message's observed names, domains, lookalikes, signature tail, or voice claim before filling the remaining slots up to `MAX_PROTECTED_CANDIDATES`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Rank and pre-select relevant protected identities against the case's observed headers, signature window, and voice claim before applying `MAX_PROTECTED_CANDIDATES`. Done when: a protected business at registry position 26 or later is included in `view.protectedCandidates` whenever the case claims its display name, domain, lookalike domain, signature, or voice identity.
+2. Preserve deterministic ordering and omission accounting for remaining candidates. Done when: `omitted` still counts any unselected protected identities past the 25-candidate bound when registered logos remain uncompared.
+
+- [ ] Add `selectProtectedCandidatesForView` in `src/trust/claim.ts` (and wire it into `boundProtectedCandidates` or the `checks` step in `src/pipeline/analysis-workflow.ts`) so any effectively protected identity whose name or domain matches the message's From/Reply-To headers, lookalike skeleton, last-15-line signature window, or voice claim is placed ahead of unmatched identities before slicing to `MAX_PROTECTED_CANDIDATES`. Done when: `test/trust/claim.test.ts` seeds 40 protected identities in D1 and proves identity #35 is selected and matched when claimed by display name, lookalike domain, signature, or voice. Cheaper substitute: slicing the first 25 rows by `org_id` alone. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G8).
+- [ ] Order each selected candidate's matching display names and domains ahead of non-matching ones before applying `MAX_CANDIDATE_NAMES` (10) and `MAX_CANDIDATE_DOMAINS` (10) in `boundProtectedCandidates` (`src/checks/case-view.ts`). Done when: a business with 15 registered aliases or domains still matches when the message uses alias #14 or domain #14. Cheaper substitute: truncating names and domains in registration order without checking the message. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G8).
+- [ ] Preserve `omitted`, `namesOmitted`, and `domainsOmitted` accounting when unselected identities with registered logos remain outside the 25-candidate bound, so logo-only claims past the bound still report partial coverage honestly. Done when: `test/trust/claim.test.ts` verifies both a pre-selected textual match at position #35 and honest partial coverage when uncompared registered logos remain past the bound. Cheaper substitute: zeroing `omitted` after pre-selection. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G8).
+- [ ] Commit: `trust: claim-aware candidate selection before bounds`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/trust/claim.test.ts test/checks/case-view.test.ts` passes and fails if a claimed identity at registry position 35 is dropped by the 25-candidate cap.
+
+## 13. Comparative impersonation and logo ablation
+
+Filed 2026-11-03 from D05 T02 §2's completion review (`docs/reviews/05-trust/D05-T02-s2.md`, gap G10, against Mimecast Impersonation Protect): stubbed unit tests prove functional correctness of `trust.claim`, but do not measure detection rate, false-positive rate, latency, or the incremental contribution of registered-logo comparison (`compareClaimLogos`) on the labelled evaluation corpus against a baseline rules-only indicator set.
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Score `trust.claim` with and without registered-logo comparison (`compareClaimLogos`) and voice claim extraction on the labelled impersonation and benign evaluation sets. Done when: `eval/RESULTS.md` and `docs/frontier-log.md` record detection rate, false-positive rate, median/p95 latency, and the ablation delta for registered-logo comparison.
+2. Compare the measured indicators against the documented Mimecast Impersonation Protect indicator baseline (display-name, Reply-To mismatch, and domain similarity). Done when: the dated table records where logo and voice claim routes catch attacks that header/domain rules miss.
+
+- [ ] Add an impersonation claim ablation arm in `eval/` that runs the labelled impersonation and genuine controls with all `trust.claim` routes enabled versus header/domain-only indicators (Mimecast Impersonation Protect baseline: display-name, Reply-To, and domain similarity) and with registered-logo comparison (`compareClaimLogos`) ablated. Done when: `test/node/eval-metrics.test.ts` validates the arm's per-route detection, false-positive, cost, and latency breakdown. Cheaper substitute: unit tests with stubbed model responses only. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G10).
+- [ ] Run the comparative evaluation within the shared Meta budget ledger (`~/isitlegit-data/ledgers/meta-spend.json`) and record the dated results in `eval/RESULTS.md` and `docs/frontier-log.md` against the spec 4.9 targets (at least 95% detection, at most 2% false positives, median under 60 seconds, p95 under 3 minutes). Done when: `eval/RESULTS.md` and `docs/frontier-log.md` contain the dated table with denominators, commit SHA, spend, and registered-logo ablation delta. Cheaper substitute: claiming superiority without a measured ablation table. Source: D05 T02 §2 completion review (`docs/reviews/05-trust/D05-T02-s2.md`, G10).
+- [ ] Commit: `eval: comparative impersonation and registered-logo ablation`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-metrics.test.ts && grep -n "registered-logo ablation" docs/frontier-log.md` passes.
 
 ## Verification
 

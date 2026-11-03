@@ -43,6 +43,7 @@ import { errorPage, maintenanceFrom, maintenancePage, reference } from "./web/pa
 import { evalRoutes } from "./web/pages/eval";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
+import { monitorRoutes } from "./web/pages/monitor";
 import { reportRoutes } from "./web/pages/report";
 import { retryRoutes } from "./web/pages/report-retry";
 import { accountRoutes } from "./web/pages/settings-account";
@@ -124,6 +125,8 @@ app.route("/", casesRoutes);
 app.route("/", teamRoutes);
 // The Domains and addresses page, its lists, adding and removing (D07 T04 §4), src/web/pages/domains-list.tsx.
 app.route("/", domainsListRoutes);
+// The Impersonation monitor page, its findings, takedown packs and dismissals (D05 T04 §5), src/web/pages/monitor.tsx.
+app.route("/", monitorRoutes);
 // The Plan page, the plan and the day's usage (D07 T08 §4), src/web/pages/settings-plan.tsx.
 app.route("/", planRoutes);
 // The Account page, the member's own sign-in details (D07 T08 §3), src/web/pages/settings-account.tsx.

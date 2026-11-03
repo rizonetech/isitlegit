@@ -44,5 +44,18 @@ export async function verifyFixtures(prefix: string, fetcher: typeof fetch = fet
       /noindex/.test(end.headers.get("x-robots-tag") ?? "")
     );
   });
+  await check("the fynbos-lookalike login page answers with noindex", async () => {
+    const slashless = await get(`/${prefix}/fynbos-lookalike`);
+    const page = await get(`/${prefix}/fynbos-lookalike/`);
+    const html = await page.text();
+    return (
+      slashless.status === 301 &&
+      slashless.headers.get("location") === `/${prefix}/fynbos-lookalike/` &&
+      page.status === 200 &&
+      /noindex/.test(page.headers.get("x-robots-tag") ?? "") &&
+      html.includes("Fynbos Freight") &&
+      html.includes('name="fixture" value="fynbos-lookalike"')
+    );
+  });
   return checks;
 }

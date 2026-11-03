@@ -17,4 +17,12 @@ export const COUNTS_TOWARD_CAP =
 // The member cases an organisation has used since `day` (the SAST day start): counterparty cases never use a member's
 // cap (they count against their own two limits). `org` and `day` are the caller's SQL for the two values.
 export const MEMBER_CASES_TODAY = (org = "?", day = "?") =>
-  `(SELECT COUNT(*) FROM cases WHERE org_id = ${org} AND origin IS NULL AND created_at >= ${day} AND ${COUNTS_TOWARD_CAP})`;
+  `(SELECT COUNT(*) FROM cases WHERE org_id = ${org} AND origin IS NULL AND COALESCE(uploaded_by, '') != 'monitor' AND created_at >= ${day} AND ${COUNTS_TOWARD_CAP})`;
+
+// Monitor investigations have their own allowance (D05 T04 §12): the system uploader's cases,
+// bounded per organisation per SAST day at the daily run's own capture bound (50, src/monitor/run.ts),
+// so a monitor investigation never uses a member's checking allowance and member traffic never
+// starves the monitor. Failed admissions release their slot, as the member cap's do.
+export const MONITOR_CASES_PER_DAY = 50;
+export const MONITOR_CASES_TODAY = (org = "?", day = "?") =>
+  `(SELECT COUNT(*) FROM cases WHERE org_id = ${org} AND uploaded_by = 'monitor' AND created_at >= ${day} AND ${COUNTS_TOWARD_CAP})`;

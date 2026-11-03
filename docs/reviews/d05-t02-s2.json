@@ -1,0 +1,125 @@
+{
+  "ref": "D05 T02 \u00a72",
+  "title": "Claims found in a check",
+  "implementation_sha": "6cebe0b1773f5afb86b72c2fcbeca980d243881a",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/05-trust/D05-T02-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 3 pnpm exec vitest run --project worker test/trust/claim.test.ts -> 9 passed (9)",
+    "pnpm run typecheck -> exit 0",
+    "pnpm exec biome check src/trust/claim.ts test/trust/claim.test.ts -> Checked 2 files, no fixes applied"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T02-s2.md",
+    "verdict": "filed",
+    "candidate": "9234fa3ea890454326356781cd8384f5414bebcb",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D05 T02 \u00a711",
+      "D05 T02 \u00a712",
+      "D05 T02 \u00a713"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T02-s2.md",
+    "candidate": "e6de8e9bee59c081ddb97d56fbb8cf8490148127",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

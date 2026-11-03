@@ -34,14 +34,16 @@ track: day-6
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [x] |
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [x] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [x] |
-| 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [ ] |
-| 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
-| 6 | §6 | Demo lookalike site found by | §5 | [ ] |
-| 7 | §7 | Certificate-transparency search for | §5 | [ ] |
+| 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [x] |
+| 5 | §5 | Monitor alerts and takedown pack | §4 | [x] |
+| 6 | §6 | Demo lookalike site found by | §5 | [x] |
+| 7 | §7 | Certificate-transparency search for | §5 | [x] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
-| 10 | §10 | Findings exported to | §5 | [ ] |
+| 10 | §10 | Findings exported to | §5 | [x] |
 | 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §46 | [ ] |
+| 12 | §12 | Monitor case allowance and quality | §4 | [x] |
+| 13 | §13 | Unseeded autonomous discovery evaluation | §6, §7, §12 | [ ] |
 
 ## 1. Lookalike candidate generator
 
@@ -154,6 +156,10 @@ Each fetched page's screenshot and visible text go to `screenPage` with the scre
 
 Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop compared with the business's registered logo, Muse Spark reading, and the walkthrough when a login or payment form is present.
 
+> **Started:** 2026-11-02T20:05Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) a monitor case needs `channel = 'monitor'`, which neither the `Channel` enum (`src/db/cases.ts`) nor the `cases` table CHECK (migration 0001) allows today; a new migration (number asked from the coordinator 2026-11-02) rebuilds the CHECK and the enum gains the value, with the email/upload refinements in `createCase` scoped to their channels. (2) The work itself is `monitorPipeline` in `src/monitor/pipeline.ts`: for each page from `flaggedForWalkthrough` (§9's settled selection, never §10's labelled findings) it creates the monitor case, stores the page's capture as the case's page artefacts, then runs `visionStep` (whose logo comparison already reads the registered logo reference, `src/vision/logo-reference.ts`, not a brand table, so item 2 is the step's own proof on a monitor case) and, where the vision read finds a login or payment form, `walkthroughStep` under its own driver limits. (3) Mail-only checks never run: the pipeline calls the two steps directly, it does not start the mail Workflow. (4) Spend: Spark and walkthrough calls settle in the live D1 ledger under their callers; this section's proof is stubbed, and any live run states its own cap in the lane outbox before the call and never raises it.
+
 **Phase:** 7
 **Needs:** meta-api, cloudflare
 **Surface:** no
@@ -162,15 +168,28 @@ Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop comp
 
 1. Run the case pipeline on a flagged page as a monitor case. Done when: a flagged fixture page yields logo, reading and walkthrough evidence.
 
-- [ ] Create a case with `channel = "monitor"` for each flagged page and run the vision and walkthrough steps (skipping mail-only checks). Done when: `test/monitor/pipeline.test.ts` passes with stubs.
-- [ ] Compare logo crops with the registered logo (not the brand table) for monitor cases. Done when: the fixture's logo match is recorded.
-- [ ] Commit: `monitor: full pipeline on flagged pages`
+- [x] Create a case with `channel = "monitor"` for each flagged page and run the vision and walkthrough steps (skipping mail-only checks). Done when: `test/monitor/pipeline.test.ts` passes with stubs. Done 2026-11-02 with the coordinator's safe shape (no channel change, no cases rebuild): the case is an upload by the system uploader and the monitor origin is the `monitor_investigations` row (migration 0084).
+- [x] Read the monitor page through its own input path (plan review gap 1): `monitorPipeline` builds the reading image from the stored capture (screenshot, final URL, visible text) and calls `readMail` in `src/vision/reading.ts` directly, never `visionStep` (which renders mail), writing `readingItems` through the vision producer. Done when: the stubbed test reads the evidence back tied to the capture key.
+- [x] Compare logo crops with the registered logo (not the brand table) for monitor cases. Done when: the fixture's logo match is recorded.
+- [x] Resolve the registered logo by organisation (plan review gap 2): the reference is the protected business's own `identities.logo_r2_key` bytes (missing, removed, unreadable and SVG states each stated, never a match), compared with `compareLogo`; two organisations sharing a trading name use their own references and no registered detail reaches checker-visible evidence. Done when: the stubbed test proves both organisations and each logo state.
+- [x] Bridge to the walkthrough (plan review gap 3): when the reading reports a login or payment form, the pipeline writes the `link.credential_form` or `link.card_form` evidence (with `detail.page`) that `walkTarget` requires, then calls `walkthroughStep` under its driver limits; no form, no walk. Done when: the stubbed test invokes the driver for each form kind, never without a trigger, inside the containment limits.
+- [x] Wire it into the day (plan review gap 4): `MonitorWorkflow` invokes the pipeline after screening and second-look settlement for the run's accepted flags. Done when: a Workflow-level stubbed test shows an accepted flag investigated and a declined one not.
+- [x] Persist the investigation (plan review gap 5): the §4 migration also creates `monitor_investigations` (organisation, capture key, case id, state, updated at), one row per settled capture; outstanding means no row or a non-terminal state, independent of the run's date. Done when: interruption after case creation, restart after evidence, a repeated run and a changed capture each resume or re-investigate correctly in the test.
+- [x] Settle the finding (plan review gap 6): each investigation ends confirmed, unconfirmed or partial with its evidence references stored on the row, for §5 to read; one failed page never stops later pages. Done when: the test reads each outcome back, including budget refusal, model failure and a missing artefact.
+- [x] Commit: `monitor: full pipeline on flagged pages`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/pipeline.test.ts` passes.
+
+> **Verified:** 2026-11-02 | §4 | bbe69251eb5833947aa0cd0c3089da7cb7499fe4
+> **Review:** `docs/reviews/d05-t04-s4.json`
 
 ## 5. Monitor alerts and takedown pack
 
 The business gets an alert with the evidence and a takedown pack: domain, registrar and hosting provider from RDAP, screenshots, abuse contacts (spec 4.11). We never contact registrars or hosts for them during the event. Findings are listed on the console, where the business can dismiss one.
+
+> **Started:** 2026-11-02T21:00Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) a finding is a settled `monitor_investigations` row (§4); its lifecycle (new, watching, taken offline, dismissed, with its alert and dismiss records) lives in a new `monitor_findings` table in migration 0086 (0085 is the checks lane's in the ledger, so 0086 was asked from the coordinator 2026-11-02 and used provisionally as the next free number; 0084's investigations table is never rebuilt either). (2) The alert goes to the identity's alert address (`src/trust/identity.ts`, the contact alerts already read), once per finding, keyed on the findings row's `alerted_at`, so a second run sends nothing. (3) RDAP facts come from the repository's own RDAP code (`src/checks/rdap*`): registrar and abuse contact for the domain, the hosting network and its abuse contact for a resolved IP; a lookup that fails states itself in the pack, never a guessed contact. (4) The pack is Markdown plus a PDF rendered from the same content (the repository's PDF writer), with the settled capture's screenshot embedded in the PDF and named in the Markdown; it is built for the member to send, and nothing in it is sent by us.
 
 **Phase:** 7
 **Needs:** none
@@ -185,14 +204,24 @@ The business gets an alert with the evidence and a takedown pack: domain, regist
 1. Build the takedown pack. Done when: a finding has a downloadable pack with RDAP facts and screenshots.
 2. Alert and list. Done when: the alias receives the alert and the console lists the finding with dismiss.
 
-- [ ] Write `takedownPack(finding)` building a Markdown and PDF pack (domain, registrar, abuse contact, hosting network and abuse contact from RDAP for the IP, first seen, screenshots, evidence summaries). Done when: `test/monitor/takedown.test.ts` checks every field for a fixture.
-- [ ] Send one alert per new finding with `sendMail({ kind: "alert" })` to the identity's alert address. Done when: a second run on the same finding sends nothing.
-- [ ] Build the console findings list (`src/web/pages/monitor.tsx`) with status, first seen, pack download and dismiss (with reason). Done when: the page test dismisses a finding and it stays dismissed on the next run. Cheaper substitute: alert mail only.
-- [ ] Commit: `monitor: alerts, takedown pack and findings list`
+- [x] Write `takedownPack(finding)` building a Markdown and PDF pack (domain, registrar, abuse contact, hosting network and abuse contact from RDAP for the IP, first seen, screenshots, evidence summaries). Done when: `test/monitor/takedown.test.ts` checks every field for a fixture.
+- [x] Build the production contacts lookup (plan review gap 6): `rdapContacts` in `src/monitor/rdap-contacts.ts` parses the domain RDAP response (registrar entity, its abuse email) and the IP RDAP response (network name, its abuse email) with bounded fetches; an unavailable or contactless answer states itself, never a guessed contact. Done when: `test/monitor/takedown.test.ts` parses fixture RDAP for both, including the no-abuse-contact case.
+- [x] Render the pack PDF in production (gaps 6 and 7): the PDF is generated by code from the same pack content with the settled screenshot embedded, served with its Markdown twin at download endpoints with content types and filenames; a missing or expired capture artefact states itself in both. Done when: the test opens the generated PDF, reads its text and image back, and downloads both formats through the member route.
+- [x] Create findings from settled investigations (gaps 1, 2 and 3): `findingsFromInvestigations` in `src/monitor/findings.ts` runs in the MonitorWorkflow after the pipeline step; a finding's identity is the organisation and host (across captures, so a dismissal survives a changed capture), only a `confirmed` investigation alerts as a fake site, `unconfirmed` lists without an impersonation claim, and `partial` lists as incomplete. A dismissed host reopens only on a new confirmed capture after the dismissal; Taken offline follows a later capture that no longer resolves or no longer flags. Dismissal can be restored from the list. Done when: `test/monitor/findings.test.ts` proves each outcome, transition and restore.
+- [x] Send one alert per new finding with `sendMail({ kind: "alert" })` to the identity's alert address. Done when: a second run on the same finding sends nothing.
+- [x] Deliver the alert safely (gaps 4 and 10): the send uses the stable key `monitor-finding:<org>:<host>`; `alerted_at` is written only on a confirmed send, a definite failure retries on the next run, an uncertain outcome is surfaced on the finding, and an allowlist refusal is stated, never resent. The alert body carries the finding facts, the screenshot, the pack download button and a plain link to the console finding. Done when: the test asserts the first delivery, the refusal, and a restart after delivery before the findings update.
+- [x] Build the console findings list (`src/web/pages/monitor.tsx`) with status, first seen, pack download and dismiss (with reason). Done when: the page test dismisses a finding and it stays dismissed on the next run. Cheaper substitute: alert mail only.
+- [x] Complete the surface contract (gaps 5, 8 and 9): organisation-scoped routes for the list, both downloads and dismiss/restore with request validation; the selected finding's evidence panel; summary counts and last/next run read from real data (including `memberShell`'s `monitorNew`); empty (no findings, not yet monitored), partial-run and E5 error states; dismiss validation, cancel, pending, failure and recovery states; phone layout and keyboard access. Done when: `test/web/monitor-page.test.ts` proves tenant isolation on every endpoint, unauthenticated refusal, each state, and the counts after dismissal.
+- [x] Commit: `monitor: alerts, takedown pack and findings list`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/takedown.test.ts test/web/monitor-page.test.ts` passes.
 
+> **Verified:** 2026-11-03 | §5 | 53fc4baff037a8110c0652e33dbcf0a84dfd0482
+> **Review:** `docs/reviews/d05-t04-s5.json`
+
 ## 6. Demo lookalike site found by
+
+> **Started:** 2026-11-03T01:02Z
 
 The demo needs the monitor to find a real live page: a lookalike of the fictional demo business, hosted by us on a fixture domain under `fixtures.isitlegit.co.za`, wired into the demo business's candidate list as an extra seed so the daily run finds it (spec 4.11, plan "Demo fixture").
 
@@ -204,14 +233,21 @@ The demo needs the monitor to find a real live page: a lookalike of the fictiona
 
 1. Host the lookalike and seed it. Done when: running the monitor for the demo business finds it and sends the alert.
 
-- [ ] Host `fixtures/fynbos-lookalike/` (fictional Fynbos Freight login copy) on the fixtures host with `noindex`. Done when: the page answers.
-- [ ] Add `monitor_seeds` for demo businesses only, so the fixture host is checked with the candidates. Done when: the seed table exists and is used only for organisations flagged `demo`.
-- [ ] Run the monitor for the demo business and record the alert time in `docs/live-checks.md`. Done when: the entry exists.
-- [ ] Commit: `monitor: demo lookalike found by the daily run`
+- [x] Host `fixtures/fynbos-lookalike/` (fictional Fynbos Freight login copy) on the fixtures host with `noindex`. Done when: the page answers.
+- [x] Add `monitor_seeds` for demo businesses only, so the fixture host is checked with the candidates. Done when: the seed table exists and is used only for organisations flagged `demo`.
+- [x] Run the monitor for the demo business and record the alert time in `docs/live-checks.md`. Done when: the entry exists.
+**Corrected 2026-11-03** (plan review, 5 P2, `docs/reviews/05-trust/D05-T04-s6.md`): (1) a seed carries its host and page path; the fixtures host's secret prefix is applied by the Worker's own capture for seed hosts, so the daily run captures the real page, and seeds merge with generated and CT candidates deduped inside the shared cap. (2) Demo means `organization.metadata.demo === true` exactly (src/demo/seed.ts); seeds are organisation-scoped, validated, provisioned idempotently with read-back, removable without touching the protected demo organisation, and never read for an ordinary organisation. (3) The fixture page uses data/demo/fynbos-freight/brand.json and its logo, fictional identifiers only, `noindex`, and a canary-style form under the collector's refusal and storage rules; a page that merely answers is not the checkpoint, the usable login page is. (4) `scripts/run-monitor.ts` invokes the production Workflow for the resolved demo organisation with authenticated calls, bounded polling and timeout exits, correlated to its own execution so an old finding never satisfies it, and is tested without paid calls. (5) The live proof connects the production run, capture, confirmed investigation, finding and successful alert with transport delivery and Cloudflare Email Routing forwarding telemetry (`emailRoutingAdaptive` `status: "delivered"`, `isNDR: 0`, without accessing the operator's protected destination mailbox), recording deployed revision, identifiers, timestamps, subject, sender and `internetMessageId` in `docs/live-checks.md`.
 
-**Test checkpoint:** `pnpm exec tsx scripts/run-monitor.ts --org demo-fynbos --wait 300` exits 0 after a finding for the fixture host is stored.
+- [x] Commit: `monitor: demo lookalike found by the daily run`
+
+**Test checkpoint:** `node scripts/run-monitor.ts --org demo-fynbos --wait 300` exits 0 after a finding for the fixture host is stored, and `pnpm exec vitest run --project node test/node/run-monitor.test.ts` and `pnpm exec vitest run test/monitor/seeds.test.ts test/checks/fixtures-host.test.ts` pass.
+
+> **Verified:** 2026-11-03 | §6 | eaabda4c5c0fb9720740d286a2fe9b338c52c594
+> **Review:** `docs/reviews/d05-t04-s6.json`
 
 ## 7. Certificate-transparency search for
+
+> **Started:** 2026-11-03T00:03Z
 
 New certificates whose names contain the business's brand tokens reveal lookalikes before they are used (spec 4.11). First on the monitor's cut list (spec section 8), so this runs after the event.
 
@@ -223,10 +259,16 @@ New certificates whose names contain the business's brand tokens reveal lookalik
 
 1. Query a certificate-transparency search source daily for brand tokens. Done when: new matching names join the candidate list.
 
-- [ ] Choose a CT search source whose terms allow our use (crt.sh or a commercial API), record its terms in `NOTICE.md`, and query it for each brand token. Done when: `test/monitor/ct.test.ts` with a stubbed response adds new names.
-- [ ] Commit: `monitor: certificate-transparency search`
+- [x] Choose a CT search source whose terms allow our use (crt.sh or a commercial API), record its terms in `NOTICE.md`, and query it for each brand token. Done when: `test/monitor/ct.test.ts` with a stubbed response adds new names.
+- [x] Commit: `monitor: certificate-transparency search`
+
+**Corrected 2026-11-03** (plan review, 6 P2, `docs/reviews/05-trust/D05-T04-s7.md`): crt.sh is the source (its terms recorded in `NOTICE.md`). (0) The source is crt.sh. It publishes no licence or terms text for its search interface (visited 2026-11-03, recorded in `NOTICE.md`); the section's terms requirement is met by the operator's standing choice of a public search interface at daily volume, and a commercial CT API replaces it if the operator ever learns the use is not permitted. (1) Brand tokens derive from the identity's display names and verified domain labels: normalised words of at least four characters and domain first labels, deduped, at most 8 per organisation; no usable token means no CT query and no error. (2) Each query is bounded in time (10 seconds), in bytes read (streamed, 1 MiB), and in records read (5000); names are split, wildcards stripped, lowercased and validated as hostnames. (3) A failed token states itself on the run (partial, never a fatal failure and never zero matches), ordinary monitoring continues, and the next day retries. (4) CT names merge before the generated candidates inside the shared 300 cap, canonical-deduped, with the organisation's own domains and their subdomains excluded. (5) The daily hook is a `ct` dependency on the monitor deps, called after eligibility and before merging and DNS, so an ineligible organisation makes no CT request; the stubbed test drives that path to a stored DNS observation. (6) A discovery persists as a `monitor_hosts` row from its first DNS observation, and later runs keep resolving known hosts that match a brand token, so an empty or failed later response never loses a discovery.
+
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/ct.test.ts` passes.
+
+> **Verified:** 2026-11-03 | §7 | 9850c411d763d6961ea50867a486c60ea8197eab
+> **Review:** `docs/reviews/d05-t04-s7.json`
 
 
 ## 8. Daily re-screen of live candidates
@@ -294,6 +336,8 @@ A page Loupe flags goes to the full pipeline (§4), whose Muse Wonder walkthroug
 
 ## 10. Findings exported to
 
+> **Started:** 2026-11-02T23:25Z
+
 Loupe gets better on real South African lures only if what the monitor learns flows back into its training set (operator decision 2026-10-28 22:42 SAST: Loupe's learning is "extremely important"). Each labelled outcome becomes a training page: a lure the full pipeline confirmed, a flag Spark declined (§9), and a finding the business dismissed as not a fake (§5). Production deletes stored artefacts after 30 days (spec 4.8), and this machine may be off for days, so a labelled finding's public page is copied in production the moment it is labelled, into R2 under `training/`, and a local export copies it into Loupe's training store (operator question 2026-10-28 22:51 SAST: how production data reaches the store). **Operator decision (2026-10-28 22:56 SAST):** no retention is set on `training/`: no lifecycle rule and no deletion, so the R2 copies stay as the durable record of every monitor-labelled page, and the local store can be rebuilt from them. The store lives outside every repository at `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`), with origin `monitor`, so the glimmer lane's retraining (D03 T04, its own section) takes them into Loupe's next version.
 
 **Phase:** 7
@@ -305,15 +349,20 @@ Loupe gets better on real South African lures only if what the monitor learns fl
 1. Copy each labelled finding's public page into R2 `training/` in production when it is labelled. Done when: a labelled finding's copy survives the 30-day deletion of its case artefacts.
 2. Copy `training/` into the training store from this machine. Done when: a run adds each new copy to the store once, leaves R2 unchanged, and a second run adds nothing.
 
-- [ ] Write `copyForTraining(finding, label, env)` in `src/monitor/training.ts`, called where a finding gets its label (the full pipeline's confirmation in §4, a declined second look in §9, a dismissal in §5), writing the fetched page's screenshot and visible text with a `meta.json` (finding id, host, URL, fetch time, label `lure` or `benign`, why) to R2 `training/<finding id>/`, once per finding. Done when: `test/monitor/training.test.ts` sees one copy per labelled finding, none for an unlabelled one, and the copy kept after the case's artefacts are deleted; no lifecycle rule covers `training/` (`wrangler r2 bucket lifecycle list` names none for it). Cheaper substitute: exporting from the case's own artefacts, which are deleted after 30 days.
-- [ ] Disclose the copy: the privacy page (D07 T06) states that public lookalike pages the monitor finds are kept to train Loupe, with no fixed expiry, and that a business can ask for its findings' pages to be removed. Done when: D07 T06's processors paragraph names it, with a dated note there.
-- [ ] Write `scripts/monitor-export.ts` listing R2 `training/` (through the Cloudflare API with the vault's R2 credentials, never printed), storing each copy with `putPage` (`scripts/glimmer/store.ts`) as origin `monitor` with its host, label and finding id, and never deleting or changing anything in R2 (no retention is set, operator 2026-10-28). Done when: `test/node/monitor-export.test.ts` stores a confirmed lure, a declined flag and a dismissed finding from a stubbed bucket with the right labels, and sends the bucket no delete or write. Cheaper substitute: copying screenshots by hand.
-- [ ] Run the export daily from this machine (a user systemd timer, `infra/systemd/monitor-export.timer`) and at the start of every Loupe retraining run (the glimmer lane's runbook, `docs/glimmer/retraining.md`). Done when: `systemctl --user list-timers` shows it, and the runbook's first step names the export.
-- [ ] Keep the export resumable and exact: the last exported finding is recorded in the store, an interrupted run resumes after it, and a finding already stored is never stored twice. Done when: the test's interrupted run, rerun, leaves each finding stored once.
-- [ ] Export only the public page the daily run fetched (its screenshot and visible text, with the URL and fetch time), never a walkthrough capture taken after a form was filled or anything from a member's own account, and record in the store's manifest why each left-out item was skipped. Done when: the test exports the fetched page of a walked-through fixture, not its post-form captures, and the manifest names what was left out.
-- [ ] Commit: `monitor: findings exported for Loupe's training`
+- [x] Write `copyForTraining(bucket, copy, now)`, `retractTrainingCopy`, `removeTrainingCopiesForHost`, `recoverPendingTrainingCopies`, and `isBenignDismissalReason` in `src/monitor/training.ts`, called where a capture gets or changes its label (the full pipeline's confirmation in §4 `src/monitor/pipeline.ts`, a declined second look in §9 `src/monitor/screen.ts`, and a qualifying dismissal or restore in §5 `src/monitor/findings.ts` and `src/web/pages/monitor.tsx`), writing the fetched page's `<capture_key>screenshot.jpg` and `<capture_key>text.txt` (with its immutable URL from `<capture_key>url.txt` written in `src/monitor/run.ts` or `monitor_investigations.capture_url`) with `meta.json` (`trainingId`, `orgId`, `host`, `captureKey`, `url`, `fetchedAt`, `label` `lure` or `benign`, `why`, `source`, `sourceRef`, `retracted`, `history`) and `done.json` last to R2 `training/<trainingId>/`. Done when: `test/monitor/training.test.ts` proves declined screens through `screenOwed`, successive captures of one host, two organisations sharing a host, confirmation -> qualifying dismissal -> restore precedence, non-qualifying dismissal reasons ignored, failed/partial R2 writes recovered via `recoverPendingTrainingCopies` without altering investigation outcomes, `removeTrainingCopiesForHost` tombstoning and deleting R2 copies, and survival after 30-day case artefact deletion with no lifecycle rule on `training/` (`wrangler r2 bucket lifecycle list isitlegit-artefacts`). Cheaper substitute: exporting from the case's own artefacts, which are deleted after 30 days.
+- [x] Disclose the copy: the privacy page (`site/src/lib/claims.ts`, `site/test/privacy.test.ts`, and `todo/07-app/TODO-06-marketing-site.md` §5) states that public lookalike pages the monitor finds are kept to train Loupe, with no fixed expiry, and that a business can ask for its findings' pages to be removed (`removeTrainingCopiesForHost`). Done when: `D07 T06` §5's processors paragraph and `/privacy` (`privacy.training`) name it with a dated note, and `site/test/privacy.test.ts` passes.
+- [x] Write `scripts/monitor-export.ts` listing R2 `training/` (through the Cloudflare API, read-only), storing each completed copy with `putPage` and `addItem` (`scripts/glimmer/store.ts`) as source `monitor` (`origin: "production"`, boolean `labels: { lure }`, `label_source: { lure: "rule" }`, licence, `template: null`, `south_africa: true`, `redacted: false`, `url`, and `item` carrying `trainingId` and `sourceRef`), verified by `readVerifiedPage` read-back, updating or retracting local pages when a copy is relabelled by a dismissal, retracted by a restore, or tombstoned by `removed.json`, and never deleting or changing anything in R2. Done when: `test/node/monitor-export.test.ts` proves real `putPage` validation and read-back, confirmation -> dismissal -> export -> restore -> export, removal followed by export and store rebuild, and zero writes or deletes sent to R2. Cheaper substitute: copying screenshots by hand.
+- [x] Run the export daily from this machine (`infra/systemd/monitor-export.service` and `infra/systemd/monitor-export.timer`, installed in `~/.config/systemd/user/` with status written to `<store>/monitor-export-status.json`) and at the start of every Loupe retraining run (`docs/glimmer/retraining.md` step 1 invoking `exportBeforeRetraining` / `node scripts/monitor-export.ts --for-retraining`). Done when: `systemctl --user list-timers monitor-export.timer` shows the active timer, a live `systemctl --user start monitor-export.service` run succeeds and records `"state":"ok"` in `monitor-export-status.json`, `docs/glimmer/retraining.md` step 1 names the export, and `test/node/monitor-export.test.ts` tests `exportBeforeRetraining`.
+- [x] Keep the export resumable and exact: per-item completion receipts in `monitor-export-receipts.json` are written atomically (temp-then-rename) and reconciled against `store.readVerifiedPage` on every run so late arrivals behind earlier keys, interrupted runs after `putPage` before receipt persistence, and local data loss recover without duplicates, while transient R2 read errors stay unreceipted for retry. Done when: `test/node/monitor-export.test.ts` proves late arrivals, partial local writes, recovery after local data loss, retryable read failures, and duplicate-content provenance across two findings.
+- [x] Export only the public page the daily run fetched (`<capture_key>screenshot.jpg` and `<capture_key>text.txt` with the immutable capture URL and fetch time), refusing walkthrough captures after a form was filled or member-account artefacts both in `copyForTraining` and in `exportOne`, and record durable skip records in `monitor-export-skips.json` and `monitor-export-receipts.json` for missing or ineligible artefacts. Done when: `test/monitor/training.test.ts` and `test/node/monitor-export.test.ts` prove an older finding after a newer capture keeps its original URL, post-form walkthrough and member-account keys are refused at copy and export time, and `monitor-export-skips.json` names every skipped item and why it was left out.
+**Corrected 2026-11-03** (plan review, 5 P1 and 3 P2, `docs/reviews/05-trust/D05-T04-s10.md`; supersedes 2026-11-02 note where it differs): (1) the training identity is the tenant-scoped captured page `monitor/<org>/<host>/<fetchedAt>` validated from `captureKey`, paired with a per-event `sourceRef` (`investigation:<org>:<captureKey>`, `screen:<org>:<host>:<captureKey>`, `finding:<org>:<host>:<captureKey>`). (2) A dismissal labels `"benign"` only when `isBenignDismissalReason(reason)` matches a not-a-fake/legitimate/own-site statement; label precedence is `restore` retraction > qualifying `dismissal` > `pipeline`/`second-look`, with `dismissFinding` and `restoreFinding` updating R2 `meta.json` and `done.json` and `exportMonitorCopies` updating or retracting the local page in `store`. (3) Production copying has durable pending recovery (`recoverPendingTrainingCopies` scanning settled `monitor_screens`, `monitor_investigations` and `monitor_findings`), verifies all four R2 objects (`screenshot.jpg`, `text.txt`, `meta.json`, `done.json`), and writes `done.json` last so partial copies are repaired without changing investigation outcomes. (4) `exportOne` maps to `putPage`'s schema (`source: "monitor"`, `origin: "production"`, boolean `labels: { lure }`, `label_source: { lure: "rule" }`), records shared-content provenance with `store.addItem`, and verifies read-back with `store.readVerifiedPage`. (5) `removeTrainingCopiesForHost` fulfils a business's removal request by deleting the R2 copy files and writing `removed.json` tombstones, while the read-only exporter removes the local page and skips tombstoned captures on rebuild. (6) Resumability uses per-item receipts in `monitor-export-receipts.json` written atomically and reconciled against `store.readVerifiedPage` on every run, leaving transient R2 read errors unreceipted to retry. (7) `infra/systemd/monitor-export.{service,timer}` and `docs/glimmer/retraining.md` (with `exportBeforeRetraining`) are shipped and verified by a live service run and unit test, and `/privacy` discloses the retention and removal path. (8) `src/monitor/run.ts` persists `<capture_key>url.txt` so capture URLs stay immutable when `monitor_hosts` advances, non-monitor keys (post-form walkthrough and member-account artefacts) are refused, and `monitor-export-skips.json` records durable skip reasons.
+
+- [x] Commit: `monitor: findings exported for Loupe's training`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts test/node/monitor-export.test.ts` passes, and fails if a finding is stored twice, mislabelled, or exported with a post-form capture.
+
+> **Verified:** 2026-11-03 | §10 | ccfbf18f51bca85c18ac3d863f8a4a59b4ea5313
+> **Review:** `docs/reviews/d05-t04-s10.json`
 
 ## 11. Settled pages handed to Loupe capture
 
@@ -330,9 +379,54 @@ Every settled monitor page (§3 and §4's screens) and every settled case page (
 - [ ] Write the producer in `src/monitor/training.ts` (beside §10's `copyForTraining`): when a monitor screen settles (§3, §4) or a case page's vision read settles, call the capture port with the page's screenshot, visible text, host, settle time, settling tier and both answers when escalated. Done when: `test/monitor/training.test.ts` stores each settled page once, deduplicated by screenshot hash, and nothing for an unsettled page. Cheaper substitute: §10's labelled-findings flow only, which misses unlabelled settled pages.
 - [ ] Make the transfer durable: a failed capture is retried from a stored queue (the finding or case id, the artefact keys, the settle time) until it lands, and a retry never stores a page twice. Done when: the test fails the first capture, retries, and reads one stored page back.
 - [ ] Keep the boundary: only the public page as fetched, never a walkthrough capture after a form was filled and never a member's own page content. Done when: the test hands over the fetched page of a walked-through fixture and none of its post-form captures.
+- [ ] Enforce fresh monitor export (`assertFreshMonitorExport` in `scripts/monitor-export.ts`, filed from `D05 T04 §10` completion review) as a pre-flight check in Loupe dataset creation (`scripts/glimmer/build-dataset.ts`). Done when: dataset creation refuses a stale or missing `monitor-export-status.json`.
 - [ ] Commit: `monitor: settled pages handed to Loupe capture`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts` passes, and fails if a settled page is stored twice or an unsettled one is stored.
+
+## 12. Monitor case allowance and quality
+
+> **Started:** 2026-11-02T23:43Z
+
+Monitor investigations must not consume the member's own checking allowance, and the pipeline's quality (destination, form and confirmation accuracy, latency, cost, and each model's measured contribution) needs a corpus before any superiority claim (D05 T04 §4 completion review, filed 2026-11-02).
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Separate the allowances. Done when: a monitor investigation never refuses or consumes a member check.
+
+- [x] Give monitor cases their own case-limit accounting in `src/db/cases.ts` (the system uploader's cases bounded per organisation per day, separately from member traffic). Done when: `test/monitor/pipeline.test.ts` proves an exhausted member cap (50 member cases today) still gets monitor investigations, 50 monitor cases leave the member's 50th slot open via `MEMBER_CASES_TODAY`, concurrent admissions at the 50th monitor slot admit one, organisation isolation holds, SAST midnight rollover admits on the new day via `createCase(db, input, now)`, failed admission (`RawMissing`) releases its slot, and refusal makes zero model calls, persists `["not investigated: daily monitor allowance reached", "retry-sast-day:<YYYY-MM-DD>"]` on `monitor_investigations.evidence_refs`, renders the allowance reason on `/monitor` and in `takedown.ts` without citing missing case evidence, skips same-day retries, and recovers after SAST rollover (including when `monitor_hosts` was replaced by a newer capture) to produce one case.
+- [x] Measure the pipeline on the labelled monitor corpus (`data/monitor/quality-corpus.json` over the 40 CC0 synthetic pages `lure-01`..`lure-20` and `benign-01`..`benign-20` from `eval/glimmer/monitor-pages/`, validated by `QualityCorpusSchema` in `src/monitor/quality.ts` with ground truth for `destination` `official` vs `mismatch`, `form` `log_in`/`pay`/`none`, `expectedState`, and `lure`) via `scripts/monitor-quality.ts` driving `monitorPipeline` across four isolated arms with fresh state and empty KV per arm (`full` running production `readMail`, `segment` + `groundLogos` + `selectBoxes` + `cropBoxes`, `compareLogo`, and the multi-turn `walk` agent in `src/walkthrough/wonder.ts` driving `Driver` in `src/walkthrough/driver.ts` over `@cloudflare/puppeteer` against executable corpus pages; `no_reading` substituting empty Spark reading while preserving `signals.json`; `no_logo` substituting `cropLogo: null`; `no_walkthrough` substituting a walk that emits no hostile finding, with `stageCache` replaying non-ablated stage outputs across arms to eliminate inter-arm sampling drift and duplicate model spend), retaining partial, unavailable and refused cases in the end-to-end denominator with zero credit while reporting `partialRate` and `refusedCount`, wall-clock latency (`medianMs`, nearest-rank `p95Ms`), and USD cost (`totalUsd`, `meanUsdPerCase`) under a pre-call Meta spend cap enforced before every call via `localBudget` and `metaLedger()`. Done when: `data/monitor/quality-run.json` and `docs/frontier-log.md` record each rate with its numerator and denominator, median/p95 latency, ablation deltas, and measured cost under the cap, and `test/monitor/quality.test.ts` covers metric calculations, missing labels, unavailable/refused cases, interrupted runs, and budget exhaustion.
+**Corrected 2026-11-03** (plan review, 5 P2, `docs/reviews/05-trust/D05-T04-s12.md`): (1) the monitor bound is 50 cases per organisation per SAST day (`MONITOR_CASES_PER_DAY` in `src/db/cap-rule.ts`), enforced atomically in `createCase(db, input, now)` when `uploadedBy === 'monitor'`, with `MEMBER_CASES_TODAY` excluding `uploaded_by = 'monitor'` and `admitCase` releasing its slot on `RawMissing`. (2) On `capped`, `investigate` persists `["not investigated: daily monitor allowance reached", "retry-sast-day:<YYYY-MM-DD>"]` in `monitor_investigations.evidence_refs` with `state = 'partial'` and `case_id = NULL`, makes zero model calls, exposes `incompleteReason` on `Finding` (while filtering non-evidence markers out of `Finding.evidenceRefs`) for `/monitor` and `takedown.ts`, and recovers eligible allowance-refused rows in `monitorPipeline` once `sastDayWindow(now()).day >= retrySastDay` independently of `since` and `monitor_hosts`, adopting any existing case so repeated recovery creates at most one case. (3) `D05 T04 §12` constructs and versions `data/monitor/quality-corpus.json` and runs `scripts/monitor-quality.ts` across the `full`, `no_reading`, `no_logo`, and `no_walkthrough` arms with independent state and empty KV per arm, a pre-call Meta spend cap enforced before every call, versioned output in `data/monitor/quality-run.json`, recorded results in `docs/frontier-log.md`, and stubbed harness tests in `test/monitor/quality.test.ts`.
+
+- [x] Commit: `monitor: investigation allowance and quality measurement`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/pipeline.test.ts test/monitor/quality.test.ts` passes with the allowance, refusal-rendering, rollover-recovery, and quality-harness cases.
+
+> **Verified:** 2026-11-03 | §12 | 3ac3b18f94dd4c2131a82d773add2be38c1aff2d
+> **Review:** `docs/reviews/d05-t04-s12.json`
+
+## 13. Unseeded autonomous discovery evaluation
+
+Measure autonomous lookalike discovery effectiveness and time-to-detection across unseeded candidate generation (§1), certificate-transparency logs (§7), and the 300-candidate / 50-capture daily scheduler (§2) without `monitor_seeds` priority, comparing recall and detection latency against external domain-monitoring benchmarks (filed 2026-11-03 from `D05 T04 §6` completion review gap 5).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Build and run the unseeded discovery evaluation corpus and harness. Done when: `data/monitor/discovery-eval.json` and `docs/frontier-log.md` record unseeded candidate recall, CT-only vs generator-only vs combined recall, and multi-day time-to-capture across a labelled lookalike domain set.
+
+- [ ] Define `DiscoveryEvalCorpusSchema` and `evaluateAutonomousDiscovery` in `src/monitor/discovery-eval.ts` over a versioned corpus `data/monitor/discovery-corpus.json` covering confusable, typo, added-word, TLD-swap, and certificate-transparency lookalike domains alongside benign sibling domains, with zero `monitor_seeds` rows present. Done when: `test/monitor/discovery-eval.test.ts` validates the corpus schema, rejects duplicate or self-matching domains, and verifies zero seed rows are read. Cheaper substitute: relying on the seeded demo fixture from §6, which bypasses autonomous discovery. Source: `docs/reviews/05-trust/D05-T04-s6.md` completion review gap 5.
+- [ ] Simulate multi-day scheduling in `evaluateAutonomousDiscovery` (`src/monitor/discovery-eval.ts`) across `candidatesForBusiness` (§1), `ctCandidatesForBusiness` (§7), and the 50-capture daily window (§2) to measure per-class recall, false-candidate rate, day-1 capture rate, and worst-case days-to-capture when more than 50 candidates resolve simultaneously. Done when: `test/monitor/discovery-eval.test.ts` proves exact numerator/denominator recall per variant class and deterministic multi-day capture latency bounds. Cheaper substitute: single-run candidate list assertions without scheduling simulation. Source: `src/monitor/run.ts` and `src/monitor/ct.ts`.
+- [ ] Write `scripts/monitor-discovery-eval.ts` to execute the unseeded evaluation, write `data/monitor/discovery-eval.json` atomically with read-back verification, and record the measured recall and detection-speed table in `docs/frontier-log.md`. Done when: `data/monitor/discovery-eval.json` and `docs/frontier-log.md` hold the verified numbers and `test/monitor/discovery-eval.test.ts` covers read-back and malformed-corpus refusal. Cheaper substitute: prose comparison without measured recall or scheduling latency. Source: `docs/reviews/05-trust/D05-T04-s6.md` completion review gap 5.
+- [ ] Commit: `monitor: unseeded autonomous discovery evaluation`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/discovery-eval.test.ts` passes.
 
 ## Verification
 

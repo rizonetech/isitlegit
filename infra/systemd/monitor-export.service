@@ -1,0 +1,14 @@
+[Unit]
+Description=IsItLegit monitor training export (read-only R2 to local Glimmer store)
+StartLimitIntervalSec=21600
+StartLimitBurst=4
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/isitlegit-trust
+Environment=PATH=%h/.nvm/versions/node/v24.18.0/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-%h/.config/isitlegit/monitor-export.env
+ExecStart=/usr/bin/env bash -c 'if [ -f "%h/isitlegit-main/scripts/monitor-export.ts" ]; then cd "%h/isitlegit-main"; else cd "%h/isitlegit-trust"; fi && exec taskset -c 3 node scripts/monitor-export.ts'
+Restart=on-failure
+RestartSec=900
+Nice=15

@@ -54,6 +54,7 @@ describe("Privacy and POPIA", () => {
     const training = element(what, /<div data-training/, "training");
     has(training, "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published.", "training");
     has(training, "That training copy is not deleted after 30 days, and closing your account does not remove it", "training retention");
+    has(training, "public lookalike pages the monitor finds are kept to train Loupe with no fixed expiry; a business can ask for its findings' pages to be removed.", "monitor lookalike training retention and removal");
     assert.doesNotMatch(text(html), /We use it only to investigate/, "the summary contradicts the training disclosure");
     assert.doesNotMatch(text(html), /We do not train any model on the mail you forward/i, "the page denies training on forwarded mail");
     has(training, "When Loupe screens a website for you, it receives that public page only.", "training");

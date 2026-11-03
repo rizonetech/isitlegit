@@ -1,0 +1,362 @@
+[
+  {
+    "file": "pair-01-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-01-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417701",
+    "wanted": "62004417701",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-02-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-02-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 128700,
+    "wanted": 128700,
+    "outcome": "caught",
+    "type": "pop"
+  },
+  {
+    "file": "pair-03-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-03-doctored.png",
+    "role": "doctored",
+    "edit": "date",
+    "read": "2026-11-03",
+    "wanted": "2026-11-03",
+    "outcome": "caught",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-04-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-04-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417722",
+    "wanted": "62004417722",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-05-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-05-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 169800,
+    "wanted": 169800,
+    "outcome": "caught",
+    "type": "pop"
+  },
+  {
+    "file": "pair-06-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-06-doctored.png",
+    "role": "doctored",
+    "edit": "date",
+    "read": "2026-11-06",
+    "wanted": "2026-11-06",
+    "outcome": "caught",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-07-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-07-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417743",
+    "wanted": "62004417743",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-08-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-08-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 210900,
+    "wanted": 210900,
+    "outcome": "caught",
+    "type": "pop"
+  },
+  {
+    "file": "pair-09-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-09-doctored.png",
+    "role": "doctored",
+    "edit": "date",
+    "read": "2026-11-09",
+    "wanted": "2026-11-09",
+    "outcome": "caught",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-10-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-10-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417764",
+    "wanted": "62004417764",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-11-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-11-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 252000,
+    "wanted": 252000,
+    "outcome": "caught",
+    "type": "pop"
+  },
+  {
+    "file": "pair-12-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-12-doctored.png",
+    "role": "doctored",
+    "edit": "date",
+    "read": "2026-11-12",
+    "wanted": "2026-11-12",
+    "outcome": "caught",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-13-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-13-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417785",
+    "wanted": "62004417785",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-14-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-14-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 293100,
+    "wanted": 293100,
+    "outcome": "caught",
+    "type": "pop"
+  },
+  {
+    "file": "pair-15-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-15-doctored.png",
+    "role": "doctored",
+    "edit": "date",
+    "read": "2026-11-15",
+    "wanted": "2026-11-15",
+    "outcome": "caught",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-16-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-16-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417806",
+    "wanted": "62004417806",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-17-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-17-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 334200,
+    "wanted": 334200,
+    "outcome": "caught",
+    "type": "pop"
+  },
+  {
+    "file": "pair-18-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-18-doctored.png",
+    "role": "doctored",
+    "edit": "date",
+    "read": "2026-11-18",
+    "wanted": "2026-11-18",
+    "outcome": "caught",
+    "type": "bank_letter"
+  },
+  {
+    "file": "pair-19-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-19-doctored.png",
+    "role": "doctored",
+    "edit": "account",
+    "read": "62004417827",
+    "wanted": "62004417827",
+    "outcome": "caught",
+    "type": "invoice"
+  },
+  {
+    "file": "pair-20-genuine.png",
+    "role": "genuine",
+    "edit": null,
+    "read": null,
+    "wanted": null,
+    "outcome": "genuine-read",
+    "type": "pop"
+  },
+  {
+    "file": "pair-20-doctored.png",
+    "role": "doctored",
+    "edit": "amount",
+    "read": 375300,
+    "wanted": 375300,
+    "outcome": "caught",
+    "type": "pop"
+  }
+]

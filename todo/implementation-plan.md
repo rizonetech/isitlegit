@@ -268,7 +268,7 @@ Sections: 12 | Checklist items: 115
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 15 | Checklist items: 142
+Sections: 15 | Checklist items: 147
 
 | Status | Reference   | Deliverable                                        | Needs    | Items |
 | ------ | ----------- | -------------------------------------------------- | -------- | ----- |
@@ -280,7 +280,7 @@ Sections: 15 | Checklist items: 142
 | [x]    | D06 T01 §2  | Supplier ledger model and queries                  | none     | 11    |
 | [x]    | D06 T02 §1  | PDF forensics                                      | none     | 14    |
 | [x]    | D06 T02 §2  | POP and bank letter extraction, layout comparison  | meta-api | 10    |
-| [ ]    | D06 T02 §4  | Muse Image doctored document pairs                 | meta-api | 4     |
+| [x]    | D06 T02 §4  | Muse Image doctored document pairs                 | meta-api | 9     |
 | [x]    | D07 T08 §8  | A plan tier sets its organisation's daily case cap | none     | 8     |
 | [x]    | D05 T02 §1  | Counterparty intake path with rate limits          | none     | 5     |
 | [x]    | D05 T02 §6  | Verify-this-email page for a protected business    | none     | 12    |
@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 212 | Checklist items: 937
+Sections: 218 | Checklist items: 972
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -494,18 +494,22 @@ Sections: 212 | Checklist items: 937
 | [ ]    | D04 T01 §16 | Message-specific consequence sentences                      | none                 | 5     |
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
-| [ ]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
+| [x]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
 | [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business               | none                 | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                           | none                 | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                                  | none                 | 7     |
-| [ ]    | D05 T04 §4  | Full pipeline on                                            | meta-api, cloudflare | 3     |
-| [ ]    | D05 T04 §5  | Monitor alerts and takedown pack                            | none                 | 4     |
-| [ ]    | D05 T04 §6  | Demo lookalike site found by                                | cloudflare           | 4     |
-| [ ]    | D05 T04 §7  | Certificate-transparency search for                         | none                 | 2     |
-| [ ]    | D05 T04 §10 | Findings exported to                                        | cloudflare           | 7     |
-| [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 4     |
+| [ ]    | D05 T02 §12 | Claim-aware candidate selection before bounds               | none                 | 4     |
+| [ ]    | D05 T02 §13 | Comparative impersonation and logo ablation                 | meta-api             | 3     |
+| [x]    | D05 T04 §4  | Full pipeline on                                            | meta-api, cloudflare | 9     |
+| [x]    | D05 T04 §5  | Monitor alerts and takedown pack                            | none                 | 9     |
+| [x]    | D05 T04 §6  | Demo lookalike site found by                                | cloudflare           | 4     |
+| [x]    | D05 T04 §7  | Certificate-transparency search for                         | none                 | 2     |
+| [x]    | D05 T04 §10 | Findings exported to                                        | cloudflare           | 7     |
+| [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 5     |
+| [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
+| [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
@@ -513,6 +517,7 @@ Sections: 212 | Checklist items: 937
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
+| [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                            | attended             | 3     |
@@ -534,6 +539,7 @@ Sections: 212 | Checklist items: 937
 | [x]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
 | [x]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 7     |
 | [ ]    | D07 T03 §17 | Trust and verification cards                                | none                 | 2     |
+| [ ]    | D05 T02 §11 | Workflow and global registry wiring for claims              | none                 | 4     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member                              | none                 | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                               | attended             | 2     |
 | [ ]    | D07 T03 §27 | Reply and report in your language                           | none                 | 4     |
@@ -664,6 +670,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 387/588 verified sections, 119 ready to run now.
+Progress: 395/594 verified sections, 122 ready to run now.
 
-Checklist: 2912/3631 items completed (includes Commit items).
+Checklist: 2960/3671 items completed (includes Commit items).

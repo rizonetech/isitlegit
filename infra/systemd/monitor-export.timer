@@ -1,0 +1,11 @@
+[Unit]
+Description=IsItLegit monitor training export, at start-up and daily
+
+[Timer]
+OnBootSec=10min
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

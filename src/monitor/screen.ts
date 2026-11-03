@@ -8,6 +8,7 @@ import type { GlimmerSession, Page, Screened } from "../vision/screen";
 import { parkedPage, type Signals } from "./parked";
 import type { SecondLook } from "./second-look";
 import { readCounts } from "./signals";
+import { copyForTraining, recoverPendingTrainingCopies, resolveCaptureUrl } from "./training";
 
 export const MAX_SCREENS_PER_RUN = 50;
 export const MAX_SCREEN_FAILURES = 5;
@@ -30,6 +31,8 @@ export type ScreenCounts = {
   errors: string[];
   // The domains tried in this run, so a page that failed before the captures is not tried again after them.
   tried: Set<string>;
+  trainingRecoveryFailed?: number;
+  trainingRecoveryErrors?: string[];
 };
 
 export const newScreenCounts = (): ScreenCounts => ({
@@ -261,8 +264,35 @@ export async function screenOwed(
         .bind(orgId, page.domain, page.capture_key),
     ]);
     counts.screened++;
-    // A flag Spark declined is no longer a standing lure; the store keeps it, with both verdicts.
+    // A flag Spark declined is no longer a standing lure; the store keeps it, with both verdicts,
+    // and copies its fetched page to R2 `training/` for Loupe's training (D05 T04 §10).
+    if (s.lure && second?.verdict === "declined") {
+      const captureUrl = await resolveCaptureUrl(deps.db, deps.store, orgId, page.domain, page.capture_key);
+      await copyForTraining(
+        deps.store,
+        {
+          orgId,
+          host: page.domain,
+          captureKey: page.capture_key,
+          captureUrl,
+          label: "benign",
+          why: "Muse Spark second look declined Loupe's lure flag",
+          source: "second-look",
+          sourceRef: `screen:${orgId}:${page.domain}:${page.capture_key}`,
+        },
+        at,
+      ).catch(() => "missing-source");
+    }
     if (s.lure && second?.verdict !== "declined") counts.lures++;
+  }
+  const rec = await recoverPendingTrainingCopies(deps.db, deps.store, orgId, at).catch((err) => ({
+    recovered: 0,
+    failed: 1,
+    errors: [err instanceof Error ? err.message : String(err)],
+  }));
+  if (rec.failed > 0) {
+    counts.trainingRecoveryFailed = (counts.trainingRecoveryFailed ?? 0) + rec.failed;
+    if (rec.errors) counts.trainingRecoveryErrors = [...(counts.trainingRecoveryErrors ?? []), ...rec.errors];
   }
   return counts;
 }

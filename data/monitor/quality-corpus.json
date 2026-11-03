@@ -1,0 +1,886 @@
+{
+  "version": "1.0",
+  "licence": "CC0-1.0 (synthetic fictional South African brands and pages from eval/glimmer/monitor-pages)",
+  "cases": [
+    {
+      "id": "lure-01",
+      "orgKey": "fynbos",
+      "protectedBrand": "Fynbos Freight",
+      "verifiedDomain": "fynbosfreight.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-01.jpg",
+      "host": "fynbosfreight-tracking.example",
+      "captureUrl": "https://fynbosfreight-tracking.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-01.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-01.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-01.html"
+    },
+    {
+      "id": "lure-02",
+      "orgKey": "karoo",
+      "protectedBrand": "Karoo Mutual Bank",
+      "verifiedDomain": "karoomutual.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-02.jpg",
+      "host": "karoomutual-secure-login.example",
+      "captureUrl": "https://karoomutual-secure-login.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-02.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-02.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-02.html"
+    },
+    {
+      "id": "lure-03",
+      "orgKey": "protea",
+      "protectedBrand": "Protea Mobile",
+      "verifiedDomain": "proteamobile.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-03.jpg",
+      "host": "proteamobile-account.example",
+      "captureUrl": "https://proteamobile-account.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-03.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-03.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-03.html"
+    },
+    {
+      "id": "lure-04",
+      "orgKey": "baobab",
+      "protectedBrand": "Baobab Pay",
+      "verifiedDomain": "baobabpay.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-04.jpg",
+      "host": "baobabpay-verify.example",
+      "captureUrl": "https://baobabpay-verify.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-04.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-04.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-04.html"
+    },
+    {
+      "id": "lure-05",
+      "orgKey": "kloof",
+      "protectedBrand": "Kloof Insurance",
+      "verifiedDomain": "kloofinsure.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-06.jpg",
+      "host": "kloofinsure-claims-portal.example",
+      "captureUrl": "https://kloofinsure-claims-portal.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-05.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-05.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-05.html"
+    },
+    {
+      "id": "lure-06",
+      "orgKey": "tablebay",
+      "protectedBrand": "Table Bay Telecom",
+      "verifiedDomain": "tablebaytel.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-08.jpg",
+      "host": "tablebaytel-mail.example",
+      "captureUrl": "https://tablebaytel-mail.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-06.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-06.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-06.html"
+    },
+    {
+      "id": "lure-07",
+      "orgKey": "highveld",
+      "protectedBrand": "Highveld Health",
+      "verifiedDomain": "highveldhealth.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-09.jpg",
+      "host": "highveldhealth-member.example",
+      "captureUrl": "https://highveldhealth-member.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-07.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-07.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-07.html"
+    },
+    {
+      "id": "lure-08",
+      "orgKey": "marula",
+      "protectedBrand": "Marula Rewards",
+      "verifiedDomain": "marularewards.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-10.jpg",
+      "host": "marula-rewards-points.example",
+      "captureUrl": "https://marula-rewards-points.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-08.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-08.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "log_in",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-08.html"
+    },
+    {
+      "id": "lure-09",
+      "orgKey": "fynbos",
+      "protectedBrand": "Fynbos Freight",
+      "verifiedDomain": "fynbosfreight.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-01.jpg",
+      "host": "fynbosfreight-customs-fee.example",
+      "captureUrl": "https://fynbosfreight-customs-fee.example/pay",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-09.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-09.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "pay",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-09.html"
+    },
+    {
+      "id": "lure-10",
+      "orgKey": "umhlanga",
+      "protectedBrand": "Umhlanga Energy",
+      "verifiedDomain": "umhlangaenergy.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-05.jpg",
+      "host": "umhlangaenergy-billing.example",
+      "captureUrl": "https://umhlangaenergy-billing.example/pay",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-10.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-10.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "pay",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-10.html"
+    },
+    {
+      "id": "lure-11",
+      "orgKey": "springbok",
+      "protectedBrand": "Springbok Parcels",
+      "verifiedDomain": "springbokparcels.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-07.jpg",
+      "host": "springbokparcels-redelivery.example",
+      "captureUrl": "https://springbokparcels-redelivery.example/pay",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-11.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-11.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "pay",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-11.html"
+    },
+    {
+      "id": "lure-12",
+      "orgKey": "protea",
+      "protectedBrand": "Protea Mobile",
+      "verifiedDomain": "proteamobile.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-03.jpg",
+      "host": "proteamobile-billing-update.example",
+      "captureUrl": "https://proteamobile-billing-update.example/pay",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-12.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-12.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "pay",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-12.html"
+    },
+    {
+      "id": "lure-13",
+      "orgKey": "karoo",
+      "protectedBrand": "Karoo Mutual Bank",
+      "verifiedDomain": "karoomutual.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-02.jpg",
+      "host": "karoomutual-refund.example",
+      "captureUrl": "https://karoomutual-refund.example/pay",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-13.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-13.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "pay",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-13.html"
+    },
+    {
+      "id": "lure-14",
+      "orgKey": "marula",
+      "protectedBrand": "Marula Rewards",
+      "verifiedDomain": "marularewards.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-10.jpg",
+      "host": "marula-outlet-sale.example",
+      "captureUrl": "https://marula-outlet-sale.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-14.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-14.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-14.html"
+    },
+    {
+      "id": "lure-15",
+      "orgKey": "springbok",
+      "protectedBrand": "Springbok Parcels",
+      "verifiedDomain": "springbokparcels.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-07.jpg",
+      "host": "springbok-bargains-za.example",
+      "captureUrl": "https://springbok-bargains-za.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-15.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-15.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-15.html"
+    },
+    {
+      "id": "lure-16",
+      "orgKey": "highveld",
+      "protectedBrand": "Highveld Health",
+      "verifiedDomain": "highveldhealth.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-09.jpg",
+      "host": "highveld-pharmacy-deals.example",
+      "captureUrl": "https://highveld-pharmacy-deals.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-16.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-16.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-16.html"
+    },
+    {
+      "id": "lure-17",
+      "orgKey": "tablebay",
+      "protectedBrand": "Table Bay Telecom",
+      "verifiedDomain": "tablebaytel.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-08.jpg",
+      "host": "tablebay-phones-clearance.example",
+      "captureUrl": "https://tablebay-phones-clearance.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-17.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-17.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-17.html"
+    },
+    {
+      "id": "lure-18",
+      "orgKey": "fynbos",
+      "protectedBrand": "Fynbos Freight",
+      "verifiedDomain": "fynbosfreight.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-01.jpg",
+      "host": "fynbosfreight-support-desk.example",
+      "captureUrl": "https://fynbosfreight-support-desk.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-18.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-18.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-18.html"
+    },
+    {
+      "id": "lure-19",
+      "orgKey": "karoo",
+      "protectedBrand": "Karoo Mutual Bank",
+      "verifiedDomain": "karoomutual.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-02.jpg",
+      "host": "karoomutual-giveaway.example",
+      "captureUrl": "https://karoomutual-giveaway.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-19.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-19.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-19.html"
+    },
+    {
+      "id": "lure-20",
+      "orgKey": "umhlanga",
+      "protectedBrand": "Umhlanga Energy",
+      "verifiedDomain": "umhlangaenergy.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-05.jpg",
+      "host": "umhlanga-energy-rebate.example",
+      "captureUrl": "https://umhlanga-energy-rebate.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/lure-20.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/lure-20.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "confirmed",
+        "lure": true
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/lure-20.html"
+    },
+    {
+      "id": "benign-01",
+      "orgKey": "fynbos",
+      "protectedBrand": "Fynbos Freight",
+      "verifiedDomain": "fynbosfreight.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-01.jpg",
+      "host": "fynbosfreight.example",
+      "captureUrl": "https://fynbosfreight.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-01.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-01.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-01.html"
+    },
+    {
+      "id": "benign-02",
+      "orgKey": "karoo",
+      "protectedBrand": "Karoo Mutual Bank",
+      "verifiedDomain": "karoomutual.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-02.jpg",
+      "host": "karoomutual.example",
+      "captureUrl": "https://karoomutual.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-02.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-02.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-02.html"
+    },
+    {
+      "id": "benign-03",
+      "orgKey": "protea",
+      "protectedBrand": "Protea Mobile",
+      "verifiedDomain": "proteamobile.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-03.jpg",
+      "host": "proteamobile.example",
+      "captureUrl": "https://proteamobile.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-03.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-03.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-03.html"
+    },
+    {
+      "id": "benign-04",
+      "orgKey": "baobab",
+      "protectedBrand": "Baobab Pay",
+      "verifiedDomain": "baobabpay.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-04.jpg",
+      "host": "baobabpay.example",
+      "captureUrl": "https://baobabpay.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-04.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-04.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-04.html"
+    },
+    {
+      "id": "benign-05",
+      "orgKey": "umhlanga",
+      "protectedBrand": "Umhlanga Energy",
+      "verifiedDomain": "umhlangaenergy.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-05.jpg",
+      "host": "umhlangaenergy.example",
+      "captureUrl": "https://umhlangaenergy.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-05.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-05.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-05.html"
+    },
+    {
+      "id": "benign-06",
+      "orgKey": "kloof",
+      "protectedBrand": "Kloof Insurance",
+      "verifiedDomain": "kloofinsure.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-06.jpg",
+      "host": "kloofinsure.example",
+      "captureUrl": "https://kloofinsure.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-06.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-06.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-06.html"
+    },
+    {
+      "id": "benign-07",
+      "orgKey": "springbok",
+      "protectedBrand": "Springbok Parcels",
+      "verifiedDomain": "springbokparcels.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-07.jpg",
+      "host": "springbokparcels.example",
+      "captureUrl": "https://springbokparcels.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-07.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-07.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-07.html"
+    },
+    {
+      "id": "benign-08",
+      "orgKey": "tablebay",
+      "protectedBrand": "Table Bay Telecom",
+      "verifiedDomain": "tablebaytel.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-08.jpg",
+      "host": "tablebaytel.example",
+      "captureUrl": "https://tablebaytel.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-08.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-08.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-08.html"
+    },
+    {
+      "id": "benign-09",
+      "orgKey": "highveld",
+      "protectedBrand": "Highveld Health",
+      "verifiedDomain": "highveldhealth.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-09.jpg",
+      "host": "highveldhealth.example",
+      "captureUrl": "https://highveldhealth.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-09.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-09.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-09.html"
+    },
+    {
+      "id": "benign-10",
+      "orgKey": "marula",
+      "protectedBrand": "Marula Rewards",
+      "verifiedDomain": "marularewards.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-10.jpg",
+      "host": "marularewards.example",
+      "captureUrl": "https://marularewards.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-10.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-10.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-10.html"
+    },
+    {
+      "id": "benign-11",
+      "orgKey": "fynbos",
+      "protectedBrand": "Fynbos Freight",
+      "verifiedDomain": "fynbosfreight.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-01.jpg",
+      "host": "capeherald-news.example",
+      "captureUrl": "https://capeherald-news.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-11.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-11.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-11.html"
+    },
+    {
+      "id": "benign-12",
+      "orgKey": "karoo",
+      "protectedBrand": "Karoo Mutual Bank",
+      "verifiedDomain": "karoomutual.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-02.jpg",
+      "host": "karoo-kitchen-blog.example",
+      "captureUrl": "https://karoo-kitchen-blog.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-12.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-12.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-12.html"
+    },
+    {
+      "id": "benign-13",
+      "orgKey": "protea",
+      "protectedBrand": "Protea Mobile",
+      "verifiedDomain": "proteamobile.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-03.jpg",
+      "host": "drakensberg-hikes.example",
+      "captureUrl": "https://drakensberg-hikes.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-13.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-13.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-13.html"
+    },
+    {
+      "id": "benign-14",
+      "orgKey": "umhlanga",
+      "protectedBrand": "Umhlanga Energy",
+      "verifiedDomain": "umhlangaenergy.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-05.jpg",
+      "host": "stellen-wines.example",
+      "captureUrl": "https://stellen-wines.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-14.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-14.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-14.html"
+    },
+    {
+      "id": "benign-15",
+      "orgKey": "kloof",
+      "protectedBrand": "Kloof Insurance",
+      "verifiedDomain": "kloofinsure.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-06.jpg",
+      "host": "rietvlei-municipality.example",
+      "captureUrl": "https://rietvlei-municipality.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-15.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-15.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-15.html"
+    },
+    {
+      "id": "benign-16",
+      "orgKey": "springbok",
+      "protectedBrand": "Springbok Parcels",
+      "verifiedDomain": "springbokparcels.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-07.jpg",
+      "host": "devnotes-blog.example",
+      "captureUrl": "https://devnotes-blog.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-16.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-16.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-16.html"
+    },
+    {
+      "id": "benign-17",
+      "orgKey": "baobab",
+      "protectedBrand": "Baobab Pay",
+      "verifiedDomain": "baobabpay.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-04.jpg",
+      "host": "baobabpay.example",
+      "captureUrl": "https://baobabpay.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-17.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-17.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "log_in",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-17.html"
+    },
+    {
+      "id": "benign-18",
+      "orgKey": "highveld",
+      "protectedBrand": "Highveld Health",
+      "verifiedDomain": "highveldhealth.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-09.jpg",
+      "host": "highveldhealth.example",
+      "captureUrl": "https://highveldhealth.example/login",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-18.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-18.txt",
+      "signals": {
+        "passwords": 1,
+        "forms": 1
+      },
+      "groundTruth": {
+        "destination": "official",
+        "form": "log_in",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-18.html"
+    },
+    {
+      "id": "benign-19",
+      "orgKey": "tablebay",
+      "protectedBrand": "Table Bay Telecom",
+      "verifiedDomain": "tablebaytel.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-08.jpg",
+      "host": "sunday-market-durban.example",
+      "captureUrl": "https://sunday-market-durban.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-19.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-19.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-19.html"
+    },
+    {
+      "id": "benign-20",
+      "orgKey": "marula",
+      "protectedBrand": "Marula Rewards",
+      "verifiedDomain": "marularewards.example",
+      "referenceScreenPath": "eval/glimmer/monitor-pages/screens/benign-10.jpg",
+      "host": "joburg-chess-club.example",
+      "captureUrl": "https://joburg-chess-club.example/",
+      "screenshotPath": "eval/glimmer/monitor-pages/screens/benign-20.jpg",
+      "textPath": "eval/glimmer/monitor-pages/texts/benign-20.txt",
+      "signals": {
+        "passwords": 0,
+        "forms": 0
+      },
+      "groundTruth": {
+        "destination": "mismatch",
+        "form": "none",
+        "expectedState": "unconfirmed",
+        "lure": false
+      },
+      "htmlPath": "eval/glimmer/monitor-pages/pages/benign-20.html"
+    }
+  ]
+}

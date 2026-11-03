@@ -82,6 +82,7 @@ export async function invoiceRules(
   const items: EvidenceDraft[] = [];
   const visible = input.visibleText?.toLowerCase() ?? null;
   const languageHit = visible !== null && CHANGE_PHRASES.some((p) => visible.includes(p));
+  let firstSupplier: Supplier | null = null;
   for (const reading of input.readings) {
     const { fields, account, artefactKey } = reading;
     if (!fields.is_invoice) continue;
@@ -104,6 +105,7 @@ export async function invoiceRules(
       if (reason === null) throw error;
       items.push(unavailable(reason, "ledger", artefactKey));
     }
+    if (supplier && !firstSupplier) firstSupplier = supplier;
     if (supplier && account) {
       try {
         const { match } = await matchSupplierAccount(db, keys, input.orgId, supplier.id, account);
@@ -196,6 +198,8 @@ export async function invoiceRules(
         amount_cents: first.fields.amount_cents,
         currency: first.fields.currency,
         account_last3: first.account ? first.account.number.slice(-3) : null,
+        supplier_id: firstSupplier?.id ?? null,
+        phone: firstSupplier?.phone ?? null,
       },
       artefacts: [first.artefactKey],
     });

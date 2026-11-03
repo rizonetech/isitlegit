@@ -35,9 +35,10 @@ track: day-5
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
 | 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [x] |
 | 3 | §3 | Standalone document path with the fixed | §2, D01 T03 §1, D07 T03 §30 | [ ] |
-| 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
+| 4 | §4 | Muse Image doctored document pairs | §2 | [x] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
+| 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
 
 ## 1. PDF forensics
 
@@ -139,6 +140,10 @@ A document case skips the mail checks and runs forensics, extraction and matchin
 
 Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of fictional companies and banks (changed amounts, account numbers, dates), each stamped SYNTHETIC, giving genuine and doctored pairs for the eval (spec 4.9). If the usage policy filter refuses an edit, that pair is made in code and the refusal is recorded.
 
+> **Started:** 2026-11-02T18:55Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) genuine sources are the §5 synthetic invoices of D06 T01 rendered to images plus the genuine POP fixtures of §1 here, 20 documents in all, each already stamped SYNTHETIC with fictional banks; the doctored output keeps that stamp or the pair is made in code. (2) Spend: `muse-image-1.0` is priced per image in `src/meta/models.ts`; the cap for this section is stated in the lane outbox before any paid call and never raised, and every call goes through `metaRaw` with the budget guard, so a refusal or an over-cap call sends nothing. (3) The dry run is the default: without `--confirm-credit` the script prints the 20 requests and calls nothing.
+
 **Phase:** 5
 **Needs:** meta-api
 **Surface:** no
@@ -147,12 +152,20 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 
 1. Generate 20 doctored images from 20 genuine synthetic documents. Done when: `eval/sets/payment-docs/` holds 40 files with labels and provenance.
 
-- [ ] Write `scripts/fixtures/make-doctored.ts` calling `/v1/images/edits` through `metaRaw` with an edit instruction per document and the budget guard. Done when: a dry run prints 20 requests.
-- [ ] Run it after the credit gate, saving each output with a label (`edit`: amount, account, date) and its provenance line in `eval/DATASETS.md`. Done when: 20 doctored files exist or each missing one has a recorded refusal and a code-made replacement.
-- [ ] Record cost, refusals and how often forensics alone catches an image edit in `docs/frontier-log.md`. Done when: the entry exists.
-- [ ] Commit: `eval: Muse Image doctored payment documents`
+- [x] Write `scripts/fixtures/make-doctored.ts` calling `/images/edits` through `metaRaw` (plan review gap 2: the client refuses any other path) with an edit instruction per document and the budget guard. Done when: a dry run prints 20 requests. Done 2026-11-02: dry run printed 20; the live branch is proven by the run and `test/node/make-doctored.test.ts`.
+- [x] Create the 20 genuine sources (plan review gap 1): `make-doctored.ts` first draws 20 genuine synthetic documents (invoices, POPs and bank letters from fictional suppliers and banks, varied amounts, accounts and dates) as SVG rasterised by `sharp` (the eval frontier's pattern), each visibly stamped SYNTHETIC; no existing tampered fixture serves as a genuine control. Done when: the inventory in the script names all 20 with their fields, and each saved genuine file decodes as an image.
+- [x] Run it after the credit gate, saving each output with a label (`edit`: amount, account, date) and its provenance line in `eval/DATASETS.md`. Done 2026-11-02: 19 model-made, pair-01 code-made after its model edit failed (kind not recorded by the first version, now recorded).
+- [x] Prove the pairs (plan review gap 3): each label carries a pair id, the genuine and doctored paths, the intended old and new field values, and `made_by` (`model` or `code`); the run validates the response through a zod schema, decodes each saved image, reads it back, and records whether the intended field visibly changed (the §2 extraction on the pair) and the SYNTHETIC stamp is still present. Done when: `test/node/make-doctored.test.ts` fails on a missing, corrupt, unchanged or mislabelled pair.
+- [x] Bind the spend (plan review gap 4): the stated cap is the `Budget` the script passes to `metaRaw` over the shared ledger (`localBudget`), counting every attempt including retries and earlier runs; a resumed run reuses completed pairs and never re-sends them. Done when: the mocked test proves a dry run sends nothing, an exhausted budget prevents transport, and a restart spends nothing on completed pairs.
+- [x] Handle refusals and failures distinctly (plan review gap 5): a content-policy refusal is recorded with its attempt and cost, never retried with a reformulated prompt, and its pair is made in code; authentication, budget, transport and malformed-response failures stop the run with completed pairs preserved and the incomplete state reported. Done when: the mocked test drives each kind.
+- [x] Measure honestly (plan review gap 6): the frontier entry records, per pair, the §2 extraction's read of the doctored field (caught or missed) over genuine and doctored denominators, with PDF forensics stated `unavailable` for raster images, never counted as clean. Done when: the entry names each denominator and the unavailable count.
+- [x] Record cost, refusals and how often forensics alone catches an image edit in `docs/frontier-log.md`. Done 2026-11-02: `docs/frontier-log.md`, US$0.6161 counted of the US$1.00 cap.
+- [x] Commit: `eval: Muse Image doctored payment documents`
 
-**Test checkpoint:** `python3 -c "import json;d=json.load(open('eval/sets/payment-docs/labels.json'));print(len(d))"` prints `40`.
+**Test checkpoint:** `python3 -c "import json;d=json.load(open('eval/sets/payment-docs/labels.json'));print(len(d))"` prints `40`, and `pnpm exec vitest run test/node/make-doctored.test.ts` passes.
+
+> **Verified:** 2026-11-02 | §4 | 0f0c30c4cf99a24e5146f305c035d102c3fa630d
+> **Review:** `docs/reviews/d06-t02-s4.json`
 
 ## 5. More PDF encodings and protected files
 
@@ -211,6 +224,26 @@ Filed 2026-10-31 from §5's start (correction 2): a bank or accounting system th
 
 > **Verified:** 2026-11-01 | §6 | 2363443f5722692d1efb9971aa19041e61690fde
 > **Review:** `docs/reviews/d06-t02-s6.json`
+
+## 7. Diverse doctored pairs with verified truth
+
+The §4 set shares one sparse template and confounds document type with edit type (every invoice changes an account, every POP an amount, every letter a date). A benchmark-grade set needs structurally distinct layouts per document type, all nine type/edit combinations, and ground truth verified independently of the generator's intention (D06 T02 §4 completion review, filed 2026-11-02; its spend needs a cap stated by the coordinator before any paid call, since §4's US$1.00 is counted to US$0.6161).
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Generate the diverse set. Done when: three structurally distinct layouts (one per document type) hold all nine type/edit combinations with verified labels.
+
+- [ ] Draw three layouts in the §4 generator (a table invoice, a bank POP slip, a letter), varying field positions and typography per type. Done when: the genuine files decode and visibly differ in structure per type.
+- [ ] Represent all nine document-type/edit combinations across the set. Done when: the labels name each combination at least twice.
+- [ ] Verify ground truth independently: a reviewer pass (the §2 extraction plus a visual read of each pair) confirms only the named field changed, the SYNTHETIC stamp is retained, and non-target content is unchanged, recorded per pair. Done when: every pair carries a verified mark or is regenerated.
+- [ ] Score genuine controls on their original values and doctored twins on their new values in the measurement, with failures kept in the denominators. Done when: the frontier entry names per-field accuracy for both roles.
+- [ ] Commit: `eval: diverse doctored pairs with verified truth`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/make-doctored.test.ts` passes and the labels name all nine combinations.
 
 ## Verification
 

@@ -1,0 +1,131 @@
+{
+  "ref": "D05 T04 \u00a75",
+  "title": "Monitor alerts and takedown pack",
+  "implementation_sha": "53fc4baff037a8110c0652e33dbcf0a84dfd0482",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 9,
+      "report": "docs/reviews/05-trust/D05-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 10,
+      "report": "docs/reviews/05-trust/D05-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 11,
+      "report": "docs/reviews/05-trust/D05-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 12,
+      "report": "docs/reviews/05-trust/D05-T04-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 13,
+      "report": "docs/reviews/05-trust/D05-T04-s5.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 3 pnpm exec vitest run test/monitor/findings.test.ts test/monitor/takedown.test.ts test/web/monitor-page.test.ts -> 15 passed",
+    "pnpm exec tsc --noEmit -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T04-s5-completion.md",
+    "verdict": "completed",
+    "candidate": "75887cfecdcffa7c2d17ba25248c801a0f49cd25",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 13,
+  "round_cap": 33,
+  "cap_outcome": "Round 13 HIGHEST P3: both test gaps closed in 53fc4baf (byte-for-byte screenshot read-back, RDAP cancellation test); rounds 1 to 8 in the same file predate the OVERALL line convention",
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T04-s5.md",
+    "candidate": "b1ce683b357cf8581a0656ffc3be8f7bdda8bf39",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

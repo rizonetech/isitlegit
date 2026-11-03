@@ -6,10 +6,22 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
+import { brandTableRead, registrable } from "../checks/brands";
+import { ulid } from "../db/ulid";
+import { FIXTURES_HOST, fixturesResponse } from "../fixtures/redirects";
 import { d1Budget } from "../meta/budget";
+import { DETECTOR, groundLogos } from "../vision/detector";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
 import { type Burst, REQUEST_MS, settleGlimmer } from "../vision/glimmer-wake";
+import type { LogoImage } from "../vision/logo-compare";
+import { cropBoxes, imageSize, segment, selectBoxes } from "../vision/sam";
 import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
+import { kvCache, walkthroughStep } from "../walkthrough/trigger";
+import { dohResolve } from "../walkthrough/url-policy";
+import { walk } from "../walkthrough/wonder";
+import { ctCandidates } from "./ct";
+import { findingsFromInvestigations } from "./findings";
+import { monitorPipeline, type PipelineDeps } from "./pipeline";
 import {
   type Capture,
   CaptureFailed,
@@ -23,7 +35,7 @@ import {
 import { secondLook } from "./second-look";
 import { type Cdp, collectEvidence } from "./signals";
 
-export type MonitorParams = { orgId: string; day: string };
+export type MonitorParams = { orgId: string; day: string; runId?: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
 const LOOKUP_MS = 5_000;
 const CAPTURE_MS = 20_000;
@@ -65,6 +77,7 @@ export async function browserCapture(
   browser: Env["BROWSER"],
   host: string,
   launch: Launch = (b) => puppeteer.launch(b),
+  path = "",
 ): Promise<Capture> {
   const session = await launch(browser);
   try {
@@ -74,7 +87,10 @@ export async function browserCapture(
     let response: Awaited<ReturnType<typeof page.goto>> = null;
     for (const scheme of ["https", "http"] as const) {
       try {
-        response = await page.goto(`${scheme}://${host}/`, { waitUntil: "domcontentloaded", timeout: CAPTURE_MS });
+        response = await page.goto(`${scheme}://${host}/${path}`, {
+          waitUntil: "domcontentloaded",
+          timeout: CAPTURE_MS,
+        });
         break;
       } catch (error) {
         if (scheme === "http" || !NO_HTTPS.test(String((error as Error)?.message ?? error))) throw error;
@@ -96,13 +112,26 @@ export async function browserCapture(
   }
 }
 
+export function seedCapturePath(host: string, path: string, fixturesPrefix?: string): string {
+  const cleanPath = path.replace(/^\/+/, "");
+  if (host.trim().toLowerCase() !== FIXTURES_HOST) return cleanPath;
+  const cleanPrefix = (fixturesPrefix ?? "").replace(/^\/+|\/+$/g, "");
+  return cleanPrefix ? `${cleanPrefix}/${cleanPath}` : cleanPath;
+}
+
 export function monitorDeps(
   env: Env,
   runId: string,
-  opts: { fetcher?: typeof fetch; now?: () => number; sparkFetch?: typeof fetch } = {},
+  opts: {
+    fetcher?: typeof fetch;
+    now?: () => number;
+    sparkFetch?: typeof fetch;
+    ctFetch?: typeof fetch;
+    browserLaunch?: typeof puppeteer.launch;
+  } = {},
 ): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
-  const { sparkFetch, ...loupe } = opts;
+  const { sparkFetch, browserLaunch, ...loupe } = opts;
   const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...loupe });
   // Spark's context (D03 T01): the budget over D1, and its record writes held until the step's end, as a Workflow step
   // has no request to keep them alive.
@@ -116,10 +145,24 @@ export function monitorDeps(
     ...(sparkFetch ? { fetch: sparkFetch } : {}),
   };
   return {
+    // CT runs on its own transport; when a test names the run's transports, CT stays off
+    // unless it names ctFetch too, so a stubbed run never reaches the network by surprise.
+    ...(opts.ctFetch || (!opts.fetcher && !opts.sparkFetch)
+      ? { ct: (tokens: string[]) => ctCandidates(opts.ctFetch ?? fetch, tokens) }
+      : {}),
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
-    capture: (host) => browserCapture(env.BROWSER, host),
+    capture: (host) => browserCapture(env.BROWSER, host, browserLaunch),
+    // A seeded host's page (D05 T04 §6): the fixtures prefix is the Worker's own secret,
+    // applied only when the seed host is `FIXTURES_HOST` and never sent to any external host.
+    captureSeed: (host: string, path: string) =>
+      browserCapture(
+        env.BROWSER,
+        host,
+        browserLaunch,
+        seedCapturePath(host, path, (env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX),
+      ),
     // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
     // settles it again to the same cutoff.
     open: (calls) => openGlimmer(wakeCtx(calls)),
@@ -164,11 +207,131 @@ export async function settleAgain(
 // back, and its retry may have nothing to capture and so never wake; round 3). The settle step reads the ledger and is
 // a no-op when nothing is held. A run that failed still fails, after the settlement.
 type Steps = Pick<WorkflowStep, "do">;
+// The pipeline's production deps (D05 T04 §4): the walkthrough with its own driver, and the SAM logo
+// crop through Browser Run, on the same Browser binding the capture uses.
+export function pipelineDeps(env: Env): PipelineDeps {
+  const store = { bucket: env.ARTEFACTS, db: env.DB };
+  return {
+    db: env.DB,
+    bucket: env.ARTEFACTS,
+    store,
+    kv: env.CACHE,
+    meta: {
+      env,
+      budget: d1Budget(env.DB, { caller: "monitor" }),
+    },
+    walk: async (caseId) => {
+      const { table } = await brandTableRead(env);
+      const caseRow = await env.DB.prepare("SELECT org_id FROM cases WHERE id = ?")
+        .bind(caseId)
+        .first<{ org_id: string }>();
+      let walkTable = table;
+      if (caseRow?.org_id) {
+        const identity = await env.DB.prepare("SELECT display_names_json FROM identities WHERE org_id = ?")
+          .bind(caseRow.org_id)
+          .first<{ display_names_json: string }>();
+        const domains = (
+          await env.DB.prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'")
+            .bind(caseRow.org_id)
+            .all<{ domain: string }>()
+        ).results
+          .map((r) => registrable(r.domain))
+          .filter((d): d is string => d !== null);
+        const names = identity
+          ? (JSON.parse(identity.display_names_json) as string[]).filter((s) => s.trim().length > 0)
+          : [];
+        const primary = names[0];
+        if (
+          primary &&
+          domains.length > 0 &&
+          !table.brands.some((b) => b.name.toLowerCase() === primary.toLowerCase())
+        ) {
+          walkTable = {
+            ...table,
+            brands: [
+              ...table.brands,
+              {
+                name: primary,
+                display_names: names,
+                domains,
+                user_content: [],
+                sources: [
+                  {
+                    url: `https://${domains[0]}/`,
+                    read: "2026-11-02",
+                    names: domains,
+                    evidence: "Verified organisation domain",
+                  },
+                ],
+              },
+            ],
+          };
+        }
+      }
+      return walkthroughStep(
+        {
+          db: env.DB,
+          store,
+          cache: kvCache(env.CACHE),
+          launch: () => puppeteer.launch(env.BROWSER),
+          walk,
+          fetch: async (input, init) =>
+            (await fixturesResponse(new Request(input, init), (env as { FIXTURES_PREFIX?: string }).FIXTURES_PREFIX, {
+              db: env.DB,
+              kv: env.CACHE,
+            })) ?? fetch(input, init),
+          resolve: dohResolve(),
+          meta: { env, budget: d1Budget(env.DB, { caller: "walkthrough", caseId }) },
+          table: walkTable,
+          revision: env.CF_VERSION_METADATA?.id ?? null,
+          walkId: () => ulid(),
+        },
+        caseId,
+      );
+    },
+    cropLogo: async (screenshot, dataUrl): Promise<LogoImage | null> => {
+      const meta = {
+        env,
+        budget: d1Budget(env.DB, { caller: "monitor" }),
+        owner: { kind: "monitor" as const, run: "pipeline", host: "page", step: "logo" },
+      };
+      const samBoxes = await segment(meta, dataUrl, "logo").catch(() => []);
+      const browser = await puppeteer.launch(env.BROWSER);
+      try {
+        const size = await imageSize(browser, screenshot);
+        const boxes =
+          samBoxes.length > 0 || DETECTOR === "sam"
+            ? samBoxes
+            : await groundLogos({ ...meta, waitUntil: () => {} }, dataUrl, size);
+        const selected = selectBoxes(boxes, size);
+        if (!selected.length) return null;
+        const { crops } = await cropBoxes(browser, screenshot, selected);
+        const crop = crops[0];
+        return crop ? { bytes: crop.bytes, mediaType: "image/png", label: "the page's logo crop" } : null;
+      } finally {
+        await browser.close();
+      }
+    },
+  };
+}
+
 export async function runMonitor(
   step: Steps,
   deps: MonitorDeps & { heldSince: (id: string) => Promise<number | null> },
   orgId: string,
   runId: string,
+  pipeline?: (orgId: string) => Promise<{
+    investigated: number;
+    trainingRecoveryFailed?: number;
+    trainingRecoveryErrors?: string[];
+  }>,
+  findings?: (orgId: string) => Promise<{
+    created: number;
+    alerted: number;
+    reopened: number;
+    trainingRecoveryFailed?: number;
+    trainingRecoveryErrors?: string[];
+  }>,
 ): Promise<RunSummary> {
   let summary: RunSummary | undefined;
   let failure: unknown;
@@ -187,14 +350,132 @@ export async function runMonitor(
     { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
     () => settleAgain(deps, held),
   );
+  const markPartialWithErrors = async (stepName: string, extraErrors: string[]) => {
+    const updatedErrors = [...(summary?.errors ?? [])];
+    for (const e of extraErrors) {
+      if (!updatedErrors.includes(e)) updatedErrors.push(e);
+    }
+    await step.do(
+      stepName,
+      { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+      async () => {
+        const existingRow = await deps.db
+          .prepare("SELECT errors_json FROM monitor_runs WHERE org_id = ? AND run_id = ?")
+          .bind(orgId, runId)
+          .first<{ errors_json: string | null }>();
+        let dbErrors: string[] = [];
+        if (existingRow?.errors_json) {
+          try {
+            const parsed = JSON.parse(existingRow.errors_json);
+            if (Array.isArray(parsed)) dbErrors = parsed.filter((x): x is string => typeof x === "string");
+          } catch {
+            // ignore
+          }
+        }
+        for (const e of extraErrors) {
+          if (!dbErrors.includes(e)) dbErrors.push(e);
+        }
+        await deps.db
+          .prepare(
+            "UPDATE monitor_runs SET outcome = CASE WHEN outcome = 'failed' THEN 'failed' ELSE 'partial' END, errors_json = ? WHERE org_id = ? AND run_id = ?",
+          )
+          .bind(JSON.stringify(dbErrors.slice(0, 20)), orgId, runId)
+          .run();
+        return { marked: true };
+      },
+    );
+    if (summary) {
+      summary = {
+        ...summary,
+        outcome: summary.outcome === "failed" ? "failed" : "partial",
+        errors: updatedErrors.slice(0, 20),
+      };
+    }
+  };
+  // The full pipeline on the run's flagged pages (D05 T04 §4), after settlement, in its own step: a
+  // page that fails settles partial on its own row and never fails the run.
+  if (pipeline) {
+    const pipeSummary = await step.do(
+      "pipeline",
+      { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
+      async () => pipeline(orgId),
+    );
+    if (pipeSummary?.trainingRecoveryFailed && pipeSummary.trainingRecoveryFailed > 0) {
+      const errs = (pipeSummary.trainingRecoveryErrors ?? ["recovery-failed"]).map((e) => `training:${e}`);
+      await markPartialWithErrors("pipeline-training-partial", errs);
+    }
+  }
+  // Findings and their alerts (D05 T04 §5), after the pipeline settles. An exhausted failure
+  // marks the persisted run partial, so the console warns instead of a clean success with
+  // findings or alerts missing.
+  if (findings) {
+    let findSummary:
+      | {
+          created: number;
+          alerted: number;
+          reopened: number;
+          trainingRecoveryFailed?: number;
+          trainingRecoveryErrors?: string[];
+        }
+      | undefined;
+    try {
+      findSummary = await step.do(
+        "findings",
+        { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "5 minutes" },
+        async () => findings(orgId),
+      );
+    } catch (error: unknown) {
+      console.log(
+        JSON.stringify({ event: "monitor-findings", outcome: "failed", error: (error as Error).name || "Error" }),
+      );
+      // The partial mark is itself a retried step: if it cannot be written, the failure
+      // propagates instead of a clean summary over a successful-looking run.
+      await step.do(
+        "findings-partial",
+        { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+        async () => {
+          await deps.db
+            .prepare("UPDATE monitor_runs SET outcome = 'partial' WHERE org_id = ? AND run_id = ?")
+            .bind(orgId, runId)
+            .run();
+          return { marked: true };
+        },
+      );
+      if (summary) summary = { ...summary, outcome: "partial" };
+    }
+    if (findSummary?.trainingRecoveryFailed && findSummary.trainingRecoveryFailed > 0) {
+      const errs = (findSummary.trainingRecoveryErrors ?? ["recovery-failed"]).map((e) => `training:${e}`);
+      await markPartialWithErrors("findings-training-partial", errs);
+    }
+  }
   if (failure !== undefined) throw failure;
   return summary as RunSummary;
 }
 
 export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
-    const runId = `monitor-${event.payload.orgId}-${event.payload.day}`;
-    return runMonitor(step, monitorDeps(this.env, runId), event.payload.orgId, runId);
+    const runId = event.payload.runId ?? `monitor-${event.payload.orgId}-${event.payload.day}`;
+    const since = new Date(Date.parse(event.payload.day) - 7 * 24 * 60 * 60_000).toISOString();
+    return runMonitor(
+      step,
+      monitorDeps(this.env, runId),
+      event.payload.orgId,
+      runId,
+      (orgId) => monitorPipeline(pipelineDeps(this.env), orgId, since),
+      (orgId) =>
+        findingsFromInvestigations(
+          this.env.DB,
+          orgId,
+          {
+            mail: this.env.SMTP2GO_API_KEY
+              ? { db: this.env.DB, apiKey: this.env.SMTP2GO_API_KEY, operator: this.env.OPERATOR_EMAIL }
+              : null,
+            appUrl: this.env.APP_URL,
+          },
+          () => new Date(),
+          this.env.ARTEFACTS,
+        ),
+    );
   }
 }
 
