@@ -21,6 +21,8 @@ import {
   OUTCOMES,
   type Outcome,
   type PendingInvite,
+  type TeamHistory,
+  type TeamHistoryRow,
   type Reader,
   RemoveConfirm,
   type Role,
@@ -191,6 +193,82 @@ async function memberOf(env: Env, signedIn: SignedIn) {
   return { org: membership.org };
 }
 
+const HISTORY_WORDS: Record<string, string> = {
+  "update-member-role": "Role changed",
+  "cancel-invitation": "Invitation revoked",
+  "remove-member": "Member removed",
+  "leave-organization": "Member left",
+};
+const roleWord = (r: string) => (r === "owner" ? "Owner" : r === "admin" ? "Admin" : r === "member" ? "Member" : r);
+
+// The owner-only team history for the page (D07 T04 §23): names resolved inside this organisation, the stored
+// detail read through an allowlist, and a read failure drawn as the section's own error, never the page's.
+async function historyFor(
+  db: D1Database,
+  orgId: string,
+  reader: Reader,
+  members: TeamMember[],
+  url: URL,
+): Promise<TeamHistory> {
+  const action = url.searchParams.get("action") ?? "";
+  const from = url.searchParams.get("from") ?? "";
+  const to = url.searchParams.get("to") ?? "";
+  const base: TeamHistory = { rows: [], action, from, to };
+  const dateOk = (v: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    if (!m) return false;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+  };
+  if (action && !HISTORY_WORDS[action]) return { ...base, error: "Choose one of the listed actions." };
+  if ((from && !dateOk(from)) || (to && !dateOk(to))) return { ...base, error: "Give real calendar dates, or leave a date empty." };
+  if (from && to && from > to) return { ...base, error: "The To date is before the From date. Swap them and try again." };
+  try {
+    const { readTeamHistory } = await import("../../auth/audit");
+    const { changes, next } = await readTeamHistory(db, orgId, {
+      ...(action ? { action } : {}),
+      ...(from ? { from: new Date(`${from}T00:00:00+02:00`).toISOString() } : {}),
+      ...(to ? { to: new Date(`${to}T23:59:59.999+02:00`).toISOString() } : {}),
+    });
+    const byUser = new Map(members.map((m) => [m.userId, m]));
+    const nameOf = (id: string | null): string => {
+      if (!id) return "IsItLegit";
+      if (id === reader.userId) return "You";
+      const held = byUser.get(id);
+      return held ? held.name || held.email : "A member who has left";
+    };
+    const rows: TeamHistoryRow[] = [];
+    for (const change of changes) {
+      let detail: Record<string, unknown> = {};
+      try {
+        detail = change.detail_json ? (JSON.parse(change.detail_json) as Record<string, unknown>) : {};
+      } catch {
+        detail = {};
+      }
+      let what = HISTORY_WORDS[change.kind] ?? change.kind;
+      if (change.kind === "update-member-role" && typeof detail.from === "string" && typeof detail.to === "string")
+        what = `Role changed, ${roleWord(detail.from)} to ${roleWord(detail.to)}`;
+      let whom: string;
+      if (change.kind === "cancel-invitation") {
+        const held = change.target_id
+          ? await db
+              .prepare(`SELECT email FROM "invitation" WHERE id = ? AND "organizationId" = ?`)
+              .bind(change.target_id, orgId)
+              .first<{ email: string }>()
+          : null;
+        whom = held?.email ?? "An invitation that is gone";
+      } else whom = nameOf(change.target_id);
+      let outcome = change.outcome === "done" || change.outcome === "ok" ? "Done" : "Refused";
+      if (change.kind === "remove-member" && typeof detail.sessionsEnded === "number")
+        outcome = `Done, ${detail.sessionsEnded} ${detail.sessionsEnded === 1 ? "session" : "sessions"} ended`;
+      rows.push({ at: change.at, what, who: nameOf(change.actor_id), whom, outcome });
+    }
+    return { rows, action, from, to, more: next !== null };
+  } catch {
+    return { ...base, failed: true };
+  }
+}
+
 teamRoutes.get(
   "/team",
   sessionGate(() => outage("session")),
@@ -207,6 +285,10 @@ teamRoutes.get(
         reader.role === "member" ? Promise.resolve([]) : readInvitations(c.env.DB, who.org.id),
       ]);
       const lost = new URL(c.req.url).searchParams.get("unanswered") === "1";
+      const history =
+        reader.role === "owner"
+          ? await historyFor(c.env.DB, who.org.id, reader, members, new URL(c.req.url))
+          : undefined;
       return html(
         <TeamPage
           shell={shell}
@@ -215,6 +297,7 @@ teamRoutes.get(
           outcome={outcome}
           lost={lost}
           invites={invites}
+          history={history}
           now={new Date()}
         />,
       );

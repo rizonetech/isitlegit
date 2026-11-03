@@ -1099,3 +1099,61 @@ describe("inviting several: uncertain delivery (D07 T04 §22)", () => {
     smtp.restore();
   });
 });
+
+describe("team history for owners (D07 T04 §23)", () => {
+  const event = async (orgId: string, kind: string, actor: string, target: string, at = new Date().toISOString(), detail = "{}") =>
+    db
+      .prepare(
+        `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+         VALUES (?, ?, ?, 'done', ?, ?, ?, ?, 'x', ?)`,
+      )
+      .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target, detail)
+      .run();
+
+  it("draws the history newest first for owners only, filtered by action and date", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const colleague = await person("Colleague");
+    await join(orgId, colleague, "member");
+    await event(orgId, "update-member-role", owner.id, colleague.id, "2026-10-27T08:00:00.000Z", JSON.stringify({ from: "member", to: "admin" }));
+    await event(orgId, "remove-member", owner.id, colleague.id, "2026-10-28T08:00:00.000Z", JSON.stringify({ sessionsEnded: 2 }));
+    const html = text((await page(owner.cookie)).html);
+    expect(html).toContain("Team history");
+    expect(html).toContain("Role changed, Member to Admin");
+    expect(html).toContain("Done, 2 sessions ended");
+    const section = html.slice(html.indexOf("Team history")).split("When")[1] ?? "";
+    expect(section.indexOf("Member removed")).toBeLessThan(section.indexOf("Role changed"));
+    const filtered = text((await page(owner.cookie, "/team?action=update-member-role")).html);
+    expect(filtered).toContain("Role changed, Member to Admin");
+    expect(filtered).not.toContain("2 sessions ended");
+    const byDate = text((await page(owner.cookie, "/team?from=2026-10-28&to=2026-10-28")).html);
+    expect(byDate).toContain("Member removed");
+    expect(byDate).not.toContain("Role changed, Member to Admin");
+    const reversed = text((await page(owner.cookie, "/team?from=2026-10-29&to=2026-10-28")).html);
+    expect(reversed).toContain("The To date is before the From date");
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    expect(text((await page(admin.cookie)).html)).not.toContain("Team history");
+    const memberPageHtml = text((await page(colleague.cookie)).html);
+    expect(memberPageHtml).not.toContain("Team history");
+  });
+
+  it("draws the empty state, and a failed read as the section's error with the page standing", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const empty = text((await page(owner.cookie)).html);
+    expect(empty).toContain("No team changes in this period.");
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("FROM auth_events")) throw new Error("D1_ERROR: history down");
+      return prepare(sql);
+    });
+    const failed = await page(owner.cookie);
+    expect(text(failed.html)).toContain("The team history could not be read just now.");
+    expect(text(failed.html)).toContain("Try again");
+    expect(text(failed.html)).toContain("Pending invitations");
+    vi.restoreAllMocks();
+    const again = text((await page(owner.cookie)).html);
+    expect(again).toContain("No team changes in this period.");
+  });
+});

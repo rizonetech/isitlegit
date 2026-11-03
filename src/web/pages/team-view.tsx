@@ -36,6 +36,18 @@ export type PendingInvite = {
 export type InviteDraft = { email: string; role: Role; error: string | null };
 
 // One submit's per-address outcomes (D07 T04 §22): every address listed, and the ones Retry may send again.
+// One team history row as drawn (D07 T04 §23): names already resolved, detail already allowlisted.
+export type TeamHistoryRow = { at: string; what: string; who: string; whom: string; outcome: string };
+export type TeamHistory = {
+  rows: TeamHistoryRow[];
+  action: string;
+  from: string;
+  to: string;
+  error?: string;
+  failed?: boolean;
+  more?: boolean;
+};
+
 export type InviteBatch = {
   role: Role;
   results: { email: string; word: string; detail?: string }[];
@@ -485,6 +497,121 @@ function PendingInvites(props: { orgId: string; invites: PendingInvite[]; now: D
   );
 }
 
+const HISTORY_ACTIONS = [
+  ["", "All actions"],
+  ["update-member-role", "Role changed"],
+  ["cancel-invitation", "Invitation revoked"],
+  ["remove-member", "Member removed"],
+  ["leave-organization", "Member left"],
+] as const;
+
+function historyWhen(iso: string): string {
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return "Unknown";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Johannesburg",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(at);
+}
+
+function TeamHistorySection(props: { history: TeamHistory; now: Date }) {
+  const { history } = props;
+  return (
+    <section aria-labelledby="team-history-heading" class="bg-surface border border-line rounded-card-large overflow-hidden">
+      <h2 id="team-history-heading" class="type-h3 px-24 py-16">
+        Team history
+      </h2>
+      <form method="get" action="/team" class="flex flex-wrap items-end gap-12 px-24 pb-16">
+        <label class="flex flex-col gap-4">
+          <span class="type-small weight-text-strong">Action</span>
+          <select id="history-action" name="action" class={SELECT}>
+            {HISTORY_ACTIONS.map(([value, word]) => (
+              <option value={value} selected={history.action === value}>
+                {word}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label class="flex flex-col gap-4">
+          <span class="type-small weight-text-strong">From</span>
+          <input id="history-from" type="date" name="from" value={history.from} class={SELECT} />
+        </label>
+        <label class="flex flex-col gap-4">
+          <span class="type-small weight-text-strong">To</span>
+          <input id="history-to" type="date" name="to" value={history.to} class={SELECT} />
+        </label>
+        <Button type="submit" variant="dark">
+          Apply
+        </Button>
+        <a href="/team" class="type-small text-orange-text underline underline-offset-4">
+          Clear
+        </a>
+      </form>
+      {history.error && (
+        <p role="alert" class="px-24 pb-16 type-small text-mal weight-text-strong">
+          {history.error}
+        </p>
+      )}
+      {history.failed ? (
+        <p class="px-24 pb-24 type-small">
+          The team history could not be read just now.{" "}
+          <a
+            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}`}
+            class="text-orange-text underline underline-offset-4"
+          >
+            Try again
+          </a>
+        </p>
+      ) : history.rows.length === 0 ? (
+        <p class="px-24 pb-24 type-small text-muted">No team changes in this period.</p>
+      ) : (
+        <>
+          <table class="hidden md:table w-full text-left border-collapse" aria-labelledby="team-history-heading">
+            <thead>
+              <tr class="type-small text-muted border-y border-line bg-subtle">
+                <th scope="col" class="px-16 py-12 weight-text-strong">When</th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">What</th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">Who</th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">Whom</th>
+                <th scope="col" class="px-16 py-12 weight-text-strong">Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.rows.map((row) => (
+                <tr class="border-b border-line last:border-b-0">
+                  <td class="px-16 py-12">{historyWhen(row.at)}</td>
+                  <td class="px-16 py-12 wrap-anywhere">{row.what}</td>
+                  <td class="px-16 py-12 wrap-anywhere">{row.who}</td>
+                  <td class="px-16 py-12 wrap-anywhere">{row.whom}</td>
+                  <td class="px-16 py-12 wrap-anywhere">{row.outcome}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <ul class="md:hidden flex flex-col">
+            {history.rows.map((row) => (
+              <li class="flex flex-col gap-4 px-16 py-12 border-t border-line">
+                <span class="weight-text-strong wrap-anywhere">{row.what}</span>
+                <span class="type-small text-muted">{historyWhen(row.at)}</span>
+                <span class="type-small wrap-anywhere">
+                  {row.who} · {row.whom} · {row.outcome}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {history.more && <p class="px-24 py-12 type-small text-muted">Showing the latest 100 changes.</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function TeamPage(props: {
   shell: Omit<MemberShellProps, "children">;
   members: TeamMember[];
@@ -496,9 +623,10 @@ export function TeamPage(props: {
   invites?: PendingInvite[];
   draft?: InviteDraft;
   inviteBatch?: InviteBatch;
+  history?: TeamHistory | undefined;
   now: Date;
 }) {
-  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch } = props;
+  const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history } = props;
   const mayInvite = reader.role !== "member";
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
@@ -637,6 +765,7 @@ export function TeamPage(props: {
             )}
           </div>
           {mayInvite && <PendingInvites orgId={shell.organization.id} invites={invites ?? []} now={now} />}
+          {history && <TeamHistorySection history={history} now={now} />}
         </div>
       </AppShell>
     </Document>

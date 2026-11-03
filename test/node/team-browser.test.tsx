@@ -125,6 +125,12 @@ async function answer(req: IncomingMessage): Promise<Response> {
         ? ({ r, name: url.searchParams.get("n") ?? undefined } as Outcome)
         : null;
     const lost = url.searchParams.get("unanswered") === "1";
+    const historyAction = url.searchParams.get("action") ?? "";
+    const allRows = [
+      { at: "2026-10-28T08:00:00.000Z", what: "Member removed", who: "You", whom: "Sipho Mokoena", outcome: "Done, 1 session ended" },
+      { at: "2026-10-27T08:00:00.000Z", what: "Role changed, Member to Admin", who: "You", whom: "Sipho Mokoena", outcome: "Done" },
+    ];
+    const rows = historyAction === "remove-member" ? allRows.slice(0, 1) : historyAction === "update-member-role" ? allRows.slice(1) : allRows;
     return html(
       <TeamPage
         shell={shell()}
@@ -132,6 +138,11 @@ async function answer(req: IncomingMessage): Promise<Response> {
         reader={state.reader}
         outcome={outcome}
         lost={lost}
+        history={
+          state.reader.role === "owner"
+            ? { rows, action: historyAction, from: url.searchParams.get("from") ?? "", to: url.searchParams.get("to") ?? "" }
+            : undefined
+        }
         now={NOW}
       />,
     );
@@ -412,4 +423,18 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
           await context.close();
         }
       });
+  it("filters the history by action, with scripts off and on (D07 T04 §23)", async () => {
+    for (const js of [true, false]) {
+      const { p, context } = await open("/team", { js });
+      await expect.poll(() => p.locator("#team-history-heading").textContent()).toBe("Team history");
+      await expect.poll(() => p.getByText("Member removed").first().textContent()).toBeTruthy();
+      await p.locator("#history-action").selectOption("update-member-role");
+      await p.getByRole("button", { name: "Apply" }).click();
+      await expect.poll(() => p.url()).toContain("action=update-member-role");
+      await expect.poll(() => p.getByText("Role changed, Member to Admin").first().textContent()).toBeTruthy();
+      expect(await p.getByText("1 session ended").count()).toBe(0);
+      await context.close();
+    }
+  });
+
 });

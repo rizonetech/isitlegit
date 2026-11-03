@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 186 | Checklist items: 800
+Sections: 186 | Checklist items: 801
 
 | Status | Reference   | Deliverable                                         | Needs                | Items |
 | ------ | ----------- | --------------------------------------------------- | -------------------- | ----- |
@@ -535,7 +535,7 @@ Sections: 186 | Checklist items: 800
 | [x]    | D07 T04 §19 | Reporting period choice                             | none                 | 4     |
 | [ ]    | D07 T04 §20 | Opt-in weekly counts                                | none                 | 4     |
 | [x]    | D07 T04 §22 | Invite several colleagues at once                   | none                 | 4     |
-| [ ]    | D07 T04 §23 | Team history for owners                             | none                 | 3     |
+| [ ]    | D07 T04 §23 | Team history for owners                             | none                 | 4     |
 | [ ]    | D07 T04 §24 | Team history by person                              | none                 | 2     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page         | none                 | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                      | none                 | 3     |
@@ -622,4 +622,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 335/544 verified sections, 137 ready to run now.
 
-Checklist: 2668/3412 items completed (includes Commit items).
+Checklist: 2672/3413 items completed (includes Commit items).
