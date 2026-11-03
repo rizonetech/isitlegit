@@ -155,7 +155,18 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
     return (
       <p class="flex items-center gap-12 min-h-48 px-12 py-8 text-15 weight-text-strong text-ink">
         <OrgBadge name={organization.name} />
-        <span class={NAME} title={organization.name}>
+        <span
+          tabindex={0}
+          role="button"
+          aria-expanded="false"
+          data-org-reveal
+          class={cx(
+            NAME,
+            "rounded-small cursor-pointer [&[aria-expanded=true]]:whitespace-normal [&[aria-expanded=true]]:overflow-visible [&[aria-expanded=true]]:text-clip [&[aria-expanded=true]]:wrap-anywhere",
+            FOCUS,
+          )}
+          title={organization.name}
+        >
           {organization.name}
         </span>
       </p>
@@ -182,7 +193,7 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
           {organization.name}
         </li>
         {others.map((org) => (
-          <li>
+          <li class="flex flex-col gap-2">
             <form method="post" action="/orgs/switch">
               <input type="hidden" name="organizationId" value={org.id} />
               <button type="submit" class={cx(OPTION, FOCUS)}>
@@ -192,6 +203,9 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
                 </span>
               </button>
             </form>
+            <span class="px-12 pb-4 text-12 text-muted wrap-anywhere" data-full-alt-org-name>
+              {org.name}
+            </span>
           </li>
         ))}
       </ul>

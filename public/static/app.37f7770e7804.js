@@ -349,6 +349,61 @@ const ownFailure = (event       ) => {
   form.dispatchEvent(new Event("busy:release"));
   return true;
 };
+const casesFailure = (name        , event       ) => {
+  const el = event.target                  ;
+  const inCases = el?.closest?.("#case-filters") ?? (el?.getAttribute?.("hx-target") === "#case-results" ? el : null);
+  if (!inCases) return false;
+  if (name !== "htmx:timeout" && (name !== "htmx:sendError" || navigator.onLine !== false)) return false;
+  document.getElementById("case-loading")?.classList.remove("htmx-request");
+  const form = document.getElementById("case-filters");
+  if (!form) return true;
+  const href = asked((event                           ).detail);
+  let alert = document.getElementById("case-filter-error");
+  if (!alert) {
+    alert = document.createElement("p");
+    alert.id = "case-filter-error";
+    alert.setAttribute("role", "alert");
+    alert.className = "flex flex-wrap items-center gap-8 type-small text-mal weight-text-strong";
+    form.appendChild(alert);
+  }
+  alert.textContent = "Could not load cases. Your current list and filters are kept. ";
+  const retry = document.createElement("a");
+  retry.id = "case-filter-retry";
+  retry.href = href;
+  retry.className = "text-orange-text underline underline-offset-4";
+  retry.textContent = "Try again";
+  alert.appendChild(retry);
+  return true;
+};
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const el = event.target                  ;
+  if (el?.closest?.("#case-filters") || el?.getAttribute?.("hx-target") === "#case-results")
+    document.getElementById("case-filter-error")?.remove();
+});
+const toggleOrgReveal = (el             ) => {
+  const open = el.getAttribute("aria-expanded") === "true";
+  el.setAttribute("aria-expanded", open ? "false" : "true");
+};
+document.addEventListener("click", (event) => {
+  const reveal = (event.target                  )?.closest?.("[data-org-reveal]")                      ;
+  if (reveal) toggleOrgReveal(reveal);
+});
+document.addEventListener("keydown", (event) => {
+  const target = event.target                      ;
+  if (
+    target?.matches?.(".overflow-x-auto[tabindex='0']") &&
+    (event.key === "ArrowRight" || event.key === "ArrowLeft")
+  ) {
+    event.preventDefault();
+    target.scrollLeft += event.key === "ArrowRight" ? 64 : -64;
+    return;
+  }
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const reveal = target?.closest?.("[data-org-reveal]")                      ;
+  if (!reveal) return;
+  event.preventDefault();
+  toggleOrgReveal(reveal);
+});
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
     if (polled(event)) return stale(true);
@@ -356,6 +411,7 @@ for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
     // next interval: it must never take the reader off the page.
     if ((event.target                  )?.closest?.("[data-quiet-poll]")) return;
     if (ownFailure(event)) return;
+    if (casesFailure(name, event)) return;
     if (name === "htmx:timeout") return;
     location.assign(asked((event                           ).detail));
   });

@@ -125,17 +125,20 @@ async function handleRequest(req: IncomingMessage): Promise<Response> {
       matching: matched.length,
       total: ALL_CASES.length,
     };
+    const singleOrg = url.searchParams.get("singleOrg") === "1";
     const { children: _, ...shell } = member({
       organization: {
         id: "org-long",
         name: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
       },
-      otherOrganizations: [
-        {
-          id: "org-other",
-          name: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated",
-        },
-      ],
+      otherOrganizations: singleOrg
+        ? []
+        : [
+            {
+              id: "org-other",
+              name: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated",
+            },
+          ],
     });
     return new Response(
       String(
@@ -704,13 +707,33 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         longCaseTitle,
         longCaseTitle,
       ]);
+      // Real keyboard navigation on production and gallery tables without scripted scrollIntoView
+      await page.evaluate(() => {
+        for (const el of document.querySelectorAll<HTMLElement>(".overflow-x-auto")) el.scrollLeft = 0;
+      });
+      await page.locator("#feedback-queue .overflow-x-auto").focus();
+      await page.keyboard.press("ArrowRight");
+      expect(
+        await page.evaluate(() => (document.querySelector("#feedback-queue .overflow-x-auto") as HTMLElement).scrollLeft),
+      ).toBeGreaterThan(0);
+      await page.keyboard.press("Tab");
+      const prodLinkFocus = await page.evaluate(() => {
+        const link = document.querySelector("#feedback-queue tbody a") as HTMLAnchorElement;
+        const rect = link.getBoundingClientRect();
+        return {
+          focused: document.activeElement === link,
+          visible: rect.width > 0 && rect.left >= 0 && rect.right <= 360,
+        };
+      });
+      expect(prodLinkFocus).toEqual({ focused: true, visible: true });
+
+      await page.locator("#wide-gallery .overflow-x-auto").focus();
+      await page.keyboard.press("Tab"); // first-column case link
+      await page.keyboard.press("Tab"); // final-column Review action link (browser reveals via focus + scroll-padding-left)
       const actionFocus = await page.evaluate(() => {
         const wrap = document.querySelector("#wide-gallery .overflow-x-auto") as HTMLElement;
-        wrap.scrollLeft = 0;
         const firstCell = wrap.querySelector("tbody td:first-child") as HTMLElement;
         const action = wrap.querySelector("tbody td:last-child a") as HTMLAnchorElement;
-        action.scrollIntoView({ block: "center", inline: "nearest" });
-        action.focus();
         const fRect = firstCell.getBoundingClientRect();
         const aRect = action.getBoundingClientRect();
         const hit = document.elementFromPoint(aRect.left + aRect.width / 2, aRect.top + aRect.height / 2);
@@ -727,6 +750,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         uncovered: true,
         href: "/admin/feedback?selected=01CASE",
       });
+      await page.keyboard.press("Shift+Tab");
+      expect(
+        await page.evaluate(
+          () => document.activeElement === document.querySelector("#wide-gallery tbody td:first-child a"),
+        ),
+      ).toBe(true);
       await close();
     });
 
@@ -866,22 +895,75 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       const disclosure = await page.evaluate(() => {
         const details = document.querySelector("#nav details") as HTMLDetailsElement;
         const fullOrg = document.querySelector("#nav [data-full-org-name]") as HTMLElement;
+        const fullAltOrg = document.querySelector("#nav [data-full-alt-org-name]") as HTMLElement;
         return {
           openAfterClick: details.open,
           fullOrgText: fullOrg.textContent?.trim(),
           fullOrgVisible: fullOrg.getBoundingClientRect().height > 0 && fullOrg.scrollWidth <= fullOrg.clientWidth + 1,
+          fullAltOrgText: fullAltOrg.textContent?.trim(),
+          fullAltOrgVisible:
+            fullAltOrg.getBoundingClientRect().height > 0 && fullAltOrg.scrollWidth <= fullAltOrg.clientWidth + 1,
         };
       });
       expect(disclosure).toEqual({
         openAfterClick: true,
         fullOrgText: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
         fullOrgVisible: true,
+        fullAltOrgText: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated",
+        fullAltOrgVisible: true,
       });
       await page.focus("#nav summary");
       await page.keyboard.press("Enter");
       expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(false);
       await page.keyboard.press("Enter");
       expect(await page.evaluate(() => (document.querySelector("#nav details") as HTMLDetailsElement).open)).toBe(true);
+
+      // Single-organisation member: [data-org-reveal] starts truncated and expands in place on click and keyboard without switching context
+      await page.goto(`${origin}/cases?singleOrg=1`, { waitUntil: "load" });
+      await page.click('button[aria-label="Menu"]');
+      const singleBefore = await page.evaluate(() => {
+        const el = document.querySelector("#nav [data-org-reveal]") as HTMLElement;
+        const s = getComputedStyle(el);
+        return {
+          expanded: el.getAttribute("aria-expanded"),
+          textOverflow: s.textOverflow,
+          truncated: el.scrollWidth > el.clientWidth,
+        };
+      });
+      expect(singleBefore).toEqual({
+        expanded: "false",
+        textOverflow: "ellipsis",
+        truncated: true,
+      });
+      await page.click("#nav [data-org-reveal]");
+      const singleAfterClick = await page.evaluate(() => {
+        const el = document.querySelector("#nav [data-org-reveal]") as HTMLElement;
+        return {
+          expanded: el.getAttribute("aria-expanded"),
+          fullText: el.textContent?.trim(),
+          untruncated: el.scrollWidth <= el.clientWidth + 1,
+          pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+      expect(singleAfterClick).toEqual({
+        expanded: "true",
+        fullText: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
+        untruncated: true,
+        pageOverflow: 0,
+      });
+      await page.focus("#nav [data-org-reveal]");
+      await page.keyboard.press("Space");
+      expect(
+        await page.evaluate(() =>
+          (document.querySelector("#nav [data-org-reveal]") as HTMLElement).getAttribute("aria-expanded"),
+        ),
+      ).toBe("false");
+      await page.keyboard.press("Enter");
+      expect(
+        await page.evaluate(() =>
+          (document.querySelector("#nav [data-org-reveal]") as HTMLElement).getAttribute("aria-expanded"),
+        ),
+      ).toBe("true");
       await context.close();
     });
 
@@ -981,6 +1063,32 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       serverState.fail = false;
       await page.getByRole("link", { name: "Try again" }).click();
       await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(25);
+
+      // 5b. Stalled Cases request aborts after its bounded timeout, clears #case-loading, keeps existing rows and filters intact, and exposes #case-filter-error with Try again
+      await page.evaluate(() => {
+        document.getElementById("case-filters")?.setAttribute("hx-request", '{"timeout":150}');
+      });
+      serverState.delayMs = 800;
+      await page.locator("fieldset label").filter({ hasText: /^Suspicious$/ }).click();
+      await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
+      expect(await page.locator("#case-loading").isVisible()).toBe(false);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
+      expect(await page.locator("#case-filter-retry").getAttribute("href")).toContain("verdict=suspicious");
+      serverState.delayMs = 0;
+
+      // 5c. Offline Cases request keeps existing rows and filters intact without navigating to a browser error page, announces failure, and recovers via Try again once online
+      await page.evaluate(() => {
+        document.getElementById("case-filters")?.setAttribute("hx-request", '{"timeout":10000}');
+        document.getElementById("case-filter-error")?.remove();
+      });
+      await context.setOffline(true);
+      await page.locator("fieldset label").filter({ hasText: /^Malicious$/ }).click();
+      await expect.poll(async () => page.locator("#case-filter-error").isVisible(), { timeout: 3000 }).toBe(true);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
+      await context.setOffline(false);
+      await page.locator("#case-filter-retry").click();
+      await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(25);
+      expect(page.url()).toContain("verdict=malicious");
 
       // 6. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
       serverState.pollFinished = false;

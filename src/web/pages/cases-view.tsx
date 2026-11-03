@@ -168,6 +168,7 @@ const RESULTS = {
   "hx-select": "#case-results",
   "hx-swap": "outerHTML",
   "hx-push-url": "true",
+  "hx-request": '{"timeout":10000}',
   // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request, and so does the
   // period's state beside the date range (D07 T04 §8), which a range disables.
   "hx-select-oob": "#case-count,#case-stats,#case-period-state,#case-range-state,#case-checker-state",
