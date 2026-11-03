@@ -291,7 +291,7 @@ class Receipt:
                     code = ord(ch)
                     if ch in ('"', "\\", "\b", "\f", "\n", "\r", "\t"):
                         size += 2
-                    elif code < 0x20 or (0x80 <= code <= 0xFFFF):
+                    elif code < 0x20 or (0x7F <= code <= 0xFFFF):
                         size += 6
                     elif code > 0xFFFF:
                         size += 12
