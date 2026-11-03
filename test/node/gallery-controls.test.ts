@@ -187,14 +187,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const p = await context.newPage();
     let blocked = true;
+    let delayFrameAxe = false;
     await p.route("**/dev/axe.min.js", async (route) => {
       if (blocked) return route.abort();
+      if (delayFrameAxe && route.request().frame() !== p.mainFrame()) {
+        delayFrameAxe = false;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
       return route.continue();
     });
     await openGallery(p);
     await p.getByRole("button", { name: "Run accessibility checks" }).click();
     await expect.poll(() => p.locator("[data-a11y-status]").textContent(), { timeout: 60_000 }).toContain("failed");
     blocked = false;
+    delayFrameAxe = true;
     const frame = preview(p, "state button/primary");
     await frame.scrollIntoViewIfNeeded();
     const doc = await (await frame.elementHandle())?.contentFrame();
@@ -211,7 +217,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     // Mid-scan invalidation: start, change the theme at once, and the stale run must not publish.
     await p.getByRole("button", { name: "Run accessibility checks" }).click();
     await p.getByRole("button", { name: "Dark", exact: true }).click();
-    await p.waitForTimeout(8000);
+    await p.waitForTimeout(3000);
     expect(await box.getAttribute("data-a11y-state")).toBe("idle");
     // Per-preview rerun finds it, removal plus rerun is clean.
     await p

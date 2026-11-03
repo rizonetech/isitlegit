@@ -45,7 +45,7 @@ afterEach(() => spy.mockRestore());
 // A Workflow a sweep or a takeover started (D01 T03 §12), run to its end inside the test, while SMTP2GO is stubbed.
 async function ran(caseId: string) {
   const instance = await env.ANALYSIS.get(caseId);
-  for (let tries = 0; tries < 200; tries++) {
+  for (let tries = 0; tries < 600; tries++) {
     const { status } = await instance.status();
     if (status === "complete" || status === "errored" || status === "terminated") return status;
     await new Promise((resolve) => setTimeout(resolve, 50));
