@@ -14,7 +14,14 @@ import type { MetaContext } from "../meta/client";
 import { type BankKeys, claimKeys, sealNumber } from "../trust/bank";
 import { BankKeysMissing } from "../trust/errors";
 import { caseInvoiceAccountStatement, readCaseInvoiceAccount } from "./case-accounts";
-import { documentStep, isStandaloneCase, limitItem, saveDocumentEvidence } from "./document-step";
+import {
+  documentStep,
+  isForensicsIncomplete,
+  isStandaloneCase,
+  limitItem,
+  notCheckedForensics,
+  saveDocumentEvidence,
+} from "./document-step";
 import {
   detectedItem,
   extractInvoiceFields,
@@ -131,24 +138,11 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
   const allKeys = pdfs.map((a) => a.key);
   const existingProducers = await evidenceProducers(deps.db, caseId).catch(() => []);
   const hadDocumentRows = existingProducers.some((p) => p.producer === "document");
-  const otherRows = await deps.db
-    .prepare("SELECT check_name, data_json FROM evidence WHERE case_id = ? AND producer <> 'document'")
-    .bind(caseId)
-    .all<{ check_name: string; data_json: string }>()
-    .catch(() => ({ results: [] as { check_name: string; data_json: string }[] }));
+  const otherProducerIds = new Set(existingProducers.filter((p) => p.producer !== "document").map((p) => p.id));
   const checksForensics = new Set(
-    (otherRows.results ?? [])
-      .filter((r) => r.check_name.startsWith("document.forensics."))
-      .flatMap((r) => {
-        try {
-          const parsed = JSON.parse(r.data_json) as { artefacts?: unknown };
-          return Array.isArray(parsed.artefacts)
-            ? parsed.artefacts.filter((k): k is string => typeof k === "string").map((k) => `${k}:${r.check_name}`)
-            : [];
-        } catch {
-          return [];
-        }
-      }),
+    (await readEvidence(deps.db, caseId).catch(() => []))
+      .filter((e) => otherProducerIds.has(e.id) && e.check.startsWith("document.forensics."))
+      .flatMap((e) => e.artefacts.map((k) => `${k}:${e.check}`)),
   );
   const forensicItems: EvidenceDraft[] = [];
   for (const doc of call) {
@@ -160,6 +154,11 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
           (d) => !checksForensics.has(`${doc.artefactKey}:${d.check}`),
         ),
       );
+      if (isForensicsIncomplete(report, null)) {
+        forensicItems.push(notCheckedForensics(report, doc.artefactKey));
+      }
+    } else {
+      forensicItems.push(notCheckedDocument("forensics-failed", doc.artefactKey));
     }
   }
   const writeAll = async () => {

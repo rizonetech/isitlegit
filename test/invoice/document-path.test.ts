@@ -31,6 +31,8 @@ import { checks, parse } from "../../src/pipeline/analysis-workflow";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import { EvidenceCards } from "../../src/web/components/evidence/cards";
+import { call, signIn, stubSmtp2go } from "../auth/helpers";
+import { addInviteCode } from "../fixtures/auth/members";
 import { generated } from "../fixtures/pdf-forensics/load";
 import { makeOrg, protectableOrg } from "../trust/helpers";
 
@@ -613,9 +615,8 @@ describe("the standalone document step (D06 T02 §3)", () => {
     expect(refused.step).toEqual({ outcome: "refused" });
     expect(refusedHarness.callCount()).toBe(0);
 
-    // Persisted refusal state gives the member the plan requirement and recovery action.
-    expect(refused.evidence).toHaveLength(1);
-    expect(refused.evidence[0]?.check).toBe("document.not_checked");
+    // Persisted refusal state gives the member the plan requirement, recovery action, and mandatory document limit.
+    expect(refused.evidence.map((e) => e.check)).toEqual(["document.not_checked", "document.limit"]);
     expect(refused.evidence[0]?.detail).toMatchObject({
       checked: false,
       reason: "plan-required",
@@ -623,6 +624,7 @@ describe("the standalone document step (D06 T02 §3)", () => {
       required_plan: "protect",
       recovery: "Upgrade to Protect in your organisation settings and retry this case.",
     });
+    expect(renderCards(refused.evidence)).toContain(DOCUMENT_LIMIT);
     const storedVerdict = await storedVerdictOf(caseId);
     expect(storedVerdict?.headline).toBe(PARTIAL_HEADLINE);
     expect(storedVerdict?.reasons[0]?.text).toContain("Payment document checks require the Protect plan");
@@ -639,6 +641,41 @@ describe("the standalone document step (D06 T02 §3)", () => {
     expect(retried.step).toEqual({ outcome: "read", documents: 1 });
     expect(retried.evidence.map((e) => e.check)).not.toContain("document.not_checked");
     expect(retried.verdict.actions).toContain(POP_ACTION);
+
+    // Upload route admission gate (`requireFeature("payment-document")`): an unentitled organisation is refused at POST /api/upload with 403 before creating a case.
+    const email = `doc-upload-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const code = `code-${crypto.randomUUID()}`;
+    await addInviteCode(db, code);
+    const smtp = stubSmtp2go();
+    try {
+      const made = await call("/api/auth/sign-up/invite-code", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, code, organizationName: "Doc Upload Org", consent: true }),
+      });
+      expect(made.status).toBe(201);
+    } finally {
+      smtp.restore();
+    }
+    const { cookie } = await signIn(email);
+    const memberOrg = await db
+      .prepare('SELECT id FROM "organization" WHERE name = ?')
+      .bind("Doc Upload Org")
+      .first<{ id: string }>();
+    await db.prepare('UPDATE "organization" SET "createdAt" = ? WHERE id = ?').bind(aged, memberOrg?.id).run();
+    const form = new FormData();
+    form.append("file", new Blob([generated["gs-genuine-pop.pdf"]], { type: "application/pdf" }), "pop.pdf");
+    const uploadRefused = await call("/api/upload", {
+      method: "POST",
+      body: form,
+      headers: { accept: "application/json", cookie },
+    });
+    expect(uploadRefused.status).toBe(403);
+    expect(await uploadRefused.json()).toMatchObject({
+      code: "plan",
+      feature: "payment-document",
+      plans: ["protect", "msp"],
+    });
   });
 
   it("routes uploaded documents/images and empty-body emails through the production Workflow's parse and invoiceStep, and runs PDF forensics on non-standalone mail attachments", async () => {
@@ -719,7 +756,7 @@ describe("the standalone document step (D06 T02 §3)", () => {
       "document.limit",
     ]);
 
-    // 4. Non-standalone mail case with a doctored PDF attachment runs PDF forensics alongside invoice extraction and retains them on retry:
+    // 4. Non-standalone mail case with a doctored PDF attachment runs PDF forensics alongside invoice extraction, retains them on retry, and deduplicates checks-owned forensics:
     const regularMail = await caseWithDocument(org, {
       channel: "email",
       sourceKind: "mail",
@@ -748,11 +785,91 @@ describe("the standalone document step (D06 T02 §3)", () => {
         reference: "INV-9",
         due_date: "2026-11-30",
       });
-    const hRegular = harness([invoiceReply, invoiceReply]);
+    const hRegular = harness([invoiceReply, invoiceReply, invoiceReply]);
     await invoiceStep({ ...hRegular.deps, waitUntil: () => {} }, regularMail.caseId, org);
     await invoiceStep({ ...hRegular.deps, waitUntil: () => {} }, regularMail.caseId, org);
     const evRegular = await readEvidence(db, regularMail.caseId);
     expect(evRegular.map((e) => e.check)).toContain("invoice.detected");
-    expect(evRegular.map((e) => e.check)).toContain("document.forensics.revisions");
+    expect(evRegular.filter((e) => e.check === "document.forensics.revisions")).toHaveLength(1);
+    const prodBeforeChecks = await evidenceProducers(db, regularMail.caseId);
+    expect(prodBeforeChecks.some((p) => p.producer === "document")).toBe(true);
+
+    // When `checks` already owns `document.forensics.revisions`, `invoiceStep` deduplicates it instead of emitting a second copy:
+    const checksReg = new CheckRegistry();
+    for (const c of FORENSIC_CHECKS)
+      checksReg.register({ name: c, timeoutMs: 1000, needs: ["attachments"], run: () => [] });
+    await saveEvidence(
+      db,
+      regularMail.caseId,
+      [
+        {
+          check: "document.forensics.revisions",
+          severity: "high",
+          summary: "The PDF was saved again after its first version.",
+          detail: { revisions: 2 },
+          artefacts: [regularMail.artefactKey],
+        },
+      ],
+      checksReg,
+    );
+    await invoiceStep({ ...hRegular.deps, waitUntil: () => {} }, regularMail.caseId, org);
+    const evCoexisting = await readEvidence(db, regularMail.caseId);
+    expect(evCoexisting.filter((e) => e.check === "document.forensics.revisions")).toHaveLength(1);
+
+    // 5. Ordinary-mail attachment with incomplete PDF forensic coverage persists `document.not_checked` (`forensics-unavailable`) and replaces it on retry with a complete PDF:
+    const incompletePdfBytes = (() => {
+      const objs = [
+        "",
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+        "<< /Length 4 >>\nstream\nBT\nendstream",
+      ];
+      let out = "%PDF-1.4\n";
+      const offs = [0];
+      for (let n = 1; n < objs.length; n++) {
+        offs[n] = out.length;
+        out += `${n} 0 obj\n${objs[n]}\nendobj\n`;
+      }
+      const xref = out.length;
+      out += `xref\n0 ${objs.length}\n0000000000 65535 f \n`;
+      for (let n = 1; n < objs.length; n++) out += `${String(offs[n]).padStart(10, "0")} 00000 n \n`;
+      out += `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+      return new TextEncoder().encode(out);
+    })();
+    const incompleteMail = await caseWithDocument(org, {
+      channel: "email",
+      sourceKind: "mail",
+      bytes: incompletePdfBytes,
+      filename: "incomplete-invoice.pdf",
+    });
+    await putParsed(store, incompleteMail.caseId, {
+      source: { kind: "message" },
+      forward: { headersAvailable: true },
+      headers: [{ name: "Subject", value: "Invoice" }],
+      text: "Please pay the attached invoice.",
+      html: null,
+      attachments: [
+        { key: incompleteMail.artefactKey, filename: "incomplete-invoice.pdf", mediaType: "application/pdf" },
+      ],
+    });
+    await invoiceStep({ ...harness([invoiceReply]).deps, waitUntil: () => {} }, incompleteMail.caseId, org);
+    const evIncomplete = await readEvidence(db, incompleteMail.caseId);
+    expect(evIncomplete.map((e) => e.check)).toContain("document.not_checked");
+    expect(evIncomplete.find((e) => e.check === "document.not_checked")?.detail).toMatchObject({
+      checked: false,
+      reason: "forensics-unavailable",
+    });
+    // Replace the attachment in R2 with a complete PDF and re-run on a fresh case or replace the object:
+    await env.ARTEFACTS.put(incompleteMail.artefactKey, generated["gs-genuine-pop.pdf"], {
+      httpMetadata: { contentType: "application/pdf" },
+    });
+    await db
+      .prepare("DELETE FROM evidence WHERE case_id = ? AND producer = 'invoice'")
+      .bind(incompleteMail.caseId)
+      .run();
+    await invoiceStep({ ...harness([invoiceReply]).deps, waitUntil: () => {} }, incompleteMail.caseId, org);
+    const evRecovered = await readEvidence(db, incompleteMail.caseId);
+    expect(evRecovered.map((e) => e.check)).not.toContain("document.not_checked");
   });
 });

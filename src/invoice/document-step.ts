@@ -236,12 +236,12 @@ export async function saveDocumentEvidence(
   return list.map((e, i) => ({ ...e, id: ids[i] ?? e.id }));
 }
 
-export const limitItem = (artefactKey: string): EvidenceDraft => ({
+export const limitItem = (artefactKey?: string): EvidenceDraft => ({
   check: "document.limit",
   severity: "info",
   summary: DOCUMENT_LIMIT.slice(0, 200),
-  detail: { attachment: artefactKey, limit: DOCUMENT_LIMIT },
-  artefacts: [artefactKey],
+  detail: { ...(artefactKey ? { attachment: artefactKey } : {}), limit: DOCUMENT_LIMIT },
+  artefacts: artefactKey ? [artefactKey] : [],
 });
 
 const popItem = (artefactKey: string): EvidenceDraft => ({
@@ -275,7 +275,7 @@ const planRefusedItem = (artefactKeys: string[]): EvidenceDraft => ({
   artefacts: artefactKeys.slice(0, MAX_DOCUMENTS),
 });
 
-function isForensicsIncomplete(report: PdfForensics, docType: PaymentDocument["type"] | null): boolean {
+export function isForensicsIncomplete(report: PdfForensics, docType: PaymentDocument["type"] | null): boolean {
   if (report.unread.length > 0) return true;
   if (Object.values(report.coverage).some((c) => c.status === "partial")) return true;
   if (
@@ -292,7 +292,7 @@ function isForensicsIncomplete(report: PdfForensics, docType: PaymentDocument["t
   return false;
 }
 
-const notCheckedForensics = (report: PdfForensics, artefactKey: string): EvidenceDraft => {
+export const notCheckedForensics = (report: PdfForensics, artefactKey: string): EvidenceDraft => {
   const firstReason =
     report.unread[0] ??
     Object.values(report.coverage).find((c) => c.status !== "ran" && c.reason)?.reason ??
@@ -319,7 +319,11 @@ export async function documentStep(deps: DocumentDeps, caseId: string, orgId: st
   const write =
     deps.write ?? (async (drafts: EvidenceDraft[]) => saveDocumentEvidence(deps.db, caseId, drafts, deps.now));
   if (!(await hasFeature(deps.db, orgId, "payment-document"))) {
-    await write([planRefusedItem(artefacts.map((a) => a.key))]);
+    const keys = artefacts.map((a) => a.key);
+    await write([
+      planRefusedItem(keys),
+      ...(keys.length > 0 ? keys.slice(0, MAX_DOCUMENTS).map((k) => limitItem(k)) : [limitItem(undefined)]),
+    ]);
     return { outcome: "refused" };
   }
   if (artefacts.length === 0) return { outcome: "none" };
