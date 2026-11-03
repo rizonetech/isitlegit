@@ -115,15 +115,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
-<<<<<<< HEAD
-          url.searchParams.get("dispute") === "1",
-          navFiltersOf(url),
-          ignoredDates(url.searchParams)
-            .map((name) => `The ${name} date was not a real date, so it was left out of this run.`)
-            .join(" "),
-=======
           dispute,
->>>>>>> origin/main
         );
         if (out) return answer(out);
       }
