@@ -57,13 +57,22 @@ export type CaseState = {
   // Settled spend, else the reserved estimate, of every model call the case made (`model_spend`, the shared ledger).
   costUsd: number;
   critical: boolean;
+  // Reputation providers that listed this case (D08 T02 section 8); empty means not recorded, never clean.
+  providers?: { provider: string; checked: boolean; listed: boolean }[];
+  walkthrough?: boolean | null;
   createdAt: string;
   updatedAt: string;
 };
 export type UploadAnswer = { status: number; caseId?: string; repeat?: boolean };
 export type Api = {
   commit(): Promise<string>;
-  upload(sample: RunSample, bytes: Uint8Array, mode: string): Promise<UploadAnswer>;
+  // The replay identity is the replay run's own id (D08 T02 section 12): never the source run's, so a second
+  // remeasurement of one source opens its own cases instead of reusing the first replay's claims.
+  upload(
+    sample: RunSample,
+    bytes: Uint8Array,
+    opts: { mode: string; replayRunId: string | null },
+  ): Promise<UploadAnswer>;
   // The signed-in user the session belongs to, null when it is not signed in.
   whoami(): Promise<string | null>;
 };
@@ -92,6 +101,8 @@ export type ResultRow = {
   ms: number | null;
   costUsd: number;
   criticalFound: boolean;
+  providers?: { provider: string; checked: boolean; listed: boolean }[] | undefined;
+  walkthrough?: boolean | null | undefined;
   httpStatus: number | null;
   detail: string | null;
 };
@@ -200,6 +211,10 @@ export async function runEval(args: {
   // An ablation arm name (`ablate:<flag>`), or the full pipeline. The mode is stored on the run row so reports can
   // tell arms apart; a resume keeps the stored mode.
   mode?: string;
+  // The source run a replay remeasures (D08 T02 section 12), set only by the --replay path after it has
+  // restored and verified the source population. A replay mode named through `mode` is refused: it would
+  // carry replay provenance with no validated source behind it.
+  replayOf?: string;
 }): Promise<RunResult> {
   const { samples, setVersion, options, api, db, env } = args;
   const refused = (problems: string[]): RunResult => ({
@@ -227,9 +242,17 @@ export async function runEval(args: {
   const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
   let commitSha = commitNow;
   let capUsd = options.capUsd;
-  let mode = args.mode ?? "full";
-  if (mode !== "full" && !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))))
-    return refused([`unknown run mode ${JSON.stringify(mode)}: "full" or "ablate:<flag>"`]);
+  let mode = args.replayOf ? `replay:${args.replayOf}` : (args.mode ?? "full");
+  if (mode.startsWith("replay:") && !args.replayOf && !args.resume)
+    return refused([
+      `a replay is started with --replay <run id>, not --mode ${JSON.stringify(mode)}: the source population must be restored and verified first`,
+    ]);
+  if (
+    mode !== "full" &&
+    !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))) &&
+    !(mode.startsWith("replay:") && mode.length > "replay:".length)
+  )
+    return refused([`unknown run mode ${JSON.stringify(mode)}: "full", "ablate:<flag>" or "replay:<run id>"`]);
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
@@ -410,6 +433,8 @@ export async function runEval(args: {
           ms: Math.max(0, Date.parse(state.updatedAt) - Date.parse(state.createdAt)),
           costUsd: state.costUsd,
           criticalFound: state.critical,
+          providers: state.providers ?? [],
+          walkthrough: state.walkthrough ?? null,
         };
       }
       if (env.now() - startedMs >= CASE_TIMEOUT_MS)
@@ -472,7 +497,9 @@ export async function runEval(args: {
         let answer: UploadAnswer | null = null;
         for (let attempt = 0; attempt <= UPLOAD_RETRIES; attempt++) {
           try {
-            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () => api.upload(s, bytes, mode));
+            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () =>
+              api.upload(s, bytes, { mode, replayRunId: mode.startsWith("replay:") ? runId : null }),
+            );
           } catch {
             answer = { status: 503 };
           }
@@ -683,13 +710,15 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
       const body = (await res.json().catch(() => null)) as { user?: { id?: string } } | null;
       return body?.user?.id ?? null;
     },
-    async upload(sample, bytes, _mode) {
+    async upload(sample, bytes, opts) {
       const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
       const form = new FormData();
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
-      // The arm mode is held at the transport boundary, not serialized: `/api/upload` admits exactly one field named
-      // `file` and refuses anything else, so a `mode` field would fail every upload until the checks lane's D01 admit
-      // lands (requested through the coordinator with this section named). Then one line sends it.
+      // A replay (D08 T02 section 12, D01 T01 section 22): the upload door admits at most one replayRunId field,
+      // honoured only for the eval organisation, scoping the claim so the replay admits its own case. The id is
+      // the replay run's own, never the source run's. Ablation arm modes stay held at this boundary until the
+      // D01 flag admit lands (D08 T02 section 3).
+      if (opts.replayRunId) form.set("replayRunId", opts.replayRunId);
       const res = await fetchImpl(new URL("/api/upload", base), {
         method: "POST",
         headers: { cookie },
@@ -755,7 +784,7 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
       // budget guard counts it; `case_events.cost_usd` is not written by the pipeline.
       const row = (
         await execute({
-          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical FROM cases WHERE id = ?1 AND org_id = ?2`,
+          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical, (SELECT COALESCE(json_group_array(DISTINCT json_extract(detail_json, '$.provider')), '[]') FROM evidence WHERE case_id = ?1 AND "check" = 'reputation.listing') AS providers, EXISTS (SELECT 1 FROM walkthrough_actions WHERE case_id = ?1) AS walked FROM cases WHERE id = ?1 AND org_id = ?2`,
           params: [caseId, await orgId()],
         })
       ).results?.[0];
@@ -765,6 +794,12 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
         verdict: (row.verdict ?? null) as Verdict | null,
         costUsd: num(row.cost),
         critical: num(row.critical) === 1,
+        providers: (JSON.parse(String(row.providers ?? "[]")) as string[]).map((provider) => ({
+          provider,
+          checked: true,
+          listed: true,
+        })),
+        walkthrough: num(row.walked) === 1,
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
       };
@@ -788,7 +823,7 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
     },
     async putResult(r) {
       await execute({
-        sql: `INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict, ms, cost_usd, critical_found, http_status, detail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT (run_id, sample) DO UPDATE SET case_id = excluded.case_id, outcome = excluded.outcome, verdict = excluded.verdict, ms = excluded.ms, cost_usd = excluded.cost_usd, critical_found = excluded.critical_found, http_status = excluded.http_status, detail = excluded.detail`,
+        sql: `INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict, ms, cost_usd, critical_found, http_status, detail, providers, walkthrough) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT (run_id, sample) DO UPDATE SET case_id = excluded.case_id, outcome = excluded.outcome, verdict = excluded.verdict, ms = excluded.ms, cost_usd = excluded.cost_usd, critical_found = excluded.critical_found, http_status = excluded.http_status, detail = excluded.detail, providers = excluded.providers, walkthrough = excluded.walkthrough`,
         params: [
           r.runId,
           r.sample,
@@ -802,6 +837,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           r.criticalFound ? 1 : 0,
           r.httpStatus,
           r.detail,
+          r.providers ? JSON.stringify(r.providers) : null,
+          r.walkthrough === null || r.walkthrough === undefined ? null : r.walkthrough ? 1 : 0,
         ],
       });
     },
@@ -844,6 +881,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           ms: x.ms === null ? null : num(x.ms),
           costUsd: num(x.cost_usd),
           criticalFound: num(x.critical_found) === 1,
+          providers: x.providers ? (JSON.parse(String(x.providers)) as ResultRow["providers"]) : undefined,
+          walkthrough: x.walkthrough === null || x.walkthrough === undefined ? null : num(x.walkthrough) === 1,
           httpStatus: x.http_status === null ? null : num(x.http_status),
           detail: x.detail === null ? null : String(x.detail),
         })),
@@ -864,11 +903,43 @@ export async function resolveSelection(
   return { sets: stored.run.sets, limit: stored.run.sampleLimit };
 }
 
+// A replay's population (D08 T02 section 12): the source run's stored selection restored and verified against
+// the files on disk. A drifted population (a missing, changed or re-labelled sample, a changed set version)
+// is an error before anything is uploaded.
+export function replayPopulation(
+  stored: { run: RunRow; results: ResultRow[] },
+  select: (sets: readonly string[], limit: number | null) => { samples: RunSample[]; setVersion: string },
+): { samples: RunSample[]; setVersion: string } | { error: string } {
+  // Only a full run replays (D08 T02 section 12): an ablation arm measures a different pipeline, and a
+  // replay of a replay would attribute the new measurement to the wrong source.
+  if (stored.run.mode !== "full")
+    return {
+      error: `run ${stored.run.id} was measured as ${stored.run.mode}, not full; only a full run replays as a full measurement`,
+    };
+  const restored = select(stored.run.sets, stored.run.sampleLimit);
+  if (restored.setVersion !== stored.run.setVersion)
+    return {
+      error: `the sets on disk (version ${restored.setVersion}) are not those of run ${stored.run.id} (version ${stored.run.setVersion})`,
+    };
+  const ids = new Set(restored.samples.map((s) => s.id));
+  const missing = stored.results.filter((r) => !ids.has(r.sample));
+  if (restored.samples.length !== stored.run.selected || missing.length > 0)
+    return {
+      error: `the restored selection (${restored.samples.length} samples) is not the population of run ${stored.run.id} (${stored.run.selected} selected, ${missing.length} missing)`,
+    };
+  return restored;
+}
+
 // ---- the command ------------------------------------------------------------------------------------------------------------
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export async function main(argv: string[], environment: NodeJS.ProcessEnv = process.env): Promise<number> {
+export async function main(
+  argv: string[],
+  environment: NodeJS.ProcessEnv = process.env,
+  // Injected by the command-entry tests; the live command builds its own from the environment.
+  deps?: { db: Db; api: Api; env: Env },
+): Promise<number> {
   const options = parseArgs(argv);
   if ("error" in options) {
     console.error(`eval:run: ${options.error}\n${USAGE}`);
@@ -879,7 +950,9 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     return 0;
   }
   const { execute } = await import("../scripts/lib/meta-budget.ts");
-  const db = liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inlineLong(s), params: [] }));
+  const db =
+    deps?.db ??
+    liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inlineLong(s), params: [] }));
   if (options.verify) {
     const result = await verifyRun(db, options.verify);
     for (const p of result.problems) console.error(`eval:run: ${p}`);
@@ -897,15 +970,40 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     );
     return EXIT.refused;
   }
+  if (options.replay && (options.mode || options.resume))
+    return (console.error("eval:run: --replay stands alone (no --mode or --resume)"), EXIT.refused) as never;
   const picked = await resolveSelection(db, options);
   if ("error" in picked) {
     console.error(`eval:run: ${picked.error}`);
     return EXIT.refused;
   }
-  const { sets, limit } = picked;
-  const { samples, setVersion } = selectSamples(join(ROOT, "eval/sets"), sets, limit);
-  const api = liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
-  const env: Env = {
+  let { sets, limit } = picked;
+  let samples: RunSample[];
+  let setVersion: string;
+  if (options.replay) {
+    // The source run is read before any set is loaded: only its stored selection is ever read from disk, so
+    // an unrelated missing or malformed corpus cannot refuse a replay (D08 T02 section 12).
+    const stored = await db.readRun(options.replay).catch(() => null);
+    if (!stored) {
+      console.error(`eval:run: no stored run ${options.replay} to replay`);
+      return EXIT.refused;
+    }
+    const restored = replayPopulation(stored, (s, l) => selectSamples(join(ROOT, "eval/sets"), s, l));
+    if ("error" in restored) {
+      console.error(`eval:run: ${restored.error}; nothing sent`);
+      return EXIT.refused;
+    }
+    sets = stored.run.sets;
+    limit = stored.run.sampleLimit;
+    samples = restored.samples;
+    setVersion = restored.setVersion;
+  } else {
+    const selectedAll = selectSamples(join(ROOT, "eval/sets"), sets, limit);
+    samples = selectedAll.samples;
+    setVersion = selectedAll.setVersion;
+  }
+  const api = deps?.api ?? liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
+  const env: Env = deps?.env ?? {
     now: () => Date.now(),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     id: () => randomUUID(),
@@ -929,7 +1027,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     db,
     env,
     resume: options.resume,
-    ...(options.mode ? { mode: options.mode } : {}),
+    ...(options.replay ? { replayOf: options.replay } : options.mode ? { mode: options.mode } : {}),
   });
   for (const p of result.problems) console.error(`eval:run: ${p}`);
   if (result.exit === EXIT.refused) {

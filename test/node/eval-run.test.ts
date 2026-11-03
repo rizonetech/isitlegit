@@ -170,6 +170,7 @@ describe("the rules", () => {
       expect(parseArgs(bad), bad.join(" ")).toHaveProperty("error");
     expect(parseArgs(["--verify", "abcdefgh-1"])).toMatchObject({ verify: "abcdefgh-1" });
     expect(parseArgs(["--cap-usd", "1", "--mode", "ablate:no-sam"])).toMatchObject({ mode: "ablate:no-sam" });
+    expect(parseArgs(["--cap-usd", "1", "--replay", "run-00000001"])).toMatchObject({ replay: "run-00000001" });
     expect(parseArgs(["--mode"])).toHaveProperty("error");
     expect(parseArgs(["--help"])).toMatchObject({ help: true });
   });
@@ -647,6 +648,8 @@ describe("the live database adapter (every migration applied to an in-memory dat
       verdict: "suspicious",
       costUsd: 0.05,
       critical: true,
+      providers: [],
+      walkthrough: false,
       createdAt: "2026-11-01T10:00:00.000Z",
       updatedAt: "2026-11-01T10:00:04.321Z",
     });
@@ -710,7 +713,10 @@ describe("the live database adapter (every migration applied to an in-memory dat
     await adapter.finishRun("run-1", "incomplete", 0.05, "2026-11-01T10:05:00.000Z");
     const read = await adapter.readRun("run-1");
     expect(read?.run).toEqual({ ...run, status: "incomplete", costUsd: 0.05, finishedAt: "2026-11-01T10:05:00.000Z" });
-    expect(read?.results).toEqual([done, { ...refused, httpStatus: 400 }]);
+    expect(read?.results).toEqual([
+      { ...done, providers: undefined, walkthrough: null },
+      { ...refused, httpStatus: 400, providers: undefined, walkthrough: null },
+    ]);
     expect(await adapter.readRun("nope")).toBeNull();
   });
 
@@ -1091,13 +1097,13 @@ describe("what round 1 found", () => {
   it("logs progress while an upload or a read is still pending, driven by a timer, not a result (R3)", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     const upload = t.api.upload;
-    t.api.upload = async (sample, bytes, mode) => {
+    t.api.upload = async (sample, bytes, opts) => {
       // A 30 second upload: the timer fires while nothing has finished.
       for (let i = 0; i < 6; i++) {
         await t.env.sleep(5_000);
         t.tick();
       }
-      return upload(sample, bytes, mode);
+      return upload(sample, bytes, opts);
     };
     await go(t, opts());
     const during = t.logs.filter((l) => /^eval:run: 0 of 2 ended, 2 in flight, \d+ s, spend/.test(l));
@@ -1294,15 +1300,70 @@ describe("the ablation arm mode", () => {
   });
 });
 
+describe("the replay identity", () => {
+  it("measures a replayed sample anew under replay identity while an ordinary repeat stays stale-repeat", async () => {
+    const t = setup(2, {
+      cases: {
+        ...caseFor(0),
+        ...caseFor(1),
+        old: { status: "done", verdict: "safe", createdAt: "2026-11-01T08:00:00.000Z" },
+      },
+    });
+    const replayIds: (string | null)[] = [];
+    const api: Api = {
+      ...t.api,
+      upload: async (sample, bytes, opts) => {
+        replayIds.push(opts.replayRunId);
+        return opts.replayRunId
+          ? { status: 201, caseId: `case-${t.samples.findIndex((s) => s.id === sample.id)}` }
+          : { status: 200, caseId: "old", repeat: true };
+      },
+    };
+    const base = {
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      db: t.db,
+      env: t.env,
+    };
+    const ordinary = await runEval({ ...base, api });
+    expect(ordinary.results.every((r) => r.outcome === "stale-repeat")).toBe(true);
+    // A replay named through --mode is refused: only --replay, after restoring the source, starts one.
+    const bypass = await runEval({ ...base, api, mode: "replay:run-00000009" });
+    expect(bypass.exit).toBe(3);
+    expect(bypass.problems.join(" ")).toMatch(/--replay <run id>, not --mode/);
+    // Distinct run ids per run, as the live entry's randomUUID gives: the harness id is constant.
+    let seq = 100;
+    const env = { ...t.env, id: () => `run-${String(++seq).padStart(8, "0")}` };
+    const replayed = await runEval({ ...base, api, env, replayOf: "run-00000009" });
+    expect(replayed.exit).toBe(0);
+    expect(replayed.results.every((r) => r.outcome === "done")).toBe(true);
+    expect(t.runs.get(replayed.runId ?? "")?.mode).toBe("replay:run-00000009");
+    // The identity on the wire is the replay run's own id, never the source run's (section 12).
+    const sent = replayIds.filter((x) => x !== null);
+    expect(sent.length).toBe(2);
+    expect(new Set(sent)).toEqual(new Set([replayed.runId]));
+    expect(sent).not.toContain("run-00000009");
+    // A second replay of the same source opens its own cases under a different identity.
+    const again = await runEval({ ...base, api, env, replayOf: "run-00000009" });
+    expect(again.exit).toBe(0);
+    expect(again.runId).not.toBe(replayed.runId);
+    const sentAgain = replayIds.filter((x) => x !== null).slice(2);
+    expect(new Set(sentAgain)).toEqual(new Set([again.runId]));
+  });
+});
+
 describe("the ablation flag transport", () => {
   it("passes the arm mode to the upload transport on every upload (wire serialization waits on the D01 admit)", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     const modes: string[] = [];
     const api: Api = {
       ...t.api,
-      upload: async (sample, bytes, mode) => {
-        modes.push(mode);
-        return t.api.upload(sample, bytes, mode);
+      upload: async (sample, bytes, opts) => {
+        modes.push(opts.mode);
+        return t.api.upload(sample, bytes, opts);
       },
     };
     const out = await runEval({
@@ -1334,9 +1395,9 @@ describe("the ablation flag transport", () => {
     const modes: string[] = [];
     const api: Api = {
       ...t.api,
-      upload: async (sample, bytes, mode) => {
-        modes.push(mode);
-        return t.api.upload(sample, bytes, mode);
+      upload: async (sample, bytes, opts) => {
+        modes.push(opts.mode);
+        return t.api.upload(sample, bytes, opts);
       },
     };
     const goMode = (extra: { api?: Api; resume?: string; mode?: string } = {}) =>
