@@ -836,6 +836,7 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
     let lateBrowserClosed = false;
     let lateNewPageCalled = false;
     let resolveLateLaunch: ((b: unknown) => void) | undefined;
+    let lateClock = 5_000;
     const lateLaunchRes = await compareClaimLogos(
       {
         store,
@@ -845,16 +846,20 @@ describe("registered logo comparison and SAM crop manifest reading", () => {
           owner: { kind: "case", caseId: unrunCaseId, step: "trust-claim" },
         },
         kv,
-        deadlineMs: 15,
-        launch: () =>
-          new Promise((resolve) => {
+        deadlineMs: 25,
+        now: () => lateClock,
+        launch: () => {
+          lateClock += 100;
+          return new Promise((resolve) => {
             resolveLateLaunch = resolve;
-          }) as never,
+          }) as never;
+        },
       },
       unrunCaseId,
       candidates.candidates,
     );
     expect(lateLaunchRes.unavailable).toContain("logo comparison did not finish in time");
+    expect(resolveLateLaunch).toBeTypeOf("function");
     resolveLateLaunch?.({
       newPage: async () => {
         lateNewPageCalled = true;
