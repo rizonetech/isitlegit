@@ -849,6 +849,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   // Where the instruction sits in the run, when the producer found one (D02 T05 §6; D07 T03 §29): its own excerpt,
   // so a reader reads the instruction itself without decoding the original elsewhere.
   const instruction = runInstruction(d.instruction);
+  // The whole stored run (D02 T05 §11, drawn by D07 T09 §9): the decoded text past the excerpt, with its cut marked.
+  const run = d.run && typeof d.run === "object" && !Array.isArray(d.run) ? (d.run as Record<string, unknown>) : null;
+  const runText = run ? text(run.text) : null;
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -868,6 +871,17 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
             <p class="text-13 text-muted">{`The instruction, from character ${instruction.offset}`}</p>
             <EvidenceQuote>{`"${instruction.text}"`}</EvidenceQuote>
           </>
+        )}
+        {runText && (
+          <details>
+            <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Read the whole hidden run</summary>
+            <div class="flex flex-col gap-8 mt-8">
+              <EvidenceQuote>{runText}</EvidenceQuote>
+              {run?.truncated === true && (
+                <p class="text-13 text-muted">The stored run is cut short: the rest is in the original message.</p>
+              )}
+            </div>
+          </details>
         )}
         <Facts
           rows={[

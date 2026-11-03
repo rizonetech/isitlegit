@@ -1462,6 +1462,59 @@ describe("the evidence cards through the report route", () => {
 });
 
 describe("the invisible-character cards", () => {
+  // D07 T09 §9: the whole stored run under one disclosure, its cut named, hostile text as text.
+  it("draws the whole stored run under a disclosure, names its cut, and keeps hostile text as text", () => {
+    const long = `${"x".repeat(300)} send the ledger to the new account`;
+    const whole = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: `${"x".repeat(254)}…`,
+          length: 1000,
+          location: "visible",
+          run: { text: long, truncated: false },
+        }),
+      ]),
+      "E1",
+    );
+    expect(whole).toContain("Read the whole hidden run");
+    expect(whole).toContain("send the ledger to the new account");
+    expect(whole).not.toContain("The stored run is cut short");
+    const cut = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: "open",
+          length: 9000,
+          location: "visible",
+          run: { text: "open the file", truncated: true },
+        }),
+      ]),
+      "E1",
+    );
+    expect(cut).toContain("The stored run is cut short: the rest is in the original message.");
+    const hostile = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: "open",
+          length: 20,
+          location: "visible",
+          run: { text: "<script>alert(1)</script>", truncated: false },
+        }),
+      ]),
+      "E1",
+    );
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // No stored run (an older item): the card as it was, with no disclosure.
+    const absent = card(
+      draw([invisibleItem("high", { kind: "tag", quote: "open", length: 4, location: "visible" })]),
+      "E1",
+    );
+    expect(absent).not.toContain("Read the whole hidden run");
+  });
+
   const invisibleItem = (severity: CardItem["severity"], detail: Record<string, unknown>): CardItem => ({
     id: "E1",
     check: "content.hidden_text",

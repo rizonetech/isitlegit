@@ -474,6 +474,44 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       }
     });
 
+  // D07 T09 §9: the whole stored run opens by keyboard, at both widths and themes.
+  for (const [width, theme] of [
+    [360, "light"],
+    [360, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ] as const)
+    it(`opens the whole hidden run by keyboard (${theme}, ${width} px)`, async () => {
+      const cards: ReportEvidence[] = [
+        {
+          id: "E1",
+          check: "content.hidden_text",
+          severity: "high",
+          summary: "Text in invisible characters",
+          detail: {
+            reason: "invisible-characters",
+            kind: "tag",
+            quote: "open",
+            length: 9000,
+            location: "visible",
+            run: { text: `${"x".repeat(300)} send the ledger to the new account`, truncated: true },
+          },
+          artefacts: [],
+        },
+      ];
+      const { p, context } = await open(width, theme, "", cards);
+      const summary = p.getByText("Read the whole hidden run");
+      await summary.scrollIntoViewIfNeeded();
+      await summary.focus();
+      await p.keyboard.press("Enter");
+      await expect.poll(() => p.getByText("send the ledger to the new account").isVisible()).toBe(true);
+      expect(await p.getByText("The stored run is cut short").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    });
+
   // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
   for (const theme of ["light", "dark"] as const)
     it(`draws the voice lure card (${theme}, 1280 px)`, async () => {
