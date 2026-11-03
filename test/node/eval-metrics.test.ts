@@ -847,9 +847,32 @@ describe("the source-versus-replay comparison (section 13)", () => {
     const c = compareRuns(source, replay);
     expect(c.changed[0]).toMatchObject({ sourceCaseId: "case-synthetic-sa/a1.eml", replayCaseId: null });
     const text = comparisonText(c);
-    expect(text).toMatch(/cases case-synthetic-sa\/a1\.eml -> none recorded/);
-    expect(text).toMatch(/paired evidence: open each case at \/cases\/<case id>/);
+    expect(text).toMatch(/source report: https:\/\/app\.isitlegit\.co\.za\/cases\/case-synthetic-sa\/a1\.eml; replay report: none recorded/);
+    expect(text).toMatch(/paired evidence: each report opens under eval-organisation membership/);
+    expect(text).toMatch(/answer the same 404/);
     expect(text).toMatch(/a side with no case recorded has no paired evidence/);
+  });
+
+  it("reads distinct route-valid paired ids back through the command in text and JSON (section 14)", async () => {
+    const sourceCase = "01M6F51VP52MKH8P8HC9C10PKA";
+    const replayCase = "01M6F51VP52MKH8P8HC9C10PKB";
+    const { source, replay } = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe", { caseId: sourceCase })],
+      [row("synthetic-sa/a1.eml", "done", "malicious", { caseId: replayCase })],
+    );
+    const store = new Map([
+      [source.run.id, source],
+      [replay.run.id, replay],
+    ]);
+    const db = { readRun: async (id: string) => store.get(id) ?? null };
+    const text = await runMetrics({ argv: ["--compare", replay.run.id], db, root: ROOT });
+    expect(text.code).toBe(0);
+    expect(text.stdout).toContain(`source report: https://app.isitlegit.co.za/cases/${sourceCase}`);
+    expect(text.stdout).toContain(`replay report: https://app.isitlegit.co.za/cases/${replayCase}`);
+    expect(text.stdout).toMatch(/answer the same 404/);
+    const asJson = await runMetrics({ argv: ["--compare", replay.run.id, "--json"], db, root: ROOT });
+    const parsed = JSON.parse(asJson.stdout) as { changed: { sourceCaseId: string; replayCaseId: string }[] };
+    expect(parsed.changed[0]).toMatchObject({ sourceCaseId: sourceCase, replayCaseId: replayCase });
   });
 
   it("drives --compare through the command entry with persisted read-back and its refusals", async () => {

@@ -45,6 +45,7 @@ track: day-6
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
 | 13 | §13 | Source-versus-replay comparison | §12 | [x] |
 | 14 | §14 | Paired-evidence investigation | §13 | [ ] |
+| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -462,6 +463,29 @@ Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a chang
 - [ ] Commit: `eval: paired-evidence investigation`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the paired-evidence cases.
+
+## 15. Paired evidence view
+
+Filed 2026-11-03 from §14's completion review (G4, out-of-scope there): the comparison names both reports, but aligning their evidence to explain a verdict change is still manual. This section adds one paired view, designed with the console owner (D07 T04 §2), that opens both cases' evidence together for a changed sample.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` (the paired view's entry is this section's first item, agreed with the D07 T04 §2 owner; no board yet)
+**Job:** an operator investigating a changed verdict sees both cases' evidence together and learns which evidence moved the verdict
+**Treatment:** tokens only, both reports in the member shell, phone width holds
+**Chrome:** the member shell of D07 T04 §2; the paired view is its content, not a new frame
+
+**Build order:**
+
+1. Agree the paired view's surface with the console owner and record it in `design/SPEC.md` before any page work. Done when: the SPEC names the view, its route and its states, or the section is re-scoped to a CLI-only diff with the reason recorded.
+2. Show both cases' evidence together with the verdict change. Done when: a changed sample opens one view naming both verdicts and each side's evidence, and an unavailable side leaves the other readable with its reason.
+
+- [ ] Record the agreed surface in `design/SPEC.md` with its route, controls and states (empty, one-side-missing, denied), agreed with the D07 T04 §2 owner through the coordinator. Done when: the SPEC entry exists and names the section that builds it. Cheaper substitute: none (an undesigned surface is a defect).
+- [ ] Build the paired view at the agreed route: both cases' verdicts and evidence side by side, the changed sample named, an unavailable or denied side explained while the other stays readable. Done when: browser tests open the view for a stored changed pair and for a one-side-missing pair. Cheaper substitute: none (two separate reports are today's manual path).
+- [ ] Commit: `eval: paired evidence view`
+
+**Test checkpoint:** the agreed surface's browser tests pass, and `pnpm exec vitest run test/node/eval-metrics.test.ts` still passes.
 
 ## Verification
 

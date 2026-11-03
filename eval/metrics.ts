@@ -924,10 +924,10 @@ export function comparisonText(c: RunComparison): string {
     ...scope("main sets", c.main),
     ...(c.challenge ? scope("challenge set", c.challenge) : []),
     `changed verdicts: ${c.changed.length} (main: ${counts("main")}${c.challenge ? `; challenge: ${counts("challenge")}` : ""})`,
-    ...c.changed.map(
-      (x) =>
-        `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}; cases ${x.sourceCaseId ?? "none recorded"} -> ${x.replayCaseId ?? "none recorded"}`,
-    ),
-    "paired evidence: open each case at /cases/<case id> (eval organisation membership required); a side with no case recorded has no paired evidence",
+    ...c.changed.map((x) => {
+      const report = (id: string | null) => (id ? `https://app.isitlegit.co.za/cases/${id}` : "none recorded");
+      return `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}; source report: ${report(x.sourceCaseId)}; replay report: ${report(x.replayCaseId)}`;
+    }),
+    "paired evidence: each report opens under eval-organisation membership. If a report will not open, check the membership first: a missing case and a case outside the organisation answer the same 404, so the address cannot tell them apart. The other side still opens on its own; a side with no case recorded has no paired evidence. On a failed read, rerun the comparison: it stores nothing.",
   ].join("\n");
 }
