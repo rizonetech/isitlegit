@@ -999,7 +999,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
     if "rounds_spent" in data:
         spent, cap = data.get("rounds_spent"), data.get("round_cap")
         require(type(spent) is int and spent >= max(r["round"] for r in rounds)
-                and type(cap) is int and cap in EARLIER_CAPS | {REVIEW_ROUND_CAP},
+                and type(cap) is int and cap in EARLIER_CAPS | {REVIEW_ROUND_CAP, LIGHT_ROUND_CAP},
                 f"receipt rounds_spent or round_cap is invalid: {ref}")
         # A cap stop is the current cap, reached: stopped-at-3, -8 and -13 belong to receipts older than this field.
         require(all(r["verdict"] == f"stopped-at-{cap}" for r in rounds if r["verdict"].startswith("stopped-at-")),
