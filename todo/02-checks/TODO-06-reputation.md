@@ -42,7 +42,7 @@ track: day-3
 | 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 | 8 | §8 | Well-known list kept fresh, staleness stated | §6 | [ ] |
-| 9 | §9 | One reputation result stored per provider | §5 | [ ] |
+| 9 | §9 | One reputation result stored per provider | §5 | [x] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -256,7 +256,17 @@ Filed 2026-11-02 from §6's completion review (gaps 2 and 3, out of scope there)
 
 ## 9. One reputation result stored per provider
 
+> **Started:** 2026-11-02T19:52Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the reputation step weighs provider answers into evidence, but no stored record keeps one result per provider per subject, so the report cannot show each provider's own answer. This section stores, per subject checked, each provider's result (listed, clear or unavailable), when it was obtained, and whether it came from the cache.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the answers live on the case view (`Reputation` in `src/checks/reputation.ts`: Web Risk per stripped URL with `cached`, Cloudflare per registrable domain with `cached`, the well-known list per domain), and no stored table holds them per provider, so storage is a new table `reputation_results` (case, run, provider, subject, state, obtained time, cached flag) under migration `0085` (the coordinator's, 2026-11-02T22:12, applied through this section's gate, never directly); (2) states map at the store: Web Risk `listed`/`not_listed`/`not_checked` and Cloudflare `blocked`/`clear`/`not_checked` read as listed, clear and unavailable, and the well-known answer keeps its own states (known, unknown, unavailable) in the same table, never renamed a listing; (3) the checks step writes the rows from the same answers it weighs, in the same run as the evidence, so a stored result can never disagree with the evidence it sits beside, and a re-run replaces the run's rows.
+
+**Corrected 2026-11-02** (plan review, `docs/reviews/02-checks/D02-T06-s9.md`): (4) the full state mapping: Web Risk `capped` also maps to unavailable with its cap reason kept in the row's note, and well-known `not_loaded` and `not_checked` both map to unavailable; no refusal or outage ever reads as clear or disappears, each proven through persisted read-back; (5) answer age: the provider contracts gain the answer's obtained time (Web Risk and Cloudflare results and their cache entries carry when the answer was fetched, a later cache hit preserving that original time, a legacy cache entry without one read as obtained when read), and the well-known answer is obtained when read with `cached` false; (6) the consumer contract is a case-scoped reader (`readReputationResults`) the report calls per case and run, its integration into the report assigned to D07 T09 §5 through the coordinator, proven from storage through that reader with historical runs kept and another case's rows never answered; (7) replacement is one atomic batch per run (delete the run's rows, insert the new set), a storage failure propagates so the step retries, and the previous complete set survives a failed replacement; (8) the table belongs to its case (`ON DELETE CASCADE`, like `check_outcomes`) and is retained with the case, proven by a migrated-database deletion test that leaves another case's rows standing.
+
+**Corrected 2026-11-02** (completion review, `docs/reviews/02-checks/D02-T06-s9.md`): (9) the well-known answer carries its obtained time from `isWellKnown` itself, so storage never substitutes the later store time; the persisted coverage holds every provider state, explicit cross-case and run isolation, a reader failure answering null, and a checks-level storage failure failing the step; and the Test checkpoint below runs the new persistence suite beside the providers' suites.
+
+**Corrected 2026-11-03** (round 1 and round 3, same findings file): (10) the results commit in the same batch as the evidence and outcomes they sit beside (`saveEvidence`'s `extraWrites`), and the step's early prefix write (D01 T01 §23) clears the run's previous results in its batch, so no commit point holds results beside evidence they do not belong to.
 
 **Phase:** 7
 **Needs:** none
@@ -267,10 +277,15 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the 
 
 1. Keep each provider's answer as its own stored result. Done when: a checked subject reads back one result per provider with its state, time and cache flag.
 
-- [ ] Store the per-provider results from the reputation read in `src/checks/reputation.ts` (each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) with the case's outcomes, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject.
-- [ ] Commit: `checks: one reputation result stored per provider`
+- [x] Store the per-provider results from the reputation answers the checks step holds (`Reputation` in `src/checks/reputation.ts`: each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) in the `reputation_results` table under the coordinator's migration number, written with the run's evidence and replaced on a re-run, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject, and a re-run holds one set.
+- [x] Give each answer its obtained time at the provider contracts (`src/checks/webrisk.ts`, `src/checks/cf-block.ts`): results and cache entries carry when the answer was fetched, a cache hit preserving the original time and a legacy entry read as obtained when read; the well-known answer is obtained when read. Done when: the providers' suites read a later hit's original time back. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
+- [x] Replace atomically and read through the consumer contract: one batch per run replaces the run's rows (a failed replacement leaving the previous set and failing the step), the table cascades with its case, and `readReputationResults` answers one case and run only. Done when: the checks step's own suite exercises the wiring (an unwired helper cannot pass), a removed subject disappears, an empty set clears, another run and case stand, and deleting the case removes its rows. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
+- [x] Commit: `checks: one reputation result stored per provider`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts` passes, and fails if a provider's answer is missing or merged into another's.
+**Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts test/checks/reputation-results.test.ts test/checks/webrisk.test.ts test/checks/cf-block.test.ts test/checks/top-sites.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a provider's answer is missing, merged into another's, or read as clear on an outage.
+
+> **Verified:** 2026-11-03 | §9 | 5e0335366a8826e8f4a1b9dd0e7b39508cf9d44d
+> **Review:** `docs/reviews/d02-t06-s9.json`
 
 ## Verification
 

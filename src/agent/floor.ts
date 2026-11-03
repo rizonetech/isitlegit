@@ -11,7 +11,10 @@ const RANK: Record<Verdict, number> = { safe: 0, suspicious: 1, malicious: 2 };
 export const MAX_FLOOR_IDS = 10;
 
 export type Floor = { verdict: Verdict; evidenceIds: string[] };
-export type FloorApplied = { from: Verdict; to: Verdict; evidenceIds: string[] };
+// The revision of these floor rules (weights and triggers above), changed with any change to them, so a
+// stored floor record names the rules that produced it and an old decision can be reproduced (D04 T01 §13).
+export const FLOOR_REVISION = "1";
+export type FloorApplied = { from: Verdict; to: Verdict; evidenceIds: string[]; revision?: string };
 
 // What an item weighs: a reputation listing marked `cap = "suspicious"` (D02 T06 §4) weighs the lower of its own
 // severity and high, so a listing alone never floors at malicious (spec 4.3a) and a weak listing (medium or low) never
@@ -20,6 +23,21 @@ function weight(item: Pick<Evidence, "check" | "severity" | "detail">): Verdict 
   const capped = item.check.startsWith("reputation.") && item.detail.cap === "suspicious";
   if (item.severity === "critical") return capped ? "suspicious" : "malicious";
   return item.severity === "high" ? "suspicious" : "safe";
+}
+
+// The floor rules by revision, kept so a stored record's decision can be reproduced after the rules
+// change (D04 T01 §13): when the weights or triggers change, the old implementation stays here under its
+// revision and FLOOR_REVISION names the new one. An unknown revision replays as null, never as today's.
+type FloorRules = (evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]) => Floor;
+const FLOOR_RULES: ReadonlyMap<string, FloorRules> = new Map([[FLOOR_REVISION, (evidence) => floorFor(evidence)]]);
+
+export function replayFloor(
+  revision: string,
+  evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[],
+  rules: ReadonlyMap<string, FloorRules> = FLOOR_RULES,
+): Floor | null {
+  const replay = rules.get(revision);
+  return replay ? replay(evidence) : null;
 }
 
 export function floorFor(evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "detail">[]): Floor {
@@ -44,6 +62,11 @@ export function applyFloor(
   if (RANK[modelVerdict] >= RANK[floor.verdict]) return { verdict: modelVerdict, floorApplied: null };
   return {
     verdict: floor.verdict,
-    floorApplied: { from: modelVerdict, to: floor.verdict, evidenceIds: [...floor.evidenceIds] },
+    floorApplied: {
+      from: modelVerdict,
+      to: floor.verdict,
+      evidenceIds: [...floor.evidenceIds],
+      revision: FLOOR_REVISION,
+    },
   };
 }

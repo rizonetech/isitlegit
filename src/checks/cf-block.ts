@@ -18,8 +18,8 @@ export const CLOUDFLARE_TERMS_CAVEAT =
 
 export type CfNotChecked = "invalid_name" | "timeout" | "rate_limited" | "unavailable" | "rejected" | "malformed";
 export type CfResult =
-  | { state: "blocked"; cached: boolean; caveat: string }
-  | { state: "clear"; cached: boolean; caveat: string }
+  | { state: "blocked"; cached: boolean; caveat: string; obtainedAt?: string }
+  | { state: "clear"; cached: boolean; caveat: string; obtainedAt?: string }
   | { state: "not_checked"; reason: CfNotChecked };
 
 export type CfDeps = {
@@ -78,7 +78,7 @@ export function parseDns(text: string): Parsed {
   return blocked ? "blocked" : "clear";
 }
 
-type Entry = { v: 1; blocked: boolean; expiresAt: string };
+type Entry = { v: 1; blocked: boolean; expiresAt: string; fetchedAt?: string | undefined };
 const isEntry = (value: unknown): value is Entry => {
   if (value === null || typeof value !== "object") return false;
   const e = value as Record<string, unknown>;
@@ -86,7 +86,8 @@ const isEntry = (value: unknown): value is Entry => {
     e.v === 1 &&
     typeof e.blocked === "boolean" &&
     typeof e.expiresAt === "string" &&
-    Number.isFinite(Date.parse(e.expiresAt))
+    Number.isFinite(Date.parse(e.expiresAt)) &&
+    (e.fetchedAt === undefined || (typeof e.fetchedAt === "string" && Number.isFinite(Date.parse(e.fetchedAt))))
   );
 };
 
@@ -113,7 +114,12 @@ async function ask(name: string, deps: CfDeps): Promise<CfResult> {
     const parsed = text === null ? null : parseDns(text);
     if (parsed === null) return { state: "not_checked", reason: "malformed" };
     if (parsed === "unavailable") return { state: "not_checked", reason: "unavailable" };
-    return { state: parsed, cached: false, caveat: CLOUDFLARE_TERMS_CAVEAT };
+    return {
+      state: parsed,
+      cached: false,
+      caveat: CLOUDFLARE_TERMS_CAVEAT,
+      obtainedAt: (deps.now ?? (() => new Date()))().toISOString(),
+    };
   } catch {
     return { state: "not_checked", reason: limit.passed ? "timeout" : "unavailable" };
   } finally {
@@ -149,7 +155,12 @@ async function lookup(name: string, hash: string, deps: CfDeps, clock: () => Dat
   const cacheKey = `cfblock:${hash}`;
   const hit = deps.cache ? await bounded(deps.cache.get(cacheKey, "json") as Promise<unknown>, null) : null;
   if (isEntry(hit) && Date.parse(hit.expiresAt) > clock().getTime())
-    return { state: hit.blocked ? "blocked" : "clear", cached: true, caveat: CLOUDFLARE_TERMS_CAVEAT };
+    return {
+      state: hit.blocked ? "blocked" : "clear",
+      cached: true,
+      caveat: CLOUDFLARE_TERMS_CAVEAT,
+      obtainedAt: hit.fetchedAt ?? clock().toISOString(),
+    };
   const answer = await ask(name, deps);
   if (answer.state === "blocked" || answer.state === "clear") {
     const ttlMs = answer.state === "blocked" ? BLOCKED_TTL_MS : CLEAR_TTL_MS;
@@ -158,6 +169,7 @@ async function lookup(name: string, hash: string, deps: CfDeps, clock: () => Dat
         v: 1,
         blocked: answer.state === "blocked",
         expiresAt: new Date(clock().getTime() + ttlMs).toISOString(),
+        fetchedAt: answer.obtainedAt,
       };
       await bounded(deps.cache.put(cacheKey, JSON.stringify(entry), { expirationTtl: ttlMs / 1_000 }), undefined);
     }
