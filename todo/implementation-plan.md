@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 195 | Checklist items: 828
+Sections: 196 | Checklist items: 832
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -436,6 +436,7 @@ Sections: 195 | Checklist items: 828
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
+| [ ]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured                       | none                 | 3     |
 | [ ]    | D02 T04 §10 | Attachment content                                          | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
@@ -629,6 +630,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 349/553 verified sections, 134 ready to run now.
+Progress: 349/554 verified sections, 135 ready to run now.
 
-Checklist: 2708/3440 items completed (includes Commit items).
+Checklist: 2709/3444 items completed (includes Commit items).

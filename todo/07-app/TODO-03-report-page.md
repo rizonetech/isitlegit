@@ -21,6 +21,7 @@ track: day-2
 - -> XREF: D07 T09 §7 -- the walkthrough refusal and reuse cards filed from D04 T02 §6, moved there at the 2026-11-02 gate merge when this file reached 55 sections
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
+- -> XREF: D02 T03 §12 -- the lookalike clean summary naming the domains compared, filed by §44's completion review
 - -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
 - -> XREF: D04 T01 §2 -- `case_verdicts.reasons` as `{ text, evidenceIds }[]` (each id an evidence item of the case; old `string[]` rows read as `{ text, evidenceIds: [] }`) and `VerdictView.meaning`, the banner's one sentence (old rows null), which §2's banner draws (cross-lane contract agreed 2026-10-31)
 - -> XREF: D04 T01 §5 -- the citation check that refuses a reason with no `evidenceIds` or an id not on the case, so every reason the banner shows has its evidence card
@@ -1530,7 +1531,9 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 - [x] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met. (2026-11-02: resolve names it, unmet empty.)
 - [x] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
 - [x] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
-- [ ] Commit: `web: clean checks say what they saw`
+- [x] Commit: `web: clean checks say what they saw`
+
+> **Deferred:** the lookalike check's clean words naming the domains it compared -> XREF: D02 T03 §12
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 
