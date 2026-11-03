@@ -40,7 +40,7 @@ track: day-6
 | 7 | §7 | Certificate-transparency search for | §5 | [x] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
-| 10 | §10 | Findings exported to | §5 | [ ] |
+| 10 | §10 | Findings exported to | §5 | [x] |
 | 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §46 | [ ] |
 | 12 | §12 | Monitor case allowance and quality | §4 | [x] |
 
@@ -356,6 +356,9 @@ Loupe gets better on real South African lures only if what the monitor learns fl
 - [x] Commit: `monitor: findings exported for Loupe's training`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/training.test.ts test/node/monitor-export.test.ts` passes, and fails if a finding is stored twice, mislabelled, or exported with a post-form capture.
+
+> **Verified:** 2026-11-03 | §10 | ccfbf18f51bca85c18ac3d863f8a4a59b4ea5313
+> **Review:** `docs/reviews/d05-t04-s10.json`
 
 ## 11. Settled pages handed to Loupe capture
 
