@@ -541,7 +541,7 @@ Sections: 198 | Checklist items: 863
 | [ ]    | D07 T04 §20 | Opt-in weekly counts                                        | none                 | 4     |
 | [x]    | D07 T04 §22 | Invite several colleagues at once                           | none                 | 4     |
 | [x]    | D07 T04 §23 | Team history for owners                                     | none                 | 4     |
-| [ ]    | D07 T04 §24 | Team history by person                                      | none                 | 3     |
+| [x]    | D07 T04 §24 | Team history by person                                      | none                 | 3     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page                 | none                 | 5     |
 | [x]    | D07 T04 §26 | Find a person on the Team page                              | none                 | 4     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
@@ -633,6 +633,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 360/557 verified sections, 128 ready to run now.
+Progress: 361/557 verified sections, 127 ready to run now.
 
 Checklist: 2790/3483 items completed (includes Commit items).

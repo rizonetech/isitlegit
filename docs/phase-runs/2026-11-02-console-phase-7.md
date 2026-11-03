@@ -204,3 +204,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 2026-11-03 01:05 SAST (console lane): §19 stamped, §20 waits on a migration number
 
 §19 stamped and pushed (3c979dff with its format fix). §20 needs a coordinator migration number for the opt-in and send-log store; asked in the outbox. Building §22 meanwhile.
+
+## Resume 2026-11-03 05:55 SAST (console lane): §24 STAMPED, gate-fix-3 pushed
+
+§24 (team history by person) stamped; receipt docs/reviews/d07-t04-s24.json. Rounds: 1 and 2 approved in substance but ended without the OVERALL line the stamp counts (my prompt wording), so the countable rounds are 3 (fixed: the dark browser cases lost their theme after Apply, now set on the browser context by colorScheme and asserted after Apply and More) and 4 (clean, OVERALL: approve). Gates: targeted team-page and audit tests 8 passed, typecheck clean, CI run 41573011442 Worker gates green with the §24 browser matrix 8/8; its only failure was the known §9 report-browser u-key flake. §23's deferral to §24 is closed as Resolved. Gate-fix-3 in the same push: SPEC section 0 row N10 coverage entry (D07 T04 §20, deferred to §20 with the Email-Weekly board awaiting operator approval), check_coverage clean.
