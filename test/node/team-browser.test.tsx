@@ -488,15 +488,29 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     await context.close();
   });
 
-  it("filters the history by person and pages with More (D07 T04 §24)", async () => {
-    const { p, context } = await open("/team");
-    await p.locator("#history-person").selectOption("u-sipho");
-    await p.getByRole("button", { name: "Apply" }).click();
-    await expect.poll(() => p.url()).toContain("person=u-sipho");
-    await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
-    await p.getByRole("link", { name: "More changes" }).click();
-    await expect.poll(() => p.url()).toContain("after=");
-    await context.close();
-  });
-
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [360, 1280] as const)
+      for (const js of [true, false])
+        it(`filters the history by person and pages with More (${theme}, ${width} px, ${js ? "with" : "without"} JavaScript) (D07 T04 §24)`, async () => {
+          const { p, context } = await open("/team", { width, js });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          // By keyboard: type the person's name in the select, then press Apply with Enter.
+          await p.locator("#history-person").focus();
+          await p.keyboard.type("Sipho");
+          await p.getByRole("button", { name: "Apply" }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("person=u-sipho");
+          await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await expect.poll(() => p.getByText("Member removed").first().textContent()).toBeTruthy();
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          if (js) {
+            await p.addScriptTag({ path: AXE });
+            expect(problems(await scan(p)), "person-filtered history").toEqual([]);
+          }
+          await p.getByRole("link", { name: "More changes" }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("after=");
+          await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await context.close();
+        });
 });

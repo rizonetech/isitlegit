@@ -4,7 +4,7 @@
 // organisation, and rows with none (a refused sign-in, a rate limit) are the operator's alone (D07 T05 §2).
 import { Hono } from "hono";
 import { z } from "zod";
-import { readTeamHistory, TEAM_ACTIONS } from "./audit";
+import { readTeamHistory, TEAM_ACTIONS, validHistoryCursor } from "./audit";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
 
@@ -13,10 +13,7 @@ const When = z.iso
   .datetime({ offset: true })
   .transform((value) => new Date(value).toISOString())
   .optional();
-const cursorOk = (v: string) => {
-  const [at, seq] = v.split("|");
-  return at !== undefined && Number.isFinite(Date.parse(at)) && /^\d{1,18}$/.test(seq ?? "");
-};
+const cursorOk = validHistoryCursor;
 const Filter = z.strictObject({
   action: z.enum(TEAM_ACTIONS).optional(),
   actor: z.string().min(1).max(64).optional(),
@@ -48,9 +45,7 @@ teamHistoryRoutes.get("/history", async (c) => {
     );
   for (const person of [filter.data.actor, filter.data.target, filter.data.person]) {
     if (!person) continue;
-    const held = await c.env.DB.prepare(
-      `SELECT 1 AS held FROM "member" WHERE "organizationId" = ? AND "userId" = ?`,
-    )
+    const held = await c.env.DB.prepare(`SELECT 1 AS held FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
       .bind(c.get("org").id, person)
       .first<{ held: number }>();
     if (!held) return Response.json({ error: "choose a person on this team" }, { status: 400 });

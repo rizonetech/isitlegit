@@ -1256,7 +1256,11 @@ describe("team history by person (D07 T04 §24)", () => {
     const html = text((await page(owner.cookie, `/team?person=${colleague.id}`)).html);
     const section = html.slice(html.indexOf("Team history"));
     expect(section).toContain("Role changed");
-    expect(section).not.toContain("sessions ended");
+    // Both matches are there (one as actor, one as target), each in the table and the cards, plus the action option.
+    expect(section.match(/Role changed/g)).toHaveLength(5);
+    const rows = section.slice(section.indexOf("When What"));
+    expect(rows).not.toContain("Member removed");
+    expect(rows).not.toContain("sessions ended");
     // Over 100 matches page through all of them, in order, with no More at the end.
     const stamps: ReturnType<typeof db.prepare>[] = [];
     void stamps;
@@ -1266,16 +1270,30 @@ describe("team history by person (D07 T04 §24)", () => {
           `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
            VALUES (?, ?, 'leave-organization', 'left', ?, ?, ?, ?, 'x', '{}')`,
         )
-        .bind(crypto.randomUUID(), new Date(Date.parse("2026-10-20T00:00:00.000Z") + i * 60_000).toISOString(), orgId, colleague.id, colleague.id, colleague.id),
+        .bind(
+          crypto.randomUUID(),
+          new Date(Date.parse("2026-10-20T00:00:00.000Z") + i * 60_000).toISOString(),
+          orgId,
+          colleague.id,
+          colleague.id,
+          colleague.id,
+        ),
     );
     await db.batch(inserts);
     const firstPage = await page(owner.cookie, `/team?person=${colleague.id}`);
     const first = text(firstPage.html);
     expect(first).toContain("More changes");
+    // Page one holds the two role changes and the newest 98 leaves; page two holds exactly the oldest 7 leaves.
+    // Each row is drawn twice, in the table and in the phone cards.
+    const historyOf = (h: string) => h.slice(h.indexOf("Team history"));
+    const rowsOf = (h: string) => historyOf(h).slice(historyOf(h).indexOf("When What"));
+    expect(rowsOf(first).match(/Member left/g)).toHaveLength(196);
     const more = /href="([^"]*after=[^"]*)"/.exec(firstPage.html)?.[1] as string;
-    const second = text((await page(owner.cookie, more.replaceAll("&amp;", "&"))).html);
+    const secondPage = await page(owner.cookie, more.replaceAll("&amp;", "&"));
+    const second = text(secondPage.html);
     expect(second).not.toContain("More changes");
-    expect(second).toContain("Member left");
+    expect(rowsOf(second).match(/Member left/g)).toHaveLength(14);
+    expect(rowsOf(second)).not.toContain("Role changed");
     const foreign = text((await page(owner.cookie, "/team?person=someone-else")).html);
     expect(foreign).toContain("Choose a person on this team.");
   });

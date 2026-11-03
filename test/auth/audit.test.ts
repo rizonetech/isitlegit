@@ -671,7 +671,6 @@ describe("final review (2026-10-29)", () => {
   });
 });
 
-
 describe("team history actor and target parameters (D07 T04 §24)", () => {
   it("filters the endpoint by actor and by target", async () => {
     const { cookie, orgId } = await owner(`hist24-${unique()}@example.org`);
@@ -706,5 +705,32 @@ describe("team history actor and target parameters (D07 T04 §24)", () => {
     const byTarget = await read(`?target=${memberUserId}`);
     expect(byTarget.changes).toHaveLength(1);
     expect(byTarget.changes[0]?.target).toBe(memberUserId);
+    for (const bad of ["2026-02-30T08:00:00.000Z|1", "2026-10-27T08:00:00.000Z|999999999999999999"]) {
+      const refused = await call(`/api/team/history?after=${encodeURIComponent(bad)}`, { headers: { cookie } });
+      expect(refused.status).toBe(400);
+    }
+  });
+
+  it("pages through equal timestamps with no duplicate or missing row", async () => {
+    const { orgId } = await owner(`hist24eq-${unique()}@example.org`);
+    const at = "2026-10-27T08:00:00.000Z";
+    const inserts = Array.from({ length: 105 }, () =>
+      db
+        .prepare(
+          `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
+           VALUES (?, ?, 'remove-member', 'removed', ?, 'u-x', 'u-x', 'u-y', 'x', '{}')`,
+        )
+        .bind(crypto.randomUUID(), at, orgId),
+    );
+    await db.batch(inserts);
+    const { readTeamHistory } = await import("../../src/auth/audit");
+    const first = await readTeamHistory(db, orgId, { person: "u-x" });
+    expect(first.changes).toHaveLength(100);
+    expect(first.next).toBeTruthy();
+    const second = await readTeamHistory(db, orgId, { person: "u-x", after: first.next ?? "" });
+    expect(second.changes).toHaveLength(5);
+    expect(second.next).toBeNull();
+    const ids = [...first.changes, ...second.changes].map((c) => c.id);
+    expect(new Set(ids).size).toBe(105);
   });
 });

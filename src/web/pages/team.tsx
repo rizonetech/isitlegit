@@ -233,10 +233,10 @@ async function historyFor(
   if (from && to && from > to)
     return { ...base, error: "The To date is before the From date. Swap them and try again." };
   if (person && !members.some((m) => m.userId === person)) return { ...base, error: "Choose a person on this team." };
-  if (after && !(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\|\d{1,18}$/.test(after) && Number.isFinite(Date.parse(after.split("|")[0] as string))))
-    return { ...base, error: "That page of the history is not readable. Clear the filters to start again." };
   try {
-    const { readTeamHistory } = await import("../../auth/audit");
+    const { readTeamHistory, validHistoryCursor } = await import("../../auth/audit");
+    if (after && !validHistoryCursor(after))
+      return { ...base, error: "That page of the history is not readable. Clear the filters to start again." };
     const { changes, next } = await readTeamHistory(db, orgId, {
       ...(action ? { action } : {}),
       ...(from ? { from: new Date(`${from}T00:00:00+02:00`).toISOString() } : {}),
