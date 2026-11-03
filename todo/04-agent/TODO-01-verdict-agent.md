@@ -49,7 +49,7 @@ track: day-6
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
-| 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
+| 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [ ] |
 
@@ -384,7 +384,13 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 
 ## 13. Floor record provenance and coverage state
 
+> **Started:** 2026-11-03T02:12+02:00
+
 Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there): a stored floor record names the transition and its evidence but not which revision of the floor rules produced it, so after the rules change an old decision cannot be reproduced from its record; and a null record reads the same for a case stored before §11 (never recorded) as for one evaluated with no raise (measured), so floor metrics cannot tell coverage from outcome.
+
+**Corrected 2026-11-03** (plan review, `docs/reviews/04-agent/D04-T01-s13.md`): (1) reproducibility is a replay capability, not only a label: `replayFloor` in `src/agent/floor.ts` replays a stored decision under its revision, the old rules stay under their revision when the rules change, and an unknown revision replays as null; (2) the coverage boundary is honest about history: any row stored without the marker (§11-era no-raise rows included) reads `unrecorded`, and only a verdict stored since this section (its JSON null written at save) reads `measured`, no migration needed; (3) the consumer contract for the eval (D08 T02 §8) is the read's three states, `raised`, `measured` and `unrecorded`, with unrecorded cases reported apart from measured negatives, handed to the eval lane through the coordinator at this stamp.
+
+**Corrected 2026-11-03** (round 1, same findings file): (4) the coverage item above is read at the marker-introduction boundary of correction (2), not at migration 0081; an identical replay of a historical revisionless raise answers its stored row at both stores, and a malformed stored floor value reads as unrecorded.
 
 **Phase:** 7
 **Needs:** none
@@ -395,11 +401,14 @@ Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there
 
 1. Make each floor record reproducible and its coverage readable. Done when: a stored record names its rule revision, and a reader can tell a pre-§11 case from a measured no-raise case.
 
-- [ ] Name the floor rule revision beside `floorFor` in `src/agent/floor.ts` (a constant changed with any weight or trigger change) and carry it in the `floorApplied` record the loop stores. Done when: `test/agent/floor.test.ts` reads the revision from a raised record and an older decision is reproduced after a revision change in the same suite.
-- [ ] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
-- [ ] Commit: `agent: floor record provenance and coverage state`
+- [x] Name the floor rule revision beside `floorFor` in `src/agent/floor.ts` (a constant changed with any weight or trigger change) and carry it in the `floorApplied` record the loop stores. Done when: `test/agent/floor.test.ts` reads the revision from a raised record and an older decision is reproduced after a revision change in the same suite.
+- [x] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
+- [x] Commit: `agent: floor record provenance and coverage state`
 
-**Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.
+**Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts test/agent/loop.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.
+
+> **Verified:** 2026-11-03 | §13 | 890f8bd0f8ddb2c7f5c9700fc9b1743bee06486b
+> **Review:** `docs/reviews/d04-t01-s13.json`
 ## 14. Ablation flag in the verdict step
 
 > **Started:** 2026-11-02T07:26:31Z
