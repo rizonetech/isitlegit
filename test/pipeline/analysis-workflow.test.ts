@@ -2,8 +2,10 @@ import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
+import type { ProtectedCandidates } from "../../src/checks/case-view";
 import { SummaryRefused } from "../../src/checks/case-view";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
+import { checks as checkRegistry } from "../../src/checks/index";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import {
@@ -1148,71 +1150,6 @@ describe("the checks step and the event writer", () => {
     for (const item of early) expect(stored.find((e) => e.id === item.id)).toEqual(item);
   });
 
-  it("fills the protected candidates across organisations, and fails the step when that read fails (D02 T01 §9)", async () => {
-    // Another business, effectively protected: a member of org A checking mail that claims it must carry it.
-    const other = "org-candidate-other";
-    const now = new Date().toISOString();
-    await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
-      .bind(other, "Other Freight (fictional)", `org-${other}`, now)
-      .run();
-    await env.DB.prepare(
-      "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
-    )
-      .bind("claim-candidate-other", other, "other-freight.example", "t".repeat(16), now, now)
-      .run();
-    await env.DB.prepare(
-      "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
-    )
-      .bind("addr-candidate-other", other, "money@other-freight.example", now, now)
-      .run();
-    await setIdentity(env.DB, other, "u1", {
-      displayNames: ["Other Freight"],
-      financeContact: "money@other-freight.example",
-      protected: true,
-    });
-    expect(await protectedIdentities(env.DB)).toContainEqual({
-      orgId: other,
-      names: ["Other Freight"],
-      domains: ["other-freight.example"],
-      logo: null,
-    });
-    const org = "org-candidate-case";
-    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
-    if (!made.ok) throw new Error(made.error.message);
-    const id = made.value.id;
-    await putRaw(store, id, new TextEncoder().encode("From: billing@other-freight.example\r\n\r\nPay.\r\n"));
-    await putParsed(store, id, {
-      headers: [{ name: "From", value: "billing@other-freight.example" }],
-      text: "Pay.",
-      html: null,
-      attachments: [],
-      truncated: [],
-      omitted: 0,
-      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
-    });
-    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => []);
-    expect(((await readCheckOutcomes(env.DB, id)) ?? []).length).toBeGreaterThan(0);
-    // A failed candidate read fails the step; it never reads as no candidate.
-    const failingDb = new Proxy(env.DB, {
-      get: (target, name) =>
-        name === "prepare"
-          ? (sql: string) => {
-              if (sql.includes("FROM identities")) throw new Error("identity store down");
-              return target.prepare(sql);
-            }
-          : Reflect.get(target, name).bind(target),
-    }) as unknown as D1Database;
-    await expect(
-      checks(
-        { db: failingDb, bucket: store.bucket },
-        id,
-        parsedKey(id),
-        { orgId: org, channel: "email" },
-        async () => [],
-      ),
-    ).rejects.toThrow(/identity store down/);
-  });
-
   it("stores each recording's transcript item through the step, a malformed one beside it (D01 T03 §16)", async () => {
     const turn = { chunk: 1, speaker: "A", startMs: 0, endMs: 1000, text: "Please pay today." };
     const mail = await createCase(env.DB, { orgId: "org-transcript-mail", channel: "email", headersAvailable: true });
@@ -1665,4 +1602,120 @@ describe("a model call the budget refused (D03 T01 §2)", () => {
       state: { status: "partial", failedStep: "checks", errorClass: "budget:day:muse-spark-1.3" },
     });
   });
+});
+
+it("fills the protected candidates across organisations, and fails the step when that read fails (D02 T01 §9)", async () => {
+  // Another business, effectively protected: a member of org A checking mail that claims it must carry it.
+  const other = "org-candidate-other";
+  const now = new Date().toISOString();
+  await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(other, "Other Freight (fictional)", `org-${other}`, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+  )
+    .bind("claim-candidate-other", other, "other-freight.example", "t".repeat(16), now, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+  )
+    .bind("addr-candidate-other", other, "money@other-freight.example", now, now)
+    .run();
+  await setIdentity(env.DB, other, "u1", {
+    displayNames: ["Other Freight"],
+    financeContact: "money@other-freight.example",
+    protected: true,
+  });
+  expect(await protectedIdentities(env.DB)).toContainEqual({
+    orgId: other,
+    names: ["Other Freight"],
+    domains: ["other-freight.example"],
+    logo: null,
+  });
+  // A protected identity whose verified domain is then removed is not a candidate.
+  const lapsed = "org-candidate-lapsed";
+  await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(lapsed, "Lapsed Freight (fictional)", `org-${lapsed}`, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+  )
+    .bind("claim-candidate-lapsed", lapsed, "lapsed-freight.example", "t".repeat(16), now, now)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+  )
+    .bind("addr-candidate-lapsed", lapsed, "money@lapsed-freight.example", now, now)
+    .run();
+  await setIdentity(env.DB, lapsed, "u1", {
+    displayNames: ["Lapsed Freight"],
+    financeContact: "money@lapsed-freight.example",
+    protected: true,
+  });
+  await env.DB.prepare("DELETE FROM org_domains WHERE org_id = ?").bind(lapsed).run();
+  const org = "org-candidate-case";
+  const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+  if (!made.ok) throw new Error(made.error.message);
+  const id = made.value.id;
+  await putRaw(store, id, new TextEncoder().encode("From: billing@other-freight.example\r\n\r\nPay.\r\n"));
+  await putParsed(store, id, {
+    headers: [{ name: "From", value: "billing@other-freight.example" }],
+    text: "Pay.",
+    html: null,
+    attachments: [],
+    truncated: [],
+    omitted: 0,
+    forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+  });
+  // A probe check (this file's last test, so its registration reaches no other test) reads what a check
+  // receives: protected B present for A's case with its exact keys, the lapsed identity absent.
+  let seen: ProtectedCandidates | undefined;
+  checkRegistry.register({
+    name: "probe.candidates",
+    needs: [],
+    timeoutMs: 1000,
+    run: (view) => {
+      seen = view.protectedCandidates;
+      return [];
+    },
+  });
+  await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => []);
+  expect(((await readCheckOutcomes(env.DB, id)) ?? []).length).toBeGreaterThan(0);
+  expect(seen?.omitted).toBe(0);
+  expect(seen?.candidates).toContainEqual({
+    orgId: other,
+    names: ["Other Freight"],
+    namesOmitted: 0,
+    domains: ["other-freight.example"],
+    domainsOmitted: 0,
+    logo: null,
+  });
+  expect(seen?.candidates.map((c) => c.orgId)).not.toContain(lapsed);
+  expect(Object.keys(seen?.candidates[0] as object).sort()).toEqual([
+    "domains",
+    "domainsOmitted",
+    "logo",
+    "names",
+    "namesOmitted",
+    "orgId",
+  ]);
+  // A failed candidate read fails the step; it never reads as no candidate.
+  const failingDb = new Proxy(env.DB, {
+    get: (target, name) =>
+      name === "prepare"
+        ? (sql: string) => {
+            if (sql.includes("FROM identities")) throw new Error("identity store down");
+            return target.prepare(sql);
+          }
+        : Reflect.get(target, name).bind(target),
+  }) as unknown as D1Database;
+  await expect(
+    checks(
+      { db: failingDb, bucket: store.bucket },
+      id,
+      parsedKey(id),
+      { orgId: org, channel: "email" },
+      async () => [],
+    ),
+  ).rejects.toThrow(/identity store down/);
 });
