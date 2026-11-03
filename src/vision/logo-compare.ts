@@ -230,12 +230,7 @@ export type LogoMatchReading =
 export function readLogoMatchDetail(detail: unknown): LogoMatchReading {
   if (typeof detail === "object" && detail !== null && "checked" in detail && detail.checked === false)
     return { kind: "not-compared", detail: logoNotComparedDetailSchema.parse(detail) };
-  if (
-    typeof detail === "object" &&
-    detail !== null &&
-    !("reference_key" in detail) &&
-    !("reference_sha256" in detail)
-  )
+  if (typeof detail === "object" && detail !== null && !("reference_key" in detail) && !("reference_sha256" in detail))
     return { kind: "historical", detail: historicalDetailSchema.parse(detail) };
   return { kind: "compared", detail: logoMatchDetailSchema.parse(detail) };
 }
