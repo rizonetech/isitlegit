@@ -155,13 +155,17 @@ describe("the bank-change rules", () => {
     ).toEqual([]);
     expect(await run(org, [reading()], "Ons het nie nuwe bankbesonderhede nie.")).toEqual([]);
     expect(await run(org, [reading()], "We have updated account contact information.")).toEqual([]);
-    // An affirmative bank-change request paired with a negation of the old account still triggers.
+    // An affirmative bank-change request paired with a negation of the old account, "change of bank", or fraud context still triggers.
     const withOldAccountNegation = await run(
       org,
       [reading()],
       "Please use our new banking details and do not use the old account.",
     );
     expect(withOldAccountNegation.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    const changeOfBank = await run(org, [reading()], "Please note our change of bank effective today.");
+    expect(changeOfBank.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    const preventFraud = await run(org, [reading()], "To prevent fraud please use our new banking details.");
+    expect(preventFraud.map((i) => i.check)).toEqual(["invoice.change_language"]);
   });
 
   it("binds change-language findings to invoice attachments and each invoice's own supplier", async () => {

@@ -43,24 +43,31 @@ const CHANGE_PHRASES = [
   "nuwe bankrekening",
 ];
 
-const NEGATED_OR_WARNING_PREFIX =
-  /\b(?:not|never|no|haven't|hasn't|don't|cannot|can't|ignore|beware|scam|fraud|phishing|warning|caution|unchanged|nie|nooit|moenie|geen|bedrog|waarskuwing|onveranderd)\b/u;
+const DIRECT_NEGATION_BEFORE =
+  /(?:^|\s)(?:not|never|no|haven't|hasn't|don't|do\s+not|cannot|can't|will\s+not|won't|would\s+not|nie|nooit|moenie|geen)(?:\s+(?:accept|trust|use|pay|follow|act\s+on|rely\s+on|send|request|issue|notify\s+of|have|had|made|announced|aanvaar|gebruik|betaal|stuur|vra|hê|gehad))?(?:\s+(?:any|our|their|the|a|an|enige|ons|die))?\s*$/u;
 
-const NEGATED_PREDICATE_SUFFIX =
-  /^\s+(?:are|is|were|was|will|would|should|can|could|must|may|het|sal|moet)\s+(?:not|never|no|unchanged|nie|nooit|onveranderd)\b/u;
+const DIRECT_NEGATION_AFTER =
+  /^\s+(?:are|is|were|was|will|would|should|can|could|must|may|have|has|het|sal|moet)\s+(?:not|never|no|unchanged|nie|nooit|onveranderd)\b/u;
 
 export function hasBankChangeLanguage(visibleText: string | null): boolean {
   if (!visibleText) return false;
-  const subclauses = visibleText.toLowerCase().split(/[.!?;:,\r\n]+|\b(?:and|but|so|while|or|en|maar|of)\b/u);
-  return subclauses.some((sub) =>
-    CHANGE_PHRASES.some((phrase) => {
-      const idx = sub.indexOf(phrase);
-      if (idx === -1) return false;
-      const before = sub.slice(0, idx);
-      const after = sub.slice(idx + phrase.length);
-      return !NEGATED_OR_WARNING_PREFIX.test(before) && !NEGATED_PREDICATE_SUFFIX.test(after);
-    }),
-  );
+  const text = visibleText.toLowerCase();
+  for (const phrase of CHANGE_PHRASES) {
+    let from = 0;
+    while (from < text.length) {
+      const idx = text.indexOf(phrase, from);
+      if (idx === -1) break;
+      const prefix = text.slice(0, idx);
+      const boundary = prefix.search(/[^.!?;:\r\n]*$/u);
+      const before = boundary >= 0 ? prefix.slice(boundary) : prefix;
+      const after = text.slice(idx + phrase.length);
+      if (!DIRECT_NEGATION_BEFORE.test(before) && !DIRECT_NEGATION_AFTER.test(after)) {
+        return true;
+      }
+      from = idx + phrase.length;
+    }
+  }
+  return false;
 }
 
 function unavailableSummary(reason: string, comparison: string): string {
