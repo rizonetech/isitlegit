@@ -74,10 +74,10 @@ export async function weeklyCounts(
            EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
              AND e."check" IN ('link.credential_form', 'link.card_form', 'link.lure_button', 'walkthrough.credential_target')) AS ph
          FROM cases c
-         WHERE c.org_id = ? AND c.created_at >= ? AND c.status IN ('done', 'partial')
+         WHERE c.org_id = ? AND c.created_at >= ?${endExclusive ? " AND c.created_at < ?" : ""} AND c.status IN ('done', 'partial')
            AND c.verdict IN ('malicious', 'suspicious')`,
     )
-    .bind(orgId, from);
+    .bind(...(endExclusive ? [orgId, from, endExclusive] : [orgId, from]));
   // One batch, one snapshot: the totals and the kinds can never disagree about a case decided mid-read.
   const [rowsResult, flaggedResult] = await db.batch([rowsStatement, flaggedStatement]);
   const rows = (rowsResult?.results ?? []) as Row[];
