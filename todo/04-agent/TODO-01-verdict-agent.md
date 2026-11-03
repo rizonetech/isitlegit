@@ -51,6 +51,7 @@ track: day-6
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
+| 15 | §15 | Fixed action on every critical invoice item | §12 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -427,6 +428,25 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3: the abl
 
 > **Verified:** 2026-11-03 | §14 | e833f7b9f847b0696d73598241f83f2827567ae2
 > **Review:** `docs/reviews/d04-t01-s14.json`
+
+## 15. Fixed action on every critical invoice item
+
+Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3): trust's rule needs a fixed action attached for every critical invoice item, and `fixedActionsFor` in `src/agent/loop.ts` today attaches the bank-change action only for the first trigger item and the proof-of-payment action once. Trust builds its Workflow proof against this extension and stamps when it gates to main (its proof half is already built against `bankChangeAction`).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Extend the deterministic actions to every critical invoice trigger. Done when: each critical invoice item's fixed action is on the verdict, in evidence order, with no duplicate.
+
+- [ ] Extend `fixedActionsFor` in `src/agent/loop.ts` so every critical `invoice.*` item (and each `agent.ledger_lookup` mismatch) carries its fixed action, keeping the numbered-trigger-wins rule of §12 and the actions' evidence order, deduplicated as the agent path deduplicates today. Done when: `test/agent/loop.test.ts` (or its successor) proves two critical invoice items yield two actions, a numberless trigger beside a numbered one still yields the numbered action, and no action repeats.
+- [ ] Prove it through the verdict path trust reads: the rule verdict and the agent fallback both carry the extended actions. Done when: the same suite reads the actions back on a stored verdict from each path.
+- [ ] Commit: `agent: fixed action on every critical invoice item`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if a second critical invoice item yields no action of its own.
 
 ## Verification
 

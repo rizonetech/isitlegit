@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 189 | Checklist items: 804
+Sections: 191 | Checklist items: 810
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -427,6 +427,7 @@ Sections: 189 | Checklist items: 804
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
 | [x]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 3     |
+| [ ]    | D02 T01 §9  | Protected-identity candidate for the trust match | none                 | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -473,6 +474,7 @@ Sections: 189 | Checklist items: 804
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
 | [x]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 5     |
 | [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
+| [ ]    | D04 T01 §15 | Fixed action on every critical invoice item      | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
@@ -623,6 +625,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 344/547 verified sections, 133 ready to run now.
+Progress: 344/549 verified sections, 135 ready to run now.
 
-Checklist: 2679/3416 items completed (includes Commit items).
+Checklist: 2679/3422 items completed (includes Commit items).
