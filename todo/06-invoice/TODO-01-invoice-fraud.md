@@ -36,7 +36,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invoice detection and Muse Spark field extraction | D03 T02 §2, D03 T01 §5 | [x] |
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
-| 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
+| 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [x] |
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Synthetic invoices in genuine and | §1 | [x] |
 | 6 | §6 | Mark invoices verified, with undo | §3, §4, D05 T03 §1 | [ ] |
@@ -143,9 +143,12 @@ Rules (spec 4.5): bank details differ from the ledger or the registered account,
 - [x] Write the rules' evidence with the extraction's, never over it (gap 5): the rules pass appends its items to the producer's existing items in one `addEvidence` list, so extraction and rule evidence coexist after read-back and after a retry, with no duplicates. Done when: the rules test reads back both kinds after a replay. Done 2026-11-02: the rules items join the step's single producer write; proven in `test/invoice/step.test.ts` (detected and bank_changed read back together).
 - [x] Prove the chain through the Workflow (gap 6): an attached tampered invoice in the Workflow test yields the critical item persisted before the verdict, the deterministic floor caps the verdict, and the fixed action with the ledger phone (never a phone from the message) reaches the verdict's actions through `fixedActionsFor`, with the missing-phone fallback. Done when: `test/pipeline/analysis-workflow.test.ts` and the agent's fixed-action test fail if the rules wiring or the trigger is removed.
 - [x] Make the fixtures inside this section (gap 7): a minimal synthetic genuine and tampered pair and a protected-supplier fixture in the rules test itself (the §5 set, when it lands, widens them). Done when: the rules test builds its pair in code with fictional suppliers only. Done 2026-11-02 in `test/invoice/rules.test.ts` (fictional Karoo Parts and Hadeda Couriers).
-- [ ] Commit: `invoice: bank-change rules with the fixed action`
+- [x] Commit: `invoice: bank-change rules with the fixed action`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/rules.test.ts` passes and fails if a matching account is flagged.
+
+> **Verified:** 2026-11-03 | §3 | 6680bc23bd0385fdca743a50bd5d423f609c082f
+> **Review:** `docs/reviews/d06-t01-s3.json`
 
 ## 4. Supplier ledger page and CSV import
 
