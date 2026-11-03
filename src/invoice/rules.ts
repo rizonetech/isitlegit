@@ -49,6 +49,8 @@ const DIRECT_NEGATION_BEFORE =
 const DIRECT_NEGATION_AFTER =
   /^\s+(?:are|is|were|was|will|would|should|can|could|must|may|have|has|het|sal|moet)\s+(?:not|never|no|unchanged|nie|nooit|onveranderd)\b/u;
 
+const SENTENCE_DELIMITERS = ".!?;:\r\n";
+
 export function hasBankChangeLanguage(visibleText: string | null): boolean {
   if (!visibleText) return false;
   const text = visibleText.toLowerCase();
@@ -57,10 +59,16 @@ export function hasBankChangeLanguage(visibleText: string | null): boolean {
     while (from < text.length) {
       const idx = text.indexOf(phrase, from);
       if (idx === -1) break;
-      const prefix = text.slice(0, idx);
-      const boundary = prefix.search(/[^.!?;:\r\n]*$/u);
-      const before = boundary >= 0 ? prefix.slice(boundary) : prefix;
-      const after = text.slice(idx + phrase.length);
+      const windowStart = Math.max(0, idx - 80);
+      let sentenceStart = windowStart;
+      for (let i = idx - 1; i >= windowStart; i--) {
+        if (SENTENCE_DELIMITERS.includes(text[i] ?? "")) {
+          sentenceStart = i + 1;
+          break;
+        }
+      }
+      const before = text.slice(sentenceStart, idx);
+      const after = text.slice(idx + phrase.length, idx + phrase.length + 40);
       if (!DIRECT_NEGATION_BEFORE.test(before) && !DIRECT_NEGATION_AFTER.test(after)) {
         return true;
       }

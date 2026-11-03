@@ -166,6 +166,10 @@ describe("the bank-change rules", () => {
     expect(changeOfBank.map((i) => i.check)).toEqual(["invoice.change_language"]);
     const preventFraud = await run(org, [reading()], "To prevent fraud please use our new banking details.");
     expect(preventFraud.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    // Linear-time boundary check over large body text with repeated negated phrases.
+    const t0 = performance.now();
+    expect(await run(org, [reading()], `${"a".repeat(100_000)}. never accept new banking details`)).toEqual([]);
+    expect(performance.now() - t0).toBeLessThan(200);
   });
 
   it("binds change-language findings to invoice attachments and each invoice's own supplier", async () => {
