@@ -997,6 +997,10 @@ The Team page's answer when an owner tries to remove a protected account (operat
 
 A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
 
+> **Started:** 2026-11-03T02:13:59Z
+
+**Corrected 2026-11-03 (checked against the tree):** the find field filters the members the page already read, by folded name or email (`fold` in `src/db/search-fold.ts`, the Cases search's folding), in the `find` query value, so a shared or bookmarked address keeps working and no other organisation's member can appear. The pending invitations and the team history are not the find's business and stay whole. With a find in place the field keeps the keyboard focus on the redrawn page.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** A find field above the members list, matching a name or email substring with case and accent folded, and 'No one on the team matches' for no result (recorded in SPEC M7 first).
 

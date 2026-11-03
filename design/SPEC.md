@@ -856,6 +856,7 @@ Boards: [PNG](mockups/png/Team.png) · [source](mockups/source/Team.dc.html)
 Controls:
 
 - members: Members table. (Team)
+- find a person: A find field above the members list matching a name or email substring, case and accent folded; no result reads "No one on the team matches." (Team) (D07 T04 §26, operator decision 2026-11-02)
 - roles: Role select and role descriptions. (Team)
 - invites: Invite by email; Resend and Revoke on pending invitations. (Team)
 - invite several: The invite field takes up to 20 addresses separated by commas or new lines with one shared role; the answer lists one outcome per address (sent, not sent, unknown, refused with its reason) with a Retry that resubmits only the addresses that did not go. (Team) (D07 T04 §22, operator decision 2026-11-02)
