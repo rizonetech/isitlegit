@@ -512,7 +512,7 @@ Sections: 197 | Checklist items: 838
 | [x]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
 | [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
-| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
+| [x]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 2     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 2     |
@@ -631,6 +631,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 352/555 verified sections, 131 ready to run now.
+Progress: 353/555 verified sections, 130 ready to run now.
 
-Checklist: 2715/3450 items completed (includes Commit items).
+Checklist: 2716/3450 items completed (includes Commit items).

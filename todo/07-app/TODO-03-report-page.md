@@ -53,7 +53,7 @@ track: day-2
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
 | 8 | §8 | Full-size evidence viewer | §3 | [x] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
-| 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
+| 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [x] |
 | 11 | §11 | Follow-up question from | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
@@ -500,9 +500,12 @@ The verdict banner's third line is one sentence on what the verdict means for th
 - [x] Read a stored structured reason back through the report route (the checks lane's reader returns `{ text, evidenceIds }`, D04 T01 §2, shipped): the route test stores a structured verdict and finds its pills and its distinctive stored sentence. Done when: `test/web/report-verdict.test.ts` reads one back through the route. **Added 2026-10-31** (D07 T03 §2's plan review).
 - [x] Draw the stored sentence in the reply too: `meaningWords` in `src/mail/templates/reply.ts` uses the stored `meaning` for the plain-text body, `replyDesign`'s HTML band uses it too, and the fixed per-verdict sentence only when it is null. Done when: `test/mail/reply-design.test.ts` draws a distinctive stored sentence in both bodies, a null one draws the fixed sentence, and hostile stored markup stays literal in the plain text and escaped text with no injected element in the HTML. Source: D04 T01 §2's completion review, 2026-11-01.
 - [x] Prove the long stored sentence in a browser: `test/node/report-verdict-browser.test.tsx` draws a 300-character stored sentence in the band at phone and desktop widths, fully visible with no sideways scroll. Done when: the test passes at both widths. Cheaper substitute: asserting on serialized HTML, which cannot prove the sentence wraps.
-- [ ] Commit: `web: the verdict banner draws its stored sentence`
+- [x] Commit: `web: the verdict banner draws its stored sentence`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts test/mail/reply-design.test.ts test/node/report-verdict-browser.test.tsx` passes with the stored sentence drawn in the band and the reply.
+
+> **Verified:** 2026-11-03 | §10 | 513ba4477c691fd7030fb791d5c90aacfa580ebc
+> **Review:** `docs/reviews/d07-t03-s10.json`
 
 
 ## 11. Follow-up question from
