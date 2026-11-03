@@ -448,11 +448,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       ];
       const { p, context } = await open(360, theme, "", cards);
       const audio = p.locator("audio");
+      await audio.scrollIntoViewIfNeeded();
       await audio.focus();
-      expect(await audio.evaluate((a) => document.activeElement === a)).toBe(true);
+      await expect.poll(() => audio.evaluate((a) => document.activeElement === a)).toBe(true);
       await p.keyboard.press("Space");
       await expect.poll(() => audio.evaluate((a: HTMLAudioElement) => !a.paused)).toBe(true);
-      expect(await audio.evaluate((a: HTMLAudioElement) => Number.isFinite(a.duration) && a.duration > 0)).toBe(true);
+      await expect
+        .poll(() => audio.evaluate((a: HTMLAudioElement) => Number.isFinite(a.duration) && a.duration > 0))
+        .toBe(true);
       expect(await p.locator("mark").textContent()).toContain("the new account today");
       expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
       await p.addScriptTag({ path: AXE });
