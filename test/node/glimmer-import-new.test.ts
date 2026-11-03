@@ -131,7 +131,7 @@ describe("import-new", () => {
   it("rejects an unexpectedly truncated import despite internally consistent receipts", async () => {
     const dir = mkdtempSync(join(tmpdir(), "glimmer-import-new-trunc-"));
     try {
-      const { rowsSha, inputsDigest, r1Sha, r2Sha } = writeTwoRowFixture(dir, "putra");
+      const { folder, rowsSha, inputsDigest, r1Sha, r2Sha } = writeTwoRowFixture(dir, "putra");
       const shot1 = await validJpeg(1);
       const shot2 = await validJpeg(2);
       let call = 0;
@@ -154,6 +154,11 @@ describe("import-new", () => {
       });
       expect(result.status).toBe("incomplete");
       expect(result.reason).toMatch(/below the .* floor/);
+      const importJsonText = readFileSync(join(folder, "IMPORT.json"), "utf-8");
+      const importHeader = JSON.parse(readFileSync(join(folder, "ITEMS.import.jsonl"), "utf-8").split("\n")[0] ?? "{}") as {
+        import?: string;
+      };
+      expect(importHeader.import).toBe(createHash("sha256").update(importJsonText, "utf-8").digest("hex"));
 
       // Even if a caller checks reconcile() against internally consistent receipts, checkNewSourceCoverage rejects it.
       const problems = reconcile({
@@ -293,6 +298,8 @@ describe("import-new", () => {
       expect(midDrop.stored).toBe(1);
       expect(midDrop.reason).toMatch(/must stay free/);
       const importAfterMidDrop = readFileSync(join(folder, "IMPORT.json"), "utf-8");
+      // Because free space stayed below the reserve during failure publication, the already-published `running` receipt is preserved.
+      expect((JSON.parse(importAfterMidDrop) as { status: string }).status).toBe("running");
 
       // 2. Starting at the exact 300 GB boundary (or with insufficient margin for pending writes) refuses immediately and leaves IMPORT.json untouched.
       await expect(

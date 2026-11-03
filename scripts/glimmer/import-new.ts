@@ -15,7 +15,6 @@ import {
   type ImportResult,
   importSource,
   type SourceItem,
-  writeImport,
 } from "./import-source.ts";
 import { normaliseScreenshot, openTextReader } from "./source-pages.ts";
 import { checkNewSourceCoverage, type ExportReceipt, NEW_SOURCE_FLOORS, scanRowsLineage } from "./sources.ts";
@@ -99,7 +98,7 @@ export async function importNewSource(options: {
   if (minFreeBytes > 0) checkFreeSpace(dir, minFreeBytes, options.freeBytes, 16_384);
   const store = openStore(dir);
   const indexed = await indexRows(rowsFile);
-  const result = await importSource({
+  return await importSource({
     source,
     licence,
     items: indexed.map((entry) =>
@@ -116,25 +115,22 @@ export async function importNewSource(options: {
     concurrency: options.concurrency ?? 4,
     minFreeBytes,
     ...(options.freeBytes ? { freeBytes: options.freeBytes } : {}),
+    ...(options.enforceCoverage !== false
+      ? {
+          beforePublish: (stored) => {
+            const exportFile = join(dirname(rowsFile), "EXPORT.json");
+            const exportReceipt = existsSync(exportFile)
+              ? (JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt)
+              : undefined;
+            return checkNewSourceCoverage(source, {
+              exportReceipt,
+              rowItems: scanRowsLineage(rowsFile),
+              stored,
+            })[0];
+          },
+        }
+      : {}),
   });
-  if (result.status === "complete" && options.enforceCoverage !== false) {
-    const exportFile = join(dirname(rowsFile), "EXPORT.json");
-    const exportReceipt = existsSync(exportFile)
-      ? (JSON.parse(readFileSync(exportFile, "utf-8")) as ExportReceipt)
-      : undefined;
-    const stored = store.manifest({ tolerant: true, source }).filter((page) => page.source === source);
-    const coverageProblems = checkNewSourceCoverage(source, {
-      exportReceipt,
-      rowItems: scanRowsLineage(rowsFile),
-      stored,
-    });
-    if (coverageProblems.length > 0) {
-      result.status = "incomplete";
-      result.reason = coverageProblems[0] as string;
-      writeImport(join(dir, "raw", source, "IMPORT.json"), result);
-    }
-  }
-  return result;
 }
 
 if (import.meta.filename === process.argv[1]) {

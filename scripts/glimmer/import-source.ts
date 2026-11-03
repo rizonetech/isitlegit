@@ -24,7 +24,7 @@ import {
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { captureProblem } from "./label-rules.ts";
-import type { Labels, openStore, PageInput } from "./store.ts";
+import type { Labels, openStore, PageInput, StoredPage } from "./store.ts";
 
 export const MAX_EXCLUDED_SHARE = 0.15;
 export const MIN_TEXT_CHARACTERS = 20;
@@ -236,6 +236,8 @@ export async function importSource(options: {
   // Minimum free bytes on the store filesystem during conversion and import (D03 T04 §44 plan review gap 2).
   minFreeBytes?: number;
   freeBytes?: (dir: string) => number;
+  // Pre-publication coverage hook run while IMPORT.json is still `running` (D03 T04 §44 Round 1 finding 1).
+  beforePublish?: (storedPages: StoredPage[]) => string | undefined;
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
@@ -464,9 +466,17 @@ export async function importSource(options: {
   const stored = sourcePages.length;
   const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
   const legacy = sourcePages.filter((page) => !page.item).length;
+  let coverageFailure: string | undefined;
+  if (!stopped && !tooMany && !stillDamaged && !stale && options.beforePublish) {
+    try {
+      coverageFailure = options.beforePublish(sourcePages);
+    } catch (error) {
+      coverageFailure = (error as Error).message.split("\n")[0] ?? "coverage check failed";
+    }
+  }
   const result: ImportResult = {
     ...(options.binding ? { inputs: options.binding.inputs, rows: options.binding.rows } : {}),
-    status: stopped || tooMany || stillDamaged || stale ? "incomplete" : "complete",
+    status: stopped || tooMany || stillDamaged || stale || coverageFailure ? "incomplete" : "complete",
     expected: items.length,
     imported,
     duplicates,
@@ -486,7 +496,9 @@ export async function importSource(options: {
           ? { reason: `${stale} stored pages are not in the dataset any more; remove them` }
           : tooMany
             ? { reason: `${excluded.length} of ${items.length} items excluded (over 15 percent)` }
-            : {}),
+            : coverageFailure
+              ? { reason: coverageFailure }
+              : {}),
     started: started.toISOString(),
     finished: new Date().toISOString(),
     seconds: Math.round((Date.now() - started.getTime()) / 1000),
@@ -499,6 +511,7 @@ export async function importSource(options: {
     // The import ledger is bound to the inputs, export and import digests it belongs to, written temp-then-replace and
     // read back before IMPORT.json publishes `complete` (§28 plan review gap 5 and completion review G9). A failure or
     // stop here marks IMPORT.json incomplete, and a hard kill before writeImport leaves IMPORT.json as `running`.
+    const importText = `${JSON.stringify(plannedImport, null, 2)}\n`;
     if ((options.binding || options.writeLedger) && !stopped) {
       const binding = options.binding ?? { inputs: "", rows: "" };
       const where = new Map<string, string>();
@@ -520,7 +533,6 @@ export async function importSource(options: {
       });
       const exportFile = join(dirname(importJson), "EXPORT.json");
       const exportDigest = binding.export ?? (existsSync(exportFile) ? fileSha256(exportFile) : undefined);
-      const importText = `${JSON.stringify(plannedImport, null, 2)}\n`;
       const importDigest = createHash("sha256").update(importText, "utf-8").digest("hex");
       const ledgerBytes =
         Buffer.byteLength(importText, "utf-8") +
@@ -534,15 +546,23 @@ export async function importSource(options: {
         settled,
         options.writeLedger ? { write: options.writeLedger } : {},
       );
-    } else if (options.minFreeBytes && options.minFreeBytes > 0 && !stopped) {
-      const importText = `${JSON.stringify(plannedImport, null, 2)}\n`;
+    }
+    if (options.minFreeBytes && options.minFreeBytes > 0) {
       checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, Buffer.byteLength(importText, "utf-8"));
     }
     writeImport(importJson, plannedImport);
   } catch (error) {
     result.status = "incomplete";
-    result.reason = (error as Error).message;
-    writeImport(importJson, result);
+    if (!result.reason) result.reason = (error as Error).message;
+    try {
+      if (options.minFreeBytes && options.minFreeBytes > 0) {
+        const failureBytes = Buffer.byteLength(`${JSON.stringify(result, null, 2)}\n`, "utf-8");
+        checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, failureBytes);
+      }
+      writeImport(importJson, result);
+    } catch {
+      // Insufficient free space to publish the failure receipt: preserve the already-published `running` receipt.
+    }
   }
   return result;
 }
