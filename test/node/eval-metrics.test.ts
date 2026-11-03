@@ -724,6 +724,8 @@ describe("the source-versus-replay comparison (section 13)", () => {
         sourceVerdict: "malicious",
         replayVerdict: "safe",
         change: "regression",
+        sourceCaseId: "case-synthetic-sa/a1.eml",
+        replayCaseId: "case-synthetic-sa/a1.eml",
       },
       {
         sample: "synthetic-sa/a2.eml",
@@ -732,6 +734,8 @@ describe("the source-versus-replay comparison (section 13)", () => {
         sourceVerdict: "safe",
         replayVerdict: "suspicious",
         change: "improvement",
+        sourceCaseId: "case-synthetic-sa/a2.eml",
+        replayCaseId: "case-synthetic-sa/a2.eml",
       },
       {
         sample: "synthetic-sa/g1.eml",
@@ -740,6 +744,8 @@ describe("the source-versus-replay comparison (section 13)", () => {
         sourceVerdict: "safe",
         replayVerdict: "malicious",
         change: "regression",
+        sourceCaseId: "case-synthetic-sa/g1.eml",
+        replayCaseId: "case-synthetic-sa/g1.eml",
       },
     ]);
     // Median cost deltas are exact too: every row costs US$0.02 on both sides.
@@ -827,8 +833,23 @@ describe("the source-versus-replay comparison (section 13)", () => {
         sourceVerdict: "safe",
         replayVerdict: "suspicious",
         change: "improvement",
+        sourceCaseId: "case-synthetic-challenge/a1.eml",
+        replayCaseId: "case-synthetic-challenge/a1.eml",
       },
     ]);
+  });
+
+  it("names the paired cases behind a changed verdict, and no case where none is recorded (section 14)", () => {
+    const { source, replay } = pair(
+      [row("synthetic-sa/a1.eml", "done", "safe")],
+      [row("synthetic-sa/a1.eml", "done", "malicious", { caseId: null })],
+    );
+    const c = compareRuns(source, replay);
+    expect(c.changed[0]).toMatchObject({ sourceCaseId: "case-synthetic-sa/a1.eml", replayCaseId: null });
+    const text = comparisonText(c);
+    expect(text).toMatch(/cases case-synthetic-sa\/a1\.eml -> none recorded/);
+    expect(text).toMatch(/paired evidence: open each case at \/cases\/<case id>/);
+    expect(text).toMatch(/a side with no case recorded has no paired evidence/);
   });
 
   it("drives --compare through the command entry with persisted read-back and its refusals", async () => {

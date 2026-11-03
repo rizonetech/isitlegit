@@ -795,6 +795,9 @@ export type RunComparison = {
     scope: "main" | "challenge";
     sourceVerdict: string | null;
     replayVerdict: string | null;
+    // The two cases behind the change (D08 T02 section 14): the paired evidence an operator opens next.
+    sourceCaseId: string | null;
+    replayCaseId: string | null;
     // An improvement flags an attack the source missed, or clears a genuine false alarm; a regression is the
     // inverse. A change between two flagged or two clear verdicts is neither, and reads "changed".
     change: "improvement" | "regression" | "changed";
@@ -882,6 +885,8 @@ export function compareRuns(
         scope: (r.sample.split("/")[0] === CHALLENGE ? "challenge" : "main") as "main" | "challenge",
         sourceVerdict: r.verdict,
         replayVerdict,
+        sourceCaseId: r.caseId,
+        replayCaseId: replayBySample.get(r.sample)?.caseId ?? null,
         change: change as "improvement" | "regression" | "changed",
       };
     })
@@ -921,7 +926,8 @@ export function comparisonText(c: RunComparison): string {
     `changed verdicts: ${c.changed.length} (main: ${counts("main")}${c.challenge ? `; challenge: ${counts("challenge")}` : ""})`,
     ...c.changed.map(
       (x) =>
-        `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}`,
+        `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}; cases ${x.sourceCaseId ?? "none recorded"} -> ${x.replayCaseId ?? "none recorded"}`,
     ),
+    "paired evidence: open each case at /cases/<case id> (eval organisation membership required); a side with no case recorded has no paired evidence",
   ].join("\n");
 }
