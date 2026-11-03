@@ -31,4 +31,6 @@ Every chapter card says shipped, partly built, started or planned. Shipped means
 ## Operator decisions and open questions
 
 - Narration in the operator's ElevenLabs voice, one segment per scene in [data/narration/02.json](../data/narration/02.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
-- Re-render once the verdict agent ships, to move chapters 6, 7 and 10 from planned to shipped?
+- Re-render once the verdict agent and full pipeline ship: yes, re-render with shipped chapter marks, the Meta infinity SVG mark in `MetaBadge`, the two-row Runtime Meta AI and `Built with Meta Muse Code (Wonder 1.0)` attribution strip, and the 5 Meta Model X-Ray overlays (approved 2026-11-03).
+
+Script approved: 02, 2026-11-03

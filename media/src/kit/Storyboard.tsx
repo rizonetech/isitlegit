@@ -1,6 +1,7 @@
 import type React from "react";
-import { Series } from "remotion";
-import { Backdrop, CloseScene, MetaBadge } from "../brand";
+import { AbsoluteFill, Loop, OffthreadVideo, Series } from "remotion";
+import { Backdrop, CloseScene, MetaAttributionStrip, MetaBadge } from "../brand";
+import { GENERATED } from "../data/demo-capture";
 import { ColdOpen, coldOpenFrames, hookFor } from "./coldopen";
 import { CREDITS, Credits } from "./credits";
 import { BrandReveal, revealFrames } from "./reveal";
@@ -8,6 +9,7 @@ import { RenderScene, type SceneSpec } from "./scenes";
 import { fill, words } from "./text";
 import { MusicBed, Sfx } from "./sound";
 import { Voice, voicedFrames, voiceFor, voiceSpans } from "./voice";
+import { LoupeCascadeXRay, SamXRay, SparkXRay, VoiceDecoderXRay, WonderXRay } from "./xray";
 
 export type StoryboardSpec = {
   id: string;
@@ -77,6 +79,13 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
   return (
     <>
       <Backdrop />
+      {video === "02" && GENERATED.loop ? (
+        <AbsoluteFill>
+          <Loop durationInFrames={240}>
+            <OffthreadVideo src={GENERATED.loop} muted style={{ width: 1920, height: 1080, objectFit: "cover", opacity: 0.32 }} />
+          </Loop>
+        </AbsoluteFill>
+      ) : null}
       <Series>
         {hook ? (
           <Series.Sequence durationInFrames={cold}>
@@ -91,12 +100,20 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
           <Series.Sequence key={`${i}-${s.title}`} durationInFrames={frames[i + 1]}>
             <RenderScene s={s} chapters={chapters} label={label} />
             {s.meta ? <MetaBadge text={s.meta} /> : null}
+            {video === "02" && s.meta === "Muse Wonder" ? <WonderXRay style={{ position: "absolute", left: 150, right: 150, bottom: 28 }} /> : null}
+            {video === "02" && s.meta === "Muse Spark and SAM 3.1" ? <SamXRay style={{ position: "absolute", left: 150, right: 150, bottom: 28 }} /> : null}
+            {video === "02" && s.meta === "Muse Spark" ? <SparkXRay style={{ position: "absolute", left: 150, right: 150, bottom: 28 }} /> : null}
+            {video === "02" && s.meta === "Loupe on Muse Glimmer" ? <LoupeCascadeXRay style={{ position: "absolute", left: 150, right: 150, bottom: 28 }} /> : null}
+            {video === "02" && s.title === "What goes in, and the limits" ? (
+              <VoiceDecoderXRay noteOurs="14 ms" noteFfmpeg="66 ms" ciRun="40606229380" ffmpegVer="FFmpeg 6.1.1-3ubuntu5" style={{ position: "absolute", left: 150, right: 150, bottom: 28 }} />
+            ) : null}
             {s.type === "chapter" ? <Sfx name="whoosh" /> : null}
             <Voice clip={clips?.[i + 1]} />
           </Series.Sequence>
         ))}
         <Series.Sequence durationInFrames={frames[last]}>
           <CloseScene lines={board.close.map(fill)} />
+          {video === "02" ? <MetaAttributionStrip style={{ position: "absolute", left: 120, right: 120, bottom: 48 }} /> : null}
           <Voice clip={clips?.[last]} />
         </Series.Sequence>
         <Series.Sequence durationInFrames={CREDITS}>
