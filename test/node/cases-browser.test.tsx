@@ -9,6 +9,7 @@ import {
   type CaseFilters,
   type CasePage,
   filtersFrom,
+  ignoredDates,
   type ListedCase,
   PAGE_SIZE,
   searchTooLong,
@@ -36,6 +37,8 @@ const cases = (prefix: string, count: number): ListedCase[] =>
     verdict: VERDICTS[i % 3] ?? "safe",
     createdAt: new Date(NOW.getTime() - i * 3_600_000).toISOString(),
     checkedBy: i % 4 === 3 ? null : "Thandi Nkosi",
+    hasInvoice: false,
+    hasPaymentDocument: false,
     // Named as D07 T04 §7 names them: an email's subject over its sender, an upload's file name over its type.
     subject: i % 4 === 3 ? null : `${i % 2 ? "Statement" : "Remittance advice"} ${prefix}${i}`,
     senderName: null,
@@ -70,6 +73,7 @@ const STATS: WeeklyStats = {
     suspicious: 3,
     safe: 15,
     unfinished: 3,
+    kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     medianSecondsToVerdict: 48,
   },
   lastWeekChecked: 19,
@@ -77,7 +81,16 @@ const STATS: WeeklyStats = {
 const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [], answered: [], stats: STATS };
 
 function listFor(all: ListedCase[], f: CaseFilters): CasePage {
-  const since = f.period === "all" ? 0 : NOW.getTime() - Number(f.period) * 86_400_000;
+  // A chosen range replaces the period, as src/db/case-list.ts reads it (D07 T04 §8): SAST days, inclusive.
+  const since =
+    f.from || f.to
+      ? f.from
+        ? Date.parse(`${f.from}T00:00:00.000+02:00`)
+        : 0
+      : f.period === "all"
+        ? 0
+        : NOW.getTime() - Number(f.period) * 86_400_000;
+  const until = f.to ? Date.parse(`${f.to}T00:00:00.000+02:00`) + 86_400_000 : Number.POSITIVE_INFINITY;
   const { terms, cut } = searchTerms(f.q);
   const matched = all.filter(
     (c) =>
@@ -93,7 +106,9 @@ function listFor(all: ListedCase[], f: CaseFilters): CasePage {
       ) &&
       (f.verdict === "all" || c.verdict === f.verdict) &&
       (f.channel === "all" || c.channel === f.channel) &&
-      Date.parse(c.createdAt) >= since,
+      (!f.checker || (f.checker === "thandi" ? c.checkedBy === "Thandi Nkosi" : c.checkedBy === "Pieter Botha")) &&
+      Date.parse(c.createdAt) >= since &&
+      Date.parse(c.createdAt) < until,
   );
   const pages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
   const page = Math.min(f.page, pages);
@@ -139,7 +154,11 @@ async function answer(req: IncomingMessage): Promise<Response> {
       asked === "none" || asked === "minutes"
         ? {
             ...state.stats,
-            thisWeek: { ...state.stats.thisWeek, medianSecondsToVerdict: asked === "none" ? null : 125 },
+            thisWeek: {
+              ...state.stats.thisWeek,
+              kinds: { phishing: 0, invoice: 0, impersonation: 0 },
+              medianSecondsToVerdict: asked === "none" ? null : 125,
+            },
           }
         : state.stats;
     const { children: _, ...shell } = member({ organization: { id: state.org, name: org.name } });
@@ -153,6 +172,11 @@ async function answer(req: IncomingMessage): Promise<Response> {
           stats={stats}
           now={NOW}
           searchLong={searchTooLong(url.searchParams.get("q"))}
+          datesIgnored={ignoredDates(url.searchParams)}
+          members={[
+            { id: "thandi", label: "Thandi Nkosi" },
+            { id: "pieter", label: "Pieter Botha van der Merwe-Langenhoven" },
+          ]}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
@@ -171,13 +195,19 @@ async function answer(req: IncomingMessage): Promise<Response> {
     return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
   if (url.pathname === "/cases/stats.csv" && url.searchParams.get("org") !== state.org)
     return new Response(null, { status: 303, headers: { location: "/cases" } });
-  if (url.pathname === "/cases/stats.csv")
+  if (url.pathname === "/cases/stats.csv") {
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
     return new Response("week_start,checked\r\n2026-10-26,27\r\n", {
       headers: {
         "content-type": "text/csv; charset=utf-8",
-        "content-disposition": 'attachment; filename="isitlegit-weekly-counts.csv"',
+        "content-disposition":
+          from && to
+            ? `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`
+            : 'attachment; filename="isitlegit-weekly-counts.csv"',
       },
     });
+  }
   if (url.pathname === "/signin")
     return new Response("<!doctype html><title>Sign in</title><h1>Sign in</h1>", {
       headers: { "content-type": "text/html" },
@@ -252,12 +282,22 @@ async function slowAnswerArrived(p: Page, part: string) {
 const segment = (p: Page, name: string) => p.locator("fieldset label").filter({ hasText: new RegExp(`^${name}$`) });
 const ids = (p: Page) =>
   p.evaluate(() =>
-    [...document.querySelectorAll("table a[href^='/r/']")].map((a) => a.getAttribute("href")?.slice(3) ?? ""),
+    [...document.querySelectorAll("table a[href^='/r/']")].map(
+      (a) => a.getAttribute("href")?.slice(3).split("?")[0] ?? "",
+    ),
   );
 const expected = (org: keyof typeof ORGS, f: Partial<CaseFilters>) =>
-  listFor(ORGS[org].cases, { verdict: "all", channel: "all", period: "30", page: 1, q: "", ...f }).cases.map(
-    (c) => c.id,
-  );
+  listFor(ORGS[org].cases, {
+    verdict: "all",
+    channel: "all",
+    period: "30",
+    page: 1,
+    q: "",
+    from: "",
+    to: "",
+    checker: "",
+    ...f,
+  } as CaseFilters).cases.map((c) => c.id);
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium", { timeout: 120_000 }, () => {
   it("redraws the results on a filter change, pushes the address, and Back reloads the earlier list", async () => {
@@ -273,6 +313,150 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => ids(p)).toEqual(expected("A", {}));
     // Back went to the server as a whole page, not a snapshot.
     expect(state.seen.at(-1)).toEqual({ path: "/cases", htmx: false });
+    await context.close();
+  });
+
+  it("filters by who checked, returns to Everyone, and survives reload and Back (D07 T04 §10)", async () => {
+    const { p, context } = await open();
+    await p.locator("#case-checker").selectOption("thandi");
+    await expect.poll(() => p.url()).toContain("checker=thandi");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { checker: "thandi" }));
+    await p.reload();
+    expect(await p.locator("#case-checker").inputValue()).toBe("thandi");
+    await p.locator("#case-checker").selectOption("");
+    await expect.poll(() => ids(p)).toEqual(expected("A", {}));
+    await p.goBack();
+    await expect.poll(() => p.url()).toContain("checker=thandi");
+    await context.close();
+  });
+
+  it("changes the checker from page 2 with other filters kept, and recovers a failed checker change (D07 T04 §10)", async () => {
+    const { p, context } = await open();
+    await p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => p.url()).toContain("page=2");
+    await segment(p, "Safe").click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "safe" }));
+    await p.locator("#case-checker").selectOption("thandi");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "safe", checker: "thandi" }));
+    expect(p.url()).not.toContain("page=2");
+    state.fail = "outage";
+    await p.locator("#case-checker").selectOption("pieter");
+    await expect.poll(() => p.url()).toContain("checker=pieter");
+    expect(await p.locator("body").textContent()).toContain("Try again");
+    state.fail = null;
+    await p.getByRole("link", { name: "Try again" }).click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { checker: "pieter" }));
+    await context.close();
+  });
+
+  it("filters by dates through Apply without JavaScript, with the checker kept (D07 T04 §10)", async () => {
+    const { p, context } = await open("/cases", { js: false });
+    await p.locator("#case-checker").selectOption("thandi");
+    await p.getByRole("button", { name: "Apply" }).click();
+    await expect.poll(() => p.url()).toContain("checker=thandi");
+    expect(await ids(p)).toEqual(expected("A", { checker: "thandi" }));
+    await context.close();
+  });
+
+  it("filters by a chosen date range from the keyboard, pages in it, and clears back to the period", async () => {
+    const { p, context } = await open();
+    await p.locator("#case-from").fill("2026-10-30");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => p.url()).toContain("from=2026-10-30");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    expect(await p.locator("#case-period").isDisabled()).toBe(true);
+    expect(await p.locator("[data-active-range]").textContent()).toContain("30 Oct");
+    // Reload reads the range back into the inputs; Back after paging returns to page 1 of the range.
+    await p.reload();
+    expect(await p.locator("#case-from").inputValue()).toBe("2026-10-30");
+    await p.locator("#case-from").fill("2026-10-29");
+    await p.locator("#case-from").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30" }));
+    await p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => p.url()).toContain("page=2");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30", page: 2 }));
+    await p.goBack();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30" }));
+    // Clear dates returns to the fixed periods with the period live again.
+    await p.getByRole("link", { name: "Clear dates" }).click();
+    await expect.poll(() => p.url()).not.toContain("from=");
+    expect(await p.locator("#case-period").isDisabled()).toBe(false);
+    await expect.poll(() => ids(p)).toEqual(expected("A", {}));
+    await context.close();
+  });
+
+  it("keeps the chosen preset through range edits and clearing, and resets the page when dates change", async () => {
+    const { p, context } = await open();
+    await p.locator("#case-period").selectOption("7");
+    await expect.poll(() => p.url()).toContain("period=7");
+    await p.locator("#case-from").fill("2026-10-29");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { period: "7", from: "2026-10-29", to: "2026-10-30" }));
+    await p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => p.url()).toContain("page=2");
+    // Changing a date from page 2 returns to the first page of the new range.
+    await p.locator("#case-to").fill("2026-10-29");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { period: "7", from: "2026-10-29", to: "2026-10-29" }));
+    expect(p.url()).not.toContain("page=2");
+    // Clearing both dates by hand returns to Last 7 days, the preset chosen before the range.
+    await p.locator("#case-from").fill("");
+    await p.locator("#case-to").fill("");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { period: "7" }));
+    expect(await p.locator("#case-period").isDisabled()).toBe(false);
+    expect(await p.locator("#case-period").inputValue()).toBe("7");
+    await context.close();
+  });
+
+  it("lets the newest date change win and keeps both dates when a date request fails", async () => {
+    const { p, context } = await open();
+    state.delay = (f) => (f.from === "2026-10-29" ? 400 : 0);
+    await p.locator("#case-from").fill("2026-10-29");
+    await p.locator("#case-from").press("Tab");
+    await p.locator("#case-from").fill("2026-10-30");
+    await p.locator("#case-from").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30" }));
+    await slowAnswerArrived(p, "from=2026-10-29");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-30" }));
+    state.delay = () => 0;
+    state.fail = "outage";
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.keyboard.press("Tab");
+    await expect.poll(() => p.url()).toContain("to=2026-10-30");
+    expect(await p.locator("body").textContent()).toContain("Try again");
+    state.fail = null;
+    // Try again at the failed address: both dates survive the recovery, in the inputs and the results.
+    await p.getByRole("link", { name: "Try again" }).click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    expect(await p.locator("#case-from").inputValue()).toBe("2026-10-30");
+    expect(await p.locator("#case-to").inputValue()).toBe("2026-10-30");
+    await context.close();
+  });
+
+  it("clears the reversed-range error from the results and its fields when the pair is fixed", async () => {
+    const { p, context } = await open("/cases?from=2026-10-30&to=2026-10-29");
+    expect(await p.locator("#case-range-error").textContent()).toContain("From is after To");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.keyboard.press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    expect(await p.locator("#case-range-error").count()).toBe(0); // the error paragraph leaves the results with the swap
+    await context.close();
+  });
+
+  it("filters by dates through Apply without JavaScript, and a reversed pair offers its swap", async () => {
+    const { p, context } = await open("/cases", { js: false });
+    await p.locator("#case-from").fill("2026-10-30");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.getByRole("button", { name: "Apply" }).click();
+    await expect.poll(() => p.url()).toContain("from=2026-10-30");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    await p.goto(`${origin}/cases?from=2026-10-30&to=2026-10-29`);
+    expect(await p.locator("body").textContent()).toContain("From is after To");
+    await p.getByRole("link", { name: "Swap them" }).click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30" }));
     await context.close();
   });
 
@@ -345,7 +529,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     const first = expected("A", {})[0] ?? "";
     for (
       let i = 0;
-      i < 200 && !(await p.evaluate(() => document.activeElement?.getAttribute("href") ?? "")).endsWith(first);
+      i < 200 && !(await p.evaluate(() => document.activeElement?.getAttribute("href") ?? "")).includes(`/r/${first}?`);
       i++
     )
       await p.keyboard.press("Shift+Tab");
@@ -416,6 +600,51 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => p.getByText("Everything Bravo Couriers has checked").isVisible()).toBe(true);
     expect(await ids(p)).toEqual(expected("B", { verdict: "malicious" }));
     expect(p.url()).toContain("verdict=malicious");
+    await context.close();
+  });
+
+  it("focuses the search on slash outside a field, and never swallows the key in one (D07 T04 §15)", async () => {
+    const { p, context } = await open();
+    expect(await p.getByPlaceholder("Search by sender or subject (press /)").isVisible()).toBe(true);
+    expect(await p.getByText("Press / to search").isVisible()).toBe(true);
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    expect(await p.locator("#case-search").inputValue()).toBe("");
+    // With the shortcut on: a select keeps the key, a modifier never fires it, and composition never fires it.
+    await p.locator("#case-channel").click();
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-channel");
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("Control+/");
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.evaluate(() => {
+      document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "/", isComposing: true, bubbles: true }));
+    });
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.keyboard.press("/");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    // The key stays text in the box itself and in a date field.
+    await p.keyboard.press("/");
+    await expect.poll(() => p.locator("#case-search").inputValue()).toBe("/");
+    await p.locator("#case-search").fill("");
+    await p.locator("#case-from").click();
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-from");
+    // The off switch stops it, is restored after a reload, and turning it on brings it back.
+    await p.getByRole("button", { name: "Turn off the / shortcut" }).click();
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.reload();
+    expect(await p.getByRole("button", { name: "Turn on the / shortcut" }).isVisible()).toBe(true);
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.getByRole("button", { name: "Turn on the / shortcut" }).click();
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
     await context.close();
   });
 
@@ -605,12 +834,50 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     expect(await tile("Median time to verdict").textContent()).toBe("48 s");
     state.stats = {
       ...STATS,
-      thisWeek: { ...STATS.thisWeek, checked: 28, malicious: 7, medianSecondsToVerdict: 95 },
+      thisWeek: {
+        ...STATS.thisWeek,
+        checked: 28,
+        malicious: 7,
+        kinds: { phishing: 0, invoice: 0, impersonation: 0 },
+        medianSecondsToVerdict: 95,
+      },
     };
     await segment(p, "Safe").click();
     await expect.poll(() => tile("Checked this week").textContent()).toBe("28");
     expect(await tile("Malicious or suspicious").textContent()).toBe("10");
     expect(await tile("Median time to verdict").textContent()).toBe("1 min 35 s");
+    await context.close();
+  });
+
+  it("exports a chosen period and keeps the dates across a redraw (D07 T04 §19)", async () => {
+    const { p, context } = await open();
+    expect(await p.getByRole("link", { name: "This month" }).isVisible()).toBe(true);
+    expect(await p.getByRole("link", { name: "This quarter" }).isVisible()).toBe(true);
+    await p.locator("#case-export-from").fill("2026-10-01");
+    await p.locator("#case-export-to").fill("2026-10-31");
+    const download = p.waitForEvent("download");
+    await p.getByRole("button", { name: "Export period" }).click();
+    expect((await download).suggestedFilename()).toBe("isitlegit-counts-2026-10-01-to-2026-10-31.csv");
+    // A filter redraw swaps the panel; the typed dates come back.
+    await segment(p, "Safe").click();
+    await expect.poll(() => p.locator("#case-export-from").inputValue()).toBe("2026-10-01");
+    await expect.poll(() => p.locator("#case-export-to").inputValue()).toBe("2026-10-31");
+    await context.close();
+  });
+
+  it("reads the threat kinds line at phone width in both themes (D07 T04 §18)", async () => {
+    state.stats = {
+      ...STATS,
+      thisWeek: { ...STATS.thisWeek, kinds: { phishing: 5, invoice: 3, impersonation: 1 } },
+    };
+    const context = await browser.newContext({ viewport: { width: 360, height: 900 } });
+    const p = await context.newPage();
+    await p.goto(`${origin}/cases`, { waitUntil: "load" });
+    for (const theme of ["light", "dark"] as const) {
+      await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      expect(await p.getByText("5 phishing, 3 invoice, 1 impersonation").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    }
     await context.close();
   });
 
@@ -738,6 +1005,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
         ["A", "/cases?verdict=malicious&channel=upload&period=7"],
         ["A", "/cases?q=statement"],
         ["A", "/cases?q=nothing-like-this"],
+        ["A", "/cases?from=2026-10-29&to=2026-10-30"],
+        ["A", "/cases?from=2026-10-30&to=2026-10-29"],
         ["A", "/cases?stats=none"],
         ["A", "/cases?stats=minutes"],
         ["E", "/cases"],

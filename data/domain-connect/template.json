@@ -1,0 +1,16 @@
+{
+  "providerId": "isitlegit.co.za",
+  "providerName": "IsItLegit",
+  "serviceId": "verify",
+  "serviceName": "IsItLegit domain verification",
+  "logoUrl": "https://isitlegit.co.za/static/brand/logo.svg",
+  "description": "Proves a business controls its domain by adding the IsItLegit verification TXT record at _isitlegit.",
+  "records": [
+    {
+      "type": "TXT",
+      "host": "_isitlegit",
+      "pointsTo": "@txtValue@",
+      "ttl": 3600
+    }
+  ]
+}

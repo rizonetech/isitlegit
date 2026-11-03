@@ -1168,6 +1168,71 @@ document.addEventListener("keydown", (event) => {
   openViewer(opener);
 });
 
+// Stepping through a filtered run from a report (D07 T04 §9): `j` to the next case, `k` to the previous, `u` back
+// to the list, as Gmail's keys do. Only while the step controls themselves hold focus (WCAG 2.1.4: a
+// character-key shortcut active only on its component needs no off switch), never while typing, never with a
+// modifier, and the addresses are the ones the page drew, so a disabled end simply has no key.
+document.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+  const target = event.target                  ;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const steps = document.querySelector             ("[data-case-steps]");
+  if (!steps?.contains(target        )) return;
+  const to =
+    event.key === "j"
+      ? steps.dataset.next
+      : event.key === "k"
+        ? steps.dataset.previous
+        : event.key === "u"
+          ? steps.dataset.back
+          : undefined;
+  if (!to) return;
+  event.preventDefault();
+  window.location.assign(to);
+});
+
+// Focusing the Cases search with `/` (D07 T04 §15), as Gmail and GitHub do: only where the box is on the page,
+// never while typing in a field or with a modifier, and the key stays text inside any editable control. The
+// hint's Turn off button is the WCAG 2.1.4 off switch: the choice is kept in the browser and restored on load.
+let slashMemory                 = null;
+const slashOff = () => {
+  if (slashMemory !== null) return slashMemory;
+  try {
+    return localStorage.getItem("iil-slash-search") === "off";
+  } catch {
+    return false;
+  }
+};
+const drawSlashToggle = () => {
+  const off = slashOff();
+  for (const button of document.querySelectorAll                   ("[data-slash-toggle]")) {
+    button.textContent = off ? "Turn on the / shortcut" : "Turn off the / shortcut";
+  }
+};
+drawSlashToggle();
+document.addEventListener("click", (event) => {
+  const button = (event.target                  )?.closest                   ("[data-slash-toggle]");
+  if (!button) return;
+  slashMemory = !slashOff();
+  try {
+    localStorage.setItem("iil-slash-search", slashMemory ? "off" : "on");
+  } catch {
+    // A browser that refuses storage keeps the choice for this page in memory alone.
+  }
+  drawSlashToggle();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented)
+    return;
+  if (event.isComposing || slashOff()) return;
+  const target = event.target                  ;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const box = document.querySelector                  ("#case-search");
+  if (!box) return;
+  event.preventDefault();
+  box.focus();
+});
+
 // A page whose state changes at a known time (`data-reload-at`, epoch seconds: a lock that ends, D07 T04 §27) loads
 // itself again then, a plain read of the same address, so what is drawn is what is stored. Without this script the page
 // carries a "Check again" link for the same.
@@ -2025,4 +2090,36 @@ document.addEventListener("click", (event) => {
   if (!button) return;
   event.preventDefault();
   void passkeyAdd(button);
+});
+
+// The counts-export period fields (D07 T04 §19) survive the stats panel's own redraws: their values are kept
+// in sessionStorage and restored after a swap, and clearing both clears the stored pair.
+const restoreExportDates = () => {
+  try {
+    const from = document.querySelector                  ("#case-export-from");
+    const to = document.querySelector                  ("#case-export-to");
+    if (from && !from.value) from.value = sessionStorage.getItem("iil-export-from") ?? "";
+    if (to && !to.value) to.value = sessionStorage.getItem("iil-export-to") ?? "";
+  } catch {
+    // Storage refused: the fields simply start empty.
+  }
+};
+restoreExportDates();
+document.addEventListener("htmx:afterSwap", restoreExportDates);
+document.addEventListener("change", (event) => {
+  const field = event.target                           ;
+  if (field?.id !== "case-export-from" && field?.id !== "case-export-to") return;
+  try {
+    const from = document.querySelector                  ("#case-export-from")?.value ?? "";
+    const to = document.querySelector                  ("#case-export-to")?.value ?? "";
+    if (!from && !to) {
+      sessionStorage.removeItem("iil-export-from");
+      sessionStorage.removeItem("iil-export-to");
+    } else {
+      sessionStorage.setItem("iil-export-from", from);
+      sessionStorage.setItem("iil-export-to", to);
+    }
+  } catch {
+    // Storage refused: nothing to restore later.
+  }
 });

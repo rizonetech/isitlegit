@@ -1097,6 +1097,22 @@ class Schedule(Harness):
         summary, _ = self.round()
         self.assertEqual(summary["position"], 1, "the plan review does not move the round position")
 
+    def test_a_plan_entry_without_the_plan_verdict_does_not_use_up_the_one_pass(self):
+        # A reply that never ends PLAN:/OVERALL: is recorded, but the stamp counts only a returned plan
+        # review ending in those lines (todo_graph.plan_record), so it must not block a fresh pass.
+        candidate = "a" * 40
+        result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan",
+                                  "--candidate", candidate, "--record", str(self.findings),
+                                  codex="say", say="I could not finish the format.\n\nVERDICT: needs-attention")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result, summary = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan",
+                                        "--candidate", candidate, "--record", str(self.findings),
+                                        codex="say", say="1. Ctrl+K reach: missing.\n\nPLAN: gaps\nOVERALL: needs-attention")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(summary["recorded"], summary)
+        plans = self.module().read_plans(self.findings.read_text(encoding="utf-8"))
+        self.assertEqual(len(plans), 2, "the malformed entry stays sealed beside the returned one")
+
     def test_a_plan_review_needs_a_full_candidate(self):
         for extra in ((), ("--candidate", "abc123")):
             with self.subTest(extra=extra):

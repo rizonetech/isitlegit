@@ -125,6 +125,31 @@ async function answer(req: IncomingMessage): Promise<Response> {
         ? ({ r, name: url.searchParams.get("n") ?? undefined } as Outcome)
         : null;
     const lost = url.searchParams.get("unanswered") === "1";
+    const historyAction = url.searchParams.get("action") ?? "";
+    const allRows = [
+      {
+        at: "2026-10-28T08:00:00.000Z",
+        what: "Member removed",
+        who: "You",
+        whom: "Sipho Mokoena",
+        outcome: "Done, 1 session ended",
+      },
+      {
+        at: "2026-10-27T08:00:00.000Z",
+        what: "Role changed, Member to Admin",
+        who: "You",
+        whom: "Sipho Mokoena",
+        outcome: "Done",
+      },
+    ];
+    const personAsked = url.searchParams.get("person") ?? "";
+    const rows = (
+      historyAction === "remove-member"
+        ? allRows.slice(0, 1)
+        : historyAction === "update-member-role"
+          ? allRows.slice(1)
+          : allRows
+    ).filter((r) => !personAsked || r.whom !== "Sipho Mokoena" || personAsked === "u-sipho");
     return html(
       <TeamPage
         shell={shell()}
@@ -132,6 +157,21 @@ async function answer(req: IncomingMessage): Promise<Response> {
         reader={state.reader}
         outcome={outcome}
         lost={lost}
+        find={url.searchParams.get("find") ?? undefined}
+        findFocus={url.searchParams.get("focus") === "find"}
+        history={
+          state.reader.role === "owner"
+            ? {
+                people: state.members.map((m) => ({ id: m.userId, label: m.name || m.email })),
+                person: url.searchParams.get("person") ?? "",
+                next: url.searchParams.get("after") ? null : "2026-10-27T08:00:00.000Z|1",
+                rows,
+                action: historyAction,
+                from: url.searchParams.get("from") ?? "",
+                to: url.searchParams.get("to") ?? "",
+              }
+            : undefined
+        }
         now={NOW}
       />,
     );
@@ -412,4 +452,65 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
           await context.close();
         }
       });
+  it("filters the history by action, with scripts off and on (D07 T04 §23)", async () => {
+    for (const js of [true, false]) {
+      const { p, context } = await open("/team", { js });
+      await expect.poll(() => p.locator("#team-history-heading").textContent()).toBe("Team history");
+      await expect.poll(() => p.getByText("Member removed").first().textContent()).toBeTruthy();
+      await p.locator("#history-action").selectOption("update-member-role");
+      await p.getByRole("button", { name: "Apply" }).click();
+      await expect.poll(() => p.url()).toContain("action=update-member-role");
+      await expect.poll(() => p.getByText("Role changed, Member to Admin").first().textContent()).toBeTruthy();
+      expect(await p.getByText("1 session ended").count()).toBe(0);
+      await context.close();
+    }
+  });
+
+  it("finds a person and keeps the focus in the find field (D07 T04 §26)", async () => {
+    const { p, context } = await open("/team");
+    await p.locator("#team-find").fill("sipho");
+    await p.getByRole("button", { name: "Find", exact: true }).click();
+    await expect.poll(() => p.url()).toContain("find=sipho");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("team-find");
+    expect(await p.getByText("Sipho Mokoena").first().textContent()).toBeTruthy();
+    expect(await p.getByText("No one on the team matches.").count()).toBe(0);
+    await p.locator("#team-find").fill("nobody-like-this");
+    await p.getByRole("button", { name: "Find", exact: true }).click();
+    await expect.poll(() => p.getByText("No one on the team matches.").textContent()).toBeTruthy();
+    await p
+      .locator("form")
+      .filter({ has: p.locator("#team-find") })
+      .getByRole("link", { name: "Clear" })
+      .click();
+    await expect.poll(() => p.url()).toContain("focus=find");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("team-find");
+    expect(await p.locator("#team-find").inputValue()).toBe("");
+    await context.close();
+  });
+
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [360, 1280] as const)
+      for (const js of [true, false])
+        it(`filters the history by person and pages with More (${theme}, ${width} px, ${js ? "with" : "without"} JavaScript) (D07 T04 §24)`, async () => {
+          const { p, context } = await open("/team", { width, js });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          // By keyboard: type the person's name in the select, then press Apply with Enter.
+          await p.locator("#history-person").focus();
+          await p.keyboard.type("Sipho");
+          await p.getByRole("button", { name: "Apply" }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("person=u-sipho");
+          await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await expect.poll(() => p.getByText("Member removed").first().textContent()).toBeTruthy();
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          if (js) {
+            await p.addScriptTag({ path: AXE });
+            expect(problems(await scan(p)), "person-filtered history").toEqual([]);
+          }
+          await p.getByRole("link", { name: "More changes" }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("after=");
+          await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await context.close();
+        });
 });

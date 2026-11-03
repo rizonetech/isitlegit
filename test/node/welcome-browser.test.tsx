@@ -110,6 +110,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
             suspicious: 0,
             safe: 0,
             unfinished: 0,
+            kinds: { phishing: 0, invoice: 0, impersonation: 0 },
             medianSecondsToVerdict: null,
           },
           lastWeekChecked: 0,

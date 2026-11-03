@@ -118,6 +118,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N7 | Monitor alert with takedown pack | The protected business | D05 T04 §5 |
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
+| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays 16:00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
 
 No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
 
@@ -625,12 +626,18 @@ Boards: [PNG](mockups/png/Verify-Domain.png) · [source](mockups/source/Verify-D
 
 Controls:
 
+- registrar-assisted verification: "Connect with <Registrar>" first when the domain's registrar supports Domain Connect and IsItLegit's template; the hand-off to the registrar and the automatic check on return (a plain link: no JavaScript required). (Verify-Domain, added by D07 T04 §5; the board change goes to the operator with this text.)
 - TXT record to copy: Name and value with Copy buttons. (Verify-Domain)
+- provider DNS help: "How do I add this at my provider?" in the DNS card, opening steps for Cloudflare, Hetzner, xneelo and Afrihost, generic TXT steps for every other provider, and how to find the DNS host or hand the record to whoever manages it. (Verify-Domain) (D07 T04 §11, operator decision 2026-11-02)
 - check now: Looks the record up. (Verify-Domain)
 - emailed-code option: admin@ or postmaster@ choice, Send code, code input and Verify. (Verify-Domain)
 
 States:
 
+- connect ready: "Your registrar can add the record for you." with Connect with <Registrar>. (Verify-Domain, D07 T04 §5)
+- connect cancelled: "The registrar did not add the record." with Connect again; the claim is kept and the other ways stand. (Verify-Domain, D07 T04 §5)
+- added, not visible yet: "The record is added. DNS has not shown it here yet." with Check now. (Verify-Domain, D07 T04 §5)
+- registrar unknown: the Connect option is checked again with Try again; the TXT record and the emailed code stand. (Verify-Domain, D07 T04 §5)
 - pending: Last checked line. (Verify-Domain)
 - verified: Other states panel. (Verify-Domain)
 - failed: Other states panel. (Verify-Domain)
@@ -652,10 +659,15 @@ Boards: [PNG](mockups/png/Cases.png) · [source](mockups/source/Cases.dc.html) �
 Controls:
 
 - stats panel: Four tiles with Export counts as CSV. (Cases)
+- counts export period: Beside the one-press 12-week Export counts as CSV, From and To date fields with an Export period button, and This month and This quarter links carrying the current calendar month's and quarter's SAST dates. A chosen period exports one row per week for the weeks overlapping it; a reversed range, a range over 2 years or an unreadable date is refused with the 400 page. (Cases) (D07 T04 §19, operator decision 2026-11-02)
+- threat kinds: The muted line under Malicious or suspicious, "5 phishing, 3 invoice, 1 impersonation": the week's flagged cases by kind, descending, ties in that board order, nothing drawn when no kind is present. A kind is a reporting bucket from positive evidence on the case's current run (invoice classification; a lookalike or confirmed brand mismatch for impersonation; a lure or credential form for phishing), one kind per case in that order, so the kinds need not sum to the tile. (Cases) (D07 T04 §18, operator decision 2026-11-02)
 - this week: Checked this week tile. (Cases)
 - money at risk caught: Rand tile. (Cases)
 - filters: Verdict segmented filter, channel and period. (Cases)
-- search: Search input. (Cases)
+- checked by: Checked by select beside channel, Everyone then each member; a checker who has left reads "Member no longer available" and Clear filters returns to Everyone. (Cases) (D07 T04 §10, operator decision 2026-11-02)
+- date range: From and To date inputs beside the period, with the active range named and Clear dates returning to the fixed periods; a From after the To names the problem with Swap them. Setting a date makes the range the date filter; clearing both returns to the period. (Cases) (D07 T04 §8, operator decision 2026-11-02)
+- search: Search input; its placeholder names the `/` key. (Cases)
+- search shortcut: Pressing `/` outside a text field, select or editable region focuses the search box; the key stays text inside a field. The hint beside the box carries its Turn off / Turn on button (WCAG 2.1.4), and the choice is kept in the browser. (Cases) (D07 T04 §15, operator decision 2026-11-02)
 - case table: Rows open M3; Previous and Next. (Cases)
 
 States:
@@ -712,6 +724,7 @@ Controls:
 
 - verdict banner: Motion frame, eyebrow, headline and one sentence. (Main)
 - headline: One sentence. (Main)
+- previous and next case: Previous and Next stepping through the filtered Cases list the member came from, each keeping the list's filters, drawn at the report's head and foot with "Case X of Y"; the end that has no case is disabled, and the Cases breadcrumb returns to that filtered list and page. Keys while the step controls have focus: `j` next, `k` previous, `u` back to the list, never while typing. A signed link and a report opened without the list show none. (Main) (D07 T04 §9, operator decision 2026-11-02)
 - three reasons: Three evidence-pill reasons that jump to their cards. (Main)
 - actions: At most three numbered actions; Download PDF and Copy link in the header. (Main)
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)
@@ -850,9 +863,13 @@ Boards: [PNG](mockups/png/Team.png) · [source](mockups/source/Team.dc.html)
 Controls:
 
 - members: Members table. (Team)
+- find a person: A find field above the members list matching a name or email substring, case and accent folded; no result reads "No one on the team matches." (Team) (D07 T04 §26, operator decision 2026-11-02)
 - roles: Role select and role descriptions. (Team)
 - invites: Invite by email; Resend and Revoke on pending invitations. (Team)
+- invite several: The invite field takes up to 20 addresses separated by commas or new lines with one shared role; the answer lists one outcome per address (sent, not sent, unknown, refused with its reason) with a Retry that resubmits only the addresses that did not go. (Team) (D07 T04 §22, operator decision 2026-11-02)
 - remove: Per member. (Team)
+- team history by person: The history filters carry a person select (the organisation's members, or Anyone): a chosen person narrows the list to changes by them or to them, and a More link pages through every match. (Team) (D07 T04 §24, operator decision 2026-11-02)
+- team history: Under the pending invitations, owners only: a table (When, What, Who, Whom, Outcome) of role changes, revocations and removals, newest first, with an action select and From and To date filters; empty reads "No team changes in this period." and a failed read names the failure with Try again, the rest of the page unaffected. (Team) (D07 T04 §23, operator decision 2026-11-02)
 
 States:
 
@@ -877,6 +894,8 @@ States:
 - loading: Not drawn. Deferred to D07 T04 §4: server-rendered; not drawn.
 - empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
+
+- Registrar step (D07 T04 §5): a pending domain's Continue opens its verification page (A5), where "Connect with <Registrar>" is offered first when the registrar supports Domain Connect for IsItLegit's template; this list itself is unchanged.
 
 - Deviation (D07 T04 §4): a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27. The verifier's name the board adds ("by Thandi N.") is drawn since D07 T04 §28, from the member D07 T02 §24 stores with the claim.
 
@@ -936,6 +955,7 @@ Controls:
 - sessions: Sessions table with Sign out per session. (Account)
 - sign out: Signs out other sessions. (Account)
 - close account: Close account button for the owner of the active organisation, naming that organisation in its confirmation (this organisation, its stored mail and cases, and its history are deleted 30 days after closing; closing refuses new cases at once and cannot be undone). Shown only to an owner; after closing, the page states the organisation is closed and its deletion date. (Account)
+- weekly counts: A checkbox, "Email me this organisation's weekly counts on Fridays", with the day it was switched on, for the active organisation. (Account) (D07 T04 §20, operator decision 2026-11-02)
 
 States:
 
