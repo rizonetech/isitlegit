@@ -10,13 +10,13 @@ The training loop is the Fireworks cookbook's own (`recipes/sft_loop.py` in serv
 checkpoints every 200 steps, resume, the final sampler checkpoint and its promotion to `isitlegit-loupe-<version>`).
 This script decides whether a run may start and what it trains on, and keeps the run's records:
 
-- no run starts on or after 2026-11-01 12:00 SAST (an interrupted one may resume after it), and none on a
+- no run starts on or after 2026-11-04 20:00 SAST (an interrupted one may resume after it), and none on a
   `train.jsonl` whose SHA-256 is not recorded under `Dataset` in `docs/glimmer/training.md`;
 - the tokens to send, priced at US$5.86 a million, are held to US$60 a run; the cap is lifted until
   2026-11-30 23:59 SAST only while the probe's bill reconciliation under `Probe` reads `reconciled: US$0.00`, and it
   applies again from 2026-12-01 by the date below (operator, 2026-10-28 20:50 SAST);
 - the set is cut, by source and `lure_type` in proportion with a fixed seed, to what trains before
-  2026-11-01 22:00 SAST at the measured tokens a second;
+  2026-11-05 04:00 SAST at the measured tokens a second;
 - every step goes to `<store>/runs/loupe-<version>/metrics.jsonl`, a progress line to `Training` every 50 steps, and
   `run.json` at the end;
 - a run keeps its training session open when it ends, so its checkpoints outlive a crash, and records the session, run
@@ -47,8 +47,8 @@ TOKENIZER = "meta-models/Muse-Glimmer-30B"
 RENDERER = "muse_glimmer"
 VAULT_ITEM = "IsItLegit Fireworks Owner"
 SAST = timezone(timedelta(hours=2))
-START_CUTOFF = datetime(2026, 11, 1, 12, 0, tzinfo=SAST)
-TRAIN_UNTIL = datetime(2026, 11, 1, 22, 0, tzinfo=SAST)
+START_CUTOFF = datetime(2026, 11, 4, 20, 0, tzinfo=SAST)
+TRAIN_UNTIL = datetime(2026, 11, 5, 4, 0, tzinfo=SAST)
 FREE_UNTIL = datetime(2026, 11, 30, 23, 59, 59, tzinfo=SAST)
 USD_PER_TOKEN = 5.86 / 1_000_000
 CAP_USD = 60.0
@@ -106,7 +106,7 @@ def cap_usd(now, bill):
 
 def check_start(now, sha, markdown, resuming):
     if now >= START_CUTOFF and not resuming:
-        raise Refused("no Loupe run starts on or after 2026-11-01 12:00 SAST; an interrupted one may only resume")
+        raise Refused("no Loupe run starts on or after 2026-11-04 20:00 SAST; an interrupted one may only resume")
     if sha not in section(markdown, "Dataset"):
         raise Refused(f"train.jsonl's SHA-256 {sha} is not recorded under Dataset in docs/glimmer/training.md")
 

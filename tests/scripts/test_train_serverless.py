@@ -44,10 +44,10 @@ def at(*args):
 class Start(unittest.TestCase):
     def test_no_run_starts_at_the_cutoff_but_one_may_resume(self):
         text = MARKDOWN.format(reconciled="", sha="abc")
-        ts.check_start(at(2026, 11, 1, 11, 59), "abc", text, resuming=False)
-        with self.assertRaisesRegex(ts.Refused, "12:00 SAST"):
-            ts.check_start(at(2026, 11, 1, 12, 0), "abc", text, resuming=False)
-        ts.check_start(at(2026, 11, 1, 15, 0), "abc", text, resuming=True)
+        ts.check_start(at(2026, 11, 4, 19, 59), "abc", text, resuming=False)
+        with self.assertRaisesRegex(ts.Refused, "20:00 SAST"):
+            ts.check_start(at(2026, 11, 4, 20, 0), "abc", text, resuming=False)
+        ts.check_start(at(2026, 11, 4, 21, 0), "abc", text, resuming=True)
 
     def test_a_dataset_whose_hash_is_not_recorded_is_refused(self):
         with self.assertRaisesRegex(ts.Refused, "not recorded under Dataset"):
@@ -114,7 +114,7 @@ class Choose(unittest.TestCase):
     def test_time_is_sized_in_lines_and_a_cap_in_tokens(self):
         groups = ["a/credential"] * 600 + ["b/none"] * 400
         tokens = [4_000] * 1000
-        now = at(2026, 11, 1, 21, 0)  # one hour before TRAIN_UNTIL
+        now = at(2026, 11, 5, 3, 0)  # one hour before TRAIN_UNTIL
         by_time = ts.choose(groups, tokens, now, 0.1, None, 5)  # 0.1 lines a second: 360 lines in the hour
         self.assertLessEqual(len(by_time), 360)
         self.assertGreaterEqual(len(by_time), 350)
