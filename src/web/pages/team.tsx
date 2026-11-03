@@ -178,10 +178,10 @@ async function outcomeOf(secret: string, orgId: string, url: URL): Promise<Outco
 }
 
 // A change that failed or whose answer was lost: its reference logged, the page redrawn with it named as unconfirmed.
-function failed(secret: string, orgId: string, why: string, name?: string) {
+function failed(secret: string, orgId: string, why: string, name?: string, find = "") {
   const ref = reference(500);
   console.log(JSON.stringify({ event: "team", outcome: "change-failed", reference: ref, error: why }));
-  return back(secret, orgId, { r: "failed", ...(name ? { name } : {}) });
+  return back(secret, orgId, { r: "failed", ...(name ? { name } : {}) }, find);
 }
 
 // The signed-in member of the active organisation, or the page that refuses them.
@@ -313,6 +313,7 @@ teamRoutes.get(
           invites={invites}
           history={history}
           find={new URL(c.req.url).searchParams.get("find") ?? undefined}
+          findFocus={new URL(c.req.url).searchParams.get("focus") === "find"}
           now={new Date()}
         />,
       );
@@ -338,15 +339,21 @@ teamRoutes.get(
       ]);
       const member = members.find((m) => m.memberId === c.req.param("memberId"));
       // Not a member of this organisation (removed meanwhile, or another's): the page says so, nothing asked.
-      if (!member) return back(secret, who.org.id, { r: "gone" });
+      if (!member) return back(secret, who.org.id, { r: "gone" }, new URL(c.req.url).searchParams.get("find") ?? "");
       // A removal the reader may not make (a member, an admin and an owner, their own row) is never offered, even by a
       // typed address: the page says so instead.
       const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
-      if (!mayRemove(reader, member)) return back(secret, who.org.id, { r: "no-permission" });
+      if (!mayRemove(reader, member))
+        return back(secret, who.org.id, { r: "no-permission" }, new URL(c.req.url).searchParams.get("find") ?? "");
       // A protected account is not asked about: the page says it cannot be removed (only a reader who could remove
       // anyone else gets here, so nothing is told to those who could not).
       if (isProtectedAccount(member.email))
-        return back(secret, who.org.id, { r: "protected", name: member.name || member.email });
+        return back(
+          secret,
+          who.org.id,
+          { r: "protected", name: member.name || member.email },
+          new URL(c.req.url).searchParams.get("find") ?? "",
+        );
       return html(
         <RemoveConfirm shell={shell} member={member} find={new URL(c.req.url).searchParams.get("find") ?? undefined} />,
       );
@@ -775,7 +782,10 @@ teamRoutes.post(
     // and why; an htmx post with the same notice as a redirect, since htmx draws no 4xx answer and the app script would
     // turn it into "may not have reached us".
     if (roleOf(who.org.role) === "member") {
-      if (c.req.header("hx-request") === "true") return back(secret, orgId, { r: "no-permission" });
+      // The find is recovered from the bounded form read so the refusal keeps the member's search (D07 T04 §26).
+      const refusedForm = await readSmallForm(c.req.raw, { find: 300 }).catch(() => null);
+      const refusedFind = refusedForm?.find ?? "";
+      if (c.req.header("hx-request") === "true") return back(secret, orgId, { r: "no-permission" }, refusedFind);
       try {
         const [members, shell] = await Promise.all([
           readMembers(c.env.DB, orgId),
@@ -788,6 +798,7 @@ teamRoutes.post(
             members={members}
             reader={reader}
             outcome={{ r: "no-permission" }}
+            find={refusedFind || undefined}
             now={new Date()}
           />,
           403,
@@ -857,13 +868,13 @@ teamRoutes.post(
         });
       // A failure or an uncertain answer: logged, and the page redrawn from the stored state with the change named as
       // unconfirmed, never as done. A notice, not the 503 page, so htmx draws it in place as it draws every answer.
-      if (answer === "failed") return failed(secret, orgId, `auth-${res.status}`, name);
+      if (answer === "failed") return failed(secret, orgId, `auth-${res.status}`, name, findBack);
       // Better Auth names an admin's refused removal of the only owner as the last-owner rule; to the admin it is a
       // permission they lack, and the guard's words are the owner's own.
       const said = answer === "last-owner" && roleOf(who.org.role) !== "owner" ? "no-permission" : answer;
       return back(secret, orgId, { r: said, name }, findBack);
     } catch (error) {
-      return failed(secret, orgId, (error as Error).name);
+      return failed(secret, orgId, (error as Error).name, undefined, findBack);
     }
   },
 );
