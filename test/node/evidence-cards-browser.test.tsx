@@ -608,7 +608,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
               .locator("img[data-evidence-image]")
               .evaluateAll((all) => all.filter((i) => (i as HTMLImageElement).naturalWidth > 0).length),
           )
-          .toBe(6);
+          .toBe(7);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);
