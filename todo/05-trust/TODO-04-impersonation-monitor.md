@@ -239,6 +239,8 @@ The demo needs the monitor to find a real live page: a lookalike of the fictiona
 
 ## 7. Certificate-transparency search for
 
+> **Started:** 2026-11-03T00:03Z
+
 New certificates whose names contain the business's brand tokens reveal lookalikes before they are used (spec 4.11). First on the monitor's cut list (spec section 8), so this runs after the event.
 
 **Phase:** 7
