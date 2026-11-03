@@ -58,7 +58,7 @@ describe("the passkey prompt and its recoveries", () => {
     await press(p);
     await expect
       .poll(() => p.textContent("main"))
-      .toContain("scan the QR code your browser shows with it (Bluetooth on both)");
+      .toContain("choose the QR code option in the window your browser opened, scan it with your phone (Bluetooth on both), then approve and unlock on your phone");
     expect(await p.getByRole("button", { name: "Email me a link instead" }).isVisible()).toBe(true);
     stub.optionsDelayMs = 0;
     await context.close();

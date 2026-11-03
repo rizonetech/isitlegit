@@ -62,6 +62,7 @@ track: day-1
 | 25 | §25 | Same-device other-browser | §12 | [ ] |
 | 26 | §26 | Export and fresh sign-in before closure | §9 | [ ] |
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
+| 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -985,6 +986,30 @@ The Close account control is built on the Account page and named in `design/SPEC
 - [ ] Commit: `design: close account control on the Account board`
 
 **Test checkpoint:** `python3 design/tools/check-design.py` passes and `pnpm exec vitest run test/node/gallery.test.tsx` passes.
+
+## 28. Passkey troubleshooting on the sign-in page
+
+The passkey prompt names the cross-device steps but offers no help when they fail: a phone without a screen lock, an older browser, or Bluetooth off (D07 T02 §19 completion review, 2026-11-02, against Google Account's passkey guidance).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
+**Job:** a member whose phone passkey will not answer learns why and what to change
+**Treatment:** a short troubleshooting note in the prompt's panel naming the screen lock, browser and Bluetooth causes
+**Chrome:** the passkey prompt (§16)
+
+**Build order:**
+
+1. Name the troubleshooting in `design/SPEC.md` A1. Done when: A1 names each cause and `python3 design/tools/check-design.py` passes.
+2. Draw it in the panel and prove it. Done when: the browser test below passes.
+
+- [ ] Add the three causes (no phone screen lock, an older browser without cross-device passkeys, Bluetooth off on either device) and what to change for each to `design/SPEC.md` A1's passkey prompt. Done when: A1 names each and `python3 design/tools/check-design.py` passes. Cheaper substitute: a link away to another vendor's help, in words this service does not own.
+- [ ] Draw the note in the `PasskeyPrompt` panel (`src/web/pages/signin.tsx`) beside the cross-device sentence. Done when: the rendered prompt names each cause at phone width in both themes. Cheaper substitute: hiding it behind the email recovery, where a stuck member never looks.
+- [ ] Prove it in `test/node/passkey-signin-browser.test.tsx`: the panel names each cause and the email recovery still works from it. Done when: the test passes and fails with the note removed.
+- [ ] Commit: `web: passkey troubleshooting on the sign-in page`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
 
 ## Verification
 
