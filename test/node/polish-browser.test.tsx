@@ -83,6 +83,15 @@ const LONG_CASE: ListedCase = {
   uploadMediaType: "application/pdf",
 };
 
+const ALL_CASES: ListedCase[] = [
+  LONG_CASE,
+  ...Array.from({ length: 29 }, (_, idx) => ({
+    ...LONG_CASE,
+    id: `01CASE${String(idx + 2).padStart(20, "0")}`,
+    uploadName: `invoice-${idx + 2}.pdf`,
+  })),
+];
+
 let browser: Browser;
 let appCss = "";
 let siteCss = "";
@@ -105,13 +114,16 @@ async function handleRequest(req: IncomingMessage): Promise<Response> {
     if (serverState.fail) {
       return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
     }
-    const matched = filters.verdict === "safe" ? [] : [LONG_CASE];
+    const matched = filters.verdict === "safe" ? [] : ALL_CASES;
+    const pages = Math.max(1, Math.ceil(matched.length / 25));
+    const pageNum = Math.min(Math.max(1, filters.page), pages);
+    const slice = matched.slice((pageNum - 1) * 25, pageNum * 25);
     const list: CasePage = {
-      cases: matched,
-      page: 1,
-      pages: 1,
+      cases: slice,
+      page: pageNum,
+      pages,
       matching: matched.length,
-      total: 1,
+      total: ALL_CASES.length,
     };
     const { children: _, ...shell } = member({
       organization: {
@@ -314,36 +326,61 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         it(`keeps theme surface and ink colours on autofilled inputs and ::selection in ${surfaceName} (${theme})`, async () => {
           const stateMarkup = String(GalleryState(anchorOf("state", "polish/signin-autofill")));
           const { page, close } = await openStyled(
-            `<div id="selectable">Report text and marketing copy for selection check.</div>${stateMarkup}`,
+            `<div id="selectable">Report text and marketing copy for selection check.</div><input id="native-autofill-email" type="email" value="thandi@karoocouriers.co.za" class="h-control px-16 rounded-control border border-control-border bg-surface text-ink" />${stateMarkup}`,
             { theme, css: cssText() },
           );
+          const cdp = await page.context().newCDPSession(page);
+          await cdp.send("DOM.enable");
+          await cdp.send("CSS.enable");
+          const doc = await cdp.send("DOM.getDocument");
+          const node = await cdp.send("DOM.querySelector", {
+            nodeId: doc.root.nodeId,
+            selector: "#native-autofill-email",
+          });
+          await cdp.send("CSS.forcePseudoState", {
+            nodeId: node.nodeId,
+            forcedPseudoClasses: ["autofill"],
+          });
           const t = colors[theme];
-          const styles = await page.evaluate(() => {
-            const input = document.getElementById("g-autofill-email") as HTMLInputElement;
-            const is = getComputedStyle(input);
+          const shotBase64 = (await page.locator("#native-autofill-email").screenshot()).toString("base64");
+          const styles = await page.evaluate(async (pngB64) => {
+            const nativeInput = document.getElementById("native-autofill-email") as HTMLInputElement;
+            const ns = getComputedStyle(nativeInput);
+            const galleryInput = document.getElementById("g-autofill-email") as HTMLInputElement;
+            const gs = getComputedStyle(galleryInput);
             const sel = getComputedStyle(document.getElementById("selectable") as HTMLElement, "::selection");
-            // Also verify the stylesheet rule for :-webkit-autofill is present in document.styleSheets
-            let hasWebkitAutofillRule = false;
-            for (const sheet of document.styleSheets) {
-              for (const rule of sheet.cssRules) {
-                if (rule.cssText.includes("-webkit-autofill")) hasWebkitAutofillRule = true;
-              }
-            }
+            const img = new Image();
+            img.src = `data:image/png;base64,${pngB64}`;
+            await img.decode();
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) throw new Error("no 2d context");
+            ctx.drawImage(img, 0, 0);
+            // Sample a background pixel near the right inner padding of the input (away from the left-aligned text)
+            const px = ctx.getImageData(Math.max(2, img.width - 10), Math.floor(img.height / 2), 1, 1).data;
             return {
-              hasWebkitAutofillRule,
-              inputColor: is.color,
-              inputWebkitTextFill: is.getPropertyValue("-webkit-text-fill-color").trim(),
-              inputBg: is.backgroundColor,
-              inputShadow: is.boxShadow,
+              nativeWebkitTextFill: ns.getPropertyValue("-webkit-text-fill-color").trim(),
+              nativeCaret: ns.caretColor,
+              nativeShadow: ns.boxShadow,
+              paintedSurfaceRgb: `rgb(${px[0]}, ${px[1]}, ${px[2]})`,
+              galleryColor: gs.color,
+              galleryWebkitTextFill: gs.getPropertyValue("-webkit-text-fill-color").trim(),
+              galleryBg: gs.backgroundColor,
+              galleryShadow: gs.boxShadow,
               selectionBg: sel.backgroundColor,
               selectionColor: sel.color,
             };
-          });
-          expect(styles.hasWebkitAutofillRule, `${surfaceName} includes :-webkit-autofill rule`).toBe(true);
-          expect(styles.inputColor).toBe(rgb(t.ink));
-          expect(styles.inputWebkitTextFill).toBe(rgb(t.ink));
-          expect(styles.inputBg).toBe(rgb(t.surface));
-          expect(styles.inputShadow).toContain(rgb(t.surface));
+          }, shotBase64);
+          expect(styles.nativeWebkitTextFill).toBe(rgb(t.ink));
+          expect(styles.nativeCaret).toBe(rgb(t.ink));
+          expect(styles.nativeShadow).toContain(rgb(t.surface));
+          expect(styles.paintedSurfaceRgb).toBe(rgb(t.surface));
+          expect(styles.galleryColor).toBe(rgb(t.ink));
+          expect(styles.galleryWebkitTextFill).toBe(rgb(t.ink));
+          expect(styles.galleryBg).toBe(rgb(t.surface));
+          expect(styles.galleryShadow).toContain(rgb(t.surface));
           expect(styles.selectionBg).toBe(rgb(t["orange-wash"]));
           expect(styles.selectionColor).toBe(rgb(t.ink));
           await close();
@@ -440,6 +477,48 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
     }
 
     it("scrolls wide tables horizontally at 360 px with a sticky first column and keeps every action reachable without page overflow", async () => {
+      const sampleReport = {
+        run: {
+          id: "run-01",
+          mode: "full",
+          sets: ["synthetic-sa"],
+          setVersion: "1234567890abcdef",
+          commit: "02931b6a6491d0b8c1771f5d9bea2b2a88c0b9aa",
+          startedAt: "2026-11-03T10:00:00Z",
+          finishedAt: "2026-11-03T10:05:00Z",
+          status: "complete",
+          selected: 40,
+          stored: 40,
+          sampleLimit: null,
+        },
+        complete: true,
+        main: {
+          attacks: 20,
+          genuine: 20,
+          measuredGenuine: 20,
+          detection: { n: 20, hits: 20, rate: 1 },
+          falsePositives: { n: 20, hits: 0, rate: 0 },
+          modelBasis: { n: 40, hits: 40, rate: 1 },
+          checksBasis: { n: 40, hits: 40, rate: 1 },
+          analysisMs: { n: 40, median: 12000, p95: 25000 },
+          costUsd: { n: 40, median: 0.018, total: 0.72 },
+          byCategory: {},
+        },
+        targets: [],
+      };
+      const sampleAblation = {
+        mode: "ablate:no-walkthrough",
+        runId: "run-ablate-01",
+        comparable: true as const,
+        detection: { n: 20, hits: 17, rate: 0.85 },
+        falsePositives: { n: 20, hits: 0, rate: 0 },
+        medianMs: 4000,
+        medianUsd: 0.006,
+        detectionDelta: -0.15,
+        falsePositiveDelta: 0,
+        msDelta: -8000,
+        usdDelta: -0.012,
+      };
       const wideGallery = String(GalleryState(anchorOf("state", "polish/wide-table")));
       const feedbackPage = String(
         <FeedbackQueuePage
@@ -497,15 +576,61 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           planLines={["Protect plan"]}
         />,
       );
+      const adminEval = String(
+        <AdminEvalPage
+          shell={{ operator: "Thandi", feedbackOpen: 0 }}
+          latest={{ report: sampleReport, publishedAt: "2026-11-03T10:06:00Z" }}
+          ablations={[sampleAblation]}
+          runs={[
+            {
+              id: "run-01",
+              mode: "full",
+              sets: "synthetic-sa",
+              setVersion: "1234567890abcdef",
+              commit: "02931b6a6491d0b8c1771f5d9bea2b2a88c0b9aa",
+              startedAt: "2026-11-03T10:00:00Z",
+              finishedAt: "2026-11-03T10:05:00Z",
+              status: "complete",
+              selected: 40,
+              sampleLimit: null,
+              capUsd: 13,
+              costUsd: 0.72,
+              published: { report: sampleReport, publishedAt: "2026-11-03T10:06:00Z" },
+            },
+          ]}
+        />,
+      );
+      const publicEval = String(
+        <EvalPage
+          view={{
+            kind: "report",
+            report: sampleReport,
+            publishedAt: "2026-11-03T10:06:00Z",
+            ablations: [sampleAblation],
+            counts: {
+              cases: 111,
+              flagged: 19,
+              bankChanges: 4,
+              invoiceFlags: 7,
+              medianSeconds: 48,
+              reportedWrong: 1,
+              since: "2026-10-27",
+            },
+            history: [{ report: sampleReport, publishedAt: "2026-11-03T10:06:00Z", comparable: true, reason: null }],
+          }}
+        />,
+      );
       const { page, close } = await openStyled(
-        `<div id="wide-gallery">${wideGallery}</div><div id="feedback-queue">${feedbackPage}</div><div id="org-detail">${orgDetail}</div>`,
+        `<div id="wide-gallery">${wideGallery}</div><div id="feedback-queue">${feedbackPage}</div><div id="org-detail">${orgDetail}</div><div id="admin-eval">${adminEval}</div><div id="public-eval">${publicEval}</div>`,
         { width: 360 },
       );
       const tableCheck = await page.evaluate(() => {
-        const wrappers = [...document.querySelectorAll("section.overflow-x-auto")] as HTMLElement[];
-        return wrappers.map((wrap) => {
-          const firstCell = wrap.querySelector("tbody td, tbody th") as HTMLElement;
-          const lastCell = wrap.querySelector("tbody td:last-child") as HTMLElement;
+        const tables = [...document.querySelectorAll("table[class*='min-w-']")] as HTMLTableElement[];
+        return tables.map((table) => {
+          const wrap = table.closest(".overflow-x-auto") as HTMLElement;
+          const headFirst = table.querySelector("thead th:first-child") as HTMLElement;
+          const firstCell = table.querySelector("tbody td, tbody th") as HTMLElement;
+          const lastCell = table.querySelector("tbody td:last-child") as HTMLElement;
           const beforeLeft = firstCell.getBoundingClientRect().left;
           wrap.scrollLeft = wrap.scrollWidth;
           const afterLeft = firstCell.getBoundingClientRect().left;
@@ -513,6 +638,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const wrapRect = wrap.getBoundingClientRect();
           return {
             overflowX: getComputedStyle(wrap).overflowX,
+            headSticky: getComputedStyle(headFirst).position,
             stickyPosition: getComputedStyle(firstCell).position,
             scrollable: wrap.scrollWidth > wrap.clientWidth,
             pinnedFirstColumn: Math.round(beforeLeft) === Math.round(afterLeft),
@@ -520,10 +646,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           };
         });
       });
-      expect(tableCheck.length).toBeGreaterThanOrEqual(3);
+      expect(tableCheck.length).toBe(7);
       for (const item of tableCheck) {
         expect(item).toEqual({
           overflowX: "auto",
+          headSticky: "sticky",
           stickyPosition: "sticky",
           scrollable: true,
           pinnedFirstColumn: true,
@@ -633,51 +760,104 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await context.close();
     });
 
-    it("shows loading feedback within one frame on delayed Cases HTMX updates without flashing empty first, settles to results or genuine empty, recovers on failure, and polls Report-Running to completion", async () => {
+    it("shows loading feedback within one frame on delayed Cases HTMX filter and pagination updates without flashing empty first, settles to results or genuine empty, recovers on failure, and polls Report-Running to completion", async () => {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
       const page = await context.newPage();
 
-      // 1. Full-document navigation to Cases renders populated cases immediately without flashing empty state
+      // 1. Full-document navigation to Cases renders populated cases immediately (25 rows on page 1 of 2) without flashing empty state
       serverState.delayMs = 0;
       serverState.fail = false;
       await page.goto(`${origin}/cases`, { waitUntil: "load" });
-      expect(await page.locator("table a[href^='/r/']").count()).toBe(1);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
       expect(await page.locator("#case-loading").isVisible()).toBe(false);
 
-      // 2. Delayed in-page HTMX filter update shows #case-loading within one frame while in flight (never flashing empty before answer)
-      serverState.delayMs = 350;
+      // Install a frame-level and DOM-mutation observer for in-flight HTMX requests:
+      // - records whether #case-loading is visible on or before the very next animation frame after htmx:beforeRequest
+      // - records whether #case-results ever flashes an empty state while the request is in flight (before htmx:beforeSwap)
+      await page.evaluate(() => {
+        const w = window as unknown as {
+          __loadingWithinOneFrame: boolean[];
+          __emptyFlashInFlight: boolean[];
+        };
+        w.__loadingWithinOneFrame = [];
+        w.__emptyFlashInFlight = [];
+        let inFlight = false;
+        let sawEmpty = false;
+        const resultsObserver = new MutationObserver(() => {
+          if (!inFlight) return;
+          const text = document.getElementById("case-results")?.textContent ?? "";
+          if (text.includes("No cases match") || text.includes("Check your first suspicious email")) {
+            sawEmpty = true;
+          }
+        });
+        const root = document.body;
+        resultsObserver.observe(root, { childList: true, subtree: true, characterData: true });
+        document.addEventListener("htmx:beforeRequest", () => {
+          inFlight = true;
+          sawEmpty = false;
+          requestAnimationFrame(() => {
+            const loading = document.getElementById("case-loading");
+            const visible = Boolean(loading && getComputedStyle(loading).display !== "none");
+            w.__loadingWithinOneFrame.push(visible);
+          });
+        });
+        document.addEventListener("htmx:beforeSwap", () => {
+          w.__emptyFlashInFlight.push(sawEmpty);
+          inFlight = false;
+        });
+      });
+
+      // 2. Delayed in-page HTMX filter update ("Malicious") shows #case-loading within 1 animation frame and never flashes empty while in flight
+      serverState.delayMs = 250;
       await page
         .locator("fieldset label")
         .filter({ hasText: /^Malicious$/ })
         .click();
-      await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 2000 }).toBe(true);
-      // While in flight, the existing case row stays on screen (no flash of empty state)
-      expect(await page.locator("table a[href^='/r/']").count()).toBe(1);
-      // Once the delayed response arrives, #case-loading hides and the results remain
+      await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 1000 }).toBe(true);
       await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 5000 }).toBe(false);
-      expect(await page.locator("table a[href^='/r/']").count()).toBe(1);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(25);
 
-      // 3. Delayed in-page filter to a genuine empty filter ("Safe") shows #case-loading while in flight, then swaps to the filtered EmptyState
+      // 3. Delayed in-page HTMX pagination update (#case-next) shows #case-loading within 1 animation frame, never flashes empty, and settles to page 2 (5 rows)
+      await page.locator("#case-next").click();
+      await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 1000 }).toBe(true);
+      await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 5000 }).toBe(false);
+      expect(await page.locator("table a[href^='/r/']").count()).toBe(5);
+      expect(await page.locator("#case-results").textContent()).toContain("Showing 26 to 30 of 30");
+
+      // 4. Delayed in-page filter to a genuine empty filter ("Safe") shows #case-loading within 1 animation frame while keeping existing rows in flight, then swaps to the filtered EmptyState
       await page
         .locator("fieldset label")
         .filter({ hasText: /^Safe$/ })
         .click();
-      await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 2000 }).toBe(true);
+      await expect.poll(async () => page.locator("#case-loading").isVisible(), { timeout: 1000 }).toBe(true);
       await expect
         .poll(async () => page.locator("#case-results").textContent(), { timeout: 5000 })
         .toContain("No cases match Safe");
       expect(await page.locator("#case-loading").isVisible()).toBe(false);
 
-      // 4. Failure recovery on in-page filter outage navigates to the 500 error recovery page with Try again
+      const frameObservations = await page.evaluate(() => {
+        const w = window as unknown as {
+          __loadingWithinOneFrame: boolean[];
+          __emptyFlashInFlight: boolean[];
+        };
+        return {
+          withinOneFrame: w.__loadingWithinOneFrame,
+          emptyFlash: w.__emptyFlashInFlight,
+        };
+      });
+      expect(frameObservations.withinOneFrame).toEqual([true, true, true]);
+      expect(frameObservations.emptyFlash).toEqual([false, false, false]);
+
+      // 5. Failure recovery on in-page filter outage navigates to the full-page 500 ErrorState preserving the filter query with Try again
       serverState.delayMs = 0;
       serverState.fail = true;
       await page.locator("fieldset label").filter({ hasText: /^All$/ }).click();
       await expect.poll(async () => page.locator("body").textContent(), { timeout: 5000 }).toContain("Try again");
       serverState.fail = false;
       await page.getByRole("link", { name: "Try again" }).click();
-      await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(1);
+      await expect.poll(async () => page.locator("table a[href^='/r/']").count(), { timeout: 5000 }).toBe(25);
 
-      // 5. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
+      // 6. Running report page renders Report-Running immediately on navigation, then swaps to the completed verdict on poll
       serverState.pollFinished = false;
       await page.goto(`${origin}/r/01RUNNING`, { waitUntil: "load" });
       expect(await page.locator("#report-live").textContent()).toContain("We are investigating this message.");

@@ -15,9 +15,10 @@ import type { Shell } from "./admin-view";
 import { MODES, pct, points, seconds, usd } from "./eval-view";
 
 const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
-const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden";
+const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden min-w-0";
 const TH = "text-left text-13 text-muted weight-text-strong px-16 py-12 border-b border-line";
 const TD = "text-14 px-16 py-12 border-b border-line align-top";
+const STICKY = "sticky left-0 bg-surface";
 const NUM = "text-right tabular-nums";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
@@ -130,7 +131,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
           <caption class="sr-only">Each model switched off against the full pipeline</caption>
           <thead>
             <tr>
-              <th scope="col" class={TH}>
+              <th scope="col" class={cx(TH, STICKY)}>
                 Switched off
               </th>
               <th scope="col" class={TH}>
@@ -152,7 +153,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
           </thead>
           <tbody>
             <tr>
-              <th scope="row" class={cx(TD, "weight-text-strong")}>
+              <th scope="row" class={cx(TD, "weight-text-strong", STICKY)}>
                 Nothing (full pipeline)
               </th>
               <td class={TD}>Baseline</td>
@@ -165,7 +166,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
               const words = ablationWords(row.mode);
               return row.comparable ? (
                 <tr>
-                  <th scope="row" class={cx(TD, "weight-text-strong")}>
+                  <th scope="row" class={cx(TD, "weight-text-strong", STICKY)}>
                     {words.off}
                   </th>
                   <td class={TD}>{words.replacedBy}</td>
@@ -184,7 +185,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
                 </tr>
               ) : (
                 <tr>
-                  <th scope="row" class={cx(TD, "weight-text-strong")}>
+                  <th scope="row" class={cx(TD, "weight-text-strong", STICKY)}>
                     {words.off}
                   </th>
                   <td class={TD}>{words.replacedBy}</td>
@@ -217,7 +218,7 @@ function RunsTable(props: { runs: EvalRunRow[] }) {
           <caption class="sr-only">Every eval run, newest first, with its own published figures</caption>
           <thead>
             <tr>
-              <th scope="col" class={TH}>
+              <th scope="col" class={cx(TH, STICKY)}>
                 Run
               </th>
               <th scope="col" class={TH}>
@@ -246,7 +247,7 @@ function RunsTable(props: { runs: EvalRunRow[] }) {
               const met = p ? p.targets.filter((t) => t.state === "met").length : 0;
               return (
                 <tr>
-                  <td class={TD}>
+                  <td class={cx(TD, STICKY)}>
                     <span class="weight-text-strong">{sastShort(run.startedAt)}</span>
                     <br />
                     <span class="text-13 text-muted">{run.id}</span>

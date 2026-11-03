@@ -330,7 +330,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
               <caption class="sr-only">Each model switched off against the full pipeline</caption>
               <thead>
                 <tr>
-                  <th scope="col" class={TH}>
+                  <th scope="col" class={cx(TH, "sticky left-0 bg-subtle")}>
                     Switched off
                   </th>
                   <th scope="col" class={TH}>
@@ -352,7 +352,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row" class={cx(TD, "text-left weight-text-strong")}>
+                  <th scope="row" class={cx(TD, "text-left weight-text-strong sticky left-0 bg-surface")}>
                     Nothing (full pipeline)
                   </th>
                   <td class={TD}>None</td>
@@ -365,7 +365,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                   const words = MODES[row.mode] ?? { off: row.mode, replacedBy: "Not described" };
                   return row.comparable ? (
                     <tr>
-                      <th scope="row" class={cx(TD, "text-left weight-text-strong")}>
+                      <th scope="row" class={cx(TD, "text-left weight-text-strong sticky left-0 bg-surface")}>
                         {words.off}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
@@ -384,7 +384,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                     </tr>
                   ) : (
                     <tr>
-                      <th scope="row" class={cx(TD, "text-left weight-text-strong")}>
+                      <th scope="row" class={cx(TD, "text-left weight-text-strong sticky left-0 bg-surface")}>
                         {words.off}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
@@ -430,7 +430,7 @@ function History(props: { rows: HistoryRow[] }) {
             <caption class="sr-only">Every published full eval run, newest first</caption>
             <thead>
               <tr>
-                <th scope="col" class={TH}>
+                <th scope="col" class={cx(TH, "sticky left-0 bg-subtle")}>
                   Date
                 </th>
                 <th scope="col" class={TH}>
@@ -458,7 +458,7 @@ function History(props: { rows: HistoryRow[] }) {
                 const r = row.report;
                 return (
                   <tr>
-                    <td class={TD}>
+                    <td class={cx(TD, "sticky left-0 bg-surface")}>
                       {stamp.format(new Date(row.publishedAt))} SAST
                       <br />
                       <span class="text-13 text-muted">{r.run.id}</span>
