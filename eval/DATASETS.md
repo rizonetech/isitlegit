@@ -54,8 +54,8 @@ The challenge set (`eval/sets/synthetic-challenge/`, D08 T01 §7) is 60 messages
 | `eval/frontier/sets/stamps/*.png` | `eval/frontier/stamps.ts` (`buildSet`, SVG rasterised by `sharp`) | Project's own |
 | `manifest.json`, `results.json` beside them | `eval/frontier/stamps.ts` | Project's own |
 
-- Provenance: 20 synthetic proof-of-payment PNGs (10 genuine, 10 doctored: 4 `stamp-date`, 3 `signature-swap`, 3 `stamp-colour`) plus `reference-stamp.png` (cropped over `REFERENCE_BOX` containing both the genuine signature and the genuine stamp), all using the fictional Protea Bank and Fynbos Freight, stamped SYNTHETIC TEST DOCUMENT. No real document, stamp, signature or client detail was used.
-- Rebuild: `node eval/frontier/stamps.ts build` reproduces the 20 PNGs, `reference-stamp.png` and `manifest.json`.
+- Provenance: 20 synthetic proof-of-payment PNG pairs (40 pages: 20 genuine controls and 20 doctored pages: 7 `stamp-date`, 7 `signature-swap`, 6 `stamp-colour`) plus `reference-stamp.png` (cropped over `REFERENCE_BOX` containing both the genuine signature and the genuine stamp), all using the fictional Protea Bank and Fynbos Freight, stamped SYNTHETIC TEST DOCUMENT. No real document, stamp, signature or client detail was used.
+- Rebuild: `node eval/frontier/stamps.ts build` reproduces the 40 PNGs, `reference-stamp.png` and `manifest.json`.
 
 [1]: https://monkey.org/~jose/phishing/
 [2]: https://monkey.org/~jose/phishing/README.txt

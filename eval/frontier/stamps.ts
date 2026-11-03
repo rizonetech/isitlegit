@@ -1,9 +1,9 @@
 // The stamps experiment (D08 T03 section 2): does SAM segmentation plus crops beat the whole page?
-//   node eval/frontier/stamps.ts build [--out <dir>]   # 20 code-made POP pairs and manifest.json
-//   node eval/frontier/stamps.ts run [--dir <dir>]     # runs whole and chain arms under US$1.50 cap
-//   node eval/frontier/stamps.ts score [--results <file>] [--check <log>]
+//   node eval/frontier/stamps.ts build [--out <dir>]   # 20 code-made POP pairs (40 pages) and manifest.json
+//   node eval/frontier/stamps.ts run [--dir <dir>] [--retry-failed]  # runs whole and chain arms under US$2.00 cap
+//   node eval/frontier/stamps.ts score [--dir <dir>] [--results <file>] [--check <log>]
 // Both arms receive the same genuine reference and the same Spark settings; labels never enter a prompt.
-// Spend is capped at US$1.50 through the shared ledger (owner eval-frontier), as section 1's digits run.
+// Spend is capped at US$2.00 through the shared ledger (owner eval-frontier), as section 1's digits run.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
@@ -12,7 +12,7 @@ import sharp from "sharp";
 import { z } from "zod";
 
 export const SET_DIR = join(import.meta.dirname, "sets/stamps");
-export const RUN_CAP_USD = 1.5;
+export const RUN_CAP_USD = 2.0;
 export const STAMP_BOX = { left: 480, top: 700, width: 260, height: 180 };
 export const SIGNATURE_BOX = { left: 80, top: 760, width: 300, height: 120 };
 export const REFERENCE_BOX = { left: 60, top: 690, width: 690, height: 200 };
@@ -20,7 +20,7 @@ export const MODEL_ID = "muse-spark-1.3";
 export const REASONING_EFFORT = "low" as const;
 export const MAX_OUTPUT_TOKENS = 4000;
 
-const sha256 = (d: Uint8Array | string) => createHash("sha256").update(d).digest("hex");
+export const sha256 = (d: Uint8Array | string) => createHash("sha256").update(d).digest("hex");
 export function writeAtomic(file: string, data: string | Uint8Array): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
@@ -30,6 +30,7 @@ export function writeAtomic(file: string, data: string | Uint8Array): void {
 
 export const ManifestEntry = z.strictObject({
   file: z.string(),
+  pairId: z.string(),
   label: z.enum(["genuine", "doctored"]),
   alteration: z.enum(["none", "stamp-date", "signature-swap", "stamp-colour"]),
   sha256: z.string(),
@@ -39,7 +40,7 @@ export type ManifestEntry = z.infer<typeof ManifestEntry>;
 const esc = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;");
 // A synthetic proof of payment: fictional bank and business, a stamp and a signature. The doctored variants
 // change the stamp's date text (while the payment date stays 2026-01-09), swap the signature path, or restamp in red.
-function popSvg(i: number, kind: "genuine" | "doctored", alteration: ManifestEntry["alteration"]): string {
+function popSvg(pairIndex: number, kind: "genuine" | "doctored", alteration: ManifestEntry["alteration"]): string {
   const paymentDate = "2026-01-09";
   const stampDate = kind === "doctored" && alteration === "stamp-date" ? "2026-03-14" : paymentDate;
   const stampColour = kind === "doctored" && alteration === "stamp-colour" ? "#cc2222" : "#2244aa";
@@ -50,9 +51,10 @@ function popSvg(i: number, kind: "genuine" | "doctored", alteration: ManifestEnt
   return `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000">
 <rect width="800" height="1000" fill="#fdfcf8"/>
 <text x="60" y="80" font-family="DejaVu Sans" font-size="30" fill="#222">Protea Bank (fictional)</text>
-<text x="60" y="140" font-family="DejaVu Sans" font-size="22" fill="#333">Proof of payment ${1000 + i}</text>
+<text x="60" y="140" font-family="DejaVu Sans" font-size="22" fill="#333">Proof of payment ${1000 + pairIndex}</text>
 <text x="60" y="200" font-family="DejaVu Sans" font-size="20" fill="#333">Paid to Fynbos Freight (fictional), R 12 400.00</text>
 <text x="60" y="240" font-family="DejaVu Sans" font-size="20" fill="#333">Payment date ${paymentDate}</text>
+<text x="60" y="280" font-family="DejaVu Sans" font-size="16" fill="#666">SYNTHETIC TEST DOCUMENT</text>
 <g transform="translate(${STAMP_BOX.left},${STAMP_BOX.top})">
 <circle cx="130" cy="90" r="78" fill="none" stroke="${stampColour}" stroke-width="5"/>
 <text x="130" y="82" text-anchor="middle" font-family="DejaVu Sans" font-size="21" fill="${stampColour}">PAID</text>
@@ -72,15 +74,18 @@ export async function buildSet(dir = SET_DIR): Promise<ManifestEntry[]> {
   const entries: ManifestEntry[] = [];
   const alterations = ["stamp-date", "signature-swap", "stamp-colour"] as const;
   for (let i = 0; i < 20; i++) {
-    const kind = i % 2 === 0 ? "genuine" : "doctored";
-    const alteration =
-      kind === "genuine" ? "none" : (alterations[Math.floor(i / 2) % alterations.length] ?? "stamp-date");
-    const png = await sharp(Buffer.from(popSvg(i, kind, alteration)))
-      .png()
-      .toBuffer();
-    const file = `pop-${String(i + 1).padStart(2, "0")}-${kind}.png`;
-    writeAtomic(join(staging, file), png);
-    entries.push({ file, label: kind, alteration, sha256: sha256(png) });
+    const pairNum = String(i + 1).padStart(2, "0");
+    const pairId = `pair-${pairNum}`;
+    const docAlteration = alterations[i % alterations.length] ?? "stamp-date";
+    for (const kind of ["genuine", "doctored"] as const) {
+      const alteration = kind === "genuine" ? "none" : docAlteration;
+      const png = await sharp(Buffer.from(popSvg(i, kind, alteration)))
+        .png()
+        .toBuffer();
+      const file = `pop-${pairNum}-${kind}.png`;
+      writeAtomic(join(staging, file), png);
+      entries.push({ file, pairId, label: kind, alteration, sha256: sha256(png) });
+    }
   }
   // The genuine reference both arms receive: the first genuine page's signature and stamp band.
   const first = entries.find((e) => e.label === "genuine");
@@ -107,11 +112,14 @@ export function chainPayload(referencePng: Buffer, stampCrop: Buffer, signatureC
 export const ArmOutcome = z.strictObject({
   file: z.string(),
   arm: z.enum(["whole", "chain"]),
-  status: z.enum(["answered", "refused", "malformed", "timeout", "budget-stopped"]),
+  status: z.enum(["pending", "answered", "empty-segmentation", "refused", "malformed", "timeout", "budget-stopped"]),
   doctored: z.boolean().nullable(),
   ms: z.number().nullable(),
   usd: z.number(),
-  samBoxes: z.number().optional(),
+  attempts: z.number().int().nonnegative(),
+  fileSha256: z.string(),
+  fingerprint: z.string(),
+  samBoxes: z.number().int().nonnegative().optional(),
 });
 export type ArmOutcome = z.infer<typeof ArmOutcome>;
 
@@ -120,26 +128,57 @@ export const PROMPT =
   "The first image is a genuine Protea Bank reference showing the authentic signature (left) and bank stamp (right, blue, dated matching the payment date). Judge whether the stamp or signature in the following image or crops was doctored (altered date, changed stamp colour, or swapped signature) compared with the genuine reference. Answer only through the schema.";
 export const ESTIMATE_USD = { segment: 0.0025, spark: 0.02 };
 
-export function experimentFingerprint(entries: readonly ManifestEntry[]): string {
+export function experimentFingerprint(entries: readonly ManifestEntry[], referenceSha256 = "ref"): string {
   return sha256(
     JSON.stringify({
       prompt: PROMPT,
       model: MODEL_ID,
       effort: REASONING_EFFORT,
       maxOutputTokens: MAX_OUTPUT_TOKENS,
-      files: entries.map((e) => `${e.file}:${e.label}:${e.alteration}:${e.sha256}`),
+      referenceSha256,
+      files: entries.map((e) => `${e.file}:${e.pairId}:${e.label}:${e.alteration}:${e.sha256}`),
     }),
   );
 }
 
+export function verifySetOnDisk(
+  dir: string,
+  entries: readonly ManifestEntry[],
+): {
+  referenceSha256: string;
+  fingerprint: string;
+  problems: string[];
+} {
+  const problems: string[] = [];
+  const refPath = join(dir, "reference-stamp.png");
+  let referenceSha256 = "";
+  if (!existsSync(refPath)) {
+    problems.push("reference-stamp.png is missing on disk");
+  } else {
+    referenceSha256 = sha256(readFileSync(refPath));
+  }
+  for (const e of entries) {
+    const p = join(dir, e.file);
+    if (!existsSync(p)) {
+      problems.push(`${e.file}: missing on disk`);
+      continue;
+    }
+    const actual = sha256(readFileSync(p));
+    if (actual !== e.sha256) problems.push(`${e.file}: on-disk sha256 (${actual}) differs from manifest (${e.sha256})`);
+  }
+  const fingerprint = experimentFingerprint(entries, referenceSha256);
+  return { referenceSha256, fingerprint, problems };
+}
+
 // Failure-aware scoring: every doctored and genuine entry in the manifest stays in the denominator; an unanswered,
-// refused, malformed, timed-out or budget-stopped case counts as missed (never dropped from the denominator).
-export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[]) {
+// empty-segmentation, refused, malformed, timed-out, pending or budget-stopped case counts as missed (never dropped).
+export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], referenceSha256 = "ref") {
   const totalAttacks = entries.filter((e) => e.label === "doctored");
   const totalGenuine = entries.filter((e) => e.label === "genuine");
   const byArm = (arm: "whole" | "chain") => {
     const rows = outcomes.filter((o) => o.arm === arm);
     const answered = rows.filter((o) => o.status === "answered");
+    const emptySeg = rows.filter((o) => o.status === "empty-segmentation").length;
     const caught = totalAttacks.filter((e) => answered.some((o) => o.file === e.file && o.doctored === true)).length;
     const falseAlarms = totalGenuine.filter((e) =>
       answered.some((o) => o.file === e.file && o.doctored === true),
@@ -153,6 +192,7 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[]) 
     return {
       outcomes: rows.length,
       answered: answered.length,
+      emptySegmentation: emptySeg,
       caught,
       attacks: totalAttacks.length,
       falseAlarms,
@@ -164,36 +204,91 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[]) 
       totalUsd: rows.reduce((a, o) => a + o.usd, 0),
     };
   };
-  return { whole: byArm("whole"), chain: byArm("chain"), fingerprint: experimentFingerprint(entries) };
+  return {
+    whole: byArm("whole"),
+    chain: byArm("chain"),
+    fingerprint: experimentFingerprint(entries, referenceSha256),
+  };
 }
 
 export type StampDecision = "feature" | "cut" | "open question";
 
-// Preset adoption rule (D08 T03 §2 correction 6): feature when chain detects >= 80% (at least 8 of 10), raises at
-// most 10% false positives (at most 1 of 10), and beats whole-page detection; cut when chain detects no more than
-// whole-page or raises >= 30% false positives; otherwise open question.
+// Preset adoption rule (D08 T03 §2 correction 6): feature when chain detects >= 80%, raises at most 2% false
+// positives, beats whole-page detection, and costs at most twice whole-page cost; cut when chain detects no more than
+// whole-page, raises > 2% false positives, or costs > 2x whole-page; otherwise open question.
 export function decideStamps(score: ReturnType<typeof scoreOutcomes>): StampDecision {
   const { whole, chain } = score;
-  if (chain.detection === null || chain.falsePositives === null || whole.detection === null) return "open question";
-  if (chain.answered < chain.outcomes || whole.answered < whole.outcomes) {
-    if (chain.falsePositives >= 0.3) return "cut";
-  }
-  if (chain.detection >= 0.8 && chain.falsePositives <= 0.1 && chain.detection > whole.detection) return "feature";
-  if (chain.detection <= whole.detection || chain.falsePositives >= 0.3) return "cut";
+  if (
+    chain.detection === null ||
+    chain.falsePositives === null ||
+    whole.detection === null ||
+    whole.falsePositives === null ||
+    whole.outcomes === 0 ||
+    chain.outcomes === 0
+  )
+    return "open question";
+  if (
+    chain.detection <= whole.detection ||
+    chain.falsePositives > 0.02 ||
+    (whole.totalUsd > 0 && chain.totalUsd > 2 * whole.totalUsd)
+  )
+    return "cut";
+  if (
+    chain.answered === chain.outcomes &&
+    whole.answered === whole.outcomes &&
+    chain.detection >= 0.8 &&
+    chain.falsePositives <= 0.02 &&
+    chain.detection > whole.detection &&
+    whole.totalUsd > 0 &&
+    chain.totalUsd <= 2 * whole.totalUsd
+  )
+    return "feature";
   return "open question";
 }
 
-export function checkLog(logText: string, entries: ManifestEntry[], outcomes: ArmOutcome[]): string[] {
+export function checkLog(
+  logText: string,
+  entries: ManifestEntry[],
+  outcomes: ArmOutcome[],
+  opts?: { setDir?: string; referenceSha256?: string; todoPlanJson?: string },
+): string[] {
   const problems: string[] = [];
+  let referenceSha256 = opts?.referenceSha256 ?? "ref";
+  if (opts?.setDir) {
+    const disk = verifySetOnDisk(opts.setDir, entries);
+    referenceSha256 = disk.referenceSha256;
+    problems.push(...disk.problems);
+  }
+  const expectedFp = experimentFingerprint(entries, referenceSha256);
+  const byFile = new Map(entries.map((e) => [e.file, e]));
+  for (const o of outcomes) {
+    const entry = byFile.get(o.file);
+    if (!entry) {
+      problems.push(`${o.file}: outcome names file not in manifest`);
+      continue;
+    }
+    if (o.fileSha256 !== entry.sha256)
+      problems.push(
+        `${o.file} (${o.arm}): outcome fileSha256 (${o.fileSha256}) differs from manifest (${entry.sha256})`,
+      );
+    if (o.fingerprint !== expectedFp)
+      problems.push(
+        `${o.file} (${o.arm}): outcome fingerprint (${o.fingerprint}) differs from experiment (${expectedFp})`,
+      );
+    if (o.status === "pending" || o.status === "budget-stopped")
+      problems.push(`${o.file} (${o.arm}): incomplete outcome status ${o.status}`);
+  }
   for (const e of entries)
     for (const arm of ["whole", "chain"] as const)
       if (!outcomes.some((o) => o.file === e.file && o.arm === arm)) problems.push(`${e.file}: no ${arm} outcome`);
-  const s = scoreOutcomes(entries, outcomes);
+  const s = scoreOutcomes(entries, outcomes, referenceSha256);
+  if (s.whole.answered === 0) problems.push("whole arm has 0 answered outcomes");
+  if (s.chain.answered === 0 && s.chain.emptySegmentation === 0)
+    problems.push("chain arm has 0 answered or empty-segmentation outcomes");
   for (const [arm, f] of [
     ["whole", s.whole],
     ["chain", s.chain],
   ] as const) {
-    if (f.answered === 0) problems.push(`${arm} arm has 0 answered outcomes`);
     if (f.detection !== null && !logText.includes(`${arm} detection ${(100 * f.detection).toFixed(1)}%`))
       problems.push(`${arm} detection figure missing or differs in the log`);
     if (
@@ -209,8 +304,18 @@ export function checkLog(logText: string, entries: ManifestEntry[], outcomes: Ar
   if (!logText.includes(`fingerprint: ${s.fingerprint}`))
     problems.push(`fingerprint (${s.fingerprint}) missing or differs in the log`);
   if (!logText.includes(PROMPT)) problems.push("prompt text missing from the log");
-  if (decision === "feature" && !/\bD\d{2} T\d{2} §\d+\b/.test(logText))
-    problems.push("feature decision must name an implementation section ref (DNN TNN §N)");
+  if (decision === "feature") {
+    const match = logText.match(/\bAdopted in (D\d{2} T\d{2} §\d+)\b/);
+    if (!match?.[1]) {
+      problems.push("feature decision must state 'Adopted in DNN TNN §N'");
+    } else {
+      const planPath = opts?.todoPlanJson ?? join(import.meta.dirname, "../../todo/implementation-plan.md");
+      if (existsSync(planPath)) {
+        const planText = readFileSync(planPath, "utf8");
+        if (!planText.includes(match[1])) problems.push(`adopted section ${match[1]} does not exist in ${planPath}`);
+      }
+    }
+  }
   return problems;
 }
 
@@ -235,17 +340,33 @@ function clampCropBox(
   return { left, top, width, height };
 }
 
-// One budgeted run over every pair and arm: an outcome per case and arm, stopping at the cap, never resending
-// a case an earlier run answered (the results file is the progress record).
+// One budgeted run over every pair and arm: an outcome per case and arm, bound to the manifest/reference/settings
+// fingerprint, stopping at the cap, and never automatically resending a paid attempt that already ran or failed.
 export async function runStamps(
   dir: string,
   deps: StampDeps,
-  resultsFile = join(dir, "results.json"),
+  opts?: { resultsFile?: string; retryFailed?: boolean },
 ): Promise<{ outcomes: ArmOutcome[]; stopped: string | null }> {
+  const resultsFile = opts?.resultsFile ?? join(dir, "results.json");
+  const retryFailed = opts?.retryFailed ?? false;
   const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")));
+  const disk = verifySetOnDisk(dir, entries);
+  if (disk.problems.length > 0) throw new Error(`stamps set verification failed: ${disk.problems.join("; ")}`);
+  const { fingerprint } = disk;
+
   const outcomes: ArmOutcome[] = existsSync(resultsFile)
     ? ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")))
     : [];
+  const byFile = new Map(entries.map((e) => [e.file, e]));
+  for (const o of outcomes) {
+    const entry = byFile.get(o.file);
+    if (!entry) throw new Error(`stored outcome ${o.file} is not in manifest.json`);
+    if (o.fileSha256 !== entry.sha256)
+      throw new Error(`stored outcome for ${o.file} has fileSha256 ${o.fileSha256}, expected ${entry.sha256}`);
+    if (o.fingerprint !== fingerprint)
+      throw new Error(`stored outcome for ${o.file} has fingerprint ${o.fingerprint}, expected ${fingerprint}`);
+  }
+
   const save = () => writeAtomic(resultsFile, `${JSON.stringify(outcomes, null, 1)}\n`);
   const reference = readFileSync(join(dir, "reference-stamp.png"));
   let stopped: string | null = null;
@@ -255,24 +376,51 @@ export async function runStamps(
     else outcomes.push(row);
     save();
   };
+
   for (const entry of entries) {
     const page = readFileSync(join(dir, entry.file));
     for (const arm of ["whole", "chain"] as const) {
-      if (outcomes.some((o) => o.file === entry.file && o.arm === arm && o.status === "answered")) continue;
+      const prev = outcomes.find((o) => o.file === entry.file && o.arm === arm);
+      if (prev) {
+        if (prev.status === "answered" || prev.status === "empty-segmentation") continue;
+        if (prev.status !== "budget-stopped" && !retryFailed) continue;
+      }
+      const priorUsd = prev?.usd ?? 0;
+      const priorAttempts = prev?.attempts ?? 0;
       if (deps.spentUsd() >= RUN_CAP_USD) {
         stopped = `budget cap US$${RUN_CAP_USD} reached`;
-        upsert({
-          file: entry.file,
-          arm,
-          status: "budget-stopped",
-          doctored: null,
-          ms: null,
-          usd: 0,
-        });
+        if (!prev) {
+          upsert({
+            file: entry.file,
+            arm,
+            status: "budget-stopped",
+            doctored: null,
+            ms: null,
+            usd: 0,
+            attempts: 0,
+            fileSha256: entry.sha256,
+            fingerprint,
+          });
+        }
         continue;
       }
+
+      const initialReserve = arm === "whole" ? ESTIMATE_USD.spark : 2 * ESTIMATE_USD.segment;
+      upsert({
+        file: entry.file,
+        arm,
+        status: "pending",
+        doctored: null,
+        ms: null,
+        usd: Number((priorUsd + initialReserve).toFixed(6)),
+        attempts: priorAttempts + 1,
+        fileSha256: entry.sha256,
+        fingerprint,
+      });
+
       const t0 = Date.now();
       let segCost = 0;
+      let askReserved = 0;
       let samBoxes = 0;
       try {
         let images: Buffer[];
@@ -281,24 +429,44 @@ export async function runStamps(
         } else {
           const crops: Buffer[] = [reference];
           for (const concept of ["stamp", "signature"] as const) {
-            const boxes = await deps.segment(page, concept);
             segCost += ESTIMATE_USD.segment;
+            const boxes = await deps.segment(page, concept);
             samBoxes += boxes.length;
-            const rawBox = boxes[0] ?? (concept === "stamp" ? STAMP_BOX : SIGNATURE_BOX);
-            const box = clampCropBox(rawBox);
-            crops.push(await sharp(page).extract(box).png().toBuffer());
+            for (const rawBox of boxes.slice(0, 4)) {
+              const box = clampCropBox(rawBox);
+              crops.push(await sharp(page).extract(box).png().toBuffer());
+            }
+          }
+          if (crops.length === 1) {
+            upsert({
+              file: entry.file,
+              arm,
+              status: "empty-segmentation",
+              doctored: null,
+              ms: Date.now() - t0,
+              usd: Number((priorUsd + segCost).toFixed(6)),
+              attempts: priorAttempts + 1,
+              fileSha256: entry.sha256,
+              fingerprint,
+              samBoxes: 0,
+            });
+            continue;
           }
           images = crops;
         }
+        askReserved = ESTIMATE_USD.spark;
         const answer = await deps.ask(images);
-        const callUsd = (answer.usd ?? ESTIMATE_USD.spark) + segCost;
+        const callUsd = (answer.usd ?? askReserved) + segCost;
         upsert({
           file: entry.file,
           arm,
           status: "answered",
           doctored: answer.doctored,
           ms: Date.now() - t0,
-          usd: Number(callUsd.toFixed(6)),
+          usd: Number((priorUsd + callUsd).toFixed(6)),
+          attempts: priorAttempts + 1,
+          fileSha256: entry.sha256,
+          fingerprint,
           ...(arm === "chain" ? { samBoxes } : {}),
         });
       } catch (e) {
@@ -310,7 +478,11 @@ export async function runStamps(
           status,
           doctored: null,
           ms: Date.now() - t0,
-          usd: Number(segCost.toFixed(6)),
+          usd: Number((priorUsd + segCost + askReserved).toFixed(6)),
+          attempts: priorAttempts + 1,
+          fileSha256: entry.sha256,
+          fingerprint,
+          ...(arm === "chain" ? { samBoxes } : {}),
         });
       }
     }
@@ -323,7 +495,7 @@ export async function main(argv: string[]): Promise<number> {
   if (cmd === "build") {
     const out = rest[rest.indexOf("--out") + 1] ?? SET_DIR;
     const entries = await buildSet(rest.includes("--out") ? out : SET_DIR);
-    console.log(`stamps: built ${entries.length} pairs in ${out}`);
+    console.log(`stamps: built ${entries.length} pages (${entries.length / 2} pairs) in ${out}`);
     return 0;
   }
   if (cmd === "run") {
@@ -340,7 +512,7 @@ export async function main(argv: string[]): Promise<number> {
       ) => Promise<{ left: number; top: number; right: number; bottom: number; confidence: number | null }[]>;
     };
     const secrets = await readSecretsFromVault();
-    const ledger = sharedLedger(metaLedger(), "stamps-v2", { capUsd: RUN_CAP_USD });
+    const ledger = sharedLedger(metaLedger(), "stamps-v3", { capUsd: RUN_CAP_USD });
     let callNo = 0;
     let spent = 0;
     const reservedBy = new Map<string, number>();
@@ -406,34 +578,42 @@ export async function main(argv: string[]): Promise<number> {
     };
     const dirAt = rest.indexOf("--dir");
     const targetDir = (dirAt >= 0 ? rest[dirAt + 1] : undefined) ?? SET_DIR;
-    const out = await runStamps(targetDir, deps);
+    const retryFailed = rest.includes("--retry-failed");
+    const out = await runStamps(targetDir, deps, { retryFailed });
     console.log(`stamps: ${out.outcomes.length} outcomes${out.stopped ? `, stopped: ${out.stopped}` : ""}`);
     return out.stopped ? 2 : 0;
   }
   if (cmd === "score") {
+    const dirAt = rest.indexOf("--dir");
+    const targetDir = (dirAt >= 0 ? rest[dirAt + 1] : undefined) ?? SET_DIR;
     const resultsAt = rest.indexOf("--results");
-    const resultsFile = (resultsAt >= 0 ? rest[resultsAt + 1] : undefined) ?? join(SET_DIR, "results.json");
-    const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(SET_DIR, "manifest.json"), "utf8")));
+    const resultsFile = (resultsAt >= 0 ? rest[resultsAt + 1] : undefined) ?? join(targetDir, "results.json");
+    const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(targetDir, "manifest.json"), "utf8")));
+    const disk = verifySetOnDisk(targetDir, entries);
+    if (disk.problems.length > 0) {
+      for (const p of disk.problems) console.error(`stamps: ${p}`);
+      return 1;
+    }
     const outcomes = ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")));
-    const s = scoreOutcomes(entries, outcomes);
+    const s = scoreOutcomes(entries, outcomes, disk.referenceSha256);
     for (const arm of ["whole", "chain"] as const) {
       const f = s[arm];
       console.log(
-        `${arm} detection ${f.detection === null ? "not measured" : `${(100 * f.detection).toFixed(1)}%`} (${f.caught}/${f.attacks}), ${arm} false positives ${f.falsePositives === null ? "not measured" : `${(100 * f.falsePositives).toFixed(1)}%`} (${f.falseAlarms}/${f.genuine}), ${arm} cost US$${f.totalUsd.toFixed(4)}, median ${f.medianMs ?? "n/a"} ms, worst ${f.maxMs ?? "n/a"} ms, answered ${f.answered} of ${f.outcomes}`,
+        `${arm} detection ${f.detection === null ? "not measured" : `${(100 * f.detection).toFixed(1)}%`} (${f.caught}/${f.attacks}), ${arm} false positives ${f.falsePositives === null ? "not measured" : `${(100 * f.falsePositives).toFixed(1)}%`} (${f.falseAlarms}/${f.genuine}), ${arm} cost US$${f.totalUsd.toFixed(4)}, median ${f.medianMs ?? "n/a"} ms, worst ${f.maxMs ?? "n/a"} ms, answered ${f.answered} of ${f.outcomes}${f.emptySegmentation ? ` (${f.emptySegmentation} empty-segmentation)` : ""}`,
       );
     }
-    console.log(`Decision: ${decideStamps(s)} | fingerprint: ${experimentFingerprint(entries)}`);
+    console.log(`Decision: ${decideStamps(s)} | fingerprint: ${s.fingerprint}`);
     const checkAt = rest.indexOf("--check");
     const check = checkAt >= 0 ? rest[checkAt + 1] : undefined;
     if (check) {
-      const problems = checkLog(readFileSync(check, "utf8"), entries, outcomes);
+      const problems = checkLog(readFileSync(check, "utf8"), entries, outcomes, { setDir: targetDir });
       for (const p of problems) console.error(`stamps: ${p}`);
       return problems.length ? 1 : 0;
     }
     return 0;
   }
   console.error(
-    "usage: node eval/frontier/stamps.ts build [--out <dir>] | run [--dir <dir>] | score [--results <file>] [--check <log>]",
+    "usage: node eval/frontier/stamps.ts build [--out <dir>] | run [--dir <dir>] [--retry-failed] | score [--dir <dir>] [--results <file>] [--check <log>]",
   );
   return 3;
 }
