@@ -45,7 +45,7 @@ track: day-6
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
 | 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
-| 15 | §15 | Slash shortcut to the | §7 | [ ] |
+| 15 | §15 | Slash shortcut to the | §7 | [x] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
 | 18 | §18 | Threat kinds under Malicious | §2 | [x] |
@@ -674,6 +674,9 @@ A member presses `/` anywhere on the Cases list, outside a text field, and lands
 - [x] Commit: `web: slash focuses the cases search`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
+
+> **Verified:** 2026-11-03 | §15 | 2721fcbe3a8ad0a618eb3243a7ba1cd01d2981c2
+> **Review:** `docs/reviews/d07-t04-s15.json`
 
 ## 16. Live Cases search latency vs Gmail
 

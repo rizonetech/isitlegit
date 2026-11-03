@@ -533,7 +533,7 @@ Sections: 198 | Checklist items: 863
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                            | third-party          | 4     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
 | [x]    | D07 T04 §14 | Multi-word search in the Cases list                         | none                 | 6     |
-| [ ]    | D07 T04 §15 | Slash shortcut to the                                       | none                 | 4     |
+| [x]    | D07 T04 §15 | Slash shortcut to the                                       | none                 | 4     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                          | attended             | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                                   | none                 | 4     |
 | [x]    | D07 T04 §18 | Threat kinds by verdict                                     | none                 | 4     |
@@ -633,6 +633,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 361/557 verified sections, 127 ready to run now.
+Progress: 362/557 verified sections, 126 ready to run now.
 
 Checklist: 2790/3483 items completed (includes Commit items).
