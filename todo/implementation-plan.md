@@ -393,7 +393,7 @@ Sections: 96 | Checklist items: 621
 
 ### Phase 7: After the event
 
-Sections: 197 | Checklist items: 843
+Sections: 197 | Checklist items: 848
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -516,7 +516,7 @@ Sections: 197 | Checklist items: 843
 | [x]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [x]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
-| [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 2     |
+| [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 7     |
 | [ ]    | D07 T03 §17 | Trust and verification cards                                | none                 | 2     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member                              | none                 | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                               | attended             | 2     |
@@ -634,4 +634,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 359/556 verified sections, 127 ready to run now.
 
-Checklist: 2757/3463 items completed (includes Commit items).
+Checklist: 2757/3468 items completed (includes Commit items).
