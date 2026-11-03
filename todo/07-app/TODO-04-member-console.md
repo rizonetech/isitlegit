@@ -799,6 +799,10 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 
 An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
 
+> **Started:** 2026-11-03T01:23:33Z
+
+**Corrected 2026-11-03 (checked against the tree):** the checklist's "Monday's report" is the operator decision's Friday 16:00 SAST send (the week's counts for the week then ending), and the decision wins. The store is migration 0090 (coordinator, 2026-11-03): `weekly_report_optins` (organisation and member, with the opt-in time) and the send itself rides the mail ledger's send key (`weekly:<org>:<member>:<week Monday>`), which is what makes a second run of the Friday window send nothing twice and a refused send retry on the next run. The opt-in is set and cleared on the Account page (M9) for the member's active organisation, and every email carries a one-step unsubscribe link (signed, per member and organisation) that clears it without signing in. The send runs from the quarter-hour schedule when it is Friday 14:00 UTC (16:00 SAST).
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Per-member opt-in weekly counts email, Fridays 16:00 SAST, the three tiles' numbers and a link to Cases, never message content, one-step unsubscribe (who, when and what recorded in the SPEC).
 
@@ -816,7 +820,7 @@ An owner who opts in receives the week's counts by email every Monday, with a on
 
 - [ ] Record the owner's decision on the weekly report in `design/SPEC.md`. Done when: the SPEC names who, when and what. Cheaper substitute: a report sent to every member unasked.
 - [ ] Store the opt-in per member with a timestamp, set and cleared from Account settings. Done when: a test reads it set and cleared. Cheaper substitute: an organisation-wide flag.
-- [ ] Send Monday's report once per opted-in member from the schedule, idempotent per week, a failed send retried by the mail sender. Done when: a test reads one send per member per week, none after an unsubscribe. Cheaper substitute: a send on every schedule tick.
+- [ ] Send Friday's report once per opted-in member from the schedule, idempotent per week, a failed send retried by the mail sender. Done when: a test reads one send per member per week, none after an unsubscribe. Cheaper substitute: a send on every schedule tick.
 - [ ] Commit: `mail: opt-in weekly counts report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unsubscribed member is sent the report.

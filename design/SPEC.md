@@ -118,6 +118,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N7 | Monitor alert with takedown pack | The protected business | D05 T04 §5 |
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
+| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays 16:00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
 
 No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
 
@@ -943,6 +944,7 @@ Controls:
 - passkeys (add, remove): Passkeys table with Remove. (Account)
 - sessions: Sessions table with Sign out per session. (Account)
 - sign out: Signs out other sessions. (Account)
+- weekly counts: A checkbox, "Email me this organisation's weekly counts on Fridays", with the day it was switched on, for the active organisation. (Account) (D07 T04 §20, operator decision 2026-11-02)
 
 States:
 
