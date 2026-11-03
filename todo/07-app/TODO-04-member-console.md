@@ -1001,6 +1001,8 @@ A search over the team's names and emails that finds one person in one step, key
 
 **Corrected 2026-11-03 (checked against the tree):** the find field filters the members the page already read, by folded name or email (`fold` in `src/db/search-fold.ts`, the Cases search's folding), in the `find` query value, so a shared or bookmarked address keeps working and no other organisation's member can appear. The pending invitations and the team history are not the find's business and stay whole. With a find in place the field keeps the keyboard focus on the redrawn page.
 
+**Corrected 2026-11-03 (plan review P2s, `docs/reviews/07-app/D07-T04-s26.md`):** (1) Only the displayed rows are filtered: owner counts, permissions and history name resolution keep the whole member list, so a hidden second owner still counts. (2) The find rides the management round trip: role forms, remove links, the confirmation and its Cancel, and the POST outcome redirects all carry `find`, and after a removal the page shows the remaining matches or the no-results line; a management outcome announcement takes focus precedence over the find field. (3) The find and history forms preserve each other's filters. (4) A find over 200 characters is refused in words with the whole team shown, never silently shortened. (5) The proof asserts exact member rows in both layouts with mixed-case and decomposed-accent fixtures, an identically matching person in another organisation, and browser focus after submitting, refining and clearing, with scripts off and on, at phone and desktop widths in both themes.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** A find field above the members list, matching a name or email substring with case and accent folded, and 'No one on the team matches' for no result (recorded in SPEC M7 first).
 
@@ -1018,6 +1020,7 @@ A search over the team's names and emails that finds one person in one step, key
 
 - [ ] Record the find control (place, what it matches, its no-results words) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: the browser's own find.
 - [ ] Filter the members by a name or email substring, case- and accent-insensitive as the Cases search folds (`src/db/search-fold.ts`), in the query string. Done when: the page test finds one member by a name part and by an email part, reads "No one on the team matches", and never another organisation's member. Cheaper substitute: filtering in the browser only.
+- [ ] Prove the find in the browser: focus kept after submitting, refining and clearing, the management round trip keeping the find, with scripts off and on at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
 - [ ] Commit: `web: find a person on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a search shows another organisation's member.
