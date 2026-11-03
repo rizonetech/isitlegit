@@ -74,7 +74,7 @@ track: day-6
 | 36 | §36 | One-command release and rollback through production | §32 | [ ] |
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 | 38 | §38 | Benign render against a crawler | §31 | [x] |
-| 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
+| 39 | §39 | A stratified grouped split as the baseline | §31 | [x] |
 | 40 | §40 | A failed settlement returns its burst | §1 | [x] |
 | 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
 | 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
@@ -1366,6 +1366,9 @@ Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope
 - [x] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
+
+> **Verified:** 2026-11-03 | §39 | 394fbb687921069a4cc056ec3db4d65b2a651386
+> **Review:** `docs/reviews/d03-t04-s39.json`
 
 ## 40. A failed settlement returns its burst
 
