@@ -346,6 +346,9 @@ export function registerLookalikeCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: lookalikeEvidence,
     summary: lookalikeSummary,
+    examined: (view) => [
+      ...new Set([...headerDomains(view).map((d) => d.domain), ...candidatesOf(view).map((c) => c.domain)]),
+    ],
     applies: (view) =>
       view.tenant.headersAvailable ||
       (view.links?.items.length ?? 0) > 0 ||

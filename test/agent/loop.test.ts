@@ -5,7 +5,7 @@ import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { getVerdict } from "../../src/db/verdicts";
+import { getVerdict, storeVerdict } from "../../src/db/verdicts";
 import { readArtefact, type Store } from "../../src/intake/store";
 import { bankChangeAction, callBackAction } from "../../src/invoice/fixed-actions";
 import { importSuppliers, siteOf } from "../../src/invoice/ledger";
@@ -216,10 +216,26 @@ describe("runAgent", () => {
     expect(view.actions).toEqual(rules.actions);
     expect(view.reasons[0]?.evidenceIds).toEqual(["E1"]);
     // The floor outcome is persisted with the verdict (D04 T01 §11), so the eval can measure it per case.
-    expect(view.floorApplied).toEqual({ from: "safe", to: "malicious", evidenceIds: ["E1"] });
+    expect(view.floorApplied).toEqual({ from: "safe", to: "malicious", evidenceIds: ["E1"], revision: "1" });
     expect(await getVerdict(env.DB, caseId)).toMatchObject({
       ok: true,
-      value: { floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"] } },
+      value: {
+        floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"], revision: "1" },
+        floorCoverage: "raised",
+      },
+    });
+    // The production sequence on the loop's own view: an identical replay through the Workflow store
+    // answers the stored row, and a changed revision conflicts without touching it (D04 T01 §13).
+    await env.DB.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(caseId).run();
+    expect(await storeVerdict(env.DB, "org-loop", caseId, view)).toMatchObject({ ok: true });
+    const revised = { ...view, floorApplied: { ...view.floorApplied!, revision: "2" } };
+    expect(await storeVerdict(env.DB, "org-loop", caseId, revised)).toMatchObject({
+      ok: false,
+      error: { code: "conflict" },
+    });
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({
+      ok: true,
+      value: { floorApplied: { revision: "1" } },
     });
   });
 

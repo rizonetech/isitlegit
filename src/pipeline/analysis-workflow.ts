@@ -3,7 +3,8 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type Workflo
 import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
-import { caseSummary, runAgent, verdictToolDeps } from "../agent/loop";
+import { caseSummary, fixedActionsFor, runAgent, verdictToolDeps } from "../agent/loop";
+import { ruleVerdict } from "../agent/rule-verdict";
 import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
@@ -16,12 +17,15 @@ import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidenc
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
+import { checks as fullRegistry } from "../checks/index";
 import { invisibleOf, PhraseLog, PhraseStream, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
 import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
+import { CheckRegistry } from "../checks/registry";
 import { type ReputationDeps, reputationOf } from "../checks/reputation";
+import { reputationResultStatements } from "../checks/reputation-results";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf, sniff } from "../checks/sniff";
@@ -79,6 +83,7 @@ import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigg
 import { allowedUrl, dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
+import { ablateFlagFor } from "./ablate";
 import { recordEvent } from "./events";
 
 // The analysis pipeline for one case (D01 T01 §7): durable steps, so a failure resumes without repeating finished work
@@ -188,6 +193,7 @@ export const STUB_VERDICT: VerdictView = {
   meaning: null,
   source: "stub",
   floorApplied: null,
+  ablated: null,
 };
 
 // A step error the Workflow must not retry carries only its class as its message (`NonRetryableError` keeps its own name,
@@ -690,6 +696,26 @@ export async function checks(
     rawKey(caseId),
     brands,
   );
+  // The intake and authentication prefix, stored before any enrichment (D01 T01 §23): a slow or failed
+  // enrichment (Browser Run, RDAP, reputation) then leaves the fast header outcomes already readable, and
+  // because the subset is the registry's own prefix in order, its Evidence IDs are the full run's first IDs.
+  const prefix = new CheckRegistry();
+  for (const check of fullRegistry.all())
+    if (check.name.startsWith("intake.") || check.name.startsWith("auth.")) prefix.register(check);
+  const early = await runChecksWithOutcomes(read, prefix);
+  // The run's reputation results go with its evidence (D02 T06 §9, round 3): a retried step's prefix write
+  // clears the previous attempt's results in the same batch, so they never stand beside incomplete evidence.
+  await saveEvidence(
+    store.db,
+    caseId,
+    early.items,
+    prefix,
+    undefined,
+    early.outcomes,
+    revision,
+    data,
+    reputationResultStatements(store.db, caseId, null),
+  );
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
@@ -790,11 +816,92 @@ export async function checks(
         : read.source.kind === "message"
           ? await readVoice(store, caseId)
           : null,
+    // Each stored transcript, for the transcript evidence (D01 T03 §16).
+    transcripts: await storedTranscripts(store, caseId, key, read),
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
-  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision, data);
+  // Each provider's own answer beside the evidence it weighed into (D02 T06 §9), in the same batch, so a
+  // failed write leaves the previous evidence and results together and the step retries from them.
+  const saved = await saveEvidence(
+    store.db,
+    caseId,
+    items,
+    undefined,
+    undefined,
+    outcomes,
+    revision,
+    data,
+    reputationResultStatements(store.db, caseId, view.reputation),
+  );
   return { evidence: saved.length };
+}
+
+// Every stored transcript of the case (D01 T03 §16): each `audio` artefact whose name is a transcript (the
+// uploaded note's `transcript.json`, or a mail recording's `transcript-<n>.json` in attachment order), read for
+// its turns. The mail case's aggregate `transcript.json` holds no turns and is left out; one that cannot be
+// read or parsed is kept and named malformed, beside the valid ones.
+async function storedTranscripts(
+  store: Store,
+  caseId: string,
+  key: string,
+  read: ReturnType<typeof caseViewOf>,
+): Promise<NonNullable<CaseView["transcripts"]> | null> {
+  const named = (await artefactsOf(store, caseId, "audio")).filter((s) => /transcript(-\d+)?\.json$/.test(s.key));
+  if (!named.length) return null;
+  const selected = (await audioAttachmentsOf(store, caseId, key)).selected;
+  const out: NonNullable<CaseView["transcripts"]> = [];
+  for (const s of named) {
+    const numbered = /transcript-(\d+)\.json$/.exec(s.key);
+    const recording = numbered ? selected[Number(numbered[1]) - 1] : undefined;
+    const recordingKey =
+      recording?.key ?? (read.source.kind === "upload" && read.source.fileKind === "audio" ? read.source.key : null);
+    const base = { transcriptKey: s.key, recordingKey, filename: recording?.filename ?? null };
+    const got = await readArtefact(store, caseId, s.key);
+    if (!got || !("body" in got)) {
+      out.push({ ...base, turns: [], gaps: [], complete: false, malformed: true });
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(new TextDecoder().decode(got.body)) as {
+        turns?: unknown;
+        gaps?: unknown;
+        complete?: unknown;
+      };
+      // The mail aggregate holds no turns and is left out; any other transcript without a valid turns
+      // list (or with a turn that is not a turn) is malformed, named beside its valid siblings, never
+      // silently skipped and never left to throw inside the evidence mapping (completion review).
+      const validTurns =
+        Array.isArray(parsed.turns) &&
+        parsed.turns.every(
+          (turn) =>
+            turn !== null &&
+            typeof turn === "object" &&
+            typeof (turn as { chunk?: unknown }).chunk === "number" &&
+            typeof (turn as { startMs?: unknown }).startMs === "number" &&
+            typeof (turn as { endMs?: unknown }).endMs === "number" &&
+            typeof (turn as { text?: unknown }).text === "string" &&
+            ((turn as { speaker?: unknown }).speaker === undefined ||
+              (turn as { speaker?: unknown }).speaker === null ||
+              typeof (turn as { speaker?: unknown }).speaker === "string"),
+        );
+      if (!validTurns) {
+        const aggregate = !numbered && !(read.source.kind === "upload" && read.source.fileKind === "audio");
+        if (aggregate) continue;
+        out.push({ ...base, turns: [], gaps: [], complete: false, malformed: true });
+        continue;
+      }
+      out.push({
+        ...base,
+        turns: parsed.turns as NonNullable<CaseView["transcripts"]>[number]["turns"],
+        gaps: Array.isArray(parsed.gaps) ? (parsed.gaps as NonNullable<CaseView["transcripts"]>[number]["gaps"]) : [],
+        complete: parsed.complete === true,
+      });
+    } catch {
+      out.push({ ...base, turns: [], gaps: [], complete: false, malformed: true });
+    }
+  }
+  return out.length ? out : null;
 }
 
 // Transcribes an uploaded voice note (D01 T03 §3): the stored recording the summary names, decoded to 10-minute WAV
@@ -1024,6 +1131,18 @@ export async function verdict(
     .bind(caseId)
     .first<{ headers_available: number; org_id: string }>();
   const headersAvailable = row?.headers_available === 1;
+  // An ablated arm (D04 T01 §14): the verdict agent is never called, and none of its preparation is read
+  // either; the rule verdict decides alone with the deterministic actions, and the verdict names the flag.
+  if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {
+    const rules = ruleVerdict(evidence, { headersAvailable });
+    const fixed = fixedActionsFor(evidence);
+    const view: VerdictView = {
+      ...rules,
+      actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
+      ablated: "no-agent-reasoning",
+    };
+    return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  }
   const { table } = await brandTableRead(env);
   const summary = await (async () => {
     const read = await readArtefact(store, caseId, parsedKey(caseId));

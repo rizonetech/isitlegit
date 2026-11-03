@@ -807,6 +807,7 @@ export function registerLinkMismatchCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: linkMismatchEvidence,
     summary: linksSummary,
+    examined: (view) => (view.links?.items ?? []).map((link) => link.href),
     // Links past a bound are links too (round 8): a case whose only links were not read is partial, never "no links".
     applies: (view) =>
       view.links?.items.length || view.links?.unread.length || view.links?.more ? null : "the case has no links",
@@ -972,6 +973,7 @@ export function registerLinkExpansionChecks(registry: CheckRegistry): void {
       applies: expansionApplies,
       partial: expansionPartial,
       summary,
+      examined: (view) => (view.expansions?.items ?? []).map((e) => e.final ?? e.link),
     });
 }
 
@@ -1230,5 +1232,10 @@ export function registerLandingChecks(registry: CheckRegistry): void {
       applies: expansionApplies,
       partial: landingPartial,
       summary,
+      // The landing checks read every scan of a followed page, frames included, so every scan's URL is
+      // a target (round 1), not only the page it settled on.
+      examined: (view) => [
+        ...new Set((view.expansions?.items ?? []).flatMap((e) => (e.landing?.scans ?? []).map((s) => s.url))),
+      ],
     });
 }

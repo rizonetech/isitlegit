@@ -269,6 +269,7 @@ describe("handleEmail", () => {
     expect(await handleEmail(m.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
     expect(await casesOf(orgId)).toEqual([]);
     expect(await claimsOf(orgId)).toEqual([{ message_key: `email:id:${m.messageId}`, state: "done", case_id: null }]);
+    expect(world.sends).toEqual([]);
   });
 
   it("reads Auto-Submitted as RFC 3834's keyword, comments and parameters around it", () => {
@@ -365,6 +366,7 @@ describe("handleEmail", () => {
     expect(await handleEmail(m.forwardable, mailEnv)).toEqual({ kind: "too-large" });
     expect(m.rejected).toEqual(["Message too large"]);
     expect(await casesOf(orgId)).toEqual([]);
+    expect(world.sends).toEqual([]);
   });
 
   it("makes one case of the same message delivered twice, in turn or at once, and a second a day later", async () => {

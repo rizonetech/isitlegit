@@ -11,10 +11,12 @@ import {
   putAttachment,
   putParsed,
   putRaw,
+  putVisible,
   rawKey,
   readArtefact,
   type Store,
   StoreError,
+  visibleKey,
 } from "../../src/intake/store";
 
 // src/intake/store.ts (D01 T01 §2): the R2 layout, create-only writes that never delete, and the row beside each object.
@@ -375,5 +377,93 @@ describe("storing and reading", () => {
     await env.ARTEFACTS.delete(stored.key);
     expect(await readArtefact(store, caseId, stored.key)).toEqual({ stored, missing: true });
     expect(await readArtefact(store, await newCase(), stored.key)).toBeNull();
+  });
+});
+
+describe("a case removed mid-write (D01 T01 §24)", () => {
+  // The removal the test drives deletes only cases it created; the two protected live test accounts'
+  // cases are never removed by any path here, as AGENTS.md requires.
+  const removeCase = (caseId: string) => env.DB.prepare("DELETE FROM cases WHERE id = ?").bind(caseId).run();
+  // A bucket whose put lands the object, then removes the case before the write's insert.
+  const removing = (caseId: string, failDelete = false): Store => ({
+    bucket: new Proxy(env.ARTEFACTS, {
+      get(target, key) {
+        if (key === "put")
+          return async (k: string, body: Uint8Array, opts: R2PutOptions) => {
+            const created = await target.put(k, body, opts);
+            await removeCase(caseId);
+            return created;
+          };
+        if (key === "delete" && failDelete) return async () => Promise.reject(new Error("R2 unavailable"));
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as R2Bucket,
+    db: env.DB,
+  });
+
+  const writes: [string, (s: Store, id: string) => Promise<unknown>, (id: string) => string][] = [
+    ["putRaw", (s, id) => putRaw(s, id, bytes("from: a@b.example")), (id) => rawKey(id)],
+    ["putParsed", (s, id) => putParsed(s, id, { headers: [], text: "x" }), (id) => parsedKey(id)],
+    [
+      "putAttachment",
+      async (s, id) => (await putAttachment(s, id, "a.pdf", bytes("%PDF"), "application/pdf")).key,
+      (id) => attachmentKey(id, "0".repeat(64), "a.pdf"),
+    ],
+    [
+      "putArtefact",
+      async (s, id) => (await putArtefact(s, id, "render", "page.png", bytes("PNG"), "image/png")).key,
+      (id) => artefactKey(id, "render", "0".repeat(64), "page.png"),
+    ],
+    ["putVisible", (s, id) => putVisible(s, id, "Pay invoice 77 today."), (id) => visibleKey(id)],
+  ];
+
+  it("fences every public write across a removal, storing neither row nor object", async () => {
+    for (const [name, write] of writes) {
+      const id = await newCase();
+      const other = await newCase();
+      await putRaw(store, other, bytes("untouched"));
+      await expect(write(removing(id), id), name).rejects.toEqual(
+        expect.objectContaining({ code: "storage", message: expect.stringContaining("was fenced: its case is gone") }),
+      );
+      expect(await rows(id), name).toEqual([]);
+      // The other case's artefacts are untouched.
+      expect(await rows(other), name).toHaveLength(1);
+    }
+  });
+
+  it("leaves no object behind for the fenced fixed-key writes, and lands the same write whole without a removal", async () => {
+    for (const [name, write, keyOf] of writes) {
+      const id = await newCase();
+      await expect(write(removing(id), id), name).rejects.toMatchObject({ code: "storage" });
+      if (!name.startsWith("putA")) expect(await env.ARTEFACTS.head(keyOf(id)), name).toBeNull();
+      const landed = await newCase();
+      await write(store, landed);
+      expect(await rows(landed), name).toHaveLength(1);
+    }
+  });
+
+  it("names cleanup pending when the fenced object cannot be removed, and the prefix sweep recovers it", async () => {
+    const id = await newCase();
+    await expect(putRaw(removing(id, true), id, bytes("stranded"))).rejects.toEqual(
+      expect.objectContaining({ message: expect.stringContaining("the removal sweep owns it") }),
+    );
+    expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
+    // The recovery owner: a prefix sweep, as the account closure lists, needs no row to find the object.
+    const listed = await env.ARTEFACTS.list({ prefix: `raw/${id}/` });
+    for (const object of listed.objects) await env.ARTEFACTS.delete(object.key);
+    expect(await env.ARTEFACTS.head(rawKey(id))).toBeNull();
+  });
+
+  it("keeps an earlier attempt's object when a retried write is fenced", async () => {
+    // An earlier attempt recorded the object but no row (its insert failed then); a fenced retry must
+    // not delete that recorded work.
+    const id = await newCase();
+    const body = bytes("earlier attempt");
+    const key = rawKey(id);
+    await env.ARTEFACTS.put(key, body, { sha256: await hexOf(body) });
+    await expect(putRaw(removing(id), id, body)).rejects.toMatchObject({ code: "storage" });
+    expect(await env.ARTEFACTS.head(key)).not.toBeNull();
+    await env.ARTEFACTS.delete(key);
   });
 });

@@ -330,6 +330,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
       meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : answer.meaning,
       source: "agent",
       floorApplied: floorApplied ? { ...floorApplied, evidenceIds: floorIds } : null,
+      ablated: null,
     };
     await mustSave(ctx.db, caseId, view);
     return view;
