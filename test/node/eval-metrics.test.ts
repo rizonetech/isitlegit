@@ -851,6 +851,37 @@ describe("the source-versus-replay comparison (section 13)", () => {
       (await runMetrics({ argv: ["--compare", replay.run.id, "--run", source.run.id], db, root: ROOT })).code,
     ).toBe(3);
     expect((await runMetrics({ argv: ["--compare"], db, root: ROOT })).code).toBe(3);
+    expect((await runMetrics({ argv: ["--compare", "bad id!"], db, root: ROOT })).code).toBe(3);
+    for (const conflict of ["--publish", "--republish-summary", "--check", "--from"]) {
+      const extra = conflict === "--check" || conflict === "--from" ? [conflict, "x"] : [conflict];
+      expect((await runMetrics({ argv: ["--compare", replay.run.id, ...extra], db, root: ROOT })).code).toBe(3);
+    }
+    // A replay whose source record is gone refuses, naming the source; nothing is published on any refusal.
+    let writes = 0;
+    const orphan = await runMetrics({
+      argv: ["--compare", replay.run.id],
+      db: { readRun: async (id: string) => (id === replay.run.id ? replay : null) },
+      root: ROOT,
+      write: () => writes++,
+    });
+    expect(orphan.code).toBe(3);
+    expect(orphan.stderr).toMatch(/no source run run-00000001/);
+    expect(writes).toBe(0);
+    // JSON read-back carries the deltas; progress reports the reads off stdout.
+    const progress: string[] = [];
+    const asJson = await runMetrics({
+      argv: ["--compare", replay.run.id, "--json"],
+      db,
+      root: ROOT,
+      onProgress: (line) => progress.push(line),
+    });
+    expect(asJson.code).toBe(0);
+    const parsed = JSON.parse(asJson.stdout) as { main: { detection: { deltaPp: number } } };
+    expect(parsed.main.detection.deltaPp).toBe(100);
+    expect(progress).toEqual([
+      "eval:metrics: reading replay run run-00000002",
+      "eval:metrics: reading source run run-00000001",
+    ]);
     const failing = {
       readRun: async () => {
         throw new Error("d1 down");
