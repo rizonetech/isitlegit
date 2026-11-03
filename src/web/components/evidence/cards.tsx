@@ -1670,6 +1670,10 @@ const VISION_REASON = (reason: string | null): string => {
   if (reason === "crop-listing-unavailable" || reason === "manifest-unreadable")
     return "The logo crops in the message could not be listed";
   if (reason === "comparison-unavailable") return "The comparison could not run";
+  if (reason === "missing-brand" || reason === "missing-index") return "No reference logo is stored for the brand";
+  if (reason === "missing-image") return "The reference logo is not stored";
+  if (reason === "hash-mismatch") return "The stored reference logo did not match its record";
+  if (reason === "invalid-index" || reason === "too-large") return "The reference logos could not be read";
   if (reason === "search-cap") return "The search that confirms a brand's domains had no capacity left";
   if (reason.startsWith("render-")) return "The message could not be pictured";
   return "It could not be completed";
@@ -1800,14 +1804,12 @@ const vision: Renderer = (item, file) => {
             <div class="flex flex-col gap-8">
               <p class="text-14 weight-text-strong">The reference</p>
               {reference}
-              <EvidenceFigure caption={`The reference icon for ${brand}, when the brand has one`}>
-                <img
-                  src={inlineUrl(file(`ref-logo-icon:${brand}`))}
-                  alt={`The reference icon for ${brand}`}
-                  loading="lazy"
-                  class="h-full w-full object-contain"
-                />
-              </EvidenceFigure>
+              <Shot
+                id={`${item.id}-icon`}
+                url={file(`ref-logo-icon:${brand}`)}
+                alt={`The reference icon for ${brand}`}
+                caption={`The reference icon for ${brand}, when the brand has one`}
+              />
             </div>
           </div>
           <Facts
