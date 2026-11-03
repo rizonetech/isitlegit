@@ -393,24 +393,29 @@ async function investigate(
     if ((signals?.passwords ?? 0) > 0) action = "log_in";
     else if ((signals?.forms ?? 0) > 0) action = "pay";
   }
+  const checksItems: EvidenceDraft[] = [
+    {
+      check: "domain.lookalike",
+      severity: "info",
+      summary:
+        domainJudgement === "official"
+          ? `The page is on ${brand}'s verified domain (${finalHost}).`.slice(0, 200)
+          : `The page at ${finalHost} claims ${brand} outside its verified domains.`.slice(0, 200),
+      detail: { domain: finalHost, brand, targetKind: "brand", judgement: domainJudgement },
+      artefacts: [artefactKey],
+    },
+  ];
   if (action === "log_in" || action === "pay") {
-    const savedTrigger = await saveEvidence(
-      db,
-      caseId,
-      [
-        {
-          check: action === "log_in" ? "link.credential_form" : "link.card_form",
-          severity: "info",
-          summary: `The flagged page asks a visitor to ${action === "log_in" ? "sign in" : "pay"}.`.slice(0, 200),
-          detail: { page: finalUrl, source: "monitor-reading" },
-          artefacts: [artefactKey],
-        },
-      ],
-      undefined,
-      now,
-    );
-    refs.push(...savedTrigger.map((e) => e.id));
+    checksItems.push({
+      check: action === "log_in" ? "link.credential_form" : "link.card_form",
+      severity: "info",
+      summary: `The flagged page asks a visitor to ${action === "log_in" ? "sign in" : "pay"}.`.slice(0, 200),
+      detail: { page: finalUrl, source: "monitor-reading" },
+      artefacts: [artefactKey],
+    });
   }
+  const savedChecks = await saveEvidence(db, caseId, checksItems, undefined, now);
+  refs.push(...savedChecks.map((e) => e.id));
   let walkFailed = false;
   if (action === "log_in" || action === "pay") {
     const walked = await deps.walk(caseId).catch(() => {

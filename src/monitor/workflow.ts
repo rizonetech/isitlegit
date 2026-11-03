@@ -6,13 +6,14 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
-import { brandTableRead } from "../checks/brands";
+import { brandTableRead, registrable } from "../checks/brands";
 import { ulid } from "../db/ulid";
 import { d1Budget } from "../meta/budget";
+import { DETECTOR, groundLogos } from "../vision/detector";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
 import { type Burst, REQUEST_MS, settleGlimmer } from "../vision/glimmer-wake";
 import type { LogoImage } from "../vision/logo-compare";
-import { cropBoxes, segment } from "../vision/sam";
+import { cropBoxes, imageSize, segment, selectBoxes } from "../vision/sam";
 import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
@@ -207,6 +208,52 @@ export function pipelineDeps(env: Env): PipelineDeps {
     },
     walk: async (caseId) => {
       const { table } = await brandTableRead(env);
+      const caseRow = await env.DB.prepare("SELECT org_id FROM cases WHERE id = ?")
+        .bind(caseId)
+        .first<{ org_id: string }>();
+      let walkTable = table;
+      if (caseRow?.org_id) {
+        const identity = await env.DB.prepare("SELECT display_names_json FROM identities WHERE org_id = ?")
+          .bind(caseRow.org_id)
+          .first<{ display_names_json: string }>();
+        const domains = (
+          await env.DB.prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'")
+            .bind(caseRow.org_id)
+            .all<{ domain: string }>()
+        ).results
+          .map((r) => registrable(r.domain))
+          .filter((d): d is string => d !== null);
+        const names = identity
+          ? (JSON.parse(identity.display_names_json) as string[]).filter((s) => s.trim().length > 0)
+          : [];
+        const primary = names[0];
+        if (
+          primary &&
+          domains.length > 0 &&
+          !table.brands.some((b) => b.name.toLowerCase() === primary.toLowerCase())
+        ) {
+          walkTable = {
+            ...table,
+            brands: [
+              ...table.brands,
+              {
+                name: primary,
+                display_names: names,
+                domains,
+                user_content: [],
+                sources: [
+                  {
+                    url: `https://${domains[0]}/`,
+                    read: "2026-11-02",
+                    names: domains,
+                    evidence: "Verified organisation domain",
+                  },
+                ],
+              },
+            ],
+          };
+        }
+      }
       return walkthroughStep(
         {
           db: env.DB,
@@ -216,7 +263,7 @@ export function pipelineDeps(env: Env): PipelineDeps {
           walk,
           resolve: dohResolve(),
           meta: { env, budget: d1Budget(env.DB, { caller: "walkthrough", caseId }) },
-          table,
+          table: walkTable,
           revision: env.CF_VERSION_METADATA?.id ?? null,
           walkId: () => ulid(),
         },
@@ -229,11 +276,17 @@ export function pipelineDeps(env: Env): PipelineDeps {
         budget: d1Budget(env.DB, { caller: "monitor" }),
         owner: { kind: "monitor" as const, run: "pipeline", host: "page", step: "logo" },
       };
-      const boxes = await segment(meta, dataUrl, "logo");
-      if (!boxes.length) return null;
+      const samBoxes = await segment(meta, dataUrl, "logo").catch(() => []);
       const browser = await puppeteer.launch(env.BROWSER);
       try {
-        const { crops } = await cropBoxes(browser, screenshot, boxes);
+        const size = await imageSize(browser, screenshot);
+        const boxes =
+          samBoxes.length > 0 || DETECTOR === "sam"
+            ? samBoxes
+            : await groundLogos({ ...meta, waitUntil: () => {} }, dataUrl, size);
+        const selected = selectBoxes(boxes, size);
+        if (!selected.length) return null;
+        const { crops } = await cropBoxes(browser, screenshot, selected);
         const crop = crops[0];
         return crop ? { bytes: crop.bytes, mediaType: "image/png", label: "the page's logo crop" } : null;
       } finally {

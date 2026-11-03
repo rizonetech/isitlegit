@@ -68,19 +68,41 @@ type CorpusItem = {
   referenceScreenPath: string;
 };
 
+type SegmentBox = {
+  concept: "logo" | "stamp" | "signature";
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  confidence: number | null;
+};
+
+type MetaBaseCtx = {
+  env: Record<string, string>;
+  budget: Budget;
+  fetch?: typeof fetch;
+  sleep?: (ms: number) => Promise<void>;
+  random?: () => number;
+};
+
 const qualityModuleUrl = new URL("../src/monitor/quality.ts", import.meta.url).href;
+const detectorModuleUrl = new URL("../src/vision/detector.ts", import.meta.url).href;
+const samModuleUrl = new URL("../src/vision/sam.ts", import.meta.url).href;
+
 const { evaluateMonitorCorpus, QualityCorpusSchema } = (await import(qualityModuleUrl)) as {
   evaluateMonitorCorpus: (
     corpus: unknown,
     deps: {
       createArmStorage: (arm: QualityArm) => Promise<unknown>;
       artefacts: {
-        loadReferenceLogo: (item: CorpusItem) => Promise<Uint8Array>;
+        loadReferenceLogo: (item: CorpusItem, meta?: MetaBaseCtx) => Promise<Uint8Array>;
         loadCandidateScreenshot: (item: CorpusItem) => Promise<Uint8Array | null>;
         loadCandidateText: (item: CorpusItem) => Promise<string>;
         cropCandidateLogo: (
           item: CorpusItem,
           screenshot: Uint8Array,
+          dataUrl: string,
+          meta: MetaBaseCtx,
         ) => Promise<{ bytes: Uint8Array; mediaType: string; label: string } | null>;
       };
       metaEnv: Record<string, string>;
@@ -91,6 +113,28 @@ const { evaluateMonitorCorpus, QualityCorpusSchema } = (await import(qualityModu
     },
   ) => Promise<{ complete: boolean; totalSpendUsd: number; stoppedReason?: string }>;
   QualityCorpusSchema: { parse: (raw: unknown) => unknown };
+};
+
+const { DETECTOR, groundLogos } = (await import(detectorModuleUrl)) as {
+  DETECTOR: "sam" | "grounding";
+  groundLogos: (
+    ctx: MetaBaseCtx & {
+      owner: { kind: "monitor"; run: string; host: string; step: string };
+      waitUntil: (p: Promise<unknown>) => void;
+    },
+    imageDataUrl: string,
+    size: { width: number; height: number },
+  ) => Promise<SegmentBox[]>;
+};
+
+const { CROP_PADDING_PX, segment, selectBoxes } = (await import(samModuleUrl)) as {
+  CROP_PADDING_PX: number;
+  segment: (
+    ctx: MetaBaseCtx & { owner: { kind: "monitor"; run: string; host: string; step: string } },
+    imageDataUrl: string,
+    concept: "logo",
+  ) => Promise<SegmentBox[]>;
+  selectBoxes: (boxes: readonly SegmentBox[], source?: { width: number; height: number }) => SegmentBox[];
 };
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -287,18 +331,38 @@ async function createArmStorage(_arm: QualityArm) {
   };
 }
 
-const cropCache = new Map<string, Uint8Array>();
-async function cropHeaderLogoPng(absPath: string): Promise<Uint8Array> {
-  const cached = cropCache.get(absPath);
-  if (cached) return cached;
-  const buf = await sharp(absPath).extract({ left: 32, top: 12, width: 320, height: 64 }).png().toBuffer();
-  const out = new Uint8Array(buf);
-  cropCache.set(absPath, out);
-  return out;
+const refLogoCache = new Map<string, Uint8Array>();
+
+async function detectAndCropLogo(
+  screenshot: Uint8Array,
+  dataUrl: string,
+  meta: MetaBaseCtx,
+): Promise<Uint8Array | null> {
+  const metadata = await sharp(screenshot).metadata();
+  const size = { width: metadata.width ?? 1280, height: metadata.height ?? 800 };
+  const owner = { kind: "monitor" as const, run: "quality", host: "page", step: "logo" };
+  const samBoxes = await segment({ ...meta, owner }, dataUrl, "logo").catch(() => []);
+  const boxes =
+    samBoxes.length > 0 || DETECTOR === "sam"
+      ? samBoxes
+      : await groundLogos({ ...meta, owner, waitUntil: () => {} }, dataUrl, size).catch(() => []);
+  const selected = selectBoxes(boxes, size);
+  const box = selected[0];
+  if (!box) return null;
+  const left = Math.max(0, box.left - CROP_PADDING_PX);
+  const top = Math.max(0, box.top - CROP_PADDING_PX);
+  const right = Math.min(size.width, box.right + CROP_PADDING_PX);
+  const bottom = Math.min(size.height, box.bottom + CROP_PADDING_PX);
+  if (right <= left || bottom <= top) return null;
+  const buf = await sharp(screenshot)
+    .extract({ left, top, width: right - left, height: bottom - top })
+    .png()
+    .toBuffer();
+  return new Uint8Array(buf);
 }
 
 async function main() {
-  let maxSpendUsd = 1.5;
+  let maxSpendUsd = 2.5;
   let outPath = join(ROOT, "data/monitor/quality-run.json");
   for (let i = 2; i < process.argv.length; i++) {
     const arg = process.argv[i];
@@ -308,8 +372,8 @@ async function main() {
       outPath = resolve(process.argv[++i] ?? outPath);
     }
   }
-  if (!Number.isFinite(maxSpendUsd) || maxSpendUsd <= 0 || maxSpendUsd > 2.0) {
-    throw new Error(`Invalid --cap-usd ${maxSpendUsd}: must be in (0, 2.00]`);
+  if (!Number.isFinite(maxSpendUsd) || maxSpendUsd <= 0 || maxSpendUsd > 3.0) {
+    throw new Error(`Invalid --cap-usd ${maxSpendUsd}: must be in (0, 3.00]`);
   }
 
   const devVars = loadDevVars();
@@ -399,17 +463,28 @@ async function main() {
         return createArmStorage(arm);
       },
       artefacts: {
-        loadReferenceLogo: async (item) => cropHeaderLogoPng(join(ROOT, item.referenceScreenPath)),
+        loadReferenceLogo: async (item, meta) => {
+          const abs = join(ROOT, item.referenceScreenPath);
+          const cached = refLogoCache.get(abs);
+          if (cached) return cached;
+          const raw = new Uint8Array(readFileSync(abs));
+          const b64 = Buffer.from(raw).toString("base64");
+          const detected = meta ? await detectAndCropLogo(raw, `data:image/jpeg;base64,${b64}`, meta) : null;
+          const out =
+            detected ??
+            new Uint8Array(await sharp(abs).extract({ left: 32, top: 12, width: 320, height: 64 }).png().toBuffer());
+          refLogoCache.set(abs, out);
+          return out;
+        },
         loadCandidateScreenshot: async (item) => {
           const p = join(ROOT, item.screenshotPath);
           return existsSync(p) ? new Uint8Array(readFileSync(p)) : null;
         },
         loadCandidateText: async (item) => readFileSync(join(ROOT, item.textPath), "utf-8"),
-        cropCandidateLogo: async (item) => ({
-          bytes: await cropHeaderLogoPng(join(ROOT, item.screenshotPath)),
-          mediaType: "image/png",
-          label: "the candidate page header mark",
-        }),
+        cropCandidateLogo: async (_item, screenshot, dataUrl, meta) => {
+          const bytes = await detectAndCropLogo(screenshot, dataUrl, meta);
+          return bytes ? { bytes, mediaType: "image/png", label: "the page's logo crop" } : null;
+        },
       },
       metaEnv,
       fetch: globalThis.fetch,

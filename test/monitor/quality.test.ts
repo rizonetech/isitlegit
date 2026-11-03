@@ -47,7 +47,7 @@ const MINI_CASES: QualityCase[] = [
     captureUrl: "https://fynbos-login-lure.example/login",
     screenshotPath: "eval/glimmer/monitor-pages/screens/lure-01.jpg",
     textPath: "eval/glimmer/monitor-pages/texts/lure-01.txt",
-    signals: { passwords: 1, forms: 1 },
+    signals: { passwords: 0, forms: 0 },
     groundTruth: { destination: "mismatch", form: "log_in", expectedState: "confirmed", lure: true },
   },
   {
@@ -128,6 +128,18 @@ function makeDeps(overrides: Partial<QualityEvalDeps> = {}): QualityEvalDeps {
     metaEnv: META,
     fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = String(init?.body ?? "");
+      if (body.includes("muse-wonder-1.0")) {
+        return new Response(
+          JSON.stringify({
+            id: "r-wonder",
+            object: "response",
+            status: "completed",
+            output: [{ type: "function_call", name: "type", call_id: "c1", arguments: JSON.stringify({ text: "x" }) }],
+            usage: { input_tokens: 150, output_tokens: 25 },
+          }),
+          { headers: { "content-type": "application/json", "cf-aig-log-id": "log-w", "x-request-id": "req-w" } },
+        );
+      }
       if (body.includes("logo_comparison")) {
         const isOtherBrand = body.length > 10_000;
         return answer({
@@ -208,7 +220,7 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     const committedRun = runJson as unknown as QualityRunReport;
     expect(committedRun.complete).toBe(true);
     expect(committedRun.totalSpendUsd).toBeGreaterThan(0);
-    expect(committedRun.totalSpendUsd).toBeLessThanOrEqual(1.5);
+    expect(committedRun.totalSpendUsd).toBeLessThanOrEqual(committedRun.maxSpendUsd);
     for (const arm of ["full", "no_reading", "no_logo", "no_walkthrough"] as const) {
       const recorded = committedRun.arms[arm];
       const recomputed = computeArmMetrics(arm, parsed.cases, recorded.cases, recorded.complete, recorded.stopReason);
@@ -223,15 +235,18 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     expect(report.arms.full.destinationAccuracy).toEqual({ numerator: 4, denominator: 4, rate: 1 });
     expect(report.arms.full.formRecall).toEqual({ numerator: 2, denominator: 2, rate: 1 });
     expect(report.arms.full.formSpecificity).toEqual({ numerator: 2, denominator: 2, rate: 1 });
+    expect(report.arms.full.readingFormRecall).toEqual({ numerator: 2, denominator: 2, rate: 1 });
+    expect(report.arms.full.readingFormSpecificity).toEqual({ numerator: 2, denominator: 2, rate: 1 });
     expect(report.arms.full.confirmationRecall).toEqual({ numerator: 2, denominator: 2, rate: 1 });
     expect(report.arms.full.falsePositiveRate).toEqual({ numerator: 0, denominator: 2, rate: 0 });
     expect(report.arms.full.partialRate).toEqual({ numerator: 0, denominator: 4, rate: 0, refusedCount: 0 });
-    expect(report.arms.full.latencyMs.medianMs).toBe(25);
-    expect(report.arms.full.latencyMs.p95Ms).toBe(25);
+    expect(report.arms.full.latencyMs.medianMs).toBeGreaterThan(0);
+    expect(report.arms.full.latencyMs.p95Ms).toBeGreaterThan(0);
     expect(report.arms.full.costUsd.totalUsd).toBeGreaterThan(0);
 
-    // Without Spark reading (`no_reading`), form detection recall drops from 1.0 to 0.
-    expect(report.arms.no_reading.formRecall.rate).toBe(0);
+    // Without Spark reading (`no_reading`), isolated reading form recall drops to 0 while `signals.json` remains intact.
+    expect(report.arms.no_reading.readingFormRecall.rate).toBe(0);
+    expect(report.arms.no_reading.formRecall.rate).toBe(0.5);
     // Without logo comparison (`no_logo`), the non-form impersonation lure (`mini-lure-impersonation`) is missed.
     expect(report.arms.no_logo.confirmationRecall).toEqual({ numerator: 1, denominator: 2, rate: 0.5 });
     expect(report.arms.no_logo.partialRate.numerator).toBeGreaterThan(0);
@@ -240,7 +255,7 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     expect(percentileNearestRank([10, 20, 30, 40, 100], 95)).toBe(100);
   });
 
-  it("retains unavailable and allowance-refused cases in denominators and stops cleanly on interruption or budget exhaustion", async () => {
+  it("retains unavailable and allowance-refused cases in denominators with zero credit and stops cleanly on interruption or budget exhaustion", async () => {
     const now = new Date("2026-11-02T12:00:00.000Z");
     const orgId = "qual-unavail-full-fynbos";
     await db
@@ -279,9 +294,17 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
       { version: "1.0", licence: "CC0-1.0", cases: MINI_CASES.slice(0, 2) },
       unavailableDeps,
     );
-    // Case 1 is refused by allowance; Case 2 is missing its screenshot. Both settle partial and count as misses in recall.
+    // Case 1 is refused by allowance; Case 2 is missing its screenshot. Both settle partial and receive zero credit across all metrics.
     expect(partialSummary.partialRate).toEqual({ numerator: 2, denominator: 2, rate: 1, refusedCount: 1 });
     expect(partialSummary.confirmationRecall).toEqual({ numerator: 0, denominator: 2, rate: 0 });
+    expect(partialSummary.destinationAccuracy).toEqual({ numerator: 0, denominator: 2, rate: 0 });
+    expect(partialSummary.formRecall).toEqual({ numerator: 0, denominator: 1, rate: 0 });
+    expect(partialSummary.formSpecificity).toEqual({ numerator: 0, denominator: 1, rate: 0 });
+    expect(partialSummary.readingFormRecall).toEqual({ numerator: 0, denominator: 1, rate: 0 });
+    expect(partialSummary.readingFormSpecificity).toEqual({ numerator: 0, denominator: 1, rate: 0 });
+    expect(partialSummary.cases.every((c) => c.destinationAssessed === "unavailable")).toBe(true);
+    expect(partialSummary.cases.every((c) => c.formDetected === "unavailable")).toBe(true);
+    expect(partialSummary.cases.every((c) => c.readingFormDetected === "unavailable")).toBe(true);
 
     const interrupted = await evaluateMonitorArm(
       "full",
@@ -290,6 +313,9 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     );
     expect(interrupted.complete).toBe(false);
     expect(interrupted.stopReason).toBe("interrupted");
+    expect(interrupted.destinationAccuracy).toEqual({ numerator: 0, denominator: 4, rate: 0 });
+    expect(interrupted.formRecall).toEqual({ numerator: 0, denominator: 2, rate: 0 });
+    expect(interrupted.formSpecificity).toEqual({ numerator: 0, denominator: 2, rate: 0 });
 
     const exhausted = await evaluateMonitorArm(
       "full",

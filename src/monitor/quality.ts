@@ -1,16 +1,22 @@
 // Monitor pipeline quality and ablation harness (D05 T04 §12): evaluates the production
 // `monitorPipeline` entrypoint across four isolated arms (`full`, `no_reading`, `no_logo`,
 // `no_walkthrough`) on the versioned monitor corpus (`data/monitor/quality-corpus.json`),
-// retaining partial and allowance-refused cases in end-to-end denominators while reporting
-// destination accuracy, form detection recall and specificity, confirmation recall and
-// false-positive rate, partial/refused counts, median and nearest-rank p95 latency, and
-// budget-enforced USD cost per investigation.
+// retaining partial, unavailable and allowance-refused cases in end-to-end denominators while
+// reporting destination accuracy, form detection recall and specificity (both end-to-end trigger
+// and isolated Spark reading), confirmation recall and false-positive rate, partial/refused counts,
+// median and nearest-rank p95 latency, and budget-enforced USD cost per investigation.
+import type { Browser } from "@cloudflare/puppeteer";
 import { z } from "zod";
-import { addEvidence, readEvidence } from "../checks/evidence";
+import { type BrandTable, bundled, registrable } from "../checks/brands";
+import { readEvidence } from "../checks/evidence";
 import type { Store } from "../intake/store";
-import type { MetaEnv } from "../meta/client";
+import { type MetaEnv, metaResponses } from "../meta/client";
 import type { Budget } from "../meta/guard";
+import { untrustedInstructions } from "../meta/untrusted";
 import type { LogoImage } from "../vision/logo-compare";
+import type { WalkRecord } from "../walkthrough/driver";
+import { kvCache, walkthroughStep } from "../walkthrough/trigger";
+import { bounded, GOAL, MAX_OUTPUT_TOKENS, MODEL, wonderTools } from "../walkthrough/wonder";
 import { monitorPipeline, type PipelineDeps, parseAllowanceRefusal } from "./pipeline";
 
 export const QualityCaseSchema = z.object({
@@ -50,8 +56,9 @@ export type CaseObservation = {
   arm: QualityArm;
   state: "confirmed" | "unconfirmed" | "partial";
   refusedByAllowance: boolean;
-  destinationAssessed: "official" | "mismatch" | null;
-  formDetected: "log_in" | "pay" | "none";
+  destinationAssessed: "official" | "mismatch" | "unavailable";
+  formDetected: "log_in" | "pay" | "none" | "unavailable";
+  readingFormDetected: "log_in" | "pay" | "none" | "unavailable";
   latencyMs: number;
   costUsd: number;
 };
@@ -71,6 +78,8 @@ export type ArmSummary = {
   destinationAccuracy: RateMetric;
   formRecall: RateMetric;
   formSpecificity: RateMetric;
+  readingFormRecall: RateMetric;
+  readingFormSpecificity: RateMetric;
   confirmationRecall: RateMetric;
   falsePositiveRate: RateMetric;
   partialRate: RateMetric & { refusedCount: number };
@@ -82,6 +91,8 @@ export type ArmSummary = {
 export type AblationDelta = {
   formRecallDelta: number;
   formSpecificityDelta: number;
+  readingFormRecallDelta: number;
+  readingFormSpecificityDelta: number;
   confirmationRecallDelta: number;
   falsePositiveRateDelta: number;
   partialRateDelta: number;
@@ -106,10 +117,15 @@ export type ArmStorage = {
 };
 
 export type QualityArtefactLoader = {
-  loadReferenceLogo: (item: QualityCase) => Promise<Uint8Array>;
+  loadReferenceLogo: (item: QualityCase, meta?: PipelineDeps["meta"]) => Promise<Uint8Array>;
   loadCandidateScreenshot: (item: QualityCase) => Promise<Uint8Array | null>;
   loadCandidateText: (item: QualityCase) => Promise<string>;
-  cropCandidateLogo: (item: QualityCase, screenshot: Uint8Array) => Promise<LogoImage | null>;
+  cropCandidateLogo: (
+    item: QualityCase,
+    screenshot: Uint8Array,
+    dataUrl: string,
+    meta: PipelineDeps["meta"],
+  ) => Promise<LogoImage | null>;
 };
 
 export type QualityEvalDeps = {
@@ -127,6 +143,14 @@ export type QualityEvalDeps = {
 
 const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
 const round6 = (n: number): number => Math.round(n * 1_000_000) / 1_000_000;
+
+const toBase64 = (bytes: Uint8Array): string => {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(out);
+};
 
 export function percentileNearestRank(values: number[], p: number): number {
   if (values.length === 0) return 0;
@@ -156,8 +180,10 @@ export function computeArmMetrics(
   let destMatched = 0;
   let sensitiveFormsTotal = 0;
   let sensitiveFormsDetected = 0;
+  let readingSensitiveFormsDetected = 0;
   let noneFormsTotal = 0;
   let noneFormsCorrect = 0;
+  let readingNoneFormsCorrect = 0;
   let totalLures = 0;
   let confirmedLures = 0;
   let totalBenign = 0;
@@ -171,19 +197,22 @@ export function computeArmMetrics(
     if (state === "partial") partialCount++;
     if (obs?.refusedByAllowance) refusedCount++;
 
+    // Unavailable or unevaluated cases receive no accuracy credit while remaining in denominators.
     if (obs?.destinationAssessed === item.groundTruth.destination) destMatched++;
 
     if (item.groundTruth.form === "log_in" || item.groundTruth.form === "pay") {
       sensitiveFormsTotal++;
       if (obs?.formDetected === item.groundTruth.form) sensitiveFormsDetected++;
+      if (obs?.readingFormDetected === item.groundTruth.form) readingSensitiveFormsDetected++;
     } else {
       noneFormsTotal++;
-      if ((obs?.formDetected ?? "none") === "none") noneFormsCorrect++;
+      if (obs?.formDetected === "none") noneFormsCorrect++;
+      if (obs?.readingFormDetected === "none") readingNoneFormsCorrect++;
     }
 
     if (item.groundTruth.lure) {
       totalLures++;
-      // Partial or refused lures remain in the denominator and count as unconfirmed misses.
+      // Partial, unavailable, or refused lures remain in the denominator and count as unconfirmed misses.
       if (state === "confirmed") confirmedLures++;
     } else {
       totalBenign++;
@@ -210,6 +239,8 @@ export function computeArmMetrics(
     destinationAccuracy: rate(destMatched, totalCorpusCases),
     formRecall: rate(sensitiveFormsDetected, sensitiveFormsTotal),
     formSpecificity: rate(noneFormsCorrect, noneFormsTotal),
+    readingFormRecall: rate(readingSensitiveFormsDetected, sensitiveFormsTotal),
+    readingFormSpecificity: rate(readingNoneFormsCorrect, noneFormsTotal),
     confirmationRecall: rate(confirmedLures, totalLures),
     falsePositiveRate: rate(falsePositives, totalBenign),
     partialRate: { ...rate(partialCount, totalCorpusCases), refusedCount },
@@ -310,7 +341,39 @@ export async function evaluateMonitorArm(
       .bind(`addr-${orgId}`, orgId, `accounts@${item.verifiedDomain}`, atIso, atIso)
       .run();
 
-    const refLogoBytes = await deps.artefacts.loadReferenceLogo(item);
+    const beforeUsd = deps.budget.spentUsd();
+    const startMs = clockMs();
+    let budgetStopped = false;
+
+    const guardedBudget: Budget = {
+      ...deps.budget,
+      reserve: async (model, estimateUsd, attempt, id, call) => {
+        if (deps.budget.spentUsd() + estimateUsd > deps.maxSpendUsd) {
+          budgetStopped = true;
+          throw new Error("quality budget cap reached");
+        }
+        return deps.budget.reserve(model, estimateUsd, attempt, id, call);
+      },
+    };
+
+    const guardedFetch: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (deps.budget.spentUsd() >= deps.maxSpendUsd) {
+        budgetStopped = true;
+        throw new Error("quality budget cap reached");
+      }
+      const targetFetch = arm === "no_reading" ? emptyReadingFetch(deps.fetch) : deps.fetch;
+      return targetFetch(input, init);
+    }) as typeof fetch;
+
+    const metaCtx: PipelineDeps["meta"] = {
+      env: deps.metaEnv,
+      budget: guardedBudget,
+      random: () => 0.5,
+      sleep: async () => {},
+      fetch: guardedFetch,
+    };
+
+    const refLogoBytes = await deps.artefacts.loadReferenceLogo(item, metaCtx);
     const refLogoKey = `ident/${orgId}/logo.png`;
     await storage.bucket.put(refLogoKey, refLogoBytes);
     await storage.db
@@ -329,10 +392,8 @@ export async function evaluateMonitorArm(
     }
     const candidateText = await deps.artefacts.loadCandidateText(item);
     await storage.bucket.put(`${captureKey}text.txt`, candidateText);
-    // In `no_reading`, omit DOM form fallback so Spark reading's contribution to form detection is isolated.
-    if (arm !== "no_reading") {
-      await storage.bucket.put(`${captureKey}signals.json`, JSON.stringify(item.signals));
-    }
+    // Preserve identical capture signals across all arms so `no_reading` isolates Spark reading alone.
+    await storage.bucket.put(`${captureKey}signals.json`, JSON.stringify(item.signals));
 
     await storage.db
       .prepare(
@@ -358,74 +419,158 @@ export async function evaluateMonitorArm(
       )
       .run();
 
-    const beforeUsd = deps.budget.spentUsd();
-    const startMs = clockMs();
-    let budgetStopped = false;
-
-    const guardedBudget: Budget = {
-      ...deps.budget,
-      reserve: async (model, estimateUsd, attempt, id, call) => {
-        if (deps.budget.spentUsd() + estimateUsd > deps.maxSpendUsd) {
-          budgetStopped = true;
-          throw new Error("quality budget cap reached");
-        }
-        return deps.budget.reserve(model, estimateUsd, attempt, id, call);
-      },
-    };
-
-    const guardedFetch: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (deps.budget.spentUsd() >= deps.maxSpendUsd) {
-        budgetStopped = true;
-        throw new Error("quality budget cap reached");
-      }
-      const targetFetch = arm === "no_reading" ? emptyReadingFetch(deps.fetch) : deps.fetch;
-      return targetFetch(input, init);
-    }) as typeof fetch;
-
     const pipelineDeps: PipelineDeps = {
       db: storage.db,
       bucket: storage.bucket,
       store: storage.store,
       kv: storage.kv,
-      meta: {
-        env: deps.metaEnv,
-        budget: guardedBudget,
-        random: () => 0.5,
-        sleep: async () => {},
-        fetch: guardedFetch,
-      },
+      meta: metaCtx,
       cropLogo:
-        arm === "no_logo" ? async () => null : async (screenshot) => deps.artefacts.cropCandidateLogo(item, screenshot),
+        arm === "no_logo"
+          ? async () => null
+          : async (screenshot, dataUrl) => deps.artefacts.cropCandidateLogo(item, screenshot, dataUrl, metaCtx),
       walk: async (caseId: string) => {
         if (arm === "no_walkthrough") return { outcome: "walked" };
-        // In arms with walkthrough active, when a credential or card form trigger was recorded,
-        // inspect the page's destination against the organisation's verified domain: a lookalike
-        // login/payment form on a mismatch host produces a high-severity walkthrough finding,
-        // while an official login page produces an informational observation only.
-        const existingEvidence = await readEvidence(storage.db, caseId);
-        const hasCredentialForm = existingEvidence.some((e) => e.check === "link.credential_form");
-        const hasCardForm = existingEvidence.some((e) => e.check === "link.card_form");
-        if (!hasCredentialForm && !hasCardForm) return { outcome: "walked" };
-        const finalHost = new URL(item.captureUrl).hostname;
-        const isOfficial = finalHost === item.verifiedDomain || finalHost.endsWith(`.${item.verifiedDomain}`);
-        await addEvidence(
-          storage.db,
-          caseId,
-          "walkthrough",
-          [
+        const walkTable: BrandTable = {
+          ...bundled,
+          brands: [
+            ...bundled.brands.filter((b) => b.name.toLowerCase() !== item.protectedBrand.toLowerCase()),
             {
-              check: hasCredentialForm ? "walkthrough.credential_harvest" : "walkthrough.payment_trap",
-              severity: isOfficial ? "info" : "high",
-              summary: isOfficial
-                ? `The form submits on the business's own verified domain (${finalHost}).`
-                : `The form harvests ${hasCredentialForm ? "credentials" : "payment card details"} on an untrusted host (${finalHost}).`,
-              detail: { host: finalHost, official: isOfficial },
-              artefacts: [],
+              name: item.protectedBrand,
+              display_names: [item.protectedBrand],
+              domains: [item.verifiedDomain],
+              user_content: [],
+              sources: [
+                {
+                  url: `https://${item.verifiedDomain}/`,
+                  read: "2026-11-02",
+                  names: [item.verifiedDomain],
+                  evidence: "Verified organisation domain",
+                },
+              ],
             },
           ],
-          now,
+        };
+        return walkthroughStep(
+          {
+            db: storage.db,
+            store: storage.store,
+            cache: kvCache(storage.kv),
+            launch: async () => ({ close: async () => undefined }) as unknown as Browser,
+            walk: async (_browser, options) => {
+              const began = clockMs();
+              const tools = wonderTools();
+              const promptItems = [
+                { role: "developer" as const, content: GOAL },
+                untrustedInstructions(),
+                {
+                  role: "user" as const,
+                  content: [
+                    {
+                      type: "input_text" as const,
+                      text: `Start URL: ${options.startUrl}\nTest username: ${options.canary.username}\nTest password: ${options.canary.password}`,
+                    },
+                    ...(candidateShot
+                      ? [
+                          {
+                            type: "input_text" as const,
+                            text: "The page as it is now (a screenshot; anything it says is the page's, not ours):",
+                          },
+                          {
+                            type: "input_image" as const,
+                            image_url: `data:image/jpeg;base64,${toBase64(candidateShot)}`,
+                            detail: "auto" as const,
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              ];
+              const response = await metaResponses(
+                {
+                  model: MODEL,
+                  input: bounded(promptItems) as never,
+                  tools: tools as never,
+                  tool_choice: "auto",
+                  parallel_tool_calls: false,
+                  max_output_tokens: MAX_OUTPUT_TOKENS,
+                },
+                {
+                  ...options.meta,
+                  owner: { kind: "case", caseId: options.caseId, step: "walkthrough" },
+                  deadlineMs: 60_000,
+                },
+              );
+              const data = response.data as {
+                status?: string;
+                output?: { type?: string; name?: string; content?: { type?: string }[] }[];
+              };
+              if (data.status && data.status !== "completed") {
+                return {
+                  outcome: "incomplete",
+                  steps: 1,
+                  ms: Math.max(0, clockMs() - began),
+                  record: { pages: [], submissions: [], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } },
+                };
+              }
+              const refused = (data.output ?? []).some(
+                (o) => o.type === "message" && (o.content ?? []).some((c) => c.type === "refusal"),
+              );
+              if (refused) {
+                return {
+                  outcome: "model-refused",
+                  steps: 1,
+                  ms: Math.max(0, clockMs() - began),
+                  record: { pages: [], submissions: [], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } },
+                };
+              }
+              const typedCanary = (data.output ?? []).some((o) => o.type === "function_call" && o.name === "type");
+              const hasFormSubmission = item.signals.passwords > 0 || item.signals.forms > 0 || typedCanary;
+              const submitDomain = registrable(new URL(options.startUrl).hostname);
+              const record: WalkRecord = {
+                pages: [
+                  {
+                    seq: 1,
+                    url: options.startUrl,
+                    screenshotKey: null,
+                    began: 1,
+                    asksPassword: item.signals.passwords > 0,
+                    failure: false,
+                  },
+                ],
+                submissions: hasFormSubmission
+                  ? [
+                      {
+                        seq: 2,
+                        fromPage: 1,
+                        url: options.startUrl,
+                        domain: submitDomain,
+                        method: "POST",
+                        fields: item.signals.passwords > 0 ? ["username", "password"] : ["card"],
+                        state: "delivered",
+                        status: 200,
+                        deliveredAt: 2,
+                      },
+                    ]
+                  : [],
+                hidden: [],
+                omitted: { pages: 0, submissions: 0, hidden: 0 },
+              };
+              return {
+                outcome: "finished",
+                steps: 1,
+                ms: Math.max(0, clockMs() - began),
+                record,
+              };
+            },
+            resolve: async () => ["93.184.215.14"],
+            meta: metaCtx,
+            table: walkTable,
+            revision: null,
+            walkId: () => `walk-${arm}-${item.id}`,
+          },
+          caseId,
         );
-        return { outcome: "walked" };
       },
       now,
     };
@@ -451,20 +596,36 @@ export async function evaluateMonitorArm(
     const refusedByAllowance = parseAllowanceRefusal(inv?.evidence_refs ?? null) !== null;
     const ev = inv?.case_id ? await readEvidence(storage.db, inv.case_id) : [];
 
+    // Destination and form assessments are read strictly from persisted case evidence; unavailable
+    // investigations (refused by allowance, missing screenshot, failed reading) remain "unavailable".
     const logoEv = ev.find((e) => e.check === "vision.logo_match");
     const logoDetail = (logoEv?.detail ?? {}) as { domain?: "official" | "mismatch" };
-    const finalHost = new URL(item.captureUrl).hostname;
-    const fallbackDest: "official" | "mismatch" =
-      finalHost === item.verifiedDomain || finalHost.endsWith(`.${item.verifiedDomain}`) ? "official" : "mismatch";
-    const destinationAssessed: "official" | "mismatch" | null = inv?.case_id
-      ? (logoDetail.domain ?? fallbackDest)
-      : null;
+    const lookalikeEv = ev.find((e) => e.check === "domain.lookalike");
+    const lookalikeDetail = (lookalikeEv?.detail ?? {}) as { judgement?: "official" | "mismatch" };
+    const destinationAssessed: "official" | "mismatch" | "unavailable" =
+      logoDetail.domain ?? lookalikeDetail.judgement ?? "unavailable";
 
-    const formDetected: "log_in" | "pay" | "none" = ev.some((e) => e.check === "link.credential_form")
-      ? "log_in"
-      : ev.some((e) => e.check === "link.card_form")
-        ? "pay"
-        : "none";
+    const assessmentUnavailable =
+      refusedByAllowance || !inv?.case_id || ev.some((e) => e.check === "vision.not_checked");
+
+    const formDetected: "log_in" | "pay" | "none" | "unavailable" = assessmentUnavailable
+      ? "unavailable"
+      : ev.some((e) => e.check === "link.credential_form")
+        ? "log_in"
+        : ev.some((e) => e.check === "link.card_form")
+          ? "pay"
+          : "none";
+
+    const readingAction = (
+      ev.find((e) => e.check === "vision.requested_action")?.detail as { action?: string } | undefined
+    )?.action;
+    const readingFormDetected: "log_in" | "pay" | "none" | "unavailable" = assessmentUnavailable
+      ? "unavailable"
+      : readingAction === "log_in"
+        ? "log_in"
+        : readingAction === "pay"
+          ? "pay"
+          : "none";
 
     observations.push({
       id: item.id,
@@ -473,6 +634,7 @@ export async function evaluateMonitorArm(
       refusedByAllowance,
       destinationAssessed,
       formDetected,
+      readingFormDetected,
       latencyMs: elapsedMs,
       costUsd: deltaUsd,
     });
@@ -493,6 +655,8 @@ export function computeAblationDeltas(
     out[arm] = {
       formRecallDelta: round4(sub.formRecall.rate - full.formRecall.rate),
       formSpecificityDelta: round4(sub.formSpecificity.rate - full.formSpecificity.rate),
+      readingFormRecallDelta: round4(sub.readingFormRecall.rate - full.readingFormRecall.rate),
+      readingFormSpecificityDelta: round4(sub.readingFormSpecificity.rate - full.readingFormSpecificity.rate),
       confirmationRecallDelta: round4(sub.confirmationRecall.rate - full.confirmationRecall.rate),
       falsePositiveRateDelta: round4(sub.falsePositiveRate.rate - full.falsePositiveRate.rate),
       partialRateDelta: round4(sub.partialRate.rate - full.partialRate.rate),
