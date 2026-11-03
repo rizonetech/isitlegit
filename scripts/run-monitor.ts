@@ -21,9 +21,7 @@ export function findingSatisfied(
   startedAtIso: string,
 ): boolean {
   return (
-    finding?.host === FIXTURE_HOST &&
-    investigation?.state === "confirmed" &&
-    investigation.updated_at >= startedAtIso
+    finding?.host === FIXTURE_HOST && investigation?.state === "confirmed" && investigation.updated_at >= startedAtIso
   );
 }
 
@@ -63,7 +61,9 @@ async function main(): Promise<void> {
   const deadline = Date.now() + waitSeconds * 1000;
   let status = "";
   while (Date.now() < deadline) {
-    const res = await api(`/accounts/${account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(id)}/status`);
+    const res = await api(
+      `/accounts/${account}/workflows/isitlegit-monitor/instances/${encodeURIComponent(id)}/status`,
+    );
     if (res.ok) {
       const body = (await res.json()) as { result?: { status?: string } };
       status = body.result?.status ?? "";
@@ -93,14 +93,22 @@ async function main(): Promise<void> {
     const body = (await res.json()) as { result?: { results?: Record<string, string>[] }[] };
     return body.result?.[0]?.results ?? [];
   };
-  const findings = await query("SELECT host FROM monitor_findings WHERE org_id = ? AND host = ?", [orgId, FIXTURE_HOST]);
+  const findings = await query("SELECT host FROM monitor_findings WHERE org_id = ? AND host = ?", [
+    orgId,
+    FIXTURE_HOST,
+  ]);
   const investigations = await query(
     "SELECT state, updated_at FROM monitor_investigations WHERE org_id = ? AND domain = ? ORDER BY updated_at DESC LIMIT 1",
     [orgId, FIXTURE_HOST],
   );
   const ok = findingSatisfied(findings[0] ?? null, investigations[0] ?? null, startedAt);
   console.log(
-    JSON.stringify({ event: "run-monitor", instance: id, finding: findings.length > 0, investigation: investigations[0]?.state ?? null }),
+    JSON.stringify({
+      event: "run-monitor",
+      instance: id,
+      finding: findings.length > 0,
+      investigation: investigations[0]?.state ?? null,
+    }),
   );
   process.exit(ok ? 0 : 1);
 }
