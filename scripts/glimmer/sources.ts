@@ -369,7 +369,7 @@ export function reconcile(input: {
                 problems.push(`${row.source}: ITEMS.import.jsonl does not match rows.jsonl items or input digests`);
             }
             const pageById = new Map(stored.map((p) => [p.id, p]));
-            const itemToPageId = new Map<string, { pageId: string; input?: string }>();
+            const itemToPageId = new Map<string, { pageId: string; input?: string | undefined }>();
             for (const page of stored) {
               const lineage = page.items?.length
                 ? page.items
