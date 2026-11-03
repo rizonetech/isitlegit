@@ -1,0 +1,110 @@
+{
+  "ref": "D04 T01 \u00a77",
+  "title": "Prompt Guard as a second classifier",
+  "implementation_sha": "0c9f1903f82f84f05fd34e756545578d68988409",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T01-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/agent/prompt-guard.test.ts -> 1 passed",
+    "Workers AI catalogue read 2026-11-02 -> Llama Guard 3 only, no Prompt Guard model"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T01-s7.md",
+    "verdict": "complete",
+    "candidate": "0c9f1903f82f84f05fd34e756545578d68988409",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T01-s7.md",
+    "candidate": "cd09830d4ea47d6e6fb9b0f945ac507bc8eb8430",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
