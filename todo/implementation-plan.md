@@ -509,7 +509,7 @@ Sections: 197 | Checklist items: 837
 | [x]    | D07 T02 §25 | Same-device other-browser                                   | none                 | 5     |
 | [x]    | D07 T02 §26 | Export and fresh sign-in before closure                     | none                 | 5     |
 | [ ]    | D07 T02 §27 | Close account control on the Account board                  | operator             | 4     |
-| [ ]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
+| [x]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
 | [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 4     |
@@ -631,6 +631,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 351/555 verified sections, 131 ready to run now.
+Progress: 352/555 verified sections, 131 ready to run now.
 
-Checklist: 2710/3449 items completed (includes Commit items).
+Checklist: 2711/3449 items completed (includes Commit items).

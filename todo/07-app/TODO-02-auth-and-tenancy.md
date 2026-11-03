@@ -62,7 +62,7 @@ track: day-1
 | 25 | §25 | Same-device other-browser | §12 | [x] |
 | 26 | §26 | Export and fresh sign-in before closure | §9 | [x] |
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
-| 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [ ] |
+| 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [x] |
 | 29 | §29 | Undo window after closing an organisation | §9, §26 | [ ] |
 | 30 | §30 | Passkey compatibility and second-line causes | §28 | [ ] |
 
@@ -1032,11 +1032,14 @@ The passkey prompt names the cross-device steps but offers no help when they fai
 - [x] Draw the note in the `PasskeyPrompt` panel (`src/web/pages/signin.tsx`) beside the cross-device sentence, each cause with its action. Done when: the rendered prompt names each cause and action at phone width in both themes. Cheaper substitute: hiding it behind the email recovery, where a stuck member never looks.
 - [x] Keep the note reachable after cancellation or failure: when the ceremony ends without signing in, the sign-in page shows the same note with the failure reason (`src/web/client/app.ts` `passkeyEnded`), the passkey retry and the email route still offered. Done when: the browser test cancels the ceremony, reads each cause and action, and completes the email recovery by keyboard. Cheaper substitute: help that vanishes with the browser's own dialog, exactly when it is needed.
 - [x] Prove it in `test/node/passkey-signin-browser.test.tsx`: the panel names each cause with its action, and after a cancelled ceremony the note and the email recovery still work. Done when: the test passes and fails with the note or any remedy removed.
-- [ ] Commit: `web: passkey troubleshooting on the sign-in page`
+- [x] Commit: `web: passkey troubleshooting on the sign-in page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
 
 > **Deferred:** verified compatibility guidance and the second-line causes (a passkey store not set up, a private-browsing window) -> XREF: D07 T02 §30. Deferred 2026-11-03 from §28's completion review.
+
+> **Verified:** 2026-11-03 | §28 | 51121f93725b2098065538fa101e79a58aa51158
+> **Review:** `docs/reviews/d07-t02-s28.json`
 
 ## 29. Undo window after closing an organisation
 
