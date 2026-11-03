@@ -37,7 +37,7 @@ track: day-6
 | 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [x] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [x] |
 | 6 | §6 | Demo lookalike site found by | §5 | [ ] |
-| 7 | §7 | Certificate-transparency search for | §5 | [ ] |
+| 7 | §7 | Certificate-transparency search for | §5 | [x] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
 | 10 | §10 | Findings exported to | §5 | [ ] |
@@ -252,12 +252,15 @@ New certificates whose names contain the business's brand tokens reveal lookalik
 1. Query a certificate-transparency search source daily for brand tokens. Done when: new matching names join the candidate list.
 
 - [x] Choose a CT search source whose terms allow our use (crt.sh or a commercial API), record its terms in `NOTICE.md`, and query it for each brand token. Done when: `test/monitor/ct.test.ts` with a stubbed response adds new names.
-- [ ] Commit: `monitor: certificate-transparency search`
+- [x] Commit: `monitor: certificate-transparency search`
 
 **Corrected 2026-11-03** (plan review, 6 P2, `docs/reviews/05-trust/D05-T04-s7.md`): crt.sh is the source (its terms recorded in `NOTICE.md`). (0) The source is crt.sh. It publishes no licence or terms text for its search interface (visited 2026-11-03, recorded in `NOTICE.md`); the section's terms requirement is met by the operator's standing choice of a public search interface at daily volume, and a commercial CT API replaces it if the operator ever learns the use is not permitted. (1) Brand tokens derive from the identity's display names and verified domain labels: normalised words of at least four characters and domain first labels, deduped, at most 8 per organisation; no usable token means no CT query and no error. (2) Each query is bounded in time (10 seconds), in bytes read (streamed, 1 MiB), and in records read (5000); names are split, wildcards stripped, lowercased and validated as hostnames. (3) A failed token states itself on the run (partial, never a fatal failure and never zero matches), ordinary monitoring continues, and the next day retries. (4) CT names merge before the generated candidates inside the shared 300 cap, canonical-deduped, with the organisation's own domains and their subdomains excluded. (5) The daily hook is a `ct` dependency on the monitor deps, called after eligibility and before merging and DNS, so an ineligible organisation makes no CT request; the stubbed test drives that path to a stored DNS observation. (6) A discovery persists as a `monitor_hosts` row from its first DNS observation, and later runs keep resolving known hosts that match a brand token, so an empty or failed later response never loses a discovery.
 
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/ct.test.ts` passes.
+
+> **Verified:** 2026-11-03 | §7 | 9850c411d763d6961ea50867a486c60ea8197eab
+> **Review:** `docs/reviews/d05-t04-s7.json`
 
 
 ## 8. Daily re-screen of live candidates

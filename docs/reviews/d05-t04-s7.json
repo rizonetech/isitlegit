@@ -1,0 +1,126 @@
+{
+  "ref": "D05 T04 \u00a77",
+  "title": "Certificate-transparency search for",
+  "implementation_sha": "9850c411d763d6961ea50867a486c60ea8197eab",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/05-trust/D05-T04-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/05-trust/D05-T04-s7.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 3 pnpm exec vitest run test/monitor/ct.test.ts test/monitor/cron.test.ts -> 33 passed",
+    "pnpm exec tsc --noEmit -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T04-s7-completion.md",
+    "verdict": "completed",
+    "candidate": "9850c411d763d6961ea50867a486c60ea8197eab",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "cap_outcome": "Round 4 HIGHEST P3: the saturated-coverage regression test is added in the stamp candidate",
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T04-s7.md",
+    "candidate": "1877c06316c87c53a86ef72cbebf2c194bea51c9",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

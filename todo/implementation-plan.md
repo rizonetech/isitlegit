@@ -482,7 +482,7 @@ Sections: 189 | Checklist items: 813
 | [x]    | D05 T04 §4  | Full pipeline on                                 | meta-api, cloudflare | 9     |
 | [x]    | D05 T04 §5  | Monitor alerts and takedown pack                 | none                 | 9     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by                     | cloudflare           | 4     |
-| [ ]    | D05 T04 §7  | Certificate-transparency search for              | none                 | 2     |
+| [x]    | D05 T04 §7  | Certificate-transparency search for              | none                 | 2     |
 | [ ]    | D05 T04 §10 | Findings exported to                             | cloudflare           | 7     |
 | [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture            | cloudflare           | 4     |
 | [ ]    | D05 T04 §12 | Monitor case allowance and quality               | meta-api             | 3     |
@@ -623,6 +623,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 340/547 verified sections, 140 ready to run now.
+Progress: 341/547 verified sections, 139 ready to run now.
 
-Checklist: 2695/3430 items completed (includes Commit items).
+Checklist: 2696/3430 items completed (includes Commit items).
