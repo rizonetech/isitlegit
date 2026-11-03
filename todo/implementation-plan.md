@@ -451,7 +451,7 @@ Sections: 192 | Checklist items: 815
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                               | cloudflare           | 3     |
 | [ ]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                                     | attended             | 4     |
-| [ ]    | D03 T03 §4  | Logo recall check and detector choice                       | meta-api             | 7     |
+| [x]    | D03 T03 §4  | Logo recall check and detector choice                       | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                                    | cloudflare           | 5     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads                        | none                 | 14    |
 | [x]    | D03 T04 §19 | Sample redaction beyond the dictionary                      | none                 | 8     |
@@ -468,15 +468,15 @@ Sections: 192 | Checklist items: 815
 | [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 3     |
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version                      | none                 | 2     |
 | [ ]    | D03 T04 §44 | Twelve to seventeen thousand more training pages            | none                 | 5     |
-| [ ]    | D04 T01 §6  | Prompt-injection fixture suite                              | none                 | 5     |
-| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier                         | cloudflare           | 4     |
+| [x]    | D04 T01 §6  | Prompt-injection fixture suite                              | none                 | 5     |
+| [x]    | D04 T01 §7  | Prompt Guard as a second classifier                         | cloudflare           | 4     |
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict                         | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                                    | none                 | 3     |
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict                    | none                 | 4     |
 | [x]    | D04 T01 §12 | Bank-change action with the ledger phone                    | none                 | 5     |
 | [x]    | D04 T01 §13 | Floor record provenance and coverage state                  | none                 | 3     |
 | [ ]    | D04 T01 §15 | Fixed action on every critical invoice item                 | none                 | 3     |
-| [ ]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
+| [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
 | [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
@@ -627,6 +627,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 347/551 verified sections, 134 ready to run now.
+Progress: 351/551 verified sections, 132 ready to run now.
 
-Checklist: 2702/3435 items completed (includes Commit items).
+Checklist: 2723/3435 items completed (includes Commit items).

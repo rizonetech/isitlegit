@@ -110,10 +110,16 @@ export function imageInfo(bytes: Uint8Array): ImageInfo | null {
 
 export const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-export function logoKey(generation: string, slug: string, type: MediaType): string {
+export function logoKey(
+  generation: string,
+  slug: string,
+  type: MediaType,
+  variant: "wordmark" | "icon" = "wordmark",
+): string {
   if (!GENERATION.test(generation)) throw new LoadRefused(`not a generation stamp: ${JSON.stringify(generation)}`);
   if (!SLUG.test(slug)) throw new LoadRefused(`not a slug: ${JSON.stringify(slug)}`);
-  return `${PREFIX}${generation}/${slug}.${EXTENSION[type]}`;
+  // The wordmark keeps the first generations' key shape; a second variant is named beside it.
+  return `${PREFIX}${generation}/${slug}${variant === "icon" ? "-icon" : ""}.${EXTENSION[type]}`;
 }
 
 export const generationOf = (date: Date) =>
@@ -136,6 +142,8 @@ export const SelectorTable = z.strictObject({
       selector: z.string().min(1),
       // Scales a small vector logo up (CSS transform) so it reaches the 256 px floor without upscaling pixels.
       zoom: z.number().min(1).max(4).optional(),
+      // Which reference this row captures (D03 T03 §5): absent is the wordmark; a brand may add an icon row.
+      variant: z.enum(["wordmark", "icon"]).optional(),
     }),
   ),
 });
@@ -156,6 +164,8 @@ const Logo = z.strictObject({
   height: z.int().positive(),
   sha256: z.string().regex(/^[0-9a-f]{64}$/),
   fictional: z.boolean(),
+  // The reference's variant (D03 T03 §5); absent on generations published before variants, read as wordmark.
+  variant: z.enum(["wordmark", "icon"]).optional(),
 });
 export type Logo = z.infer<typeof Logo>;
 
@@ -172,14 +182,16 @@ export const LogoIndex = z
     for (const logo of index.logos) {
       if (Math.max(logo.width, logo.height) < MIN_SIDE)
         ctx.addIssue({ code: "custom", message: `${logo.slug} is under ${MIN_SIDE} px on its longer side` });
-      if (seen.has(logo.slug)) ctx.addIssue({ code: "custom", message: `${logo.slug} is listed twice` });
-      seen.add(logo.slug);
-      if (logo.key !== logoKey(index.generation, logo.slug, logo.media_type))
+      const identity = `${logo.slug}:${logo.variant ?? "wordmark"}`;
+      if (seen.has(identity)) ctx.addIssue({ code: "custom", message: `${identity} is listed twice` });
+      seen.add(identity);
+      if (logo.key !== logoKey(index.generation, logo.slug, logo.media_type, logo.variant ?? "wordmark"))
         ctx.addIssue({ code: "custom", message: `${logo.slug}'s key is not in generation ${index.generation}` });
     }
+    const storedSlugs = new Set(index.logos.map((logo) => logo.slug));
     for (const gone of index.missing) {
-      if (seen.has(gone.slug)) ctx.addIssue({ code: "custom", message: `${gone.slug} is both stored and missing` });
-      seen.add(gone.slug);
+      if (storedSlugs.has(gone.slug))
+        ctx.addIssue({ code: "custom", message: `${gone.slug} is both stored and missing` });
     }
   });
 export type LogoIndex = z.infer<typeof LogoIndex>;
@@ -195,14 +207,22 @@ export const slugOf = (name: string) =>
 // Every real brand exactly once across `logos` and `missing`; the real logos counted apart from the fictional ones.
 export function coverage(index: LogoIndex, brands: string[]): { real: number; fictional: number; missing: number } {
   const real = index.logos.filter((l) => !l.fictional);
-  const listed = [...real.map((l) => l.brand), ...index.missing.map((m) => m.brand)];
+  // A brand counts once however many variants it holds (D03 T03 §5); it is missing only with no logo at all.
+  const withLogo = new Set(real.map((l) => l.brand));
+  const storedSlugs = new Set(real.map((l) => l.slug));
+  // A variant's missing entry (its slug is a stored logo's slug) does not make its brand missing.
+  const listed = [...withLogo, ...index.missing.filter((m) => !storedSlugs.has(m.slug)).map((m) => m.brand)];
   for (const brand of brands) {
     const n = listed.filter((b) => b === brand).length;
     if (n !== 1) throw new LoadRefused(`${brand} is listed ${n} times across logos and missing`);
   }
   const unknown = listed.filter((b) => !brands.includes(b));
   if (unknown.length > 0) throw new LoadRefused(`not in the brand table: ${unknown.join(", ")}`);
-  return { real: real.length, fictional: index.logos.length - real.length, missing: index.missing.length };
+  return {
+    real: withLogo.size,
+    fictional: index.logos.filter((l) => l.fictional).length,
+    missing: index.missing.filter((m) => !storedSlugs.has(m.slug)).length,
+  };
 }
 
 // What a store must hold before it is published or passes its check: every real brand accounted for, at least
@@ -222,11 +242,13 @@ export function publishable(index: LogoIndex, brands: string[]) {
 export type Grabbed = { bytes: Uint8Array; pageUrl: string; sourceUrl: string };
 // One brand's logo, from its page; it must give up once `signal` aborts.
 export type Grab = (entry: SelectorEntry, signal: AbortSignal) => Promise<Grabbed>;
-export type Fictional = { slug: string; brand: string; path: string };
+export type Fictional = { slug: string; brand: string; path: string; variant?: "wordmark" | "icon" };
 
 export const FICTIONAL: Fictional[] = [
   { slug: "protea-bank", brand: "Protea Bank", path: "test/fixtures/brands/protea-bank.png" },
   { slug: "nimbusmail", brand: "NimbusMail", path: "test/fixtures/brands/nimbusmail.png" },
+  { slug: "protea-bank", brand: "Protea Bank", path: "test/fixtures/brands/protea-bank-icon.png", variant: "icon" },
+  { slug: "nimbusmail", brand: "NimbusMail", path: "test/fixtures/brands/nimbusmail-icon.png", variant: "icon" },
 ];
 
 export const storeRoot = () => process.env.REFERENCE_LOGOS_DIR ?? join(homedir(), "isitlegit-data", "reference-logos");
@@ -280,14 +302,21 @@ export async function capture(options: {
     ? options.brands.filter((b) => earlier.missing.some((m) => m.brand === b.name))
     : options.brands;
   if (earlier) missing.push(...earlier.missing.filter((m) => !brands.some((b) => b.name === m.brand)));
-  const store = (slug: string, brand: string, grabbed: Grabbed, kind: Logo["source_kind"], fictional: boolean) => {
+  const store = (
+    slug: string,
+    brand: string,
+    grabbed: Grabbed,
+    kind: Logo["source_kind"],
+    fictional: boolean,
+    variant: "wordmark" | "icon" = "wordmark",
+  ) => {
     const info = imageInfo(grabbed.bytes);
     if (!info) throw new Error("not a PNG, JPEG or WebP image");
     if (Math.max(info.width, info.height) < MIN_SIDE)
       throw new Error(`${info.width} by ${info.height} px is under ${MIN_SIDE} px`);
     if (Math.max(info.width, info.height) > MAX_SIDE)
       throw new Error(`${info.width} by ${info.height} px is over ${MAX_SIDE} px`);
-    const key = logoKey(generation, slug, info.type);
+    const key = logoKey(generation, slug, info.type, variant);
     writeAtomic(join(dir, key.slice(key.lastIndexOf("/") + 1)), grabbed.bytes);
     logos.push({
       slug,
@@ -303,48 +332,60 @@ export async function capture(options: {
       height: info.height,
       sha256: sha256(grabbed.bytes),
       fictional,
+      variant,
     });
     return info;
   };
   for (const [i, brand] of brands.entries()) {
     const slug = slugOf(brand.name);
     const at = `[${i + 1}/${brands.length}] ${brand.name}`;
-    const entry = options.table.logos.find((e) => e.brand === brand.name);
-    if (!entry) {
+    const entries = options.table.logos.filter((e) => e.brand === brand.name);
+    if (!entries.length) {
       missing.push({ slug, brand: brand.name, reason: "no entry in data/reference-logos.json" });
       log(`${at}: missing, no entry in data/reference-logos.json`);
       continue;
     }
-    try {
-      // A second try for a page that answers a bot check or a slow script once and the logo the next time, inside
-      // the same per-brand deadline: a brand never takes longer than GRAB_MS, however its tries go.
-      log(`${at}: try 1`);
-      const grabbed = await withDeadline(
-        (signal) =>
-          options.grab(entry, signal).catch((error) => {
-            if (signal.aborted) throw error;
-            log(`${at}: try 2 (${error instanceof Error ? error.message.split("\n")[0] : String(error)})`);
-            return options.grab(entry, signal);
-          }),
-        options.grabMs ?? GRAB_MS,
-      );
-      // The page that showed the logo must be the brand's own, after every redirect.
-      const domain = getDomain(grabbed.pageUrl);
-      if (!domain || !brand.domains.includes(domain))
-        throw new Error(`the page ended on ${new URL(grabbed.pageUrl).hostname}, not one of the brand's domains`);
-      const stored = store(entry.slug, brand.name, grabbed, entry.kind, false);
-      log(`${at}: stored ${stored.width} by ${stored.height} px`);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      missing.push({ slug: entry.slug, brand: brand.name, reason });
-      log(`${at}: missing, ${reason.split("\n")[0]}`);
+    for (const entry of entries) {
+      const variant = entry.variant ?? "wordmark";
+      try {
+        // A second try for a page that answers a bot check or a slow script once and the logo the next time, inside
+        // the same per-brand deadline: a brand never takes longer than GRAB_MS, however its tries go.
+        log(`${at}: try 1`);
+        const grabbed = await withDeadline(
+          (signal) =>
+            options.grab(entry, signal).catch((error) => {
+              if (signal.aborted) throw error;
+              log(`${at}: try 2 (${error instanceof Error ? error.message.split("\n")[0] : String(error)})`);
+              return options.grab(entry, signal);
+            }),
+          options.grabMs ?? GRAB_MS,
+        );
+        // The page that showed the logo must be the brand's own, after every redirect.
+        const domain = getDomain(grabbed.pageUrl);
+        if (!domain || !brand.domains.includes(domain))
+          throw new Error(`the page ended on ${new URL(grabbed.pageUrl).hostname}, not one of the brand's domains`);
+        const stored = store(entry.slug, brand.name, grabbed, entry.kind, false, variant);
+        log(`${at}: stored ${variant} ${stored.width} by ${stored.height} px`);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        // A missing variant is recorded only when the brand ends with no logo at all; coverage decides.
+        missing.push({ slug: entry.slug, brand: brand.name, reason: `${variant}: ${reason}` });
+        log(`${at}: missing ${variant}, ${reason.split("\n")[0]}`);
+      }
     }
   }
   // The fictional references go into a new generation; one being finished already holds them.
   if (!earlier)
     for (const f of options.fictional ?? FICTIONAL) {
       const bytes = new Uint8Array(readFileSync(f.path));
-      store(f.slug, f.brand, { bytes, pageUrl: `repo:${f.path}`, sourceUrl: `repo:${f.path}` }, "fictional", true);
+      store(
+        f.slug,
+        f.brand,
+        { bytes, pageUrl: `repo:${f.path}`, sourceUrl: `repo:${f.path}` },
+        "fictional",
+        true,
+        f.variant ?? "wordmark",
+      );
     }
   const index = LogoIndex.parse({
     version: 1,
