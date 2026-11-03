@@ -3,9 +3,9 @@
 // stored state. Changes post to `/team` (./team.tsx); removal confirms on its own page, with or without JavaScript.
 // The invitations panel and the pending table (D07 T04 §21) post to the same route; the table reads the stored invitations.
 import { isProtectedAccount } from "../../auth/protected";
+import { fold } from "../../db/search-fold";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
-import { fold } from "../../db/search-fold";
 import { Button, buttonClass } from "../components/Button";
 import { Document } from "../components/Document";
 import { Field } from "../components/Field";
@@ -200,7 +200,13 @@ const SELECT = cx(
 );
 
 // `layout` keeps ids unique: the table (wide screens) and the cards (phones) each draw a row's controls.
-function RoleCell(props: { reader: Reader; member: TeamMember; orgId: string; layout: "table" | "card"; find?: string | undefined }) {
+function RoleCell(props: {
+  reader: Reader;
+  member: TeamMember;
+  orgId: string;
+  layout: "table" | "card";
+  find?: string | undefined;
+}) {
   const { reader, member, orgId, layout, find } = props;
   const choices = roleChoices(reader, member);
   if (!choices.length)
@@ -249,7 +255,13 @@ function RoleCell(props: { reader: Reader; member: TeamMember; orgId: string; la
   );
 }
 
-function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: boolean; layout: "table" | "card"; find?: string | undefined }) {
+function RemoveCell(props: {
+  reader: Reader;
+  member: TeamMember;
+  onlyOwner: boolean;
+  layout: "table" | "card";
+  find?: string | undefined;
+}) {
   const { reader, member, onlyOwner, layout, find } = props;
   const id = layout === "table" ? `remove-${member.memberId}` : `remove-${member.memberId}-card`;
   const self = member.userId === reader.userId;
@@ -646,9 +658,7 @@ export function TeamPage(props: {
   const { shell, members, reader, outcome, lost, now, invites, draft, inviteBatch, history, find } = props;
   const findTooLong = (find ?? "").length > 200;
   const visible =
-    find && !findTooLong
-      ? members.filter((m) => fold(`${m.name} ${m.email}`).includes(fold(find)))
-      : members;
+    find && !findTooLong ? members.filter((m) => fold(`${m.name} ${m.email}`).includes(fold(find))) : members;
   const mayInvite = reader.role !== "member";
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
@@ -715,7 +725,7 @@ export function TeamPage(props: {
             <strong class="text-ink">Admin</strong>: suppliers, protection, domains and invites.{" "}
             <strong class="text-ink">Member</strong>: checks mail and sees cases.
           </p>
-          <form method="get" action="/team" class="flex flex-wrap items-end gap-12" role="search">
+          <form method="get" action="/team" class="flex flex-wrap items-end gap-12" aria-label="Find a person">
             {history?.action ? <input type="hidden" name="action" value={history.action} /> : null}
             {history?.from ? <input type="hidden" name="from" value={history.from} /> : null}
             {history?.to ? <input type="hidden" name="to" value={history.to} /> : null}
@@ -829,7 +839,11 @@ export function TeamPage(props: {
 }
 
 // The confirmation a removal asks first, with or without JavaScript: the member's name, Remove and Cancel.
-export function RemoveConfirm(props: { shell: Omit<MemberShellProps, "children">; member: TeamMember; find?: string | undefined }) {
+export function RemoveConfirm(props: {
+  shell: Omit<MemberShellProps, "children">;
+  member: TeamMember;
+  find?: string | undefined;
+}) {
   const { shell, member, find } = props;
   const who = member.name || member.email;
   return (

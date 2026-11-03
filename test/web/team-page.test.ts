@@ -1210,7 +1210,9 @@ describe("finding a person on the Team page (D07 T04 §26)", () => {
     const byName = text((await page(owner.cookie, "/team?find=jose")).html);
     expect(byName).toContain("José Petersen");
     expect(byName).not.toContain("Sipho Mokoena");
-    const byEmail = text((await page(owner.cookie, `/team?find=${encodeURIComponent(sipho.email.split("@")[0] as string)}`)).html);
+    const byEmail = text(
+      (await page(owner.cookie, `/team?find=${encodeURIComponent(sipho.email.split("@")[0] as string)}`)).html,
+    );
     expect(byEmail).toContain("Sipho Mokoena");
     expect(byEmail).not.toContain("José Petersen");
     const none = text((await page(owner.cookie, "/team?find=nobody-like-this")).html);

@@ -347,7 +347,9 @@ teamRoutes.get(
       // anyone else gets here, so nothing is told to those who could not).
       if (isProtectedAccount(member.email))
         return back(secret, who.org.id, { r: "protected", name: member.name || member.email });
-      return html(<RemoveConfirm shell={shell} member={member} find={new URL(c.req.url).searchParams.get("find") ?? undefined} />);
+      return html(
+        <RemoveConfirm shell={shell} member={member} find={new URL(c.req.url).searchParams.get("find") ?? undefined} />,
+      );
     } catch (error) {
       return outage((error as Error).name);
     }
@@ -734,16 +736,19 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
       if (!cancelled?.ok)
         console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
     }
-    if (res.ok) return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email }, findBack);
+    if (res.ok)
+      return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email }, findBack);
     if (res.status === 401) return signin();
-    if (res.status === 502 && action === "resend") return back(secret, orgId, { r: "invite-unsent", name: row.email }, findBack);
+    if (res.status === 502 && action === "resend")
+      return back(secret, orgId, { r: "invite-unsent", name: row.email }, findBack);
     if (res.status === 403) {
       const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
       if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
         return back(secret, orgId, { r: "invite-limit", name: row.email }, findBack);
       return back(secret, orgId, { r: "no-permission" }, findBack);
     }
-    if (res.status === 404 || res.status === 400) return back(secret, orgId, { r: "invite-gone", name: row.email }, findBack);
+    if (res.status === 404 || res.status === 400)
+      return back(secret, orgId, { r: "invite-gone", name: row.email }, findBack);
     return failed(secret, orgId, `invite-${res.status}`, row.email);
   } catch (error) {
     const ref = reference(500);
