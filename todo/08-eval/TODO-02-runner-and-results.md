@@ -44,7 +44,7 @@ track: day-6
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
 | 13 | §13 | Source-versus-replay comparison | §12 | [x] |
-| 14 | §14 | Paired-evidence investigation | §13 | [ ] |
+| 14 | §14 | Paired-evidence investigation | §13 | [x] |
 | 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -460,9 +460,12 @@ Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a chang
 
 - [x] Print the paired case ids in `comparisonText` in `eval/metrics.ts` for every changed sample. Done when: a comparison test reads back both case ids for a changed sample and none are invented for a missing case. Cheaper substitute: none (the operator retrieves them by hand today). **Corrected 2026-11-03 (plan review P1, P2):** the ids name the existing case report route (`/cases/<case id>`, `src/web/pages/report.tsx`), the output states that opening a case needs eval-organisation membership (comparison database access grants no report access), and a side whose case id is missing prints that it has no paired evidence instead of a blank or invented id, the available side unaffected.
 - [x] Name the evidence action in the comparison output (the stored report or case view that shows both cases) and prove the named target resolves from a stored pair. Done when: the test follows the named target from the comparison output to both stored results. Cheaper substitute: none (a pointer that resolves nowhere is decoration). **Corrected 2026-11-03 (plan review P1):** resolving means each printed id equals the case id on its stored result row (persisted read-back through the command), and the named route is the report route the Worker serves; per-side missing, unavailable and denied handling is printed guidance tested as text, since report access itself is the console's existing control, not this command's to grant.
-- [ ] Commit: `eval: paired-evidence investigation`
+- [x] Commit: `eval: paired-evidence investigation`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the paired-evidence cases.
+
+> **Verified:** 2026-11-03 | §14 | cf4e56d5033eccc4f50e1c27b2a0c00cb0948029
+> **Review:** `docs/reviews/d08-t02-s14.json`
 
 ## 15. Paired evidence view
 
