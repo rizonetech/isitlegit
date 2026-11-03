@@ -98,9 +98,9 @@ export function payeeAccount(fields: InvoiceFields): { number: string; branchCod
 const plain = (v: string | null, fallback: string) => (v === null || v === "" ? fallback : v);
 
 // No field of the evidence may carry the account number in full (gap 7, completion review): a supplier
-// name, holder or reference that repeats it (a reference that is the number, a holder printed with it) is
-// scrubbed to its masked form wherever it appears, in detail and summary alike.
-function scrub(value: string | null, fields: InvoiceFields): string | null {
+// name, domain, bank, holder or reference that repeats it (a reference that is the number, a holder or
+// domain printed with it) is scrubbed to its masked form wherever it appears, in detail and summary alike.
+export function scrub(value: string | null, fields: InvoiceFields): string | null {
   if (value === null || fields.account_number === null) return value;
   const digits = fields.account_number.replace(/[\s-]+/g, "");
   if (digits.length < 7) return value;
@@ -131,7 +131,7 @@ export function detectedItem(fields: InvoiceFields, artefactKey: string): Eviden
     summary,
     detail: {
       supplier_name: scrub(fields.supplier_name, fields),
-      supplier_domain: fields.supplier_domain,
+      supplier_domain: scrub(fields.supplier_domain, fields),
       bank_name: scrub(fields.bank_name, fields),
       account_holder: scrub(fields.account_holder, fields),
       account_last3: last3,

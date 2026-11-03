@@ -9,7 +9,8 @@ import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { PhraseLog, PhraseStream } from "../../src/checks/instruction-phrases";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
-import { notCheckedItem } from "../../src/invoice/extract";
+import { putAttachment } from "../../src/intake/store";
+import { detectedItem, notCheckedItem } from "../../src/invoice/extract";
 import {
   comparisonUnavailableDocument,
   notCheckedDocument,
@@ -1496,6 +1497,44 @@ describe("the evidence cards", () => {
     expect(malformed).not.toContain("***678");
     expect(malformed).not.toContain("<script>alert");
     expect(malformed).toContain("&lt;script&gt;");
+    // Producer-to-card masking when the account number repeats in supplier_domain or domain.
+    const fieldsWithDomainAccount = {
+      is_invoice: true as const,
+      supplier_name: "Karoo Parts 12345678901",
+      supplier_domain: "12345678901.example",
+      bank_name: "Protea Bank 12345678901",
+      account_holder: "Karoo 12345678901",
+      account_number: "12345678901",
+      branch_code: "250655",
+      amount_cents: 100000,
+      currency: "ZAR",
+      reference: "INV-12345678901",
+      due_date: "2026-11-10",
+    };
+    const produced = detectedItem(fieldsWithDomainAccount, "case/invoice.pdf");
+    expect(produced).not.toBeNull();
+    expect(fieldsWithDomainAccount.supplier_domain).toBe("12345678901.example");
+    expect(produced?.detail.supplier_domain).toBe("***901.example");
+    const domainMaskedHtml = draw([
+      {
+        id: "E1",
+        check: produced?.check ?? "invoice.detected",
+        severity: "info",
+        summary: produced?.summary ?? "",
+        detail: (produced?.detail ?? {}) as Record<string, unknown>,
+        artefacts: produced?.artefacts ?? [],
+      },
+      {
+        id: "E2",
+        check: "invoice.supplier_domain_changed",
+        severity: "critical",
+        summary: "Domain changed",
+        detail: { account_last3: "901", domain: "12345678901.example" },
+        artefacts: [],
+      },
+    ]);
+    expect(domainMaskedHtml).not.toContain("12345678901");
+    expect(domainMaskedHtml).toContain("***901.example");
   });
 
   it("explains every invoice and payment-document failure state in plain words, with no raw producer reason codes (D07 T03 s15)", () => {
@@ -2121,6 +2160,31 @@ describe("the evidence cards through the report route", () => {
     const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
     if (!made.ok) throw new Error(made.error.message);
     const id = made.value.id;
+    const pdfBytes = new TextEncoder().encode("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+    const attached = await putAttachment(
+      { bucket: (env as unknown as Env).ARTEFACTS, db },
+      id,
+      "invoice-20931.pdf",
+      pdfBytes,
+      "application/pdf",
+    );
+    const domainAccountDraft = detectedItem(
+      {
+        is_invoice: true,
+        supplier_name: "Karoo Parts (Pty) Ltd",
+        supplier_domain: "12345678901.example",
+        bank_name: "Protea Bank",
+        account_holder: "Karoo Parts 12345678901",
+        account_number: "12345678901",
+        branch_code: "250655",
+        amount_cents: 4850000,
+        currency: "ZAR",
+        reference: "INV-20931-12345678901",
+        due_date: "2026-11-15",
+      },
+      attached.key,
+    );
+    if (!domainAccountDraft) throw new Error("expected detectedItem draft");
     const stored = FIXTURES.filter(
       (f) =>
         f.check.startsWith("invoice.") ||
@@ -2128,6 +2192,7 @@ describe("the evidence cards through the report route", () => {
     );
     expect(stored.length).toBeGreaterThanOrEqual(14);
     const drafts = [
+      domainAccountDraft,
       ...stored.map((f) => ({
         check: f.check,
         severity: f.severity,
@@ -2142,7 +2207,7 @@ describe("the evidence cards through the report route", () => {
           account_number: "998877665544",
           unexpected: "should-not-appear",
         } as EvidenceDraft["detail"],
-        artefacts: f.artefacts ?? [],
+        artefacts: f.check === "invoice.bank_changed" ? [attached.key] : (f.artefacts ?? []),
       })),
       {
         check: "document.beneficiary_mismatch",
@@ -2190,7 +2255,9 @@ describe("the evidence cards through the report route", () => {
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
     const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
     for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
+    expect(html).toContain("***901.example");
     for (const banned of [
+      "12345678901",
       "998877665544",
       "***998877665544",
       "sup-internal-1",
@@ -2201,6 +2268,18 @@ describe("the evidence cards through the report route", () => {
       "(reference-unavailable)",
     ])
       expect(html, banned).not.toContain(banned);
+    // Follow the rendered "Download the document" href through the production artefact route.
+    const hrefMatch = new RegExp(`href="(/a/${id}/[^"]*invoice-20931\\.pdf)"`).exec(html);
+    expect(hrefMatch?.[1]).toBeTruthy();
+    const dlRes = await call(hrefMatch?.[1] as string, { headers: { cookie } });
+    expect(dlRes.status).toBe(200);
+    expect(dlRes.headers.get("content-type")).toBe("application/octet-stream");
+    expect(dlRes.headers.get("content-disposition")).toBe(
+      `attachment; filename="${attached.sha256}-invoice-20931.pdf"`,
+    );
+    expect(dlRes.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(dlRes.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+    expect(new Uint8Array(await dlRes.arrayBuffer())).toEqual(pdfBytes);
   });
 });
 

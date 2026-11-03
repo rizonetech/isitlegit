@@ -1630,10 +1630,25 @@ const DOC_TYPE: Record<string, string> = {
   bank_letter: "A letter from a bank",
   other: "A payment document",
 };
+const masked = (last3: unknown, given: unknown): string | null => {
+  const stated = text(given);
+  if (stated) return /^\*{3}[0-9]{3}$/.test(stated) ? stated : null;
+  const tail = text(last3);
+  return tail && /^[0-9]{3}$/.test(tail) ? `***${tail}` : null;
+};
+const cleanField = (v: unknown, last3: unknown, given?: unknown): string | null => {
+  const raw = text(v);
+  if (!raw) return null;
+  const mask = masked(last3, given ?? null);
+  if (!mask) return raw;
+  const tail = mask.slice(3);
+  const tailPattern = tail.split("").join("[\\s-]*");
+  return raw.replace(new RegExp(`[0-9](?:[\\s-]*[0-9]){3,16}[\\s-]*${tailPattern}`, "g"), mask);
+};
 // The payment documents (D07 T03 §15; the producers in src/invoice/payment-doc.ts and document-step.ts),
 // drawn beside the forensic family above under the same masking rule: the submitted beneficiary masked,
 // the comparison's source and outcome, never the recorded side.
-const paymentDocument = (item: CardItem, file: FileLink): { title: string; body: unknown } | null => {
+const paymentDocument = (item: CardItem, _file: FileLink): { title: string; body: unknown } | null => {
   const d = item.detail;
   const limit = text(d.limit) ? (
     <p class="type-small text-muted wrap-anywhere">
@@ -1648,12 +1663,12 @@ const paymentDocument = (item: CardItem, file: FileLink): { title: string; body:
         <>
           <Facts
             rows={[
-              ["Says it is from", text(d.issuer)],
+              ["Says it is from", cleanField(d.issuer, d.account_last3, d.beneficiary_masked)],
               ["Amount", money(d.amount_cents, d.currency)],
               ["Paid at", text(d.paid_at)],
               ["Issued at", text(d.issued_at)],
-              ["Reference", text(d.reference)],
-              ["Beneficiary", text(d.beneficiary_name)],
+              ["Reference", cleanField(d.reference, d.account_last3, d.beneficiary_masked)],
+              ["Beneficiary", cleanField(d.beneficiary_name, d.account_last3, d.beneficiary_masked)],
               ["Account", masked(d.account_last3, d.beneficiary_masked)],
               ["Branch", text(d.branch_code)],
               [
@@ -1677,7 +1692,7 @@ const paymentDocument = (item: CardItem, file: FileLink): { title: string; body:
         <>
           <Facts
             rows={[
-              ["Says it is from", text(d.issuer)],
+              ["Says it is from", cleanField(d.issuer, d.account_last3, d.beneficiary_masked)],
               ["Account", masked(d.account_last3, d.beneficiary_masked)],
             ]}
           />
@@ -1804,12 +1819,6 @@ const money = (cents: unknown, currency: unknown): string | null => {
   const amount = (cents / 100).toFixed(2);
   return text(currency) ? `${text(currency)} ${amount}` : amount;
 };
-const masked = (last3: unknown, given: unknown): string | null => {
-  const stated = text(given);
-  if (stated) return /^\*{3}[0-9]{3}$/.test(stated) ? stated : null;
-  const tail = text(last3);
-  return tail && /^[0-9]{3}$/.test(tail) ? `***${tail}` : null;
-};
 const AGAINST: Record<string, string> = {
   ledger: "Your supplier ledger",
   registry: "The supplier's registered account",
@@ -1849,14 +1858,14 @@ const invoiceCard: Renderer = (item, file) => {
         <>
           <Facts
             rows={[
-              ["Supplier", text(d.supplier_name)],
-              ["Its domain", text(d.supplier_domain)],
-              ["Bank", text(d.bank_name)],
-              ["Account holder", text(d.account_holder)],
+              ["Supplier", cleanField(d.supplier_name, d.account_last3)],
+              ["Its domain", cleanField(d.supplier_domain, d.account_last3)],
+              ["Bank", cleanField(d.bank_name, d.account_last3)],
+              ["Account holder", cleanField(d.account_holder, d.account_last3)],
               ["Account", masked(d.account_last3, null)],
               ["Branch", text(d.branch_code)],
               ["Amount", money(d.amount_cents, d.currency)],
-              ["Reference", text(d.reference)],
+              ["Reference", cleanField(d.reference, d.account_last3)],
               ["Due", text(d.due_date)],
             ]}
           />
@@ -1891,7 +1900,7 @@ const invoiceCard: Renderer = (item, file) => {
       summary: null,
       body: (
         <>
-          <Facts rows={[["It came from", text(d.domain)]]} />
+          <Facts rows={[["It came from", cleanField(d.domain, d.account_last3)]]} />
           <p class="text-14 text-muted">
             The supplier has not sent from this domain before. Confirm by phoning the supplier on the number in your own
             records, never one from this message.

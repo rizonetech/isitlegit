@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { attachmentHeaders } from "../../src/web/pages/errors";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
 import { ReportDocument, type ReportEvidence } from "../../src/web/pages/report-view";
 import { AXE, problems, scan } from "./axe";
@@ -344,17 +345,10 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
         return route.fulfill({ status: 200, contentType: "audio/wav", body: WAV });
       }
       if (decodeURIComponent(path).endsWith(".pdf")) {
-        const name = (decodeURIComponent(path).split("/").pop() ?? "file.pdf")
-          .replace(/[^A-Za-z0-9._-]/g, "_")
-          .slice(-120);
+        const key = decodeURIComponent(path.replace(/^\/a\/[^/]+\//, ""));
         return route.fulfill({
           status: 200,
-          contentType: "application/octet-stream",
-          headers: {
-            "content-disposition": `attachment; filename="${name}"`,
-            "x-content-type-options": "nosniff",
-            "content-security-policy": "sandbox; default-src 'none'",
-          },
+          headers: attachmentHeaders(key),
           body: PDF_BYTES,
         });
       }

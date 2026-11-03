@@ -14,6 +14,7 @@ import { type BankKeys, matchBankAccount } from "../trust/bank";
 import { IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "../trust/errors";
 import { getIdentity } from "../trust/identity";
 import { SupplierAmbiguous } from "./errors";
+import { scrub } from "./extract";
 import { findSupplier, matchSupplierAccount, type Supplier, siteOf } from "./ledger";
 import type { InvoiceFields } from "./schema";
 
@@ -135,7 +136,12 @@ export async function invoiceRules(
               0,
               200,
             ),
-          detail: { ...base, supplier_id: supplier.id, domain: fields.supplier_domain, phone: supplier.phone },
+          detail: {
+            ...base,
+            supplier_id: supplier.id,
+            domain: scrub(fields.supplier_domain, fields),
+            phone: supplier.phone,
+          },
           artefacts: [artefactKey],
         });
     }

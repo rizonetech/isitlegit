@@ -11,7 +11,7 @@ import { createAuth } from "../../auth/auth";
 import { parsedKey, peekArtefact, rawKey, readArtefact, readVisible, type Store, StoreError } from "../../intake/store";
 import { referenceLogos } from "../../vision/logo-reference";
 import { verifyReportLink } from "../report-link";
-import { artefactFailed, artefactGone, errorPage, HEADERS, reference } from "./errors";
+import { artefactFailed, artefactGone, attachmentHeaders, errorPage, HEADERS, reference } from "./errors";
 
 export const artefactRoutes = new Hono<{ Bindings: Env }>();
 
@@ -224,8 +224,6 @@ async function originalView(store: Store, id: string, part: ViewPart) {
   return { part, ...cut(text), source };
 }
 
-const filename = (key: string) => (key.split("/").pop() ?? "file").replace(/[^A-Za-z0-9._-]/g, "_").slice(-120);
-
 artefactRoutes.get("/a/:caseId/:key", async (c) => {
   const id = c.req.param("caseId");
   const key = c.req.param("key");
@@ -346,8 +344,7 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       headers["content-type"] = audio;
       headers["content-disposition"] = "inline";
     } else {
-      headers["content-type"] = "application/octet-stream";
-      headers["content-disposition"] = `attachment; filename="${filename(key)}"`;
+      Object.assign(headers, attachmentHeaders(key));
     }
     return answer(new Response(file.body, { headers }));
   } catch (error) {

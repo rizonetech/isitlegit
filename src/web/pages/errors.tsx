@@ -378,3 +378,15 @@ export function maintenanceFrom(value: string | undefined): { on: boolean; windo
     ? { on: true }
     : { on: true, window: { from, to } };
 }
+
+const attachmentName = (key: string) => (key.split("/").pop() ?? "file").replace(/[^A-Za-z0-9._-]/g, "_").slice(-120);
+
+export function attachmentHeaders(key: string): Record<string, string> {
+  return {
+    ...HEADERS,
+    "content-type": "application/octet-stream",
+    "content-disposition": `attachment; filename="${attachmentName(key)}"`,
+    "x-content-type-options": "nosniff",
+    "content-security-policy": "sandbox; default-src 'none'",
+  };
+}
