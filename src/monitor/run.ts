@@ -124,6 +124,7 @@ type HostRow = {
   capture_failures: number;
   capture_failed_at: string | null;
   last_seen?: string | null;
+  dns_at?: string | null;
 };
 
 // Whether an organisation is monitored now: protection in effect and `monitor` in its plan.
@@ -297,7 +298,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       (
         await deps.db
           .prepare(
-            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures, capture_failed_at, last_seen FROM monitor_hosts WHERE org_id = ?",
+            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures, capture_failed_at, last_seen, dns_at FROM monitor_hosts WHERE org_id = ?",
           )
           .bind(orgId)
           .all<HostRow>()
@@ -324,8 +325,12 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const merged = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])].filter(
       (h) => !own.has(h),
     );
-    const lastSeen = (host: string) => known.get(host)?.last_seen ?? "";
-    const ordered = [...merged].sort((a, b) => (lastSeen(a) < lastSeen(b) ? -1 : lastSeen(a) > lastSeen(b) ? 1 : 0));
+    // The window advances by a full cap each day, so a saturated list covers every host in
+    // turn (a 5,000-host list in 17 days) instead of rechecking the same first 300; hosts
+    // whose lookups fail rotate with everyone else.
+    const dayIndex = Math.floor(started.getTime() / 86_400_000);
+    const offset = merged.length ? (dayIndex * MAX_CANDIDATES) % merged.length : 0;
+    const ordered = [...merged.slice(offset), ...merged.slice(0, offset)];
     const candidates = ordered.slice(0, MAX_CANDIDATES);
     summary.candidatesDeferred = ordered.length - candidates.length;
     if (summary.candidatesDeferred > 0) noteError(summary, `ct:deferred:${summary.candidatesDeferred}`);
