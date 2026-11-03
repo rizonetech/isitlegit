@@ -1,0 +1,31 @@
+{
+ "about": "Music and sound effects for videos 01 to 03, generated with ElevenLabs by tools/sound.py into out/sound/ (git-ignored). One channel bed for every video, played low under the narration and crossfaded with itself; a swell on each title card and a soft whoosh on each chapter card (video 03: each scene change).",
+ "music": {
+  "bed": {
+   "prompt": "Polished modern cinematic tech underscore for a premium product documentary. Uplifting and confident, a sense of momentum and discovery: shimmering synth arpeggios, warm wide pads, deep sub bass, crisp tight electronic percussion with a steady four-on-the-floor pulse, subtle risers and airy textures. Instrumental only, no vocals, no lead melody that competes with speech, mid-range kept clear for narration. 110 BPM, consistent energy throughout so it can loop.",
+   "seconds": 180
+  },
+  "demo-bed": {
+   "prompt": "Soft, minimal, premium ambient underscore for a calm product film about trust and security. Slow and spacious: warm wide pads, a gentle felt-piano motif played sparsely, faint airy textures, a barely audible low pulse. No drums, no percussion, no arpeggios, no vocals, no lead melody, nothing that competes with speech; the mid-range stays clear for narration. Around 70 BPM, calm and steady, the same quiet energy throughout so it can loop.",
+   "seconds": 150
+  }
+ },
+ "sfx": {
+  "swell": {
+   "prompt": "Soft cinematic swell rising gently into a clean shimmer, subtle and modern, for a title card, no impact",
+   "seconds": 2.5
+  },
+  "whoosh": {
+   "prompt": "Very soft airy whoosh transition, subtle and clean, short tail, for a chapter card in a calm explainer video",
+   "seconds": 1.2
+  },
+  "hit": {
+   "prompt": "A single soft low cinematic hit, deep sub thump with a short warm tail, subtle and tasteful, for a quiet dramatic beat, no distortion",
+   "seconds": 2.0
+  },
+  "tick": {
+   "prompt": "A very soft, short, clean glassy tick, subtle UI confirmation sound, premium and quiet",
+   "seconds": 0.6
+  }
+ }
+}

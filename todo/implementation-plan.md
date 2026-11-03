@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 142
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 100 | Checklist items: 637
+Sections: 105 | Checklist items: 671
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -394,6 +394,11 @@ Sections: 100 | Checklist items: 637
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 5     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
+| [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
+| [ ]    | D10 T01 §2  | Remotion licence basis                       | operator              | 3     |
+| [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
+| [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
+| [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive      | none                  | 10    |
 
 ### Phase 7: After the event
 
@@ -631,10 +636,12 @@ Sections: 8 | Checklist items: 38
 
 ### Phase 99: Manual, operator only
 
-Sections: 15 | Checklist items: 62
+Sections: 17 | Checklist items: 71
 
 | Status | Reference   | Deliverable                                   | Needs    | Items |
 | ------ | ----------- | --------------------------------------------- | -------- | ----- |
+| [ ]    | D10 T01 §5  | Uploads and links recorded                    | operator | 5     |
+| [ ]    | D10 T01 §7  | Video 03 upload and link recorded             | operator | 4     |
 | [x]    | D99 T01 §1  | Meta API billing and API key                  | none     | 5     |
 | [x]    | D99 T01 §2  | Domain verification and nameservers           | none     | 15    |
 | [x]    | D99 T01 §3  | Workers Paid plan                             | none     | 3     |
@@ -651,6 +658,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 387/575 verified sections, 118 ready to run now.
+Progress: 387/582 verified sections, 119 ready to run now.
 
-Checklist: 2891/3573 items completed (includes Commit items).
+Checklist: 2911/3616 items completed (includes Commit items).

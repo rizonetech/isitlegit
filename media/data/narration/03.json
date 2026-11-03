@@ -1,0 +1,63 @@
+{
+  "video": "03",
+  "composition": "LoupeV1",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "title",
+      "text": "This is Loupe. A page screener we trained on Muse Glimmer."
+    },
+    {
+      "scene": "job",
+      "text": "Loupe has one job: is this page a brand lure? A login or payment form, wearing someone else's brand. Loupe answers first, and Muse Spark takes over when it can't."
+    },
+    {
+      "scene": "base model",
+      "text": "The base model is Muse Glimmer on Fireworks AI, with image and text input. We tune it with LoRA, with the vision encoder frozen, through the {fact.serverless}. All of this was read from the provider's model record before any data was built."
+    },
+    {
+      "scene": "data",
+      "text": "The data comes from {fact.accepted} public sets, plus our own renders of popular sites for the benign side. {fact.rejected} other candidates were rejected, mostly for non-commercial or by-request terms. And every file is admitted against its publisher's digest."
+    },
+    {
+      "scene": "collection",
+      "text": "For build one point oh we read {fact.collection} pages, and admitted {fact.admitted}. Most trusted lures are impersonation, then credential pages, with fake shops and payment pages far behind."
+    },
+    {
+      "scene": "teacher",
+      "text": "A teacher labels the hardest pages first. Muse Spark checked {fact.teacherChecked} South African pages. It agreed on {fact.teacherAgreed} and disputed {fact.teacherDisputed}, and the disputed pages stay out of training and evaluation. On a sample of confirmed South African lures, base Muse Spark found {fact.sparkRecall}. But the evaluation pages were admitted only where Spark agreed, so its score on them would be {fact.sparkBias}. A fair bar needs other pages."
+    },
+    {
+      "scene": "splits",
+      "text": "Nothing crosses the split: no shared page, near-duplicate or brand group between training and evaluation. Here's the catch we hit. Grouping by registrable domain chained dozens of brands on one shared host into a single group of {fact.chainGroup} pages. The fix: a domain carrying more than two brands now names a site by its full host."
+    },
+    {
+      "scene": "builds",
+      "text": "Build after build was stopped by its own checks before one was allowed out. Build one kept too few sample-derived lures in training, because shared hosts chained brands into giant groups. Build two came up just short of its evaluation pages, because deduplication dropped teacher-agreed twins. Build three passed every floor, then ran out of memory while publishing, so the files are now written a line at a time. And build four passed every floor, but its read-back found a protected client's name in public pages. Those pages are now left out at the door. The next build published."
+    },
+    {
+      "scene": "recipe",
+      "text": "Then we trained it: supervised fine-tuning with a LoRA adapter of rank {fact.loraRank}, streamed through the serverless API, for {fact.epochs} epoch. {fact.trainLines} lines, in {fact.trainTime}, with no resume. The loss fell from {fact.lossFrom} to {fact.lossTo}."
+    },
+    {
+      "scene": "results",
+      "text": "And here's how it scored on the {fact.evalPages} pages it never saw. Accuracy {fact.accuracy}. It caught {fact.lureRecallOf}, with false alarms on {fact.falseAlarmsOf} pages. On the South African slice, it caught {fact.saRecallOf}. Median latency: {fact.latency}. It's weaker at naming the kind of lure: payment pages are caught, but mostly filed as another type. Muse Spark is answering the same pages too, but because they were chosen where Spark agreed, its numbers there won't be a fair comparison."
+    },
+    {
+      "scene": "gate",
+      "text": "From the next version on, a version only ships if it's better. It has to train on more lines than the version before, be measured on the same held-out file, and keep lure recall no lower and false alarms no higher, overall and on the South African slice. Otherwise, the previous version stays."
+    },
+    {
+      "scene": "serving",
+      "text": "Loupe is deployed on {fact.gpu}, and scales to zero after {fact.scaleToZero} idle, so a quiet day costs almost nothing. A cold start took {fact.coldStart}. The serving key can call the model, but any change made with it is refused. Version names are never reused, and the model card is built only from run records."
+    },
+    {
+      "scene": "credits",
+      "text": "The data comes from these public datasets, each under its own licence. Thank you to everyone who published them."
+    },
+    {
+      "scene": "close",
+      "text": "Loupe one point oh: trained, measured and deployed. The code is on GitHub, at rizonetech slash IsItLegit."
+    }
+  ]
+}

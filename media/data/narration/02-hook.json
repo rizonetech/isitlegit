@@ -1,0 +1,17 @@
+{
+  "video": "02-hook",
+  "composition": "cold open",
+  "model_id": "eleven_multilingual_v2",
+  "voice_settings": {
+    "stability": 0.3,
+    "similarity_boost": 0.85,
+    "style": 0.45,
+    "use_speaker_boost": true
+  },
+  "segments": [
+    {
+      "scene": "cold open",
+      "text": "A real supplier's invoice. <break time=\"0.5s\" /> The same logo. The same signature. <break time=\"0.5s\" /> One quietly changed *bank account*. <break time=\"0.7s\" /> The costliest scam in *business email*."
+    }
+  ]
+}

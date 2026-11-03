@@ -1,0 +1,48 @@
+Received: from mx.{{domains.verified}} (mx.{{domains.verified}} [198.51.100.25])
+	by mailstore.{{domains.verified}} with ESMTPS id 9Bf4Mp7x3Lz4
+	for <{{mailboxes.accounts}}>; Sat, 31 Oct 2026 09:31:20 +0200
+Received: from relay.brookertech-za.example (unknown [203.0.113.63])
+	by mx.{{domains.verified}} with ESMTP id 7e3Pq4Lm2Xw7
+	for <{{mailboxes.accounts}}>; Sat, 31 Oct 2026 09:31:18 +0200
+Authentication-Results: mx.{{domains.verified}}; spf=pass smtp.mailfrom=brookertech-za.example; dkim=none; dmarc=none
+Return-Path: <support@brookertech-za.example>
+From: "Buffalo Logistics SA" <support@brookertech-za.example>
+Reply-To: customs@buffalo-za-clearance.example
+To: "{{name}} Accounts" <{{mailboxes.accounts}}>
+Subject: Your Buffalo Logistics shipment - status update (JD014600011161686430)
+Date: Sat, 31 Oct 2026 09:31:00 +0200
+Message-ID: <demo-buffalo-shipment-0007@brookertech-za.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="buffalo-boundary-0007"
+
+--buffalo-boundary-0007
+Content-Type: text/plain; charset="utf-8"
+
+BUFFALO LOGISTICS SA - Consignment Notification
+
+Consignment identifier: JD014600011161686430
+Consignee: {{legal_name}} ({{address.street}}, {{address.city}})
+
+Recorded Tracking Events:
+- Consignment held at regional consolidation depot pending import customs settlement
+- Confirm commercial invoice and customs release at: https://www.buffalologistics.co.za.example/track/JD014600011161686430
+
+--buffalo-boundary-0007
+Content-Type: text/html; charset="utf-8"
+
+<html><body style="font-family:Arial,Helvetica,sans-serif;background:#f4f5f7;padding:20px;margin:0;color:#333333">
+<div style="max-width:620px;margin:0 auto;background:#ffffff;border-radius:6px;overflow:hidden">
+  <div style="background:#1a1a1a;color:#ffffff;padding:22px 30px">
+    <h1 style="margin:0;font-size:19px">Buffalo Logistics SA - Consignment Hold</h1>
+  </div>
+  <div style="padding:30px;line-height:1.6;font-size:14px">
+    <p>Dear <b>{{name}} Accounts</b>,</p>
+    <p>Your consignment <b>JD014600011161686430</b> bound for <b>{{address.street}}, {{address.city}}</b> is held at customs clearance pending consignee verification.</p>
+    <p style="margin:24px 0">
+      <a href="https://normarkafrica.brookertechsites.example/customs/JD014600011161686430?u={{mailboxes.accounts}}" style="background:#1a1a1a;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:4px;font-weight:bold">https://www.buffalologistics.co.za.example/track/JD014600011161686430</a>
+    </p>
+  </div>
+</div>
+</body></html>
+
+--buffalo-boundary-0007--

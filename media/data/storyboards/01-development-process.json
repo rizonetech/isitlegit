@@ -1,0 +1,398 @@
+{
+  "id": "DevProcess",
+  "title": "How IsItLegit is built",
+  "sub": "One operator, {fact.laneCount} AI lanes and a coordinator: a team that never sleeps.",
+  "label": "Development process: figures as of {stats.date}, commit {stats.commit}",
+  "close": ["github.com/rizonetech/isitlegit", "Figures read from the repository on {stats.date}, commit {stats.commit}"],
+  "coldOpen": [16, 26, 30, 35],
+  "scenes": [
+    { "type": "chapter", "number": 1, "title": "The idea", "sub": "One operator directing a team of AI developers that works around the clock." },
+    {
+      "type": "callout",
+      "title": "The manifesto",
+      "text": "The bet: {fact.manifestoClaim}, can out-think, out-test and out-finish far larger teams."
+    },
+    {
+      "type": "stats",
+      "title": "What that looks like so far",
+      "sub": "Since the first commit on {stats.pace.first}.",
+      "items": [
+        { "value": "{stats.pace.commits}", "label": "commits across every lane" },
+        { "value": "{stats.stamped}", "label": "sections shipped and stamped" },
+        { "value": "{stats.lines}", "label": "lines of TypeScript in src/ and test/" },
+        { "value": "{stats.merges}", "label": "lane merges into main" }
+      ],
+      "note": "Every number here is read from git and the plan at render time."
+    },
+    {
+      "type": "table",
+      "title": "What the judges score",
+      "sub": "Meta Global AI Developer Hackathon, {fact.track}. Our own deadline: {fact.ownDeadline}.",
+      "columns": ["Criterion", "Weight"],
+      "rows": [
+        ["Impact", "{fact.wImpact}"],
+        ["Use of Meta AI tooling", "{fact.wMeta}"],
+        ["Demo", "{fact.wDemo}"],
+        ["Technical depth and execution", "{fact.wTech}"]
+      ]
+    },
+
+    { "type": "chapter", "number": 2, "title": "The rules everyone follows", "sub": "A small set of documents every session reads before it writes a line." },
+    {
+      "type": "table",
+      "title": "Governing documents",
+      "columns": ["Document", "What it governs"],
+      "rows": [
+        ["AGENTS.md", "The engineering contract: how every agent works, commits, reviews and stamps"],
+        ["CLAUDE.md", "Only what is specific to Claude Code; everything else defers to AGENTS.md"],
+        ["docs/manifesto.md", "The quality bar and why the project exists"],
+        ["docs/hackathon-criteria.md", "The competition rules, written as checks for every decision"],
+        ["docs/specs/", "The product design spec and the tech stack spec"],
+        ["design/SPEC.md", "Every page and component, from {fact.boards70} approved design boards"],
+        ["todo/README.md", "The format of the plan, its sections and its checks"]
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "House rules, enforced",
+      "items": [
+        "{fact.noDash} in anything written: code, docs, commits.",
+        "Persistent files are written to a temporary file, then atomically replaced.",
+        "Every command's output is bounded; full logs go to scratch, never the repository.",
+        "git status is a lock: no session writes over changes it does not recognise.",
+        "{fact.subNoWrite}",
+        "Every code change report ends with a Layer line naming the owning module."
+      ]
+    },
+
+    { "type": "chapter", "number": 3, "title": "The plan is a graph", "sub": "The whole product, decomposed into small sections with explicit dependencies." },
+    {
+      "type": "bullets",
+      "title": "From product to sections",
+      "items": [
+        "{fact.domainCount} domains, numbered folders under todo/: workspace, intake, checks, vision, agent, trust, invoice, app, eval, launch, media and manual.",
+        "Each domain holds TODO files; each file holds small, single-responsibility sections.",
+        "{stats.sections} sections in total, ordered across {fact.phaseCount} phases named in todo/plan.json.",
+        "Each file's Implementation Order table is the dependency graph: section, deliverable, depends on, status.",
+        "todo/implementation-plan.md is generated from those tables and never edited by hand.",
+        "A row flips to done {fact.stampOnly}, backed by a review receipt."
+      ]
+    },
+    {
+      "type": "chart",
+      "title": "Sections shipped per domain",
+      "sub": "Orange is stamped; the outline is the whole domain.",
+      "data": "domains",
+      "note": "{stats.stamped} of {stats.sections} sections stamped on {stats.date}."
+    },
+    {
+      "type": "code",
+      "title": "The graph is a tool, not a document",
+      "sub": "scripts/todo-graph.py keeps the plan honest.",
+      "lines": [
+        "$ python3 scripts/todo-graph.py validate       # structure and graph integrity",
+        "$ python3 scripts/todo-graph.py plan --sync    # regenerate the plan",
+        "$ python3 scripts/todo-graph.py plan --check   # fail if the plan is stale (CI runs it)",
+        "$ python3 scripts/todo-graph.py query ready    # dependency-safe work, this lane only",
+        "$ python3 scripts/todo-graph.py query blocked  # what waits, and on what",
+        "$ python3 scripts/todo-graph.py query stats    # this lane's health",
+        "$ {fact.mergeDriver}   # merges regenerate the plan"
+      ]
+    },
+
+    { "type": "chapter", "number": 4, "title": "A section is a contract", "sub": "Every section is written so a fresh session can build it with zero conversation context." },
+    {
+      "type": "table",
+      "title": "What every section declares",
+      "columns": ["Field", "Meaning"],
+      "rows": [
+        ["Phase", "When it runs, from the closed list of {fact.phaseCount} phases"],
+        ["Needs", "What it waits for: none, meta-api, cloudflare, live-mail, whatsapp, attended or operator"],
+        ["Risk", "{fact.riskFull}: light sections touch only tooling, tests or docs and get cheaper review"],
+        ["Surface", "Whether it builds something a user sees, which adds fidelity and chrome lines"],
+        ["Adjacency", "{fact.adjNine}: list, document, settings, reporting, notifications, permissions, audit, exchange, reverse"],
+        ["Test checkpoint", "A runnable command with its expected result. It {fact.checkpointFail}."]
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "The {fact.fivePart} for every checklist item",
+      "sub": "{fact.microRange} micro-steps per section, the last one always a commit.",
+      "items": [
+        "One action: never do X and then Y.",
+        "A concrete path, symbol or command in backticks.",
+        "Done when: the observable end state, in the same bullet.",
+        "Cheaper substitute: the shortcut that must fail review, on every UI and write item.",
+        "A source citation when behaviour is copied from a spec.",
+        "Headings and deliverables stay within {fact.limit88} characters, so the tables never wrap."
+      ]
+    },
+    {
+      "type": "code",
+      "title": "A real section, from this video's own plan",
+      "sub": "todo/10-media/TODO-01-channel-videos.md, section 2.",
+      "lines": [
+        "## 2. Remotion licence basis",
+        "**Phase:** 6",
+        "**Needs:** operator",
+        "**Surface:** no",
+        "- [ ] Record the line `Remotion licence: ...` under this section.",
+        "      Done when: the line is written.",
+        "      Cheaper substitute: assuming the free tier from the team size fails.",
+        "- [ ] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`",
+        "**Test checkpoint:** `grep -cE '^Remotion licence: ' ...` prints `1`."
+      ]
+    },
+
+    { "type": "chapter", "number": 5, "title": "The lanes: {fact.laneCount} lanes and a lead", "sub": "Each lane is a Claude Code session with its own branch and worktree, and the domains or sections it alone claims. The coordinator leads them." },
+    {
+      "type": "lanes",
+      "title": "Who does what",
+      "sub": "The coordinator and {fact.laneCount} lanes, listed in todo/lanes.json.",
+      "lanes": [
+        { "name": "Coordinator", "branch": "main", "role": "Team lead: merges, CI, deploys, shared tooling, operator steps", "owns": "D00 workspace, D99 manual" },
+        { "name": "Checks", "branch": "checks-lane", "role": "Intake, the checks and the verdict agent", "owns": "D01, D02, D04; {fact.tasksetChecks}" },
+        { "name": "App", "branch": "app-lane", "role": "Sign-in, accounts, cases and the upload page", "owns": "D07; {fact.tasksetApp}" },
+        { "name": "Glimmer", "branch": "glimmer-screener", "role": "Vision and the Loupe page screener", "owns": "D03 vision" },
+        { "name": "Walkthrough", "branch": "walkthrough-lane", "role": "The walkthrough agent and SAM logo matching", "owns": "Sections of D04 and D03" },
+        { "name": "Trust", "branch": "trust-lane", "role": "The trust network and invoice checks", "owns": "D05 trust, D06 invoices" },
+        { "name": "Eval", "branch": "eval-lane", "role": "Evaluation and launch", "owns": "D08 eval, D09 launch" },
+        { "name": "Console", "branch": "console-lane", "role": "The member and admin consoles, and the app essentials", "owns": "Sections of D07" },
+        { "name": "Site", "branch": "site-lane", "role": "The marketing site and the demo organisations", "owns": "Sections of D07" },
+        { "name": "Media", "branch": "{fact.mediaBranch}", "role": "These videos; registered, not coordinated", "owns": "D10 media" }
+      ]
+    },
+    {
+      "type": "stats",
+      "title": "Why split by domain, not by phase",
+      "sub": "Measured on the open rows when the first lanes were designed.",
+      "items": [
+        { "value": "{fact.sharedPhase}", "label": "dependencies a split by phase would share across lanes" },
+        { "value": "{fact.sharedDomain}", "label": "dependencies a split by domain shares" }
+      ],
+      "note": "Fewer shared edges means lanes rarely wait on each other."
+    },
+    {
+      "type": "bullets",
+      "title": "How the team grew",
+      "sub": "The team grows by listing work, never by renumbering it.",
+      "items": [
+        "Where it started: the coordinator, a split by domain into checks, app and Glimmer, and the media lane.",
+        "{fact.lanesAddedA}: walkthrough, trust and eval.",
+        "{fact.lanesAddedB}: console and site.",
+        "Walkthrough, console and site claim single sections, not whole domains. {fact.movesByListing}, so every reference to it still resolves.",
+        "Every lane's commits count toward the figures in this video: main and every branch in todo/lanes.json."
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "Each lane sees only its own work",
+      "items": [
+        "query ready, blocked and stats count only the lane's rows; --all shows the whole plan.",
+        "The lane follows the checked-out branch, so the same tools behave correctly in every worktree.",
+        "Asking to resolve another lane's ready row returns {fact.resolveExit4} with a note naming the owner.",
+        "A run guard pins each run to the lane it started in, so the loop never resumes someone else's rows.",
+        "A row that depends on another lane's row waits until that row is stamped and merged through main.",
+        "{fact.crossLane}"
+      ]
+    },
+
+    { "type": "chapter", "number": 6, "title": "The coordinator: team lead", "sub": "One session on main builds no product section, so its merges and checks stay neutral." },
+    {
+      "type": "flow",
+      "title": "How work reaches main",
+      "steps": [
+        { "title": "Lane stamps", "sub": "a section passes review" },
+        { "title": "Announce", "sub": "{fact.everyStamp} to the coordinator" },
+        { "title": "Merge", "sub": "at the lane's stamp boundary" },
+        { "title": "Regenerate", "sub": "the plan, never hand-merged" },
+        { "title": "Gate in CI", "sub": "the merge pushed to {fact.mergeGate}" },
+        { "title": "Move main", "sub": "only when every CI job is green" },
+        { "title": "Lanes take main", "sub": "at their own boundaries, by merge" }
+      ],
+      "note": "{stats.merges} lane merges into main so far. Locally the coordinator runs only validate, the build and the migrations."
+    },
+    {
+      "type": "bullets",
+      "title": "What the coordinator owns",
+      "items": [
+        "main, merges, CI and deploys, and the D00 workspace and D99 manual domains.",
+        "All shared tooling: scripts/, the reviewer pin, the git hooks and .claude/. A lane that finds a gap reports it.",
+        "D1 database migration numbers, handed out before a lane writes one. The next free number is {fact.nextMig}.",
+        "The operator's steps: rows needing meta-api, live-mail, whatsapp or attended are prepared down to the one step only the human can take.",
+        "Operator steps are batched at a time the operator chooses, and verified without ever reading a secret value.",
+        "docs/coordinator.md records deploys, migration numbers and the operator's batches."
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "Sharing one machine without collisions",
+      "sub": "Every lane and the coordinator share {fact.machine} of memory.",
+      "items": [
+        "Each building lane pins its tests to its own cores: checks on {fact.tasksetChecks}, app on {fact.tasksetApp}.",
+        "Each lane runs only its own section's tests locally, and {fact.ciSuites}.",
+        "Tests remove every folder they create; the coordinator sweeps test leftovers {fact.sweepTmp}.",
+        "{fact.plainTerminal}, never its own editor window, since a machine crash on 31 Oct.",
+        "The media lane moved from a cloud session onto this machine on 31 Oct."
+      ]
+    },
+
+    { "type": "chapter", "number": 7, "title": "The loop that never stops", "sub": "Each lane keeps working without a human prompt, day and night." },
+    {
+      "type": "flow",
+      "title": "One lane's loop",
+      "steps": [
+        { "title": "process-plan", "sub": "audit the plan, pick the phase" },
+        { "title": "acquire", "sub": "the run guard names this session" },
+        { "title": "process-phase", "sub": "take a phase to 100 percent" },
+        { "title": "process-todo-section", "sub": "build one section end to end" },
+        { "title": "review-todo-section", "sub": "independent review rounds" },
+        { "title": "stamp", "sub": "receipt written, row done" },
+        { "title": "next ready row", "sub": "and round again" }
+      ],
+      "note": "The stop hook blocks a session from ending its turn while ready rows remain."
+    },
+    {
+      "type": "bullets",
+      "title": "What keeps the loop alive, and safe",
+      "items": [
+        "Stop hook: while ready rows remain, the session may not end its turn; it lets go after {fact.stallBreaker} with no change, so a stuck loop cannot spin forever.",
+        "Heartbeat: a cron job at {fact.heartbeatCron} resumes an idle session with its full context.",
+        "Handover: a new session takes over a run with acquire --handover.",
+        "A run whose only work waits on another lane {fact.waitNotEnd}: each heartbeat merges main in and resumes the run when a row is ready.",
+        "At every section boundary: merge open pull requests on main and check CI; a red build comes first.",
+        "The guard {fact.failsOpen}: a broken guard never blocks other work."
+      ]
+    },
+    {
+      "type": "chart",
+      "title": "Commits by hour of day, every lane",
+      "sub": "South African time. The night hours are not empty.",
+      "data": "hours",
+      "note": "{stats.pace.commits} commits since {stats.pace.first}."
+    },
+    {
+      "type": "chart",
+      "title": "Commits per day",
+      "sub": "Orange is all commits; the dark base is stamp commits, one per shipped section.",
+      "data": "days",
+      "note": "{stats.pace.stamps} stamp commits so far."
+    },
+
+    { "type": "chapter", "number": 8, "title": "Quality control", "sub": "The writer never grades its own work. Reviewers come from other model families." },
+    {
+      "type": "table",
+      "title": "Who writes, who reviews",
+      "meta": "Muse Wonder",
+      "sub": "Pinned in .conclave/reviewers.toml.",
+      "columns": ["Role", "Who", "How"],
+      "rows": [
+        ["Writer", "Claude Code", "The only writer; subagents read and run but never write"],
+        ["Reviewer", "GPT-6 Astra ({fact.astraModel})", "Through the Codex CLI, in a read-only sandbox"],
+        ["Final reviewer", "Muse Wonder ({fact.wonderModel})", "Through Muse Code, a third model family, one pass per section; off for now"]
+      ]
+    },
+    {
+      "type": "flow",
+      "title": "The review schedule for one section",
+      "steps": [
+        { "title": "Plan review", "sub": "medium effort, before any code" },
+        { "title": "Build", "sub": "code, tests, commit" },
+        { "title": "Completion review", "sub": "medium effort, after the build" },
+        { "title": "Round 1", "sub": "medium: adversarial, integration, source-defect, plan-delivery" },
+        { "title": "Round 2", "sub": "medium: adversarial" },
+        { "title": "Round 3", "sub": "low: adversarial" },
+        { "title": "Rotation", "sub": "consistency, quality, design, optimization, record" },
+        { "title": "Final review", "sub": "Muse Wonder, one pass, off for now" }
+      ],
+      "note": "The loop stops at the first round with no P1 or P2 (severity_stop_after = {fact.stopAfter}), capped at {fact.roundCap} rounds. Every pass that ran at high runs at {fact.effortsMedium} since 31 Oct 11:35 SAST, to catch the build up."
+    },
+    {
+      "type": "bullets",
+      "title": "The rules of a review",
+      "items": [
+        "Findings are graded P1, P2 or P3; a P1 or P2 is fixed and proven by another round.",
+        "Every reply ends with an OVERALL line: approve or needs-attention.",
+        "A reviewer that fails, times out or replies {fact.blocked} is skipped and recorded: {fact.noReviewNotApproval}",
+        "Light-risk sections run one medium round of adversarial and plan-delivery lenses instead of the full set.",
+        "A low-effort round that finds a P1 earns another medium adversarial round.",
+        "The Muse Wonder final review is {fact.finalOff} since 29 Oct 20:36 SAST, {fact.finalOffWhy}; it comes back, with higher efforts where they help, {fact.finalPolish}."
+      ]
+    },
+    {
+      "type": "stats",
+      "title": "Review, measured",
+      "items": [
+        { "value": "{stats.rounds}", "label": "review rounds recorded" },
+        { "value": "{stats.receipts}", "label": "review receipts in docs/reviews/" },
+        { "value": "{stats.finals}", "label": "Muse Wonder final reviews" }
+      ]
+    },
+    {
+      "type": "callout",
+      "title": "A real final review finding, docs/reviews/01-intake/D01-T01-s2.md",
+      "meta": "Muse Wonder",
+      "text": "The expired-object restore path can desynchronise R2, D1 and the returned media type, breaking the invariant this section was closed on."
+    },
+
+    { "type": "chapter", "number": 9, "title": "Nothing ships without a receipt", "sub": "A section is done only when the stamp command says so." },
+    {
+      "type": "code",
+      "title": "The stamp",
+      "sub": "It refuses without its evidence.",
+      "lines": [
+        "$ python3 scripts/todo-graph.py stamp 'D01 T01 §1' \\",
+        "    --sha <the full 40 character implementation commit> \\",
+        "    {fact.stampPlanFlag} docs/reviews/01-intake/D01-T01-s1.md \\",
+        "    --review '1:docs/reviews/01-intake/D01-T01-s1.md:clean' \\",
+        "    --check '<command> -> <quoted result>'",
+        "# the receipt lands in docs/reviews/, the row flips to [x]"
+      ],
+      "caption": "The test checkpoint is quoted in the stamp, not paraphrased. The media lane's stamps carry {fact.mediaNoReview}, merging {fact.mediaMerge}."
+    },
+
+    { "type": "chapter", "number": 10, "title": "Guards on every action", "sub": "The quality bar is mechanical, not a matter of memory." },
+    {
+      "type": "bullets",
+      "title": "Hooks and checks",
+      "items": [
+        "A PreToolUse hook refuses any review that is not run in the background, so the session is told the moment it finishes.",
+        "Git hooks run in every worktree: pre-commit, pre-merge-commit and pre-push.",
+        "pre-commit refuses a staged line that names a client, read from a git-ignored list.",
+        "pre-push refuses a push whose typecheck or lint would turn CI red.",
+        "check-publication.py checks the index for private data before every push to the public repository.",
+        "local-tool-safety is loaded before any outbound, destructive or account-changing operation.",
+        "CI runs {fact.ciJobs} jobs on every push: Worker gates, the Worker tests split into shards, the voice decoder against FFmpeg, the TODO graph and the script tests. It never deploys."
+      ]
+    },
+
+    { "type": "chapter", "number": 11, "title": "How it adds up to speed", "sub": "Why one person can ship what normally takes a team." },
+    {
+      "type": "flow",
+      "title": "Five parts, one machine",
+      "steps": [
+        { "title": "The plan", "sub": "removes thinking from execution: every row small, specified, falsifiable" },
+        { "title": "The lanes", "sub": "a team working disjoint domains in parallel" },
+        { "title": "The coordinator", "sub": "absorbs the shared hazards: merges, tooling, the machine" },
+        { "title": "The loop", "sub": "keeps every lane working around the clock" },
+        { "title": "The reviewers", "sub": "catch what the writer misses before anything is stamped" }
+      ]
+    },
+    {
+      "type": "stats",
+      "title": "The result, so far",
+      "sub": "From the first commit on {stats.pace.first} to {stats.date}.",
+      "items": [
+        { "value": "{stats.pace.commits}", "label": "commits" },
+        { "value": "{stats.pace.stamps}", "label": "sections stamped" },
+        { "value": "{stats.rounds}", "label": "review rounds" },
+        { "value": "{stats.lines}", "label": "lines of TypeScript" }
+      ]
+    },
+    {
+      "type": "callout",
+      "title": "The point",
+      "text": "Each lane is a developer who never sleeps. The operator decides; the system builds, checks and proves."
+    }
+  ]
+}

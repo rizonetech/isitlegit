@@ -1,0 +1,187 @@
+{
+  "video": "01",
+  "composition": "DevProcess",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "title",
+      "text": "This is how IsItLegit is built: one operator, {fact.laneCount} AI lanes and a coordinator, working as a team that never sleeps."
+    },
+    {
+      "scene": "The idea",
+      "text": "Chapter one: the idea. One operator, directing a team of AI developers that works around the clock."
+    },
+    {
+      "scene": "The manifesto",
+      "text": "The bet in our manifesto is that {fact.manifestoClaim} can out-think, out-test and out-finish far larger teams."
+    },
+    {
+      "scene": "What that looks like so far",
+      "text": "Here's what that looks like so far: the commits across every lane, the sections shipped and stamped, the lines of TypeScript, and the merges into main. None of these numbers are typed in. They're read from git and the plan at render time."
+    },
+    {
+      "scene": "What the judges score",
+      "text": "This is built for the Meta Global AI Developer Hackathon, on the {fact.track}. Impact carries {fact.wImpact} of the score, use of Meta's AI tooling {fact.wMeta}, the demo {fact.wDemo}, and technical depth {fact.wTech}."
+    },
+    {
+      "scene": "The rules everyone follows",
+      "text": "Chapter two: the rules everyone follows. A small set of documents that every session reads before it writes a single line."
+    },
+    {
+      "scene": "Governing documents",
+      "text": "AGENTS dot md is the engineering contract: how every agent works, commits, reviews and stamps. CLAUDE dot md holds only what's specific to Claude Code. The manifesto sets the quality bar, the hackathon criteria turn the competition rules into checks, the specs describe the product and the stack, and the design spec covers every page, from {fact.boards70} approved design boards."
+    },
+    {
+      "scene": "House rules, enforced",
+      "text": "And the house rules are enforced, not hoped for. No em dashes or en dashes, anywhere. Files are written to a temporary file, then atomically replaced. Command output is bounded, and full logs go to scratch. Git status is treated as a lock. Subagents read and run, but they never write. And every change report names the layer that owns it."
+    },
+    {
+      "scene": "The plan is a graph",
+      "text": "Chapter three: the plan is a graph. The whole product, broken into small sections with explicit dependencies."
+    },
+    {
+      "scene": "From product to sections",
+      "text": "There are {fact.domainCount} domains, from the workspace and intake through to launch, media and the manual steps. Each domain holds TODO files, and each file holds small, single-purpose sections, ordered across {fact.phaseCount} phases. Each file's implementation order table is the dependency graph. The full plan is generated from those tables, never edited by hand. And a row only flips to done through the stamp command, backed by a review receipt."
+    },
+    {
+      "scene": "Sections shipped per domain",
+      "text": "This chart shows the sections shipped in each domain. Orange is stamped, and the outline is the whole domain."
+    },
+    {
+      "scene": "The graph is a tool, not a document",
+      "text": "The graph is a tool, not a document. One script validates the structure, regenerates the plan, and fails CI if the plan is stale. It answers what's ready to build, what's blocked and on what, and how healthy this lane is. Even a merge regenerates the plan, so the plan never conflicts."
+    },
+    {
+      "scene": "A section is a contract",
+      "text": "Chapter four: a section is a contract. Every section is written so a fresh session can build it with no conversation context at all."
+    },
+    {
+      "scene": "What every section declares",
+      "text": "Every section declares its phase, and what it needs: the Meta API, Cloudflare, live mail, or the operator. It declares its risk, {fact.riskFull}, and light sections get a cheaper review. It says whether a user will see it. It answers {fact.adjNine} of adjacency, from list and settings to audit and reverse. And it carries a test checkpoint: a runnable command with an expected result, one that {fact.checkpointFail}."
+    },
+    {
+      "scene": "The {fact.fivePart} for every checklist item",
+      "text": "Every checklist item follows the {fact.fivePart}. One action, never two. A concrete path or command. A done-when line that describes the observable end state. A cheaper substitute: the shortcut that must fail review. And a source citation, whenever behaviour is copied from a spec."
+    },
+    {
+      "scene": "A real section, from this video's own plan",
+      "text": "Here's a real section, from this video's own plan: the Remotion licence basis. One item records the licence line, says when it's done, and names the shortcut that fails. The last item is always the commit, and the test checkpoint is a grep that has to print one."
+    },
+    {
+      "scene": "The lanes: {fact.laneCount} lanes and a lead",
+      "text": "Chapter five: the lanes. {fact.laneCount} of them, and a lead. Each lane is a Claude Code session, with its own branch, its own worktree, and the work it alone claims."
+    },
+    {
+      "scene": "Who does what",
+      "text": "The coordinator is the team lead: merges, CI, deploys and shared tooling. The checks lane owns intake, the checks and the verdict agent. The app lane owns sign-in, accounts and cases. Glimmer owns vision and the Loupe page screener. Walkthrough builds the agent that walks a suspicious page, and SAM logo matching. Trust owns the trust network and invoice checks, and eval owns evaluation and launch. Console builds the member and admin consoles, site builds the marketing site and the demo organisations, and the media lane makes these videos."
+    },
+    {
+      "scene": "Why split by domain, not by phase",
+      "text": "Why split by domain, and not by phase? When we designed the first lanes, a split by phase would have shared {fact.sharedPhase} dependencies across lanes. A split by domain shares just {fact.sharedDomain}. Fewer shared edges means the lanes rarely wait on each other."
+    },
+    {
+      "scene": "How the team grew",
+      "text": "It didn't start this big. On day one of the lanes it was the coordinator, the checks, app and Glimmer lanes split by domain, and media. On the thirty-first I added walkthrough, trust and eval to speed the build, and then console and site, split out of the app lane's backlog. Walkthrough, console and site claim single sections instead of whole domains. A section moves by being listed, never renumbered, so every reference to it still works. And every lane's commits count in the figures you're seeing."
+    },
+    {
+      "scene": "Each lane sees only its own work",
+      "text": "Each lane sees only its own work. The planning queries count only that lane's rows, and the lane follows the checked-out branch, so the same tools work in every worktree. Ask to build another lane's row and you get {fact.resolveExit4}, with a note naming the owner. A row that depends on another lane waits until that work is stamped and merged through main. {fact.crossLane}"
+    },
+    {
+      "scene": "The coordinator: team lead",
+      "text": "Chapter six: the coordinator, our team lead. One session on main that builds no product section, so its merges and checks stay neutral."
+    },
+    {
+      "scene": "How work reaches main",
+      "text": "Here's how work reaches main. A lane stamps a section once it passes review, and announces it. The coordinator merges at that stamp boundary, and regenerates the plan instead of hand-merging it. The merge's gates don't run on this machine anymore: the coordinator pushes it to a gate branch, and main moves only when every CI job is green, the Worker test shards included. Then each lane takes main back, at its own boundaries, by merge."
+    },
+    {
+      "scene": "What the coordinator owns",
+      "text": "The coordinator owns main, the merges, CI and deploys. It owns all the shared tooling, so a lane that finds a gap reports it. It hands out database migration numbers before a lane writes one. And it prepares every operator step down to the one action only I can take, batched at a time I choose, and verified without ever reading a secret."
+    },
+    {
+      "scene": "Sharing one machine without collisions",
+      "text": "Every lane, and the coordinator, shares one machine, with {fact.machine} of memory. Each building lane pins its tests to its own processor cores, and runs only its own section's tests. Full suites go to GitHub CI. Tests clean up every folder they make. After the machine crashed on the thirty-first, every lane runs from a plain terminal, not its own editor window. And the media lane has moved off the cloud, onto this same machine."
+    },
+    {
+      "scene": "The loop that never stops",
+      "text": "Chapter seven: the loop that never stops. Each lane keeps working without a human prompt, day and night."
+    },
+    {
+      "scene": "One lane's loop",
+      "text": "One lane's loop looks like this. Process plan audits the plan and picks a phase. The run guard names this session as the owner. Process phase takes that phase to a hundred percent, one section at a time: build it end to end, review it in independent rounds, stamp it, then move to the next ready row. A stop hook won't let the session end its turn while ready rows remain."
+    },
+    {
+      "scene": "What keeps the loop alive, and safe",
+      "text": "So what keeps the loop alive, and safe? The stop hook lets go after {fact.stallBreaker} with no change, so a stuck loop can't spin forever. A heartbeat resumes an idle session every few minutes, with its full context. A new session can take over a run with a handover. A run that's only waiting on another lane doesn't end: each heartbeat merges main in, and picks the work back up the moment a row is ready. At every section boundary, a red CI build comes first. And the guard {fact.failsOpen}, so a broken guard never blocks other work."
+    },
+    {
+      "scene": "Commits by hour of day, every lane",
+      "text": "These are commits by hour of day, across every lane, in South African time. Look at the night hours. They're not empty."
+    },
+    {
+      "scene": "Commits per day",
+      "text": "And these are commits per day. Orange is every commit, and the dark base is stamp commits: one for every section shipped."
+    },
+    {
+      "scene": "Quality control",
+      "text": "Chapter eight: quality control. The writer never grades its own work. The reviewers come from other model families."
+    },
+    {
+      "scene": "Who writes, who reviews",
+      "text": "Claude Code is the only writer, and its subagents can read and run, but never write. GPT six Astra reviews through the Codex CLI, in a read-only sandbox. And Muse Wonder gives a final review from a third model family, one pass per section, though it's switched off for now."
+    },
+    {
+      "scene": "The review schedule for one section",
+      "text": "Here's the review schedule for one section. A plan review before any code. Then the build, then a completion review. Round one runs four lenses: adversarial, integration, source defect and plan delivery. Round two stays at that effort and round three drops to low, then a rotation covers consistency, quality, design, optimization and the record. The loop stops at the first round with no P one or P two finding, capped at {fact.roundCap} rounds. Since the morning of the thirty-first, every pass that ran at high effort runs at {fact.effortsMedium}, so the build can catch up."
+    },
+    {
+      "scene": "The rules of a review",
+      "text": "These are the rules of a review. Findings are graded P one, P two or P three, and a P one or P two is fixed, then proven by another round. Every reply ends with an overall line: approve, or needs attention. A reviewer that fails or times out is skipped and recorded, and that round is not an approval. Light-risk sections get a lighter review. And the Muse Wonder final review is {fact.finalOff}, {fact.finalOffWhy}. It comes back, with the higher efforts, once the plan reaches its polish stage."
+    },
+    {
+      "scene": "Review, measured",
+      "text": "This is review, measured: the review rounds recorded, the receipts on file, and the Muse Wonder final reviews."
+    },
+    {
+      "scene": "A real final review finding, docs/reviews/01-intake/D01-T01-s2.md",
+      "text": "Here's a real finding from a final review. The expired-object restore path can desynchronise R two, D one and the returned media type, breaking the very invariant the section was closed on."
+    },
+    {
+      "scene": "Nothing ships without a receipt",
+      "text": "Chapter nine: nothing ships without a receipt. A section is done only when the stamp command says so."
+    },
+    {
+      "scene": "The stamp",
+      "text": "The stamp refuses without its evidence: the full implementation commit, the plan review, every review round and its result, and the test checkpoint, quoted exactly, not paraphrased. The receipt lands in the reviews folder, and only then does the row flip to done."
+    },
+    {
+      "scene": "Guards on every action",
+      "text": "Chapter ten: guards on every action. The quality bar is mechanical, not a matter of memory."
+    },
+    {
+      "scene": "Hooks and checks",
+      "text": "A hook refuses any review that isn't run in the background, so the session hears the moment it finishes. Git hooks run in every worktree: pre-commit refuses any line that names a client, and pre-push refuses a push whose typecheck or lint would fail. Before every push to the public repository, a script checks for private data. And CI runs {fact.ciJobs} jobs on every push, but it never deploys."
+    },
+    {
+      "scene": "How it adds up to speed",
+      "text": "Chapter eleven: how it adds up to speed. Why one person can ship what normally takes a team."
+    },
+    {
+      "scene": "Five parts, one machine",
+      "text": "Five parts, one machine. The plan removes thinking from execution: every row is small, specified and falsifiable. The lanes are a team working separate domains in parallel. The coordinator absorbs the shared hazards. The loop keeps every lane working around the clock. And the reviewers catch what the writer misses, before anything is stamped."
+    },
+    {
+      "scene": "The result, so far",
+      "text": "And here's the result so far: the commits, the sections stamped, the review rounds and the lines of TypeScript, from the first commit to today."
+    },
+    {
+      "scene": "The point",
+      "text": "Each lane is a developer who never sleeps. I decide. The system builds, checks and proves."
+    },
+    {
+      "scene": "close",
+      "text": "The code is on GitHub, at rizonetech slash IsItLegit. Thanks for watching."
+    }
+  ]
+}

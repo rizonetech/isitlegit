@@ -1,0 +1,179 @@
+{
+  "video": "02",
+  "composition": "TechDeepDive",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "title",
+      "text": "IsItLegit: how it works. This is the technical deep dive: intake, the pipeline, the checks, Meta's models, the verdict, the trust network, storage and the app."
+    },
+    {
+      "scene": "What it does",
+      "text": "Chapter one: what it does. Forward a suspicious email. Get a verdict, with the evidence."
+    },
+    {
+      "scene": "The problem, and the answer",
+      "text": "Phishing and business email compromise get past Microsoft three sixty-five and other filters every day. The costliest case is an invoice from a real supplier, whose bank details were quietly changed. IsItLegit takes a forwarded email, an upload or a voice note, and runs an investigation. The answer is a plain-language verdict: {fact.verdictClasses}, with the top three reasons, and what to do now. Every claim cites evidence, and hard rules set a floor the model can't lower."
+    },
+    {
+      "scene": "The whole system, one Cloudflare Worker",
+      "text": "The whole system is one Cloudflare Worker. Email Routing hands mail to the Worker. It's admitted and deduplicated, and a Workflow runs the investigation. Deterministic checks produce evidence, Meta's models run through AI Gateway, and the verdict is cited, with a rule-based floor. Everything is stored in D one, R two and KV, and the reply goes out by mail, with a signed report link."
+    },
+    {
+      "scene": "Email intake",
+      "text": "Chapter two: email intake. This part is shipped."
+    },
+    {
+      "scene": "From a forward to a case",
+      "text": "You forward mail to {fact.intakeAddress}, and Cloudflare Email Routing hands it to the Worker. Only members are processed. Anything else is {fact.dropNoReply}, so there's no backscatter. Oversized messages are refused before they're read, and machine mail is never answered, so two auto-responders can't loop. Every delivery is claimed in D one first, and the case ID is the Workflow's instance ID, so a retry never makes two cases. Forwarding as an attachment is the supported path, because it keeps the original headers."
+    },
+    {
+      "scene": "Uploads, parsing and voice",
+      "text": "Chapter three: uploads, parsing and voice. Partly built. Uploads and parsing are shipped. The voice decoder is built, but not wired in yet, and transcription is planned."
+    },
+    {
+      "scene": "What goes in, and the limits",
+      "text": "You can upload a saved email, a PDF, an image or a voice note. Each file's type is read from its bytes, never its name. MIME is parsed by postal-mime, and Outlook files are read with limits, so a crafted file can't exhaust memory. The voice decoder runs inside the Worker, and hooking it to uploads, then transcription with Meta's voice model, come next."
+    },
+    {
+      "scene": "The investigation pipeline",
+      "text": "Chapter four: the investigation pipeline. Shipped, with the verdict step still a stub until the agent lands."
+    },
+    {
+      "scene": "Cloudflare Workflows: {fact.workflowName}",
+      "text": "The pipeline runs on Cloudflare Workflows. Admit makes sure the case exists exactly once. Parse handles MIME and attachments, and stores the artefacts in R two. Checks gathers deterministic evidence. The verdict step is a stub today, one that is {fact.stubVerdict}. Then come store, reply and finish."
+    },
+    {
+      "scene": "Durable by design",
+      "text": "It's durable by design. Each step retries with exponential backoff, and step results are cached, so a paid model call is never repeated after a later failure. A budget refusal is never retried. A step that fails for good {fact.partialCase} and names the step, and the reply still goes out. One cron job settles uncertain mail sends, sweeps stuck intake claims and unsettled model calls, and checks that forwarding still works. A second runs every minute, and settles any check retry whose start was uncertain."
+    },
+    {
+      "scene": "Evidence and deterministic checks",
+      "text": "Chapter five: evidence, and deterministic checks. Shipped. Authentication, header, domain, attachment, hidden text and link checks all run in the pipeline."
+    },
+    {
+      "scene": "One evidence model for everything",
+      "text": "There's one evidence model for everything. Every check is a pure function that returns evidence, with an ID, a severity and a summary, and the verdict has to cite those IDs. A check that fails becomes not checked. Never a silence, and never a guess."
+    },
+    {
+      "scene": "The checks",
+      "text": "All of these are shipped: trusted authentication results, SPF, DKIM and DMARC with alignment, the ARC chain, and the header tells, like a display name that doesn't match the address, or a first-time sender. Lookalike domains, domain age, attachment checks, hidden text aimed at an AI filter, which counts as evidence against the mail, and links whose text doesn't match where they really go."
+    },
+    {
+      "scene": "Reputation and the hard floor",
+      "text": "Chapter six: reputation, and the hard floor. This part is planned."
+    },
+    {
+      "scene": "Outside opinions, weighed",
+      "text": "Outside opinions are weighed, not obeyed. Google Web Risk and Cloudflare's malware-blocking resolver give second opinions. An exact URL hit is strong, a domain is medium, and an IP is weak. {fact.listNotAlone} It must agree with our own evidence. And counter-signals pull the other way, so the report shows both sides."
+    },
+    {
+      "scene": "The floor",
+      "text": "And here's the floor. Critical evidence {fact.floorRule}. The model may raise severity, but never lower it. So an injected line saying this is safe still loses."
+    },
+    {
+      "scene": "Following the link",
+      "text": "Chapter seven: following the link. Started. The canary credentials for each case are built, and the driver and the Muse Wonder walk come next. The goal: Browser Run and Muse Wonder walk the lure, so the user doesn't have to."
+    },
+    {
+      "scene": "A contained walkthrough",
+      "text": "It's a contained walkthrough. Redirects are followed in Browser Run, and every landing page is screenshotted. Muse Wonder clicks through as a computer-use agent, and types {fact.wonderCanary}, generated for each case. Then we record where the form posts, and whether it accepted them. The limits are enforced by our driver, not the model, and every action is logged."
+    },
+    {
+      "scene": "Limits and evidence",
+      "text": "The walk only runs when the link checks find a form or a lure button, and results are cached by the final URL. The evidence is the page chain with screenshots, the harvest domain, the form target, and whether the canary was accepted."
+    },
+    {
+      "scene": "Vision",
+      "text": "Chapter eight: vision. Partly built. The page-screen contract is shipped, and Loupe one point oh is trained. Logo comparison, and deploying and measuring the screener, are still open."
+    },
+    {
+      "scene": "Seeing what the user sees",
+      "text": "Muse Spark reads rendered emails, PDFs and screenshots, and returns structured output: the claimed brand, the requested action, and the urgency. SAM three point one crops the logos, and Spark compares them with the registered logo. And Loupe, our LoRA fine-tune of Muse Glimmer, screens impersonation pages cheaply. It {fact.loupeSpec}. Version one point oh is trained, and video three tells that story."
+    },
+    {
+      "scene": "The Meta model client",
+      "text": "Chapter nine: the Meta model client. Built, and checked against the live API. The pipeline starts calling it when the verdict agent lands."
+    },
+    {
+      "scene": "Meta's models, each with one job",
+      "text": "Each of Meta's models has one job. Muse Spark reads the mail and the evidence, writes the cited verdict, and screens lookalike sites. Muse Wonder walks suspicious pages in a contained browser. SAM finds and compares logos, stamps and signatures. The voice model turns voice notes into text. Muse Image builds a synthetic test set of doctored documents. And Loupe does cheap, first-pass page screening."
+    },
+    {
+      "scene": "One client, strict rules",
+      "text": "One client, with strict rules. Every call goes through AI Gateway, logging metadata only. Store false is forced on every call, and only standard IDs are used. A model sent to the wrong endpoint is refused before the network. A budget guard reserves the cost before each call, every result is validated, and results are cached by artefact hash, so the same screenshot costs nothing the second time."
+    },
+    {
+      "scene": "The verdict agent",
+      "text": "Chapter ten: the verdict agent. Planned, and the next big piece of the build."
+    },
+    {
+      "scene": "Muse Spark with tools, and a strict output",
+      "text": "The agent is Muse Spark with tools, and a strict output. It reads the evidence summary, never raw HTML. Its tools expand links, take screenshots, compare logos, look up domains, check the supplier ledger, and walk phishing sites. Its output is a verdict, a confidence, an explanation and the evidence it cites. If it cites evidence that doesn't exist, the agent {fact.citeValidator}."
+    },
+    {
+      "scene": "Prompt injection is defended by structure",
+      "text": "Prompt injection is defended by structure. Email, PDF and page text reach a model only inside {fact.untrustedBlocks}. {fact.noModelRecipients} The tools are read-only. The hard floor means injected instructions can't lower a verdict. And injection fixtures sit in the test set, so a regression gets caught."
+    },
+    {
+      "scene": "Invoices and payments",
+      "text": "Chapter eleven: invoices and payments. Started. PDF forensics and the fixed payment instructions are built. Extraction and the supplier ledger are planned."
+    },
+    {
+      "scene": "The costliest fraud, checked field by field",
+      "text": "This is the costliest fraud, so it's checked field by field. The invoice is extracted as structured data, and a supplier ledger for each organisation holds every known supplier's verified bank details. Changed bank details, a changed domain, or wording like we've changed banks, is {fact.bankChange} evidence, with one fixed instruction: phone the number in your own records. And a proof of payment check can show a document is likely doctored, but never that a payment cleared."
+    },
+    {
+      "scene": "The trust network",
+      "text": "Chapter twelve: the trust network. Started. The data model for a protected identity is built, and registration, the monitor and the badge are planned. It's protection for businesses whose name is used against their customers."
+    },
+    {
+      "scene": "Registered identity",
+      "text": "A business registers and verifies its {fact.trustProtected}. Anyone can forward mail that claims to be that business, and the verdict compares it with the registered identity. Registered bank details are never revealed to a checker, who sees only match or no match. To confirm a bank change, the agent {fact.closedLoop}. And the email badge and the website seal only work for verified domains."
+    },
+    {
+      "scene": "The impersonation monitor",
+      "text": "The impersonation monitor generates lookalike domains for each registered business, screens the candidate pages with Loupe, investigates anything flagged with the full pipeline, and tells the business before its customers are hit. It runs daily, on a Cron Trigger."
+    },
+    {
+      "scene": "Storage, retention and privacy",
+      "text": "Chapter thirteen: storage, retention and privacy. Partly built."
+    },
+    {
+      "scene": "Where data lives, and for how long",
+      "text": "Cases, evidence and verdicts live in D one. Raw mail goes to R two, and it's {fact.r2Retention} by a lifecycle rule, for POPIA. Model results are cached in KV by artefact hash. Errors leave a step as a class name only, so mail content never reaches a log. And because {fact.dataTerms}, real client mail needs consent."
+    },
+    {
+      "scene": "The app",
+      "text": "Chapter fourteen: the app. Partly built. Auth, tenancy, report links, the cases list and domain proof are shipped, and the admin console and the site are planned."
+    },
+    {
+      "scene": "Accounts and tenancy",
+      "text": "Accounts run on Better Auth, on D one: email magic links, passkeys, and organisations with roles. Membership is checked on every request. Invite codes are redeemed in one atomic update, with a {fact.trialDays} day trial. Sign-in links are scanner-safe, so Microsoft three sixty-five link scanners can't burn a token. Report links are signed, and expire after {fact.reportLinkDays} days. The admin console, still planned, will sit behind Cloudflare Access."
+    },
+    {
+      "scene": "The report page",
+      "text": "This is what a member actually sees. Upload a file you didn't get by email, and you land on its report. While the case runs, the page polls {fact.reportPoll}, and stops the moment it's done. The verdict band and the evidence cards are live today. The reasons, each linked to its evidence, and a Do this first block for instructions like phoning the number in your own records, are built, and fill in once the verdict agent lands. If we got it wrong, you can tell us, and that's stored with the case. And the cases list keeps every check your organisation has run."
+    },
+    {
+      "scene": "Proof and the stack",
+      "text": "Chapter fifteen: proof, and the stack. How we'll know it works, and what it's built with."
+    },
+    {
+      "scene": "Evaluation (partly built)",
+      "text": "Evaluation is partly built: the labelled corpora are loaded, and the runner is next. The targets are a {fact.evalTargets}. A runner sends labelled samples through the real pipeline, not a mock. And an ablation repeats the evaluation with {fact.ablation}, so every model's contribution is measured."
+    },
+    {
+      "scene": "The stack, pinned",
+      "text": "And the stack is pinned: TypeScript, pnpm, Wrangler, Vitest running inside the Workers runtime, and Biome, all at exact versions, on a fixed Worker compatibility date."
+    },
+    {
+      "scene": "Where the build stands",
+      "text": "Here's where the build stands. The checks are furthest along, and intake and the app are well on their way. The verdict agent, invoices and the trust network are ahead."
+    },
+    {
+      "scene": "close",
+      "text": "Every figure in this video is quoted from the repository. The code is on GitHub, at rizonetech slash IsItLegit. Thanks for watching."
+    }
+  ]
+}
