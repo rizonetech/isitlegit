@@ -169,6 +169,8 @@ Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is
 
 ## 5. Per-provider reputation results
 
+> **Started:** 2026-11-03T01:40:58Z
+
 Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards show a listing and its counter signals, but not one result per provider per subject (listed, clear, unavailable), nor when each answer was obtained or whether it was cached, where VirusTotal shows a checked and listed count with each provider's own result. That needs a richer producer shape from the checks lane first.
 
 **Phase:** 7
