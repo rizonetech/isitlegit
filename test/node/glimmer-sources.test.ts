@@ -1018,6 +1018,34 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
           .map((e) => JSON.stringify(e))
           .join("\n")}\n`,
       );
+      removeSourceFromStore(store, "compphish");
+      await openStore(store).putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      });
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 0,
+          skipped: 0,
+          filtered: [{ item: "compphish-2", reason: "an empty page" }],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: rowsSha,
+        }),
+      );
       await expect(
         migrateLineage(store, root, {
           renderHtml: async () => ({
@@ -1147,6 +1175,99 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
         { item: "compphish-dup-1", outcome: "imported", page: dupPageId, input: expect.any(String) },
         { item: "compphish-dup-2", outcome: "duplicate", page: dupPageId, input: expect.any(String) },
       ]);
+
+      // Round 6 finding 1: when a stored page already has item/evidence and a second row with different HTML
+      // goes through the fallback renderer during needLedgerBuild, migrateLineage checks captureProblem and
+      // refuses if the fallback-rendered row has a wall, rather than matching it by text hash as a duplicate.
+      rmSync(join(folder, "ITEMS.import.jsonl"), { force: true });
+      openStore(store).setLineage(dupPageId, {
+        item: "compphish-dup-1",
+        input: dupImportLines[1].input,
+        items: [{ id: "compphish-dup-1", input: dupImportLines[1].input, lure: true }],
+        evidence: {
+          title: "Account Login",
+          overlays: "",
+          captcha: false,
+          consentWall: false,
+          challengeCover: false,
+          wall: false,
+        },
+      });
+      const diffRowsContent = `${[
+        {
+          sha256: "compphish-dup-1",
+          url: "https://login.example.com/a",
+          html: dupHtml,
+          label: "phish",
+          target: "Example",
+        },
+        {
+          sha256: "compphish-dup-2",
+          url: "https://login.example.com/a",
+          html: `${dupHtml}<!-- different html bytes -->`,
+          label: "phish",
+          target: "Example",
+        },
+      ]
+        .map((r) => JSON.stringify(r))
+        .join("\n")}\n`;
+      writeFileSync(join(folder, "rows.jsonl"), diffRowsContent);
+      const diffRowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 2,
+          exported: 2,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: diffRowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 1,
+          skipped: 0,
+          filtered: [],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: diffRowsSha,
+        }),
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: diffRowsSha },
+          { item: "compphish-dup-1", outcome: "exported" },
+          { item: "compphish-dup-2", outcome: "exported" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      await expect(
+        migrateLineage(store, root, {
+          renderHtml: async () => ({
+            screenshot: shot,
+            text: "Sign in to your account",
+            has_login_form: true,
+            has_payment_form: false,
+            evidence: {
+              title: "Account Login",
+              overlays: "",
+              captcha: true,
+              consentWall: false,
+              challengeCover: false,
+              wall: true,
+            },
+          }),
+        }),
+      ).rejects.toThrow(/compphish-dup-2 rendered with a capture-problem wall/);
     } finally {
       rmSync(root, { recursive: true, force: true });
       rmSync(store, { recursive: true, force: true });

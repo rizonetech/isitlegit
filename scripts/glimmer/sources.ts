@@ -41,6 +41,7 @@ import {
   writeImport,
   writeImportItems,
 } from "./import-source.ts";
+import { captureProblem } from "./label-rules.ts";
 import { assessCapture, majesticList, renderReceipt, saList } from "./render.ts";
 import { openTextReader, type RenderedHtml } from "./source-pages.ts";
 import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
@@ -1072,11 +1073,9 @@ export async function migrateLineage(
       };
 
       const smallEnoughToRender =
-        Boolean(options.renderHtml) ||
-        (rowItems.length > 0 &&
-          rowItems.length <= 200 &&
-          statSync(rowsFile).size <= 50 * 1024 * 1024 &&
-          pages.some((p) => !p.evidence || !p.item));
+        pages.some((p) => !p.evidence || !p.item) &&
+        (Boolean(options.renderHtml) ||
+          (rowItems.length > 0 && rowItems.length <= 200 && statSync(rowsFile).size <= 50 * 1024 * 1024));
 
       if (smallEnoughToRender) {
         const renderHtml = await getRenderHtml();
@@ -1115,7 +1114,12 @@ export async function migrateLineage(
             continue;
           }
           const rendered = await renderHtml(readHtml(rowsFile, entry));
+          const wallProblem = captureProblem(rendered.text, rendered.evidence, {
+            has_login_form: rendered.has_login_form,
+            has_payment_form: rendered.has_payment_form,
+          });
           if (
+            wallProblem !== null ||
             rendered.evidence.wall ||
             rendered.evidence.captcha ||
             rendered.evidence.consentWall ||
@@ -1188,7 +1192,12 @@ export async function migrateLineage(
             const primaryPage = wantedPrimaryItems.get(entry.sha256);
             if (primaryPage && pagesMissingEvidence.has(primaryPage.id) && renderHtml) {
               const rendered = await renderHtml(html);
+              const wallProblem = captureProblem(rendered.text, rendered.evidence, {
+                has_login_form: rendered.has_login_form,
+                has_payment_form: rendered.has_payment_form,
+              });
               if (
+                wallProblem !== null ||
                 rendered.evidence.wall ||
                 rendered.evidence.captcha ||
                 rendered.evidence.consentWall ||
@@ -1312,6 +1321,19 @@ export async function migrateLineage(
           if (entry !== undefined) {
             const renderHtml = await getRenderHtml();
             const rendered = await renderHtml(readHtml(rowsFile, entry));
+            const wallProblem = captureProblem(rendered.text, rendered.evidence, {
+              has_login_form: rendered.has_login_form,
+              has_payment_form: rendered.has_payment_form,
+            });
+            if (
+              wallProblem !== null ||
+              rendered.evidence.wall ||
+              rendered.evidence.captcha ||
+              rendered.evidence.consentWall ||
+              rendered.evidence.challengeCover
+            ) {
+              throw new Error(`${source}: item ${r.item} rendered with a capture-problem wall; re-import ${source}`);
+            }
             const shotHash = createHash("sha256").update(rendered.screenshot).digest("hex");
             const textHash = createHash("sha256").update(rendered.text, "utf-8").digest("hex");
             matched = pagesByPair.get(`${shotHash}:${textHash}`)?.[0] ?? pagesByText.get(textHash)?.[0];
