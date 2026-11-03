@@ -248,14 +248,21 @@ accountRoutes.get(
     const rows: string[] = ["case,received,status,verdict"];
     const csv = (v: string) => (/[",\n]/.test(v) ? `"${v.replaceAll('"', '""')}"` : v);
     try {
-      for (let offset = 0; ; offset += 500) {
-        const page = await c.env.DB.prepare(
-          `SELECT id, created_at, status, verdict FROM cases WHERE org_id = ? ORDER BY created_at, id LIMIT 500 OFFSET ?`,
-        )
-          .bind(closure.orgId, offset)
-          .all<{ id: string; created_at: string; status: string; verdict: string | null }>();
+      // Keyset paging on the sort key, never an offset: the closure purge can delete already-exported cases
+      // while the export runs, and an offset would then skip a surviving case.
+      let cursor: { created_at: string; id: string } | null = null;
+      for (;;) {
+        const page = await (cursor
+          ? c.env.DB.prepare(
+              `SELECT id, created_at, status, verdict FROM cases WHERE org_id = ? AND (created_at > ? OR (created_at = ? AND id > ?)) ORDER BY created_at, id LIMIT 500`,
+            ).bind(closure.orgId, cursor.created_at, cursor.created_at, cursor.id)
+          : c.env.DB.prepare(
+              `SELECT id, created_at, status, verdict FROM cases WHERE org_id = ? ORDER BY created_at, id LIMIT 500`,
+            ).bind(closure.orgId)
+        ).all<{ id: string; created_at: string; status: string; verdict: string | null }>();
         for (const r of page.results) rows.push([r.id, r.created_at, r.status, r.verdict ?? ""].map(csv).join(","));
         if (page.results.length < 500) break;
+        cursor = page.results[page.results.length - 1] as { created_at: string; id: string };
       }
     } catch {
       return outage("export", `/settings/account/close/export?org=${closure.orgId}`);

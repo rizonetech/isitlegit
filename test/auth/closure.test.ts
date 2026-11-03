@@ -242,6 +242,60 @@ describe("closing an organisation", () => {
     expect((await closedRes.text()).trimEnd().split("\n")).toHaveLength(502);
   });
 
+  it("loses no case when the purge deletes an exported case between export pages (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    await db
+      .prepare(
+        `WITH RECURSIVE n(x) AS (SELECT 500 UNION ALL SELECT x - 1 FROM n WHERE x > 0)
+         INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at)
+         SELECT 'case-' || printf('%04d', x), ?, 'email', 'done', 'safe',
+                '2026-10-26T00:00:00.000Z', '2026-10-26T00:00:00.000Z' FROM n`,
+      )
+      .bind(org)
+      .run();
+    let pages = 0;
+    const purgingDb = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.includes("FROM cases")) return statement;
+            pages += 1;
+            const mine = pages;
+            const wrap = (stmt: D1PreparedStatement): D1PreparedStatement =>
+              new Proxy(stmt, {
+                get(inner, innerProp) {
+                  if (innerProp === "bind") return (...a: unknown[]) => wrap(inner.bind(...a));
+                  if (innerProp === "all")
+                    return async (...a: unknown[]) => {
+                      if (mine === 2) await target.prepare(`DELETE FROM cases WHERE id = 'case-0000'`).run();
+                      return (inner.all as (...x: unknown[]) => unknown)(...a);
+                    };
+                  const value = Reflect.get(inner, innerProp) as unknown;
+                  return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(inner) : value;
+                },
+              });
+            return wrap(statement);
+          };
+        const value = Reflect.get(target, prop) as unknown;
+        return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, {
+      ...authEnv,
+      DB: purgingDb,
+    } as Env);
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).trimEnd().split("\n");
+    expect(lines).toHaveLength(502);
+    expect(new Set(lines.slice(1).map((l) => l.split(",")[0]))).toHaveLength(501);
+    expect(lines[501]).toContain("case-0500,");
+  });
+
   it("closes the second of two organisations from its own confirmation while fresh (D07 T02 s26)", async () => {
     const first = await organisation();
     const second = await organisation();
