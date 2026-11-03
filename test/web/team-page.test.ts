@@ -1242,17 +1242,17 @@ describe("team history by person (D07 T04 §24)", () => {
     await join(orgId, colleague, "member");
     const other = await person("Other");
     await join(orgId, other, "member");
-    const ev = (kind: string, actor: string, target: string, at: string) =>
+    const ev = (kind: string, actor: string, target: string, at: string, detail = "{}") =>
       db
         .prepare(
           `INSERT INTO auth_events (id, at, kind, outcome, org_id, user_id, actor_id, target_id, ip_hash, detail_json)
-           VALUES (?, ?, ?, 'changed', ?, ?, ?, ?, 'x', '{}')`,
+           VALUES (?, ?, ?, 'changed', ?, ?, ?, ?, 'x', ?)`,
         )
-        .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target)
+        .bind(crypto.randomUUID(), at, kind, orgId, actor, actor, target, detail)
         .run();
     await ev("update-member-role", colleague.id, other.id, "2026-10-27T08:00:00.000Z");
     await ev("update-member-role", owner.id, colleague.id, "2026-10-26T08:00:00.000Z");
-    await ev("remove-member", owner.id, other.id, "2026-10-25T08:00:00.000Z");
+    await ev("remove-member", owner.id, other.id, "2026-10-25T08:00:00.000Z", JSON.stringify({ sessionsEnded: true }));
     const html = text((await page(owner.cookie, `/team?person=${colleague.id}`)).html);
     const section = html.slice(html.indexOf("Team history"));
     expect(section).toContain("Role changed");

@@ -13,6 +13,10 @@ const When = z.iso
   .datetime({ offset: true })
   .transform((value) => new Date(value).toISOString())
   .optional();
+const cursorOk = (v: string) => {
+  const [at, seq] = v.split("|");
+  return at !== undefined && Number.isFinite(Date.parse(at)) && /^\d{1,18}$/.test(seq ?? "");
+};
 const Filter = z.strictObject({
   action: z.enum(TEAM_ACTIONS).optional(),
   actor: z.string().min(1).max(64).optional(),
@@ -23,6 +27,7 @@ const Filter = z.strictObject({
   after: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\|\d{1,18}$/)
+    .refine(cursorOk, "a cursor a page gave")
     .optional(),
 });
 
@@ -41,6 +46,15 @@ teamHistoryRoutes.get("/history", async (c) => {
       { error: "filter by action and by dates in ISO 8601 (from, to); page with the cursor a page gave (after)" },
       { status: 400 },
     );
+  for (const person of [filter.data.actor, filter.data.target, filter.data.person]) {
+    if (!person) continue;
+    const held = await c.env.DB.prepare(
+      `SELECT 1 AS held FROM "member" WHERE "organizationId" = ? AND "userId" = ?`,
+    )
+      .bind(c.get("org").id, person)
+      .first<{ held: number }>();
+    if (!held) return Response.json({ error: "choose a person on this team" }, { status: 400 });
+  }
   const { changes, next } = await readTeamHistory(c.env.DB, c.get("org").id, filter.data);
   return c.json({
     next,

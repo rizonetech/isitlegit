@@ -45,6 +45,7 @@ export type TeamHistory = {
   from: string;
   to: string;
   person?: string;
+  after?: string;
   people?: { id: string; label: string }[];
   next?: string | null;
   error?: string;
@@ -599,7 +600,7 @@ function TeamHistorySection(props: { history: TeamHistory; now: Date; find?: str
         <p class="px-24 pb-24 type-small">
           The team history could not be read just now.{" "}
           <a
-            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
+            href={`/team?action=${encodeURIComponent(history.action)}&from=${encodeURIComponent(history.from)}&to=${encodeURIComponent(history.to)}&person=${encodeURIComponent(history.person ?? "")}${history.after ? `&after=${encodeURIComponent(history.after)}` : ""}${props.find ? `&find=${encodeURIComponent(props.find)}` : ""}`}
             class="text-orange-text underline underline-offset-4"
           >
             Try again
@@ -759,6 +760,7 @@ export function TeamPage(props: {
           </p>
           <form method="get" action="/team" class="flex flex-wrap items-end gap-12" aria-label="Find a person">
             {history?.action ? <input type="hidden" name="action" value={history.action} /> : null}
+            {history?.person ? <input type="hidden" name="person" value={history.person} /> : null}
             {history?.from ? <input type="hidden" name="from" value={history.from} /> : null}
             {history?.to ? <input type="hidden" name="to" value={history.to} /> : null}
             <label class="flex flex-col gap-4">
@@ -779,7 +781,7 @@ export function TeamPage(props: {
             </Button>
             {find ? (
               <a
-                href={`/team?focus=find${history?.action ? `&action=${encodeURIComponent(history.action)}` : ""}${history?.from ? `&from=${encodeURIComponent(history.from)}` : ""}${history?.to ? `&to=${encodeURIComponent(history.to)}` : ""}`}
+                href={`/team?focus=find${history?.action ? `&action=${encodeURIComponent(history.action)}` : ""}${history?.from ? `&from=${encodeURIComponent(history.from)}` : ""}${history?.to ? `&to=${encodeURIComponent(history.to)}` : ""}${history?.person ? `&person=${encodeURIComponent(history.person)}` : ""}`}
                 class="type-small text-orange-text underline underline-offset-4"
               >
                 Clear
