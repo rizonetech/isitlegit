@@ -772,8 +772,7 @@ function sastToday(): { y: number; m: number; d: number } {
   const shifted = new Date(Date.now() + 2 * 3_600_000);
   return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth(), d: shifted.getUTCDate() };
 }
-const ymd = (y: number, m: number, d: number) =>
-  `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+const ymd = (y: number, m: number, d: number) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 function monthRange(): { from: string; to: string } {
   const { y, m } = sastToday();
   return { from: ymd(y, m, 1), to: ymd(y, m, new Date(Date.UTC(y, m + 1, 0)).getUTCDate()) };

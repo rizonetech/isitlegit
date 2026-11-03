@@ -126,7 +126,12 @@ export async function weeklyStats(db: D1Database, orgId: string, now = new Date(
 
 // The weeks overlapping a chosen SAST date range (D07 T04 §19), oldest first for the export: the window is
 // anchored to the range's end and sized to both overlapping Mondays (two calendar years can overlap 106 weeks).
-export async function periodWeeks(db: D1Database, orgId: string, fromDate: string, toDate: string): Promise<WeekCounts[]> {
+export async function periodWeeks(
+  db: D1Database,
+  orgId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<WeekCounts[]> {
   const fromMonday = Date.parse(weekStart(new Date(`${fromDate}T00:00:00+02:00`)));
   const toMonday = Date.parse(weekStart(new Date(`${toDate}T00:00:00+02:00`)));
   const count = Math.round((toMonday - fromMonday) / WEEK_MS) + 1;

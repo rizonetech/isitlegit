@@ -482,10 +482,18 @@ describe("GET /cases/stats.csv with a chosen period (D07 T04 §19)", () => {
     const { cookie } = await member(a);
     const res = await get(`/cases/stats.csv?org=${a}&from=2026-10-01&to=2026-10-31`, cookie);
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-disposition")).toBe('attachment; filename="isitlegit-counts-2026-10-01-to-2026-10-31.csv"');
+    expect(res.headers.get("content-disposition")).toBe(
+      'attachment; filename="isitlegit-counts-2026-10-01-to-2026-10-31.csv"',
+    );
     const lines = (await res.text()).trimEnd().split("\r\n");
     expect(lines[0]).toBe(CSV_HEADER);
-    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual(["2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"]);
+    expect(lines.slice(1).map((l) => l.split(",")[0])).toEqual([
+      "2026-09-28",
+      "2026-10-05",
+      "2026-10-12",
+      "2026-10-19",
+      "2026-10-26",
+    ]);
     expect(lines[1]).toContain(",1,1,0,0,0,");
     // A stale organisation is redirected to Cases, never exported.
     const stale = await get(`/cases/stats.csv?org=org-elsewhere&from=2026-10-01&to=2026-10-31`, cookie);
