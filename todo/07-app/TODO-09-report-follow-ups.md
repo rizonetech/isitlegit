@@ -322,6 +322,8 @@ Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence 
 
 ## 10. Every target a clean check examined
 
+> **Started:** 2026-11-03T02:29:35Z
+
 Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence item, against VirusTotal's URL report, which names the resources its clean analysis contacted): a clean check's stored summary is at most 120 characters, so for a message naming many targets it cannot list them all, and the clean list offers no way to inspect the rest. The examined set lives with the producer: storing it is the checks lane's data contract, asked through the coordinator; this section draws it.
 
 **Phase:** 7
