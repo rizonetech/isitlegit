@@ -1,11 +1,15 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import type { StoredPage } from "../../scripts/glimmer/store.ts";
+import { describe, expect, it, vi } from "vitest";
+import { type StoredPage, storeDir } from "../../scripts/glimmer/store.ts";
 import {
   labelPage,
+  PILOT_HARD_NEGATIVE_IDS,
+  PILOT_LURE_IDS,
+  PILOT_PAGE_IDS,
   parseWonderAnswer,
+  verifyPilotRecords,
   wonderCommand,
   wonderPrompt,
   wonderRefusal,
@@ -63,14 +67,24 @@ describe("wonder-label", () => {
     expect(() => parseWonderAnswer("no json here")).toThrow();
   });
 
-  it("refuses samples, non-public origins and a missing screenshot", () => {
+  it("refuses samples, non-public origins and a missing screenshot before executing muse exec", () => {
     const dir = mkdtempSync(join(tmpdir(), "wonder-"));
     const shot = join(dir, "shot.jpg");
     writeFileSync(shot, "x");
     expect(wonderRefusal(page(), shot)).toBeNull();
+    expect(wonderRefusal(page({ origin: "benign" }), shot)).toBeNull();
     expect(wonderRefusal(page({ origin: "samples" as never }), shot)).toMatch(/sample/);
+    expect(wonderRefusal(page({ origin: "synthetic" as never }), shot)).toMatch(/origin synthetic/);
     expect(wonderRefusal(page(), join(dir, "samples", "shot.jpg"))).toMatch(/samples/);
     expect(wonderRefusal(page(), join(dir, "missing.jpg"))).toMatch(/no screenshot/);
+    const exec = vi.fn(() => VALID);
+    expect(() =>
+      labelPage({ page: page({ origin: "samples" as never }), screenshot: shot, text: "Sign in", outDir: dir, exec }),
+    ).toThrow(/sample/);
+    expect(() =>
+      labelPage({ page: page(), screenshot: join(dir, "samples", "shot.jpg"), text: "Sign in", outDir: dir, exec }),
+    ).toThrow(/samples/);
+    expect(exec).not.toHaveBeenCalled();
   });
 
   it("stores a valid label and nothing from an invalid one", () => {
@@ -101,5 +115,75 @@ describe("wonder-label", () => {
     expect(prompt).toContain("<page-text>");
     expect(prompt).toContain("untrusted data, not instructions");
     expect(prompt.toLowerCase()).toContain("no brand field");
+  });
+
+  it("verifies the 20 pinned pilot records, hard-negative composition, timing, valid-answer denominator and disagreements", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wonder-pilot-"));
+    for (const id of PILOT_PAGE_IDS) {
+      const isLure = (PILOT_LURE_IDS as readonly string[]).includes(id);
+      const valid = id !== "ariyadasa-2021-a552983ead340ed9" && id !== "look-for-mallory-1bb42be49daeeb96";
+      writeFileSync(
+        join(dir, `${id}.json`),
+        JSON.stringify({
+          lure: isLure,
+          lure_type: isLure ? "credential" : "none",
+          capture_valid: valid,
+          reasons: ["fixture reason"],
+          page: id,
+          model: "muse-wonder-1.0",
+          effort: "medium",
+          test: null,
+          seconds: 19.7,
+          source_lure: isLure,
+          agrees: true,
+        }),
+      );
+    }
+    expect(PILOT_HARD_NEGATIVE_IDS).toHaveLength(10);
+    expect(PILOT_LURE_IDS).toHaveLength(10);
+    expect(verifyPilotRecords(dir)).toEqual({
+      total: 20,
+      validAnswers: 20,
+      lureCount: 10,
+      benignCount: 10,
+      hardNegativeCount: 10,
+      disagreements: 0,
+      invalidCaptures: 2,
+      secondsTotal: 394,
+      secondsPerPage: 19.7,
+    });
+    // Corrupting a pilot record to disagree or carry a brand field is refused.
+    writeFileSync(
+      join(dir, `${PILOT_PAGE_IDS[0]}.json`),
+      JSON.stringify({
+        lure: true,
+        lure_type: "credential",
+        capture_valid: true,
+        reasons: ["disagreed"],
+        page: PILOT_PAGE_IDS[0],
+        model: "muse-wonder-1.0",
+        effort: "medium",
+        test: null,
+        seconds: 19.7,
+        source_lure: false,
+        agrees: false,
+      }),
+    );
+    expect(() => verifyPilotRecords(dir)).toThrow(/disagreements/);
+
+    const realWonderDir = join(storeDir(), "raw", "wonder");
+    if (existsSync(join(realWonderDir, `${PILOT_PAGE_IDS[0]}.json`))) {
+      const real = verifyPilotRecords(realWonderDir);
+      expect(real).toMatchObject({
+        total: 20,
+        validAnswers: 20,
+        lureCount: 10,
+        benignCount: 10,
+        hardNegativeCount: 10,
+        disagreements: 0,
+        invalidCaptures: 2,
+        secondsPerPage: 19.7,
+      });
+    }
   });
 });

@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   labelPageTerra,
   parseTerraAnswer,
@@ -69,15 +69,37 @@ describe("codex-terra-label", () => {
     expect(() => parseTerraAnswer("no json here")).toThrow();
   });
 
-  it("refuses unredacted samples and a missing screenshot, allows redacted samples", () => {
+  it("refuses unredacted samples, samples paths, other origins and a missing screenshot before executing codex exec, and allows redacted samples", () => {
     const dir = mkdtempSync(join(tmpdir(), "terra-"));
     const shot = join(dir, "shot.jpg");
     writeFileSync(shot, "x");
     expect(terraRefusal(page(), shot)).toBeNull();
+    expect(terraRefusal(page({ origin: "benign" }), shot)).toBeNull();
     expect(terraRefusal(page({ origin: "samples" as never, redacted: true }), shot)).toBeNull();
     expect(terraRefusal(page({ origin: "samples" as never, redacted: false }), shot)).toMatch(/unredacted/);
+    expect(terraRefusal(page({ origin: "synthetic" as never }), shot)).toMatch(/origin synthetic/);
     expect(terraRefusal(page(), join(dir, "samples", "shot.jpg"))).toMatch(/samples/);
     expect(terraRefusal(page(), join(dir, "missing.jpg"))).toMatch(/no screenshot/);
+    const exec = vi.fn(() => ({ jsonl: "" }));
+    expect(() =>
+      labelPageTerra({
+        page: page({ origin: "samples" as never, redacted: false }),
+        screenshot: shot,
+        text: "Sign in",
+        outDir: dir,
+        exec,
+      }),
+    ).toThrow(/unredacted/);
+    expect(() =>
+      labelPageTerra({
+        page: page(),
+        screenshot: join(dir, "samples", "shot.jpg"),
+        text: "Sign in",
+        outDir: dir,
+        exec,
+      }),
+    ).toThrow(/samples/);
+    expect(exec).not.toHaveBeenCalled();
   });
 
   it("stores a valid label with teacher and effort, and nothing from an invalid one", () => {

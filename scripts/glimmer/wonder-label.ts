@@ -11,7 +11,7 @@
 // screenshot is refused. The pilot is 20 pages; a larger run waits for the coordinator's go, recorded in the run
 // file, and a spend cap stated before it runs (the subscription is the cap's unit: pages, not dollars).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
@@ -119,6 +119,139 @@ export type WonderRecord = WonderLabel & {
   source_lure: boolean | null;
   agrees: boolean | null;
 };
+
+// The 20 pinned pilot page IDs drawn with seed 20261101 from the 1.0 dataset's meta (D03 T04 §46 plan review gap 3):
+// 10 source lures and 10 unseen-brand hard benign negatives, labelled at medium effort before any batch run started.
+export const PILOT_HARD_NEGATIVE_IDS = [
+  "ariyadasa-2021-a552983ead340ed9",
+  "benign-majestic-051f6fa89bccd40b",
+  "benign-majestic-b5a4bc8e1ebd5656",
+  "compphish-277f68b119a8d205",
+  "phreshphish-2eb93367192e8bc5",
+  "phreshphish-418b5bed3c1e4b31",
+  "phreshphish-44185c1c48a047be",
+  "phreshphish-6a78cb721a806748",
+  "phreshphish-98d8188031b152f7",
+  "phreshphish-c7ede0cbb27ee2ac",
+] as const;
+
+export const PILOT_LURE_IDS = [
+  "ariyadasa-2021-addedd21d531b3e8",
+  "compphish-4162e6f626c97f7c",
+  "look-for-mallory-1bb42be49daeeb96",
+  "phreshphish-045f9c65f0d5241e",
+  "phreshphish-2412575abc7e78bb",
+  "phreshphish-3923b878cba1917c",
+  "phreshphish-5371d270983fd7d2",
+  "phreshphish-917ba3f8c3d977bb",
+  "phreshphish-ea359ea8acaff051",
+  "phreshphish-f128538f7b8290c2",
+] as const;
+
+export const PILOT_PAGE_IDS = [
+  "ariyadasa-2021-a552983ead340ed9",
+  "ariyadasa-2021-addedd21d531b3e8",
+  "benign-majestic-051f6fa89bccd40b",
+  "benign-majestic-b5a4bc8e1ebd5656",
+  "compphish-277f68b119a8d205",
+  "compphish-4162e6f626c97f7c",
+  "look-for-mallory-1bb42be49daeeb96",
+  "phreshphish-045f9c65f0d5241e",
+  "phreshphish-2412575abc7e78bb",
+  "phreshphish-2eb93367192e8bc5",
+  "phreshphish-3923b878cba1917c",
+  "phreshphish-418b5bed3c1e4b31",
+  "phreshphish-44185c1c48a047be",
+  "phreshphish-5371d270983fd7d2",
+  "phreshphish-6a78cb721a806748",
+  "phreshphish-917ba3f8c3d977bb",
+  "phreshphish-98d8188031b152f7",
+  "phreshphish-c7ede0cbb27ee2ac",
+  "phreshphish-ea359ea8acaff051",
+  "phreshphish-f128538f7b8290c2",
+] as const;
+
+export const WonderRecordSchema = z
+  .strictObject({
+    lure: z.boolean(),
+    lure_type: z.enum(LURE_TYPES),
+    capture_valid: z.boolean(),
+    reasons: z.array(z.string().min(1).max(300)).max(10),
+    page: z.string().min(1),
+    model: z.literal(WONDER_MODEL),
+    effort: z.literal("medium"),
+    test: z.string().nullable().optional(),
+    seconds: z.number().positive(),
+    source_lure: z.boolean().nullable(),
+    agrees: z.boolean().nullable(),
+  })
+  .refine((label) => (label.lure_type === "none") === !label.lure, {
+    message: "lure_type is none exactly when lure is false",
+  });
+
+export type PilotVerification = {
+  total: number;
+  validAnswers: number;
+  lureCount: number;
+  benignCount: number;
+  hardNegativeCount: number;
+  disagreements: number;
+  invalidCaptures: number;
+  secondsTotal: number;
+  secondsPerPage: number;
+};
+
+export function verifyPilotRecords(wonderDir: string = join(storeDir(), "raw", "wonder")): PilotVerification {
+  const hardSet = new Set<string>(PILOT_HARD_NEGATIVE_IDS);
+  const lureSet = new Set<string>(PILOT_LURE_IDS);
+  let lureCount = 0;
+  let benignCount = 0;
+  let hardNegativeCount = 0;
+  let disagreements = 0;
+  let invalidCaptures = 0;
+  let secondsTotal = 0;
+  for (const id of PILOT_PAGE_IDS) {
+    const file = join(wonderDir, `${id}.json`);
+    if (!existsSync(file)) throw new Error(`missing pilot record ${file}`);
+    const parsed = WonderRecordSchema.parse(JSON.parse(readFileSync(file, "utf-8")));
+    if (parsed.page !== id) throw new Error(`pilot record ${file} names ${parsed.page}, expected ${id}`);
+    if (parsed.source_lure === null || parsed.agrees === null)
+      throw new Error(`pilot record ${id} lacks source_lure or agrees`);
+    if (lureSet.has(id) && parsed.source_lure !== true)
+      throw new Error(`pilot lure record ${id} has source_lure=${String(parsed.source_lure)}`);
+    if (hardSet.has(id) && parsed.source_lure !== false)
+      throw new Error(`pilot hard-negative record ${id} has source_lure=${String(parsed.source_lure)}`);
+    if (parsed.source_lure) lureCount++;
+    else {
+      benignCount++;
+      if (hardSet.has(id)) hardNegativeCount++;
+    }
+    if (!parsed.agrees) disagreements++;
+    if (!parsed.capture_valid) invalidCaptures++;
+    secondsTotal += parsed.seconds;
+  }
+  const total = PILOT_PAGE_IDS.length;
+  const secondsPerPage = Number((secondsTotal / total).toFixed(1));
+  if (lureCount !== 10 || benignCount !== 10 || hardNegativeCount !== 10)
+    throw new Error(
+      `pilot composition (${lureCount} lure, ${benignCount} benign, ${hardNegativeCount} hard negatives) does not match 10/10/10`,
+    );
+  if (disagreements !== 0 || invalidCaptures !== 2)
+    throw new Error(
+      `pilot disagreements (${disagreements}) or invalid captures (${invalidCaptures}) do not match recorded 0 and 2`,
+    );
+  return {
+    total,
+    validAnswers: total,
+    lureCount,
+    benignCount,
+    hardNegativeCount,
+    disagreements,
+    invalidCaptures,
+    secondsTotal: Number(secondsTotal.toFixed(3)),
+    secondsPerPage,
+  };
+}
 
 export function labelPage(options: {
   page: StoredPage;
