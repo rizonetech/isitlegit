@@ -53,7 +53,7 @@ track: day-1
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [x] |
 | 17 | §17 | Correct a mistyped | §13 | [ ] |
 | 18 | §18 | Passkey-first sign-in | §16 | [x] |
-| 19 | §19 | Passkey on another device | §16 | [ ] |
+| 19 | §19 | Passkey on another device | §16 | [x] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
@@ -784,9 +784,12 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 - [x] Ask the operator (through the coordinator) to approve the panel's words for a passkey on a phone or tablet, recorded in `design/SPEC.md` A1 and the `Signin-States` board. Done when: the approved sentence is in the SPEC.
 - [x] Draw the approved sentence in `PasskeyPrompt` (`src/web/pages/signin.tsx`), naming the QR scan and Bluetooth on both devices, and prove a cross-device sign-in against the real verifier in `test/node/passkey-e2e-browser.test.tsx` with a virtual authenticator on the hybrid transport (`transport: "hybrid"`, CDP `WebAuthn.addVirtualAuthenticator`), the session read back and the sentence asserted on the rendered panel in `test/node/passkey-signin-browser.test.tsx`. Done when: the test signs in with a passkey held only by the hybrid authenticator and finds the sentence. Cheaper substitute: the words alone, never proven.
-- [ ] Commit: `web: the passkey prompt names a passkey on another device`
+- [x] Commit: `web: the passkey prompt names a passkey on another device`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the hybrid sign-in.
+
+> **Verified:** 2026-11-03 | §19 | 1ec82e8243cb79dfc5da218f4ab4c342b0a446d2
+> **Review:** `docs/reviews/d07-t02-s19.json`
 
 ## 20. Demo domains as a private suffix
 

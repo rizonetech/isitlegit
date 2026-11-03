@@ -501,7 +501,7 @@ Sections: 190 | Checklist items: 806
 | [x]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
 | [x]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
-| [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
+| [x]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
 | [ ]    | D07 T02 §25 | Same-device other-browser                        | none                 | 5     |
 | [ ]    | D07 T02 §26 | Export and fresh sign-in before closure          | none                 | 4     |
 | [ ]    | D07 T02 §27 | Close account control on the Account board       | operator             | 4     |
@@ -624,6 +624,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 339/548 verified sections, 134 ready to run now.
+Progress: 340/548 verified sections, 134 ready to run now.
 
-Checklist: 2666/3418 items completed (includes Commit items).
+Checklist: 2667/3418 items completed (includes Commit items).
