@@ -19,6 +19,7 @@ import {
   readSync,
   renameSync,
   statfsSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,6 +36,15 @@ export const ITEM_DEADLINE_MS = 120_000;
 export function defaultFreeBytes(dir: string): number {
   const st = statfsSync(dir);
   return Number(st.bavail) * Number(st.bsize);
+}
+
+function existingMetaBytes(dir: string, pageId: string): number {
+  const metaPath = join(dir, "pages", pageId, "meta.json");
+  try {
+    return existsSync(metaPath) ? statSync(metaPath).size : 0;
+  } catch {
+    return 0;
+  }
 }
 
 export function checkFreeSpace(
@@ -242,8 +252,15 @@ export async function importSource(options: {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
   const publicationReserveBytes = items.length * 256 + 16_384;
+  let initialFree: number | undefined;
+  let committedBytes = 0;
+  const effectiveFreeBytes = (dir: string): number => {
+    const current = (options.freeBytes ?? defaultFreeBytes)(dir);
+    if (initialFree === undefined) initialFree = current;
+    return Math.min(current, initialFree - committedBytes);
+  };
   if (options.minFreeBytes && options.minFreeBytes > 0) {
-    checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, publicationReserveBytes);
+    checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, publicationReserveBytes);
   }
   // Tolerant: a page whose record does not read is damaged, and this run repairs it rather than failing on it.
   const manifest = store.manifest({ tolerant: true });
@@ -296,7 +313,7 @@ export async function importSource(options: {
     while (!stopped && next < items.length) {
       if (options.minFreeBytes && options.minFreeBytes > 0) {
         try {
-          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, inFlightBytes + publicationReserveBytes);
+          checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
         } catch (error) {
           stopped = (error as Error).message.split("\n")[0] ?? "low disk space";
           break;
@@ -313,8 +330,20 @@ export async function importSource(options: {
           (id) => id !== item.id,
         );
         if (others.length) {
-          const updated = store.keepItems(stored.id, others);
-          for (const otherId of others) intactByItem.set(otherId, updated);
+          const keepBytes = existingMetaBytes(store.dir, stored.id) + 512;
+          inFlightBytes += keepBytes;
+          try {
+            if (options.minFreeBytes && options.minFreeBytes > 0) {
+              checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
+            }
+            const updated = store.keepItems(stored.id, others);
+            for (const otherId of others) intactByItem.set(otherId, updated);
+          } catch (error) {
+            stopped = (error as Error).message.split("\n")[0] ?? "store failed";
+            break;
+          } finally {
+            inFlightBytes = Math.max(0, inFlightBytes - keepBytes);
+          }
         } else {
           store.removePage(stored.id);
         }
@@ -343,8 +372,23 @@ export async function importSource(options: {
           JSON.stringify(labels) !== JSON.stringify(stored.labels) ||
           JSON.stringify(label_source) !== JSON.stringify(stored.label_source);
         if (changed) {
-          store.setLabels(stored.id, labels, label_source, options.licence);
-          relabelled++;
+          const relabelBytes =
+            existingMetaBytes(store.dir, stored.id) +
+            Buffer.byteLength(JSON.stringify({ labels, label_source, licence: options.licence }, null, 2), "utf-8") +
+            512;
+          inFlightBytes += relabelBytes;
+          try {
+            if (options.minFreeBytes && options.minFreeBytes > 0) {
+              checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
+            }
+            store.setLabels(stored.id, labels, label_source, options.licence);
+            relabelled++;
+          } catch (error) {
+            stopped = (error as Error).message.split("\n")[0] ?? "store failed";
+            break;
+          } finally {
+            inFlightBytes = Math.max(0, inFlightBytes - relabelBytes);
+          }
         }
         skipped++;
         record({ item: item.id, input: itemDigest(item), outcome: "stored", page: stored.id });
@@ -394,35 +438,61 @@ export async function importSource(options: {
       }
       const host = hostOf(item.url);
       const digest = itemDigest(item);
-      const pageBytes = page.screenshot.byteLength + Buffer.byteLength(page.text, "utf-8") + 4096;
+      const pageInput: PageInput = {
+        screenshot: page.screenshot,
+        text: page.text,
+        origin: options.origin ?? "public",
+        licence: options.licence,
+        host,
+        template: null,
+        south_africa: options.southAfrica || (host?.endsWith(".za") ?? false),
+        labels,
+        label_source,
+        redacted: options.redacted ?? false,
+        item: item.id,
+        ...(digest ? { input: digest } : {}),
+        ...(page.evidence ? { evidence: page.evidence } : {}),
+      };
+      const { screenshot: _screenshot, text: _text, ...metaFields } = pageInput;
+      const serializedMetaBytes = Buffer.byteLength(
+        `${JSON.stringify(
+          {
+            ...metaFields,
+            source,
+            sha256: { screenshot: "0".repeat(64), text: "0".repeat(64) },
+          },
+          null,
+          2,
+        )}\n`,
+        "utf-8",
+      );
+      const contentDigest = createHash("sha256").update(page.screenshot).update("\0").update(page.text).digest("hex");
+      const candidateId = `${source}-${contentDigest.slice(0, 16)}`;
+      const duplicateItemBytes = Buffer.byteLength(
+        JSON.stringify({ id: item.id, input: digest, lure: labels.lure, lure_type: labels.lure_type }, null, 2),
+        "utf-8",
+      );
+      const duplicateMetaBytes = before.has(candidateId)
+        ? existingMetaBytes(store.dir, candidateId) + duplicateItemBytes + 256
+        : 0;
+      const newPageBytes = page.screenshot.byteLength + Buffer.byteLength(page.text, "utf-8") + serializedMetaBytes;
+      const pageBytes = Math.max(duplicateMetaBytes, newPageBytes) + 256;
       inFlightBytes += pageBytes;
       try {
         if (options.minFreeBytes && options.minFreeBytes > 0) {
-          checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, inFlightBytes + publicationReserveBytes);
+          checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
         }
-        const id = await store.putPage(source, {
-          screenshot: page.screenshot,
-          text: page.text,
-          origin: options.origin ?? "public",
-          licence: options.licence,
-          host,
-          template: null,
-          south_africa: options.southAfrica || (host?.endsWith(".za") ?? false),
-          labels,
-          label_source,
-          redacted: options.redacted ?? false,
-          item: item.id,
-          ...(digest ? { input: digest } : {}),
-          ...(page.evidence ? { evidence: page.evidence } : {}),
-        });
+        const id = await store.putPage(source, pageInput);
         if (before.has(id)) {
           duplicates++;
           // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
           store.addItem(id, { id: item.id, input: digest, lure: labels.lure, lure_type: labels.lure_type });
+          committedBytes += duplicateItemBytes;
           record({ item: item.id, input: digest, outcome: "duplicate", page: id });
         } else {
           before.add(id);
           imported++;
+          committedBytes += newPageBytes;
           record({ item: item.id, input: digest, outcome: "imported", page: id });
         }
       } catch (error) {
@@ -458,8 +528,22 @@ export async function importSource(options: {
       const ids = page.items?.map((entry) => entry.id) ?? [page.item as string];
       const live = ids.filter((id) => listed.has(id));
       if (live.length === ids.length) continue;
-      if (live.length) store.keepItems(page.id, live);
-      else store.removePage(page.id);
+      if (live.length) {
+        if (options.minFreeBytes && options.minFreeBytes > 0) {
+          try {
+            checkFreeSpace(
+              store.dir,
+              options.minFreeBytes,
+              effectiveFreeBytes,
+              existingMetaBytes(store.dir, page.id) + publicationReserveBytes + 512,
+            );
+          } catch (error) {
+            stopped = (error as Error).message.split("\n")[0] ?? "low disk space";
+            break;
+          }
+        }
+        store.keepItems(page.id, live);
+      } else store.removePage(page.id);
       replaced++;
     }
   const sourcePages = store.manifest({ tolerant: true, source }).filter((page) => page.source === source);
@@ -534,11 +618,13 @@ export async function importSource(options: {
       const exportFile = join(dirname(importJson), "EXPORT.json");
       const exportDigest = binding.export ?? (existsSync(exportFile) ? fileSha256(exportFile) : undefined);
       const importDigest = createHash("sha256").update(importText, "utf-8").digest("hex");
-      const ledgerBytes =
-        Buffer.byteLength(importText, "utf-8") +
-        settled.reduce((sum, entry) => sum + Buffer.byteLength(JSON.stringify(entry), "utf-8") + 1, 256);
+      const itemsOnlyBytes = settled.reduce(
+        (sum, entry) => sum + Buffer.byteLength(JSON.stringify(entry), "utf-8") + 1,
+        256,
+      );
+      const ledgerBytes = Buffer.byteLength(importText, "utf-8") + itemsOnlyBytes;
       if (options.minFreeBytes && options.minFreeBytes > 0) {
-        checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, ledgerBytes);
+        checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, ledgerBytes);
       }
       writeImportItems(
         join(dirname(importJson), IMPORT_ITEMS),
@@ -546,9 +632,10 @@ export async function importSource(options: {
         settled,
         options.writeLedger ? { write: options.writeLedger } : {},
       );
+      committedBytes += itemsOnlyBytes;
     }
     if (options.minFreeBytes && options.minFreeBytes > 0) {
-      checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, Buffer.byteLength(importText, "utf-8"));
+      checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, Buffer.byteLength(importText, "utf-8"));
     }
     writeImport(importJson, plannedImport);
   } catch (error) {
@@ -557,7 +644,7 @@ export async function importSource(options: {
     try {
       if (options.minFreeBytes && options.minFreeBytes > 0) {
         const failureBytes = Buffer.byteLength(`${JSON.stringify(result, null, 2)}\n`, "utf-8");
-        checkFreeSpace(store.dir, options.minFreeBytes, options.freeBytes, failureBytes);
+        checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, failureBytes);
       }
       writeImport(importJson, result);
     } catch {

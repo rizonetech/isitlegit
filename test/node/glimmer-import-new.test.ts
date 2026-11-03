@@ -340,6 +340,38 @@ describe("import-new", () => {
       expect(resumed.skipped).toBe(1);
       expect(resumed.imported).toBe(1);
       expect(resumed.stored).toBe(2);
+
+      // 5. Round 3 regression: concurrent captures with large ~30 KB CJK evidence metadata reserve full serialized meta.json bytes before breaching the 300 GB reserve.
+      const cjkDir = mkdtempSync(join(tmpdir(), "glimmer-import-new-cjk-"));
+      try {
+        writeTwoRowFixture(cjkDir, "phishdecloaker");
+        const cjkTitle = "登".repeat(2000);
+        const cjkOverlays = "请".repeat(8000);
+        let cjkCalls = 0;
+        const cjkReader = {
+          renderHtml: async (html: string) => ({
+            screenshot: ++cjkCalls === 1 ? shot1 : shot2,
+            text: html.replace(/<[^>]+>/g, ""),
+            has_login_form: true,
+            has_payment_form: false,
+            evidence: { title: cjkTitle, overlays: cjkOverlays, wall: false },
+          }),
+        } as never;
+        // 45 KB of headroom is larger than 2 * 4096 + publicationReserveBytes (~25 KB), but smaller than 2 * ~30,864 bytes of serialized CJK metadata + publicationReserveBytes (~79 KB).
+        const cjkResult = await importNewSource({
+          source: "phishdecloaker",
+          dir: cjkDir,
+          reader: cjkReader,
+          concurrency: 4,
+          enforceCoverage: false,
+          freeBytes: () => MIN_FREE_BYTES + 55_000,
+        });
+        expect(cjkResult.status).toBe("incomplete");
+        expect(cjkResult.stored).toBeLessThan(2);
+        expect(cjkResult.reason).toMatch(/would breach/);
+      } finally {
+        rmSync(cjkDir, { recursive: true, force: true });
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
