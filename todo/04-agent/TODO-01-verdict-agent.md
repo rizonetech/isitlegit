@@ -440,6 +440,8 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3: the abl
 
 ## 15. Fixed action on every critical invoice item
 
+> **Started:** 2026-11-03T01:45Z
+
 Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3): trust's rule needs a fixed action attached for every critical invoice item, and `fixedActionsFor` in `src/agent/loop.ts` today attaches the bank-change action only for the first trigger item and the proof-of-payment action once. Trust builds its Workflow proof against this extension and stamps when it gates to main (its proof half is already built against `bankChangeAction`).
 
 **Phase:** 7
