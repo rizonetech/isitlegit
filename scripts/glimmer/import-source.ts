@@ -334,7 +334,12 @@ export async function importSource(options: {
           inFlightBytes += keepBytes;
           try {
             if (options.minFreeBytes && options.minFreeBytes > 0) {
-              checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
+              checkFreeSpace(
+                store.dir,
+                options.minFreeBytes,
+                effectiveFreeBytes,
+                inFlightBytes + publicationReserveBytes,
+              );
             }
             const updated = store.keepItems(stored.id, others);
             for (const otherId of others) intactByItem.set(otherId, updated);
@@ -379,7 +384,12 @@ export async function importSource(options: {
           inFlightBytes += relabelBytes;
           try {
             if (options.minFreeBytes && options.minFreeBytes > 0) {
-              checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
+              checkFreeSpace(
+                store.dir,
+                options.minFreeBytes,
+                effectiveFreeBytes,
+                inFlightBytes + publicationReserveBytes,
+              );
             }
             store.setLabels(stored.id, labels, label_source, options.licence);
             relabelled++;

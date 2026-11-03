@@ -155,7 +155,9 @@ describe("import-new", () => {
       expect(result.status).toBe("incomplete");
       expect(result.reason).toMatch(/below the .* floor/);
       const importJsonText = readFileSync(join(folder, "IMPORT.json"), "utf-8");
-      const importHeader = JSON.parse(readFileSync(join(folder, "ITEMS.import.jsonl"), "utf-8").split("\n")[0] ?? "{}") as {
+      const importHeader = JSON.parse(
+        readFileSync(join(folder, "ITEMS.import.jsonl"), "utf-8").split("\n")[0] ?? "{}",
+      ) as {
         import?: string;
       };
       expect(importHeader.import).toBe(createHash("sha256").update(importJsonText, "utf-8").digest("hex"));
@@ -237,11 +239,15 @@ describe("import-new", () => {
       });
       expect(problems.some((p) => p.includes("EXPORT.json exported 2 rows, below the 2494 floor"))).toBe(true);
       expect(
-        problems.some((p) => p.includes("exported rows by label (1 lure, 1 benign) are below the (1994 lure, 500 benign) floor")),
+        problems.some((p) =>
+          p.includes("exported rows by label (1 lure, 1 benign) are below the (1994 lure, 500 benign) floor"),
+        ),
       ).toBe(true);
       expect(
         problems.some((p) =>
-          p.includes("stored usable pages by label (2 total, 1 lure, 1 benign) are below the (1623 total, 1128 lure, 495 benign) floor"),
+          p.includes(
+            "stored usable pages by label (2 total, 1 lure, 1 benign) are below the (1623 total, 1128 lure, 495 benign) floor",
+          ),
         ),
       ).toBe(true);
       expect(

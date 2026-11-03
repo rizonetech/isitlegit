@@ -102,12 +102,7 @@ export async function importNewSource(options: {
     source,
     licence,
     items: indexed.map((entry) =>
-      newItem(
-        entry,
-        () => readHtml(rowsFile, entry),
-        reader,
-        entry.shot ? () => readShot(rowsFile, entry) : undefined,
-      ),
+      newItem(entry, () => readHtml(rowsFile, entry), reader, entry.shot ? () => readShot(rowsFile, entry) : undefined),
     ),
     store,
     binding: exportBinding(rowsFile),
