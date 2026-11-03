@@ -6,8 +6,11 @@ import {
   type LogoCompareContext,
   logoCompareRequest,
   logoJudgementSchema,
+  logoMatchDetailSchema,
   logoMatchItem,
+  logoNotComparedDetailSchema,
   logoNotComparedItem,
+  readLogoMatchDetail,
 } from "../../src/vision/logo-compare";
 
 // D03 T03 §3: Muse Spark logo comparison through a stubbed Meta transport, the real budget on
@@ -133,17 +136,57 @@ describe("compareLogo", () => {
   });
 });
 
+const REFERENCE = { key: "ref/logos/gen-1/protea-bank.png", sha256: "a".repeat(64) };
+
 describe("logoMatchItem", () => {
   it("is high on an unrelated domain, info on the brand's own or an unjudged domain, and info for a different logo", () => {
-    expect(logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "mismatch").severity).toBe("high");
-    expect(logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "official").severity).toBe("info");
-    expect(logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "unjudged").severity).toBe("info");
-    const different = logoMatchItem(DIFFERENT, "Protea Bank", "art/c/crop.png", "mismatch");
+    expect(logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "mismatch", REFERENCE).severity).toBe("high");
+    expect(logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "official", REFERENCE).severity).toBe("info");
+    expect(logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "unjudged", REFERENCE).severity).toBe("info");
+    const different = logoMatchItem(DIFFERENT, "Protea Bank", "art/c/crop.png", "mismatch", REFERENCE);
     expect(different.severity).toBe("info");
     expect(different.summary).toContain("not Protea Bank's logo");
     expect(different.detail).toMatchObject({ same_brand: false, checked: true });
     expect(logoNotComparedItem("Protea Bank", "art/c/crop.png", "missing-brand").detail).toMatchObject({
       checked: false,
     });
+  });
+
+  it("records the compared reference key and hash, and only on compared items", () => {
+    for (const judgement of [SAME, DIFFERENT]) {
+      expect(logoMatchItem(judgement, "Protea Bank", "art/c/crop.png", "unjudged", REFERENCE).detail).toMatchObject({
+        reference_key: REFERENCE.key,
+        reference_sha256: REFERENCE.sha256,
+      });
+    }
+    expect(logoNotComparedItem("Protea Bank", "art/c/crop.png", "missing-brand").detail).not.toHaveProperty(
+      "reference_key",
+    );
+  });
+});
+
+describe("readLogoMatchDetail", () => {
+  const compared = logoMatchItem(SAME, "Protea Bank", "art/c/crop.png", "unjudged", REFERENCE).detail;
+  const notCompared = logoNotComparedItem("Protea Bank", "art/c/crop.png", "missing-brand").detail;
+
+  it("reads a valid compared pair and a valid not-compared item", () => {
+    expect(readLogoMatchDetail(compared)).toMatchObject({ kind: "compared" });
+    expect(logoMatchDetailSchema.parse(compared)).toMatchObject({ reference_key: REFERENCE.key });
+    expect(readLogoMatchDetail(notCompared)).toMatchObject({ kind: "not-compared" });
+    expect(logoNotComparedDetailSchema.parse(notCompared)).toMatchObject({ checked: false });
+  });
+
+  it("refuses a stray reference field on a not-compared item, an incomplete pair and a malformed hash", () => {
+    expect(() => readLogoMatchDetail({ ...notCompared, reference_key: REFERENCE.key })).toThrow();
+    const { reference_sha256: _dropped, ...incomplete } = compared as Record<string, unknown>;
+    expect(() => readLogoMatchDetail(incomplete)).toThrow();
+    expect(() => readLogoMatchDetail({ ...compared, reference_sha256: "not-a-hash" })).toThrow();
+  });
+
+  it("reads a historical compared item with no pair as historical, never as compared", () => {
+    const { reference_key: _key, reference_sha256: _sha, ...historical } = compared as Record<string, unknown>;
+    const reading = readLogoMatchDetail(historical);
+    expect(reading.kind).toBe("historical");
+    expect(reading.detail).not.toHaveProperty("reference_key");
   });
 });

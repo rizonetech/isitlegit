@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { filtersFrom } from "../../src/db/case-filters";
+import { DEFAULT_FILTERS, filtersFrom } from "../../src/db/case-filters";
 import { type Checker, checkerName, FORMER_MEMBER, listCases } from "../../src/db/case-list";
 import { refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { ulid } from "../../src/db/ulid";
@@ -42,6 +42,7 @@ async function member(orgId: string, name = "") {
   return { cookie, email };
 }
 type Made = {
+  at?: string;
   ageMs?: number;
   channel?: "email" | "upload";
   sourceKind?: "mail" | "document" | "image" | "audio";
@@ -57,7 +58,7 @@ type Made = {
 };
 async function made(orgId: string, c: Made = {}) {
   const id = ulid();
-  const at = new Date(Date.now() - (c.ageMs ?? 0)).toISOString();
+  const at = c.at ?? new Date(Date.now() - (c.ageMs ?? 0)).toISOString();
   const channel = c.channel ?? "email";
   await db
     .prepare(
@@ -95,7 +96,7 @@ const page = async (path: string, cookie: string) => {
   return res.text();
 };
 // The ids of the cases a page lists, in order (each row links its report once in the table and once on a phone).
-const listed = (html: string) => [...new Set([...html.matchAll(/href="\/r\/([0-9A-Z]{26})"/g)].map((m) => m[1]))];
+const listed = (html: string) => [...new Set([...html.matchAll(/href="\/r\/([0-9A-Z]{26})[?"]/g)].map((m) => m[1]))];
 
 describe("the cases list", () => {
   it("sends a visitor with no session to sign in, back to the list after", async () => {
@@ -193,7 +194,16 @@ describe("the cases list", () => {
     const mine = await made(a, { forwardedBy: email });
     const gone = await made(a, { forwardedBy: "left@demo.isitlegit.co.za", ageMs: 1000 });
     const upload = await made(a, { channel: "upload", forwardedBy: null, ageMs: 2000 });
-    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
+    const read = await listCases(db, a, {
+      verdict: "all",
+      channel: "all",
+      period: "30",
+      page: 1,
+      q: "",
+      from: "",
+      to: "",
+      checker: "",
+    });
     if (!read.ok) throw new Error(read.error.message);
     const by = Object.fromEntries(read.value.cases.map((c) => [c.id, c.checkedBy]));
     expect(by).toEqual({ [mine]: "Thandi Nkosi", [gone]: "left@demo.isitlegit.co.za", [upload]: null });
@@ -222,7 +232,16 @@ describe("the cases list", () => {
     ];
     const ids: string[] = [];
     for (const [uploadedBy] of cases) ids.push(await made(a, { channel: "upload", forwardedBy: null, uploadedBy }));
-    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
+    const read = await listCases(db, a, {
+      verdict: "all",
+      channel: "all",
+      period: "30",
+      page: 1,
+      q: "",
+      from: "",
+      to: "",
+      checker: "",
+    });
     if (!read.ok) throw new Error(read.error.message);
     const list = await page("/cases", cookie);
     for (const [k, [uploadedBy, listed, header, checker]] of cases.entries()) {
@@ -238,7 +257,7 @@ describe("the cases list", () => {
 
   it("names an upload's checker: the member who uploaded it, Former member once they left, never another's user", async () => {
     const a = await org("Karoo Couriers");
-    const { cookie, email } = await member(a, "Ayesha Patel");
+    const { email } = await member(a, "Ayesha Patel");
     const uploader = (await userId(email)) as string;
     const blank = await member(a, "  ");
     const blankId = (await userId(blank.email)) as string;
@@ -267,7 +286,6 @@ describe("the cases list", () => {
     expect(html).not.toContain("Ayesha Patel");
     expect(html).toContain(FORMER_MEMBER);
     expect(html).toContain("Not recorded");
-    void cookie;
   });
 
   it("names each row by its subject over its sender, or an upload's file name over how it came in", async () => {
@@ -751,6 +769,111 @@ describe("the cases list", () => {
   });
 });
 
+describe("the date range (D07 T04 §8)", () => {
+  const F = (q: string) => filtersFrom(new URLSearchParams(q));
+  it("reads the dates from the address, a bad date as unset, and round-trips through casesHref", () => {
+    expect(F("from=2026-10-03&to=2026-10-09")).toMatchObject({ from: "2026-10-03", to: "2026-10-09" });
+    expect(F("from=2026-13-40&to=not-a-date")).toMatchObject({ from: "", to: "" });
+    expect(F("from=2026-02-30")).toMatchObject({ from: "" });
+    expect(casesHref(F("from=2026-10-03&to=2026-10-09&verdict=safe"))).toBe(
+      "/cases?verdict=safe&from=2026-10-03&to=2026-10-09",
+    );
+    expect(casesHref(F(""))).toBe("/cases");
+  });
+
+  it("keeps the SAST days at both ends, inclusive, whatever the period says", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    const before = await made(a, { at: "2026-10-02T21:59:59Z" });
+    const first = await made(a, { at: "2026-10-02T22:00:00Z" });
+    const last = await made(a, { at: "2026-10-09T21:59:59Z" });
+    const after = await made(a, { at: "2026-10-09T22:00:00Z" });
+    const foreign = await made(b, { at: "2026-10-05T10:00:00Z" });
+    const ranged = await listCases(db, a, F("period=7&from=2026-10-03&to=2026-10-09"));
+    expect(ranged.ok).toBe(true);
+    if (!ranged.ok) return;
+    expect(ranged.value.cases.map((c) => c.id)).toEqual([last, first]);
+    expect(ranged.value.matching).toBe(2);
+    expect([before, after, foreign]).toHaveLength(3);
+    const sameDay = await listCases(db, a, F("from=2026-10-09&to=2026-10-09"));
+    expect(sameDay.ok).toBe(true);
+    if (sameDay.ok) expect(sameDay.value.cases.map((c) => c.id)).toEqual([last]);
+    const fromOnly = await listCases(db, a, F("from=2026-10-09"));
+    expect(fromOnly.ok).toBe(true);
+    if (fromOnly.ok) expect(fromOnly.value.cases.map((c) => c.id)).toEqual([after, last]);
+    const toOnly = await listCases(db, a, F("to=2026-10-03"));
+    expect(toOnly.ok).toBe(true);
+    if (toOnly.ok) expect(toOnly.value.cases.map((c) => c.id)).toEqual([first, before]);
+  });
+
+  it("combines with verdict, channel and search, and pages inside the range", async () => {
+    const a = await org("Karoo Couriers");
+    for (let i = 0; i < 30; i++)
+      await made(a, { at: `2026-10-05T10:${String(i).padStart(2, "0")}:00Z`, subject: `Invoice ${i}` });
+    await made(a, { at: "2026-10-05T11:00:00Z", verdict: "malicious", subject: "Invoice bad" });
+    await made(a, {
+      at: "2026-10-05T12:00:00Z",
+      channel: "upload",
+      sourceKind: "document",
+      subject: null,
+      uploadName: "Invoice up.pdf",
+    });
+    const one = await listCases(db, a, F("from=2026-10-05&to=2026-10-05"));
+    expect(one.ok).toBe(true);
+    if (one.ok) {
+      expect(one.value.matching).toBe(32);
+      expect(one.value.cases).toHaveLength(25);
+    }
+    const two = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&page=2"));
+    expect(two.ok).toBe(true);
+    if (two.ok) expect(two.value.cases).toHaveLength(7);
+    const narrowed = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&verdict=malicious&q=invoice"));
+    expect(narrowed.ok).toBe(true);
+    if (narrowed.ok) expect(narrowed.value.matching).toBe(1);
+    const uploads = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&channel=upload"));
+    expect(uploads.ok).toBe(true);
+    if (uploads.ok) expect(uploads.value.matching).toBe(1);
+  });
+
+  it("draws both inputs, disables the period under a range, and clears back to it keeping the other filters", async () => {
+    const a = await org("Karoo Couriers");
+    await made(a, { at: "2026-10-05T10:00:00Z", subject: "Invoice in range" });
+    const { cookie } = await member(a);
+    const html = await page("/cases?verdict=safe&period=7&from=2026-10-03&to=2026-10-09", cookie);
+    expect(html).toContain('name="period" value="7"');
+    expect(html).toContain("/cases?verdict=safe&amp;period=7");
+    expect(html).toContain('id="case-from"');
+    expect(html).toContain('name="from" value="2026-10-03"');
+    expect(html).toContain('name="to" value="2026-10-09"');
+    expect(html).toMatch(/id="case-period"[^>]*disabled/);
+    expect(html).toContain("Clear dates");
+    expect(html).toContain("/cases?verdict=safe");
+    expect(listed(html)).toHaveLength(1);
+    const cleared = await page("/cases?verdict=safe", cookie);
+    expect(cleared).not.toMatch(/id="case-period"[^>]*disabled/);
+  });
+
+  it("names the range in the filtered-empty heading and offers to swap a reversed pair", async () => {
+    const a = await org("Karoo Couriers");
+    const inWeek = await made(a, { at: "2026-10-05T10:00:00Z", subject: "Invoice in week" });
+    const { cookie } = await member(a);
+    const empty = await page("/cases?from=2026-11-03&to=2026-11-09", cookie);
+    expect(empty).toContain("No cases match");
+    expect(empty).toContain("3 Nov");
+    expect(empty).toContain("9 Nov");
+    const ignored = await page("/cases?from=2026-02-30&to=2026-10-09", cookie);
+    expect(ignored).toContain("The From date was not a real date, so it was left out.");
+    const reversed = await page("/cases?from=2026-10-09&to=2026-10-03", cookie);
+    expect(reversed).toContain("From is after To");
+    expect(reversed).toContain('aria-describedby="case-range-hint"');
+    expect(reversed).toContain('id="case-range-error"');
+    expect(reversed).toContain("Swap them");
+    expect(reversed).toContain("from=2026-10-03&amp;to=2026-10-09");
+    expect(listed(reversed)).toEqual([]);
+    expect(listed(await page("/cases?from=2026-10-03&to=2026-10-09", cookie))).toEqual([inWeek]);
+  });
+});
+
 describe("when a case arrived", () => {
   // 2026-10-30 is a Friday; SAST is UTC+2.
   const now = new Date("2026-10-30T12:00:00Z");
@@ -767,5 +890,186 @@ describe("when a case arrived", () => {
     expect(whenText("2026-10-29T22:30:00Z", now)).toBe("00:30");
     // 21:30 UTC on the 29th is 23:30 SAST on the 29th: yesterday.
     expect(whenText("2026-10-29T21:30:00Z", now)).toBe("Yesterday");
+  });
+});
+
+describe("checked by (D07 T04 §10)", () => {
+  it("filters an email and an upload by the same member, and no one else's", async () => {
+    const a = await org("Karoo Couriers");
+    const first = await member(a, "Thandi Nkosi");
+    const thandi = (await userId(first.email)) ?? "";
+    await member(a, "Pieter Botha");
+    const mine = await made(a, { forwardedBy: first.email });
+    const upload = await made(a, { channel: "upload", forwardedBy: null });
+    await db.prepare("UPDATE cases SET uploaded_by = ? WHERE id = ?").bind(thandi, upload).run();
+    await made(a, { forwardedBy: "pieter@demo.isitlegit.co.za" });
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: thandi });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.matching).toBe(2);
+      expect(read.value.cases.map((c) => c.id).sort()).toEqual([mine, upload].sort());
+    }
+  });
+
+  it("lists nothing for a member of another organisation or an invented id", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    const foreignMember = await member(b, "Foreign Member");
+    // A case in this organisation forwarded from the foreign member's own address: without the membership
+    // guard, the email match alone would list it under them.
+    await made(a, { forwardedBy: foreignMember.email });
+    const foreign = (await userId(foreignMember.email)) ?? "";
+    const byForeign = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: foreign });
+    expect(byForeign.ok).toBe(true);
+    if (byForeign.ok) expect(byForeign.value.matching).toBe(0);
+    const invented = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: "nobody-at-all" });
+    if (invented.ok) expect(invented.value.matching).toBe(0);
+  });
+
+  it("draws the select with the members, the chosen one selected, and names them in the empty heading", async () => {
+    const a = await org("Karoo Couriers");
+    const first = await member(a, "Thandi Nkosi");
+    const thandi = (await userId(first.email)) ?? "";
+    await made(a, { forwardedBy: "someone-else@demo.isitlegit.co.za" });
+    const html = await page(`/cases?checker=${thandi}`, first.cookie);
+    expect(html).toContain('id="case-checker"');
+    expect(html).toMatch(new RegExp(`<option value="${thandi}" selected`));
+    expect(html).toContain("Thandi Nkosi");
+    expect(html).toContain("Everyone");
+    expect(html).toContain("checked by Thandi Nkosi");
+  });
+
+  it("draws a departed checker as unavailable, the filter kept", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a, "Thandi Nkosi");
+    await made(a, {});
+    const html = await page("/cases?checker=departed-member-id", cookie);
+    expect(html).toContain("Member no longer available");
+    expect(html).toMatch(/value="departed-member-id" selected[^>]*disabled/);
+    expect(html).toContain("checked by Member no longer available");
+  });
+});
+
+describe("checked by, kept and named (D07 T04 §10 completion)", () => {
+  it("tells two members sharing a name apart by email", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await member(a, "Sam Dube");
+    const two = await member(a, "Sam Dube");
+    await made(a, {});
+    const { cookie } = await member(a, "Thandi Nkosi");
+    const html = await page("/cases", cookie);
+    expect(html).toContain(`Sam Dube (${one.email})`);
+    expect(html).toContain(`Sam Dube (${two.email})`);
+  });
+
+  it("keeps an unavailable checker in what the form sends, and names the member in the count", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, email } = await member(a, "Thandi Nkosi");
+    await made(a, { forwardedBy: email });
+    const unavailable = await page("/cases?checker=departed-member-id", cookie);
+    expect(unavailable).toContain('<input type="hidden" name="checker" value="departed-member-id"');
+    const mine = await page(`/cases?checker=${(await userId(email)) ?? ""}`, cookie);
+    expect(mine).toContain("checked by Thandi Nkosi");
+  });
+
+  it("answers a failed member read with the error page, its retry keeping the checker", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a, "Thandi Nkosi");
+    await made(a, {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/AS label|u\.name AS name/.test(sql) || /ORDER BY u\.name/.test(sql)) throw new Error("D1_ERROR: lost");
+      return prepare(sql);
+    });
+    const res = await get("/cases?checker=some-member", cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(await res.text()).toContain("checker=some-member");
+  });
+});
+
+describe("invoice and payment-document words (D07 T04 §13)", () => {
+  const classify = async (id: string, check: string, detail = "{}", run = "run-1", seq = 1) => {
+    await db
+      .prepare("UPDATE cases SET run_id = ? WHERE id = ?")
+      .bind(run === "run-1" ? run : "run-1", id)
+      .run();
+    return db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
+         VALUES (?, ?, ?, ?, ?, 'info', 'Classified for the list test', ?, 1)`,
+      )
+      .bind(id, run, `E${seq}`, seq, check, detail)
+      .run();
+  };
+
+  it("reads the words from the stored classification, in the table and the card", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const invoiceMail = await made(a, {});
+    const popUpload = await made(a, { channel: "upload", forwardedBy: null });
+    const letterUpload = await made(a, { channel: "upload", forwardedBy: null });
+    const invoiceUpload = await made(a, { channel: "upload", forwardedBy: null });
+    const plain = await made(a, { channel: "upload", forwardedBy: null });
+    await classify(invoiceMail, "invoice.detected");
+    await classify(popUpload, "document.proof_of_payment");
+    await classify(letterUpload, "document.type", JSON.stringify({ type: "bank_letter" }));
+    await classify(invoiceUpload, "document.type", JSON.stringify({ type: "invoice" }));
+    const html = await page("/cases?period=all", cookie);
+    expect(html.split(">Email, invoice</td>")).toHaveLength(2);
+    expect(html.split(">Payment document</td>")).toHaveLength(3);
+    expect(html.split("Email, invoice, checked by")).toHaveLength(2);
+    expect(html.split("Payment document, checked by")).toHaveLength(3);
+    expect(html).toContain(">Payment document</td>");
+    expect(html).toContain("Email, invoice, checked by");
+    expect(html).toContain("Payment document, checked by");
+    // An invoice-only upload and an unclassified upload keep Document, and the case count is untouched.
+    expect(listed(html).sort()).toEqual([invoiceMail, popUpload, letterUpload, invoiceUpload, plain].sort());
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.matching).toBe(5);
+      const byId = new Map(read.value.cases.map((c) => [c.id, c]));
+      expect(byId.get(invoiceMail)).toMatchObject({ hasInvoice: true, hasPaymentDocument: false });
+      expect(byId.get(popUpload)).toMatchObject({ hasPaymentDocument: true });
+      expect(byId.get(letterUpload)).toMatchObject({ hasPaymentDocument: true });
+      expect(byId.get(invoiceUpload)).toMatchObject({ hasInvoice: true, hasPaymentDocument: false });
+      expect(byId.get(plain)).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
+    }
+  });
+
+  it("ignores a superseded run and takes payment over invoice on one upload", async () => {
+    const a = await org("Karoo Couriers");
+    const stale = await made(a, { channel: "upload", forwardedBy: null });
+    const both = await made(a, { channel: "upload", forwardedBy: null });
+    await classify(stale, "document.proof_of_payment", "{}", "run-old");
+    await classify(both, "invoice.detected");
+    await classify(both, "document.type", JSON.stringify({ type: "pop" }), "run-1", 2);
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.matching).toBe(2);
+      const byId = new Map(read.value.cases.map((c) => [c.id, c]));
+      expect(byId.get(stale)).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
+      expect(byId.get(both)).toMatchObject({ hasInvoice: true, hasPaymentDocument: true });
+    }
+    const { cookie } = await member(a);
+    const html = await page("/cases?period=all", cookie);
+    expect(html.split(">Payment document</td>")).toHaveLength(2);
+    expect(html.split(">Document</td>")).toHaveLength(2);
+  });
+
+  it("never reads another organisation's classification", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    const foreign = await made(b, {});
+    await classify(foreign, "invoice.detected");
+    const local = await made(a, {});
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.cases.map((c) => c.id)).toEqual([local]);
+      expect(read.value.cases[0]).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
+    }
   });
 });

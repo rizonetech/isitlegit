@@ -18,8 +18,10 @@ track: day-2
 - `design/SPEC.md` M3 (the early authentication card, board `Report-Running-Early`)
 - -> XREF: D07 T03 §37 -- the early card these sections extend; its completion review filed both
 - -> XREF: D07 T03 §13 -- the walkthrough card renderer §7 extends
-- -> XREF: D07 T03 §15 -- the invoice and payment-document card renderers §19 and §20 extend
+- -> XREF: D07 T03 §15 -- the invoice and payment-document card renderers §20 and §21 extend
 - -> XREF: D04 T02 §6 -- the walk producer whose refusal and reuse shapes §7 draws
+- -> XREF: D02 T01 §10 -- every examined target kept past the stored bound, filed by §10's completion review
+- -> XREF: D02 T01 §11 -- each examined target's relation to the message, filed by §10's completion review
 - The stored check outcomes (D02 T01 §3) the card reads, whose storage order §1 changes
 
 ## Outcome
@@ -35,16 +37,16 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Early results first | D07 T03 §37 | [ ] |
+| 1 | §1 | Early results first | D07 T03 §37 | [x] |
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
-| 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
+| 5 | §5 | Per-provider reputation results | D07 T03 §12 | [x] |
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [x] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
-| 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
-| 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
+| 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [x] |
+| 10 | §10 | Every target a clean check examined | D07 T03 §44 | [x] |
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [x] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
@@ -53,10 +55,13 @@ track: day-2
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
 | 18 | §18 | Playback failure, retry and follow-along | §6 | [ ] |
-| 19 | §19 | Masked bank-block preview on invoice cards | D07 T03 §15 | [ ] |
-| 20 | §20 | Baseline provenance on bank comparisons | D07 T03 §15 | [ ] |
+| 19 | §19 | Diagnostic detail on the early card | §1 | [ ] |
+| 20 | §20 | Masked bank-block preview on invoice cards | D07 T03 §15 | [ ] |
+| 21 | §21 | Baseline provenance on bank comparisons | D07 T03 §15 | [ ] |
 
 ## 1. Early results first
+
+> **Started:** 2026-11-03T01:16:34Z
 
 Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw once the checks step stores its outcomes, and that step also runs slower work (link following, landing pages, domain age), so results a member could act on wait behind unrelated work. The pipeline change is the checks lane's; this section owns the report's side and its proof.
 
@@ -72,12 +77,17 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw o
 
 1. Store authentication outcomes first, then draw from them. Done when: a running case whose slow checks still run shows the card.
 
-- [ ] Ask the checks lane (through the coordinator) to store the `auth.*` outcomes and items before the slower checks run, in `src/pipeline/analysis-workflow.ts`. Done when: the producer stores them first and the run's later outcomes join them under the same run id. Cheaper substitute: a second card fed by a separate read, which can disagree with the stored outcomes.
-- [ ] Draw the card from those early outcomes in `ReportLive` (`src/web/pages/report-live.tsx`) with no other change. Done when: `test/web/report-status.test.ts` stores only the auth outcomes through the status route and finds the card while the checks step is still running. Cheaper substitute: polling faster, which shows the same late facts sooner.
-- [ ] Prove the timing in `test/node/report-status-browser.test.tsx`: the card appears on the first poll after the auth outcomes land. Done when: the test counts one poll between the store and the card. Cheaper substitute: asserting the card eventually appears, which passes however late it lands.
-- [ ] Commit: `web: early authentication results before the slow checks`
+- [x] Ask the checks lane (through the coordinator) to store the `auth.*` outcomes and items before the slower checks run, in `src/pipeline/analysis-workflow.ts`. Done when: the producer stores them first and the run's later outcomes join them under the same run id. Cheaper substitute: a second card fed by a separate read, which can disagree with the stored outcomes.
+- [x] Draw the card from those early outcomes in `ReportLive` (`src/web/pages/report-live.tsx`) with no other change. Done when: `test/web/report-status.test.ts` stores only the auth outcomes through the status route and finds the card while the checks step is still running. Cheaper substitute: polling faster, which shows the same late facts sooner.
+- [x] Prove the timing in `test/node/report-status-browser.test.tsx`: the card appears on the first poll after the auth outcomes land. Done when: the test counts one poll between the store and the card. Cheaper substitute: asserting the card eventually appears, which passes however late it lands.
+- [x] Commit: `web: early authentication results before the slow checks`
+
+**Corrected 2026-11-03 (completion and round 1 reviews):** the one-poll proof is composed of the checkpoint's two halves: the worker test stores the auth prefix through `saveEvidence` and reads the real status route while checks still run, and the browser test counts exactly one poll between the stored answer and the visible card. A single test driving a database save through a browser poll would need a harness no suite in this repository has; the composed proof can fail in either half.
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with the card drawn from auth outcomes alone.
+
+> **Verified:** 2026-11-03 | §1 | 41ba91c54a67b674cb9a8135a40ca3a676f55643
+> **Review:** `docs/reviews/d07-t09-s1.json`
 
 ## 2. Kinds of auth error
 
@@ -164,6 +174,8 @@ Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is
 
 ## 5. Per-provider reputation results
 
+> **Started:** 2026-11-03T01:40:58Z
+
 Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards show a listing and its counter signals, but not one result per provider per subject (listed, clear, unavailable), nor when each answer was obtained or whether it was cached, where VirusTotal shows a checked and listed count with each provider's own result. That needs a richer producer shape from the checks lane first.
 
 **Phase:** 7
@@ -178,11 +190,16 @@ Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards sho
 
 1. Store each provider's answer, then draw it. Done when: a subject shows every provider's state and when it was obtained.
 
-- [ ] Ask the checks lane (through the coordinator) to store one result per provider per subject in the reputation items (listed, clear or unavailable, with the time obtained and whether it was cached). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: deriving a count from the corroboration flag, which §12's review showed invents agreement.
-- [ ] Draw the per-provider rows in `src/web/components/evidence/cards.tsx` with the checked and listed counts they support. Done when: `test/web/evidence-cards.test.ts` draws listed, clear and unavailable rows for one subject with their times, and no count is drawn that the rows do not support. Cheaper substitute: the listing alone, which hides how many providers were asked.
-- [ ] Commit: `web: per-provider reputation results`
+- [x] Ask the checks lane (through the coordinator) to store one result per provider per subject in the reputation items (listed, clear or unavailable, with the time obtained and whether it was cached). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: deriving a count from the corroboration flag, which §12's review showed invents agreement. Shipped by D02 T06 §9 (stamped on main): `readReputationResults` in `src/checks/reputation-results.ts` returns provider, subject, state (`listed`, `clear`, `unavailable`, and the well-known list's `known` and `unknown`), obtainedAt, cached and note per row.
+- [x] Record the rows in `design/SPEC.md` M3: one row per provider and subject on the reputation card, with its state in plain words, when it was obtained, and a cached mark; counts per exact subject over answered rows only, the well-known list counted apart, and a subject with no listing shown in the same block. Done when: `python3 design/tools/check-design.py` passes with the extension recorded. Cheaper substitute: drawing rows the SPEC does not describe.
+- [x] Read and thread the stored rows: `src/web/pages/report.tsx` reads `readReputationResults(db, id, run)` beside the evidence and outcomes it already pins to the run, and passes them through `ReportDocument` and `ReportLive` (both the page and the status poll, member and signed-link views alike) into `EvidenceCards`. Done when: `test/web/report-status.test.ts` stores rows in the table and reads them back on the report for both views, and a retry's new run shows only its own rows. Cheaper substitute: reading the table in the renderer, which has no database and would mix runs.
+- [x] Draw the per-provider rows in `src/web/components/evidence/cards.tsx`: on the reputation card for their subject, and in one "What the reputation providers said" block for subjects no card names, each row with its provider, its state in plain words (listed; not listed by this provider; could not be checked, with its recorded reason; on the well-known list; not on the well-known list), when it was obtained, and a cached mark. Counts per exact subject count answered rows only and keep the well-known list apart; no count implies a verdict. Done when: `test/web/evidence-cards.test.ts` draws listed, clear, unavailable, known and unknown rows with their times, an unsupported count absent, and a hostile subject as text. Cheaper substitute: the listing alone, which hides how many providers were asked.
+- [x] Commit: `web: per-provider reputation results`
 
-**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with per-provider rows drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` passes with per-provider rows drawn from the stored table through the real routes.
+
+> **Verified:** 2026-11-03 | §5 | 61e6d84a0ed0c0ec16d1ceaaaa14e5b3127465a2
+> **Review:** `docs/reviews/d07-t09-s5.json`
 
 ## 6. The voice note's player and transcript
 
@@ -279,6 +296,8 @@ Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-siz
 
 ## 9. Complete decoded run on the card
 
+> **Started:** 2026-11-03T02:09:26Z
+
 Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence item): the card shows the run's opening and the first instruction's excerpt, so a reader still cannot read an instruction that runs past the stored excerpt, or a later instruction in the same run, without decoding the original elsewhere (Embrace The Red's ASCII Smuggler). The producer keeps one excerpt of at most 250 characters (`SPOT_TEXT` in `src/checks/instruction-phrases.ts`), and widening that storage is the checks lane's producer work: this section waits on that row, asked through the coordinator; the field shape below is a proposal for it, not a decision.
 
 **Phase:** 7
@@ -295,15 +314,20 @@ Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence 
 2. Extend `design/SPEC.md` M3 with the full-run view. Done when: M3 names the control and `design/tools/check-design.py` passes.
 3. Draw the full run. Done when: a run whose instruction runs past the stored excerpt reads whole in the report.
 
-- [ ] Ask the checks lane, through the coordinator, to retain the decoded run, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the card reads only what that row stores (proposed shape: `detail.run: { text, truncated }` beside `detail.instruction`, bounded by the producer's accepted input limits). Cheaper substitute: decoding the run again in the card from the original message (re-reads hostile bytes in the web layer, so refused).
-- [ ] Extend `design/SPEC.md` M3 with the full-run view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the truncation sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the run with no SPEC entry.
-- [ ] Draw the stored run in `src/web/components/evidence/cards.tsx`'s invisible-characters card, reached by one activation from the card, with the cut stated when the stored text is truncated, and the card as §29 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction continues past the stored excerpt and reads it whole, a truncated run names its cut, and a hostile run text renders as text.
-- [ ] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/evidence-cards-browser.test.tsx` opens the full run by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
-- [ ] Commit: `web: the complete decoded run on the card`
+- [x] Ask the checks lane, through the coordinator, to retain the decoded run, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the card reads only what that row stores (proposed shape: `detail.run: { text, truncated }` beside `detail.instruction`, bounded by the producer's accepted input limits). Cheaper substitute: decoding the run again in the card from the original message (re-reads hostile bytes in the web layer, so refused). Shipped by D02 T05 §11 (stamped on main): `detail.run: { text, truncated }` at `src/checks/hidden-content.ts:110`, bounded at 8,000 code points with the cut marked.
+- [x] Extend `design/SPEC.md` M3 with the full-run view and record the operator's approval in the section. Operator approval routed through the coordinator 2026-11-02 (M3 extensions for §9 to §12). Done when: M3 names the control, its states and its wording (including the truncation sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the run with no SPEC entry.
+- [x] Draw the stored run in `src/web/components/evidence/cards.tsx`'s invisible-characters card, reached by one activation from the card, with the cut stated when the stored text is truncated, and the card as §29 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction continues past the stored excerpt and reads it whole, a truncated run names its cut, and a hostile run text renders as text.
+- [x] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/evidence-cards-browser.test.tsx` opens the full run by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [x] Commit: `web: the complete decoded run on the card`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the whole run readable.
 
+> **Verified:** 2026-11-03 | §9 | d2f5545eaf3b8fdf57db4e0092136ff083733aec
+> **Review:** `docs/reviews/d07-t09-s9.json`
+
 ## 10. Every target a clean check examined
+
+> **Started:** 2026-11-03T02:29:35Z
 
 Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence item, against VirusTotal's URL report, which names the resources its clean analysis contacted): a clean check's stored summary is at most 120 characters, so for a message naming many targets it cannot list them all, and the clean list offers no way to inspect the rest. The examined set lives with the producer: storing it is the checks lane's data contract, asked through the coordinator; this section draws it.
 
@@ -321,13 +345,19 @@ Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence 
 2. Extend `design/SPEC.md` M3 with the inspection view. Done when: M3 names the control and `design/tools/check-design.py` passes.
 3. Draw the set. Done when: a clean check that examined more targets than its summary holds lists them all, with omissions stated.
 
-- [ ] Ask the checks lane, through the coordinator, to store the examined set, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the list reads only what that row stores (proposed shape: the examined targets as stored text on the outcome, bounded, with omissions named).
-- [ ] Extend `design/SPEC.md` M3 with the examined-set view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the omissions sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the set with no SPEC entry.
-- [ ] Draw the stored set in `CleanChecks` (`src/web/pages/report-live.tsx`), reached by one keyboard-accessible activation from the clean list, omissions stated, targets drawn as text, and the list as §44 drew it when no set is stored. Done when: `test/web/evidence-cards.test.ts` draws a set longer than a summary holds with its omissions stated, and a hostile target renders as text.
-- [ ] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-verdict-browser.test.tsx` opens the set by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
-- [ ] Commit: `web: every target a clean check examined`
+- [x] Ask the checks lane, through the coordinator, to store the examined set, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the list reads only what that row stores (proposed shape: the examined targets as stored text on the outcome, bounded, with omissions named). Shipped by D02 T01 §8 (stamped on main): `readCheckOutcomes` in `src/checks/evidence.ts` returns `examined: { targets, omitted }` only when stored and valid, at most 50 targets of at most 255 characters.
+- [x] Extend `design/SPEC.md` M3 with the examined-set view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the omissions sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the set with no SPEC entry.
+- [x] Draw the stored set in `CleanChecks` (`src/web/pages/report-live.tsx`), reached by one keyboard-accessible activation from the clean list, omissions stated, targets drawn as text, and the list as §44 drew it when no set is stored. A stored empty set reads "No targets were recorded for this check." with no disclosure. Done when: `test/web/evidence-cards.test.ts` draws a set longer than a summary holds (every target's whole text, including a 255-character one and the last), with its omissions stated, a hostile target as text, the stored-empty wording, and `test/web/report-status.test.ts` reads a stored set back through the report route. Cheaper substitute: the summary alone, which is what ships today.
+- [x] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-verdict-browser.test.tsx` opens the set by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [x] Commit: `web: every target a clean check examined`
+
+> **Deferred:** inspecting the targets left out of the stored bound -> XREF: D02 T01 §10
+> **Deferred:** each target's relation to the message (link, redirect step, landing page) -> XREF: D02 T01 §11
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the whole set readable.
+
+> **Verified:** 2026-11-03 | §10 | 5359924e220b2407d850680e6fe33adae9f9c2c7
+> **Review:** `docs/reviews/d07-t09-s10.json`
 
 ## 11. Outcome and reason beside each version
 
@@ -524,9 +554,30 @@ Filed 2026-11-02 from D07 T09 §6's completion review: the shipped player delega
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the failure wording, the retry and the follow-along mark.
 
-## 19. Masked bank-block preview on invoice cards
+## 19. Diagnostic detail on the early authentication card
 
-Filed 2026-11-03 from D07 T03 §15's completion review (G6, missing-out-of-scope): the invoice and payment-document cards link the original PDF through the artefact route, but no producer renders an outlined, masked page preview identifying the extracted bank block in place, and drawing the unmasked PDF page directly would expose the full account number. Rendering and masking the page image is the trust lane's producer work, asked through the coordinator; this section draws the preview and its unavailable states on the cards.
+Filed 2026-11-03 from D07 T09 §1's completion review: Microsoft Defender's authentication view shows the supporting detail beside each result (the SPF addresses, the DKIM failure reason, the composite authentication), where the early card shows a status and a summary only, so a member checking why a result happened must leave the compact view.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the early authentication card, `Report-Running-Early`)
+**Job:** a member sees why each authentication result happened without leaving the card
+**Treatment:** the stored detail beside each method's result, in plain words
+**Chrome:** the early card (D07 T03 §37)
+
+**Build order:**
+
+1. Show the stored detail. Done when: each method's result carries its recorded reason on the card.
+
+- [ ] Draw the stored supporting detail in `src/web/pages/report-live.tsx` (the addresses and identifiers the auth items already store, and the composite result when one is stored), each as text. Done when: `test/web/report-status.test.ts` draws a failed result with its recorded reason and a passed one without inventing one. Cheaper substitute: the summary alone, which is what ships today.
+- [ ] Commit: `web: diagnostic detail on the early card`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the recorded detail drawn.
+
+## 20. Masked bank-block preview on invoice cards
+
+Filed 2026-11-03 from D07 T03 §15's completion review (G6, missing-out-of-scope; renumbered from D07 T09 §19 at the `origin/main` merge, so the `- Filed: D07 T09 §19` line in `docs/reviews/07-app/D07-T03-s15.md` names its pre-merge number): the invoice and payment-document cards link the original PDF through the artefact route, but no producer renders an outlined, masked page preview identifying the extracted bank block in place, and drawing the unmasked PDF page directly would expose the full account number. Rendering and masking the page image is the trust lane's producer work, asked through the coordinator; this section draws the preview and its unavailable states on the cards.
 
 **Phase:** 7
 **Needs:** none
@@ -546,9 +597,9 @@ Filed 2026-11-03 from D07 T03 §15's completion review (G6, missing-out-of-scope
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the masked preview and its unavailable states drawn.
 
-## 20. Baseline provenance on bank comparisons
+## 21. Baseline provenance on bank comparisons
 
-Filed 2026-11-03 from D07 T03 §15's completion review (G7, out-of-scope excellence item against EftsureID's verification audit trail): the invoice and payment-document comparison cards name the comparison source (`Your supplier ledger` or `The supplier's registered account`), but the producers in `src/invoice/rules.ts` and `src/invoice/payment-doc.ts` store no verification method, timestamp or baseline revision for that record, so a reader cannot tell a freshly verified baseline from a stale or unverified one. Storing immutable baseline provenance is the trust lane's producer work; this section draws it while keeping registered bank details strictly match or no match.
+Filed 2026-11-03 from D07 T03 §15's completion review (G7, out-of-scope excellence item against EftsureID's verification audit trail; renumbered from D07 T09 §20 at the `origin/main` merge, so the `- Filed: D07 T09 §20` line in `docs/reviews/07-app/D07-T03-s15.md` names its pre-merge number): the invoice and payment-document comparison cards name the comparison source (`Your supplier ledger` or `The supplier's registered account`), but the producers in `src/invoice/rules.ts` and `src/invoice/payment-doc.ts` store no verification method, timestamp or baseline revision for that record, so a reader cannot tell a freshly verified baseline from a stale or unverified one. Storing immutable baseline provenance is the trust lane's producer work; this section draws it while keeping registered bank details strictly match or no match.
 
 **Phase:** 7
 **Needs:** none

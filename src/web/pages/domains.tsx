@@ -8,6 +8,15 @@
 import { Hono } from "hono";
 import { clientIp } from "../../auth/audit";
 import {
+  buildApplyUrl,
+  CONNECT_KEY_HOST,
+  CONNECT_PROVIDER_ID,
+  CONNECT_SERVICE_ID,
+  discoverConnect,
+  importSigningKey,
+  templateSupport,
+} from "../../auth/domain-connect";
+import {
   type Actor,
   checkDomain,
   domainClaimView,
@@ -93,6 +102,25 @@ async function manager(env: Env, signedIn: SignedIn, request: Request) {
 
 const domainOf = (param: string) => registrable(param.toLowerCase()) ?? param.toLowerCase();
 
+// Whether Connect may be offered for this domain (D07 T04 §5): the signing key must be set, the domain's registrar
+// must publish Domain Connect, and the provider must support IsItLegit's exact template. A provider that cannot
+// answer reads "unknown" (Try again stands), never an offer and never a strike-off.
+type ConnectOffer = { state: "ready"; providerName: string } | { state: "unknown" } | null;
+async function connectOffer(env: Env, domain: string): Promise<ConnectOffer> {
+  if (!env.DOMAIN_CONNECT_PRIVATE_KEY) return null;
+  try {
+    const found = await discoverConnect(domain);
+    if (found.state === "unavailable") return { state: "unknown" };
+    if (found.state === "unsupported") return null;
+    const supported = await templateSupport(found, CONNECT_PROVIDER_ID, CONNECT_SERVICE_ID);
+    if (supported.state === "unavailable") return { state: "unknown" };
+    if (supported.state === "no") return null;
+    return { state: "ready", providerName: found.providerName };
+  } catch {
+    return { state: "unknown" };
+  }
+}
+
 domainPageRoutes.get(
   "/settings/domains/:domain",
   sessionGate((request) => outage(request, "session")),
@@ -122,15 +150,89 @@ domainPageRoutes.get(
           />,
           404,
         );
+      // Back from the registrar (D07 T04 §5): the return itself runs the check, so the outcome the page shows is
+      // the DNS answer, never the return address's word. A claim removed meanwhile falls through to the page's 404.
+      if (view.state === "pending" && url.searchParams.get("connect") === "return") {
+        const actor: Actor = {
+          db: c.env.DB,
+          secret,
+          orgId: who.org.id,
+          userId: signedIn.user.id,
+          ip: clientIp(c.req.raw.headers),
+          defer: (work) => c.executionCtx.waitUntil(work),
+        };
+        const checked = await checkDomain(actor, domain);
+        if (checked.kind !== "gone")
+          return back(secret, who.org.id, domain, {
+            r: `check-${checked.kind}`,
+            ...(checked.kind === "different" ? { seen: checked.seen } : {}),
+          });
+      }
+      const connect =
+        view.state === "pending"
+          ? await connectOffer(c.env, domain).then((offer) =>
+              offer?.state === "ready"
+                ? {
+                    state: "ready" as const,
+                    providerName: offer.providerName,
+                    href: `/settings/domains/${encodeURIComponent(domain)}/connect`,
+                  }
+                : offer?.state === "unknown"
+                  ? { state: "unknown" as const, href: `/settings/domains/${encodeURIComponent(domain)}` }
+                  : null,
+            )
+          : null;
       return html(
         <DomainPage
           shell={shell}
           view={view}
           result={result}
           local={local === "postmaster" ? "postmaster" : "admin"}
+          connect={connect}
           now={now}
         />,
       );
+    } catch (error) {
+      return outage(c.req.raw, (error as Error).name);
+    }
+  },
+);
+
+domainPageRoutes.get(
+  "/settings/domains/:domain/connect",
+  sessionGate((request) => outage(request, "session")),
+  async (c) => {
+    const signedIn = c.get("signedIn");
+    const who = await manager(c.env, signedIn, c.req.raw);
+    if ("refused" in who) return who.refused;
+    const domain = domainOf(c.req.param("domain"));
+    const page = `/settings/domains/${encodeURIComponent(domain)}`;
+    try {
+      const view = await domainClaimView(c.env.DB, who.org.id, domain);
+      if (view?.state !== "pending")
+        return new Response(null, { status: 303, headers: { ...HEADERS, location: page } });
+      // The offer is settled again here, never trusted from the page that linked it.
+      const pem = c.env.DOMAIN_CONNECT_PRIVATE_KEY;
+      if (!pem) return new Response(null, { status: 303, headers: { ...HEADERS, location: page } });
+      const found = await discoverConnect(domain);
+      if (found.state !== "supported")
+        return new Response(null, { status: 303, headers: { ...HEADERS, location: page } });
+      const supported = await templateSupport(found, CONNECT_PROVIDER_ID, CONNECT_SERVICE_ID);
+      if (supported.state !== "yes")
+        return new Response(null, { status: 303, headers: { ...HEADERS, location: page } });
+      const key = await importSigningKey(pem).catch(() => null);
+      if (!key) return new Response(null, { status: 303, headers: { ...HEADERS, location: page } });
+      const apply = await buildApplyUrl({
+        discovery: found,
+        providerId: CONNECT_PROVIDER_ID,
+        serviceId: CONNECT_SERVICE_ID,
+        domain,
+        txtValue: view.txt.value,
+        redirectUri: `${new URL(c.env.APP_URL).origin}${page}?connect=return`,
+        privateKey: key,
+        keyHost: CONNECT_KEY_HOST,
+      });
+      return new Response(null, { status: 302, headers: { ...HEADERS, location: apply } });
     } catch (error) {
       return outage(c.req.raw, (error as Error).name);
     }

@@ -76,6 +76,14 @@ export const SAPS_REPORT_CRIME: Source = {
   read: "2026-11-02",
 };
 
+export const STANDARD_BANK_DETAILS_SCAM: Source = {
+  title: "Change of banking details scam",
+  publisher: "Standard Bank",
+  url: "https://www.standardbank.co.za/southafrica/personal/learn/how-to-avoid-the-change-of-banking-details-scam",
+  published: "2026-11-02",
+  read: "2026-11-02",
+};
+
 export const FBI_BEC: Source = {
   title: "Business Email Compromise",
   publisher: "Federal Bureau of Investigation (FBI)",

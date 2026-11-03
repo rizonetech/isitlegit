@@ -118,6 +118,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N7 | Monitor alert with takedown pack | The protected business | D05 T04 §5 |
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
+| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays at 16h00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
 
 No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
 
@@ -308,6 +309,9 @@ Controls:
 - Free check: R0 tier with Get started free. (Pricing)
 - Protect from R499: Protect tier with Start free during launch. (Pricing)
 - MSP from R199 per client: MSP tier with Talk to us (opens S9). (Pricing)
+- Protect member scope: "up to 5 members; larger organisations R999" on the Protect tier. (Pricing)
+- What the price includes: Q&A answer, prices include VAT. (Pricing)
+- Locked in: Q&A answer, month-to-month, cancel anytime and the organisation keeps Free check. (Pricing)
 
 States:
 
@@ -318,6 +322,7 @@ States:
 - Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 5 checks a day per organisation", `src/auth/plan-sql.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
 - Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
 - Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
+- Deviation (D07 T06 §12): the Pricing board draws no member scope or terms answers; the page also states Protect's member scope (up to 5 members, R999 above, the operator's threshold; design spec 2b supports the R499 to R999 range) and two Questions answers (prices include VAT; month-to-month, cancel anytime). Operator decision 2026-11-02.
 
 ### S6 Privacy and POPIA
 
@@ -623,12 +628,18 @@ Boards: [PNG](mockups/png/Verify-Domain.png) · [source](mockups/source/Verify-D
 
 Controls:
 
+- registrar-assisted verification: "Connect with <Registrar>" first when the domain's registrar supports Domain Connect and IsItLegit's template; the hand-off to the registrar and the automatic check on return (a plain link: no JavaScript required). (Verify-Domain, added by D07 T04 §5; the board change goes to the operator with this text.)
 - TXT record to copy: Name and value with Copy buttons. (Verify-Domain)
+- provider DNS help: "How do I add this at my provider?" in the DNS card, opening steps for Cloudflare, Hetzner, xneelo and Afrihost, generic TXT steps for every other provider, and how to find the DNS host or hand the record to whoever manages it. (Verify-Domain) (D07 T04 §11, operator decision 2026-11-02)
 - check now: Looks the record up. (Verify-Domain)
 - emailed-code option: admin@ or postmaster@ choice, Send code, code input and Verify. (Verify-Domain)
 
 States:
 
+- connect ready: "Your registrar can add the record for you." with Connect with <Registrar>. (Verify-Domain, D07 T04 §5)
+- connect cancelled: "The registrar did not add the record." with Connect again; the claim is kept and the other ways stand. (Verify-Domain, D07 T04 §5)
+- added, not visible yet: "The record is added. DNS has not shown it here yet." with Check now. (Verify-Domain, D07 T04 §5)
+- registrar unknown: the Connect option is checked again with Try again; the TXT record and the emailed code stand. (Verify-Domain, D07 T04 §5)
 - pending: Last checked line. (Verify-Domain)
 - verified: Other states panel. (Verify-Domain)
 - failed: Other states panel. (Verify-Domain)
@@ -650,10 +661,15 @@ Boards: [PNG](mockups/png/Cases.png) · [source](mockups/source/Cases.dc.html) �
 Controls:
 
 - stats panel: Four tiles with Export counts as CSV. (Cases)
+- counts export period: Beside the one-press 12-week Export counts as CSV, From and To date fields with an Export period button, and This month and This quarter links carrying the current calendar month's and quarter's SAST dates. A chosen period exports one row per week for the weeks overlapping it; a reversed range, a range over 2 years or an unreadable date is refused with the 400 page. (Cases) (D07 T04 §19, operator decision 2026-11-02)
+- threat kinds: The muted line under Malicious or suspicious, "5 phishing, 3 invoice, 1 impersonation": the week's flagged cases by kind, descending, ties in that board order, nothing drawn when no kind is present. A kind is a reporting bucket from positive evidence on the case's current run (invoice classification; a lookalike or confirmed brand mismatch for impersonation; a lure or credential form for phishing), one kind per case in that order, so the kinds need not sum to the tile. (Cases) (D07 T04 §18, operator decision 2026-11-02)
 - this week: Checked this week tile. (Cases)
 - money at risk caught: Rand tile. (Cases)
 - filters: Verdict segmented filter, channel and period. (Cases)
-- search: Search input. (Cases)
+- checked by: Checked by select beside channel, Everyone then each member; a checker who has left reads "Member no longer available" and Clear filters returns to Everyone. (Cases) (D07 T04 §10, operator decision 2026-11-02)
+- date range: From and To date inputs beside the period, with the active range named and Clear dates returning to the fixed periods; a From after the To names the problem with Swap them. Setting a date makes the range the date filter; clearing both returns to the period. (Cases) (D07 T04 §8, operator decision 2026-11-02)
+- search: Search input; its placeholder names the `/` key. (Cases)
+- search shortcut: Pressing `/` outside a text field, select or editable region focuses the search box; the key stays text inside a field. The hint beside the box carries its Turn off / Turn on button (WCAG 2.1.4), and the choice is kept in the browser. (Cases) (D07 T04 §15, operator decision 2026-11-02)
 - case table: Rows open M3; Previous and Next. (Cases)
 
 States:
@@ -703,6 +719,9 @@ Anatomy, top to bottom (Main):
 - Evidence: a count line ("9 findings · 8 checks ran · nothing skipped") with its Check versions disclosure, then evidence cards by kind, each with an id and severity pill (Critical, High, Medium, Low, Info), a title and its proof: walkthrough steps with screenshots, lookalike domain with RDAP date, hidden text quoted, logo crop comparison, authentication header excerpt, reputation listing with "listed in error? request a review", first-time sender.
 - Check versions lines (D07 T09 §11, operator approval routed through the coordinator 2026-11-02): each line keeps the check's name and Worker version first ("version not recorded" where none was stored), then what the check did in plain words: "ran", "read part of its input", "did not run" or "failed". A partial or skipped line follows with its stored reason, drawn as text. A failed line follows with its reason in plain words: a stored `Timeout` reads "it ran out of time", `EvidenceRefused` reads "its findings could not be stored", and any other stored class reads "it failed". A ran line carries no reason.
 - Detection data on the version lines (D07 T09 §12, operator approval routed through the coordinator 2026-11-02): a line for a check that reads the brand table (the lookalike-domain, display-brand and reputation counter-signal checks) then names the detection data it judged by: "data <revision> (<identity>, KV)" or "(<identity>, bundled)", from the stored provenance of that run, drawn as text. Where none was stored it reads "data not recorded", never today's table. No other check's line names data.
+- Every target a clean check examined (D07 T09 §10, operator approval routed through the coordinator 2026-11-02): under a clean check in "Checks that found nothing", a "See what this check examined" disclosure opens the stored examined targets whole, as text, by one activation and with no JavaScript; when targets were omitted it ends "<n> more targets were examined but are not listed." A stored empty set reads "No targets were recorded for this check." A check with no set stored keeps the list as it was, with no disclosure.
+- The whole decoded run (D07 T09 §9, operator approval routed through the coordinator 2026-11-02): on the invisible-characters card, a "Read the whole hidden run" disclosure opens the stored decoded run whole, as text, by one activation and with no JavaScript. When the stored run is cut, the opened view ends "The stored run is cut short: the rest is in the original message." A card stored before the run was kept shows the card as it was, with no disclosure.
+- Per-provider reputation rows (D07 T09 §5): on a subject's reputation card, and in a "What the reputation providers said" block for a subject no card names, one row per provider that was asked about that subject: the provider, its answer in plain words ("Listed", "Not listed by this provider", "Could not be checked" with its recorded reason, "On the well-known list", "Not on the well-known list"), when the answer was obtained, and "from cache" when it was. A count line per subject counts only the providers that answered ("3 providers answered: 1 listed, 2 not listed"), with the well-known list counted apart; an unanswered provider is named as not checked, never counted as clear, and no count is drawn as a verdict.
 - Model trace: a table of step, model, what it did, time and cost, with the total; sample figures are labelled.
 - Footer: retention and access line, and "This verdict is wrong".
 
@@ -710,6 +729,7 @@ Controls:
 
 - verdict banner: Motion frame, eyebrow, headline and one sentence. (Main)
 - headline: One sentence. (Main)
+- previous and next case: Previous and Next stepping through the filtered Cases list the member came from, each keeping the list's filters, drawn at the report's head and foot with "Case X of Y"; the end that has no case is disabled, and the Cases breadcrumb returns to that filtered list and page. Keys while the step controls have focus: `j` next, `k` previous, `u` back to the list, never while typing. A signed link and a report opened without the list show none. (Main) (D07 T04 §9, operator decision 2026-11-02)
 - three reasons: Three evidence-pill reasons that jump to their cards. (Main)
 - actions: At most three numbered actions; Download PDF and Copy link in the header. (Main)
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)
@@ -762,7 +782,7 @@ States:
 - Deviation (D07 T03 §39): the Check versions disclosure sits on the evidence count line where no board draws it, because the boards predate check implementation revisions (D02 T01 §4); the count line's own words, order and treatments are the boards'.
 - Deviation (D07 T03 §8): the viewer's heading line shows the capture's own size (read from the loaded image) and, on a phone, "scrolls both ways", where the board's desktop line also says "Screenshot N of M" and "taken T s into the walk" (the stored finding holds neither: a screenshot's place among the walk's captures and its time are not stored). The opening control's name is "Open at full size: <caption>", not the SPEC's "Open the screenshot at full size: <caption>", so the visible words "Open at full size" are part of the name (WCAG 2.5.3). The footer is two short lines ("The page as the contained browser saw it." on a wide screen, "Pinch or scroll to read it." on a phone) rather than the board's longer sentence. The capture is asked for afresh and its answer decides the state: the artefact route marks its answers with `x-artefact-state` (`gone`, `link-expired`, `unavailable`), because a 410 alone cannot tell an expired report link from a deleted file; an expired link says "This report link has expired. Ask for a new one." and, like a gone capture, offers nothing to open.
 - Deviation (D07 T03 §19): the headers tab's line does not say the authentication results in the headers are "the receiving server's own" (the board's footer), because any `Authentication-Results` header in a message can be forged: it reads "Every header as stored, in the order received. A result written into a header may be forged; the authentication check says which results were the receiving server's.". The message tab shows the parsed plain-text body as sent, not the model's visible text (which also lacks visible instruction-like phrases), falling back to the visible text only for a message with no plain part and saying so ("This message has only an HTML version. This is its visible text, with hidden text and instruction-like phrases taken out."). The 200 KB note reads "Showing the first 200 KB as plain text. The message is longer; download the original to read the rest.". A text never stored, an empty body and an empty header list each say so in their own words ("The message text was not stored.", "The message has no text.", "The message has no headers."), the other tab and the download staying usable; the dialog also has the viewer's link-expired, signed-out and failed-read states. Without the app script "View the original message" and "View complete headers" are the original's download.
-- Deviation (D07 T03 §15): the invoice and payment-document cards draw the submitted account masked as `***` plus its last three digits, the comparison source in plain words ("Your supplier ledger" or "The supplier's registered account") and the outcome, without the recorded account's masked fields (which the producers never store and the registry's match-or-no-match contract never reveals), without a stored phone number (the card tells the reader to phone the number in their own records, never one from the message), without an outlined PDF page preview (the card links the document through the artefact route; an outlined, masked bank-block page preview is deferred to D07 T09 §19), and without a baseline verification timeline (immutable baseline provenance is not stored by the producers yet and is deferred to D07 T09 §20).
+- Deviation (D07 T03 §15): the invoice and payment-document cards draw the submitted account masked as `***` plus its last three digits, the comparison source in plain words ("Your supplier ledger" or "The supplier's registered account") and the outcome, without the recorded account's masked fields (which the producers never store and the registry's match-or-no-match contract never reveals), without a stored phone number (the card tells the reader to phone the number in their own records, never one from the message), without an outlined PDF page preview (the card links the document through the artefact route; an outlined, masked bank-block page preview is deferred to D07 T09 §20), and without a baseline verification timeline (immutable baseline provenance is not stored by the producers yet and is deferred to D07 T09 §21).
 
 ### M4 Supplier ledger
 
@@ -849,9 +869,13 @@ Boards: [PNG](mockups/png/Team.png) · [source](mockups/source/Team.dc.html)
 Controls:
 
 - members: Members table. (Team)
+- find a person: A find field above the members list matching a name or email substring, case and accent folded; no result reads "No one on the team matches." (Team) (D07 T04 §26, operator decision 2026-11-02)
 - roles: Role select and role descriptions. (Team)
 - invites: Invite by email; Resend and Revoke on pending invitations. (Team)
+- invite several: The invite field takes up to 20 addresses separated by commas or new lines with one shared role; the answer lists one outcome per address (sent, not sent, unknown, refused with its reason) with a Retry that resubmits only the addresses that did not go. (Team) (D07 T04 §22, operator decision 2026-11-02)
 - remove: Per member. (Team)
+- team history by person: The history filters carry a person select (the organisation's members, or Anyone): a chosen person narrows the list to changes by them or to them, and a More link pages through every match. (Team) (D07 T04 §24, operator decision 2026-11-02)
+- team history: Under the pending invitations, owners only: a table (When, What, Who, Whom, Outcome) of role changes, revocations and removals, newest first, with an action select and From and To date filters; empty reads "No team changes in this period." and a failed read names the failure with Try again, the rest of the page unaffected. (Team) (D07 T04 §23, operator decision 2026-11-02)
 
 States:
 
@@ -876,6 +900,8 @@ States:
 - loading: Not drawn. Deferred to D07 T04 §4: server-rendered; not drawn.
 - empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
+
+- Registrar step (D07 T04 §5): a pending domain's Continue opens its verification page (A5), where "Connect with <Registrar>" is offered first when the registrar supports Domain Connect for IsItLegit's template; this list itself is unchanged.
 
 - Deviation (D07 T04 §4): a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27. The verifier's name the board adds ("by Thandi N.") is drawn since D07 T04 §28, from the member D07 T02 §24 stores with the claim.
 
@@ -935,6 +961,7 @@ Controls:
 - sessions: Sessions table with Sign out per session. (Account)
 - sign out: Signs out other sessions. (Account)
 - close account: Close account button for the owner of the active organisation, naming that organisation in its confirmation (this organisation, its stored mail and cases, and its history are deleted 30 days after closing; closing refuses new cases at once and cannot be undone). Shown only to an owner; after closing, the page states the organisation is closed and its deletion date. The confirmation first offers the case-summary export (the organisation's cases with verdicts and dates, one downloadable file) and requires a fresh sign-in: a session older than ten minutes is asked to sign in again and returns to the confirmation (D07 T02 §26). (Account)
+- weekly counts: A checkbox, "Email me this organisation's weekly counts on Fridays", with the day it was switched on, for the active organisation. (Account) (D07 T04 §20, operator decision 2026-11-02)
 
 - Deviation (D07 T02 §9): the Close account control is built on the Account page but is not yet drawn on the Account board, pending the operator's approval of the drawn change (asked 2026-11-02); the board is redrawn and re-exported when that approval lands.
 
@@ -1302,6 +1329,23 @@ States:
 - operator notice: one notice per event to the operator, for a budget cap or a piece of feedback. (Email-Operator)
 - budget cap: Spend figures and Open the admin overview. (Email-Operator)
 - feedback: Summary and Open the feedback queue. (Email-Operator-Feedback)
+- loading: No loading state. Not applicable: email message, delivered whole.
+- empty: No empty state. Not applicable: email message, always sent with its content.
+- error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
+
+### N10 Weekly counts
+
+The Email-Weekly board awaits the operator's approval (D07 T04 §20); the built message is proven by its mail tests.
+
+Controls:
+
+- the three Cases tiles' numbers for the week and a link to Cases: Checked this week, Malicious or suspicious, Median time to verdict, and Open your cases.
+- with a one-step unsubscribe: Stop these emails, one step, no sign-in.
+
+States:
+
+- Fridays at 16h00 SAST: sent inside the Friday 16h00 SAST to Monday 00:00 SAST window, once per opted-in member per week.
+- never message content: counts only, never a case's subject, sender or message content.
 - loading: No loading state. Not applicable: email message, delivered whole.
 - empty: No empty state. Not applicable: email message, always sent with its content.
 - error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.

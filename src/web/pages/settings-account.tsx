@@ -161,6 +161,22 @@ accountRoutes.get(
         outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, url),
         closureFor(c.env, signedIn),
       ]);
+      const membership = await activeMembership(c.env, signedIn).catch(() => null);
+      const weekly =
+        membership?.ok && shell
+          ? {
+              orgId: membership.org.id,
+              orgName: shell.organization.name,
+              optedInAt:
+                (
+                  await c.env.DB.prepare(
+                    `SELECT opted_in_at FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`,
+                  )
+                    .bind(membership.org.id, signedIn.user.id)
+                    .first<{ opted_in_at: string }>()
+                )?.opted_in_at ?? null,
+            }
+          : undefined;
       // A passkey add whose answer never came: the page names the credential the device made (`cred`), so the stored passkey
       // with that credential is the one just saved, offered for naming; none is not "nothing was saved" (the request may still
       // be finishing) but "not yet", with a way to check again. Another passkey
@@ -176,6 +192,7 @@ accountRoutes.get(
           shell={shell}
           user={signedIn.user}
           {...account}
+          weekly={weekly}
           outcome={outcome}
           reconcile={reconcile}
           closure={closure}
@@ -553,7 +570,14 @@ accountRoutes.post(
     if (c.req.header("origin") !== origin) return new Response("Forbidden", { status: 403, headers: HEADERS });
     const signedIn = c.get("signedIn");
     const secret = c.env.BETTER_AUTH_SECRET ?? "";
-    const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100, confirm: 120 });
+    const form = await readSmallForm(c.req.raw, {
+      action: 20,
+      name: NAME_LIMIT * 4,
+      id: 100,
+      confirm: 120,
+      org: 200,
+      weekly: 10,
+    });
     if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
       return change(c, form.action as string, form.id ?? "");
     if (form?.action === "step-up")
@@ -575,6 +599,29 @@ accountRoutes.post(
       }
     }
     if (form?.action === "rename-passkey") return renamePasskey(c, form.id ?? "", form.name ?? "");
+    if (form?.action === "weekly-report") {
+      try {
+        const membership = await activeMembership(c.env, signedIn);
+        if (!membership.ok) return back(secret, signedIn.user.id, { r: "refused" });
+        // Drawn for another organisation than the active one: nothing is changed.
+        if ((form.org ?? "") !== membership.org.id) return back(secret, signedIn.user.id, { r: "refused" });
+        if (form.weekly === "on") {
+          await c.env.DB.prepare(
+            `INSERT INTO weekly_report_optins (org_id, user_id, opted_in_at) VALUES (?, ?, ?)
+             ON CONFLICT (org_id, user_id) DO NOTHING`,
+          )
+            .bind(membership.org.id, signedIn.user.id, new Date().toISOString())
+            .run();
+          return back(secret, signedIn.user.id, { r: "weekly-on" });
+        }
+        await c.env.DB.prepare(`DELETE FROM weekly_report_optins WHERE org_id = ? AND user_id = ?`)
+          .bind(membership.org.id, signedIn.user.id)
+          .run();
+        return back(secret, signedIn.user.id, { r: "weekly-off" });
+      } catch {
+        return back(secret, signedIn.user.id, { r: "unresolved" });
+      }
+    }
     if (form?.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
     const name = (form.name ?? "").trim();
     const refuse = async (error: string) => {
