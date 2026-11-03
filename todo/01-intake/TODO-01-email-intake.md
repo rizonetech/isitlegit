@@ -741,7 +741,11 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the 
 
 ## 24. Pipeline writes fenced across a case removal
 
+> **Started:** 2026-11-03T02:45+02:00
+
 Filed 2026-11-03 from the coordinator's routing (console lane, D07 T04 §12): a case can be removed while a pipeline step still holds work for it, and a store write that lands after the removal must not recreate the case's artefact rows or objects. The store already fences a write past a caller's deadline (`fenceAt` in `src/intake/store.ts`); nothing fences a write across the case's removal, which is the console removal flow's missing half.
+
+**Corrected 2026-11-03** (at start, checked against the tree): the artefact insert does not yet join its case row; the write reads the case at its start and inserts unconditionally, so this build gives the insert its `WHERE EXISTS` case join (the storeVerdict pattern), and a write fenced by a removal also removes the object it just created, so neither row nor object is stored.
 
 **Phase:** 7
 **Needs:** none
