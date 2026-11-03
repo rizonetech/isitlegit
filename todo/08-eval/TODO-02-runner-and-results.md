@@ -46,6 +46,7 @@ track: day-6
 | 13 | §13 | Source-versus-replay comparison | §12 | [x] |
 | 14 | §14 | Paired-evidence investigation | §13 | [x] |
 | 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
+| 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -489,6 +490,27 @@ Filed 2026-11-03 from §14's completion review (G4, out-of-scope there): the com
 - [ ] Commit: `eval: paired evidence view`
 
 **Test checkpoint:** the agreed surface's browser tests pass, and `pnpm exec vitest run test/node/eval-metrics.test.ts` still passes.
+
+## 16. Blinded comprehension comparison
+
+Filed 2026-11-03 from the app lane's D07 T03 §10 completion review, relayed by the coordinator: a verdict is only as good as the action it produces, and nobody has measured whether a reader of an IsItLegit summary does the right next thing compared with the strongest comparable checker's summary. This section runs that comparison blind: readers see verdict summaries with the source hidden and are scored on what they would do next.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Name the comparable checker and the scoring rubric. Done when: the section records which checker's summaries are compared, where its summaries lawfully come from, and the rubric that scores a reader's chosen next action as right or wrong per case.
+2. Build the blind instrument. Done when: summaries from both sources are sampled from the same cases, stripped of source-identifying marks, and presented in randomised order with the scoring recorded per reader and case.
+3. Run and report it. Done when: comprehension scores per source are computed from the recorded answers with counts, and the result lands in `eval/RESULTS.md` under its own heading, or reads `not measured` with the blocker named.
+
+- [ ] Record the comparison design in the section before any data moves: the comparable checker, the lawful source of its summaries for the same cases, the reader panel (who, how many, how recruited), the right-action rubric per case category, and the spend cap. Done when: the design names all five and the coordinator has seen it in the section's plan review. Cheaper substitute: none (an undesigned study measures nothing).
+- [ ] Add the blind instrument under `eval/`: sample paired summaries for the same cases from both sources, strip source-identifying marks, randomise presentation order, and record each reader's chosen next action per case. Done when: tests prove no summary carries its source, the pairing is by case, and a recorded answer scores against the rubric. Cheaper substitute: none (an unblinded comparison is marketing, not measurement).
+- [ ] Run the study inside the recorded cap and publish the counts in `eval/RESULTS.md`: readers, cases, right-action rate per source with the difference. Done when: the published figures recompute from the recorded answers, checked by `pnpm eval:metrics --check` or the study's own named check. Cheaper substitute: none (readers cannot be simulated).
+- [ ] Commit: `eval: blinded comprehension comparison`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the blinding, pairing and scoring cases, and the published figures recompute from the recorded answers.
 
 ## Verification
 
