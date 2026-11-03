@@ -200,3 +200,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 2026-11-03 00:50 SAST (console lane): §18 stamped
 
 §18 stamped (receipt docs/reviews/d07-t04-s18.json): threat kinds under Malicious or suspicious, positive-evidence buckets on the current run, SQL flags, one snapshot batch. Gates: stats 15/15, cases browser 40/40, typecheck, check-design 0. §16 parked (coordinator seed + attended phone, operator skipped it). §15 stamp still waits on the coordinator ruling for its malformed plan record. Next ready row in dependency order.
+
+## Resume 2026-11-03 01:05 SAST (console lane): §19 stamped, §20 waits on a migration number
+
+§19 stamped and pushed (3c979dff with its format fix). §20 needs a coordinator migration number for the opt-in and send-log store; asked in the outbox. Building §22 meanwhile.
