@@ -79,7 +79,7 @@ track: day-6
 | 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
 | 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
-| 44 | §44 | Five new sources for Loupe 1.1 | §27 | [ ] |
+| 44 | §44 | Five new sources for Loupe 1.1 | §27 | [x] |
 | 45 | §45 | The Loupe 1.1 dataset | §44, §46 | [ ] |
 | 46 | §46 | Muse Wonder teacher pilot | §44 | [ ] |
 | 47 | §47 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
@@ -1513,6 +1513,9 @@ Filed 2026-11-01 (operator approval, relayed by the coordinator): five CC BY 4.0
 - [x] Commit: `glimmer: five new sources for Loupe 1.1`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, each converter's test passes, and `df` shows at least 300 GB free with the archives kept.
+
+> **Verified:** 2026-11-03 | §44 | c497f3f35309bc16b73c021c0c250a4c8dba0ce5
+> **Review:** `docs/reviews/d03-t04-s44.json`
 
 ## 45. The Loupe 1.1 dataset
 
