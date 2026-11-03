@@ -1,4 +1,5 @@
 // D03 T04 §31: the comparison core counts, divides and detects leaks the way its figures claim.
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,7 +26,9 @@ import {
   measurementLine,
   type Page,
   parseArgs,
+  readCorpus,
   recordMeasurement,
+  replayMismatches,
   report,
   resultFile,
   STRATIFIED_SEEDS,
@@ -136,56 +139,300 @@ describe("the benign comparison (§38)", () => {
   });
 });
 
+describe("the benign comparison's evidence (§38, round 1)", () => {
+  const scored = (id: string, label: BenignLabelLike, admitted: boolean) => ({
+    id,
+    label,
+    replay_failure: false,
+    production: { admitted, form: "none" as const },
+    conventional: { admitted, form: "none" as const },
+  });
+  type BenignLabelLike = Parameters<typeof scoreBenign>[0][number]["label"];
+  it("keeps unresolved labels out of every rate and counts them apart", () => {
+    const clean = { wall: false, form: "none", eligible: true } as const;
+    const base = [scored("wall", { wall: true, form: "none", eligible: false }, true), scored("ok", clean, true)];
+    const before = scoreBenign(base);
+    // Round 1 finding 5: an admitted page with unknown wall and eligibility used to enter the denominator only.
+    const after = scoreBenign([
+      ...base,
+      scored("u1", { wall: "unknown", form: "unknown", eligible: "unknown" }, true),
+      scored("u2", { wall: "disputed", form: "none", eligible: true }, true),
+    ]);
+    expect(before.production.contaminated).toMatchObject({ k: 1, n: 2 });
+    expect(after.production.contaminated).toMatchObject({ k: 1, n: 2 });
+    expect(after.unresolved).toEqual({ wall: 2, eligible: 1, form: 1 });
+  });
+
+  it("calls a replay unfaithful when anything admission or a label reads has moved", () => {
+    const viewed = {
+      status: 200,
+      text: "a real page with enough visible text for a person to read and use today",
+      title: "Example",
+      finalUrl: "https://example.com/",
+      has_login_form: false,
+      has_payment_form: false,
+      walls: { captcha: false, consentWall: false, challengeCover: false, imageCover: true },
+      screenshot: { file: "shots/x.jpg", sha256: "a".repeat(64), dhash: "00000000000000ff" },
+    };
+    const { screenshot: _shot, ...rest } = viewed;
+    const same = { ...rest, admitted: true, dhash: "00000000000000fe" };
+    expect(replayMismatches(viewed, same)).toEqual([]);
+    expect(replayMismatches(viewed, { ...same, finalUrl: "https://example.com/elsewhere" })[0]).toContain("landed on");
+    expect(replayMismatches(viewed, { ...same, title: "Other" })).toEqual(["title differs from the viewed capture"]);
+    expect(replayMismatches({ ...viewed, overlays: "Accept cookies" }, { ...same, overlays: "" })).toEqual([
+      "overlays differ from the viewed capture",
+    ]);
+    // An image-based challenge that replay lost: text and forms hold, the wall evidence and the picture do not.
+    const lost = replayMismatches(viewed, {
+      ...same,
+      walls: { ...viewed.walls, imageCover: false },
+      dhash: "ffffffffffffff00",
+    });
+    expect(lost).toEqual([
+      "wall evidence differs from the viewed capture (imageCover)",
+      "the picture differs from the viewed screenshot (64 bits)",
+    ]);
+    expect(replayMismatches(viewed, { ...rest, admitted: true })).toContain(
+      "the picture differs from the viewed screenshot (no bits)",
+    );
+  });
+
+  // A file-backed corpus as the recorder writes it: a manifest of page files with their sha256.
+  const writeCorpus = (dir: string, pages: Record<string, unknown>[], ids = pages.map((p) => p.id as string)) => {
+    const root = join(dir, "runs", "compare", "corpus");
+    mkdirSync(join(root, "pages"), { recursive: true });
+    const digest = new Map<string, string>();
+    for (const page of pages) {
+      const data = JSON.stringify(page);
+      writeFileSync(join(root, "pages", `${page.id}.json`), data);
+      digest.set(page.id as string, createHash("sha256").update(data).digest("hex"));
+    }
+    writeFileSync(
+      join(root, "corpus.json"),
+      JSON.stringify({ seed: 3, page_files: ids.map((id) => ({ id, sha256: digest.get(id) })), failed: [] }),
+    );
+    return root;
+  };
+  const filePage = (id: string, form: "login" | "none", eligible: boolean) => ({
+    id,
+    url: `https://example.com/${id}`,
+    archive: {},
+    viewed: {
+      status: 200,
+      text: "a real page with enough visible text for a person to read and use today",
+      has_login_form: form === "login",
+      has_payment_form: false,
+    },
+    label: { wall: false, form, eligible, eligibility_reason: eligible ? "valid" : "brand missing", source: "test" },
+  });
+  const covered = () => [
+    ...Array.from({ length: 20 }, (_, i) => filePage(`g${i}`, "none", true)),
+    ...Array.from({ length: 20 }, (_, i) => filePage(`l${i}`, "login", true)),
+  ];
+
+  it("refuses a manifest that names a page twice, a page whose file changed and a missing page file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-files-"));
+    try {
+      const pages = covered();
+      const root = writeCorpus(dir, pages, [...pages.map((p) => p.id), "g3"]);
+      // Round 1 finding 1: 227 manifest entries held 218 ids, and the repeats were scored as observations.
+      expect(() => readCorpus(dir)).toThrow(/names g3 more than once/);
+      expect(await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: true }))).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("more than once")],
+      });
+      writeCorpus(dir, pages);
+      writeFileSync(join(root, "pages", "l4.json"), JSON.stringify({ ...pages[24], url: "https://changed.example/" }));
+      expect(await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: true }))).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("l4 does not match the manifest's sha256")],
+      });
+      writeCorpus(dir, pages);
+      rmSync(join(root, "pages", "g7.json"));
+      expect(await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: true }))).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("the benign corpus cannot be read")],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("checks a saved benign result against the page files and reads it back through report", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-report-"));
+    try {
+      const pages = covered();
+      const root = writeCorpus(dir, pages);
+      const result = await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: p.id !== "g0" }));
+      expect(result.status).toBe("complete");
+      writeResult(resultFile(dir, "benign"), result);
+      expect(checkResult(dir, "benign").status).toBe("current");
+      // The other reported comparisons recorded as incomplete: report still writes the benign line.
+      for (const name of ["labels", "split-1.0"])
+        writeResult(resultFile(dir, name), { status: "incomplete", name, inputs: [], missing: ["not run"] });
+      const { text } = report(dir, "## Measurements\n", "2026-11-03");
+      expect(text).toContain("the benign render against a conventional crawl-and-filter pipeline");
+      expect(text).toContain("Production renderer: retained 39 of 40 eligible");
+      // A changed label in one page file makes the saved result stale; a missing page file too.
+      writeFileSync(
+        join(root, "pages", "g1.json"),
+        JSON.stringify({ ...pages[1], label: { ...pages[1]?.label, eligible: false } }),
+      );
+      expect(checkResult(dir, "benign")).toMatchObject({ status: "stale" });
+      writeCorpus(dir, pages);
+      expect(checkResult(dir, "benign").status).toBe("current");
+      rmSync(join(root, "pages", "g2.json"));
+      expect(checkResult(dir, "benign")).toMatchObject({
+        status: "stale",
+        changed: [expect.stringContaining("benign corpus")],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("recording the benign corpus (§38)", () => {
-  it("converts a HAR with bodies into a replay archive and samples deterministically", async () => {
+  it("keeps images and every answer a URL got, in order, and drops only video, audio and oversized bodies", async () => {
     const { harToArchive, seededSample } = await import("../../scripts/glimmer/record-corpus.ts");
+    const { replayResponder } = await import("../../scripts/glimmer/render.ts");
+    const response = (status: number, text: string, mimeType: string, encoding?: string) => ({
+      status,
+      headers: [{ name: "Content-Type", value: mimeType }],
+      content: { text, mimeType, ...(encoding ? { encoding } : {}) },
+    });
     const archive = harToArchive({
       log: {
         entries: [
+          { request: { url: "https://example.com/" }, response: response(200, "<p>hi</p>", "text/html") },
+          { request: { url: "https://example.com/a.png" }, response: response(200, "aGk=", "image/png", "base64") },
+          { request: { url: "https://example.com/clip" }, response: response(200, "AAAA", "video/mp4", "base64") },
+          { request: { url: "https://example.com/poll" }, response: response(200, "first", "text/plain") },
+          { request: { url: "https://example.com/poll" }, response: response(503, "second", "text/plain") },
           {
-            request: { url: "https://example.com/" },
-            response: {
-              status: 200,
-              headers: [{ name: "Content-Type", value: "text/html" }],
-              content: { text: "<p>hi</p>" },
-            },
+            request: { url: "https://example.com/step", method: "POST", postData: { text: "step=1" } },
+            response: response(200, "step-one", "text/plain"),
           },
           {
-            request: { url: "https://example.com/a.png" },
-            response: { status: 200, headers: [], content: { text: "aGk=", encoding: "base64" } },
+            request: { url: "https://example.com/step", method: "POST", postData: { text: "step=2" } },
+            response: response(200, "step-two", "text/plain"),
           },
         ],
       },
     });
-    expect(archive["https://example.com/"]?.status).toBe(200);
     expect(Buffer.from(archive["https://example.com/"]?.bodyBase64 ?? "", "base64").toString()).toBe("<p>hi</p>");
+    // An image is admission evidence (an image-based challenge): kept.
     expect(archive["https://example.com/a.png"]?.bodyBase64).toBe("aGk=");
+    expect(archive["https://example.com/clip"]?.bodyBase64).toBe("");
+    // A URL answered twice keeps both answers; replay serves them in order and then repeats the last.
+    const respond = replayResponder(archive);
+    const body = (r: ReturnType<typeof respond>) => Buffer.from(r?.bodyBase64 ?? "", "base64").toString();
+    expect(body(respond("https://example.com/poll"))).toBe("first");
+    expect(respond("https://example.com/poll")?.status).toBe(503);
+    expect(body(respond("https://example.com/poll"))).toBe("second");
+    expect(body(respond("https://example.com/step", "POST", "step=2"))).toBe("step-two");
+    expect(body(respond("https://example.com/step", "POST", "step=1"))).toBe("step-one");
+    expect(respond("https://example.com/never")).toBeNull();
+    // A fresh visit starts the sequence again.
+    expect(body(replayResponder(archive)("https://example.com/poll"))).toBe("first");
     expect(seededSample([1, 2, 3, 4, 5], 3)).toEqual(seededSample([1, 2, 3, 4, 5], 3));
     expect(seededSample([1, 2, 3, 4, 5], 3)).toHaveLength(3);
   });
 
-  it("annotates a viewed capture from its own evidence, never from an admission decision", async () => {
-    const { annotateViewed } = await import("../../scripts/glimmer/record-corpus.ts");
-    const base = {
-      status: 200,
-      title: "Example Bank",
-      text: "a real page with enough visible text for a person to read and use today",
-      finalUrl: "https://example.com/",
-      url: "https://example.com/",
-      has_login_form: true,
-      has_payment_form: false,
+  it("numbers a top-up past the stratum's largest id, gaps and other strata aside", async () => {
+    const { nextTopupOffset } = await import("../../scripts/glimmer/record-corpus.ts");
+    // Round 1 finding 1: recording failures left gaps, and a count of pages reused walls-topup-87.
+    expect(nextTopupOffset(["walls-0", "walls-3", "walls-topup-87", "walls-topup-2"], "walls")).toBe(88);
+    // Another stratum's numbers never count: login-topup-* is not walls-*, and walls-30 is not login-*.
+    expect(nextTopupOffset(["walls-30", "login-2", "login-topup-5"], "login")).toBe(6);
+    expect(nextTopupOffset(["genuine-0"], "payment")).toBe(0);
+  });
+
+  it("applies a viewed label only to the screenshot that was viewed, and refuses a malformed one", async () => {
+    const { applyAnnotation, parseAnnotations, PENDING_LABEL } = await import("../../scripts/glimmer/record-corpus.ts");
+    const shot = "a".repeat(64);
+    const page = {
+      id: "login-1",
+      url: "https://example.com/login",
+      archive: {},
+      viewed: {
+        status: 200,
+        text: "sign in",
+        has_login_form: true,
+        has_payment_form: false,
+        screenshot: { file: "shots/login-1.jpg", sha256: shot, dhash: "0".repeat(16) },
+      },
+      label: PENDING_LABEL,
     };
-    expect(annotateViewed(base)).toEqual({
+    const good = {
+      id: "login-1",
+      screenshot_sha256: shot,
       wall: false,
       form: "login",
-      eligible: true,
-      eligibility_reason: "valid benign capture",
+      eligible: false,
+      reason: "the listed brand is not on the page",
+      annotator: "claude-viewed",
+    };
+    const { annotations, problems } = parseAnnotations(`${JSON.stringify(good)}\n`);
+    expect(problems).toEqual([]);
+    expect(applyAnnotation(page, annotations[0] as (typeof annotations)[number]).label).toEqual({
+      wall: false,
+      form: "login",
+      eligible: false,
+      eligibility_reason: "the listed brand is not on the page",
+      source: "claude-viewed",
     });
-    expect(annotateViewed({ ...base, title: "Just a moment...", text: "verify you are human" }).wall).toBe(true);
-    expect(annotateViewed({ ...base, status: 404 }).eligible).toBe(false);
-    expect(annotateViewed({ ...base, finalUrl: "https://elsewhere.example/" }).eligibility_reason).toContain(
-      "cross-site",
-    );
+    expect(() =>
+      applyAnnotation(page, { ...(annotations[0] as (typeof annotations)[number]), screenshot_sha256: "b".repeat(64) }),
+    ).toThrow(/different screenshot/);
+    const bad = parseAnnotations(
+      [
+        JSON.stringify(good),
+        JSON.stringify(good),
+        JSON.stringify({ ...good, id: "x", form: "maybe", reason: "" }),
+        "not json",
+      ].join("\n"),
+    ).problems;
+    expect(bad).toEqual([
+      "line 2 (login-1) repeats an id",
+      "line 3 (x) has no form",
+      "line 3 (x) has no reason",
+      "line 4 is not JSON",
+    ]);
+    // A pending label resolves nothing: it enters no rate.
+    expect(PENDING_LABEL).toMatchObject({ wall: "unknown", form: "unknown", eligible: "unknown" });
+  });
+
+  it("judges viewed eligibility across HTTP-200 error pages, suspended hosts, missing brands and allowed redirects", async () => {
+    const { viewedEligibility } = await import("../../scripts/glimmer/record-corpus.ts");
+    const base = {
+      status: 200,
+      title: "Acme Portal",
+      text: "Welcome to the Acme customer portal with enough visible text for a person to read and use today.",
+      finalUrl: "https://www.acme.co.za/",
+      url: "https://acme.co.za/",
+      brand: "Acme",
+      also: ["auth.acme-group.com"],
+      wall: false,
+    };
+    expect(viewedEligibility(base)).toEqual({ eligible: true, reason: "valid benign capture" });
+    // Legitimate subdomain and `also` destinations stay eligible (Round 1 finding 3).
+    expect(viewedEligibility({ ...base, finalUrl: "https://login.acme.co.za/start" }).eligible).toBe(true);
+    expect(viewedEligibility({ ...base, finalUrl: "https://sso.auth.acme-group.com/login" }).eligible).toBe(true);
+    // Unlisted cross-site redirects, HTTP-200 error/suspended/parked pages, missing brand, non-2xx and walls are ineligible.
+    expect(viewedEligibility({ ...base, finalUrl: "https://other.example/" })).toEqual({
+      eligible: false,
+      reason: "cross-site redirect to other.example",
+    });
+    expect(viewedEligibility({ ...base, title: "404 Not Found" }).eligible).toBe(false);
+    expect(viewedEligibility({ ...base, text: `${base.text} Account has been suspended.` }).eligible).toBe(false);
+    expect(viewedEligibility({ ...base, text: `${base.text} This domain is parked.` }).eligible).toBe(false);
+    expect(
+      viewedEligibility({ ...base, title: "Generic", text: "Enough visible words on the page to pass fifty chars." }),
+    ).toEqual({
+      eligible: false,
+      reason: "the listed brand (Acme) is not on the page",
+    });
   });
 });
 

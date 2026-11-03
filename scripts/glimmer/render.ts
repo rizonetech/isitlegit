@@ -669,10 +669,35 @@ function openEgress(allowOrigins: Set<string>, checked: ReturnType<typeof public
 // The browser's start has its own bound: one cold start on a loaded machine is not a page's render time.
 export const BROWSER_START_MS = 60_000;
 
-// One recorded response in a replay archive (§38): the status, headers and body a request was answered with.
-export type ReplayEntry = { status?: number; headers?: Record<string, string>; bodyBase64: string };
+// One recorded response in a replay archive (§38): the status, headers and body a request was answered with, and
+// the later responses the same URL was answered with on the recorded visit, in order (a polled or re-requested URL).
+export type ReplayResponse = { status?: number; headers?: Record<string, string>; bodyBase64: string };
+export type ReplayEntry = ReplayResponse & { later?: ReplayResponse[] };
 // A replay archive (§38): every request URL the recorded page made, mapped to its recorded response.
 export type ReplayArchive = Record<string, ReplayEntry>;
+// Answers one replayed visit: each request gets the next recorded response for its method, URL and POST body (falling
+// back to method + URL, then URL), the last one repeating once the recording runs out; an unrecorded request gets null.
+export function replayResponder(
+  archive: ReplayArchive,
+): (url: string, method?: string, postData?: string) => ReplayResponse | null {
+  const served = new Map<string, number>();
+  return (url, method = "GET", postData = "") => {
+    const verb = method.toUpperCase();
+    const keys = [
+      ...(verb !== "GET" && postData ? [`${verb} ${url} ${postData}`] : []),
+      ...(verb !== "GET" ? [`${verb} ${url}`] : []),
+      url,
+    ];
+    const key = keys.find((k) => archive[k] !== undefined);
+    if (!key) return null;
+    const first = archive[key];
+    if (!first) return null;
+    const n = served.get(key) ?? 0;
+    served.set(key, n + 1);
+    const sequence: ReplayResponse[] = [first, ...(first.later ?? [])];
+    return sequence[Math.min(n, sequence.length - 1)] ?? null;
+  };
+}
 export function loadReplayArchive(file: string): ReplayArchive {
   const parsed = JSON.parse(readFileSync(file, "utf-8")) as unknown;
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
@@ -1103,10 +1128,13 @@ export async function openRenderer(
   // under one deadline. The context's close gets 5 seconds more, and a browser that does not close it is dropped, so
   // no worker waits on it again. The render's egress proxy closes with it, ending every outbound connection.
   const replayRefusals: string[] = [];
-  async function render(url: string): Promise<Capture> {
+  // `recordHar` (§38, live only): the visit's every response, bodies embedded, written to that file when the visit's
+  // context closes, so a replay archive and the capture it is checked against come from the same visit. `replay` overrides
+  // the renderer's own archive for one visit so one shared browser can replay a whole corpus.
+  async function render(url: string, call: { recordHar?: string; replay?: ReplayArchive } = {}): Promise<Capture> {
     const mine = current();
     const browser = await mine;
-    const replay = options.replay;
+    const replay = call.replay ?? options.replay;
     const egress = replay
       ? { refused: [] as string[], listen: async () => "", close: () => undefined }
       : openEgress(allowOrigins, checkedLookup);
@@ -1127,12 +1155,15 @@ export async function openRenderer(
         // `<-loopback>` sends loopback addresses through the proxy too, where they are refused. In replay (§38)
         // there is no proxy and no egress: every request is answered from the archive or refused.
         ...(replay ? {} : { proxy: { server: proxy, bypass: "<-loopback>" } }),
+        ...(call.recordHar && !replay ? { recordHar: { path: call.recordHar, content: "embed" as const } } : {}),
       });
-      if (replay)
+      if (replay) {
+        const respond = replayResponder(replay);
         await made.route("**/*", async (route) => {
-          const entry = replay[route.request().url()];
+          const req = route.request();
+          const entry = respond(req.url(), req.method(), req.postData() ?? "");
           if (!entry) {
-            replayRefusals.push(route.request().url());
+            replayRefusals.push(req.url());
             await route.abort();
             return;
           }
@@ -1142,6 +1173,7 @@ export async function openRenderer(
             body: Buffer.from(entry.bodyBase64, "base64"),
           });
         });
+      }
       // Made after the deadline gave up on this render: closed here, since nothing else will.
       if (abandoned) {
         void bounded(made.close());

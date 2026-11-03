@@ -659,6 +659,8 @@ export type BenignLabel = {
   form: BenignForm;
   eligible: boolean | Unknown;
   eligibility_reason?: string;
+  // Who assigned the label by viewing the page (absent on a pending label).
+  source?: string;
 };
 // The capture an annotation was made from: replay must reproduce it before either pipeline is scored on the page.
 export type ViewedCapture = {
@@ -668,7 +670,14 @@ export type ViewedCapture = {
   has_payment_form: boolean;
   title?: string;
   finalUrl?: string;
+  overlays?: string;
+  // The production renderer's wall evidence on the recorded visit (a CAPTCHA frame, a consent wall, a challenge or
+  // image cover), and the screenshot an annotator viewed with its difference hash.
+  walls?: { captcha: boolean; consentWall: boolean; challengeCover: boolean; imageCover: boolean };
+  screenshot?: { file: string; sha256: string; dhash: string };
 };
+// What one pipeline's replay of a page showed, checked against the viewed capture before it is scored.
+export type ReplayedCapture = Omit<ViewedCapture, "screenshot"> & { admitted: boolean; dhash?: string };
 export type CorpusPage = {
   id: string;
   url: string;
@@ -723,7 +732,9 @@ export function benignCoverage(pages: CorpusPage[]): { strata: Record<string, nu
 export const formOf = (c: { has_login_form: boolean; has_payment_form: boolean }): BenignForm =>
   c.has_payment_form ? "payment" : c.has_login_form ? "login" : "none";
 // The conventional pipeline over a main-world read: HTTP 2xx, enough text, and no vendor blocklist wording.
-export function conventionalBenign(c: ViewedCapture & { title?: string }): { admitted: boolean; form: BenignForm } {
+export function conventionalBenign(
+  c: Pick<ViewedCapture, "status" | "text" | "has_login_form" | "has_payment_form" | "title">,
+): { admitted: boolean; form: BenignForm } {
   const text = `${c.title ?? ""}\n${c.text}`.toLowerCase();
   const admitted =
     c.status >= 200 && c.status <= 299 && c.text.trim().length >= 50 && !BENIGN_BLOCKLIST.some((w) => text.includes(w));
@@ -767,6 +778,43 @@ export function scoreBenign(pages: BenignPipelinePage[]) {
     conventional: pipeline("conventional"),
   };
 }
+// Where a replayed capture differs from the viewed one in anything admission or a label reads: the status, the
+// visible text (word-shingle Jaccard at the near-duplicate threshold: a rotating banner or a date line is not a
+// different page), the forms, the title, the final URL, the wall evidence, and the picture itself (difference hash
+// within the near-duplicate distance), so an image-based challenge that replay lost is a mismatch even when the text
+// and forms hold. A field the viewed capture did not record is not compared.
+export function replayMismatches(viewed: ViewedCapture, got: ReplayedCapture): string[] {
+  const reasons: string[] = [];
+  if (got.status !== viewed.status) reasons.push(`status ${got.status} against viewed ${viewed.status}`);
+  if (jaccard(shingles(got.text), shingles(viewed.text)) < NEAR_TEXT)
+    reasons.push("visible text differs from the viewed capture");
+  if (got.has_login_form !== viewed.has_login_form || got.has_payment_form !== viewed.has_payment_form)
+    reasons.push("forms differ from the viewed capture");
+  if (viewed.title !== undefined && got.title !== viewed.title) reasons.push("title differs from the viewed capture");
+  if (viewed.finalUrl !== undefined && got.finalUrl !== viewed.finalUrl)
+    reasons.push(`landed on ${got.finalUrl ?? "nothing"} against viewed ${viewed.finalUrl}`);
+  if (viewed.overlays !== undefined) {
+    const vOverlays = viewed.overlays.trim();
+    const gOverlays = (got.overlays ?? "").trim();
+    if (
+      Boolean(vOverlays) !== Boolean(gOverlays) ||
+      (vOverlays && jaccard(shingles(gOverlays), shingles(vOverlays)) < NEAR_TEXT)
+    )
+      reasons.push("overlays differ from the viewed capture");
+  }
+  if (viewed.walls) {
+    const changed = (Object.keys(viewed.walls) as (keyof NonNullable<ViewedCapture["walls"]>)[]).filter(
+      (k) => got.walls?.[k] !== viewed.walls?.[k],
+    );
+    if (changed.length) reasons.push(`wall evidence differs from the viewed capture (${changed.join(", ")})`);
+  }
+  if (viewed.screenshot) {
+    const distance = got.dhash ? hamming(BigInt(`0x${got.dhash}`), BigInt(`0x${viewed.screenshot.dhash}`)) : null;
+    if (distance === null || distance > NEAR_BITS)
+      reasons.push(`the picture differs from the viewed screenshot (${distance ?? "no"} bits)`);
+  }
+  return reasons;
+}
 export const corpusDir = (dir: string) => join(dir, "runs", "compare", "corpus");
 export const corpusPageFile = (dir: string, id: string) => join(corpusDir(dir), "pages", `${id}.json`);
 // The corpus is a manifest (`corpus.json`, naming each page file and its sha256) plus one file a page: a single
@@ -784,7 +832,11 @@ export function readCorpus(dir: string): {
     pages?: CorpusPage[];
     page_files?: { id: string; sha256?: string }[];
   };
-  if (parsed.page_files)
+  if (parsed.page_files) {
+    // One page file per id: a manifest naming an id twice would score one file as two observations.
+    const repeated = parsed.page_files.map((p) => p.id).filter((id, i, ids) => ids.indexOf(id) !== i);
+    if (repeated.length)
+      throw new Error(`the benign corpus manifest names ${[...new Set(repeated)].join(", ")} more than once`);
     return {
       pages: parsed.page_files.map((p) => {
         const raw = readFileSync(corpusPageFile(dir, p.id));
@@ -810,6 +862,7 @@ export function readCorpus(dir: string): {
       file,
       pageFiles: parsed.page_files.map((p) => ({ id: p.id, file: corpusPageFile(dir, p.id) })),
     };
+  }
   return { pages: parsed.pages ?? [], seed: parsed.seed ?? null, file, pageFiles: [] };
 }
 // Run both pipelines over the recorded corpus. The production side renders each page through the replay seam and
@@ -817,7 +870,7 @@ export function readCorpus(dir: string): {
 // apart and never scored. An injected renderer keeps the test off the browser.
 export async function compareBenign(
   dir: string,
-  renderPage?: (page: CorpusPage) => Promise<ViewedCapture & { admitted: boolean }>,
+  renderPage?: (page: CorpusPage) => Promise<ReplayedCapture>,
 ): Promise<
   Result<BenignFigures & { seed: number | null; strata: Record<string, number>; decisions: BenignPipelinePage[] }>
 > {
@@ -851,7 +904,8 @@ export async function compareBenign(
   if (missing) return missing;
   const coverage = benignCoverage(pages);
   if (coverage.insufficient.length) return { status: "incomplete", name, inputs, missing: coverage.insufficient };
-  const { openRenderer, unusable } = await import("./render.ts");
+  const { openRenderer, replayResponder, unusable } = await import("./render.ts");
+  const { dhash } = await import("./build-dataset.ts");
   const { chromium } = await import("playwright-core");
   const { chromiumPath } = await import("../lib/chromium.ts");
   // One production renderer and one plain browser for the whole run. The conventional pipeline reads the main
@@ -862,9 +916,11 @@ export async function compareBenign(
   const conventionalRead = async (page: CorpusPage): Promise<ViewedCapture & { title?: string }> => {
     if (!browser) throw new Error("no browser for the conventional read");
     const context = await browser.newContext();
+    const respond = replayResponder(page.archive);
     try {
       await context.route("**/*", async (route) => {
-        const entry = page.archive[route.request().url()];
+        const req = route.request();
+        const entry = respond(req.url(), req.method(), req.postData() ?? "");
         if (!entry) return route.abort();
         return route.fulfill({
           status: entry.status ?? 200,
@@ -876,6 +932,7 @@ export async function compareBenign(
       const response = await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch(() => null);
       // Main-world reads in the page and every frame it shows: a sign-in form inside a frame is still shown.
       const read = await tab.evaluate(() => ({
+        // biome-ignore lint/performance/useDomNodeTextContent: conventional crawler reads rendered text
         text: document.body?.innerText ?? "",
         title: document.title,
         has_login_form: false,
@@ -901,25 +958,38 @@ export async function compareBenign(
       await context.close();
     }
   };
-  const rows: BenignPipelinePage[] = [];
+  const replaying = renderPage ? null : await openRenderer({ replay: {} });
+  const rows: BenignPipelinePage[] = new Array(pages.length);
   try {
-    for (const page of pages) {
-      try {
-        // One page's replay is bounded: a hung render or read is that page's replay failure, never the run's.
-        const work = (async (): Promise<ViewedCapture & { admitted: boolean; title?: string }> =>
-          renderPage
-            ? await renderPage(page)
-            : await (async () => {
-                const replaying = await openRenderer({ replay: page.archive });
-                try {
-                  const capture = await replaying.render(page.url);
+    let next = 0;
+    const worker = async () => {
+      while (next < pages.length) {
+        const index = next++;
+        const page = pages[index] as CorpusPage;
+        try {
+          // One page's replay is bounded: a hung render or read is that page's replay failure, never the run's.
+          const work = (async (): Promise<ReplayedCapture> =>
+            renderPage
+              ? await renderPage(page)
+              : await (async () => {
+                  if (!replaying) throw new Error("no renderer for replay");
+                  const capture = await replaying.render(page.url, { replay: page.archive });
                   const entry = page.entry ?? { kind: "home", also: [] as string[] };
                   return {
                     status: capture.status,
                     text: capture.text,
                     title: capture.title,
+                    finalUrl: capture.finalUrl,
+                    overlays: capture.overlays,
                     has_login_form: capture.has_login_form,
                     has_payment_form: capture.has_payment_form,
+                    walls: {
+                      captcha: capture.captcha,
+                      consentWall: capture.consentWall,
+                      challengeCover: capture.challengeCover,
+                      imageCover: capture.imageCover,
+                    },
+                    dhash: (await dhash(capture.screenshot)).toString(16).padStart(16, "0"),
                     admitted:
                       unusable(capture, {
                         url: page.url,
@@ -928,60 +998,53 @@ export async function compareBenign(
                         also: entry.also ?? [],
                       }) === null,
                   };
-                } finally {
-                  await replaying.close();
-                }
-              })())();
-        const got = await Promise.race([
-          work,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000),
-          ),
-        ]);
-        // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
-        // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
-        // date line, which is a different page in no respect that scoring cares about.
-        const reasons: string[] = [];
-        if (got.status !== page.viewed.status)
-          reasons.push(`status ${got.status} against viewed ${page.viewed.status}`);
-        if (jaccard(shingles(got.text), shingles(page.viewed.text)) < NEAR_TEXT)
-          reasons.push("visible text differs from the viewed capture");
-        if (got.has_login_form !== page.viewed.has_login_form || got.has_payment_form !== page.viewed.has_payment_form)
-          reasons.push("forms differ from the viewed capture");
-        if (page.viewed.title && got.title && got.title !== page.viewed.title)
-          reasons.push("title differs from the viewed capture");
-        const replayFailure = reasons.length > 0;
-        rows.push({
-          id: page.id,
-          label: page.label,
-          replay_failure: replayFailure,
-          ...(replayFailure ? { replay_reason: reasons.join("; ") } : {}),
-          production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
-          conventional: replayFailure
-            ? null
-            : conventionalBenign(
-                renderPage
-                  ? got
-                  : await Promise.race([
-                      conventionalRead(page),
-                      new Promise<never>((_, reject) =>
-                        setTimeout(() => reject(new Error("the conventional read passed 60 seconds")), 60_000),
-                      ),
-                    ]),
-              ),
-        });
-      } catch (error) {
-        rows.push({
-          id: page.id,
-          label: page.label,
-          replay_failure: true,
-          replay_reason: `the replay render failed: ${message(error).split("\n")[0]}`,
-          production: null,
-          conventional: null,
-        });
+                })())();
+          const got = await Promise.race([
+            work,
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000),
+            ),
+          ]);
+          // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
+          // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
+          // date line, which is a different page in no respect that scoring cares about.
+          const reasons: string[] = [];
+          reasons.push(...replayMismatches(page.viewed, got));
+          const replayFailure = reasons.length > 0;
+          rows[index] = {
+            id: page.id,
+            label: page.label,
+            replay_failure: replayFailure,
+            ...(replayFailure ? { replay_reason: reasons.join("; ") } : {}),
+            production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
+            conventional: replayFailure
+              ? null
+              : conventionalBenign(
+                  renderPage
+                    ? got
+                    : await Promise.race([
+                        conventionalRead(page),
+                        new Promise<never>((_, reject) =>
+                          setTimeout(() => reject(new Error("the conventional read passed 60 seconds")), 60_000),
+                        ),
+                      ]),
+                ),
+          };
+        } catch (error) {
+          rows[index] = {
+            id: page.id,
+            label: page.label,
+            replay_failure: true,
+            replay_reason: `the replay render failed: ${message(error).split("\n")[0]}`,
+            production: null,
+            conventional: null,
+          };
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: renderPage ? 1 : Math.min(4, Math.max(1, pages.length)) }, worker));
   } finally {
+    if (replaying) await replaying.close();
     if (browser) await browser.close();
   }
   // Scored coverage: replay may thin a stratum below its minimum, and then the comparison has not measured it.

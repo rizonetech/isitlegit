@@ -1,23 +1,28 @@
-// Record the §38 replay corpus: for each sampled benign-list URL, a HAR with bodies (the replay archive), the
-// production renderer's viewed capture at record time, and a label assigned from that viewed capture (wall shown,
-// form shown, eligibility with its reason), never from either pipeline's admission decision.
+// Record the §38 replay corpus: for each sampled benign-list URL, one visit by the production renderer that yields
+// the replay archive (a HAR with bodies), the viewed capture replay is checked against, and the screenshot an
+// annotator views. Labels are never derived here from either pipeline's readers: a recorded page carries pending
+// (`unknown`) labels until `annotate` applies a label assigned by viewing its screenshot.
 //
-//     node scripts/glimmer/record-corpus.ts [per-stratum]
+//     node scripts/glimmer/record-corpus.ts <per-stratum 1..100>                       # a new corpus
+//     node scripts/glimmer/record-corpus.ts <per-stratum 1..100> topup <stratum>       # more pages for one stratum
+//     node scripts/glimmer/record-corpus.ts annotate <annotations.jsonl>               # apply viewed labels
 //
 // Strata: walls (journal exclusions for a challenge, CAPTCHA, cookie wall or suspended host), genuine (stored benign
 // pages with no form), login (stored benign pages and benign-sa sign-in pages showing a login form), payment
-// (benign-sa checkout pages). The corpus lands in `<store>/runs/compare/corpus/corpus.json` with its seed; a page
-// whose recording fails is counted and named, never silently dropped.
+// (benign-sa checkout pages). The corpus lands in `<store>/runs/compare/corpus/`: `corpus.json` (seed and each page
+// file's sha256), `pages/<id>.json`, `shots/<id>.jpg` and `har/<id>.har.json`. A page whose recording fails is
+// counted and named, never silently dropped.
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync, writeSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { chromium } from "playwright-core";
-import { chromiumPath } from "../lib/chromium.ts";
-import { type CorpusPage, corpusDir, readCorpus } from "./compare-pipelines.ts";
-import { openRenderer } from "./render.ts";
+import { getDomain } from "tldts";
+import { dhash } from "./build-dataset.ts";
+import { type BenignLabel, type CorpusPage, corpusDir, corpusPageFile } from "./compare-pipelines.ts";
+import { openRenderer, type ReplayArchive, type ReplayResponse } from "./render.ts";
 import { openStore, storeDir } from "./store.ts";
 
 export const CORPUS_SEED = 20261102;
+export const STRATA = ["walls", "genuine", "login", "payment"] as const;
 export function seededSample<T>(items: T[], n: number, seed = CORPUS_SEED): T[] {
   const out = [...items];
   let state = seed >>> 0 || 1;
@@ -31,104 +36,261 @@ export function seededSample<T>(items: T[], n: number, seed = CORPUS_SEED): T[] 
   }
   return out.slice(0, n);
 }
+
 type HarEntry = {
-  request: { url: string };
+  request: { url: string; method?: string; postData?: { text?: string } };
   response: {
     status: number;
     headers: { name: string; value: string }[];
     content: { text?: string; encoding?: string; mimeType?: string };
   };
 };
-export function harToArchive(har: { log: { entries: HarEntry[] } }): CorpusPage["archive"] {
-  const archive: CorpusPage["archive"] = {};
+// Video and audio carry no text, form or wall evidence a still capture shows, and a body past this size is a
+// download rather than a page part: replay answers those empty. Images and fonts are kept, since an image-based
+// challenge or a wall drawn in a web font is evidence the screenshot and the admission check see.
+export const ARCHIVE_BODY_LIMIT = 5_000_000;
+export function harToArchive(har: { log: { entries: HarEntry[] } }): ReplayArchive {
+  const archive: ReplayArchive = {};
+  const append = (key: string, response: ReplayResponse) => {
+    const held = archive[key];
+    // A request answered more than once keeps every answer in order: replay serves them in the same order.
+    if (held) held.later = [...(held.later ?? []), response];
+    else archive[key] = { ...response };
+  };
   for (const entry of har.log.entries) {
-    if (archive[entry.request.url]) continue;
     const text = entry.response.content.text ?? "";
     const mime = entry.response.content.mimeType ?? "";
-    // Media, fonts and oversized bodies carry no text, form or wall evidence: replay answers them empty, so the
-    // corpus stays small enough to hold and parse.
-    const heavy = /^(image|font|video|audio)\//.test(mime) || text.length > 2_000_000;
-    archive[entry.request.url] = {
+    const dropped = /^(video|audio)\//.test(mime) || text.length > ARCHIVE_BODY_LIMIT;
+    const response: ReplayResponse = {
       status: entry.response.status,
       headers: Object.fromEntries(entry.response.headers.map((h) => [h.name.toLowerCase(), h.value])),
-      bodyBase64: heavy
+      bodyBase64: dropped
         ? ""
         : entry.response.content.encoding === "base64"
           ? text
           : Buffer.from(text).toString("base64"),
     };
+    const verb = (entry.request.method ?? "GET").toUpperCase();
+    const post = entry.request.postData?.text ?? "";
+    if (verb !== "GET") {
+      if (post) append(`${verb} ${entry.request.url} ${post}`, response);
+      append(`${verb} ${entry.request.url}`, response);
+    } else {
+      append(entry.request.url, response);
+    }
   }
   return archive;
 }
 
-// The label a viewed capture earns, from the viewed evidence alone (its title, visible text, overlays, status,
-// final URL and the forms it shows), never from either pipeline's admission decision (§38).
-export const WALL_VIEWED =
-  /just a moment|verify you are human|checking your browser|are you a robot|are you a human|press (&|and) hold|captcha|access denied|additional security check/i;
 const ERROR_VIEWED =
-  /page (could not|can't|cannot) be found|404 not found|not found|suspended|account (has been )?suspended|domain (is )?(parked|for sale)|coming soon|under construction/i;
-export function annotateViewed(viewed: {
+  /(page|file) (that )?(you('re| are| were) looking for )?(could not|can['’]t|cannot|doesn['’]t|does not) be found|page not found|404 not found|error 404|account (has been |is )?suspended|hosting account.{0,40}suspended|domain (is )?(parked|for sale)|website (is )?(coming soon|under construction)/i;
+// Whether a viewed capture is a valid benign page or an invalid capture (non-2xx status, a wall, a cross-site
+// redirect outside its allowed destinations, an HTTP-200 error/suspended/parked page, a missing listed brand, or
+// under 50 characters of visible text). Legitimate subdomain and `also` redirects stay eligible.
+export function viewedEligibility(viewed: {
   status: number;
-  title: string;
+  title?: string;
   text: string;
-  overlays?: string;
-  finalUrl: string;
+  finalUrl?: string;
   url: string;
   brand?: string;
   also?: string[];
-  has_login_form: boolean;
-  has_payment_form: boolean;
-}): CorpusPage["label"] {
-  const wall = WALL_VIEWED.test(`${viewed.title}\n${viewed.text}\n${viewed.overlays ?? ""}`);
-  const form = viewed.has_payment_form ? "payment" : viewed.has_login_form ? "login" : "none";
+  wall: boolean;
+}): { eligible: boolean; reason: string } {
   const domain = (u: string) => {
+    if (!u) return "";
     try {
-      return new URL(u).hostname.replace(/^www\./, "");
+      return new URL(u.includes("://") ? u : `https://${u}`).hostname.replace(/^www\./, "").toLowerCase();
     } catch {
       return "";
     }
   };
-  const landed = domain(viewed.finalUrl);
+  const landed = domain(viewed.finalUrl ?? "");
   const listed = domain(viewed.url);
-  // Same site, a subdomain of it (or it of the landed host), or a destination the listing allows.
+  const landedSite = landed ? (getDomain(landed) ?? landed) : "";
+  const listedSite = listed ? (getDomain(listed) ?? listed) : "";
   const sameSite =
     !landed ||
     !listed ||
     landed === listed ||
+    landedSite === listedSite ||
     landed.endsWith(`.${listed}`) ||
     listed.endsWith(`.${landed}`) ||
-    (viewed.also ?? []).some((a) => landed === domain(a) || landed.endsWith(`.${domain(a)}`));
-  let reason: string | null = null;
-  if (viewed.status < 200 || viewed.status > 299) reason = `HTTP ${viewed.status}`;
-  else if (wall) reason = "a challenge page is shown";
-  else if (!sameSite) reason = `cross-site redirect to ${landed}`;
-  else if (ERROR_VIEWED.test(`${viewed.title}\n${viewed.text.slice(0, 2000)}`))
-    reason = "an error page, suspended host or parked domain answered with 200";
-  else if (
-    viewed.brand &&
-    !`${viewed.title}\n${viewed.text}`.toLowerCase().includes(
-      viewed.brand
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, " ")
-        .split(" ")[0] ?? "",
-    )
-  )
-    reason = `the listed brand (${viewed.brand}) is not on the page`;
-  else if (viewed.text.trim().length < 50) reason = "under 50 characters of visible text";
-  return { wall, form, eligible: reason === null, eligibility_reason: reason ?? "valid benign capture" };
+    (viewed.also ?? []).some((a) => {
+      const allowed = domain(a);
+      const allowedSite = allowed ? (getDomain(allowed) ?? allowed) : "";
+      return Boolean(allowed) && (landed === allowed || landedSite === allowedSite || landed.endsWith(`.${allowed}`));
+    });
+  const brandToken = viewed.brand
+    ?.toLowerCase()
+    .replace(/[^a-z0-9]/g, " ")
+    .trim()
+    .split(/\s+/)[0];
+  const combined = `${viewed.title ?? ""}\n${viewed.text}`;
+  if (viewed.status < 200 || viewed.status > 299) return { eligible: false, reason: `HTTP ${viewed.status}` };
+  if (viewed.wall) return { eligible: false, reason: "a challenge or wall page is shown" };
+  if (!sameSite) return { eligible: false, reason: `cross-site redirect to ${landed}` };
+  if (ERROR_VIEWED.test(`${viewed.title ?? ""}\n${viewed.text.slice(0, 2000)}`))
+    return { eligible: false, reason: "an error page, suspended host or parked domain answered with 200" };
+  if (brandToken && !combined.toLowerCase().includes(brandToken))
+    return { eligible: false, reason: `the listed brand (${viewed.brand}) is not on the page` };
+  if (viewed.text.trim().length < 50) return { eligible: false, reason: "under 50 characters of visible text" };
+  return { eligible: true, reason: "valid benign capture" };
+}
+
+// The next free number for a top-up of `stratum`: one past the largest number any of that stratum's ids carries
+// (`<stratum>-<n>` or `<stratum>-topup-<n>`). Recording failures leave gaps, so a count of pages would reuse an id
+// and overwrite its page file; another stratum's ids never count.
+export function nextTopupOffset(ids: string[], stratum: string): number {
+  const own = new RegExp(`^${stratum}-(?:topup-)?(\\d+)$`);
+  return ids.reduce((next, id) => {
+    const n = own.exec(id)?.[1];
+    return n === undefined ? next : Math.max(next, Number(n) + 1);
+  }, 0);
+}
+
+// One page's labels before anyone has viewed it: every field unresolved, so it enters no rate.
+export const PENDING_LABEL: BenignLabel = {
+  wall: "unknown",
+  form: "unknown",
+  eligible: "unknown",
+  eligibility_reason: "awaiting a viewed annotation",
+};
+
+// A label assigned by viewing a recorded page's screenshot, one JSON line each. `screenshot_sha256` names the
+// picture that was viewed, so a label never lands on a page re-recorded since. `wall`, `form` and `eligible` may be
+// "unknown" or "disputed" when the viewer cannot tell; `reason` says why the page is or is not a valid benign
+// capture (HTTP error page, suspended host or parked domain, wrong-site redirect, missing brand, a challenge).
+export type ViewedAnnotation = {
+  id: string;
+  screenshot_sha256: string;
+  wall: boolean | "unknown" | "disputed";
+  form: "login" | "payment" | "none" | "unknown" | "disputed";
+  eligible: boolean | "unknown" | "disputed";
+  reason: string;
+  annotator: string;
+};
+const UNRESOLVED = ["unknown", "disputed"];
+export function parseAnnotations(text: string): { annotations: ViewedAnnotation[]; problems: string[] } {
+  const annotations: ViewedAnnotation[] = [];
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  text.split("\n").forEach((line, i) => {
+    if (!line.trim()) return;
+    let a: Partial<ViewedAnnotation>;
+    try {
+      a = JSON.parse(line) as Partial<ViewedAnnotation>;
+    } catch {
+      problems.push(`line ${i + 1} is not JSON`);
+      return;
+    }
+    const where = `line ${i + 1}${typeof a.id === "string" ? ` (${a.id})` : ""}`;
+    if (typeof a.id !== "string" || !a.id) problems.push(`${where} has no id`);
+    else if (seen.has(a.id)) problems.push(`${where} repeats an id`);
+    if (typeof a.screenshot_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(a.screenshot_sha256))
+      problems.push(`${where} names no screenshot sha256`);
+    if (!(typeof a.wall === "boolean" || UNRESOLVED.includes(a.wall as string))) problems.push(`${where} has no wall`);
+    if (!["login", "payment", "none", ...UNRESOLVED].includes(a.form as string)) problems.push(`${where} has no form`);
+    if (!(typeof a.eligible === "boolean" || UNRESOLVED.includes(a.eligible as string)))
+      problems.push(`${where} has no eligibility`);
+    if (typeof a.reason !== "string" || !a.reason.trim()) problems.push(`${where} has no reason`);
+    if (typeof a.annotator !== "string" || !a.annotator.trim()) problems.push(`${where} names no annotator`);
+    if (typeof a.id === "string") seen.add(a.id);
+    annotations.push(a as ViewedAnnotation);
+  });
+  return { annotations, problems };
+}
+
+// Applies a viewed annotation to a recorded page: refused when the annotation viewed another picture.
+export function applyAnnotation(page: CorpusPage, a: ViewedAnnotation): CorpusPage {
+  if (page.viewed.screenshot?.sha256 !== a.screenshot_sha256)
+    throw new Error(`${page.id}: the annotation viewed a different screenshot than the one recorded`);
+  return {
+    ...page,
+    label: { wall: a.wall, form: a.form, eligible: a.eligible, eligibility_reason: a.reason, source: a.annotator },
+  };
+}
+
+type Manifest = { seed: number; recorded: string; page_files: { id: string; sha256: string }[]; failed: string[] };
+const manifestFile = (dir: string) => join(corpusDir(dir), "corpus.json");
+function writeAtomic(file: string, data: string | Uint8Array): void {
+  writeFileSync(`${file}.tmp`, data);
+  renameSync(`${file}.tmp`, file);
+}
+function writePage(dir: string, page: CorpusPage): { id: string; sha256: string } {
+  const data = JSON.stringify(page);
+  writeAtomic(corpusPageFile(dir, page.id), data);
+  return { id: page.id, sha256: createHash("sha256").update(data).digest("hex") };
+}
+function writeManifest(dir: string, manifest: Manifest): void {
+  writeAtomic(manifestFile(dir), `${JSON.stringify(manifest)}\n`);
 }
 
 if (import.meta.filename === process.argv[1]) {
-  const per = Number(process.argv[2] ?? 25);
-  const mode = process.argv[3];
-  const topupStratum = process.argv[4] ?? "payment";
-  if (!Number.isInteger(per) || per < 1 || per > 100 || (mode !== undefined && mode !== "topup")) {
-    console.error(
-      "usage: node scripts/glimmer/record-corpus.ts [per-stratum 1..100] [topup [walls|genuine|login|payment]]",
+  const usage =
+    "usage: node scripts/glimmer/record-corpus.ts <per-stratum 1..100> [--replace | topup <walls|genuine|login|payment>] | annotate <annotations.jsonl>";
+  const dir = storeDir();
+  if (process.argv[2] === "annotate") {
+    const source = process.argv[3];
+    if (!source || process.argv.length > 4 || !existsSync(source)) {
+      console.error(usage);
+      process.exit(2);
+    }
+    const { annotations, problems } = parseAnnotations(readFileSync(source, "utf-8"));
+    const manifest = JSON.parse(readFileSync(manifestFile(dir), "utf-8")) as Manifest;
+    const held = new Set(manifest.page_files.map((p) => p.id));
+    for (const a of annotations) if (!held.has(a.id)) problems.push(`${a.id} is not a corpus page`);
+    if (problems.length) {
+      console.error(`record-corpus annotate: refused, nothing written (${problems.join("; ")})`);
+      process.exit(1);
+    }
+    const byId = new Map(annotations.map((a) => [a.id, a]));
+    // Every page is checked before any is written, so a refused annotation leaves the corpus as it was.
+    const updated: CorpusPage[] = [];
+    for (const { id } of manifest.page_files) {
+      const a = byId.get(id);
+      if (!a) continue;
+      updated.push(applyAnnotation(JSON.parse(readFileSync(corpusPageFile(dir, id), "utf-8")) as CorpusPage, a));
+    }
+    const digests = new Map(updated.map((page) => [page.id, writePage(dir, page).sha256]));
+    writeManifest(dir, {
+      ...manifest,
+      page_files: manifest.page_files.map((p) => ({ id: p.id, sha256: digests.get(p.id) ?? p.sha256 })),
+    });
+    console.log(
+      JSON.stringify({ annotated: updated.length, pending: manifest.page_files.length - updated.length, source }),
     );
+    process.exit(0);
+  }
+  const per = Number(process.argv[2]);
+  const mode = process.argv[3];
+  const topupStratum = process.argv[4];
+  const topup = mode === "topup";
+  const replace = mode === "--replace";
+  if (
+    !Number.isInteger(per) ||
+    per < 1 ||
+    per > 100 ||
+    (mode !== undefined && !topup && !replace) ||
+    (topup && !(STRATA as readonly string[]).includes(topupStratum ?? "")) ||
+    process.argv.length > (topup ? 5 : replace ? 4 : 3)
+  ) {
+    console.error(usage);
     process.exit(2);
   }
-  const dir = storeDir();
+  const existing: Manifest | null =
+    !replace && existsSync(manifestFile(dir))
+      ? (JSON.parse(readFileSync(manifestFile(dir), "utf-8")) as Manifest)
+      : null;
+  // A new corpus never lands over one on disk without --replace: its pages, labels and digests are another run's evidence.
+  if (!topup && !replace && existing) {
+    console.error(`record-corpus: ${manifestFile(dir)} already holds a corpus; top it up or record into a new store`);
+    process.exit(1);
+  }
+  if (topup && !existing) {
+    console.error("record-corpus: there is no corpus to top up");
+    process.exit(1);
+  }
   const store = openStore(dir);
   const stored: { url: string; login: boolean; payment: boolean; kind: string; brand?: string }[] = [];
   for (const page of store.manifest()) {
@@ -153,18 +315,7 @@ if (import.meta.filename === process.argv[1]) {
     .filter((l) => l && !l.startsWith("#"))
     .map((l) => l.split("\t"))
     .filter((p) => p.length >= 2);
-  const topup = mode === "topup";
-  if (topup && !["walls", "genuine", "login", "payment"].includes(topupStratum)) {
-    console.error(
-      "usage: node scripts/glimmer/record-corpus.ts [per-stratum 1..100] [topup [walls|genuine|login|payment]]",
-    );
-    process.exit(2);
-  }
   type Candidate = { url: string; entry: { kind: string; brand?: string; also: string[] } };
-  const fromStored = (p: (typeof stored)[number]): Candidate => ({
-    url: p.url,
-    entry: { kind: p.kind, ...(p.brand ? { brand: p.brand } : {}), also: [] },
-  });
   const fromSa = (p: string[]): Candidate => ({
     url: p[1] as string,
     entry: {
@@ -176,150 +327,117 @@ if (import.meta.filename === process.argv[1]) {
         .filter(Boolean),
     },
   });
+  const saByUrl = new Map(sa.map((p) => [p[1] as string, fromSa(p).entry]));
+  const fromStored = (p: (typeof stored)[number]): Candidate => ({
+    url: p.url,
+    entry: saByUrl.get(p.url) ?? { kind: p.kind, also: [] },
+  });
   const allStrata: Record<string, Candidate[]> = {
     walls: [...new Set(walls)].map((url) => ({ url, entry: { kind: "home", also: [] } })),
     genuine: stored.filter((p) => !p.login && !p.payment).map(fromStored),
-    login: [...stored.filter((p) => p.login).map(fromStored), ...sa.filter((p) => p[0] === "login").map(fromSa)],
+    login: [
+      ...stored.filter((p) => p.login && (p.kind === "login" || p.kind === "account")).map(fromStored),
+      ...sa.filter((p) => p[0] === "login").map(fromSa),
+    ],
     payment: [
       ...stored.filter((p) => p.payment).map(fromStored),
       ...sa.filter((p) => p[0] === "checkout" || p[0] === "shop").map(fromSa),
     ],
   };
-  const strata: Record<string, Candidate[]> = topup
-    ? { [topupStratum]: seededSample(allStrata[topupStratum] ?? [], per, CORPUS_SEED + 1) }
-    : Object.fromEntries(Object.entries(allStrata).map(([k, v]) => [k, seededSample(v, per)]));
-  // A top-up's ids continue the stratum's numbering, so a second top-up never overwrites a page file, and it
-  // samples only URLs the corpus does not already hold.
-  let idOffset = 0;
-  if (topup) {
-    try {
-      const held = readCorpus(dir).pages;
-      // Beyond the largest assigned number in the stratum, not the count of pages: recording failures leave
-      // gaps, and a count-based offset reuses an existing id and overwrites its page file.
-      idOffset = held.reduce((max, p) => {
-        const n = Number(
-          p.id
-            .slice(topupStratum.length + 1)
-            .split("-")
-            .pop(),
-        );
-        return Number.isInteger(n) && n >= max ? n + 1 : max;
-      }, 0);
-      const heldUrls = new Set(held.map((p) => p.url));
-      strata[topupStratum] = seededSample(
-        (allStrata[topupStratum] ?? []).filter((c) => !heldUrls.has(c.url)),
+  const manifest: Manifest = existing ?? {
+    seed: CORPUS_SEED,
+    recorded: new Date().toISOString(),
+    page_files: [],
+    failed: [],
+  };
+  const heldIds = manifest.page_files.map((p) => p.id);
+  const heldUrls = new Set(
+    heldIds.map((id) => (JSON.parse(readFileSync(corpusPageFile(dir, id), "utf-8")) as CorpusPage).url),
+  );
+  // A top-up samples only URLs the corpus does not hold, and its ids continue the stratum's numbering.
+  const offset = topup ? nextTopupOffset(heldIds, topupStratum as string) : 0;
+  const plan: { id: string; candidate: Candidate }[] = topup
+    ? seededSample(
+        (allStrata[topupStratum as string] ?? []).filter((c) => !heldUrls.has(c.url)),
         per,
         CORPUS_SEED + 2,
+      ).map((candidate, i) => ({ id: `${topupStratum}-topup-${offset + i}`, candidate }))
+    : STRATA.flatMap((stratum) =>
+        seededSample(allStrata[stratum] ?? [], per).map((candidate, i) => ({ id: `${stratum}-${i}`, candidate })),
       );
-    } catch {
-      idOffset = 0;
-    }
-  }
-  const executablePath = chromiumPath();
-  if (!executablePath) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
-  const browser = await chromium.launch({ executablePath, chromiumSandbox: true });
+  for (const sub of ["pages", "shots", "har"]) mkdirSync(join(corpusDir(dir), sub), { recursive: true });
   const renderer = await openRenderer();
-  const pages: CorpusPage[] = [];
-  const failed: string[] = [];
-  for (const [stratum, candidates] of Object.entries(strata)) {
-    for (const [i, candidate] of candidates.entries()) {
-      const url = candidate.url;
-      const id = topup ? `${stratum}-topup-${idOffset + i}` : `${stratum}-${i}`;
-      try {
-        const harFile = join(corpusDir(dir), `${id}.har.json`);
-        mkdirSync(corpusDir(dir), { recursive: true });
-        const context = await browser.newContext({ recordHar: { path: harFile, content: "embed" } });
-        const page = await context.newPage();
-        await page.goto(url, { waitUntil: "load", timeout: 20_000 }).catch(() => undefined);
-        // The form label comes from this main-world read (the page and every frame), never from the production
-        // renderer's form flags, so form accuracy is measured against an independent read.
-        const frameForms = { has_login_form: false, has_payment_form: false };
-        for (const frame of page.frames()) {
-          const forms = await frame
-            .evaluate(() => {
-              const inputs = [...document.querySelectorAll("input")];
-              return {
-                has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
-                has_payment_form: inputs.some(
-                  (i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card"),
-                ),
-              };
-            })
-            .catch(() => ({ has_login_form: false, has_payment_form: false }));
-          frameForms.has_login_form = frameForms.has_login_form || forms.has_login_form;
-          frameForms.has_payment_form = frameForms.has_payment_form || forms.has_payment_form;
-        }
-        await context.close();
-        const archive = harToArchive(JSON.parse(readFileSync(harFile, "utf-8")));
-        const capture = await renderer.render(url);
-        pages.push({
-          id,
-          url,
-          entry: candidate.entry,
-          archive,
-          viewed: {
-            status: capture.status,
-            text: capture.text,
-            title: capture.title,
-            finalUrl: capture.finalUrl,
-            has_login_form: capture.has_login_form,
-            has_payment_form: capture.has_payment_form,
-          },
-          label: annotateViewed({
-            status: capture.status,
-            title: capture.title,
-            text: capture.text,
-            overlays: capture.overlays,
-            finalUrl: capture.finalUrl,
+  let recorded = 0;
+  try {
+    let next = 0;
+    const worker = async () => {
+      while (next < plan.length) {
+        const { id, candidate } = plan[next++] as (typeof plan)[number];
+        const url = candidate.url;
+        const harFile = join(corpusDir(dir), "har", `${id}.har.json`);
+        const startedAt = Date.now();
+        try {
+          // One visit: the HAR is written when the render's context closes, so the archive, the viewed capture and
+          // the screenshot are the same page load.
+          const capture = await renderer.render(url, { recordHar: harFile });
+          if (!existsSync(harFile) || statSync(harFile).mtimeMs < startedAt - 50)
+            throw new Error("the visit's HAR was not written");
+          const archive = harToArchive(JSON.parse(readFileSync(harFile, "utf-8")));
+          if (!archive[url] && !archive[`${url}/`]) throw new Error("the HAR holds no response for the listed URL");
+          writeAtomic(join(corpusDir(dir), "shots", `${id}.jpg`), capture.screenshot);
+          const page: CorpusPage = {
+            id,
             url,
-            ...(candidate.entry.brand ? { brand: candidate.entry.brand } : {}),
-            also: candidate.entry.also,
-            has_login_form: frameForms.has_login_form,
-            has_payment_form: frameForms.has_payment_form,
-          }),
-        });
-        console.error(`corpus: ${id} recorded`);
-      } catch (error) {
-        failed.push(`${id} ${url}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`);
+            entry: candidate.entry,
+            archive,
+            viewed: {
+              status: capture.status,
+              text: capture.text,
+              title: capture.title,
+              finalUrl: capture.finalUrl,
+              overlays: capture.overlays,
+              has_login_form: capture.has_login_form,
+              has_payment_form: capture.has_payment_form,
+              walls: {
+                captcha: capture.captcha,
+                consentWall: capture.consentWall,
+                challengeCover: capture.challengeCover,
+                imageCover: capture.imageCover,
+              },
+              screenshot: {
+                file: `shots/${id}.jpg`,
+                sha256: createHash("sha256").update(capture.screenshot).digest("hex"),
+                dhash: (await dhash(capture.screenshot)).toString(16).padStart(16, "0"),
+              },
+            },
+            label: PENDING_LABEL,
+          };
+          manifest.page_files.push(writePage(dir, page));
+          recorded++;
+          console.error(`corpus: ${id} recorded`);
+        } catch (error) {
+          manifest.failed.push(
+            `${id} ${url}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`,
+          );
+          console.error(`corpus: ${id} failed`);
+        }
+        // The manifest after every page, so a stopped run leaves a readable corpus naming what it holds.
+        writeManifest(dir, manifest);
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, Math.max(1, plan.length)) }, worker));
+  } finally {
+    await renderer.close();
   }
-  await renderer.close();
-  await browser.close();
-  // Streamed page by page: a whole corpus in one string exceeds the runtime's string limit. A top-up run merges
-  // with the corpus already on disk, skipping URLs it already holds.
-  const file = join(corpusDir(dir), "corpus.json");
-  let existing: CorpusPage[] = [];
-  if (topup) {
-    existing = readCorpus(dir).pages;
-    failed.push(...((JSON.parse(readFileSync(file, "utf-8")) as { failed?: string[] }).failed ?? []));
-    const held = new Set(existing.map((p) => p.url));
-    for (let i = pages.length - 1; i >= 0; i--) if (held.has(pages[i]?.url ?? "")) pages.splice(i, 1);
-  }
-  const all = [...existing, ...pages];
-  // One file a page plus a manifest naming each: a single corpus file exceeds the runtime's string limit.
-  mkdirSync(join(corpusDir(dir), "pages"), { recursive: true });
-  const pageFiles = all.map((p) => {
-    const pageFile = join(corpusDir(dir), "pages", `${p.id}.json`);
-    const data = JSON.stringify(p);
-    writeFileSync(`${pageFile}.tmp`, data);
-    renameSync(`${pageFile}.tmp`, pageFile);
-    return { id: p.id, sha256: createHash("sha256").update(data).digest("hex") };
-  });
-  const fd = openSync(`${file}.tmp`, "w");
-  writeSync(
-    fd,
-    `${JSON.stringify({ seed: CORPUS_SEED, recorded: new Date().toISOString(), page_files: pageFiles, failed })}\n`,
-  );
-  closeSync(fd);
-  renameSync(`${file}.tmp`, file);
   console.log(
     JSON.stringify(
       {
-        corpus: file,
-        pages: pages.length,
-        failed,
-        sha256: createHash("sha256").update(readFileSync(file)).digest("hex"),
+        corpus: manifestFile(dir),
+        recorded,
+        failed: manifest.failed.length,
+        sha256: createHash("sha256")
+          .update(readFileSync(manifestFile(dir)))
+          .digest("hex"),
       },
       null,
       2,

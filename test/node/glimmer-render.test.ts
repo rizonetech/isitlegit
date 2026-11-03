@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright-core";
@@ -78,6 +78,59 @@ describe("replay (§38)", () => {
       await replaying.close();
     }
   }, 40_000);
+});
+
+describe("recording and replaying one visit (§38, round 1)", () => {
+  it("replays a recorded visit faithfully (a framed form, a script-built form, a picture, a repeated URL), and a lost picture is a mismatch", async () => {
+    const { harToArchive } = await import("../../scripts/glimmer/record-corpus.ts");
+    const { replayMismatches } = await import("../../scripts/glimmer/compare-pipelines.ts");
+    const { dhash } = await import("../../scripts/glimmer/build-dataset.ts");
+    const scratch = mkdtempSync(join(tmpdir(), "loupe-record-"));
+    const hex = async (shot: Uint8Array) => (await dhash(shot)).toString(16).padStart(16, "0");
+    const seen = (c: Capture) => ({
+      status: c.status,
+      text: c.text,
+      title: c.title,
+      finalUrl: c.finalUrl,
+      has_login_form: c.has_login_form,
+      has_payment_form: c.has_payment_form,
+      walls: {
+        captcha: c.captcha,
+        consentWall: c.consentWall,
+        challengeCover: c.challengeCover,
+        imageCover: c.imageCover,
+      },
+    });
+    try {
+      const har = join(scratch, "visit.har.json");
+      const live = await renderer.render(`${origin}/replay-mix`, { recordHar: har });
+      // The framed sign-in form and the script-built payment form are both shown on the recorded visit.
+      expect(live.has_login_form).toBe(true);
+      expect(live.has_payment_form).toBe(true);
+      expect(live.text).toContain("first answer then second answer");
+      const archive = harToArchive(JSON.parse(readFileSync(har, "utf-8")));
+      expect(archive[`${origin}/poll`]?.later).toHaveLength(1);
+      const viewed = {
+        ...seen(live),
+        screenshot: { file: "x.jpg", sha256: "0".repeat(64), dhash: await hex(live.screenshot) },
+      };
+      const replay = async (recorded: typeof archive) => {
+        const replaying = await openRenderer({ replay: recorded });
+        try {
+          const c = await replaying.render(`${origin}/replay-mix`);
+          return { ...seen(c), admitted: true, dhash: await hex(c.screenshot) };
+        } finally {
+          await replaying.close();
+        }
+      };
+      expect(replayMismatches(viewed, await replay(archive))).toEqual([]);
+      // The picture's body lost from the archive: text and forms still hold, the picture does not.
+      const lost = { ...archive, [`${origin}/wall.svg`]: { status: 404, headers: {}, bodyBase64: "" } };
+      expect(replayMismatches(viewed, await replay(lost)).join("; ")).toContain("the picture differs");
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describe("addresses", () => {
