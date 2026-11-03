@@ -77,7 +77,7 @@ export async function main(argv: string[], environ: Record<string, string | unde
         BANK_KEY: environ.BANK_KEY || REHEARSAL_KEYS.BANK_KEY,
         BANK_MATCH_KEY: environ.BANK_MATCH_KEY || REHEARSAL_KEYS.BANK_MATCH_KEY,
       };
-  if (!keys.BANK_KEY || !keys.BANK_MATCH_KEY)
+  if (!values["check-judges"] && (!keys.BANK_KEY || !keys.BANK_MATCH_KEY))
     return fail(
       '--remote needs BANK_KEY and BANK_MATCH_KEY in the environment (vault item "IsItLegit bank key", never an argument)',
     );

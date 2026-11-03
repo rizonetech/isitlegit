@@ -157,6 +157,12 @@ describe("the invoice step", () => {
     expect(items.map((e) => e.check)).toEqual(["invoice.detected", "invoice.bank_changed"]);
     expect(items[1]?.severity).toBe("critical");
     expect(items[1]?.detail).toMatchObject({ supplier_id: supplierId, against: "ledger" });
+    // A replay on a flagged invoice reuses the settled detection and sealed account without calling the model again.
+    const replayed = await invoiceStep(deps([]), caseId, org);
+    expect(replayed).toEqual({ outcome: "read", invoices: 1 });
+    const afterReplay = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(afterReplay.map((e) => e.check)).toEqual(["invoice.detected", "invoice.bank_changed"]);
+    expect(afterReplay[1]?.detail).toMatchObject({ supplier_id: supplierId, against: "ledger" });
   });
 
   it("a non-invoice states nothing and seals nothing", async () => {

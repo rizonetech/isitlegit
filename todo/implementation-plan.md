@@ -346,7 +346,7 @@ Sections: 108 | Checklist items: 680
 | [x]    | D07 T06 §18 | Public repository and advisory read-back     | none                  | 2     |
 | [x]    | D07 T06 §21 | Drop the 3 November repository note          | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                    | cloudflare            | 8     |
-| [ ]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
+| [x]    | D07 T07 §2  | Judge demo organisation                      | meta-api, live-mail   | 10    |
 | [x]    | D07 T08 §1  | App and site error pages                     | none                  | 5     |
 | [x]    | D07 T08 §2  | First-run onboarding checklist               | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys                | none                  | 7     |
@@ -498,7 +498,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
 | [x]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
-| [ ]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
+| [x]    | D05 T02 §3  | Registry comparison evidence that                           | none                 | 7     |
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business               | none                 | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line                  | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                           | none                 | 4     |
@@ -513,7 +513,7 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 5     |
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
-| [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
+| [x]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
@@ -633,11 +633,11 @@ Sections: 221 | Checklist items: 987
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 8 | Checklist items: 38
+Sections: 8 | Checklist items: 39
 
 | Status | Reference   | Deliverable                                          | Needs                | Items |
 | ------ | ----------- | ---------------------------------------------------- | -------------------- | ----- |
-| [ ]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 5     |
+| [x]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 6     |
 | [ ]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 9     |
 | [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis    | meta-api             | 4     |
 | [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing           | cloudflare, meta-api | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 402/597 verified sections, 118 ready to run now.
+Progress: 406/597 verified sections, 120 ready to run now.
 
-Checklist: 2996/3686 items completed (includes Commit items).
+Checklist: 3016/3687 items completed (includes Commit items).

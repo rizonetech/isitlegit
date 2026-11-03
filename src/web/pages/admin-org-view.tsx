@@ -9,12 +9,8 @@ import { Button } from "../components/Button";
 import { Document } from "../components/Document";
 import { Field } from "../components/Field";
 import { Pill } from "../components/Pill";
+import { Select } from "../components/Select";
 import type { Shell } from "./admin-view";
-
-const SELECT = cx(
-  "h-control px-16 border border-control-border rounded-control text-16 weight-text-strong text-ink bg-surface",
-  FOCUS,
-);
 
 export type OnboardingStep = { title: string; done: boolean; detail: string };
 export type DomainRow = { domain: string; state: "Verified" | "Pending"; detail: string };
@@ -323,13 +319,13 @@ export function OrgDetailPage(props: OrgDetailProps) {
                     <label for="plan" class="type-small weight-text-strong">
                       Change plan
                     </label>
-                    <select id="plan" name="plan" class={SELECT}>
+                    <Select id="plan" name="plan">
                       {(["free", "protect", "msp"] as const).map((plan) => (
                         <option value={plan} selected={props.plan.current === plan}>
                           {plan === "free" ? "Free" : plan === "protect" ? "Protect" : "MSP"}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   {props.plan.error && (
                     <p role="alert" class="type-small weight-text-strong text-danger">

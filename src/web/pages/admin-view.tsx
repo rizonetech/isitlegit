@@ -13,7 +13,7 @@ import {
   sastShort,
 } from "../../auth/invite-codes";
 import { AppShell } from "../components/AppShell";
-import { cx, FOCUS } from "../components/attrs";
+import { cx, FIELD_FOCUS, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 import { Document } from "../components/Document";
 import { CHECK_WORDS } from "../components/evidence/check-words";
@@ -128,7 +128,7 @@ function CapControl(props: { row: OrgRow; query: string; draft: CapDraft | null 
           aria-describedby={active && draft.error ? `cap-error-${row.id}` : undefined}
           class={cx(
             "h-control-small w-80 px-12 border border-control-border rounded-control-small font-text text-14 bg-surface",
-            FOCUS,
+            FIELD_FOCUS,
           )}
         />
         <Button type="submit" name="action" value="set" variant="ghost" size="small">
@@ -183,7 +183,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                 maxlength={120}
                 class={cx(
                   "h-control-small w-220 px-12 border border-control-border rounded-control-small font-text text-14 bg-surface",
-                  FOCUS,
+                  FIELD_FOCUS,
                 )}
               />
               <Button type="submit" variant="ghost" size="small">
