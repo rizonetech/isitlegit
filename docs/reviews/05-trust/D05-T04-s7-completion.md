@@ -1,55 +1,47 @@
 ## Completion review: astra (`gpt-6-astra` via `codex`)
 
 - Writer: muse
-- Run: 2026-11-03T00:19:37Z
-- Candidate: d854ca42cb5e8428357e435efa0cb5cc29c04504
+- Run: 2026-11-03T00:46:06Z
+- Candidate: 9850c411d763d6961ea50867a486c60ea8197eab
 - Effort: medium
 - Pin: ce29c18a398871b473c634630dbf588c04ec5ef2
-- Lines: 37
-- Digest: cff1563c3c3119c9
+- Lines: 30
+- Digest: 98f2e52c69ed0690
 
-**Needs attention.** Reviewed candidate `d854ca42cb5e8428357e435efa0cb5cc29c04504` against section 7 and its Corrected line. No files changed. Read-only probes confirmed malformed-response and truncation failures; the full Vitest checkpoint was not run.
+The candidate has **in-scope gaps**, including a query that misses the intended lookalikes and responses that silently conceal incomplete coverage.
+
+Reviewed `d854ca42cb5e8428357e435efa0cb5cc29c04504` through Git objects, including section 7’s Corrected line. References below are candidate-relative. No files changed; tests were inspected, not run. This is source evidence, not deployment proof.
 
 **Part 1: completeness**
 
 | Required piece | Assessment and evidence |
 | --- | --- |
-| Source and terms | **Present:** crt.sh adapter at [ct.ts:75](../../../src/monitor/ct.ts#L75). **Missing-in-scope:** substantiated usage terms. [NOTICE.md:16](../../../NOTICE.md#L16) asserts permission but links only to the homepage. The retrieved [crt.sh homepage](https://crt.sh/) does not establish the claimed terms. This is an evidence gap, not a finding that use is prohibited. |
-| Token derivation | **Present:** verified-domain first labels and display-name words, normalization, minimum length, stopwords, deduplication and eight-token cap at [ct.ts:15](../../../src/monitor/ct.ts#L15). Empty tokens skip CT at [run.ts:308](../../../src/monitor/run.ts#L308). **Missing-in-scope:** correct substring query semantics, finding 1 below. |
-| Query bounds and parsing | **Present:** eight sequential requests, 10-second timeout, streamed 1 MiB limit, hostname validation and wildcard/multiline handling at [ct.ts:6](../../../src/monitor/ct.ts#L6), [ct.ts:26](../../../src/monitor/ct.ts#L26) and [ct.ts:53](../../../src/monitor/ct.ts#L53). **Missing-in-scope:** explicit incomplete status for excess records and invalid response shapes, finding 2. |
-| Failure semantics | **Present:** HTTP, timeout, JSON syntax and byte-limit failures name the token; successful tokens survive at [ct.ts:70](../../../src/monitor/ct.ts#L70). Run errors persist at [run.ts:160](../../../src/monitor/run.ts#L160), and CT failures make the run partial at [run.ts:453](../../../src/monitor/run.ts#L453). **Missing-in-scope:** malformed JSON shapes and record truncation currently appear successful. |
-| Merge and cap policy | **Present:** CT first, known matching hosts next, generated candidates last; deduplication, owned-domain/subdomain exclusion and shared 300 cap at [run.ts:314](../../../src/monitor/run.ts#L314). **Missing-in-scope:** retained-host continuity under saturation, finding 3. |
-| Persistence of discoveries | **Present:** successful DNS observations, including nonresolving names, upsert `monitor_hosts` before capture at [run.ts:330](../../../src/monitor/run.ts#L330); known token-matching hosts rejoin at line 316. **Missing-in-scope:** discoveries survive neither initial DNS failure nor displacement by the cap, findings 3 and 4. |
-| Production wiring | **Present in source:** daily cron at [wrangler.jsonc:109](../../../wrangler.jsonc#L109), dispatch at [index.ts:228](../../../src/index.ts#L228), production adapter at [workflow.ts:129](../../../src/monitor/workflow.ts#L129), eligibility before CT/DNS at [run.ts:284](../../../src/monitor/run.ts#L284). **Missing-out-of-scope:** deployment and live discovery proof; this review establishes source wiring only. |
-| Tests | **Present:** three tests cover basic tokens/names, one HTTP failure, CT-only DNS resolution, ownership exclusion and repeat-run retention at [ct.test.ts:11](../../../test/monitor/ct.test.ts#L11). **Missing-in-scope:** exact query assertions, timeout/byte/record boundaries, malformed shapes, saturated-cap retention, DNS-failure recovery, ineligible/no-token no-request assertions, and stored observation/error readback. The “later day” test actually repeats the same current day with another run ID at [ct.test.ts:63](../../../test/monitor/ct.test.ts#L63). |
-
-The concrete defects are:
-
-1. **P2, in-scope: the query misses the intended lookalikes.** [ct.ts:75](../../../src/monitor/ct.ts#L75) sends `%.fynbos.%`, requiring dots around the token. A certificate naming `fynbos-pay.example` or `fynbosfreight.example` does not match, although both contain the brand token. The test returns `fynbos-pay.example` regardless of the requested query. crt.sh’s [query implementation](https://github.com/crtsh/certwatch_db/blob/master/fnc/web_apis.fnc) uses LIKE/ILIKE matching; the owning adapter needs substring semantics and a query-sensitive regression test.
-
-2. **P2, in-scope: incomplete or invalid responses become successful searches.** [ct.ts:54](../../../src/monitor/ct.ts#L54) treats a non-array response as no names; line 56 silently slices records. Direct probes returned `{names:[], failed:[]}` for `{"error":"upstream unavailable"}` and 5,000 names with no failure for 5,001 records. Expected: explicit partial/unavailable status, preserving usable results where appropriate.
-
-3. **P2, in-scope: current results can permanently crowd out retained discoveries.** At [run.ts:317](../../../src/monitor/run.ts#L317), 300 current CT names exclude every distinct previously discovered host before DNS. Repeated responses repeat that exclusion indefinitely. The corrected continuity promise needs bounded scheduling or an explicitly revised retention contract, with dropped/deferred coverage surfaced.
-
-4. **P2, in-scope: initial DNS failure loses a discovery.** At [run.ts:331](../../../src/monitor/run.ts#L331), a failed lookup skips persistence. If CT discovers a host today, DNS fails, and tomorrow’s CT response is empty or unavailable, that host has no retained row and is never retried. Persist discovery independently of DNS success.
+| Source and terms | **Source present; terms evidence missing-in-scope.** `src/monitor/ct.ts:75` selects crt.sh. `NOTICE.md:16` claims its terms permit use but links only the homepage, with no identifiable permission text. The [homepage](https://crt.sh/) does not substantiate that assertion. This is missing evidence, not a finding that use is prohibited. |
+| Token derivation | **Present.** `src/monitor/ct.ts:15` derives lowercase tokens from verified domains’ first labels and display-name words, removes stopwords, requires four characters, deduplicates and caps at eight. `src/monitor/run.ts:308` skips queries when none remain. |
+| Matching query | **Missing-in-scope: correct substring search.** `src/monitor/ct.ts:75` queries `%.fynbos.%`, requiring literal dots around the token under crt.sh’s [ILIKE matching](https://github.com/crtsh/certwatch_db/blob/master/fnc/web_apis.fnc). It misses `fynbos-pay.example`, the feature’s own test example, and `fynbos.example`. The stub at `test/monitor/ct.test.ts:27` returns that name without checking whether the requested pattern could retrieve it. |
+| Query bounds | **Present, with incomplete-result handling missing-in-scope.** `src/monitor/ct.ts:6`, `:26` and `:73` implement ten seconds per request, streamed 1 MiB, eight sequential requests and processing of 5,000 records. However, `:56` silently slices larger arrays without reporting truncation. |
+| Failure semantics | **Partly present; missing-in-scope for malformed responses.** HTTP errors, exceptions and oversized bodies become failed tokens at `src/monitor/ct.ts:79`. The run records CT errors and becomes partial at `src/monitor/run.ts:309`, `:457`, with persistence at `:160`. But HTTP 200 containing `{ "error": "unavailable" }` becomes a successful empty result through `ct.ts:54`; malformed records are silently skipped at `:57`. These are indistinguishable from genuine zero matches. |
+| Merge and cap policy | **Present.** `src/monitor/run.ts:314` excludes owned domains and subdomains, deduplicates CT, known and generated names, prioritises CT and applies the shared 300 cap. Production CT names are lowercased and validated at `src/monitor/ct.ts:59`. |
+| Persistence of discoveries | **Partly present; continued coverage missing-in-scope under saturation.** `src/monitor/run.ts:343` stores successful positive or negative DNS observations; `:316` reintroduces known token-matching hosts. But 300 current CT names precede every retained host at `:317`, so a previously discovered host absent from today’s response can stop receiving DNS checks indefinitely. Overflow is neither retained as a pending discovery nor counted as deferred. This defeats the Corrected line’s continued-monitoring promise. |
+| Production wiring | **Present in source.** `src/monitor/workflow.ts:129` supplies the adapter, `:299` invokes the production monitor, `src/index.ts:227` dispatches it, and `wrangler.jsonc:109` schedules it daily. Eligibility precedes CT at `src/monitor/run.ts:284`. Live deployment verification is **missing-out-of-scope** for this candidate review. |
+| Tests | **Present but incomplete-in-scope.** `test/monitor/ct.test.ts:12`, `:26` and `:38` cover basic tokens, parsing, HTTP failure, owned-name exclusion and retained discovery. Missing assertions cover actual query semantics, timeout, byte/record overflow, malformed-success responses, eight-token enforcement, saturation, CT suppression for ineligible organisations, and stored run-status readback. The “later day” test at `:75` changes the run ID without advancing the clock. |
 
 **Part 2: excellence**
 
-My strongest architectural alternative is **continuous CT-log ingestion with durable checkpoints, replay/backfill and brand matching**, using a real-time feed such as [CertStream](https://certstream.calidog.io/) as an ingestion component. CertStream documents real-time certificate updates; durable recovery would remain an explicit system responsibility.
+My strongest architectural alternative for this purpose is **continuous CT-log ingestion with durable replay and local brand matching**, implemented with a CertStream-compatible collector and a durable queue. For example, the [Certstream documentation](https://certstream.dev/docs.html) describes certificate timestamps, source indices, log-health reporting and JetStream consumers that resume after disconnection. A bare WebSocket alone does not provide that durability.
 
-- **In-scope:** reliable substring discovery, honest incomplete-result reporting and durable discoveries. Findings 1 to 4 prevent this bounded daily implementation from meeting its own promise.
-- **Out-of-scope:** near-real-time detection. Daily polling introduces up to roughly one scheduling interval before discovery, plus source indexing delay. “Before the fake site is used” is an opportunity, not a guarantee.
-- **Out-of-scope:** checkpointed incremental ingestion and backfill. This implementation re-queries history without certificate timestamps or cursors, so growing responses can repeatedly exceed its bounds.
-- **Out-of-scope:** broader Unicode/confusable matching and measured discovery recall. Exact ASCII tokens provide narrower coverage than a dedicated brand-monitoring pipeline.
-- **In-scope:** evidence for the selected source’s usage conditions and tests proving the corrected contract. Neither requires replacing crt.sh or expanding the subsystem.
+The candidate falls short in these ways:
+
+- **In-scope:** Incorrect query matching, silent malformed/truncated responses and starvation of retained discoveries prevent reliable delivery of the bounded daily-search feature. A streaming replacement is unnecessary to fix these.
+- **Out-of-scope:** Daily polling cannot promise discovery before a fake site is used. A certificate issued just after the run can wait nearly a day, plus indexing delay. Continuous ingestion reduces that window; neither approach guarantees advance warning.
+- **Out-of-scope:** There is no certificate-level checkpoint, replay or provenance. `src/monitor/ct.ts:57` extracts only names; the stored first observation is DNS time, not certificate issuance or log-observation time.
+- **Out-of-scope:** Literal tokens cannot discover lookalikes that contain none of those tokens. Confusable and typo matching over an incoming certificate stream would broaden discovery beyond this section’s substring-search scope.
 
 COMPLETION: gaps
-OVERALL: needs-attention
 
-- Implemented: substring query semantics with a query-sensitive test in (round after d854ca42)
-- Implemented: non-array and truncated answers state the token failed in (round after d854ca42)
-- Implemented: retained discoveries take priority inside the shared cap in (round after d854ca42)
-- Implemented: CT discoveries persist before any DNS lookup in (round after d854ca42)
-- Implemented: NOTICE.md states crt.sh's published position honestly in (round after d854ca42)
-
-
+- Implemented: substring query semantics with a query-sensitive test in a80f0375
+- Implemented: non-array, truncated and malformed answers state the token failed in a80f0375 and d7922e0e
+- Implemented: retained discoveries inside the shared cap with daily full-cap rotation in a80f0375, d7922e0e and 9850c411
+- Implemented: CT discoveries persist before any DNS lookup in a80f0375
+- Implemented: NOTICE.md and the section record crt.sh's published position and the operator's standing choice in a80f0375 and d7922e0e
+- Implemented: saturated multi-day coverage regression test in the stamp candidate
