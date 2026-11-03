@@ -29,6 +29,7 @@
     { "pattern": "isitlegit.co.za/v/*", "zone_name": "isitlegit.co.za" },
     { "pattern": "isitlegit.co.za/s/*", "zone_name": "isitlegit.co.za" },
     { "pattern": "isitlegit.co.za/b/*", "zone_name": "isitlegit.co.za" },
+    { "pattern": "isitlegit.co.za/static/*", "zone_name": "isitlegit.co.za" },
     // www answers only the permanent redirect to the apex, answered in src/index.ts (D07 T06 §20); the custom
     // domain makes the DNS record and certificate the zone Redirect Rule would have needed.
     { "pattern": "www.isitlegit.co.za", "custom_domain": true },
