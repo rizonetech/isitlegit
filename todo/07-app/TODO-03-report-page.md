@@ -58,7 +58,7 @@ track: day-2
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [x] |
-| 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
+| 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [x] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [x] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
@@ -670,6 +670,9 @@ An invoice finding shows the masked comparison of the invoice's bank details wit
 - [x] Commit: `web: invoice and document cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the families' checks drawn, the invoice bank-changed card among them at both widths in both themes.
+
+> **Verified:** 2026-11-03 | §15 | d9052a60864f2c8659f65a8146a6ec54c0cc0081
+> **Review:** `docs/reviews/d07-t03-s15.json`
 
 ## 16. Voice cards
 

@@ -516,7 +516,7 @@ Sections: 199 | Checklist items: 854
 | [x]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [x]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
-| [ ]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 7     |
+| [x]    | D07 T03 §15 | Invoice and document cards                                  | none                 | 7     |
 | [ ]    | D07 T03 §17 | Trust and verification cards                                | none                 | 2     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member                              | none                 | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                               | attended             | 2     |
@@ -634,6 +634,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 359/558 verified sections, 127 ready to run now.
+Progress: 360/558 verified sections, 128 ready to run now.
 
 Checklist: 2764/3474 items completed (includes Commit items).
