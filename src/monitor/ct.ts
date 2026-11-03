@@ -50,8 +50,10 @@ async function boundedText(response: Response): Promise<string | null> {
 const HOSTNAME = /^(?=.{4,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 // The names one token's answer carries: split, wildcards stripped, validated, token-matching.
-export function ctNames(json: unknown, token: string): string[] {
-  if (!Array.isArray(json)) return [];
+// A non-array answer is not a search result at all, and an answer past the record bound is
+// truncated: both are stated by the caller, never read as a complete empty search.
+export function ctNames(json: unknown, token: string): { names: string[]; truncated: boolean } {
+  if (!Array.isArray(json)) return { names: [], truncated: true };
   const out = new Set<string>();
   for (const record of json.slice(0, MAX_RECORDS) as { name_value?: unknown }[]) {
     if (typeof record?.name_value !== "string") continue;
@@ -60,7 +62,7 @@ export function ctNames(json: unknown, token: string): string[] {
       if (host.includes(token) && HOSTNAME.test(host)) out.add(host);
     }
   }
-  return [...out];
+  return { names: [...out], truncated: json.length > MAX_RECORDS };
 }
 
 export type CtResult = { names: string[]; failed: string[] };
@@ -72,7 +74,7 @@ export async function ctCandidates(fetchFn: typeof fetch, tokens: string[]): Pro
   const failed: string[] = [];
   for (const token of tokens.slice(0, MAX_TOKENS)) {
     try {
-      const response = await fetchFn(`https://crt.sh/?q=${encodeURIComponent(`%.${token}.%`)}&output=json`, {
+      const response = await fetchFn(`https://crt.sh/?q=${encodeURIComponent(`%${token}%`)}&output=json`, {
         headers: { accept: "application/json" },
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
@@ -85,7 +87,9 @@ export async function ctCandidates(fetchFn: typeof fetch, tokens: string[]): Pro
         failed.push(token);
         continue;
       }
-      for (const host of ctNames(JSON.parse(text) as unknown, token)) names.add(host);
+      const parsed = ctNames(JSON.parse(text) as unknown, token);
+      for (const host of parsed.names) names.add(host);
+      if (parsed.truncated) failed.push(token);
     } catch {
       failed.push(token);
     }

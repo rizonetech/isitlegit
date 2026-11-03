@@ -16,21 +16,30 @@ describe("brand tokens and CT names", () => {
       "freight",
     ]);
     expect(brandTokens(["A B"], ["x.io"])).toEqual([]);
-    expect(ctNames([{ name_value: "*.Fynbos-Pay.example\nfynbos.example\nnot a host" }], "fynbos")).toEqual([
-      "fynbos-pay.example",
-      "fynbos.example",
-    ]);
-    expect(ctNames("nope", "fynbos")).toEqual([]);
+    expect(ctNames([{ name_value: "*.Fynbos-Pay.example\nfynbos.example\nnot a host" }], "fynbos")).toEqual({
+      names: ["fynbos-pay.example", "fynbos.example"],
+      truncated: false,
+    });
+    expect(ctNames("nope", "fynbos")).toEqual({ names: [], truncated: true });
   });
 
   it("states a failed token and keeps the names that arrived", async () => {
+    const asked: string[] = [];
     const fetchFn = (async (url: string | URL) => {
+      asked.push(String(url));
       if (String(url).includes("karoo")) return new Response("no", { status: 503 });
       return Response.json([{ name_value: "fynbos-pay.example" }]);
     }) as typeof fetch;
     const got = await ctCandidates(fetchFn, ["fynbos", "karoo"]);
     expect(got.names).toEqual(["fynbos-pay.example"]);
     expect(got.failed).toEqual(["karoo"]);
+    // Substring semantics: the token need not sit between dots.
+    expect(asked[0]).toContain(encodeURIComponent("%fynbos%"));
+    const bad = await ctCandidates(
+      (async () => Response.json({ error: "upstream unavailable" })) as unknown as typeof fetch,
+      ["fynbos"],
+    );
+    expect(bad).toEqual({ names: [], failed: ["fynbos"] });
   });
 });
 

@@ -314,9 +314,23 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const own = new Set(domains);
     const isOwn = (host: string) => domains.some((d) => host === d || host.endsWith(`.${d}`));
     const knownCt = [...known.keys()].filter((host) => tokens.some((token) => host.includes(token)) && !isOwn(host));
-    const candidates = [...new Set([...ctNames.filter((h) => !isOwn(h)), ...knownCt, ...generated])]
+    const candidates = [...new Set([...knownCt, ...ctNames.filter((h) => !isOwn(h)), ...generated])]
       .filter((h) => !own.has(h))
       .slice(0, MAX_CANDIDATES);
+    // A CT discovery persists before any lookup (D05 T04 §7): a failed lookup today and an
+    // empty CT answer tomorrow never lose it.
+    const discovered = ctNames.filter((h) => !isOwn(h) && !known.has(h));
+    if (discovered.length)
+      await deps.db.batch(
+        discovered.map((host) =>
+          deps.db
+            .prepare(
+              `INSERT INTO monitor_hosts (org_id, domain, resolves, first_seen, last_seen) VALUES (?, ?, 0, ?, ?)
+               ON CONFLICT (org_id, domain) DO NOTHING`,
+            )
+            .bind(orgId, host, at, at),
+        ),
+      );
     const looked = await inBatches(candidates, DNS_CONCURRENCY, async (host) => ({
       host,
       lookup: await deps.resolve(host),
