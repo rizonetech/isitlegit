@@ -418,7 +418,7 @@ Sections: 191 | Checklist items: 810
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
 | [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
 | [x]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
-| [ ]    | D01 T01 §24 | Pipeline writes fenced across a case removal     | none                 | 3     |
+| [x]    | D01 T01 §24 | Pipeline writes fenced across a case removal     | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
@@ -625,6 +625,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 345/549 verified sections, 134 ready to run now.
+Progress: 346/549 verified sections, 133 ready to run now.
 
-Checklist: 2684/3422 items completed (includes Commit items).
+Checklist: 2685/3422 items completed (includes Commit items).
