@@ -1,5 +1,5 @@
 {
- "$comment": "IsItLegit type tokens (design/SPEC.md). Exo for headings and figures, Exo 2 for text. Board sizes between scale steps round to the nearest step (at most 2 px away).",
+ "$comment": "IsItLegit type tokens (design/SPEC.md). Exo for headings, Exo 2 for text and tabular figures. Board sizes between scale steps round to the nearest step (at most 2 px away).",
  "families": {
   "heading": "Exo",
   "text": "Exo 2",
@@ -140,7 +140,7 @@
    "weight": 400
   },
   "figure": {
-   "family": "heading",
+   "family": "text",
    "size": 32,
    "line": 1.1,
    "weight": 800,

@@ -130,6 +130,12 @@ async function handleRequest(req: IncomingMessage): Promise<Response> {
         id: "org-long",
         name: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd",
       },
+      otherOrganizations: [
+        {
+          id: "org-other",
+          name: "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated",
+        },
+      ],
     });
     return new Response(
       String(
@@ -670,26 +676,40 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           const buttonMarkup = String(GalleryState(anchorOf("state", "button/primary")));
           const loadingMarkup = String(GalleryState(anchorOf("state", "polish/loading-sequence")));
           const { page, close } = await openStyled(
-            `<div class="flex flex-col gap-16">${focusedMarkup}${buttonMarkup}${loadingMarkup}<a id="site-link" href="#x" class="transition-all duration-300">Link</a></div>`,
+            `<div class="flex flex-col gap-16 items-start">${focusedMarkup}${buttonMarkup}${loadingMarkup}<a id="site-link" href="#x" class="transition-all duration-300 text-orange-text underline">Link</a><a id="site-cta" href="#cta" class="inline-flex items-center justify-center h-control px-20 rounded-control bg-orange-text text-on-band hover:bg-orange-hover">Start free trial</a></div>`,
             { theme, css: cssText(), reducedMotion: "reduce" },
           );
-          const motion = await page.evaluate(async () => {
-            const input = document.getElementById("g-focused") as HTMLInputElement;
-            const button = document.querySelector("button") as HTMLButtonElement;
+          await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+          const sizeChangedOnHoverOrFocus = async (selector: string) => {
+            const loc = page.locator(selector).first();
+            const rest = await loc.boundingBox();
+            await loc.hover();
+            const hovered = await loc.boundingBox();
+            await loc.focus();
+            const focused = await loc.boundingBox();
+            await page.mouse.move(0, 0);
+            await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+            return (
+              !rest ||
+              !hovered ||
+              !focused ||
+              rest.width !== hovered.width ||
+              rest.height !== hovered.height ||
+              rest.width !== focused.width ||
+              rest.height !== focused.height
+            );
+          };
+          expect(await sizeChangedOnHoverOrFocus("#g-focused")).toBe(false);
+          expect(await sizeChangedOnHoverOrFocus("button")).toBe(false);
+          expect(await sizeChangedOnHoverOrFocus("#site-link")).toBe(false);
+          expect(await sizeChangedOnHoverOrFocus("#site-cta")).toBe(false);
+
+          const motion = await page.evaluate(() => {
             const link = document.getElementById("site-link") as HTMLAnchorElement;
             const pulse = document.querySelector("[class*='animate-pulse']") as HTMLElement | null;
-            input.blur();
-            const beforeInput = input.getBoundingClientRect();
-            input.focus();
-            const afterInput = input.getBoundingClientRect();
-            const beforeBtn = button.getBoundingClientRect();
-            button.focus();
-            const afterBtn = button.getBoundingClientRect();
             const linkStyle = getComputedStyle(link);
             const pulseStyle = pulse ? getComputedStyle(pulse) : null;
             return {
-              inputSizeChanged: beforeInput.width !== afterInput.width || beforeInput.height !== afterInput.height,
-              btnSizeChanged: beforeBtn.width !== afterBtn.width || beforeBtn.height !== afterBtn.height,
               linkTransitionMs:
                 Number.parseFloat(linkStyle.transitionDuration) *
                 (linkStyle.transitionDuration.endsWith("ms") ? 1 : 1000),
@@ -699,8 +719,6 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
                 : 0,
             };
           });
-          expect(motion.inputSizeChanged).toBe(false);
-          expect(motion.btnSizeChanged).toBe(false);
           expect(motion.linkTransitionMs).toBeLessThanOrEqual(0.05);
           expect(motion.pulseAnimMs).toBeLessThanOrEqual(0.05);
           await close();
@@ -739,24 +757,48 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       expect(gCheck.senderAttr).toContain("bloemfonteinvervoerdienstverskaffers");
       await closeG();
 
-      // Also verify the live Cases page at 360 px with long org name, long file name, and long sender
+      // Also verify the live Cases page at 360 px with long org name in switcher (current and alternative), long file name, and long sender
       const context = await browser.newContext({ viewport: { width: 360, height: 900 } });
       const page = await context.newPage();
       await page.goto(`${origin}/cases`, { waitUntil: "load" });
+      await page.click('button[aria-label="Menu"]');
+      await page.click("#nav summary");
       const casesCheck = await page.evaluate(() => {
         const link = document.querySelector("ol a[href^='/r/']") as HTMLAnchorElement;
         const s = getComputedStyle(link);
+        const currentOrg = document.querySelector("#nav summary span.truncate") as HTMLElement;
+        const otherOrg = document.querySelector("#nav form[action='/orgs/switch'] button span.truncate") as HTMLElement;
+        const cs = getComputedStyle(currentOrg);
+        const os = getComputedStyle(otherOrg);
         return {
           pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           textOverflow: s.textOverflow,
           titleAttr: link.getAttribute("title"),
           href: link.getAttribute("href"),
+          currentOrgOverflow: cs.textOverflow,
+          currentOrgWhiteSpace: cs.whiteSpace,
+          currentOrgTruncated: currentOrg.scrollWidth > currentOrg.clientWidth,
+          currentOrgTitle: currentOrg.getAttribute("title"),
+          otherOrgOverflow: os.textOverflow,
+          otherOrgWhiteSpace: os.whiteSpace,
+          otherOrgTruncated: otherOrg.scrollWidth > otherOrg.clientWidth,
+          otherOrgTitle: otherOrg.getAttribute("title"),
         };
       });
       expect(casesCheck.pageOverflow).toBe(0);
       expect(casesCheck.textOverflow).toBe("ellipsis");
       expect(casesCheck.titleAttr).toBe(LONG_CASE.uploadName);
       expect(casesCheck.href).toContain("/r/01LONGCASE0000000000000000");
+      expect(casesCheck.currentOrgOverflow).toBe("ellipsis");
+      expect(casesCheck.currentOrgWhiteSpace).toBe("nowrap");
+      expect(casesCheck.currentOrgTruncated).toBe(true);
+      expect(casesCheck.currentOrgTitle).toBe("Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd");
+      expect(casesCheck.otherOrgOverflow).toBe("ellipsis");
+      expect(casesCheck.otherOrgWhiteSpace).toBe("nowrap");
+      expect(casesCheck.otherOrgTruncated).toBe(true);
+      expect(casesCheck.otherOrgTitle).toBe(
+        "Bloemfonteinvervoerdienstverskaffers Mountain View Logistics (Pty) Ltd Holdings Incorporated",
+      );
       await context.close();
     });
 
