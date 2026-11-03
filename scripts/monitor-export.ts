@@ -123,15 +123,18 @@ function removeOrNarrowPage(store: Store, pageId: string, itemIdPrefix: string, 
   const page = store.manifest({ tolerant: true }).find((p) => p.id === pageId);
   if (!page) return;
   const items = page.items ?? (page.item ? [{ id: page.item, lure: page.labels.lure }] : []);
+  if (!items.some((entry) => entry.id.startsWith(itemIdPrefix))) return;
   const remaining = items.filter((entry) => !entry.id.startsWith(itemIdPrefix));
-  if (remaining.length > 0 && page.items && page.items.length > 1) {
-    store.keepItems(
-      pageId,
-      remaining.map((entry) => entry.id),
-    );
+  if (remaining.length > 0) {
     const first = remaining[0];
-    if (first?.lure !== undefined) {
+    if (first?.lure !== undefined && page.labels.lure !== first.lure) {
       store.setLabels(pageId, { lure: first.lure }, { lure: "rule" });
+    }
+    if (page.items && page.items.length > 1) {
+      store.keepItems(
+        pageId,
+        remaining.map((entry) => entry.id),
+      );
     }
   } else {
     revokeProductionAdmission(store, [pageId], "monitor-export", nowIso);

@@ -262,6 +262,8 @@ describe("copyForTraining", () => {
     expect(isBenignDismissalReason("not authorized")).toBe(false);
     expect(isBenignDismissalReason("not a false positive")).toBe(false);
     expect(isBenignDismissalReason("does not belong to us")).toBe(false);
+    expect(isBenignDismissalReason("This impersonates our site, already reported")).toBe(false);
+    expect(isBenignDismissalReason("Clones our domain, takedown filed")).toBe(false);
     expect(isBenignDismissalReason("Not a fake, this is our own campaign site")).toBe(true);
     expect(isBenignDismissalReason("legitimate partner domain")).toBe(true);
 
@@ -467,6 +469,40 @@ describe("copyForTraining", () => {
     expect(restoredMeta.retracted).toBe(true);
     expect(restoredMeta.source).toBe("restore");
     expect(await bucket.head(`training/${keyRestored}done.json`)).not.toBeNull();
+
+    // Boundary 4: Transient meta.json read failure after restore throws rather than overwriting retraction.
+    let failMetaRead = true;
+    const flakyMetaBucket = new Proxy(bucket, {
+      get(target, prop, receiver) {
+        if (prop === "get") {
+          return async (key: string) => {
+            if (failMetaRead && key === `training/${keyRestored}meta.json`) {
+              throw new Error("transient R2 meta read failure");
+            }
+            return target.get(key);
+          };
+        }
+        const val = Reflect.get(target, prop, receiver);
+        return typeof val === "function" ? val.bind(target) : val;
+      },
+    });
+    await expect(
+      copyForTraining(flakyMetaBucket, {
+        orgId,
+        host: hostRestored,
+        captureKey: keyRestored,
+        captureUrl: `https://${hostRestored}/`,
+        label: "lure",
+        why: "pipeline retry",
+        source: "pipeline",
+      }),
+    ).rejects.toThrow(/transient R2 meta read failure/);
+    failMetaRead = false;
+    const stillRetracted = JSON.parse(
+      (await (await bucket.get(`training/${keyRestored}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(stillRetracted.retracted).toBe(true);
+    expect(stillRetracted.source).toBe("restore");
   });
 
   it("removes training copies for a host with durable tombstones and prevents re-copying", async () => {

@@ -305,6 +305,19 @@ describe("monitor export", () => {
     expect(store.manifest()[0]?.items).toBeUndefined();
     expect(store.manifest()[0]?.labels.lure).toBe(true);
 
+    // 2c. Retrying removal when a capture's provenance was already narrowed off a shared page does not delete the remaining capture's page.
+    const sharedPageId = store.manifest()[0]?.id ?? "";
+    receipts.set("monitor/org-1/aaa.example/2026-11-01T01:00:00.000Z", {
+      page: sharedPageId,
+      outcome: "stored",
+      label: "benign",
+      at: "2026-11-02T10:00:00.000Z",
+    });
+    save();
+    expect(await exportMonitorCopies(bucket, store, receipts, save)).toEqual({ stored: 0, skipped: 1, already: 1 });
+    expect(store.manifest()).toHaveLength(1);
+    expect(store.manifest()[0]?.id).toBe(sharedPageId);
+
     // Re-confirm `earlier` so both items are present again for subsequent checks.
     bucket.putCopy("earlier", {
       orgId: "org-1",

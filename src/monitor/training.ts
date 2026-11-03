@@ -87,20 +87,28 @@ export function defaultSourceRef(copy: Pick<TrainingCopy, "orgId" | "host" | "ca
 const NEGATED_BENIGN_PATTERN =
   /\b(?:not|no|never|isn'?t|wasn'?t|aren'?t|weren'?t|don'?t|doesn'?t|didn'?t|cannot|can'?t|won'?t|wouldn'?t|shouldn'?t|hardly|barely|neither|nor|without)\s+(?:(?:a|an|the|any|really|actually|even|at\s+all|longer|more|be|being|been|seem|seems|look|looks)\s+){0,3}(?:our\s+(?:own|site|domain|brand|page)|legitimate|authori[sz]ed|official(?:\s+(?:site|domain|partner))?|partner(?:\s+(?:site|domain))?|false\s+positive|belong(?:s|ing)?\s+to\s+us)\b/i;
 
+const POSITIVE_NOT_FAKE_GLOBAL_PATTERN =
+  /\bnot\s+(?:a\s+|an\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonat\w*|spoof\w*|fraud\w*)\b/gi;
+
 const POSITIVE_NOT_FAKE_PATTERN =
   /\bnot\s+(?:a\s+|an\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonat\w*|spoof\w*|fraud\w*)\b/i;
 
-const POSITIVE_BENIGN_PATTERN =
-  /\b(?:our\s+(?:own|site|domain|brand|page)|legitimate|authori[sz]ed|official\s+(?:site|domain|partner)|partner\s+(?:site|domain)|false\s+positive|belong(?:s|ing)?\s+to\s+us)\b/i;
+const DISQUALIFYING_THREAT_OR_TRIAGE_PATTERN =
+  /\b(?:fake|lure|phish\w*|scam\w*|impersonat\w*|spoof\w*|fraud\w*|malicious|clone\w*|cop(?:y|ied|ies)|mimic\w*|pretend\w*|steal\w*|stolen|takedown|taken\s+down|report(?:ed|ing)?|duplicate|expired|offline|down|parked|blocked|handled|resolved|sinkhole\w*|suspicious)\b/i;
 
-// A dismissal qualifies as a benign training label only when its reason unambiguously states the
-// site is not a fake, is legitimate, or belongs to / is authorised by the business; operational
-// dismissals ("duplicate", "already handled", "expired") and negated assertions ("not legitimate",
-// "not our site", "not authorized") do not label the page benign.
+const POSITIVE_BENIGN_PATTERN =
+  /\b(?:(?:this|it)\s+is\s+(?:our\s+(?:own\s+)?(?:site|domain|brand|page)|legitimate|authori[sz]ed|an?\s+(?:official|authori[sz]ed|legitimate)\s+(?:site|domain|partner))|^our\s+(?:own\s+)?(?:site|domain|brand|page)\b|\bour\s+own\s+(?:campaign\s+|test\s+|marketing\s+)?(?:site|domain|brand|page)\b|\blegitimate\s+(?:site|domain|partner|page|campaign|business)\b|^legitimate$|\bauthori[sz]ed\s+(?:site|domain|partner|page|campaign)\b|^authori[sz]ed$|\bofficial\s+(?:site|domain|partner)\b|\bpartner\s+(?:site|domain)\b|\bfalse\s+positive\b|\bbelong(?:s|ing)?\s+to\s+us\b)/i;
+
+// A dismissal qualifies as a benign training label only when its reason unambiguously classifies
+// the page as benign (not a fake, false positive, or the business's own / authorised / legitimate
+// site) and contains no un-negated threat or operational-triage terms ("This impersonates our site,
+// already reported", "duplicate", "expired", "not legitimate", "not our site").
 export function isBenignDismissalReason(reason: string): boolean {
   const trimmed = reason.trim();
   if (!trimmed) return false;
   if (NEGATED_BENIGN_PATTERN.test(trimmed)) return false;
+  const residual = trimmed.replace(POSITIVE_NOT_FAKE_GLOBAL_PATTERN, " ");
+  if (DISQUALIFYING_THREAT_OR_TRIAGE_PATTERN.test(residual)) return false;
   return POSITIVE_NOT_FAKE_PATTERN.test(trimmed) || POSITIVE_BENIGN_PATTERN.test(trimmed);
 }
 
@@ -143,20 +151,16 @@ const hostRemovedKey = (orgId: string, host: string) => `training/monitor/${orgI
 
 async function isRemoved(bucket: R2Bucket, orgId: string, host: string, prefix: string): Promise<boolean> {
   const [hostTombstone, captureTombstone] = await Promise.all([
-    bucket.head(hostRemovedKey(orgId, host)).catch(() => null),
-    bucket.head(`${prefix}removed.json`).catch(() => null),
+    bucket.head(hostRemovedKey(orgId, host)),
+    bucket.head(`${prefix}removed.json`),
   ]);
   return hostTombstone !== null || captureTombstone !== null;
 }
 
 async function readExistingMeta(bucket: R2Bucket, prefix: string): Promise<StoredTrainingMeta | null> {
-  const obj = await bucket.get(`${prefix}meta.json`).catch(() => null);
+  const obj = await bucket.get(`${prefix}meta.json`);
   if (!obj) return null;
-  try {
-    return JSON.parse(await obj.text()) as StoredTrainingMeta;
-  } catch {
-    return null;
-  }
+  return JSON.parse(await obj.text()) as StoredTrainingMeta;
 }
 
 export async function copyForTraining(
@@ -170,9 +174,9 @@ export async function copyForTraining(
   if (await isRemoved(bucket, copy.orgId, copy.host, prefix)) return "removed";
 
   const [doneHead, shotHead, textHead, existingMeta] = await Promise.all([
-    bucket.head(`${prefix}done.json`).catch(() => null),
-    bucket.head(`${prefix}screenshot.jpg`).catch(() => null),
-    bucket.head(`${prefix}text.txt`).catch(() => null),
+    bucket.head(`${prefix}done.json`),
+    bucket.head(`${prefix}screenshot.jpg`),
+    bucket.head(`${prefix}text.txt`),
     readExistingMeta(bucket, prefix),
   ]);
   const complete = doneHead !== null && shotHead !== null && textHead !== null && existingMeta !== null;
@@ -307,10 +311,7 @@ export async function retractTrainingCopy(
   if (!parsed) return "missing";
   const { prefix, trainingId, fetchedAt } = parsed;
   if (await isRemoved(bucket, orgId, host, prefix)) return "removed";
-  const [existing, doneHead] = await Promise.all([
-    readExistingMeta(bucket, prefix),
-    bucket.head(`${prefix}done.json`).catch(() => null),
-  ]);
+  const [existing, doneHead] = await Promise.all([readExistingMeta(bucket, prefix), bucket.head(`${prefix}done.json`)]);
   const nowIso = now().toISOString();
   const sourceRef = `finding:${orgId}:${host}:${captureKey}`;
   if (existing?.retracted) {
@@ -598,7 +599,7 @@ export async function recoverPendingTrainingCopies(
         if (parsed) {
           const [meta, doneHead] = await Promise.all([
             readExistingMeta(bucket, parsed.prefix),
-            bucket.head(`${parsed.prefix}done.json`).catch(() => null),
+            bucket.head(`${parsed.prefix}done.json`),
           ]);
           if (!meta?.retracted || !doneHead) {
             const out = await retractTrainingCopy(
