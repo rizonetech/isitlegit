@@ -36,6 +36,9 @@ track: day-2
 | 4 | §4 | Assemble, caption and upload the video | §3 | [ ] |
 | 5 | §5 | Submit on Cerebral Valley and confirm receipt | §4 | [ ] |
 | 6 | §6 | Paste competitor updates for review | -- | [ ] |
+| 7 | §7 | Publish Loupe LoRA weights and model card on Hugging Face | -- | [ ] |
+| 8 | §8 | Post the demo on X for the Most Viral Project award | §4 | [ ] |
+| 9 | §9 | Judge Getting-Started guide and access verification | §5 | [ ] |
 
 ## 1. Rizonetech dogfooding from day 2
 
@@ -149,6 +152,57 @@ Competitor update: 2026-11-01
 Competitor update: 2026-11-03
 
 **Test checkpoint:** `grep -cE '^Competitor update: 2026-11-0[1-3]$' todo/99-manual/TODO-02-event-operator.md` prints `2`.
+
+## 7. Publish Loupe LoRA weights and model card on Hugging Face
+
+Upload the fine-tuned Loupe (Muse Glimmer 30B LoRA) adapter weights, evaluation summary, and generated model card (`docs/glimmer/model-card-1.0.md` and `1.1` when promoted) to Hugging Face under `rizonetech/isitlegit-loupe`, containing model weights and public evaluation summaries only (never client mail or training rows).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Create the model repository, upload the adapter weights and model card, and link it in the README. Done when: the public Hugging Face page resolves logged out and is recorded here.
+
+- [ ] Create `https://huggingface.co/rizonetech/isitlegit-loupe`, upload the Loupe LoRA adapter weights and the generated model card (`README.md`) with held-out recall, false-alarm rate, latency, and dataset provenance, and record `Hugging Face: https://huggingface.co/rizonetech/isitlegit-loupe` here. Done when: a logged-out `curl -s -o /dev/null -w '%{http_code}' https://huggingface.co/rizonetech/isitlegit-loupe` prints `200` and the line is written here.
+- [ ] Commit: `todo: record Hugging Face model release`
+
+**Test checkpoint:** `grep -cE '^Hugging Face: https://huggingface\.co/' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 8. Post the demo on X for the Most Viral Project award
+
+Post the public demo thread and video on X (`@AIMetaDevs` tagged) for the US$20,000 Most Viral Project on X award (`docs/hackathon-criteria.md`): lead with the 15-second hook clip (`check@isitlegit.co.za` forward-to-verdict, live Muse Wonder containment walkthrough, and SAM 3.1 + Loupe trace), link the live demo (`https://isitlegit.co.za`), GitHub repository, and Hugging Face model card, and submit the X post URL on Cerebral Valley.
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Publish the X launch post and record its URL. Done when: the post is live, tags `@AIMetaDevs`, and is recorded here.
+
+- [ ] Publish the demo video and launch thread on X tagging `@AIMetaDevs`, include the live `https://isitlegit.co.za` demo, GitHub repo, and Hugging Face links, and record `X post: https://x.com/<handle>/status/<id>` here. Done when: the line is written here and included in the Cerebral Valley submission.
+- [ ] Commit: `todo: record X launch post`
+
+**Test checkpoint:** `grep -cE '^X post: https://(x|twitter)\.com/' todo/99-manual/TODO-02-event-operator.md` prints `1`.
+
+## 9. Judge Getting-Started guide and access verification
+
+Verify in a clean incognito browser that a hackathon judge landing on the GitHub README or `https://isitlegit.co.za` can test every Meta model flow in under 60 seconds without installing anything (`docs/hackathon-criteria.md`).
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Verify the 60-second judge quickstart in a logged-out browser. Done when: every step works logged out and the check is recorded here.
+
+- [ ] Verify the Judge Quickstart at the top of `README.md` in an incognito browser: (1) open the pre-populated demo org and sample cases (`https://isitlegit.co.za`), (2) sign in with the judge demo invite code or trigger a live upload check, (3) forward a test email to `check@isitlegit.co.za`, and (4) inspect the per-case model trace (Muse Spark, Muse Wonder browser walkthrough, SAM 3.1 logo segmentation, Loupe / Muse Glimmer screener, and Muse Voice Transcribe), then record `Judge quickstart verified: YYYY-MM-DD` here. Done when: the line is written here.
+- [ ] Commit: `todo: record judge quickstart verification`
+
+**Test checkpoint:** `grep -cE '^Judge quickstart verified: 2026-11-0[1-4]$' todo/99-manual/TODO-02-event-operator.md` prints `1`.
 
 ## Verification
 

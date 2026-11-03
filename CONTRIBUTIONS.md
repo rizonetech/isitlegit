@@ -1,5 +1,10 @@
 # Contributions
 
+[![Meta Muse Code](https://img.shields.io/badge/Meta%20Muse%20Code-Wonder%201.0-0467DF?logo=meta&logoColor=white)](#existing-before-the-hackathon-development-tooling-only)
+[![OpenAI GPT-6 Astra](https://img.shields.io/badge/OpenAI-GPT--6%20Astra-412991?logo=openai&logoColor=white)](#existing-before-the-hackathon-development-tooling-only)
+[![Anthropic Claude Opus 5.5](https://img.shields.io/badge/Anthropic-Claude%20Opus%205.5-D97757?logo=anthropic&logoColor=white)](#built-during-the-hackathon)
+[![Google Gemini 4 Argon](https://img.shields.io/badge/Google-Gemini%204%20Argon-4285F4?logo=googlegemini&logoColor=white)](#built-during-the-hackathon)
+
 The Meta Global AI Developer Hackathon requires every entry to show which features, code and functionality the team built during the event (26 Oct to 4 Nov 2026). This file is that record.
 
 ## Built during the hackathon

@@ -19,7 +19,14 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 <br>
 [![Meta Global AI Developer Hackathon](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-Startup%20track-FF4A14)](https://cerebralvalley.ai/e/meta-ai-developer-hackathon)
+[![Hugging Face: Loupe 1.1](https://img.shields.io/badge/Hugging%20Face-Loupe%20(Muse%20Glimmer%2030B%20LoRA)-FFD21E?logo=huggingface&logoColor=000000)](https://huggingface.co/rizonetech/isitlegit-loupe)
 [![Made in South Africa](https://img.shields.io/badge/made%20in-South%20Africa-007749)](https://www.rizonetech.com/)
+<br>
+<sub><strong>Built &amp; Reviewed With</strong></sub><br>
+[![Meta Muse Code](https://img.shields.io/badge/Meta%20Muse%20Code-Wonder%201.0-0467DF?logo=meta&logoColor=white)](CONTRIBUTIONS.md)
+[![OpenAI GPT-6 Astra](https://img.shields.io/badge/OpenAI-GPT--6%20Astra-412991?logo=openai&logoColor=white)](CONTRIBUTIONS.md)
+[![Anthropic Claude Opus 5.5](https://img.shields.io/badge/Anthropic-Claude%20Opus%205.5-D97757?logo=anthropic&logoColor=white)](CONTRIBUTIONS.md)
+[![Google Gemini 4 Argon](https://img.shields.io/badge/Google-Gemini%204%20Argon-4285F4?logo=googlegemini&logoColor=white)](CONTRIBUTIONS.md)
 
 </div>
 

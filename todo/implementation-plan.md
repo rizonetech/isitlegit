@@ -636,28 +636,31 @@ Sections: 8 | Checklist items: 38
 
 ### Phase 99: Manual, operator only
 
-Sections: 17 | Checklist items: 71
+Sections: 20 | Checklist items: 77
 
-| Status | Reference   | Deliverable                                   | Needs    | Items |
-| ------ | ----------- | --------------------------------------------- | -------- | ----- |
-| [ ]    | D10 T01 §5  | Uploads and links recorded                    | operator | 5     |
-| [ ]    | D10 T01 §7  | Video 03 upload and link recorded             | operator | 4     |
-| [x]    | D99 T01 §1  | Meta API billing and API key                  | none     | 5     |
-| [x]    | D99 T01 §2  | Domain verification and nameservers           | none     | 15    |
-| [x]    | D99 T01 §3  | Workers Paid plan                             | none     | 3     |
-| [x]    | D99 T01 §4  | SMTP2GO sender domain                         | none     | 5     |
-| [x]    | D99 T01 §6  | Google Web Risk API key                       | none     | 6     |
-| [x]    | D99 T01 §7  | Partner credits for Glimmer                   | none     | 2     |
-| [x]    | D99 T01 §9  | Domain and mail recovery runbook              | none     | 6     |
-| [ ]    | D99 T01 §10 | Web Risk key restriction read from Google     | none     | 2     |
-| [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back | none     | 2     |
-| [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2              | operator | 3     |
-| [ ]    | D99 T02 §2  | Pilot client written consent                  | operator | 2     |
-| [ ]    | D99 T02 §3  | Record the demo footage                       | operator | 2     |
-| [ ]    | D99 T02 §4  | Assemble, caption and upload the video        | operator | 3     |
-| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
-| [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
+| Status | Reference   | Deliverable                                               | Needs    | Items |
+| ------ | ----------- | --------------------------------------------------------- | -------- | ----- |
+| [ ]    | D10 T01 §5  | Uploads and links recorded                                | operator | 5     |
+| [ ]    | D10 T01 §7  | Video 03 upload and link recorded                         | operator | 4     |
+| [x]    | D99 T01 §1  | Meta API billing and API key                              | none     | 5     |
+| [x]    | D99 T01 §2  | Domain verification and nameservers                       | none     | 15    |
+| [x]    | D99 T01 §3  | Workers Paid plan                                         | none     | 3     |
+| [x]    | D99 T01 §4  | SMTP2GO sender domain                                     | none     | 5     |
+| [x]    | D99 T01 §6  | Google Web Risk API key                                   | none     | 6     |
+| [x]    | D99 T01 §7  | Partner credits for Glimmer                               | none     | 2     |
+| [x]    | D99 T01 §9  | Domain and mail recovery runbook                          | none     | 6     |
+| [ ]    | D99 T01 §10 | Web Risk key restriction read from Google                 | none     | 2     |
+| [ ]    | D99 T01 §11 | SMTP2GO key permissions and senders read back             | none     | 2     |
+| [ ]    | D99 T02 §1  | Rizonetech dogfooding from day 2                          | operator | 3     |
+| [ ]    | D99 T02 §2  | Pilot client written consent                              | operator | 2     |
+| [ ]    | D99 T02 §3  | Record the demo footage                                   | operator | 2     |
+| [ ]    | D99 T02 §4  | Assemble, caption and upload the video                    | operator | 3     |
+| [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt             | operator | 4     |
+| [ ]    | D99 T02 §6  | Paste competitor updates for review                       | operator | 2     |
+| [ ]    | D99 T02 §7  | Publish Loupe LoRA weights and model card on Hugging Face | operator | 2     |
+| [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
+| [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 387/582 verified sections, 119 ready to run now.
+Progress: 387/585 verified sections, 119 ready to run now.
 
-Checklist: 2912/3616 items completed (includes Commit items).
+Checklist: 2912/3622 items completed (includes Commit items).
