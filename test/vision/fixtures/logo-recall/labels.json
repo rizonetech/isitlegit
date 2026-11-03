@@ -1,245 +1,245 @@
 {
- "version": 1,
- "samples": [
-  {
-   "file": "sample-01.png",
-   "brand": "Karoo Bank",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 164,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-02.png",
-   "brand": "Protea Bank",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 84,
-    "top": 38,
-    "right": 264,
-    "bottom": 86
-   }
-  },
-  {
-   "file": "sample-03.png",
-   "brand": "NimbusMail",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 144,
-    "top": 56,
-    "right": 364,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "sample-04.png",
-   "brand": "Baobab Insurance",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 204,
-    "top": 20,
-    "right": 464,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-05.png",
-   "brand": "Fynbos Freight",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 38,
-    "right": 324,
-    "bottom": 86
-   }
-  },
-  {
-   "file": "sample-06.png",
-   "brand": "Karoo Solar",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 84,
-    "top": 56,
-    "right": 224,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "sample-07.png",
-   "brand": "Protea Health",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 144,
-    "top": 20,
-    "right": 324,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-08.png",
-   "brand": "Savanna Air",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 204,
-    "top": 38,
-    "right": 424,
-    "bottom": 86
-   }
-  },
-  {
-   "file": "sample-09.png",
-   "brand": "Kalahari Hotels",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 56,
-    "right": 284,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "sample-10.png",
-   "brand": "Baobab Bank",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 84,
-    "top": 20,
-    "right": 384,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-11.png",
-   "brand": "Fynbos Foods",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 144,
-    "top": 38,
-    "right": 284,
-    "bottom": 86
-   }
-  },
-  {
-   "file": "sample-12.png",
-   "brand": "Karoo Mobile",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 204,
-    "top": 56,
-    "right": 384,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "sample-13.png",
-   "brand": "Protea Pay",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 244,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-14.png",
-   "brand": "Savanna Bank",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 84,
-    "top": 38,
-    "right": 344,
-    "bottom": 86
-   }
-  },
-  {
-   "file": "sample-15.png",
-   "brand": "Kalahari Mail",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 144,
-    "top": 56,
-    "right": 444,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "sample-16.png",
-   "brand": "Baobab Freight",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 204,
-    "top": 20,
-    "right": 344,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-17.png",
-   "brand": "Fynbos Bank",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 38,
-    "right": 204,
-    "bottom": 86
-   }
-  },
-  {
-   "file": "sample-18.png",
-   "brand": "Karoo Health",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 84,
-    "top": 56,
-    "right": 304,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "sample-19.png",
-   "brand": "Protea Solar",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 144,
-    "top": 20,
-    "right": 404,
-    "bottom": 56
-   }
-  },
-  {
-   "file": "sample-20.png",
-   "brand": "Savanna Pay",
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 204,
-    "top": 38,
-    "right": 504,
-    "bottom": 86
-   }
-  }
- ]
+  "version": 1,
+  "samples": [
+    {
+      "file": "sample-01.png",
+      "brand": "Karoo Bank",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 164,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-02.png",
+      "brand": "Protea Bank",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 84,
+        "top": 38,
+        "right": 264,
+        "bottom": 86
+      }
+    },
+    {
+      "file": "sample-03.png",
+      "brand": "NimbusMail",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 144,
+        "top": 56,
+        "right": 364,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "sample-04.png",
+      "brand": "Baobab Insurance",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 204,
+        "top": 20,
+        "right": 464,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-05.png",
+      "brand": "Fynbos Freight",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 38,
+        "right": 324,
+        "bottom": 86
+      }
+    },
+    {
+      "file": "sample-06.png",
+      "brand": "Karoo Solar",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 84,
+        "top": 56,
+        "right": 224,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "sample-07.png",
+      "brand": "Protea Health",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 144,
+        "top": 20,
+        "right": 324,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-08.png",
+      "brand": "Savanna Air",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 204,
+        "top": 38,
+        "right": 424,
+        "bottom": 86
+      }
+    },
+    {
+      "file": "sample-09.png",
+      "brand": "Kalahari Hotels",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 56,
+        "right": 284,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "sample-10.png",
+      "brand": "Baobab Bank",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 84,
+        "top": 20,
+        "right": 384,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-11.png",
+      "brand": "Fynbos Foods",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 144,
+        "top": 38,
+        "right": 284,
+        "bottom": 86
+      }
+    },
+    {
+      "file": "sample-12.png",
+      "brand": "Karoo Mobile",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 204,
+        "top": 56,
+        "right": 384,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "sample-13.png",
+      "brand": "Protea Pay",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 244,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-14.png",
+      "brand": "Savanna Bank",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 84,
+        "top": 38,
+        "right": 344,
+        "bottom": 86
+      }
+    },
+    {
+      "file": "sample-15.png",
+      "brand": "Kalahari Mail",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 144,
+        "top": 56,
+        "right": 444,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "sample-16.png",
+      "brand": "Baobab Freight",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 204,
+        "top": 20,
+        "right": 344,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-17.png",
+      "brand": "Fynbos Bank",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 38,
+        "right": 204,
+        "bottom": 86
+      }
+    },
+    {
+      "file": "sample-18.png",
+      "brand": "Karoo Health",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 84,
+        "top": 56,
+        "right": 304,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "sample-19.png",
+      "brand": "Protea Solar",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 144,
+        "top": 20,
+        "right": 404,
+        "bottom": 56
+      }
+    },
+    {
+      "file": "sample-20.png",
+      "brand": "Savanna Pay",
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 204,
+        "top": 38,
+        "right": 504,
+        "bottom": 86
+      }
+    }
+  ]
 }

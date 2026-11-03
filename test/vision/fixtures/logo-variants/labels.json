@@ -1,265 +1,265 @@
 {
- "version": 1,
- "samples": [
-  {
-   "file": "protea-bank-wordmark-1.png",
-   "brand": "Protea Bank",
-   "shown": "wordmark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 384,
-    "bottom": 132
-   }
-  },
-  {
-   "file": "protea-bank-wordmark-2.png",
-   "brand": "Protea Bank",
-   "shown": "wordmark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 320,
-    "bottom": 101
-   }
-  },
-  {
-   "file": "protea-bank-icon-1.png",
-   "brand": "Protea Bank",
-   "shown": "icon",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 120,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "protea-bank-icon-2.png",
-   "brand": "Protea Bank",
-   "shown": "icon",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 162,
-    "bottom": 92
-   }
-  },
-  {
-   "file": "protea-bank-dark-1.png",
-   "brand": "Protea Bank",
-   "shown": "dark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 384,
-    "bottom": 132
-   }
-  },
-  {
-   "file": "protea-bank-dark-2.png",
-   "brand": "Protea Bank",
-   "shown": "dark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 320,
-    "bottom": 101
-   }
-  },
-  {
-   "file": "protea-bank-other-1.png",
-   "brand": "Protea Bank",
-   "shown": "other",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 384,
-    "bottom": 132
-   }
-  },
-  {
-   "file": "protea-bank-other-2.png",
-   "brand": "Protea Bank",
-   "shown": "other",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 320,
-    "bottom": 101
-   }
-  },
-  {
-   "file": "protea-bank-none-1.png",
-   "brand": "Protea Bank",
-   "shown": "none",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": null
-  },
-  {
-   "file": "protea-bank-none-2.png",
-   "brand": "Protea Bank",
-   "shown": "none",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": null
-  },
-  {
-   "file": "nimbusmail-wordmark-1.png",
-   "brand": "NimbusMail",
-   "shown": "wordmark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 384,
-    "bottom": 132
-   }
-  },
-  {
-   "file": "nimbusmail-wordmark-2.png",
-   "brand": "NimbusMail",
-   "shown": "wordmark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 320,
-    "bottom": 101
-   }
-  },
-  {
-   "file": "nimbusmail-icon-1.png",
-   "brand": "NimbusMail",
-   "shown": "icon",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 120,
-    "bottom": 116
-   }
-  },
-  {
-   "file": "nimbusmail-icon-2.png",
-   "brand": "NimbusMail",
-   "shown": "icon",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 162,
-    "bottom": 92
-   }
-  },
-  {
-   "file": "nimbusmail-dark-1.png",
-   "brand": "NimbusMail",
-   "shown": "dark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 384,
-    "bottom": 132
-   }
-  },
-  {
-   "file": "nimbusmail-dark-2.png",
-   "brand": "NimbusMail",
-   "shown": "dark",
-   "expected_same": true,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 320,
-    "bottom": 101
-   }
-  },
-  {
-   "file": "nimbusmail-other-1.png",
-   "brand": "NimbusMail",
-   "shown": "other",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 24,
-    "top": 20,
-    "right": 384,
-    "bottom": 132
-   }
-  },
-  {
-   "file": "nimbusmail-other-2.png",
-   "brand": "NimbusMail",
-   "shown": "other",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": {
-    "left": 104,
-    "top": 34,
-    "right": 320,
-    "bottom": 101
-   }
-  },
-  {
-   "file": "nimbusmail-none-1.png",
-   "brand": "NimbusMail",
-   "shown": "none",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": null
-  },
-  {
-   "file": "nimbusmail-none-2.png",
-   "brand": "NimbusMail",
-   "shown": "none",
-   "expected_same": false,
-   "width": 1024,
-   "height": 768,
-   "logo": null
-  }
- ]
+  "version": 1,
+  "samples": [
+    {
+      "file": "protea-bank-wordmark-1.png",
+      "brand": "Protea Bank",
+      "shown": "wordmark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 384,
+        "bottom": 132
+      }
+    },
+    {
+      "file": "protea-bank-wordmark-2.png",
+      "brand": "Protea Bank",
+      "shown": "wordmark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 320,
+        "bottom": 101
+      }
+    },
+    {
+      "file": "protea-bank-icon-1.png",
+      "brand": "Protea Bank",
+      "shown": "icon",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 120,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "protea-bank-icon-2.png",
+      "brand": "Protea Bank",
+      "shown": "icon",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 162,
+        "bottom": 92
+      }
+    },
+    {
+      "file": "protea-bank-dark-1.png",
+      "brand": "Protea Bank",
+      "shown": "dark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 384,
+        "bottom": 132
+      }
+    },
+    {
+      "file": "protea-bank-dark-2.png",
+      "brand": "Protea Bank",
+      "shown": "dark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 320,
+        "bottom": 101
+      }
+    },
+    {
+      "file": "protea-bank-other-1.png",
+      "brand": "Protea Bank",
+      "shown": "other",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 384,
+        "bottom": 132
+      }
+    },
+    {
+      "file": "protea-bank-other-2.png",
+      "brand": "Protea Bank",
+      "shown": "other",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 320,
+        "bottom": 101
+      }
+    },
+    {
+      "file": "protea-bank-none-1.png",
+      "brand": "Protea Bank",
+      "shown": "none",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": null
+    },
+    {
+      "file": "protea-bank-none-2.png",
+      "brand": "Protea Bank",
+      "shown": "none",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": null
+    },
+    {
+      "file": "nimbusmail-wordmark-1.png",
+      "brand": "NimbusMail",
+      "shown": "wordmark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 384,
+        "bottom": 132
+      }
+    },
+    {
+      "file": "nimbusmail-wordmark-2.png",
+      "brand": "NimbusMail",
+      "shown": "wordmark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 320,
+        "bottom": 101
+      }
+    },
+    {
+      "file": "nimbusmail-icon-1.png",
+      "brand": "NimbusMail",
+      "shown": "icon",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 120,
+        "bottom": 116
+      }
+    },
+    {
+      "file": "nimbusmail-icon-2.png",
+      "brand": "NimbusMail",
+      "shown": "icon",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 162,
+        "bottom": 92
+      }
+    },
+    {
+      "file": "nimbusmail-dark-1.png",
+      "brand": "NimbusMail",
+      "shown": "dark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 384,
+        "bottom": 132
+      }
+    },
+    {
+      "file": "nimbusmail-dark-2.png",
+      "brand": "NimbusMail",
+      "shown": "dark",
+      "expected_same": true,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 320,
+        "bottom": 101
+      }
+    },
+    {
+      "file": "nimbusmail-other-1.png",
+      "brand": "NimbusMail",
+      "shown": "other",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 24,
+        "top": 20,
+        "right": 384,
+        "bottom": 132
+      }
+    },
+    {
+      "file": "nimbusmail-other-2.png",
+      "brand": "NimbusMail",
+      "shown": "other",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": {
+        "left": 104,
+        "top": 34,
+        "right": 320,
+        "bottom": 101
+      }
+    },
+    {
+      "file": "nimbusmail-none-1.png",
+      "brand": "NimbusMail",
+      "shown": "none",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": null
+    },
+    {
+      "file": "nimbusmail-none-2.png",
+      "brand": "NimbusMail",
+      "shown": "none",
+      "expected_same": false,
+      "width": 1024,
+      "height": 768,
+      "logo": null
+    }
+  ]
 }
