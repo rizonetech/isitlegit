@@ -48,7 +48,7 @@ track: day-6
 | 15 | §15 | Slash shortcut to the | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
-| 18 | §18 | Threat kinds under Malicious | §2 | [ ] |
+| 18 | §18 | Threat kinds under Malicious | §2 | [x] |
 | 19 | §19 | Chosen reporting period for the | §2 | [ ] |
 | 20 | §20 | Opt-in weekly counts | §2 | [ ] |
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
@@ -153,7 +153,7 @@ This week and last: cases checked, verdict mix, median time to verdict, invoice 
 - [x] Commit: `web: weekly stats, money at risk and CSV export`
 
 > **Deferred:** the Money at risk caught tile -> XREF: D07 T04 §17
-> **Deferred:** the kinds line under Malicious or suspicious -> XREF: D07 T04 §18
+> **Resolved:** the kinds line under Malicious or suspicious -> XREF: D07 T04 §18
 
 **Corrected 2026-10-31:** `GET /cases/stats.csv` was answered 404 by the report's `GET /cases/:caseId`, which claimed any word as a case id; with the coordinator's approval the report route now claims only a ULID (`src/web/pages/report.tsx`), and any other `/cases/<x>` is the same 404 page from `src/web/pages/cases.tsx` without a read (`test/web/stats.test.ts` "/cases/<x> routing").
 
@@ -749,6 +749,9 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 - [x] Commit: `web: threat kinds under malicious or suspicious`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
+
+> **Verified:** 2026-11-03 | §18 | e1aee461040539ed28977fccc1bd2027e49cb2d2
+> **Review:** `docs/reviews/d07-t04-s18.json`
 
 ## 19. Reporting period choice
 
