@@ -764,8 +764,8 @@ const previewAttempts = new WeakMap                          ();
 const previewVisible = new WeakSet                  ();
 const previewDeadline = (img                  ) =>
   Number(img.closest             ("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
-const clearPreview = (img                  ) => {
-  previewAttempts.set(img, (previewAttempts.get(img) ?? 0) + 1);
+const clearPreview = (img                  , bump = true) => {
+  if (bump) previewAttempts.set(img, (previewAttempts.get(img) ?? 0) + 1);
   const timer = previewTimers.get(img);
   if (timer) clearTimeout(timer);
   previewTimers.delete(img);
@@ -774,7 +774,8 @@ const armPreview = (img                  , fresh = false) => {
   if (!img.getAttribute("src") || img.complete) return;
   // An attempt already counting down keeps its deadline: scrolling away and back does not extend it.
   if (!fresh && previewTimers.has(img)) return;
-  const attempt = (previewAttempts.get(img) ?? 0) + 1;
+  const current = previewAttempts.get(img);
+  const attempt = fresh || current === undefined ? (current ?? 0) + 1 : current;
   previewAttempts.set(img, attempt);
   const old = previewTimers.get(img);
   if (old) clearTimeout(old);
@@ -922,7 +923,7 @@ document.addEventListener(
       img.hasAttribute("data-evidence-image") &&
       img.dataset.evidenceAbandoned !== "true"
     ) {
-      clearPreview(img);
+      clearPreview(img, false);
       evidenceError(img);
     }
   },
