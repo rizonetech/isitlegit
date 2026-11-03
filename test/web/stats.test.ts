@@ -402,7 +402,14 @@ describe("threat kinds (D07 T04 §18)", () => {
 });
 
 describe("threat kinds: weeks, runs and the rendered line (D07 T04 §18)", () => {
-  const ev = async (id: string, check: string, severity = "high", detail = "{}", run: string | null = "run-1", seq = 1) => {
+  const ev = async (
+    id: string,
+    check: string,
+    severity = "high",
+    detail = "{}",
+    run: string | null = "run-1",
+    seq = 1,
+  ) => {
     if (run !== null) await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(run, id).run();
     await db
       .prepare(
@@ -417,7 +424,11 @@ describe("threat kinds: weeks, runs and the rendered line (D07 T04 §18)", () =>
     const a = await org("Karoo Couriers");
     const tue = "2026-10-27T08:00:00.000Z";
     // Arrival last week (Sunday 23:59:59 SAST), verdict Monday: last week's kind, not this week's.
-    const lastWeek = await made(a, { at: "2026-10-25T21:59:59.000Z", verdict: "malicious", decidedAt: "2026-10-26T08:00:00.000Z" });
+    const lastWeek = await made(a, {
+      at: "2026-10-25T21:59:59.000Z",
+      verdict: "malicious",
+      decidedAt: "2026-10-26T08:00:00.000Z",
+    });
     await ev(lastWeek, "invoice.detected", "info");
     // Conflicting runs: the old run said invoice, the current run says phishing.
     const conflict = await made(a, { at: tue, verdict: "malicious" });
@@ -444,8 +455,15 @@ describe("threat kinds: weeks, runs and the rendered line (D07 T04 §18)", () =>
     const a = await org("Karoo Couriers");
     const thisWeek = weekStart(new Date());
     for (let i = 0; i < 2; i++)
-      await ev(await made(a, { at: plus(thisWeek, 60 + i), verdict: "malicious", decidedAt: plus(thisWeek, 120) }), "link.credential_form");
-    await ev(await made(a, { at: plus(thisWeek, 90), verdict: "suspicious", decidedAt: plus(thisWeek, 120) }), "invoice.detected", "info");
+      await ev(
+        await made(a, { at: plus(thisWeek, 60 + i), verdict: "malicious", decidedAt: plus(thisWeek, 120) }),
+        "link.credential_form",
+      );
+    await ev(
+      await made(a, { at: plus(thisWeek, 90), verdict: "suspicious", decidedAt: plus(thisWeek, 120) }),
+      "invoice.detected",
+      "info",
+    );
     const { cookie } = await member(a);
     const html = await (await get("/cases", cookie)).text();
     const panel = html.slice(html.indexOf('<section id="case-stats"'), html.indexOf("</section>"));
