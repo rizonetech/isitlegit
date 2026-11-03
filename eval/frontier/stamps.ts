@@ -5,7 +5,7 @@
 // Both arms receive the same genuine reference and the same Spark settings; labels never enter a prompt.
 // Spend is capped at US$1.50 through localBudget and the shared ledger (owner eval-frontier), stopping on any refusal.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
 import { dirname, join } from "node:path";
 import sharp from "sharp";
@@ -27,12 +27,96 @@ export const MAX_CHAIN_MAX_MS = 30_000;
 export const REASONING_EFFORT = "low" as const;
 export const MAX_OUTPUT_TOKENS = 4000;
 
+let writeSeq = 0;
 export const sha256 = (d: Uint8Array | string) => createHash("sha256").update(d).digest("hex");
 export function writeAtomic(file: string, data: string | Uint8Array): void {
   mkdirSync(dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
+  const tmp = `${file}.${process.pid}.${++writeSeq}.tmp`;
   writeFileSync(tmp, data);
   renameSync(tmp, file);
+}
+
+const isProcessAlive = (pid: number) => {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+
+const readLockContents = (file: string) => {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+};
+
+function claimLockFile(file: string, token: string): boolean {
+  const mine = `${file}.${process.pid}.${++writeSeq}.tmp`;
+  writeFileSync(mine, token);
+  try {
+    linkSync(mine, file);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  } finally {
+    try {
+      unlinkSync(mine);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+export function takeRunLock(file: string): () => void {
+  mkdirSync(dirname(file), { recursive: true });
+  const token = `${process.pid}:${++writeSeq}`;
+  const makeReleaser = () => {
+    const release = () => {
+      if (readLockContents(file) !== token) return;
+      try {
+        unlinkSync(file);
+      } catch {
+        // already gone
+      }
+    };
+    process.once("exit", release);
+    return () => {
+      process.removeListener("exit", release);
+      release();
+    };
+  };
+  if (claimLockFile(file, token)) return makeReleaser();
+  const holder = readLockContents(file);
+  const holderPid = Number(holder?.split(":")[0]);
+  if (isProcessAlive(holderPid)) {
+    throw new Error(`another stamps run (process ${holderPid}) is already holding ${file}`);
+  }
+  const guard = `${file}.reclaim`;
+  if (!claimLockFile(guard, token)) {
+    throw new Error(`another stamps run is reclaiming ${file}; wait for it to finish`);
+  }
+  try {
+    const now = readLockContents(file);
+    if (now !== null && now !== holder) {
+      throw new Error(`another stamps run (${now.trim()}) took ${file}`);
+    }
+    if (now !== null) unlinkSync(file);
+    if (!claimLockFile(file, token)) {
+      throw new Error(`another stamps run took ${file}`);
+    }
+    return makeReleaser();
+  } finally {
+    try {
+      unlinkSync(guard);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const ManifestEntry = z.strictObject({
@@ -470,167 +554,172 @@ export async function runStamps(
 ): Promise<{ outcomes: ArmOutcome[]; stopped: string | null }> {
   const resultsFile = opts?.resultsFile ?? join(dir, "results.json");
   const retryFailed = opts?.retryFailed ?? false;
-  const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")));
-  const disk = verifySetOnDisk(dir, entries);
-  if (disk.problems.length > 0) throw new Error(`stamps set verification failed: ${disk.problems.join("; ")}`);
-  const { fingerprint } = disk;
+  const releaseLock = takeRunLock(`${resultsFile}.lock`);
+  try {
+    const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")));
+    const disk = verifySetOnDisk(dir, entries);
+    if (disk.problems.length > 0) throw new Error(`stamps set verification failed: ${disk.problems.join("; ")}`);
+    const { fingerprint } = disk;
 
-  const outcomes: ArmOutcome[] = existsSync(resultsFile)
-    ? ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")))
-    : [];
-  const byFile = new Map(entries.map((e) => [e.file, e]));
-  for (const o of outcomes) {
-    const entry = byFile.get(o.file);
-    if (!entry) throw new Error(`stored outcome ${o.file} is not in manifest.json`);
-    if (o.fileSha256 !== entry.sha256)
-      throw new Error(`stored outcome for ${o.file} has fileSha256 ${o.fileSha256}, expected ${entry.sha256}`);
-    if (o.fingerprint !== fingerprint)
-      throw new Error(`stored outcome for ${o.file} has fingerprint ${o.fingerprint}, expected ${fingerprint}`);
-  }
+    const outcomes: ArmOutcome[] = existsSync(resultsFile)
+      ? ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")))
+      : [];
+    const byFile = new Map(entries.map((e) => [e.file, e]));
+    for (const o of outcomes) {
+      const entry = byFile.get(o.file);
+      if (!entry) throw new Error(`stored outcome ${o.file} is not in manifest.json`);
+      if (o.fileSha256 !== entry.sha256)
+        throw new Error(`stored outcome for ${o.file} has fileSha256 ${o.fileSha256}, expected ${entry.sha256}`);
+      if (o.fingerprint !== fingerprint)
+        throw new Error(`stored outcome for ${o.file} has fingerprint ${o.fingerprint}, expected ${fingerprint}`);
+    }
 
-  const save = () => writeAtomic(resultsFile, `${JSON.stringify(outcomes, null, 1)}\n`);
-  const reference = readFileSync(join(dir, "reference-stamp.png"));
-  let stopped: string | null = null;
-  let fatalStop = false;
-  const upsert = (row: ArmOutcome) => {
-    const idx = outcomes.findIndex((o) => o.file === row.file && o.arm === row.arm);
-    if (idx >= 0) outcomes[idx] = row;
-    else outcomes.push(row);
-    save();
-  };
+    const save = () => writeAtomic(resultsFile, `${JSON.stringify(outcomes, null, 1)}\n`);
+    const reference = readFileSync(join(dir, "reference-stamp.png"));
+    let stopped: string | null = null;
+    let fatalStop = false;
+    const upsert = (row: ArmOutcome) => {
+      const idx = outcomes.findIndex((o) => o.file === row.file && o.arm === row.arm);
+      if (idx >= 0) outcomes[idx] = row;
+      else outcomes.push(row);
+      save();
+    };
 
-  for (const entry of entries) {
-    if (fatalStop) break;
-    const page = readFileSync(join(dir, entry.file));
-    for (const arm of ["whole", "chain"] as const) {
+    for (const entry of entries) {
       if (fatalStop) break;
-      const prev = outcomes.find((o) => o.file === entry.file && o.arm === arm);
-      if (prev) {
-        if (prev.status === "answered" || prev.status === "empty-segmentation") continue;
-        if (prev.status !== "budget-stopped" && !retryFailed) continue;
-      }
-      const meta: StampCallMeta = { file: entry.file, arm, fingerprint };
-      const reconciled = prev ? await deps.reconcilePrior?.(meta) : null;
-      const priorUsd = reconciled ? reconciled.usd : (prev?.usd ?? 0);
-      const priorAttempts = reconciled ? reconciled.attempts : (prev?.attempts ?? 0);
-      if (deps.spentUsd() >= RUN_CAP_USD) {
-        stopped = `budget cap US$${RUN_CAP_USD} reached`;
-        if (!prev) {
-          upsert({
-            file: entry.file,
-            arm,
-            status: "budget-stopped",
-            doctored: null,
-            ms: null,
-            usd: 0,
-            attempts: 0,
-            fileSha256: entry.sha256,
-            fingerprint,
-          });
+      const page = readFileSync(join(dir, entry.file));
+      for (const arm of ["whole", "chain"] as const) {
+        if (fatalStop) break;
+        const prev = outcomes.find((o) => o.file === entry.file && o.arm === arm);
+        if (prev) {
+          if (prev.status === "answered" || prev.status === "empty-segmentation") continue;
+          if (prev.status !== "budget-stopped" && !retryFailed) continue;
         }
-        continue;
-      }
-
-      const initialReserve = arm === "whole" ? ESTIMATE_USD.spark : 2 * ESTIMATE_USD.segment;
-      upsert({
-        file: entry.file,
-        arm,
-        status: "pending",
-        doctored: null,
-        ms: null,
-        usd: Number((priorUsd + initialReserve).toFixed(6)),
-        attempts: priorAttempts + (arm === "whole" ? 1 : 2),
-        fileSha256: entry.sha256,
-        fingerprint,
-      });
-
-      const t0 = Date.now();
-      let segCost = 0;
-      let segAttempts = 0;
-      let askStarted = false;
-      let samBoxes = 0;
-      try {
-        let images: Buffer[];
-        if (arm === "whole") {
-          images = [reference, page];
-        } else {
-          const crops: Buffer[] = [reference];
-          for (const concept of SAM_CONCEPTS) {
-            const rawSeg = await deps.segment(page, concept, meta);
-            const boxes = Array.isArray(rawSeg) ? rawSeg : rawSeg.boxes;
-            segCost += Array.isArray(rawSeg) ? ESTIMATE_USD.segment : (rawSeg.usd ?? ESTIMATE_USD.segment);
-            segAttempts += Array.isArray(rawSeg) ? 1 : (rawSeg.attempts ?? 1);
-            samBoxes += boxes.length;
-            for (const rawBox of boxes.slice(0, MAX_CROPS_PER_CONCEPT)) {
-              const box = clampCropBox(rawBox, PAGE_WIDTH, PAGE_HEIGHT);
-              crops.push(await sharp(page).extract(box).png().toBuffer());
-            }
-          }
-          if (crops.length === 1) {
+        const meta: StampCallMeta = { file: entry.file, arm, fingerprint };
+        const reconciled = prev ? await deps.reconcilePrior?.(meta) : null;
+        const priorUsd = reconciled ? reconciled.usd : (prev?.usd ?? 0);
+        const priorAttempts = reconciled ? reconciled.attempts : (prev?.attempts ?? 0);
+        if (deps.spentUsd() >= RUN_CAP_USD) {
+          stopped = `budget cap US$${RUN_CAP_USD} reached`;
+          if (!prev) {
             upsert({
               file: entry.file,
               arm,
-              status: "empty-segmentation",
+              status: "budget-stopped",
               doctored: null,
-              ms: Date.now() - t0,
-              usd: Number((priorUsd + segCost).toFixed(6)),
-              attempts: priorAttempts + segAttempts,
+              ms: null,
+              usd: 0,
+              attempts: 0,
               fileSha256: entry.sha256,
               fingerprint,
-              samBoxes: 0,
             });
-            continue;
           }
-          images = crops;
+          continue;
         }
-        askStarted = true;
-        const answer = await deps.ask(images, meta);
-        const callUsd = (answer.usd ?? ESTIMATE_USD.spark) + segCost;
-        const callAttempts = segAttempts + (answer.attempts ?? 1);
+
+        const initialReserve = arm === "whole" ? ESTIMATE_USD.spark : 2 * ESTIMATE_USD.segment;
         upsert({
           file: entry.file,
           arm,
-          status: "answered",
-          doctored: answer.doctored,
-          ms: Date.now() - t0,
-          usd: Number((priorUsd + callUsd).toFixed(6)),
-          attempts: priorAttempts + callAttempts,
-          fileSha256: entry.sha256,
-          fingerprint,
-          ...(arm === "chain" ? { samBoxes } : {}),
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        const failed = deps.drainFailedStep?.() ?? {
-          usd: arm === "whole" || askStarted ? ESTIMATE_USD.spark : ESTIMATE_USD.segment,
-          attempts: 1,
-        };
-        const isFatalStop = /^accounting:|^budget:|would pass its cap|shared ledger/i.test(msg);
-        const status = /timeout|timed out/i.test(msg)
-          ? "timeout"
-          : /refus|^accounting:|^budget:|would pass its cap|shared ledger/i.test(msg)
-            ? "refused"
-            : "malformed";
-        upsert({
-          file: entry.file,
-          arm,
-          status,
+          status: "pending",
           doctored: null,
-          ms: Date.now() - t0,
-          usd: Number((priorUsd + segCost + failed.usd).toFixed(6)),
-          attempts: priorAttempts + segAttempts + failed.attempts,
+          ms: null,
+          usd: Number((priorUsd + initialReserve).toFixed(6)),
+          attempts: priorAttempts + (arm === "whole" ? 1 : 2),
           fileSha256: entry.sha256,
           fingerprint,
-          ...(arm === "chain" ? { samBoxes } : {}),
         });
-        if (status === "refused" || isFatalStop) {
-          stopped = msg;
-          fatalStop = true;
+
+        const t0 = Date.now();
+        let segCost = 0;
+        let segAttempts = 0;
+        let askStarted = false;
+        let samBoxes = 0;
+        try {
+          let images: Buffer[];
+          if (arm === "whole") {
+            images = [reference, page];
+          } else {
+            const crops: Buffer[] = [reference];
+            for (const concept of SAM_CONCEPTS) {
+              const rawSeg = await deps.segment(page, concept, meta);
+              const boxes = Array.isArray(rawSeg) ? rawSeg : rawSeg.boxes;
+              segCost += Array.isArray(rawSeg) ? ESTIMATE_USD.segment : (rawSeg.usd ?? ESTIMATE_USD.segment);
+              segAttempts += Array.isArray(rawSeg) ? 1 : (rawSeg.attempts ?? 1);
+              samBoxes += boxes.length;
+              for (const rawBox of boxes.slice(0, MAX_CROPS_PER_CONCEPT)) {
+                const box = clampCropBox(rawBox, PAGE_WIDTH, PAGE_HEIGHT);
+                crops.push(await sharp(page).extract(box).png().toBuffer());
+              }
+            }
+            if (crops.length === 1) {
+              upsert({
+                file: entry.file,
+                arm,
+                status: "empty-segmentation",
+                doctored: null,
+                ms: Date.now() - t0,
+                usd: Number((priorUsd + segCost).toFixed(6)),
+                attempts: priorAttempts + segAttempts,
+                fileSha256: entry.sha256,
+                fingerprint,
+                samBoxes: 0,
+              });
+              continue;
+            }
+            images = crops;
+          }
+          askStarted = true;
+          const answer = await deps.ask(images, meta);
+          const callUsd = (answer.usd ?? ESTIMATE_USD.spark) + segCost;
+          const callAttempts = segAttempts + (answer.attempts ?? 1);
+          upsert({
+            file: entry.file,
+            arm,
+            status: "answered",
+            doctored: answer.doctored,
+            ms: Date.now() - t0,
+            usd: Number((priorUsd + callUsd).toFixed(6)),
+            attempts: priorAttempts + callAttempts,
+            fileSha256: entry.sha256,
+            fingerprint,
+            ...(arm === "chain" ? { samBoxes } : {}),
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          const failed = deps.drainFailedStep?.() ?? {
+            usd: arm === "whole" || askStarted ? ESTIMATE_USD.spark : ESTIMATE_USD.segment,
+            attempts: 1,
+          };
+          const isFatalStop = /^accounting:|^budget:|would pass its cap|shared ledger/i.test(msg);
+          const status = /timeout|timed out/i.test(msg)
+            ? "timeout"
+            : /refus|^accounting:|^budget:|would pass its cap|shared ledger/i.test(msg)
+              ? "refused"
+              : "malformed";
+          upsert({
+            file: entry.file,
+            arm,
+            status,
+            doctored: null,
+            ms: Date.now() - t0,
+            usd: Number((priorUsd + segCost + failed.usd).toFixed(6)),
+            attempts: priorAttempts + segAttempts + failed.attempts,
+            fileSha256: entry.sha256,
+            fingerprint,
+            ...(arm === "chain" ? { samBoxes } : {}),
+          });
+          if (status === "refused" || isFatalStop) {
+            stopped = msg;
+            fatalStop = true;
+          }
         }
       }
     }
+    return { outcomes, stopped };
+  } finally {
+    releaseLock();
   }
-  return { outcomes, stopped };
 }
 
 export async function createBudgetedStampDeps(opts: {

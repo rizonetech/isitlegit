@@ -20,6 +20,7 @@ import {
   runStamps,
   SIGNATURE_BOX,
   STAMP_BOX,
+  type StampDeps,
   scoreOutcomes,
   wholePagePayload,
 } from "../../eval/frontier/stamps.ts";
@@ -545,5 +546,40 @@ describe("the stamps experiment", () => {
     expect(tinyCalls).toBe(2);
     expect(samStopped.outcomes[1]?.status).toBe("refused");
     expect(samStopped.outcomes[1]?.attempts).toBe(0);
+
+    // Concurrent invocations on the same resultsFile are blocked by the per-results-file lock and release cleanly in finally.
+    const concurrentResults = join(dir, "concurrent-results.json");
+    let releaseFirstAsk = () => {};
+    const firstAskStarted = new Promise<void>((resolve) => {
+      releaseFirstAsk = resolve;
+    });
+    let allowContinue = () => {};
+    const gate = new Promise<void>((resolve) => {
+      allowContinue = resolve;
+    });
+    let firstSawCall = false;
+    const concurrentDeps: StampDeps = {
+      spentUsd: () => 0,
+      segment: async () => [],
+      ask: async () => {
+        if (!firstSawCall) {
+          firstSawCall = true;
+          releaseFirstAsk();
+          await gate;
+        }
+        return { doctored: false };
+      },
+    };
+    const runner1 = runStamps(setDir, concurrentDeps, { resultsFile: concurrentResults });
+    await firstAskStarted;
+    await expect(runStamps(setDir, concurrentDeps, { resultsFile: concurrentResults })).rejects.toThrow(
+      /already holding/,
+    );
+    allowContinue();
+    const runner1Out = await runner1;
+    expect(runner1Out.outcomes).toHaveLength(80);
+    // Lock is released in finally so a subsequent run succeeds and skips already-completed outcomes.
+    const runner2Out = await runStamps(setDir, concurrentDeps, { resultsFile: concurrentResults });
+    expect(runner2Out.outcomes).toHaveLength(80);
   });
 });
