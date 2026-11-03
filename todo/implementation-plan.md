@@ -305,7 +305,7 @@ Sections: 95 | Checklist items: 613
 | [x]    | D04 T01 §4  | Verdict agent loop on the Responses API      | meta-api              | 11    |
 | [x]    | D04 T01 §5  | Citation validator with fallback             | none                  | 5     |
 | [x]    | D04 T01 §9  | Impersonation family in rule verdict         | none                  | 3     |
-| [ ]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
+| [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
 | [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
 | [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
 | [ ]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
@@ -623,6 +623,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 343/547 verified sections, 131 ready to run now.
+Progress: 344/547 verified sections, 133 ready to run now.
 
-Checklist: 2678/3416 items completed (includes Commit items).
+Checklist: 2679/3416 items completed (includes Commit items).
