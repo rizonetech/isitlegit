@@ -5,7 +5,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4243,
-  "usd": 0.02,
+  "usd": 0.003067,
   "attempts": 1,
   "fileSha256": "f906e13bd7bf730f53ae3c3f4c6488c7da3a43d6db0ec2ff7a745ae1b10869c8",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -17,7 +17,7 @@
   "doctored": null,
   "ms": 1959,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "f906e13bd7bf730f53ae3c3f4c6488c7da3a43d6db0ec2ff7a745ae1b10869c8",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -28,7 +28,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 5941,
-  "usd": 0.02,
+  "usd": 0.003732,
   "attempts": 1,
   "fileSha256": "69b699515f3212f6e5b87fb300ba8461baf4e30cd647fba3e2ba3568e76acdcb",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -40,7 +40,7 @@
   "doctored": null,
   "ms": 1815,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "69b699515f3212f6e5b87fb300ba8461baf4e30cd647fba3e2ba3568e76acdcb",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -51,7 +51,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 6015,
-  "usd": 0.02,
+  "usd": 0.003239,
   "attempts": 1,
   "fileSha256": "e7576c1887e3134b8ec65bf67d90c17c6b325d08787410df196f013a57f21cf7",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -63,7 +63,7 @@
   "doctored": null,
   "ms": 3514,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "e7576c1887e3134b8ec65bf67d90c17c6b325d08787410df196f013a57f21cf7",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -74,7 +74,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4964,
-  "usd": 0.02,
+  "usd": 0.003232,
   "attempts": 1,
   "fileSha256": "a09c5b5e58b064882d12dbd674d76078af7744661b395484c751be794103423e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -86,7 +86,7 @@
   "doctored": null,
   "ms": 2077,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "a09c5b5e58b064882d12dbd674d76078af7744661b395484c751be794103423e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -97,7 +97,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 6337,
-  "usd": 0.02,
+  "usd": 0.003562,
   "attempts": 1,
   "fileSha256": "df515e0daa949340023f4003675b04c6e28d1d86f62b56cfb151836f2cb94b7e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -109,7 +109,7 @@
   "doctored": null,
   "ms": 2138,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "df515e0daa949340023f4003675b04c6e28d1d86f62b56cfb151836f2cb94b7e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -120,7 +120,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4078,
-  "usd": 0.02,
+  "usd": 0.002908,
   "attempts": 1,
   "fileSha256": "6498c20141a4d67fcb245d257a98c7e0ba024fb7ecf4f35f5985b2d3a25012de",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -132,7 +132,7 @@
   "doctored": null,
   "ms": 2492,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "6498c20141a4d67fcb245d257a98c7e0ba024fb7ecf4f35f5985b2d3a25012de",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -143,7 +143,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4797,
-  "usd": 0.02,
+  "usd": 0.003299,
   "attempts": 1,
   "fileSha256": "ef28f0774126f87b046afa0444b275310a75c02bed4c235e133b8d0b6b5fc47a",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -155,7 +155,7 @@
   "doctored": null,
   "ms": 2947,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "ef28f0774126f87b046afa0444b275310a75c02bed4c235e133b8d0b6b5fc47a",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -166,7 +166,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 5313,
-  "usd": 0.02,
+  "usd": 0.00312,
   "attempts": 1,
   "fileSha256": "60425a65d2314ddc63d0a34a5e1ce97f1bce2da20d1a8f96c1bc24f353cbf88f",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -178,7 +178,7 @@
   "doctored": null,
   "ms": 2013,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "60425a65d2314ddc63d0a34a5e1ce97f1bce2da20d1a8f96c1bc24f353cbf88f",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -189,7 +189,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4818,
-  "usd": 0.02,
+  "usd": 0.003307,
   "attempts": 1,
   "fileSha256": "23f9df179c05441e3b39ae3d01f25e6d15502304858cc148fb26df054a5c253f",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -201,7 +201,7 @@
   "doctored": null,
   "ms": 1731,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "23f9df179c05441e3b39ae3d01f25e6d15502304858cc148fb26df054a5c253f",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -212,7 +212,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 7851,
-  "usd": 0.02,
+  "usd": 0.003299,
   "attempts": 1,
   "fileSha256": "0d6ce70d082f239ef158db4de634260052042de438ce8685a2f36d4252880e92",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -224,7 +224,7 @@
   "doctored": null,
   "ms": 2670,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "0d6ce70d082f239ef158db4de634260052042de438ce8685a2f36d4252880e92",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -235,7 +235,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5558,
-  "usd": 0.02,
+  "usd": 0.003989,
   "attempts": 1,
   "fileSha256": "3139f45fc622eb171d2d3bf6c9a3d48e072ae5bc39e5b1f33a2ceb3394f87c43",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -247,7 +247,7 @@
   "doctored": null,
   "ms": 2180,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "3139f45fc622eb171d2d3bf6c9a3d48e072ae5bc39e5b1f33a2ceb3394f87c43",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -258,7 +258,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4995,
-  "usd": 0.02,
+  "usd": 0.00329,
   "attempts": 1,
   "fileSha256": "e37011342ebe51904c8821c954c9c242f310c401178bfea7cd74972d5e881169",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -270,7 +270,7 @@
   "doctored": null,
   "ms": 1516,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "e37011342ebe51904c8821c954c9c242f310c401178bfea7cd74972d5e881169",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -281,7 +281,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 6429,
-  "usd": 0.02,
+  "usd": 0.003942,
   "attempts": 1,
   "fileSha256": "8f688e9e15e1744d42680634157cbb002835d8cdc2152534c26831d9d3f443fc",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -293,7 +293,7 @@
   "doctored": null,
   "ms": 1678,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "8f688e9e15e1744d42680634157cbb002835d8cdc2152534c26831d9d3f443fc",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -304,7 +304,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 5247,
-  "usd": 0.02,
+  "usd": 0.003762,
   "attempts": 1,
   "fileSha256": "14fd0f5c5814f9237d3d1953ef64c57d15332e50557a5550b039ccd0fd5cba78",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -316,7 +316,7 @@
   "doctored": null,
   "ms": 1553,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "14fd0f5c5814f9237d3d1953ef64c57d15332e50557a5550b039ccd0fd5cba78",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -327,7 +327,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 3915,
-  "usd": 0.02,
+  "usd": 0.002784,
   "attempts": 1,
   "fileSha256": "ded2ab1b3fc586d1f01eaa7033ff44a51776c089902a39103c10108f9edd06b2",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -339,7 +339,7 @@
   "doctored": null,
   "ms": 1757,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "ded2ab1b3fc586d1f01eaa7033ff44a51776c089902a39103c10108f9edd06b2",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -350,7 +350,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 6228,
-  "usd": 0.02,
+  "usd": 0.003532,
   "attempts": 1,
   "fileSha256": "456809dcb1f437ba5e03aa03de61dd37d8d79d8c4fecc0b0859f21c1a1f420d0",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -362,7 +362,7 @@
   "doctored": null,
   "ms": 2097,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "456809dcb1f437ba5e03aa03de61dd37d8d79d8c4fecc0b0859f21c1a1f420d0",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -373,7 +373,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4343,
-  "usd": 0.02,
+  "usd": 0.002908,
   "attempts": 1,
   "fileSha256": "df27d54b70de2567f0bdb214cdb298e226df2c912dc1a02e7068b034588a779c",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -385,7 +385,7 @@
   "doctored": null,
   "ms": 1553,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "df27d54b70de2567f0bdb214cdb298e226df2c912dc1a02e7068b034588a779c",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -396,7 +396,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4381,
-  "usd": 0.02,
+  "usd": 0.003112,
   "attempts": 1,
   "fileSha256": "b1d41efb25b45a6b47dd8b05be3a592a771c80dbac1357183d3a46b0d1136049",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -408,7 +408,7 @@
   "doctored": null,
   "ms": 2438,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "b1d41efb25b45a6b47dd8b05be3a592a771c80dbac1357183d3a46b0d1136049",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -419,7 +419,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4698,
-  "usd": 0.02,
+  "usd": 0.003061,
   "attempts": 1,
   "fileSha256": "c9db62a1d5d1f4fb06bd4e0a706f034c723931ad1d9e35be43014540e37c5be5",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -431,7 +431,7 @@
   "doctored": null,
   "ms": 2054,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "c9db62a1d5d1f4fb06bd4e0a706f034c723931ad1d9e35be43014540e37c5be5",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -442,7 +442,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 5924,
-  "usd": 0.02,
+  "usd": 0.003908,
   "attempts": 1,
   "fileSha256": "4b11d5e46d749cf866f25fe7661205f208d4df06018ad64fc1b1c4fe7548befb",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -454,7 +454,7 @@
   "doctored": null,
   "ms": 2234,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "4b11d5e46d749cf866f25fe7661205f208d4df06018ad64fc1b1c4fe7548befb",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -465,7 +465,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5440,
-  "usd": 0.02,
+  "usd": 0.003583,
   "attempts": 1,
   "fileSha256": "372fa9988904534226ef992ccc8127e76ca4ab8ef8d7016b7fa561a7fcb8da2e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -477,7 +477,7 @@
   "doctored": null,
   "ms": 1271,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "372fa9988904534226ef992ccc8127e76ca4ab8ef8d7016b7fa561a7fcb8da2e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -488,7 +488,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5302,
-  "usd": 0.02,
+  "usd": 0.003507,
   "attempts": 1,
   "fileSha256": "f766ce95dd595f611c612f9646b986af71d7b5084a21e96734f62336a42b9be7",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -500,7 +500,7 @@
   "doctored": null,
   "ms": 1581,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "f766ce95dd595f611c612f9646b986af71d7b5084a21e96734f62336a42b9be7",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -511,7 +511,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 6442,
-  "usd": 0.02,
+  "usd": 0.004353,
   "attempts": 1,
   "fileSha256": "55b27058fe1e26cbfa2fcc0b5e215ef25023dbd8ecd34a36ffae47659018e4e8",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -523,7 +523,7 @@
   "doctored": null,
   "ms": 1589,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "55b27058fe1e26cbfa2fcc0b5e215ef25023dbd8ecd34a36ffae47659018e4e8",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -534,7 +534,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 5007,
-  "usd": 0.02,
+  "usd": 0.003154,
   "attempts": 1,
   "fileSha256": "389b312df04419b3cceebc5e0152a80357e846ff56696bcbe0e0bc3d16750f8e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -546,7 +546,7 @@
   "doctored": null,
   "ms": 1428,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "389b312df04419b3cceebc5e0152a80357e846ff56696bcbe0e0bc3d16750f8e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -557,7 +557,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5282,
-  "usd": 0.02,
+  "usd": 0.00318,
   "attempts": 1,
   "fileSha256": "87d4e2699cca952732ef6a38b9160249dfea887c1ec2e2e0e824a9a604bb59ad",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -569,7 +569,7 @@
   "doctored": null,
   "ms": 1708,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "87d4e2699cca952732ef6a38b9160249dfea887c1ec2e2e0e824a9a604bb59ad",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -580,7 +580,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 3718,
-  "usd": 0.02,
+  "usd": 0.002954,
   "attempts": 1,
   "fileSha256": "761db364ac1525a1af697f07c91ac08f3148d84ea8e38fc6be79efd0e5123718",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -592,7 +592,7 @@
   "doctored": null,
   "ms": 1462,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "761db364ac1525a1af697f07c91ac08f3148d84ea8e38fc6be79efd0e5123718",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -603,7 +603,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4749,
-  "usd": 0.02,
+  "usd": 0.003316,
   "attempts": 1,
   "fileSha256": "dfe5b86837c28126da7ec07bc92001016367aa933cda727f9332d808792b7b69",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -615,7 +615,7 @@
   "doctored": null,
   "ms": 1380,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "dfe5b86837c28126da7ec07bc92001016367aa933cda727f9332d808792b7b69",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -626,7 +626,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5927,
-  "usd": 0.02,
+  "usd": 0.003694,
   "attempts": 1,
   "fileSha256": "10ce0d1623e5a4e1f8cf37e2b1245ba080dce0e98edf42e452cbb1433fa2ac9b",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -638,7 +638,7 @@
   "doctored": null,
   "ms": 1764,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "10ce0d1623e5a4e1f8cf37e2b1245ba080dce0e98edf42e452cbb1433fa2ac9b",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -649,7 +649,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4080,
-  "usd": 0.02,
+  "usd": 0.003052,
   "attempts": 1,
   "fileSha256": "4cb1d4c3af4bdeac1573502f0b047f9d360dac640594bd4cba5be5a0caa89a29",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -661,7 +661,7 @@
   "doctored": null,
   "ms": 1389,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "4cb1d4c3af4bdeac1573502f0b047f9d360dac640594bd4cba5be5a0caa89a29",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -672,7 +672,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4529,
-  "usd": 0.02,
+  "usd": 0.003129,
   "attempts": 1,
   "fileSha256": "02df584e0632149559fa961e28edd001430c25311a845ad1acbc38f60dc49f8b",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -684,7 +684,7 @@
   "doctored": null,
   "ms": 1986,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "02df584e0632149559fa961e28edd001430c25311a845ad1acbc38f60dc49f8b",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -695,7 +695,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 3448,
-  "usd": 0.02,
+  "usd": 0.002631,
   "attempts": 1,
   "fileSha256": "4a88f7ca1202a8544da2607978897842d640e4b20ad89a6ed9ee0502ad7337c6",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -707,7 +707,7 @@
   "doctored": null,
   "ms": 1570,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "4a88f7ca1202a8544da2607978897842d640e4b20ad89a6ed9ee0502ad7337c6",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -718,7 +718,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4547,
-  "usd": 0.02,
+  "usd": 0.003171,
   "attempts": 1,
   "fileSha256": "792f81d3db9112d120869fbbe7aaa517b66352acedc8880c5192382bae983a84",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -730,7 +730,7 @@
   "doctored": null,
   "ms": 1669,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "792f81d3db9112d120869fbbe7aaa517b66352acedc8880c5192382bae983a84",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -741,7 +741,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5102,
-  "usd": 0.02,
+  "usd": 0.003609,
   "attempts": 1,
   "fileSha256": "ed0d4513a697b5b4a37aa3bb605074c308b7d3ccc365005839aa972a74499c52",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -753,7 +753,7 @@
   "doctored": null,
   "ms": 1927,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "ed0d4513a697b5b4a37aa3bb605074c308b7d3ccc365005839aa972a74499c52",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -764,7 +764,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4851,
-  "usd": 0.02,
+  "usd": 0.00309,
   "attempts": 1,
   "fileSha256": "c9a48e62d2f8e948d106009ab40afa3ce3131b6b7ffd1108a71fe1dd40635a94",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -776,7 +776,7 @@
   "doctored": null,
   "ms": 1919,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "c9a48e62d2f8e948d106009ab40afa3ce3131b6b7ffd1108a71fe1dd40635a94",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -787,7 +787,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4465,
-  "usd": 0.02,
+  "usd": 0.003205,
   "attempts": 1,
   "fileSha256": "9ce4e913a92f930612ed0ee771e095673a3e8eb23e51e884294e0961572158fa",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -799,7 +799,7 @@
   "doctored": null,
   "ms": 1544,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "9ce4e913a92f930612ed0ee771e095673a3e8eb23e51e884294e0961572158fa",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -810,7 +810,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4685,
-  "usd": 0.02,
+  "usd": 0.003137,
   "attempts": 1,
   "fileSha256": "300a713499ce436c17088b963d9ba7d836b5725e70b2032c9d8efdd7a2da43c2",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -822,7 +822,7 @@
   "doctored": null,
   "ms": 1424,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "300a713499ce436c17088b963d9ba7d836b5725e70b2032c9d8efdd7a2da43c2",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -833,7 +833,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 7032,
-  "usd": 0.02,
+  "usd": 0.004004,
   "attempts": 1,
   "fileSha256": "5d46ba2d70e078a7c6bed03f86295195ba1ad60939f6e7eee7c78e15a95c4e08",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -845,7 +845,7 @@
   "doctored": null,
   "ms": 1403,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "5d46ba2d70e078a7c6bed03f86295195ba1ad60939f6e7eee7c78e15a95c4e08",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -856,7 +856,7 @@
   "status": "answered",
   "doctored": true,
   "ms": 4535,
-  "usd": 0.02,
+  "usd": 0.00298,
   "attempts": 1,
   "fileSha256": "2c06a4e2e2b57e8481686fd54db6ba4737f85fd5711d907f432f7a213f29a42e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -868,7 +868,7 @@
   "doctored": null,
   "ms": 2084,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "2c06a4e2e2b57e8481686fd54db6ba4737f85fd5711d907f432f7a213f29a42e",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -879,7 +879,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 4248,
-  "usd": 0.02,
+  "usd": 0.003209,
   "attempts": 1,
   "fileSha256": "94351d5be0574611645f92c0e84899ee934a2d5dfb91f98acfecc04eb3a6eabf",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -891,7 +891,7 @@
   "doctored": null,
   "ms": 1436,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "94351d5be0574611645f92c0e84899ee934a2d5dfb91f98acfecc04eb3a6eabf",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0
@@ -902,7 +902,7 @@
   "status": "answered",
   "doctored": false,
   "ms": 5929,
-  "usd": 0.02,
+  "usd": 0.003464,
   "attempts": 1,
   "fileSha256": "95b95211cb491efbb791f929a251afbee28a3268f6453e42deac6d2a11bcca6d",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15"
@@ -914,7 +914,7 @@
   "doctored": null,
   "ms": 1508,
   "usd": 0.005,
-  "attempts": 1,
+  "attempts": 2,
   "fileSha256": "95b95211cb491efbb791f929a251afbee28a3268f6453e42deac6d2a11bcca6d",
   "fingerprint": "6b482b05c54a5b0054e9fcfe9c744e27aca21dd40d3efc969e33ec4c91b1ee15",
   "samBoxes": 0

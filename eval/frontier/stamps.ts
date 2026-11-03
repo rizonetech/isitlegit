@@ -172,7 +172,53 @@ export function verifySetOnDisk(
 
 // Failure-aware scoring: every doctored and genuine entry in the manifest stays in the denominator; an unanswered,
 // empty-segmentation, refused, malformed, timed-out, pending or budget-stopped case counts as missed (never dropped).
+// Every stored outcome is validated against its manifest entry sha256 and the experiment fingerprint before scoring.
+export function validateOutcomes(
+  entries: readonly ManifestEntry[],
+  outcomes: readonly ArmOutcome[],
+  referenceSha256 = "ref",
+): string[] {
+  const problems: string[] = [];
+  const expectedFp = experimentFingerprint(entries, referenceSha256);
+  const byFile = new Map(entries.map((e) => [e.file, e]));
+  for (const o of outcomes) {
+    const entry = byFile.get(o.file);
+    if (!entry) {
+      problems.push(`${o.file}: outcome names file not in manifest`);
+      continue;
+    }
+    if (o.fileSha256 !== entry.sha256)
+      problems.push(
+        `${o.file} (${o.arm}): outcome fileSha256 (${o.fileSha256}) differs from manifest (${entry.sha256})`,
+      );
+    if (o.fingerprint !== expectedFp)
+      problems.push(
+        `${o.file} (${o.arm}): outcome fingerprint (${o.fingerprint}) differs from experiment (${expectedFp})`,
+      );
+    if (o.status === "pending" || o.status === "budget-stopped")
+      problems.push(`${o.file} (${o.arm}): incomplete outcome status ${o.status}`);
+  }
+  for (const e of entries)
+    for (const arm of ["whole", "chain"] as const)
+      if (!outcomes.some((o) => o.file === e.file && o.arm === arm)) problems.push(`${e.file}: no ${arm} outcome`);
+  return problems;
+}
+
 export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], referenceSha256 = "ref") {
+  const expectedFp = experimentFingerprint(entries, referenceSha256);
+  const byFile = new Map(entries.map((e) => [e.file, e]));
+  for (const o of outcomes) {
+    const entry = byFile.get(o.file);
+    if (!entry) throw new Error(`${o.file}: outcome names file not in manifest`);
+    if (o.fileSha256 !== entry.sha256)
+      throw new Error(
+        `${o.file} (${o.arm}): outcome fileSha256 (${o.fileSha256}) differs from manifest (${entry.sha256})`,
+      );
+    if (o.fingerprint !== expectedFp)
+      throw new Error(
+        `${o.file} (${o.arm}): outcome fingerprint (${o.fingerprint}) differs from experiment (${expectedFp})`,
+      );
+  }
   const totalAttacks = entries.filter((e) => e.label === "doctored");
   const totalGenuine = entries.filter((e) => e.label === "genuine");
   const byArm = (arm: "whole" | "chain") => {
@@ -183,12 +229,21 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], 
     const falseAlarms = totalGenuine.filter((e) =>
       answered.some((o) => o.file === e.file && o.doctored === true),
     ).length;
-    const times = answered
+    const terminalTimes = rows
+      .filter((o) => o.status !== "pending" && o.status !== "budget-stopped")
       .map((o) => o.ms)
       .filter((ms): ms is number => typeof ms === "number" && ms >= 0)
       .sort((a, b) => a - b);
-    const medianMs = times.length ? (times[Math.floor((times.length - 1) / 2)] ?? null) : null;
-    const maxMs = times.length ? (times[times.length - 1] ?? null) : null;
+    const medianMs = terminalTimes.length ? (terminalTimes[Math.floor((terminalTimes.length - 1) / 2)] ?? null) : null;
+    const maxMs = terminalTimes.length ? (terminalTimes[terminalTimes.length - 1] ?? null) : null;
+    const answeredTimes = answered
+      .map((o) => o.ms)
+      .filter((ms): ms is number => typeof ms === "number" && ms >= 0)
+      .sort((a, b) => a - b);
+    const answeredMedianMs = answeredTimes.length
+      ? (answeredTimes[Math.floor((answeredTimes.length - 1) / 2)] ?? null)
+      : null;
+    const answeredMaxMs = answeredTimes.length ? (answeredTimes[answeredTimes.length - 1] ?? null) : null;
     return {
       outcomes: rows.length,
       answered: answered.length,
@@ -201,13 +256,16 @@ export function scoreOutcomes(entries: ManifestEntry[], outcomes: ArmOutcome[], 
       falsePositives: totalGenuine.length ? falseAlarms / totalGenuine.length : null,
       medianMs,
       maxMs,
+      answeredMedianMs,
+      answeredMaxMs,
       totalUsd: rows.reduce((a, o) => a + o.usd, 0),
+      totalAttempts: rows.reduce((a, o) => a + o.attempts, 0),
     };
   };
   return {
     whole: byArm("whole"),
     chain: byArm("chain"),
-    fingerprint: experimentFingerprint(entries, referenceSha256),
+    fingerprint: expectedFp,
   };
 }
 
@@ -259,28 +317,11 @@ export function checkLog(
     referenceSha256 = disk.referenceSha256;
     problems.push(...disk.problems);
   }
-  const expectedFp = experimentFingerprint(entries, referenceSha256);
-  const byFile = new Map(entries.map((e) => [e.file, e]));
-  for (const o of outcomes) {
-    const entry = byFile.get(o.file);
-    if (!entry) {
-      problems.push(`${o.file}: outcome names file not in manifest`);
-      continue;
-    }
-    if (o.fileSha256 !== entry.sha256)
-      problems.push(
-        `${o.file} (${o.arm}): outcome fileSha256 (${o.fileSha256}) differs from manifest (${entry.sha256})`,
-      );
-    if (o.fingerprint !== expectedFp)
-      problems.push(
-        `${o.file} (${o.arm}): outcome fingerprint (${o.fingerprint}) differs from experiment (${expectedFp})`,
-      );
-    if (o.status === "pending" || o.status === "budget-stopped")
-      problems.push(`${o.file} (${o.arm}): incomplete outcome status ${o.status}`);
+  const outcomeProblems = validateOutcomes(entries, outcomes, referenceSha256);
+  if (outcomeProblems.length > 0) {
+    problems.push(...outcomeProblems);
+    return problems;
   }
-  for (const e of entries)
-    for (const arm of ["whole", "chain"] as const)
-      if (!outcomes.some((o) => o.file === e.file && o.arm === arm)) problems.push(`${e.file}: no ${arm} outcome`);
   const s = scoreOutcomes(entries, outcomes, referenceSha256);
   if (s.whole.answered === 0) problems.push("whole arm has 0 answered outcomes");
   if (s.chain.answered === 0 && s.chain.emptySegmentation === 0)
@@ -298,6 +339,8 @@ export function checkLog(
       problems.push(`${arm} false-positive figure missing or differs in the log`);
     if (!logText.includes(`${arm} cost US$${f.totalUsd.toFixed(4)}`))
       problems.push(`${arm} cost missing or differs in the log`);
+    if (f.medianMs !== null && f.maxMs !== null && !logText.includes(`median ${f.medianMs} ms, worst ${f.maxMs} ms`))
+      problems.push(`${arm} latency (median ${f.medianMs} ms, worst ${f.maxMs} ms) missing or differs in the log`);
   }
   const decision = decideStamps(s);
   if (!logText.includes(`Decision: ${decision}`)) problems.push(`decision (${decision}) missing or differs in the log`);
@@ -319,13 +362,15 @@ export function checkLog(
   return problems;
 }
 
+export type StampStepBox = { left: number; top: number; width: number; height: number };
+export type StampSegmentResult = StampStepBox[] | { boxes: StampStepBox[]; usd?: number; attempts?: number };
+export type StampAskResult = { doctored: boolean; usd?: number; attempts?: number };
+
 export type StampDeps = {
-  segment: (
-    png: Buffer,
-    concept: "stamp" | "signature",
-  ) => Promise<{ left: number; top: number; width: number; height: number }[]>;
-  ask: (images: Buffer[]) => Promise<{ doctored: boolean; usd?: number }>;
+  segment: (png: Buffer, concept: "stamp" | "signature") => Promise<StampSegmentResult>;
+  ask: (images: Buffer[]) => Promise<StampAskResult>;
   spentUsd: () => number;
+  drainFailedStep?: () => { usd: number; attempts: number };
 };
 
 function clampCropBox(
@@ -413,14 +458,15 @@ export async function runStamps(
         doctored: null,
         ms: null,
         usd: Number((priorUsd + initialReserve).toFixed(6)),
-        attempts: priorAttempts + 1,
+        attempts: priorAttempts + (arm === "whole" ? 1 : 2),
         fileSha256: entry.sha256,
         fingerprint,
       });
 
       const t0 = Date.now();
       let segCost = 0;
-      let askReserved = 0;
+      let segAttempts = 0;
+      let askStarted = false;
       let samBoxes = 0;
       try {
         let images: Buffer[];
@@ -429,8 +475,10 @@ export async function runStamps(
         } else {
           const crops: Buffer[] = [reference];
           for (const concept of ["stamp", "signature"] as const) {
-            segCost += ESTIMATE_USD.segment;
-            const boxes = await deps.segment(page, concept);
+            const rawSeg = await deps.segment(page, concept);
+            const boxes = Array.isArray(rawSeg) ? rawSeg : rawSeg.boxes;
+            segCost += Array.isArray(rawSeg) ? ESTIMATE_USD.segment : (rawSeg.usd ?? ESTIMATE_USD.segment);
+            segAttempts += Array.isArray(rawSeg) ? 1 : (rawSeg.attempts ?? 1);
             samBoxes += boxes.length;
             for (const rawBox of boxes.slice(0, 4)) {
               const box = clampCropBox(rawBox);
@@ -445,7 +493,7 @@ export async function runStamps(
               doctored: null,
               ms: Date.now() - t0,
               usd: Number((priorUsd + segCost).toFixed(6)),
-              attempts: priorAttempts + 1,
+              attempts: priorAttempts + segAttempts,
               fileSha256: entry.sha256,
               fingerprint,
               samBoxes: 0,
@@ -454,9 +502,10 @@ export async function runStamps(
           }
           images = crops;
         }
-        askReserved = ESTIMATE_USD.spark;
+        askStarted = true;
         const answer = await deps.ask(images);
-        const callUsd = (answer.usd ?? askReserved) + segCost;
+        const callUsd = (answer.usd ?? ESTIMATE_USD.spark) + segCost;
+        const callAttempts = segAttempts + (answer.attempts ?? 1);
         upsert({
           file: entry.file,
           arm,
@@ -464,13 +513,17 @@ export async function runStamps(
           doctored: answer.doctored,
           ms: Date.now() - t0,
           usd: Number((priorUsd + callUsd).toFixed(6)),
-          attempts: priorAttempts + 1,
+          attempts: priorAttempts + callAttempts,
           fileSha256: entry.sha256,
           fingerprint,
           ...(arm === "chain" ? { samBoxes } : {}),
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
+        const failed = deps.drainFailedStep?.() ?? {
+          usd: arm === "whole" || askStarted ? ESTIMATE_USD.spark : ESTIMATE_USD.segment,
+          attempts: 1,
+        };
         const status = /timeout|timed out/i.test(msg) ? "timeout" : /refus/i.test(msg) ? "refused" : "malformed";
         upsert({
           file: entry.file,
@@ -478,8 +531,8 @@ export async function runStamps(
           status,
           doctored: null,
           ms: Date.now() - t0,
-          usd: Number((priorUsd + segCost + askReserved).toFixed(6)),
-          attempts: priorAttempts + 1,
+          usd: Number((priorUsd + segCost + failed.usd).toFixed(6)),
+          attempts: priorAttempts + segAttempts + failed.attempts,
           fileSha256: entry.sha256,
           fingerprint,
           ...(arm === "chain" ? { samBoxes } : {}),
@@ -490,68 +543,73 @@ export async function runStamps(
   return { outcomes, stopped };
 }
 
-export async function main(argv: string[]): Promise<number> {
-  const [cmd, ...rest] = argv;
-  if (cmd === "build") {
-    const out = rest[rest.indexOf("--out") + 1] ?? SET_DIR;
-    const entries = await buildSet(rest.includes("--out") ? out : SET_DIR);
-    console.log(`stamps: built ${entries.length} pages (${entries.length / 2} pairs) in ${out}`);
-    return 0;
-  }
-  if (cmd === "run") {
-    register("../../scripts/lib/ts-resolve.mjs", import.meta.url);
-    const { readSecretsFromVault, GATEWAY_URL, metaLedger } = await import("../../scripts/meta-smoke.ts");
-    const { sharedLedger } = await import("./digits.ts");
-    const { structured } = await import("../../src/meta/structured.ts");
-    const samPath = "../../src/vision/sam.ts";
-    const { segment } = (await import(samPath)) as {
-      segment: (
-        ctx: unknown,
-        imageDataUrl: string,
-        concept: "stamp" | "signature",
-      ) => Promise<{ left: number; top: number; right: number; bottom: number; confidence: number | null }[]>;
-    };
-    const secrets = await readSecretsFromVault();
-    const ledger = sharedLedger(metaLedger(), "stamps-v3", { capUsd: RUN_CAP_USD });
-    let callNo = 0;
-    let spent = 0;
-    const reservedBy = new Map<string, number>();
-    const budget = {
-      reserve: async (_model: string, estimateUsd: number) => {
-        const r = await ledger.reserve(`call-${++callNo}`, estimateUsd);
-        reservedBy.set(r, estimateUsd);
-        spent += estimateUsd;
-        return r;
-      },
-      refused: async () => {},
-      cached: async () => {},
-      outputFailed: async () => {},
-      settle: async (id: string, actualUsd: number) => {
-        const est = reservedBy.get(id) ?? 0;
-        spent = Math.max(0, spent - est + actualUsd);
-        await ledger.settle(id, actualUsd);
-      },
-      uncertain: async (id: string) => ledger.uncertain(id),
-    };
+export async function createBudgetedStampDeps(opts: {
+  env: { META_API_KEY: string; CF_AIG_TOKEN: string; META_GATEWAY_URL: string };
+  guard: import("../../src/meta/guard.ts").Budget;
+  ledger: import("./digits.ts").AttemptLedger;
+  segmentFn: (
+    ctx: unknown,
+    imageDataUrl: string,
+    concept: "stamp" | "signature",
+  ) => Promise<{ left: number; top: number; right: number; bottom: number; confidence: number | null }[]>;
+  structuredFn: typeof import("../../src/meta/structured.ts").structured;
+}): Promise<StampDeps> {
+  const { attemptsOf, ledgeredBudget } = await import("./digits.ts");
+  let callNo = 0;
+  let totalSpent = 0;
+  let failedStep = { usd: 0, attempts: 0 };
+
+  async function runStep<T>(fn: (ctx: unknown) => Promise<T>): Promise<{ value: T; usd: number; attempts: number }> {
+    const callKey = `call-${++callNo}`;
+    const spend = ledgeredBudget(opts.guard, opts.ledger, callKey);
+    const late: Promise<unknown>[] = [];
     const ctx = {
-      env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
-      budget,
-      owner: "eval-frontier",
-      waitUntil: () => {},
+      env: opts.env,
+      budget: spend.budget,
+      owner: { kind: "script" as const, name: "eval-frontier" },
+      waitUntil: (p: Promise<unknown>) => {
+        late.push(p);
+      },
     };
-    const deps: StampDeps = {
-      segment: async (png, concept) => {
-        const dataUrl = `data:image/png;base64,${png.toString("base64")}`;
-        const boxes = await segment(ctx, dataUrl, concept);
-        return boxes.map((b) => ({
+    failedStep = { usd: 0, attempts: 0 };
+    const collect = async () => {
+      await Promise.allSettled(late);
+      const entries = await opts.ledger.entries(callKey);
+      const a = attemptsOf(entries, spend.usage);
+      const usd = Number((a.usd + a.uncertainUsd).toFixed(6));
+      totalSpent = Number((totalSpent + usd).toFixed(6));
+      return { usd, attempts: Math.max(a.attempts, spend.attempts()) };
+    };
+    try {
+      const value = await fn(ctx);
+      const step = await collect();
+      const acct = spend.accounting();
+      if (acct) throw new Error(`accounting: a settlement could not be written (${acct})`);
+      return { value, usd: step.usd, attempts: step.attempts };
+    } catch (err) {
+      failedStep = await collect().catch(() => ({ usd: 0, attempts: spend.attempts() }));
+      throw err;
+    }
+  }
+
+  return {
+    segment: async (png, concept) => {
+      const dataUrl = `data:image/png;base64,${png.toString("base64")}`;
+      const step = await runStep((ctx) => opts.segmentFn(ctx, dataUrl, concept));
+      return {
+        boxes: step.value.map((b) => ({
           left: b.left,
           top: b.top,
           width: b.right - b.left,
           height: b.bottom - b.top,
-        }));
-      },
-      ask: async (images) => {
-        const out = await structured(
+        })),
+        usd: step.usd,
+        attempts: step.attempts,
+      };
+    },
+    ask: async (images) => {
+      const step = await runStep((ctx) =>
+        opts.structuredFn(
           STAMP_ANSWER,
           {
             name: "stamp_doctor_check",
@@ -571,11 +629,61 @@ export async function main(argv: string[]): Promise<number> {
             reasoning: { effort: REASONING_EFFORT },
           },
           ctx as never,
-        );
-        return { doctored: out.value.doctored };
-      },
-      spentUsd: () => spent,
+        ),
+      );
+      return {
+        doctored: step.value.value.doctored,
+        usd: step.usd,
+        attempts: Math.max(step.attempts, step.value.attempts),
+      };
+    },
+    spentUsd: () => totalSpent,
+    drainFailedStep: () => {
+      const out = failedStep;
+      failedStep = { usd: 0, attempts: 0 };
+      return out;
+    },
+  };
+}
+
+export async function main(argv: string[]): Promise<number> {
+  const [cmd, ...rest] = argv;
+  if (cmd === "build") {
+    const out = rest[rest.indexOf("--out") + 1] ?? SET_DIR;
+    const entries = await buildSet(rest.includes("--out") ? out : SET_DIR);
+    console.log(`stamps: built ${entries.length} pages (${entries.length / 2} pairs) in ${out}`);
+    return 0;
+  }
+  if (cmd === "run") {
+    register("../../scripts/lib/ts-resolve.mjs", import.meta.url);
+    const { readSecretsFromVault, GATEWAY_URL, metaLedger } = await import("../../scripts/meta-smoke.ts");
+    const { localBudget } = await import("../../scripts/lib/meta-budget.ts");
+    const { sharedLedger } = await import("./digits.ts");
+    const { structured } = await import("../../src/meta/structured.ts");
+    const samPath = "../../src/vision/sam.ts";
+    const { segment } = (await import(samPath)) as {
+      segment: (
+        ctx: unknown,
+        imageDataUrl: string,
+        concept: "stamp" | "signature",
+      ) => Promise<{ left: number; top: number; right: number; bottom: number; confidence: number | null }[]>;
     };
+    const clock = new Date();
+    const now = () => clock;
+    const tick = () => {
+      clock.setTime(Date.now());
+      return clock;
+    };
+    const secrets = await readSecretsFromVault();
+    const guard = localBudget("eval-frontier", undefined, now);
+    const ledger = sharedLedger(metaLedger(), "stamps-v3", { capUsd: RUN_CAP_USD, now: tick });
+    const deps = await createBudgetedStampDeps({
+      env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
+      guard,
+      ledger,
+      segmentFn: segment,
+      structuredFn: structured,
+    });
     const dirAt = rest.indexOf("--dir");
     const targetDir = (dirAt >= 0 ? rest[dirAt + 1] : undefined) ?? SET_DIR;
     const retryFailed = rest.includes("--retry-failed");
@@ -595,11 +703,16 @@ export async function main(argv: string[]): Promise<number> {
       return 1;
     }
     const outcomes = ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")));
+    const outcomeProblems = validateOutcomes(entries, outcomes, disk.referenceSha256);
+    if (outcomeProblems.length > 0) {
+      for (const p of outcomeProblems) console.error(`stamps: ${p}`);
+      return 1;
+    }
     const s = scoreOutcomes(entries, outcomes, disk.referenceSha256);
     for (const arm of ["whole", "chain"] as const) {
       const f = s[arm];
       console.log(
-        `${arm} detection ${f.detection === null ? "not measured" : `${(100 * f.detection).toFixed(1)}%`} (${f.caught}/${f.attacks}), ${arm} false positives ${f.falsePositives === null ? "not measured" : `${(100 * f.falsePositives).toFixed(1)}%`} (${f.falseAlarms}/${f.genuine}), ${arm} cost US$${f.totalUsd.toFixed(4)}, median ${f.medianMs ?? "n/a"} ms, worst ${f.maxMs ?? "n/a"} ms, answered ${f.answered} of ${f.outcomes}${f.emptySegmentation ? ` (${f.emptySegmentation} empty-segmentation)` : ""}`,
+        `${arm} detection ${f.detection === null ? "not measured" : `${(100 * f.detection).toFixed(1)}%`} (${f.caught}/${f.attacks}), ${arm} false positives ${f.falsePositives === null ? "not measured" : `${(100 * f.falsePositives).toFixed(1)}%`} (${f.falseAlarms}/${f.genuine}), ${arm} cost US$${f.totalUsd.toFixed(4)} (${f.totalAttempts} calls), median ${f.medianMs ?? "n/a"} ms, worst ${f.maxMs ?? "n/a"} ms, answered ${f.answered} of ${f.outcomes}${f.emptySegmentation ? ` (${f.emptySegmentation} empty-segmentation)` : ""}`,
       );
     }
     console.log(`Decision: ${decideStamps(s)} | fingerprint: ${s.fingerprint}`);

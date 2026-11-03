@@ -5,14 +5,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { afterAll, describe, expect, it } from "vitest";
+import { sharedLedger } from "../../eval/frontier/digits.ts";
 import {
   type ArmOutcome,
   buildSet,
   chainPayload,
   checkLog,
+  createBudgetedStampDeps,
   decideStamps,
   ESTIMATE_USD,
   experimentFingerprint,
+  main,
   PROMPT,
   runStamps,
   SIGNATURE_BOX,
@@ -20,6 +23,7 @@ import {
   scoreOutcomes,
   wholePagePayload,
 } from "../../eval/frontier/stamps.ts";
+import type { Budget } from "../../src/meta/guard.ts";
 
 const tempDirs: string[] = [];
 afterAll(() => {
@@ -256,7 +260,7 @@ describe("the stamps experiment", () => {
     expect(decideStamps({ ...s, chain: { ...s.chain, falsePositives: 0.1 } })).toBe("cut");
     expect(decideStamps({ ...s, chain: { ...s.chain, totalUsd: 200 } })).toBe("cut");
 
-    const validLog = `whole detection 50.0%, whole false positives 0.0%, whole cost US$0.0600, chain detection 100.0%, chain false positives 0.0%, chain cost US$0.0750, Decision: feature | fingerprint: ${s.fingerprint}, ${PROMPT}, Adopted in D06 T02 §2`;
+    const validLog = `whole detection 50.0%, whole false positives 0.0%, whole cost US$0.0600, median 10 ms, worst 10 ms, chain detection 100.0%, chain false positives 0.0%, chain cost US$0.0750, median 10 ms, worst 12 ms, Decision: feature | fingerprint: ${s.fingerprint}, ${PROMPT}, Adopted in D06 T02 §2`;
     expect(checkLog(validLog, entries, outcomes, { referenceSha256: "ref" })).toEqual([]);
     expect(
       checkLog(validLog.replace(s.fingerprint, "wrong"), entries, outcomes, { referenceSha256: "ref" }).some((p) =>
@@ -273,5 +277,117 @@ describe("the stamps experiment", () => {
         p.includes("does not exist"),
       ),
     ).toBe(true);
+
+    // Terminal empty-segmentation timings are included in end-to-end medianMs and maxMs.
+    const emptyChainOutcomes = outcomes.map((o) =>
+      o.arm === "chain"
+        ? { ...o, status: "empty-segmentation" as const, doctored: null, ms: o.file === "c.png" ? 42 : 18 }
+        : o,
+    );
+    const emptyScore = scoreOutcomes(entries, emptyChainOutcomes, "ref");
+    expect(emptyScore.chain.medianMs).toBe(18);
+    expect(emptyScore.chain.maxMs).toBe(42);
+    expect(emptyScore.chain.answeredMedianMs).toBeNull();
+
+    // Standalone scoreOutcomes throws on stale fingerprint or wrong fileSha256.
+    expect(() =>
+      scoreOutcomes(
+        entries,
+        outcomes.map((o) => ({ ...o, fingerprint: "stale" })),
+        "ref",
+      ),
+    ).toThrow(/fingerprint/);
+    expect(() =>
+      scoreOutcomes(
+        entries,
+        outcomes.map((o) => ({ ...o, fileSha256: "wrong" })),
+        "ref",
+      ),
+    ).toThrow(/fileSha256/);
+  });
+
+  it("rejects stale results in standalone score CLI without --check and persists settled charges + retry attempts through localBudget + sharedLedger", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "stamps-budget-"));
+    tempDirs.push(dir);
+    const setDir = join(dir, "set");
+    const entries = await buildSet(setDir);
+    const ledgerFile = join(dir, "ledger.json");
+    const ledger = sharedLedger(ledgerFile, "stamps-test", { capUsd: 2.0 });
+
+    const guardReserved: string[] = [];
+    const guardSettled: Array<{ id: string; actualUsd: number }> = [];
+    const guard: Budget = {
+      reserve: async (_model, _est, _attempt, id) => {
+        const gid = id ?? "g";
+        guardReserved.push(gid);
+        return gid;
+      },
+      settle: async (id, actualUsd) => {
+        guardSettled.push({ id, actualUsd });
+      },
+      uncertain: async () => {},
+      refused: async () => {},
+      outputFailed: async () => {},
+      cached: async () => {},
+    };
+
+    const deps = await createBudgetedStampDeps({
+      env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://example.test" },
+      guard,
+      ledger,
+      segmentFn: async (ctx: unknown) => {
+        const b = (ctx as { budget: Budget }).budget;
+        const id = await b.reserve("sam-3.1", ESTIMATE_USD.segment, 1);
+        await b.settle(id, 0.0025, { ms: 10, outcome: "ok", certainty: "none", source: "estimate" });
+        return [];
+      },
+      structuredFn: (async (_schema: unknown, _req: unknown, ctx: unknown) => {
+        const b = (ctx as { budget: Budget }).budget;
+        // Simulate 2 internal attempts (initial + repair) settling at actual token costs 0.0031 and 0.0014.
+        const id1 = await b.reserve("muse-spark-1.3", ESTIMATE_USD.spark, 1);
+        await b.settle(id1, 0.0031, {
+          ms: 20,
+          outcome: "ok",
+          certainty: "measured",
+          source: "meta-usage",
+          inputTokens: 100,
+          outputTokens: 20,
+        });
+        const id2 = await b.reserve("muse-spark-1.3", ESTIMATE_USD.spark, 2);
+        await b.settle(id2, 0.0014, {
+          ms: 15,
+          outcome: "ok",
+          certainty: "measured",
+          source: "meta-usage",
+          inputTokens: 50,
+          outputTokens: 10,
+        });
+        return { value: { doctored: true, reason: "altered" }, callId: id2, attempts: 2 };
+      }) as never,
+    });
+
+    const out = await runStamps(setDir, deps);
+    expect(out.stopped).toBeNull();
+    // 40 pages: each whole page made 2 Spark attempts (80), each chain page made 2 SAM attempts (80) = 160 reservations in both sharedLedger and localBudget guard.
+    expect(guardReserved).toHaveLength(160);
+    expect(guardSettled).toHaveLength(160);
+
+    const firstWhole = out.outcomes.find((o) => o.file === entries[0]?.file && o.arm === "whole");
+    expect(firstWhole?.usd).toBeCloseTo(0.0045, 6);
+    expect(firstWhole?.attempts).toBe(2);
+
+    const firstChain = out.outcomes.find((o) => o.file === entries[0]?.file && o.arm === "chain");
+    expect(firstChain?.status).toBe("empty-segmentation");
+    expect(firstChain?.usd).toBeCloseTo(0.005, 6);
+    expect(firstChain?.attempts).toBe(2);
+
+    // Standalone score CLI exits 0 on valid results and exits 1 when results have stale fingerprints or wrong file hashes.
+    expect(await main(["score", "--dir", setDir])).toBe(0);
+    const stalePath = join(dir, "stale-results.json");
+    writeFileSync(
+      stalePath,
+      JSON.stringify(out.outcomes.map((o) => ({ ...o, fingerprint: "stale", fileSha256: "wrong" }))),
+    );
+    expect(await main(["score", "--dir", setDir, "--results", stalePath])).toBe(1);
   });
 });
