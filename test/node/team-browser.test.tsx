@@ -475,5 +475,4 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     await expect.poll(() => p.url()).not.toContain("find=");
     await context.close();
   });
-
 });
