@@ -11,6 +11,7 @@ import { addEvidence, type Evidence, type EvidenceDraft } from "../checks/eviden
 import type { Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
+import type { AblateFlag } from "../pipeline/ablate";
 import { type Canary, canaryFor } from "./canary";
 import type { WalkRecord } from "./driver";
 import { impersonatedBrand, recordWalk, type WalkForEvidence, walkthroughEvidence } from "./evidence";
@@ -115,9 +116,13 @@ export type StepDeps = {
   table: BrandTable;
   revision: string | null;
   walkId: () => string;
+  // The case's ablation flag (D04 T02 §9), read through `ablateFlagFor` by the caller; absent when the caller
+  // has no flag store, which reads as no ablation.
+  ablateFlag?: () => Promise<AblateFlag | null>;
 };
 export type StepResult =
   | { outcome: "none" }
+  | { outcome: "ablated"; url: string; items: number }
   | { outcome: "reused"; url: string; items: number }
   | { outcome: "walked"; url: string; walk: string; items: number; cached: boolean }
   | { outcome: "not-run"; url: string; reason: string };
@@ -182,6 +187,22 @@ export async function walkthroughStep(deps: StepDeps, caseId: string): Promise<S
   const { readEvidence } = await import("../checks/evidence");
   const target = walkTarget(await readEvidence(deps.db, caseId));
   if (!target) return { outcome: "none" };
+  // An ablated arm (D04 T02 §9): no browser, no model, no cached walk reused, since any of those is the
+  // contribution being measured away. The case states the ablation instead: one info item naming it, without
+  // `checked: false`, so the verdict does not read the walk as coverage it could not get. A failed write
+  // propagates, so the result is claimed only once the marker is stored.
+  if ((await deps.ablateFlag?.().catch(() => null)) === "no-walkthrough") {
+    await addEvidence(deps.db, caseId, "walkthrough", [
+      {
+        check: "walkthrough.ablated",
+        severity: "info",
+        summary: "The phishing-site walkthrough was not run for this check: it is ablated for measurement.",
+        detail: { ablated: "no-walkthrough", url: target.url, revision: deps.revision },
+        artefacts: [],
+      },
+    ]);
+    return { outcome: "ablated", url: target.url, items: 1 };
+  }
   const key = await walkKey(target.url);
   const hit = await deps.cache.get(key).catch(() => null);
   if (isCached(hit)) {

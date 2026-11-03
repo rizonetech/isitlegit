@@ -9,6 +9,14 @@ import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { PhraseLog, PhraseStream } from "../../src/checks/instruction-phrases";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
+import { putAttachment } from "../../src/intake/store";
+import { detectedItem, notCheckedItem } from "../../src/invoice/extract";
+import {
+  comparisonUnavailableDocument,
+  notCheckedDocument,
+  type PaymentDocument,
+  paymentEvidence,
+} from "../../src/invoice/payment-doc";
 import type { Submission, WalkPage } from "../../src/walkthrough/driver";
 import { type KnownBrand, walkthroughEvidence } from "../../src/walkthrough/evidence";
 import { type CardItem, cardOrder, EvidenceCards, FAMILIES, familyOf } from "../../src/web/components/evidence/cards";
@@ -928,6 +936,418 @@ const FIXTURES: Fixture[] = [
       "The signature check (DKIM)",
     ],
   },
+  // The vision lane's readings and comparisons (D07 T03 §14; producers in src/vision/): the picture read,
+  // what it claims and asks, the logo crop beside its reference, and the brand against its real domains.
+  {
+    check: "vision.claimed_brand",
+    severity: "info",
+    detail: {
+      source_key: "derived/case/render-1.png",
+      source_name: "the invoice picture",
+      confidence: 0.9,
+      checked: true,
+      brand: "NimbusMail",
+      visible_sender: "NimbusMail Support",
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: [
+      "What a picture claims",
+      "Brand it shows",
+      "NimbusMail",
+      "Sender it shows",
+      "NimbusMail Support",
+      "How sure the reading is",
+      "90%",
+    ],
+  },
+  {
+    check: "vision.requested_action",
+    severity: "high",
+    detail: {
+      source_key: "derived/case/render-1.png",
+      source_name: "the invoice picture",
+      confidence: 0.9,
+      checked: true,
+      action: "log_in",
+      payment_request: false,
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: ["What a picture asks for", "sign in", "Asks for a payment", "No", "How sure the reading is", "90%"],
+  },
+  {
+    check: "vision.urgency",
+    severity: "medium",
+    detail: {
+      source_key: "derived/case/render-1.png",
+      source_name: "the invoice picture",
+      confidence: 0.9,
+      checked: true,
+      quotes: ["Act now, today only"],
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: ["Pressure in a picture", "Act now, today only"],
+  },
+  {
+    check: "vision.coverage",
+    severity: "info",
+    detail: { checked: false, complete: false, losses: ["the second page could not be pictured"] },
+    shows: [
+      "Part of the message could not be pictured",
+      "the second page could not be pictured",
+      "only partly checked",
+    ],
+  },
+  {
+    check: "vision.not_checked",
+    severity: "info",
+    detail: { checked: false, reason: "timeout" },
+    shows: ["The pictures were not read", "It ran out of time", "was not checked"],
+  },
+  {
+    check: "vision.logo_match",
+    severity: "high",
+    detail: {
+      brand: "NimbusMail",
+      same_brand: true,
+      brand_seen: "NimbusMail",
+      differences: ["The bird faces the other way"],
+      confidence: 0.8,
+      domain: "mismatch",
+      checked: true,
+    },
+    artefacts: ["derived/case/crop-1.png"],
+    shows: [
+      "A logo that matches NimbusMail",
+      "The crop in the message",
+      "The reference",
+      "ref-logo%3ANimbusMail",
+      "ref-logo-icon%3ANimbusMail",
+      "Brand the crop shows",
+      "The bird faces the other way",
+      "On a domain that is not the brand&#39;s",
+    ],
+  },
+  {
+    check: "vision.logo_match",
+    severity: "info",
+    detail: { brand: "NimbusMail", checked: false, reason: "deadline" },
+    artefacts: ["derived/case/crop-1.png"],
+    shows: ["A logo that was not compared", "No match and no clearance"],
+  },
+  {
+    check: "vision.logo_match",
+    severity: "info",
+    detail: {
+      brand: "NimbusMail",
+      same_brand: false,
+      brand_seen: "NimbusPost",
+      differences: ["It names NimbusPost, not NimbusMail"],
+      confidence: 0.7,
+      domain: "unjudged",
+      checked: true,
+    },
+    artefacts: ["derived/case/crop-1.png"],
+    shows: ["A logo that is not NimbusMail&#39;s", "It names NimbusPost, not NimbusMail", "Its domain was not judged"],
+  },
+  {
+    check: "vision.brand_domain_mismatch",
+    severity: "high",
+    detail: {
+      brand: "NimbusMail",
+      source_name: "the invoice picture",
+      domains: [
+        { host: "nimbusmai1.example", kind: "sender", domain: "nimbusmai1.example" },
+        { host: "nimbusmail.example", kind: "landing", domain: "nimbusmail.example" },
+      ],
+      confirmed: true,
+      source: "table",
+      official_domains: ["nimbusmail.example"],
+      mismatched: ["nimbusmai1.example"],
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: [
+      "Not one of NimbusMail&#39;s domains",
+      "NimbusMail&#39;s real domains",
+      "nimbusmail.example",
+      "The brand table",
+      "Sent from nimbusmai1.example: not one of the brand&#39;s domains",
+    ],
+  },
+  {
+    check: "vision.brand_domain_mismatch",
+    severity: "info",
+    detail: {
+      brand: "NimbusMail",
+      source_name: "the invoice picture",
+      domains: [{ host: "nimbusmai1.example", kind: "sender", domain: "nimbusmai1.example" }],
+      confirmed: false,
+      checked: false,
+      reason: "no-domain",
+    },
+    artefacts: ["derived/case/render-1.png"],
+    shows: [
+      "NimbusMail&#39;s domains could not be confirmed",
+      "This case holds no domain to compare it with",
+      "Sent from nimbusmai1.example",
+      "No match and no clearance",
+    ],
+  },
+  // The trust lane's invoice and payment-document comparisons (D07 T03 §15; producers in src/invoice/):
+  // the submitted account masked, the comparison's source and outcome, never the recorded side.
+  {
+    check: "invoice.detected",
+    severity: "info",
+    detail: {
+      supplier_name: "Karoo Parts",
+      supplier_domain: "karoo.example",
+      bank_name: "Protea Bank",
+      account_holder: "Karoo Parts (Pty) Ltd",
+      account_last3: "678",
+      branch_code: "051001",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      reference: "INV-1042",
+      due_date: "2026-11-30",
+      attachment: "case/invoice.pdf",
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: [
+      "An invoice in the message",
+      "Karoo Parts",
+      "karoo.example",
+      "Protea Bank",
+      "***678",
+      "ZAR 12500.00",
+      "INV-1042",
+      "2026-11-30",
+    ],
+  },
+  {
+    check: "invoice.bank_changed",
+    severity: "critical",
+    detail: {
+      attachment: "case/invoice.pdf",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      account_last3: "678",
+      against: "ledger",
+      supplier_id: "sup-internal-1",
+      phone: "011 555 0142",
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: [
+      "Bank details that differ",
+      "***678",
+      "Your supplier ledger",
+      "It differs from the recorded account",
+      "number in your own records",
+    ],
+  },
+  {
+    check: "invoice.bank_changed",
+    severity: "critical",
+    detail: {
+      attachment: "case/invoice.pdf",
+      amount_cents: 90000,
+      currency: "ZAR",
+      account_last3: "321",
+      against: "registry",
+      supplier_id: null,
+      phone: null,
+      protected_org_id: "org-internal-9",
+      registry_match: false,
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: ["Bank details that differ", "***321", "The supplier&#39;s registered account"],
+  },
+  {
+    check: "invoice.supplier_domain_changed",
+    severity: "critical",
+    detail: {
+      attachment: "case/invoice.pdf",
+      supplier_id: "sup-internal-1",
+      domain: "karoo-billing.example",
+      phone: "011 555 0142",
+    },
+    artefacts: ["case/invoice.pdf"],
+    shows: ["A domain the supplier has not used", "karoo-billing.example", "has not sent from this domain before"],
+  },
+  {
+    check: "invoice.change_language",
+    severity: "critical",
+    detail: { attachment: "case/invoice.pdf", amount_cents: 420000, currency: "ZAR", account_last3: "678" },
+    artefacts: ["case/invoice.pdf"],
+    shows: ["The message says bank details changed", "***678", "ZAR 4200.00"],
+  },
+  {
+    check: "invoice.comparison_unavailable",
+    severity: "info",
+    detail: { checked: false, reason: "no-baseline", comparison: "ledger", attachment: "case/invoice.pdf" },
+    artefacts: ["case/invoice.pdf"],
+    shows: [
+      "A bank comparison that could not run",
+      "No recorded account was there to compare with",
+      "No match and no mismatch",
+    ],
+  },
+  {
+    check: "invoice.not_checked",
+    severity: "info",
+    detail: { checked: false, reason: "too-large", attachment: "case/big.pdf" },
+    artefacts: ["case/big.pdf"],
+    shows: ["A document that could not be read as an invoice", "The document is too large to read", "were not checked"],
+  },
+  {
+    check: "document.type",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      issuer: "Protea Bank",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      paid_at: "2026-10-30",
+      issued_at: "2026-10-30",
+      reference: "PAY-88",
+      beneficiary_name: "Karoo Parts",
+      account_last3: "678",
+      beneficiary_masked: "***678",
+      branch_code: "051001",
+      layout_checked: true,
+      limit:
+        "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A proof of payment",
+      "Protea Bank",
+      "***678",
+      "Karoo Parts",
+      "Yes, against the bank&#39;s genuine sample",
+      "cannot prove the document was edited",
+    ],
+  },
+  {
+    check: "document.type",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "invoice",
+      issuer: "Protea Bank",
+      layout_checked: false,
+      layout_reason: "no-reference",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: ["An invoice", "No: No genuine sample is stored to compare its layout with"],
+  },
+  {
+    check: "document.layout_mismatch",
+    severity: "medium",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      issuer: "Protea Bank",
+      account_last3: "678",
+      beneficiary_masked: "***678",
+      aspects: ["logo"],
+      differences: ["The logo sits where the bank's does not"],
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "How this document&#39;s layout differs",
+      "The logo sits where the bank&#39;s does not",
+      "cannot prove the document was edited",
+    ],
+  },
+  {
+    check: "document.beneficiary_match",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      against: "ledger",
+      supplier_id: "sup-internal-1",
+      account_last3: "678",
+      beneficiary_masked: "***678",
+      match: true,
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A beneficiary that matches the record",
+      "***678",
+      "Your supplier ledger",
+      "It matches the recorded account",
+    ],
+  },
+  {
+    check: "document.beneficiary_mismatch",
+    severity: "critical",
+    detail: {
+      attachment: "case/pop.pdf",
+      type: "pop",
+      issuer: "Protea Bank",
+      against: "registry",
+      supplier_id: "sup-internal-1",
+      account_last3: "321",
+      beneficiary_masked: "***321",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A beneficiary that differs from the record",
+      "***321",
+      "The supplier&#39;s registered account",
+      "It differs from the recorded account",
+    ],
+  },
+  {
+    check: "document.comparison_unavailable",
+    severity: "info",
+    detail: { checked: false, reason: "rate-limited", attachment: "case/pop.pdf" },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A beneficiary comparison that could not run",
+      "The comparison service is at its limit for now",
+      "No match and no mismatch",
+    ],
+  },
+  {
+    check: "document.not_checked",
+    severity: "info",
+    detail: { checked: false, reason: "too-many-documents", attachment: "case/pop.pdf" },
+    artefacts: ["case/pop.pdf"],
+    shows: ["A payment document that could not be read", "more documents than can be read", "No match and no mismatch"],
+  },
+  {
+    check: "document.comparison_unavailable",
+    severity: "info",
+    detail: { checked: false, reason: "reference-unavailable", attachment: "case/pop.pdf" },
+    artefacts: ["case/pop.pdf"],
+    shows: [
+      "A layout comparison that could not run",
+      "The bank&#39;s genuine sample could not be read",
+      "No match and no mismatch",
+    ],
+  },
+  {
+    check: "document.limit",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      limit: "This check can show a document is likely altered. It cannot prove that a payment was made.",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: ["What this check cannot show", "cannot prove that a payment was made"],
+  },
+  {
+    check: "document.proof_of_payment",
+    severity: "info",
+    detail: {
+      attachment: "case/pop.pdf",
+      limit: "This check can show a document is likely altered. It cannot prove that a payment was made.",
+    },
+    artefacts: ["case/pop.pdf"],
+    shows: ["A document that says payment was made", "Confirm the money has cleared in your own banking app"],
+  },
 ];
 const items = (fixtures: Fixture[]): CardItem[] =>
   fixtures.map((f, i) => ({
@@ -940,6 +1360,15 @@ const items = (fixtures: Fixture[]): CardItem[] =>
   }));
 const draw = (list: CardItem[], cited: string[] = []) =>
   String(jsx(EvidenceCards, { items: list, cited, file: (key: string) => `/a/case/${encodeURIComponent(key)}` }));
+const drawWithReputation = (list: CardItem[], reputation: unknown[]) =>
+  String(
+    jsx(EvidenceCards, {
+      items: list,
+      cited: [],
+      file: (key: string) => `/a/case/${encodeURIComponent(key)}`,
+      reputation,
+    }),
+  );
 const card = (html: string, id: string) => {
   const at = html.indexOf(`id="${id.toLowerCase()}"`);
   expect(at, id).toBeGreaterThan(-1);
@@ -951,6 +1380,352 @@ describe("the evidence cards", () => {
     const missing = checks.names().filter((name) => !familyOf(name));
     expect(missing).toEqual([]);
     expect(FAMILIES).toContain("not_checked");
+  });
+
+  it("draws hostile vision detail as text, and a stored source address never as a link (D07 T03 s14)", () => {
+    const html = draw(
+      items([
+        {
+          check: "vision.claimed_brand",
+          severity: "info",
+          detail: { brand: HOSTILE, visible_sender: HOSTILE, source_name: "the picture", checked: true },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "vision.brand_domain_mismatch",
+          severity: "high",
+          detail: {
+            brand: "NimbusMail",
+            domains: [{ host: HOSTILE, kind: "sender", domain: "x.example" }],
+            confirmed: true,
+            source: "search",
+            source_url: "javascript:alert(1)",
+            official_domains: ["nimbusmail.example"],
+            mismatched: [],
+          },
+          artefacts: [],
+          shows: [],
+        },
+      ]),
+    );
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain('href="javascript:');
+    expect(html).toContain("javascript:alert(1)");
+    expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("maps every invoice and payment-document producer's name to its renderer (D07 T03 s15)", () => {
+    for (const name of [
+      "invoice.detected",
+      "invoice.bank_changed",
+      "invoice.supplier_domain_changed",
+      "invoice.change_language",
+      "invoice.comparison_unavailable",
+      "invoice.not_checked",
+    ])
+      expect(familyOf(name), name).toBe("invoice");
+    expect(FAMILIES).toContain("invoice");
+  });
+
+  it("never draws a full account, an internal id, a phone or an unexpected key (D07 T03 s15)", () => {
+    const html = draw(
+      items([
+        {
+          check: "invoice.bank_changed",
+          severity: "critical",
+          detail: {
+            account_last3: "678",
+            account_number: "998877665544",
+            against: "registry",
+            supplier_id: "sup-internal-1",
+            protected_org_id: "org-internal-9",
+            phone: "011 555 0142",
+            unexpected: "should-not-appear",
+          },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "document.beneficiary_mismatch",
+          severity: "critical",
+          detail: {
+            beneficiary_masked: "***321",
+            account_number: "998877665544",
+            supplier_id: "sup-internal-1",
+            phone: "011 555 0142",
+          },
+          artefacts: [],
+          shows: [],
+        },
+      ]),
+    );
+    for (const banned of ["998877665544", "sup-internal-1", "org-internal-9", "011 555 0142", "should-not-appear"])
+      expect(html, banned).not.toContain(banned);
+    expect(html).toContain("***678");
+    expect(html).toContain("***321");
+    // A malformed mask field fails closed: a full number stored where a mask belongs is never drawn.
+    const malformed = draw(
+      items([
+        {
+          check: "invoice.detected",
+          severity: "info",
+          detail: {
+            supplier_name: HOSTILE,
+            account_last3: "998877665544",
+            account_number: "998877665544",
+          },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "invoice.bank_changed",
+          severity: "critical",
+          detail: { account_last3: "998877665544", against: "ledger" },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "document.beneficiary_mismatch",
+          severity: "critical",
+          detail: { beneficiary_masked: "998877665544", account_last3: "678", against: "ledger" },
+          artefacts: [],
+          shows: [],
+        },
+        {
+          check: "document.beneficiary_match",
+          severity: "info",
+          detail: { beneficiary_masked: "***998877665544", account_last3: "998877665544", against: "ledger" },
+          artefacts: [],
+          shows: [],
+        },
+      ]),
+    );
+    expect(malformed).not.toContain("998877665544");
+    expect(malformed).not.toContain("***998877665544");
+    expect(malformed).not.toContain("***678");
+    expect(malformed).not.toContain("<script>alert");
+    expect(malformed).toContain("&lt;script&gt;");
+    // Producer-to-card masking when the account number repeats in supplier_domain, domain, or punctuated text.
+    const fieldsWithDomainAccount = {
+      is_invoice: true as const,
+      supplier_name: "Karoo Parts 1234.567.8901",
+      supplier_domain: "12345678901.example",
+      bank_name: "Protea Bank 1234/567/8901",
+      account_holder: "Karoo (1234) 567-8901",
+      account_number: "12345678901",
+      branch_code: "250655",
+      amount_cents: 100000,
+      currency: "ZAR",
+      reference: "Account 1234.567.8901",
+      due_date: "2026-11-10",
+    };
+    const produced = detectedItem(fieldsWithDomainAccount, "case/invoice.pdf");
+    expect(produced).not.toBeNull();
+    expect(fieldsWithDomainAccount.supplier_domain).toBe("12345678901.example");
+    expect(produced?.detail.supplier_domain).toBe("***901.example");
+    expect(produced?.detail.reference).toBe("Account ***901");
+    const [popProduced] = paymentEvidence(
+      {
+        type: "pop",
+        issuer: "Protea Bank 1234.567.8901",
+        amount_cents: 100000,
+        currency: "ZAR",
+        paid_at: "2026-11-10",
+        issued_at: "2026-11-10",
+        reference: "Account 1234.567.8901",
+        beneficiary: { name: "Karoo 1234/567/8901", account_number: "12345678901", branch_code: "250655" },
+        layout_differences: [],
+      },
+      { artefactKey: "case/pop.pdf", layout: { checked: true, differences: [] } },
+    );
+    expect(popProduced?.detail.reference).toBe("Account ***901");
+    const domainMaskedHtml = draw([
+      {
+        id: "E1",
+        check: produced?.check ?? "invoice.detected",
+        severity: "info",
+        summary: produced?.summary ?? "",
+        detail: (produced?.detail ?? {}) as Record<string, unknown>,
+        artefacts: produced?.artefacts ?? [],
+      },
+      {
+        id: "E2",
+        check: "invoice.supplier_domain_changed",
+        severity: "critical",
+        summary: "Domain changed",
+        detail: { account_last3: "901", domain: "1234.567.8901.example" },
+        artefacts: [],
+      },
+      {
+        id: "E3",
+        check: popProduced?.check ?? "document.type",
+        severity: "info",
+        summary: popProduced?.summary ?? "",
+        detail: { ...(popProduced?.detail ?? {}), reference: "Account 1234.567.8901" } as Record<string, unknown>,
+        artefacts: [],
+      },
+    ]);
+    for (const banned of ["12345678901", "1234.567.8901", "1234/567/8901", "1234"])
+      expect(domainMaskedHtml, banned).not.toContain(banned);
+    expect(domainMaskedHtml).toContain("***901.example");
+    expect(domainMaskedHtml).toContain("Account ***901");
+  });
+
+  it("explains every invoice and payment-document failure state in plain words, with no raw producer reason codes (D07 T03 s15)", () => {
+    const asCard = (draft: EvidenceDraft) =>
+      draw([
+        {
+          id: "E1",
+          check: draft.check,
+          severity: draft.severity as CardItem["severity"],
+          summary: draft.summary,
+          detail: (draft.detail ?? {}) as Record<string, unknown>,
+          artefacts: draft.artefacts ?? [],
+        },
+      ]);
+    for (const [reason, words] of [
+      ["too-large", "The document is too large to read"],
+      ["too-many-pages", "The document has too many pages to read"],
+      ["too-many-documents", "The message held more documents than can be read"],
+      ["unreadable", "The document could not be read"],
+      ["damaged", "The document could not be read"],
+      ["lookup-failed", "The document could not be read"],
+      ["keys-missing", "The comparison could not be read"],
+      ["budget", "The reading service had no capacity left"],
+      ["budget-unavailable", "The reading service had no capacity left"],
+      ["timeout", "It ran out of time"],
+      ["output-schema", "The reading returned an answer that could not be used"],
+      ["model-timeout", "The reading service could not finish"],
+      ["error", "The reading did not finish"],
+    ] as const) {
+      const invoiceNotChecked = asCard(notCheckedItem(reason, "case/invoice.pdf"));
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).toContain(
+        "A document that could not be read as an invoice",
+      );
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).toContain(words);
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).toContain("Its bank details were not checked.");
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).not.toContain(`(${reason})`);
+      expect(invoiceNotChecked, `invoice.not_checked ${reason}`).not.toContain("It could not be completed");
+
+      const docNotChecked = asCard(notCheckedDocument(reason, "case/pop.pdf"));
+      expect(docNotChecked, `document.not_checked ${reason}`).toContain("A payment document that could not be read");
+      expect(docNotChecked, `document.not_checked ${reason}`).toContain(words);
+      expect(docNotChecked, `document.not_checked ${reason}`).toContain("No match and no mismatch");
+      expect(docNotChecked, `document.not_checked ${reason}`).not.toContain(`(${reason})`);
+      expect(docNotChecked, `document.not_checked ${reason}`).not.toContain("It could not be completed");
+    }
+    // Invoice bank-comparison failures, with the producer's summary carrying the parenthesised code.
+    for (const [reason, comparison, words] of [
+      ["no-baseline", "ledger", "No recorded account was there to compare with"],
+      ["supplier-ambiguous", "ledger", "More than one supplier record fits, so none was chosen"],
+      ["keys", "ledger", "The comparison could not be read"],
+      ["keys-missing", "ledger", "The comparison could not be read"],
+      ["rate-limited", "registry", "The comparison service is at its limit for now"],
+    ] as const) {
+      const html = asCard({
+        check: "invoice.comparison_unavailable",
+        severity: "info",
+        summary: `A bank comparison could not run (${reason})`,
+        detail: { checked: false, reason, comparison, attachment: "case/invoice.pdf" },
+        artefacts: ["case/invoice.pdf"],
+      });
+      expect(html, `invoice.comparison_unavailable ${reason}`).toContain("A bank comparison that could not run");
+      expect(html, `invoice.comparison_unavailable ${reason}`).toContain(words);
+      expect(html, `invoice.comparison_unavailable ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `invoice.comparison_unavailable ${reason}`).not.toContain("It could not be completed");
+    }
+    // Payment-document layout comparison failures vs beneficiary comparison failures under document.comparison_unavailable.
+    for (const [reason, words] of [
+      ["reference-unavailable", "The bank&#39;s genuine sample could not be read"],
+      ["budget", "The reading service had no capacity left"],
+      ["budget-unavailable", "The reading service had no capacity left"],
+      ["timeout", "It ran out of time"],
+      ["output-schema", "The reading returned an answer that could not be used"],
+      ["model-503", "The reading service could not finish"],
+      ["error", "The reading did not finish"],
+    ] as const) {
+      const html = asCard(comparisonUnavailableDocument(reason, "case/pop.pdf"));
+      expect(html, `layout ${reason}`).toContain("A layout comparison that could not run");
+      expect(html, `layout ${reason}`).not.toContain("A beneficiary comparison that could not run");
+      expect(html, `layout ${reason}`).toContain(words);
+      expect(html, `layout ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `layout ${reason}`).not.toContain("It could not be completed");
+    }
+    for (const [reason, words, wrongRemedy] of [
+      [
+        "no-account",
+        "The document stated no usable account (a number and a branch code) to compare",
+        "No recorded account was there",
+      ],
+      ["no-baseline", "No recorded account was there to compare with", "The document stated no usable account"],
+      ["no-supplier", "No supplier record fits this document", "No recorded account"],
+      ["supplier-ambiguous", "More than one supplier record fits, so none was chosen", "No recorded account"],
+      ["keys", "The comparison could not be read", "No recorded account"],
+      ["registry", "The registered-account comparison could not run", "No recorded account"],
+      ["rate-limited", "The comparison service is at its limit for now", "No recorded account"],
+    ] as const) {
+      const html = asCard({
+        check: "document.comparison_unavailable",
+        severity: "info",
+        summary: `A beneficiary comparison could not run (${reason})`,
+        detail: { checked: false, reason, attachment: "case/pop.pdf" },
+        artefacts: ["case/pop.pdf"],
+      });
+      expect(html, `beneficiary ${reason}`).toContain("A beneficiary comparison that could not run");
+      expect(html, `beneficiary ${reason}`).not.toContain("A layout comparison that could not run");
+      expect(html, `beneficiary ${reason}`).toContain(words);
+      expect(html, `beneficiary ${reason}`).not.toContain(wrongRemedy);
+      expect(html, `beneficiary ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `beneficiary ${reason}`).not.toContain("It could not be completed");
+    }
+    // Layout reasons on document.type, built by paymentEvidence with its real summary (`Payment document: pop from ...`).
+    const popFields: PaymentDocument = {
+      type: "pop",
+      issuer: "Protea Bank",
+      amount_cents: 1250000,
+      currency: "ZAR",
+      paid_at: "2026-10-30",
+      issued_at: "2026-10-30",
+      reference: "PAY-88",
+      beneficiary: { name: "Karoo Parts", account_number: "62000123678", branch_code: "051001" },
+      layout_differences: [],
+    };
+    for (const [reason, words] of [
+      ["not-a-pop", "No: It is not a proof of payment, so its layout was not compared"],
+      ["no-reference", "No: No genuine sample is stored to compare its layout with"],
+      ["reference-unavailable", "No: The bank&#39;s genuine sample could not be read"],
+      ["budget", "No: The reading service had no capacity left"],
+      ["timeout", "No: It ran out of time"],
+      ["output-schema", "No: The reading returned an answer that could not be used"],
+      ["model-503", "No: The reading service could not finish"],
+      ["error", "No: The reading did not finish"],
+    ] as const) {
+      const [typeDraft] = paymentEvidence(popFields, {
+        artefactKey: "case/pop.pdf",
+        layout: { checked: false, reason },
+      });
+      const html = asCard(typeDraft as EvidenceDraft);
+      expect(html, `document.type ${reason}`).toContain(words);
+      expect(html, `document.type ${reason}`).not.toContain("Payment document: pop");
+      expect(html, `document.type ${reason}`).not.toContain(`(${reason})`);
+      expect(html, `document.type ${reason}`).not.toContain("It could not be completed");
+      expect(html, `document.type ${reason}`).not.toContain("62000123678");
+    }
+  });
+
+  it("maps every vision producer's name to its family (D07 T03 s14)", () => {
+    for (const name of [
+      "vision.claimed_brand",
+      "vision.requested_action",
+      "vision.urgency",
+      "vision.coverage",
+      "vision.not_checked",
+      "vision.logo_match",
+      "vision.brand_domain_mismatch",
+    ])
+      expect(familyOf(name), name).toBe("vision");
+    expect(FAMILIES).toContain("vision");
   });
 
   it("draws a fixture of every registered check", () => {
@@ -1066,6 +1841,88 @@ describe("the evidence cards", () => {
     expect(counter).toContain("a.example");
     expect(counter).toContain("b.example");
     expect(counter).toContain("and 21 more");
+  });
+
+  // D07 T09 §5: one stored row per provider and subject, its state and age, and only the counts they support.
+  it("draws each provider's stored answer for a subject, with its time and cache mark", () => {
+    const listing = {
+      check: "reputation.listing",
+      severity: "high" as const,
+      detail: { provider: "Web Risk", listed: "https://pay.example/reset", granularity: "url", corroborated: false },
+      shows: [],
+    };
+    const rows = [
+      {
+        provider: "google-web-risk",
+        subject: "https://pay.example/reset",
+        state: "listed",
+        obtainedAt: "2026-10-27T08:00:00Z",
+        cached: false,
+        note: null,
+      },
+      {
+        provider: "cloudflare",
+        subject: "pay.example",
+        state: "clear",
+        obtainedAt: "2026-10-27T08:01:00Z",
+        cached: true,
+        note: null,
+      },
+      {
+        provider: "well-known",
+        subject: "pay.example",
+        state: "unknown",
+        obtainedAt: "2026-10-27T08:01:00Z",
+        cached: false,
+        note: null,
+      },
+      {
+        provider: "google-web-risk",
+        subject: "pay.example",
+        state: "unavailable",
+        obtainedAt: "2026-10-27T08:02:00Z",
+        cached: false,
+        note: "provider timed out",
+      },
+    ];
+    const html = drawWithReputation(items([listing]), rows);
+    expect(html).toContain("Google Web Risk</strong>: Listed");
+    expect(html).toContain("2026-10-27T08:00:00Z");
+    expect(html).toContain("Cloudflare</strong>: Not listed by this provider");
+    expect(html).toContain("from cache");
+    expect(html).toContain("Well-known list</strong>: Not on the well-known list");
+    expect(html).toContain("Could not be checked (the provider timed out)");
+    expect(html).toContain("obtained 2026-10-27T08:00:00Z");
+    // Only answered providers count, per exact subject: the listing's subject has one answered row.
+    expect(html).toContain("1 provider answered: 1 listed, 0 not listed");
+    // A subject no card names is drawn in its own block, and a hostile subject stays text.
+    const hostile = drawWithReputation(items([listing]), [
+      {
+        provider: "cloudflare",
+        subject: "<script>alert(1)</script>",
+        state: "clear",
+        obtainedAt: "2026-10-27T08:03:00Z",
+        cached: false,
+        note: null,
+      },
+    ]);
+    expect(hostile).toContain("What the reputation providers said");
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // No stored rows: no provider block is invented.
+    expect(draw(items([listing]))).not.toContain("providers answered");
+    // Two cards naming one subject draw its rows once, and a failed read says so.
+    const twice = drawWithReputation(items([listing, listing]), rows);
+    expect(twice.match(/Google Web Risk<\/strong>: Listed/g)).toHaveLength(1);
+    const failed = String(
+      jsx(EvidenceCards, {
+        items: items([listing]),
+        cited: [],
+        file: (key: string) => `/a/case/${encodeURIComponent(key)}`,
+        reputation: null,
+      }),
+    );
+    expect(failed).toContain("The provider answers for this report could not be loaded.");
   });
 
   // D07 T09 §6: the stored transcript, its player, the request marked, and its incomplete states.
@@ -1368,9 +2225,238 @@ describe("the evidence cards through the report route", () => {
       for (const words of f.shows) expect(one, `${f.check}: ${words}`).toContain(words);
     });
   });
+
+  it("reads stored vision evidence back as its cards, the reference beside the crop (D07 T03 s14)", async () => {
+    const orgId = `org-cards-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Cards Co", orgId, new Date().toISOString())
+      .run();
+    const email = `cards-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const stored = FIXTURES.filter((f) => f.check.startsWith("vision.")).slice(0, 10);
+    expect(stored.length).toBeGreaterThanOrEqual(7);
+    await saveEvidence(
+      db,
+      id,
+      stored.map((f) => ({
+        check: f.check,
+        severity: f.severity,
+        summary: `Summary of ${f.check}`,
+        detail: f.detail as EvidenceDraft["detail"],
+        artefacts: f.artefacts ?? [],
+      })),
+    );
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+    for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
+    expect(html).toContain("ref-logo%3ANimbusMail");
+  });
+
+  it("reads stored invoice and payment-document findings back masked, through the route (D07 T03 s15)", async () => {
+    const orgId = `org-cards-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Cards Co", orgId, new Date().toISOString())
+      .run();
+    const email = `cards-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const pdfBytes = new TextEncoder().encode("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+    const attached = await putAttachment(
+      { bucket: (env as unknown as Env).ARTEFACTS, db },
+      id,
+      "invoice-20931.pdf",
+      pdfBytes,
+      "application/pdf",
+    );
+    const domainAccountDraft = detectedItem(
+      {
+        is_invoice: true,
+        supplier_name: "Karoo Parts (Pty) Ltd",
+        supplier_domain: "12345678901.example",
+        bank_name: "Protea Bank",
+        account_holder: "Karoo Parts 1234.567.8901",
+        account_number: "12345678901",
+        branch_code: "250655",
+        amount_cents: 4850000,
+        currency: "ZAR",
+        reference: "Account 1234.567.8901",
+        due_date: "2026-11-15",
+      },
+      attached.key,
+    );
+    if (!domainAccountDraft) throw new Error("expected detectedItem draft");
+    const stored = FIXTURES.filter(
+      (f) =>
+        f.check.startsWith("invoice.") ||
+        (f.check.startsWith("document.") && !f.check.startsWith("document.forensics")),
+    );
+    expect(stored.length).toBeGreaterThanOrEqual(14);
+    const drafts = [
+      domainAccountDraft,
+      ...stored.map((f) => ({
+        check: f.check,
+        severity: f.severity,
+        summary:
+          f.check === "invoice.not_checked"
+            ? "An attached document could not be read as an invoice (too-large)"
+            : f.check === "document.comparison_unavailable" && f.detail.reason === "reference-unavailable"
+              ? "A payment document comparison could not run (reference-unavailable)"
+              : `Summary of ${f.check}`,
+        detail: {
+          ...f.detail,
+          account_number: "998877665544",
+          unexpected: "should-not-appear",
+        } as EvidenceDraft["detail"],
+        artefacts: f.check === "invoice.bank_changed" ? [attached.key] : (f.artefacts ?? []),
+      })),
+      {
+        check: "document.beneficiary_mismatch",
+        severity: "critical" as const,
+        summary: "A beneficiary comparison (998877665544)",
+        detail: {
+          beneficiary_masked: "998877665544",
+          account_last3: "998877665544",
+          account_number: "998877665544",
+          supplier_id: "sup-internal-1",
+          protected_org_id: "org-internal-9",
+          phone: "011 555 0142",
+          unexpected: "should-not-appear",
+          against: "ledger",
+        },
+        artefacts: [],
+      },
+    ];
+    await saveEvidence(
+      db,
+      id,
+      drafts.filter((f) => f.check.startsWith("invoice.")),
+    );
+    // Stored document rows as the pipeline leaves them (its producer name is not a later producer, so
+    // the rows are put beside the validated entry points, as test/web/stored-verdict.ts does for verdicts).
+    const docs = drafts.filter((f) => f.check.startsWith("document."));
+    for (const [i, f] of docs.entries())
+      await db
+        .prepare(
+          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'document')`,
+        )
+        .bind(
+          id,
+          id,
+          `E${100 + i}`,
+          100 + i,
+          f.check,
+          f.severity,
+          f.summary,
+          JSON.stringify(f.detail),
+          JSON.stringify(f.artefacts),
+          new Date().toISOString(),
+        )
+        .run();
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+    for (const f of stored) for (const words of f.shows) expect(html, `${f.check}: ${words}`).toContain(words);
+    expect(html).toContain("***901.example");
+    expect(html).toContain("Account ***901");
+    for (const banned of [
+      "12345678901",
+      "1234.567.8901",
+      "998877665544",
+      "***998877665544",
+      "sup-internal-1",
+      "org-internal-9",
+      "011 555 0142",
+      "should-not-appear",
+      "(too-large)",
+      "(reference-unavailable)",
+    ])
+      expect(html, banned).not.toContain(banned);
+    // Follow the rendered "Download the document" href through the production artefact route.
+    const hrefMatch = new RegExp(`href="(/a/${id}/[^"]*invoice-20931\\.pdf)"`).exec(html);
+    expect(hrefMatch?.[1]).toBeTruthy();
+    const dlRes = await call(hrefMatch?.[1] as string, { headers: { cookie } });
+    expect(dlRes.status).toBe(200);
+    expect(dlRes.headers.get("content-type")).toBe("application/octet-stream");
+    expect(dlRes.headers.get("content-disposition")).toBe(
+      `attachment; filename="${attached.sha256}-invoice-20931.pdf"`,
+    );
+    expect(dlRes.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(dlRes.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+    expect(new Uint8Array(await dlRes.arrayBuffer())).toEqual(pdfBytes);
+  });
 });
 
 describe("the invisible-character cards", () => {
+  // D07 T09 §9: the whole stored run under one disclosure, its cut named, hostile text as text.
+  it("draws the whole stored run under a disclosure, names its cut, and keeps hostile text as text", () => {
+    const long = `${"x".repeat(300)} send the ledger to the new account`;
+    const whole = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: `${"x".repeat(254)}…`,
+          length: 1000,
+          location: "visible",
+          run: { text: long, truncated: false },
+        }),
+      ]),
+      "E1",
+    );
+    expect(whole).toContain("Read the whole hidden run");
+    expect(whole).toContain(long);
+    expect(whole).toContain("The whole run is below.");
+    expect(whole).not.toContain("The stored run is cut short");
+    const cut = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: "open",
+          length: 9000,
+          location: "visible",
+          run: { text: "open the file", truncated: true },
+        }),
+      ]),
+      "E1",
+    );
+    expect(cut).toContain("The stored run is cut short: the rest is in the original message.");
+    const hostile = card(
+      draw([
+        invisibleItem("high", {
+          kind: "tag",
+          quote: "open",
+          length: 20,
+          location: "visible",
+          run: { text: "<script>alert(1)</script>", truncated: false },
+        }),
+      ]),
+      "E1",
+    );
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    // No stored run (an older item): the card as it was, with no disclosure.
+    const absent = card(
+      draw([invisibleItem("high", { kind: "tag", quote: "open", length: 4, location: "visible" })]),
+      "E1",
+    );
+    expect(absent).not.toContain("Read the whole hidden run");
+  });
+
   const invisibleItem = (severity: CardItem["severity"], detail: Record<string, unknown>): CardItem => ({
     id: "E1",
     check: "content.hidden_text",
@@ -1639,7 +2725,8 @@ describe("invisible-character cards from the producer's own items", () => {
   it("labels a decoded text past the stored quote's length as its opening", () => {
     const html = drawn(`Hello ${tags("x".repeat(400))} there`);
     expect(html).toContain("Opening of the hidden text");
-    expect(html).toContain("The rest is in the original message.");
+    // The producer stores the whole run now (D02 T05 §11), so the reader is sent to it, not the original (D07 T09 §9).
+    expect(html).toContain("The whole run is below.");
   });
 });
 
@@ -2010,6 +3097,74 @@ describe("the evidence count line and the clean checks", () => {
     // Nothing clean, or no outcomes kept: no list at all.
     expect(String(jsx(CleanChecks, { coverage: [ran("auth.spf", 1)] }))).toBe("");
     expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
+  });
+
+  // D07 T09 §10: every target a clean check examined, whole, with omissions stated and hostile text as text.
+  it("lists every examined target of a clean check whole, with its omissions stated", () => {
+    const long = "a".repeat(255);
+    const html = String(
+      jsx(CleanChecks, {
+        coverage: [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["one.example", long, "last.example"], omitted: 3 },
+          },
+          {
+            check: "auth.spf",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: [], omitted: 0 },
+          },
+          {
+            check: "sender.display_brand",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["<script>alert(1)</script>"], omitted: 1 },
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("See what this check examined");
+    expect(html).toContain(long);
+    expect(html).toContain("last.example");
+    expect(html).toContain("3 more targets were examined but are not listed.");
+    expect(html).toContain("1 more target was examined but is not listed.");
+    expect(html).toContain("No targets were recorded for this check.");
+    expect(long).toHaveLength(255);
+    // The whole list, in order, and only the two non-empty sets open a disclosure.
+    expect(html.indexOf("one.example")).toBeGreaterThan(-1);
+    expect(html.indexOf("one.example")).toBeLessThan(html.indexOf(long));
+    expect(html.indexOf(long)).toBeLessThan(html.indexOf("last.example"));
+    const listed = [...html.matchAll(/<li class="wrap-anywhere">([^<]*)<\/li>/g)].map((m) => m[1]);
+    expect(listed).toContain(`one.example`);
+    expect(listed.filter((x) => x === long)).toHaveLength(1);
+    expect(listed.filter((x) => x === "last.example")).toHaveLength(1);
+    expect(html.match(/See what this check examined/g)).toHaveLength(2);
+    const noOmission = String(
+      jsx(CleanChecks, {
+        coverage: [
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            examined: { targets: ["x.example"], omitted: 0 },
+          },
+        ],
+      }),
+    );
+    expect(noOmission).not.toContain("not listed");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain("&lt;script&gt;");
+    // No set stored: the list as it was, with no disclosure.
+    expect(String(jsx(CleanChecks, { coverage: [ran("domain.lookalike")] }))).not.toContain(
+      "See what this check examined",
+    );
   });
 
   // The stored result summary (D02 T01 §7; D07 T03 §44): what each clean check saw, or "nothing found" when none

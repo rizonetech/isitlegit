@@ -420,6 +420,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await context.close();
   });
 
+  // D07 T09 §1: the card lands on the first poll after the auth outcomes are stored, not a poll later.
+  it("shows the early card on the first poll after the auth outcomes land", async () => {
+    const { p, context } = await open(running(RUNNING_3), [EARLY], 360, "light");
+    expect(await p.getByText("What the receiving mail system recorded").count()).toBe(0);
+    await expect
+      .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
+      .toBe(1);
+    expect(state.polls).toHaveLength(1);
+    await context.close();
+  });
+
   // D07 T03 §5: a report watched while it runs receives its completed model trace in the poll that finishes it, with no
   // navigation; asked open by its address, it finishes open, and the poll carried that ask.
   it("gives a watched report its model trace at the finishing poll, collapsed or open as asked, without navigation", async () => {

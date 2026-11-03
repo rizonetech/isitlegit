@@ -45,7 +45,7 @@ track: day-6
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
 | 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
-| 15 | §15 | Slash shortcut to the | §7 | [ ] |
+| 15 | §15 | Slash shortcut to the | §7 | [x] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
 | 18 | §18 | Threat kinds under Malicious | §2 | [x] |
@@ -54,7 +54,7 @@ track: day-6
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [x] |
 | 23 | §23 | Team history for owners | §3 | [x] |
-| 24 | §24 | Team history by person | §23 | [ ] |
+| 24 | §24 | Team history by person | §23 | [x] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [x] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
@@ -675,6 +675,9 @@ A member presses `/` anywhere on the Cases list, outside a text field, and lands
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
 
+> **Verified:** 2026-11-03 | §15 | 2721fcbe3a8ad0a618eb3243a7ba1cd01d2981c2
+> **Review:** `docs/reviews/d07-t04-s15.json`
+
 ## 16. Live Cases search latency vs Gmail
 
 > **Operator 2026-11-01 03:30 SAST:** skipped for the competition; not built (relayed by the coordinator).
@@ -931,7 +934,7 @@ The organisation's role changes, revocations and removals (D07 T02 §6's owner-o
 - [x] Prove it in the browser: the filters by keyboard and with scripts off, the error and retry, at phone and desktop widths in both themes. Done when: `test/node/team-browser.test.tsx` reads each.
 - [x] Commit: `web: team history for owners`
 
-> **Deferred:** paging through history matches -> XREF: D07 T04 §24
+> **Resolved:** paging through history matches -> XREF: D07 T04 §24 (built and stamped there)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if an admin sees the history.
 
@@ -965,6 +968,9 @@ Filter the team history by one person, as the actor or the target, in one step, 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run test/auth/audit.test.ts` pass and fail if another person's change appears under the filter.
 
 > **Deferred:** choosing a departed person in the history -> XREF: D07 T04 §36
+
+> **Verified:** 2026-11-03 | §24 | 4229908ec060fb919f64214ec3a54b90852e3d80
+> **Review:** `docs/reviews/d07-t04-s24.json`
 
 ## 25. Protected accounts refused on the Team page
 

@@ -262,6 +262,33 @@ export async function identityContact(db: D1Database, orgId: string): Promise<st
   return contact && (await addressVerified(db, orgId, contact)) ? contact : null;
 }
 
+export type ProtectedCandidate = {
+  orgId: string;
+  names: string[];
+  domains: string[];
+  logo: { key: string; mediaType: "image/png" | "image/svg+xml" } | null;
+};
+
+// Every effectively protected identity as a candidate for the trust claim match (D02 T01 §9): an allowlisted
+// projection (org id, display names, verified domains, the registered logo's reference, never its bytes, and
+// never a finance contact or bank field), in org-id order, filtered by the same effective test `getIdentity`
+// reports, so an identity whose protection lapsed is not a candidate. The bound on the set is the view's
+// (src/checks/case-view.ts), applied by the caller.
+export async function protectedIdentities(db: D1Database): Promise<ProtectedCandidate[]> {
+  const rows = await db.prepare("SELECT * FROM identities WHERE protected = 1 ORDER BY org_id").all<Row>();
+  const out: ProtectedCandidate[] = [];
+  for (const row of rows.results) {
+    if (!(await effectiveOf(db, row)).on) continue;
+    out.push({
+      orgId: row.org_id,
+      names: JSON.parse(row.display_names_json) as string[],
+      domains: await verifiedDomains(db, row.org_id),
+      logo: row.logo_r2_key && row.logo_media_type ? { key: row.logo_r2_key, mediaType: row.logo_media_type } : null,
+    });
+  }
+  return out;
+}
+
 export type ClaimMatch = { orgId: string; name: string; matchedBy: "name" | "domain" };
 
 // Which effectively protected identities a sender's claimed name or domain belongs to: every one that matches (two

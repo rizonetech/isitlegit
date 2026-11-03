@@ -118,7 +118,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N7 | Monitor alert with takedown pack | The protected business | D05 T04 §5 |
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
-| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays 16:00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
+| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays at 16h00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
 
 No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
 
@@ -309,6 +309,9 @@ Controls:
 - Free check: R0 tier with Get started free. (Pricing)
 - Protect from R499: Protect tier with Start free during launch. (Pricing)
 - MSP from R199 per client: MSP tier with Talk to us (opens S9). (Pricing)
+- Protect member scope: "up to 5 members; larger organisations R999" on the Protect tier. (Pricing)
+- What the price includes: Q&A answer, prices include VAT. (Pricing)
+- Locked in: Q&A answer, month-to-month, cancel anytime and the organisation keeps Free check. (Pricing)
 
 States:
 
@@ -319,6 +322,7 @@ States:
 - Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 5 checks a day per organisation", `src/auth/plan-sql.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
 - Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
 - Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
+- Deviation (D07 T06 §12): the Pricing board draws no member scope or terms answers; the page also states Protect's member scope (up to 5 members, R999 above, the operator's threshold; design spec 2b supports the R499 to R999 range) and two Questions answers (prices include VAT; month-to-month, cancel anytime). Operator decision 2026-11-02.
 
 ### S6 Privacy and POPIA
 
@@ -520,6 +524,8 @@ Controls:
 - email field: Email input. (Signin)
 - magic-link button: Primary submit. (Signin)
 - passkey button: Starts WebAuthn; Create an account opens A2. (Signin)
+
+- Decision (operator, 2026-11-02; D07 T02 §18): the email form stays first with the passkey button below it, as drawn. Passkey autofill in the email field and leading with the passkey for a returning browser were considered and not taken; no board change.
 - sign-in code: The code field and Sign in on the check your inbox state. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 
 States:
@@ -527,7 +533,7 @@ States:
 - check your inbox: With Send another link and Use a different email. (Signin-States)
 - link expired or used: With Email me a new link. (Signin-States)
 - rate limited: With the time new links resume. (Signin-States)
-- passkey prompt: With Try the passkey again and Email me a link instead. (Signin-States)
+- passkey prompt: With Try the passkey again and Email me a link instead. Its panel also names the phone or tablet the passkey may be on (operator decision, 2026-11-02; D07 T02 §19), the email link kept. The panel also carries the troubleshooting note (D07 T02 §28): three usual causes, each with what to change: the phone has no screen lock (set one up), the browser is older and cannot use a phone passkey (update it, or sign in with an email link), Bluetooth is off (turn it on on this device and the phone). The same note stays reachable when the ceremony is cancelled or fails: the sign-in page then shows it with the failure reason, the passkey retry and the email route still offered. (Signin-States)
 - code refused: The refusal on the code field, with Send another link. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 - loading: Busy submit. Deferred to D07 T02 §7: the submit button shows a busy state while the request runs; not drawn.
 - empty: No empty state. Not applicable: a form page; the empty form is the default state.
@@ -541,7 +547,7 @@ Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; b
 - confirm, link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
 - confirm, check your inbox: A1's state, with Send another link (the same address) and Use a different email (the form with that address to correct).
 - confirm, did not finish: Sign-in did not finish (the service's failure after the link was used), with the new-link form and the return path kept.
-- confirm, link asked for on another device (D07 T02 §12, 2026-11-01, operator decision "Wrong-device link: b"; built from A1's controls, not drawn): the confirm page for a link the opening browser did not ask for (it holds no matching sign-in handle, which a link scanner never does) reads "Finish on the device where you asked", says the link was asked for on another device and that the 6-digit code in the same email signs that device in, and offers one secondary action, "Sign in on this device instead", which is the page's ordinary sign-in; the app keeps no readable code, so the page points to the email's rather than showing it. The browser that asked, a link no sign-in code was issued for (an invitation), and a link whose asking device has used its three code tries read the plain page. A check that fails reads "We could not check this link just now", keeps the link and its destination, spends nothing, and offers Try again. (Sign in)
+- confirm, link asked for on another device (D07 T02 §12, 2026-11-01, operator decision "Wrong-device link: b"; built from A1's controls, not drawn): the confirm page for a link the opening browser did not ask for (it holds no matching sign-in handle, which a link scanner never does) reads "Finish in the browser where you asked" (browser wording, operator 2026-11-02; D07 T02 §25), says the link was asked for in another browser and that the 6-digit code in the same email signs that browser in, and offers one secondary action, "Sign in in this browser instead", which is the page's ordinary sign-in; the app keeps no readable code, so the page points to the email's rather than showing it. The browser that asked, a link no sign-in code was issued for (an invitation), and a link whose asking device has used its three code tries read the plain page. A check that fails reads "We could not check this link just now", keeps the link and its destination, spends nothing, and offers Try again. (Sign in)
 - confirm, rate limited: A1's state on the confirm step: too many tries from here; the same button and link work again once the limit's 10-minute window passes, at the time the page shows.
 - confirm, no account: This address has no IsItLegit account; ask the organisation's owner for an invitation (a new link would be refused the same way).
 - confirm, link could not be sent: The recovery's send failed, with the form and the address kept, so the retry is one press.
@@ -713,6 +719,9 @@ Anatomy, top to bottom (Main):
 - Evidence: a count line ("9 findings · 8 checks ran · nothing skipped") with its Check versions disclosure, then evidence cards by kind, each with an id and severity pill (Critical, High, Medium, Low, Info), a title and its proof: walkthrough steps with screenshots, lookalike domain with RDAP date, hidden text quoted, logo crop comparison, authentication header excerpt, reputation listing with "listed in error? request a review", first-time sender.
 - Check versions lines (D07 T09 §11, operator approval routed through the coordinator 2026-11-02): each line keeps the check's name and Worker version first ("version not recorded" where none was stored), then what the check did in plain words: "ran", "read part of its input", "did not run" or "failed". A partial or skipped line follows with its stored reason, drawn as text. A failed line follows with its reason in plain words: a stored `Timeout` reads "it ran out of time", `EvidenceRefused` reads "its findings could not be stored", and any other stored class reads "it failed". A ran line carries no reason.
 - Detection data on the version lines (D07 T09 §12, operator approval routed through the coordinator 2026-11-02): a line for a check that reads the brand table (the lookalike-domain, display-brand and reputation counter-signal checks) then names the detection data it judged by: "data <revision> (<identity>, KV)" or "(<identity>, bundled)", from the stored provenance of that run, drawn as text. Where none was stored it reads "data not recorded", never today's table. No other check's line names data.
+- Every target a clean check examined (D07 T09 §10, operator approval routed through the coordinator 2026-11-02): under a clean check in "Checks that found nothing", a "See what this check examined" disclosure opens the stored examined targets whole, as text, by one activation and with no JavaScript; when targets were omitted it ends "<n> more targets were examined but are not listed." A stored empty set reads "No targets were recorded for this check." A check with no set stored keeps the list as it was, with no disclosure.
+- The whole decoded run (D07 T09 §9, operator approval routed through the coordinator 2026-11-02): on the invisible-characters card, a "Read the whole hidden run" disclosure opens the stored decoded run whole, as text, by one activation and with no JavaScript. When the stored run is cut, the opened view ends "The stored run is cut short: the rest is in the original message." A card stored before the run was kept shows the card as it was, with no disclosure.
+- Per-provider reputation rows (D07 T09 §5): on a subject's reputation card, and in a "What the reputation providers said" block for a subject no card names, one row per provider that was asked about that subject: the provider, its answer in plain words ("Listed", "Not listed by this provider", "Could not be checked" with its recorded reason, "On the well-known list", "Not on the well-known list"), when the answer was obtained, and "from cache" when it was. A count line per subject counts only the providers that answered ("3 providers answered: 1 listed, 2 not listed"), with the well-known list counted apart; an unanswered provider is named as not checked, never counted as clear, and no count is drawn as a verdict.
 - Model trace: a table of step, model, what it did, time and cost, with the total; sample figures are labelled.
 - Footer: retention and access line, and "This verdict is wrong".
 
@@ -773,6 +782,7 @@ States:
 - Deviation (D07 T03 §39): the Check versions disclosure sits on the evidence count line where no board draws it, because the boards predate check implementation revisions (D02 T01 §4); the count line's own words, order and treatments are the boards'.
 - Deviation (D07 T03 §8): the viewer's heading line shows the capture's own size (read from the loaded image) and, on a phone, "scrolls both ways", where the board's desktop line also says "Screenshot N of M" and "taken T s into the walk" (the stored finding holds neither: a screenshot's place among the walk's captures and its time are not stored). The opening control's name is "Open at full size: <caption>", not the SPEC's "Open the screenshot at full size: <caption>", so the visible words "Open at full size" are part of the name (WCAG 2.5.3). The footer is two short lines ("The page as the contained browser saw it." on a wide screen, "Pinch or scroll to read it." on a phone) rather than the board's longer sentence. The capture is asked for afresh and its answer decides the state: the artefact route marks its answers with `x-artefact-state` (`gone`, `link-expired`, `unavailable`), because a 410 alone cannot tell an expired report link from a deleted file; an expired link says "This report link has expired. Ask for a new one." and, like a gone capture, offers nothing to open.
 - Deviation (D07 T03 §19): the headers tab's line does not say the authentication results in the headers are "the receiving server's own" (the board's footer), because any `Authentication-Results` header in a message can be forged: it reads "Every header as stored, in the order received. A result written into a header may be forged; the authentication check says which results were the receiving server's.". The message tab shows the parsed plain-text body as sent, not the model's visible text (which also lacks visible instruction-like phrases), falling back to the visible text only for a message with no plain part and saying so ("This message has only an HTML version. This is its visible text, with hidden text and instruction-like phrases taken out."). The 200 KB note reads "Showing the first 200 KB as plain text. The message is longer; download the original to read the rest.". A text never stored, an empty body and an empty header list each say so in their own words ("The message text was not stored.", "The message has no text.", "The message has no headers."), the other tab and the download staying usable; the dialog also has the viewer's link-expired, signed-out and failed-read states. Without the app script "View the original message" and "View complete headers" are the original's download.
+- Deviation (D07 T03 §15): the invoice and payment-document cards draw the submitted account masked as `***` plus its last three digits, the comparison source in plain words ("Your supplier ledger" or "The supplier's registered account") and the outcome, without the recorded account's masked fields (which the producers never store and the registry's match-or-no-match contract never reveals), without a stored phone number (the card tells the reader to phone the number in their own records, never one from the message), without an outlined PDF page preview (the card links the document through the artefact route; an outlined, masked bank-block page preview is deferred to D07 T09 §20), and without a baseline verification timeline (immutable baseline provenance is not stored by the producers yet and is deferred to D07 T09 §21).
 
 ### M4 Supplier ledger
 
@@ -952,8 +962,10 @@ Controls:
 - passkeys (add, remove): Passkeys table with Remove. (Account)
 - sessions: Sessions table with Sign out per session. (Account)
 - sign out: Signs out other sessions. (Account)
-- close account: Close account button for the owner of the active organisation, naming that organisation in its confirmation (this organisation, its stored mail and cases, and its history are deleted 30 days after closing; closing refuses new cases at once and cannot be undone). Shown only to an owner; after closing, the page states the organisation is closed and its deletion date. (Account)
+- close account: Close account button for the owner of the active organisation, naming that organisation in its confirmation (this organisation, its stored mail and cases, and its history are deleted 30 days after closing; closing refuses new cases at once and cannot be undone). Shown only to an owner; after closing, the page states the organisation is closed and its deletion date. The confirmation first offers the case-summary export (the organisation's cases with verdicts and dates, one downloadable file) and requires a fresh sign-in: a session older than ten minutes is asked to sign in again and returns to the confirmation (D07 T02 §26). (Account)
 - weekly counts: A checkbox, "Email me this organisation's weekly counts on Fridays", with the day it was switched on, for the active organisation. (Account) (D07 T04 §20, operator decision 2026-11-02)
+
+- Deviation (D07 T02 §9): the Close account control is built on the Account page but is not yet drawn on the Account board, pending the operator's approval of the drawn change (asked 2026-11-02); the board is redrawn and re-exported when that approval lands.
 
 States:
 
@@ -1206,6 +1218,7 @@ States:
 - no verdict (D07 T03 §7, 2026-10-31; not drawn): a check that could not finish takes the member frame, its band in the partial colour with "Check failed · no verdict", the failure's own words (`buildReply`'s advice) and Open the full report; no actions or reasons.
 - dispute link (D07 T03 §22, 2026-11-01; not drawn): the member variant's footer sentence "Think we got it wrong? Tell us on the report page." links to the report with the dispute intent (`dispute=1`), so a member opening it lands on the one-press dispute, focused; the plain Open the full report link carries no intent.
 - mailbox surface (D07 T09 §3, operator decision 2026-11-02: a mail-client action link, not an Outlook add-in and not a mail-client button): that same signed, expiring dispute link, in both the HTML and plain parts of the reply, is the dispute surface inside the mailbox. Opening it is the first activation and saves nothing, so a mail scanner or a forwarded link disputes nothing; signing in keeps the intent; the one-press button on the report is the second activation and the only one that stores feedback, with the member's own session. The two activations are the dispute's own, for a member with a session: a signed-out member signs in first, and that authentication is the reader's own, not a dispute step (D07 T09 §16 holds the stricter count). Anyone who is not a member of the case's organisation is refused and stores nothing.
+- grouped verdict reply (D01 T01 §12, 2026-11-03; not drawn): when one forward carries several originals (at most 5 checked), the member gets one reply for the forward, not one per case. After the member frame's opening, one block per checked original in the order attached: its subject (the original's stored subject, or "A message with no subject" when none was stored), its verdict band word, and its own signed report link as that block's link (no single primary button; each block's link is its report). A case that ended with no verdict takes the no-verdict wording for its block ("Check failed · no verdict" with the failure's advice). Originals past the bound of 5, and originals the daily cap refused, are named together after the blocks as not checked, with the count of each kind ("2 more messages were not checked: 1 past the limit of 5 in one forward, 1 over today's check limit"). The all-checked, mixed and all-failed forms differ only in their blocks; there is no separate grouped error or empty state (a forward with one original keeps the single verdict reply above, unchanged). Plain text carries the same blocks, one per line group with its link on its own line. Threading, sender and the dispute footer are the single reply's.
 
 ### N2 Sign-in link
 
@@ -1319,6 +1332,23 @@ States:
 - operator notice: one notice per event to the operator, for a budget cap or a piece of feedback. (Email-Operator)
 - budget cap: Spend figures and Open the admin overview. (Email-Operator)
 - feedback: Summary and Open the feedback queue. (Email-Operator-Feedback)
+- loading: No loading state. Not applicable: email message, delivered whole.
+- empty: No empty state. Not applicable: email message, always sent with its content.
+- error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
+
+### N10 Weekly counts
+
+The Email-Weekly board awaits the operator's approval (D07 T04 §20); the built message is proven by its mail tests.
+
+Controls:
+
+- the three Cases tiles' numbers for the week and a link to Cases: Checked this week, Malicious or suspicious, Median time to verdict, and Open your cases.
+- with a one-step unsubscribe: Stop these emails, one step, no sign-in.
+
+States:
+
+- Fridays at 16h00 SAST: sent inside the Friday 16h00 SAST to Monday 00:00 SAST window, once per opted-in member per week.
+- never message content: counts only, never a case's subject, sender or message content.
 - loading: No loading state. Not applicable: email message, delivered whole.
 - empty: No empty state. Not applicable: email message, always sent with its content.
 - error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.

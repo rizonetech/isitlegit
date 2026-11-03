@@ -274,4 +274,4 @@ Checked 2026-11-02 by the operator and recorded here on the operator's report, n
 
 ## Account closure purge
 
-The daily scheduled run (`scheduledClosurePurge` in `src/auth/closure.ts`) deletes a closed organisation's stored artefacts and rows once its closure is 25 days old, so deletion completes within the 30 days the privacy page promises; an organisation still present after 30 days is named overdue in the run's log line (`closure-purge`). A failed organisation is retried on the next run. The two protected live test accounts and Fynbos Freight are never purged.
+Each scheduled run (the main cron, every 15 minutes; `scheduledClosurePurge` in `src/auth/closure.ts`) deletes a closed organisation's stored artefacts and rows once its closure is 25 days old, so deletion completes within the 30 days the privacy page promises; an organisation still present after 30 days is named overdue in the run's log line (`closure-purge`). A failed organisation is retried on the next run. The two protected live test accounts and Fynbos Freight are never purged.

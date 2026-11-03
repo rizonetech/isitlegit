@@ -59,6 +59,10 @@ export async function closeOrganisation(
     )
     .bind(now.toISOString(), orgId)
     .first<{ closedAt: string }>();
+  // Its verified domains and addresses are released at once, so another organisation may claim them; the release
+  // runs on every successful close, so an interrupted first release completes on the owner's retry.
+  await db.prepare(`DELETE FROM org_domains WHERE org_id = ?`).bind(orgId).run();
+  await db.prepare(`DELETE FROM org_addresses WHERE org_id = ?`).bind(orgId).run();
   if (done) return { ok: true, already: false };
   // A repeat (double press, two tabs, retry after a lost answer) keeps the first stamp.
   return (await organisationClosedAt(db, orgId))
@@ -72,40 +76,62 @@ export async function closeOrganisation(
 export async function purgeOrganisation(
   env: { DB: D1Database; ARTEFACTS: R2Bucket },
   orgId: string,
-): Promise<{ objects: number }> {
+  limit = 200,
+): Promise<{ objects: number; done: boolean }> {
   const db = env.DB;
-  const keys = (
-    await db
-      .prepare(`SELECT a.r2_key AS key FROM artefacts a JOIN cases c ON c.id = a.case_id WHERE c.org_id = ?`)
-      .bind(orgId)
-      .all<{ key: string }>()
-  ).results.map((r) => r.key);
-  // Objects whose artefact row was never written go too: every case's two prefixes are listed (D01 T01 §2).
-  const caseIds = (
-    await db.prepare(`SELECT id FROM cases WHERE org_id = ?`).bind(orgId).all<{ id: string }>()
-  ).results.map((r) => r.id);
-  for (const caseId of caseIds)
-    for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
-      let cursor: string | undefined;
-      do {
-        const listed = await env.ARTEFACTS.list({ prefix, ...(cursor ? { cursor } : {}) });
-        for (const object of listed.objects) if (!keys.includes(object.key)) keys.push(object.key);
-        cursor = listed.truncated ? listed.cursor : undefined;
-      } while (cursor);
-    }
+  // Objects are deleted as they are found, artefact-row keys first, then each case's two prefixes listed a page
+  // at a time, so one run's work is bounded by `limit` and a retry continues from what is left (D01 T01 §2).
   let objects = 0;
-  // R2 deletes are idempotent, and a key is dropped only once its object is gone, so a failed run resumes.
-  for (const key of keys) {
+  const drop = async (key: string) => {
     await env.ARTEFACTS.delete(key);
     await db.prepare(`DELETE FROM artefacts WHERE r2_key = ?`).bind(key).run();
     objects++;
+  };
+  while (objects < limit) {
+    const row = await db
+      .prepare(`SELECT a.r2_key AS key FROM artefacts a JOIN cases c ON c.id = a.case_id WHERE c.org_id = ? LIMIT 1`)
+      .bind(orgId)
+      .first<{ key: string }>();
+    if (!row) break;
+    await drop(row.key);
   }
+  if (objects >= limit) return { objects, done: false };
+  // Each case whose prefixes are empty is finished and deleted in this run, so a retry never re-lists it: at most
+  // 50 cases are examined per run, and progress persists through empty prefixes.
+  const caseIds = (
+    await db.prepare(`SELECT id FROM cases WHERE org_id = ? ORDER BY id LIMIT 50`).bind(orgId).all<{ id: string }>()
+  ).results.map((r) => r.id);
+  let more = false;
+  for (const caseId of caseIds) {
+    let caseMore = false;
+    for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
+      const listed = await env.ARTEFACTS.list({ prefix, limit: Math.max(1, limit - objects) });
+      for (const object of listed.objects) {
+        if (objects >= limit) {
+          caseMore = true;
+          break;
+        }
+        await drop(object.key);
+      }
+      if (listed.truncated || objects >= limit) caseMore = true;
+      if (caseMore) break;
+    }
+    if (caseMore) {
+      more = true;
+      break;
+    }
+    await db.prepare(`DELETE FROM evidence WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM case_events WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM case_verdicts WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM sender_observations WHERE case_id = ?`).bind(caseId).run();
+    await db.prepare(`DELETE FROM cases WHERE id = ?`).bind(caseId).run();
+  }
+  const remaining = await db
+    .prepare(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`)
+    .bind(orgId)
+    .first<{ n: number }>();
+  if (more || (remaining?.n ?? 0) > 0) return { objects, done: false };
   const del = (sql: string) => db.prepare(sql).bind(orgId).run();
-  await del(`DELETE FROM sender_observations WHERE org_id = ?`);
-  await del(`DELETE FROM evidence WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
-  await del(`DELETE FROM case_events WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
-  await del(`DELETE FROM case_verdicts WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
-  await del(`DELETE FROM cases WHERE org_id = ?`);
   await del(
     `DELETE FROM invitation_uses WHERE invitation_id IN (SELECT id FROM "invitation" WHERE "organizationId" = ?)`,
   );
@@ -123,11 +149,16 @@ export async function purgeOrganisation(
   await del(`DELETE FROM "member" WHERE "organizationId" = ?`);
   await del(`DELETE FROM org_limits WHERE org_id = ?`);
   await del(`DELETE FROM "organization" WHERE id = ?`);
-  return { objects };
+  return { objects, done: true };
 }
 
 // What one scheduled run did, for its single log line.
-export type PurgeReport = { purged: string[]; overdue: string[]; abandoned: number };
+export type PurgeReport = {
+  purged: string[];
+  overdue: string[];
+  failed: { id: string; deadline: string }[];
+  abandoned: number;
+};
 
 // Purge every organisation closed at least PURGE_AFTER_MS ago, and abandoned signups untouched for 30 days. A
 // protected organisation is skipped and left closed; one whose promised 30 days have passed without a completed
@@ -142,13 +173,16 @@ export async function scheduledClosurePurge(
     .prepare(`SELECT id, "closedAt" AS closedAt FROM "organization" WHERE "closedAt" IS NOT NULL AND "closedAt" <= ?`)
     .bind(cutoff)
     .all<{ id: string; closedAt: string }>();
-  const report: PurgeReport = { purged: [], overdue: [], abandoned: 0 };
+  const report: PurgeReport = { purged: [], overdue: [], failed: [], abandoned: 0 };
   for (const org of due.results) {
     if (await organisationProtected(db, org.id)) continue;
+    const deadline = new Date(Date.parse(org.closedAt) + PROMISE_MS).toISOString();
     try {
-      await purgeOrganisation(env, org.id);
-      report.purged.push(org.id);
+      const purged = await purgeOrganisation(env, org.id);
+      if (purged.done) report.purged.push(org.id);
+      else if (now.getTime() - Date.parse(org.closedAt) > PROMISE_MS) report.overdue.push(org.id);
     } catch {
+      report.failed.push({ id: org.id, deadline });
       if (now.getTime() - Date.parse(org.closedAt) > PROMISE_MS) report.overdue.push(org.id);
     }
   }
@@ -160,22 +194,46 @@ export async function scheduledClosurePurge(
     .all<{ id: string; userId: string | null; email: string }>();
   for (const row of stale.results) {
     if (isProtectedAccount(row.email)) continue;
-    await db.prepare(`DELETE FROM invite_redemptions WHERE id = ?`).bind(row.id).run();
-    report.abandoned++;
-    if (row.userId) {
+    // The signup's own organisation, resolved by its slug first (its id is generated, never the slug), so its
+    // membership is not mistaken for belonging somewhere else.
+    const orphanOrg = await db
+      .prepare(`SELECT id FROM "organization" WHERE slug = ?`)
+      .bind(`org-${row.id}`)
+      .first<{ id: string }>();
+    // The user goes first, while the redemption still names it: a failure leaves the reference for the next run.
+    const user =
+      row.userId != null
+        ? await db
+            .prepare(`SELECT id, email FROM "user" WHERE id = ?`)
+            .bind(row.userId)
+            .first<{ id: string; email: string }>()
+        : await db
+            .prepare(`SELECT id, email FROM "user" WHERE email = ?`)
+            .bind(row.email)
+            .first<{ id: string; email: string }>();
+    if (user && !isProtectedAccount(user.email)) {
       const memberOf = await db
-        .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = ?`)
-        .bind(row.userId)
+        .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = ? AND "organizationId" <> ?`)
+        .bind(user.id, orphanOrg?.id ?? "")
         .first<{ n: number }>();
-      if (!memberOf?.n) {
-        const user = await db
-          .prepare(`SELECT email FROM "user" WHERE id = ?`)
-          .bind(row.userId)
-          .first<{ email: string }>();
-        if (user && !isProtectedAccount(user.email))
-          await db.prepare(`DELETE FROM "user" WHERE id = ?`).bind(row.userId).run();
+      if (!memberOf?.n) await db.prepare(`DELETE FROM "user" WHERE id = ?`).bind(user.id).run();
+    }
+    if (orphanOrg) {
+      const members = await db
+        .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "organizationId" = ?`)
+        .bind(orphanOrg.id)
+        .first<{ n: number }>();
+      const cases = await db
+        .prepare(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`)
+        .bind(orphanOrg.id)
+        .first<{ n: number }>();
+      if (!(members?.n ?? 0) && !(cases?.n ?? 0)) {
+        await db.prepare(`DELETE FROM "member" WHERE "organizationId" = ?`).bind(orphanOrg.id).run();
+        await db.prepare(`DELETE FROM "organization" WHERE id = ?`).bind(orphanOrg.id).run();
       }
     }
+    await db.prepare(`DELETE FROM invite_redemptions WHERE id = ?`).bind(row.id).run();
+    report.abandoned++;
   }
   return report;
 }

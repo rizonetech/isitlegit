@@ -52,6 +52,68 @@ describe("the passkey prompt and its recoveries", () => {
     await context.close();
   });
 
+  it("names the phone, its QR scan and Bluetooth in the prompt's panel", async () => {
+    const { p, context } = await signinWith("/signin");
+    stub.optionsDelayMs = 600;
+    await press(p);
+    await expect
+      .poll(async () => (await p.textContent("main"))?.replace(/\s+/g, " "))
+      .toContain(
+        "choose the QR code option in the window your browser opened, scan it with your phone (Bluetooth on both), then approve and unlock on your phone",
+      );
+    expect(await p.getByRole("button", { name: "Email me a link instead" }).isVisible()).toBe(true);
+    stub.optionsDelayMs = 0;
+    await context.close();
+  });
+
+  it("names each stuck cause with its fix in the panel, and keeps them after a cancelled ceremony (D07 T02 s28)", async () => {
+    const causes = [
+      "Your phone has no screen lock: set up a PIN, fingerprint or face lock, then try again.",
+      "Your browser is older and cannot use a phone passkey: update it, or sign in with an email link.",
+      "Bluetooth is off: turn it on on this device and on your phone, then try again.",
+    ];
+    const { p, context } = await signinWith("/signin", { width: 360 });
+    stub.optionsDelayMs = 600;
+    await press(p);
+    for (const theme of ["light", "dark"] as const) {
+      await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      const text = (await p.textContent("[data-passkey-prompt]"))?.replace(/\s+/g, " ") ?? "";
+      for (const cause of causes) {
+        expect(text, theme).toContain(cause);
+        expect(await p.locator("[data-passkey-prompt]").getByText(cause, { exact: true }).isVisible(), theme).toBe(
+          true,
+        );
+      }
+      expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(360);
+    }
+    stub.optionsDelayMs = 0;
+    await context.close();
+    // Cancelled (no passkey answers): the note stays on the sign-in page, and the email recovery works by keyboard.
+    const cancelled = await signinWith("/signin", { none: true, width: 360 });
+    await press(cancelled.p);
+    await expect.poll(() => message(cancelled.p)).toContain("No passkey was used");
+    expect(await cancelled.p.locator("[data-passkey-help]").isVisible()).toBe(true);
+    const help = (await cancelled.p.textContent("[data-passkey-help]"))?.replace(/\s+/g, " ") ?? "";
+    for (const cause of causes) expect(help).toContain(cause);
+    for (const cause of causes)
+      expect(await cancelled.p.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible()).toBe(true);
+    // A refused ceremony leaves the same note visible.
+    const refused = await signinWith("/signin", { width: 360 });
+    stub.answers = [{ status: 401, code: "AUTHENTICATION_FAILED" }];
+    await press(refused.p);
+    await expect.poll(() => message(refused.p)).toContain("That passkey could not be checked");
+    expect(await refused.p.locator("[data-passkey-help]").isVisible()).toBe(true);
+    for (const cause of causes)
+      expect(await refused.p.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible()).toBe(true);
+    await refused.context.close();
+    await cancelled.p.getByLabel("Work email").fill("m@k.example");
+    await cancelled.p.getByRole("button", { name: "Email me a sign-in link" }).focus();
+    await cancelled.p.keyboard.press("Enter");
+    await cancelled.p.waitForURL(`${h.site}/signin/link`);
+    expect(stub.links).toBe(1);
+    await cancelled.context.close();
+  });
+
   it("shows the prompt with focus on its heading and the button busy, then lands on the return path", async () => {
     const { p, context } = await signinWith("/signin");
     stub.optionsDelayMs = 600;
@@ -136,6 +198,8 @@ describe("the passkey prompt and its recoveries", () => {
     await before.p.keyboard.press("Enter");
     expect(await focusedType(before.p)).toBe("email");
     expect(await before.p.locator("[data-passkey-prompt]").isHidden()).toBe(true);
+    // The troubleshooting note stays reachable on the page the member lands on (D07 T02 §28).
+    expect(await before.p.locator("[data-passkey-help]").isVisible()).toBe(true);
     await optionsDropped;
     // The late answer has gone out too (the stub sent it), and the page made nothing of it.
     await expect.poll(() => stub.answered, { timeout: 5_000 }).toBe(1);

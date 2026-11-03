@@ -66,7 +66,7 @@ welcomeRoutes.get(
     if (!membership.ok)
       return membership.reason === "unavailable"
         ? outage("membership")
-        : errorPage(403, "", { email: signedIn.user.email });
+        : errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" });
     const orgId = membership.org.id;
     try {
       const now = new Date();
@@ -118,7 +118,7 @@ welcomeRoutes.post(
     if (!membership.ok)
       return membership.reason === "unavailable"
         ? outage("membership")
-        : errorPage(403, "", { email: c.get("signedIn").user.email });
+        : errorPage(403, "", { email: c.get("signedIn").user.email, closed: membership.reason === "closed" });
     // The body is bounded before it is read; a request that is too large, or not one this page sends, changes nothing and
     // leaves the member on the list.
     const form = await readSmallForm(c.req.raw, { action: 10, org: 100 });

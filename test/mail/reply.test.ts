@@ -120,7 +120,13 @@ describe("buildReply", () => {
       ...base,
       report: {
         status: "ready",
-        view: { ...view, headline: sneaky, reasons: [{ text: sneaky, evidenceIds: ["E1"] }], actions: [sneaky] },
+        view: {
+          ...view,
+          headline: sneaky,
+          meaning: sneaky,
+          reasons: [{ text: sneaky, evidenceIds: ["E1"] }],
+          actions: [sneaky],
+        },
       },
     });
     expect(reply.text.match(/^The full report:/gm)).toHaveLength(1);

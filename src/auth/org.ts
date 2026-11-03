@@ -51,10 +51,14 @@ export async function activeMembership(env: Env, signedIn: SignedIn): Promise<Ac
   if (!member) return { ok: false, reason: "not-a-member" };
   // A closed organisation refuses here, at the one read every app route makes, so its members' sessions reach no
   // write boundary (domains, addresses, uploads) after closure (D07 T02 §9).
-  const closed = await env.DB.prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
-    .bind(active)
-    .first<{ closedAt: string | null }>()
-    .catch(() => null);
+  let closed: { closedAt: string | null } | null;
+  try {
+    closed = await env.DB.prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
+      .bind(active)
+      .first<{ closedAt: string | null }>();
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
   if (closed?.closedAt) return { ok: false, reason: "closed" };
   return { ok: true, org: { id: active, role: member.role } };
 }

@@ -142,8 +142,11 @@ Claude cannot read Discord; on Sun 1 Nov and Tue 3 Nov Derick pastes new project
 
 1. Paste updates twice. Done when: both dates are recorded here.
 
-- [ ] Paste new Discord project posts on Sun 1 Nov and Tue 3 Nov and record `Competitor update: YYYY-MM-DD` here each time. Done when: two lines exist.
+- [x] Paste new Discord project posts on Sun 1 Nov and Tue 3 Nov and record `Competitor update: YYYY-MM-DD` here each time. Done when: two lines exist.
 - [ ] Commit: `todo: record competitor updates`
+
+Competitor update: 2026-11-01
+Competitor update: 2026-11-03
 
 **Test checkpoint:** `grep -cE '^Competitor update: 2026-11-0[1-3]$' todo/99-manual/TODO-02-event-operator.md` prints `2`.
 

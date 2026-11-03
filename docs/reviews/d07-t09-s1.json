@@ -1,0 +1,114 @@
+{
+  "ref": "D07 T09 \u00a71",
+  "title": "Early results first",
+  "implementation_sha": "41ba91c54a67b674cb9a8135a40ca3a676f55643",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T09-s1.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web/report-status.test.ts -> passed with the card drawn from auth outcomes alone",
+    "pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx -> passed with the card on the first poll after the auth outcomes land"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T09-s1.md",
+    "verdict": "filed",
+    "candidate": "41ba91c54a67b674cb9a8135a40ca3a676f55643",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T09 \u00a72",
+      "D07 T09 \u00a719"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "cap_outcome": "round 1 P3 (literal single-test poll proof) answered by the dated correction composing the checkpoint from its worker and browser halves; excellence gaps filed at D07 T09 \u00a72 and \u00a719",
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T09-s1.md",
+    "candidate": "c74b504a104d79dd12d48cd08cd35b6c42b58a15",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

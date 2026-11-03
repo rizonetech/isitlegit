@@ -1,0 +1,22 @@
+{
+  "about": "How the narration says names the voice would misread. tools/voiceover.py replaces each written form (case-sensitive, longest first) with its spoken form after filling facts and before sending, so a new or rewritten line is said the same way. Operator corrections, 2026-11-01.",
+  "say": {
+    "check@isitlegit.co.za": "check at is it legit dot C O dot zed A",
+    "IsItLegit": "Is It Legit",
+    "rizonetech": "Rye-zone-tech",
+    "H100 80 GB": "H100 with 80 gigabytes",
+    "GB": "gigabytes",
+    "Loupe": "Loop",
+    "3.9 s": "three point nine seconds",
+    "14 h 29 min": "fourteen hours twenty-nine minutes",
+    "130.7 s": "one hundred and thirty point seven seconds",
+    "14 ms": "fourteen milliseconds",
+    "66 ms": "sixty-six milliseconds",
+    "16 kHz": "sixteen kilohertz",
+    "60 dB": "sixty decibels",
+    "SAM 3.1": "SAM three point one",
+    "app.isitlegit.co.za": "app dot is it legit dot C O dot zed A",
+    "co.za": "C O dot zed A",
+    "isitlegit.co.za": "is it legit dot C O dot zed A"
+  }
+}

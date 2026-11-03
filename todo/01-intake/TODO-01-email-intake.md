@@ -50,8 +50,8 @@ track: day-1
 | 9 | §9 | check@ routing and live smoke | §7, D01 T02 §3, D07 T06 §9, D07 T02 §10 | [x] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [x] |
-| 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
-| 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
+| 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [x] |
+| 13 | §13 | Compressed-RTF message bodies | §6 | [x] |
 | 14 | §14 | Near-limit forward on the | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
@@ -62,7 +62,7 @@ track: day-1
 | 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
 | 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [x] |
 | 23 | §23 | Auth outcomes stored before slower checks | §9 | [x] |
-| 24 | §24 | Pipeline writes fenced across a case removal | §2, §7 | [ ] |
+| 24 | §24 | Pipeline writes fenced across a case removal | §2, §7 | [x] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -257,7 +257,7 @@ Outlook users often drag a message out as `.msg` (OLE compound file). `@kenjiuno
 - [x] Create synthetic fixtures with `scripts/fixtures/msg-builder.ts`, written by `scripts/fixtures/make-msg.ts` (never from real mail; fictional senders): `invoice-request.msg` (transport headers, text, binary HTML in code page 1252 with non-ASCII text, a PDF, an inline image with `PidTagAttachContentId` referenced from the HTML as `cid:`, and an embedded Outlook message, attach method 5), its `.eml` twin, `invoice-request-draft.msg` (no transport headers), `rtf-only.msg` (a body only in `PidTagRtfCompressed`), and as refusals `not-a-msg.msg` (other bytes) and `truncated.msg` (a compound file cut short). Done when: the files exist, the generator is committed, and a test regenerates them and finds them equal to the committed files (**Corrected 2026-10-28**, plan review: inline images, embedded messages, code pages, RTF and unreadable files had no fixture).
 - [x] When the `.msg` carries no `PidTagTransportMessageHeaders` (a draft or a message saved before sending), set the case's `headers_available` to 0 with `setHeadersAvailable` (D01 T01 §4), since §4 counts an attached `.msg` as having headers. Done when: a fixture without transport headers leaves the case at 0. Source: D01 T01 §4 start, 2026-10-28. (**Corrected 2026-10-28** at the final review: proven here by applying `parseMsg`'s `headersAvailable` for the draft fixture with `setHeadersAvailable` and reading the case row back as 0 in `test/intake/msg.test.ts`; the parse step that makes this call for every forward is D01 T01 §7's, its item applying the parser's header state.)
 - [x] Write `parseMsg(bytes)` in `src/intake/msg.ts` returning §5's `ParsedMessage` with `headersAvailable` (false when there are no transport headers): headers from `PidTagTransportMessageHeaders`, read by `postal-mime` as a header block, in order with repeats; the text body; the HTML body from the binary `PidTagHtml` decoded in `PidTagInternetCodepage` (its label, else UTF-8), else the string `bodyHtml`, the code page's label kept as the `charset` of a cut part; each attachment's filename, declared type, bytes, `contentId` from `PidTagAttachContentId` and disposition (`inline` when it has a content id, else `attachment`); an embedded Outlook message (attach method 5) exported by `msgreader`'s `getAttachment` as `.msg` bytes and stored as an attachment of type `application/vnd.ms-outlook`; the text and HTML bodies cut to §5's limits with the full bytes kept in `truncated`. A file `msgreader` cannot read (it throws, or `getFileData` answers an `error`) is a `ParseError`, as is a message whose body is only compressed RTF (no text and no HTML), so §7 ends it partial naming why rather than as an empty message (**Corrected 2026-10-28**, plan review: embedded messages were to be counted as omitted on the false premise that they had no bytes; inline images, code pages, RTF-only bodies and returned errors were unstated). Done when: `test/intake/msg.test.ts` finds its headers, text, HTML (non-ASCII text intact) and PDF equal to `parseMessage` of the twin; the inline image stored with its content id and the stored HTML's `cid:` reference naming it; the embedded message stored as `.msg` bytes that `msgreader` reopens with its own subject; the draft without headers; a large body cut with its full bytes and code page kept; `rtf-only`, `not-a-msg` and `truncated` each a `ParseError`; and `storeParsed` (§5) storing the result and its summary read back.
-> **Deferred:** reading a body held only in compressed RTF -> XREF: D01 T01 §13 (**Corrected 2026-10-28** at start: the "§5 summary shape" is `ParsedMessage`, which `storeParsed` stores; the limits and embedded items were unstated.)
+> **Resolved:** reading a body held only in compressed RTF -> XREF: D01 T01 §13 (**Corrected 2026-10-28** at start: the "§5 summary shape" is `ParsedMessage`, which `storeParsed` stores; the limits and embedded items were unstated.) Resolved 2026-11-03 by D01 T01 §13: `parseMsg` decompresses the stream within §5's limits and reads it as encapsulated HTML or plain text (`src/intake/rtf.ts`).
 - [x] If the library fails in the workers pool, record the error in `docs/frontier-log.md` style under `docs/decisions.md`, make `parseMsg` throw `UnsupportedFormat`, and have the reply say to forward as attachment in Outlook's default format. Done when: either the parse test passes or the fallback test passes; never neither. (Not needed: probed 2026-10-28 at start, `msgreader` 1.29.0 reads the synthetic fixture inside the workers pool under `nodejs_compat`, subject, transport headers and attachment included; the parse test is the proof. A `.msg` it cannot read is a `ParseError`, which §7 turns partial.)
 - [x] Commit: `intake: Outlook .msg parsing`
 
@@ -438,6 +438,8 @@ After a forward, the member hears nothing until the verdict reply (D01 T02 §3),
 
 ## 12. Several originals in one forward
 
+> **Started:** 2026-11-03T02:35Z
+
 A member who attaches several suspicious messages to one forward gets only the first checked and is asked to forward the rest one by one (§4 counts them; D01 T02 §3 says so). Outlook's own Report button takes several selected messages at once (D01 T01 §4 completion review, Part 2 item 2). Checking each attached original as its own case, with its own outcome, removes that extra work for the member, within the daily cap and the model budget.
 
 **Phase:** 7
@@ -454,16 +456,25 @@ A member who attaches several suspicious messages to one forward gets only the f
 1. Decide the grouped reply and the cap behaviour in the SPEC. Done when: the SPEC section names both.
 2. Admit one case per original and reply once. Done when: a forward with two originals yields two cases and one reply naming both.
 
-- [ ] Add the several-originals outcome to `design/SPEC.md` (the grouped reply, each report link, the partly capped case, an upper bound on originals a forward, defaulting to 5). Done when: the section exists with the bound stated.
-- [ ] Make `extractOriginal` (`src/intake/forward.ts`, §4) return every supported original in order (up to the bound) rather than the first and a count, keeping the precedence of §4 for each. Done when: `test/intake/forward.test.ts` gets both originals of `two-originals` in order and the bound's excess counted.
-- [ ] Admit one case per original under the daily cap in the Workflow's `parse` step (§7), each with its own Workflow, linked to the forward's delivery claim (§3) so a retried delivery makes none twice. Done when: a test with two originals makes two cases and two Workflows, a retry makes none, and a cap of one admits the first and names the second as not checked.
-- [ ] Send one grouped reply for the forward once every case has its verdict (D01 T02 §3's template), instead of one reply per case. Done when: the two-originals fixture's reply lists both subjects, verdicts and report links, and a single-original forward's reply is unchanged.
-- [ ] Commit: `intake: several originals in one forward`
+- [x] Add the several-originals outcome to `design/SPEC.md` (the grouped reply, each report link, the partly capped case, an upper bound on originals a forward, defaulting to 5). Done when: the section exists with the bound stated.
+- [x] Make `extractOriginal` (`src/intake/forward.ts`, §4) return every supported original in order (up to the bound) rather than the first and a count, keeping the precedence of §4 for each. Done when: `test/intake/forward.test.ts` gets both originals of `two-originals` in order and the bound's excess counted.
+- [x] Admit one case per original under the daily cap in the Workflow's `parse` step (§7), each with its own Workflow, linked to the forward's delivery claim (§3) so a retried delivery makes none twice. Done when: a test with two originals makes two cases and two Workflows, a retry makes none, and a cap of one admits the first and names the second as not checked.
+- [x] Send one grouped reply for the forward once every case has its verdict (D01 T02 §3's template), instead of one reply per case. Done when: the two-originals fixture's reply lists both subjects, verdicts and report links, and a single-original forward's reply is unchanged.
+- [x] Commit: `intake: several originals in one forward`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/forward.test.ts test/intake/email.test.ts` passes and fails if a second original is dropped unseen, a retried delivery makes a case twice, or the cap is passed.
 
+**Settled 2026-11-03** (completion review gap 5): original one is the original §4 chooses (its type precedence is shipped behaviour this section does not change); the further originals, and the grouped reply's blocks after the first, follow attachment order, the chosen one excluded wherever it sat. A bound cut therefore drops the latest-attached originals, never an earlier one for a later attachment's format.
+
+**Corrected 2026-11-03** (plan review, 2 P1 and 5 P2, `docs/reviews/01-intake/D01-T01-s12.md`; the design the build follows): (1) The already-admitted case is original one: it parses and proceeds exactly as today, so a single-original forward is unchanged by construction. In its `parse` step, `extractOriginals` returns every supported original in attachment order (type precedence applies within each attached message, not across the forward), bounded at 5; originals past the bound are counted as bound-excluded and named not checked in the reply. (2) Children are durable before they are started: one `case_children` row per admitted child (migration, coordinator number requested 2026-11-03) keyed by the parent case and position, holding the stable child case ID (derived from the parent case ID and position), its state (admitted, refused-cap, started) and its original's subject; the row is written before the child's raw bytes and Workflow, each step idempotent on retry (the child case insert reuses `admitCase` with the stable ID, the raw write is the same key, the Workflow instance ID is the child case ID, so a lost create response retries into the same instance). Cap refusals are recorded rows, never silent, and a retry never re-decides across midnight: the manifest is the admitted set. (3) A child case is a full case of the same organisation and channel with its own Workflow; its parse reads its own stored original (marked as a fan-out child, so it never fans out again, even when its original itself carries attachments, which stay its attachments as today). (4) Replies: a child never sends its own reply; the parent's reply step reads the manifest and, until every admitted child is terminal (done or partial, with or without a verdict), sends nothing; the grouped reply is sent once under a group send key derived from the parent case, through the existing send claim, listing each original in order with its subject, its verdict or "no verdict" when its case ended partial, its own signed report link, and the bound-excluded and cap-refused originals named as not checked. A child finishing after the parent cannot send alone: the last terminal child re-enters the same group-send claim, which exactly one sender wins. (5) `otherOriginals` keeps counting originals beyond the first for evidence, and the SPEC's N1 grouped variant names the all-success, mixed, all-failed, partly capped and bound-exceeded presentations with no primary button change (each line carries its own signed link).
+
+> **Verified:** 2026-11-03 | §12 | 7e854a1e3fa36612c617b501661ae12039d3b926
+> **Review:** `docs/reviews/d01-t01-s12.json`
+
 
 ## 13. Compressed-RTF message bodies
+
+> **Started:** 2026-11-03T02:50Z
 
 Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`), with no plain-text or HTML body (Microsoft, "Supporting formatted text in outgoing messages"). §6 refuses such a `.msg` as a `ParseError`, so its case ends partial naming why rather than as an empty message (D01 T01 §6 plan review, finding 5). This section reads those bodies.
 
@@ -475,12 +486,17 @@ Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`
 
 1. Decompress and de-encapsulate. Done when: an RTF-only fixture yields its text, and one encapsulating HTML (`\fromhtml1`) yields that HTML.
 
-- [ ] Decompress `PidTagRtfCompressed` ([MS-OXRTFCP]) in `src/intake/rtf.ts`, bounded to §5's body limits, refusing a stream whose declared size exceeds them. Done when: `test/intake/rtf.test.ts` decompresses the §6 `rtf-only.msg` body and refuses a stream claiming 50 MiB.
-- [ ] De-encapsulate HTML from RTF that carries `\fromhtml1` ([MS-OXRTFEX]), else extract the plain text (control words dropped, `\par` and `\line` as line breaks, `\'xx` decoded in the RTF's code page). Done when: an HTML-encapsulating fixture yields its HTML and a plain RTF one its text, non-ASCII intact.
-- [ ] Use it in `parseMsg` (§6) when there is no text and no HTML body, instead of the `ParseError`. Done when: `rtf-only.msg` parses with its text, and a message with text or HTML ignores its RTF.
-- [ ] Commit: `intake: compressed-RTF message bodies`
+- [x] Decompress `PidTagRtfCompressed` ([MS-OXRTFCP]) in `src/intake/rtf.ts`, bounded to §5's body limits, refusing a stream whose declared size exceeds them. Done when: `test/intake/rtf.test.ts` decompresses the §6 `rtf-only.msg` body and refuses a stream claiming 50 MiB.
+- [x] De-encapsulate HTML from RTF that carries `\fromhtml1` ([MS-OXRTFEX]), else extract the plain text (control words dropped, `\par` and `\line` as line breaks, `\'xx` decoded in the RTF's code page). Done when: an HTML-encapsulating fixture yields its HTML and a plain RTF one its text, non-ASCII intact.
+- [x] Use it in `parseMsg` (§6) when there is no text and no HTML body, instead of the `ParseError`. Done when: `rtf-only.msg` parses with its text, and a message with text or HTML ignores its RTF.
+- [x] Commit: `intake: compressed-RTF message bodies`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/rtf.test.ts test/intake/msg.test.ts` passes and fails if an RTF-only message parses empty or a decompression passes the body limits.
+
+**Corrected 2026-11-03** (plan review, 1 P1 and 5 P2, `docs/reviews/01-intake/D01-T01-s13.md`): (1) decompression refuses a declared size past §5's body limits before allocating, counts output before every literal and back-reference write, and rejects a final size that differs from the declaration, MELA included. (2) The `rtf-only.msg` fixture is uncompressed MELA, so a genuine LZFu fixture with dictionary back-references and exact expected output is built beside it. (3) Plain extraction handles signed `\uN` with its `\ucN` fallback skipped, escaped braces and backslash, tabs, skipped destinations, and per-font charsets from the font table. (4) HTML de-encapsulation is proven on interleaved shared text with `htmltag` destinations and `htmlrtf` suppression, exact HTML asserted. (5) Extracted bodies enter `parseMsg` through its existing byte-budget helpers (1 MiB a part, 2 MiB in all), encoded UTF-8 with the cut part kept whole in `truncated`. (6) A malformed stream, bad CRC, truncated token or invalid termination is a `ParseError`; a well-formed RTF with no text is an empty body, never a silent success over today's refusal, and RTF is still ignored when a text or HTML body exists.
+
+> **Verified:** 2026-11-03 | §13 | 95a1800b7dfba63dd8988140c0e85513361497b6
+> **Review:** `docs/reviews/d01-t01-s13.json`
 
 
 ## 14. Near-limit forward, live
@@ -759,9 +775,12 @@ Filed 2026-11-03 from the coordinator's routing (console lane, D07 T04 §12): a 
 
 - [x] Add a case-existence fence to the store's write path in `src/intake/store.ts`: the artefact insert already joins its case row, so a write whose case is gone at insert time stores no row and no R2 object and raises the store's fenced refusal, beside the deadline fence it already enforces. Done when: `test/intake/store.test.ts` (or its successor suite) removes the case between the write's start and its insert and reads back no artefact row and no object, where the same write without the removal lands whole. Cheaper substitute: checking existence before the write, which the removal can still race.
 - [x] Cover every public write the pipeline uses (`putRaw`, `putParsed`, `putAttachment`, `putArtefact`, `putVisible` in `src/intake/store.ts`) through the same fence, with the two protected test accounts' cases (`demo@rizonetech.com`, `derick@rizonetech.com`) never removable by the removal path the test drives, as AGENTS.md requires. Done when: each write is proven fenced across a removal of a case the test created, and no other case's artefacts change.
-- [ ] Commit: `intake: pipeline writes fenced across a case removal`
+- [x] Commit: `intake: pipeline writes fenced across a case removal`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/store.test.ts` passes, and fails if a write landing after its case's removal stores a row or an object.
+
+> **Verified:** 2026-11-03 | §24 | 8f9a1f1dddf701f461b8234c83000fbe9eac96b2
+> **Review:** `docs/reviews/d01-t01-s24.json`
 
 ## Verification
 

@@ -1,0 +1,41 @@
+{
+  "about": "The end credits of every explainer (src/kit/credits.tsx): a deadpan crew where every role is the operator, then the honest punchline and the music and reviewer credits (operator, 2026-10-31). How the narration was made is not described on screen (operator, 2026-10-31); YouTube's altered or synthetic content box is ticked at upload.",
+  "crew": [
+    [
+      "Directed by",
+      "Derick Payne"
+    ],
+    [
+      "Written by",
+      "Derick Payne"
+    ],
+    [
+      "Produced by",
+      "Derick Payne"
+    ],
+    [
+      "Lead developer",
+      "Derick Payne"
+    ],
+    [
+      "QA department",
+      "Derick Payne"
+    ],
+    [
+      "HR, legal and catering",
+      "Derick Payne"
+    ],
+    [
+      "Narrated by",
+      "Derick Payne"
+    ]
+  ],
+  "nightShift": [
+    "Night shift",
+    "five AI lanes that never sleep"
+  ],
+  "notes": [
+    "Music and sound: ElevenLabs",
+    "Reviewers: GPT-6 Astra, Muse Wonder"
+  ]
+}

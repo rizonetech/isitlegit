@@ -111,13 +111,13 @@ afterAll(async () => {
   if (persist) rmSync(persist, { recursive: true, force: true });
 }, 120_000);
 
-async function withAuthenticator(context: BrowserContext, page: Page) {
+async function withAuthenticator(context: BrowserContext, page: Page, transport: "internal" | "hybrid" = "internal") {
   const cdp: CDPSession = await context.newCDPSession(page);
   await cdp.send("WebAuthn.enable");
   const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
     options: {
       protocol: "ctap2",
-      transport: "internal",
+      transport,
       hasResidentKey: true,
       hasUserVerification: true,
       isUserVerified: true,
@@ -209,6 +209,34 @@ describe("passkey sign-in against the real verifier", () => {
     await page.goto(`${origin}/invite/${OTHERS}`);
     await page.getByRole("button", { name: "Sign in with a passkey" }).click();
     await expect.poll(() => page.textContent("main")).toContain(`You are signed in as ${EMAIL}`);
+    await context.close();
+  }, 90_000);
+
+  it("signs in with a passkey held only by another device (hybrid transport)", async () => {
+    // The cross-device journey (D07 T02 §19): the credential lives on a hybrid authenticator, the phone in the
+    // panel's words, and the real verifier answers it and the session is read back.
+    const context = await browser.newContext();
+    await context.addCookies([
+      {
+        name: SESSION_COOKIE,
+        value: signed(token),
+        domain: "localhost",
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+    const page = await context.newPage();
+    await withAuthenticator(context, page, "hybrid");
+    await page.goto(`${origin}/signin`);
+    expect(await registerPasskey(page)).toBe(200);
+    await context.clearCookies();
+    expect(await sessionEmail(page)).toBeNull();
+    await page.goto(`${origin}/signin?next=/cases/7`);
+    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
+    await page.waitForURL(`${origin}/cases/7`, { timeout: 15_000 });
+    expect(await sessionEmail(page)).toBe(EMAIL);
     await context.close();
   }, 90_000);
 

@@ -1,0 +1,527 @@
+{
+  "$comment": "Every figure video 03 shows, pinned to the glimmer lane's commit and an exact quote from its source; media/tools/check-facts.py refuses a render when a quote is missing. Planned values are marked planned. Nothing here names a client, an account, a key, a store path or a budget.",
+  "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26",
+  "asOf": "31 Oct 2026",
+  "facts": {
+    "baseModel": {
+      "value": "Muse Glimmer 30B",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Muse Glimmer 30B fine-tuned with a LoRA on Fireworks AI"
+    },
+    "imageInput": {
+      "value": "image input",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "`supportsImageInput` true",
+      "label": true
+    },
+    "loraTunable": {
+      "value": "LoRA tunable",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "`supervisedLoraTunable` true",
+      "label": true
+    },
+    "visionFrozen": {
+      "value": "vision encoder frozen",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "`enableVisionEncoderTuning` false",
+      "label": true
+    },
+    "context": {
+      "value": "131,072",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "`trainingContextLength` 131072",
+      "label": true
+    },
+    "serverless": {
+      "value": "Fireworks Serverless Training API",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Serverless Training API",
+      "label": true
+    },
+    "screenPage": {
+      "value": "screenPage",
+      "status": "planned",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "through one `screenPage` interface",
+      "label": true
+    },
+    "failover": {
+      "value": "Muse Spark failover",
+      "status": "planned",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "Page Screening on Muse Glimmer with Muse Spark Failover",
+      "label": true
+    },
+    "phreshphish": {
+      "value": "6,780",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "6,780 phishing and benign HTML pages"
+    },
+    "scamferret": {
+      "value": "2,400",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "2,400 top-page HTML captures and 240 screenshots"
+    },
+    "compphish": {
+      "value": "15,358",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "15,358 HTML pages by Richa Goenka (MANIT), 7,204 phishing"
+    },
+    "ariyadasa": {
+      "value": "15,000 of 83,275",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "83,275 HTML pages by Subhash Ariyadasa, Shantha Fernando and Subha Fernando",
+      "label": true
+    },
+    "ariyadasaSample": {
+      "value": "15,000",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "15,000 sampled with seed 2026"
+    },
+    "kempf": {
+      "value": "12,945",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "12,945 HTML pages, 5,271 phishing"
+    },
+    "mallory": {
+      "value": "15,000 of 15,902",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "15,902 pages collected by the uploader from PhishTank and the Majestic Million",
+      "label": true
+    },
+    "majestic": {
+      "value": "top 20,000",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "from the Majestic Million's top 5,000 to its top 20,000",
+      "label": true
+    },
+    "collection": {
+      "value": "129,892",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the frozen collection (129,892 pages)"
+    },
+    "admitted": {
+      "value": "127,890",
+      "status": "measured",
+      "source": "docs/phase-runs/2026-10-30-glimmer-phase-0.md",
+      "quote": "read 129,892 pages, admitted 127,890",
+      "commit": "3be0168e0ffc03d72534ba756bf534a1ed72eca9"
+    },
+    "impersonation": {
+      "value": "26,820",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "impersonation 26,820"
+    },
+    "credential": {
+      "value": "11,335",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "credential 11,335"
+    },
+    "fakeShop": {
+      "value": "588",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "fake shop 588"
+    },
+    "payment": {
+      "value": "307",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "payment 307"
+    },
+    "teacherChecked": {
+      "value": "575",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Muse Spark checked 575 trusted-label pages over two runs"
+    },
+    "teacherAgreed": {
+      "value": "512",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Outcomes: 512 agreed, 62 disputed"
+    },
+    "teacherDisputed": {
+      "value": "62",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "62 disputed (left out of training and evaluation"
+    },
+    "teacherQuarantined": {
+      "value": "1",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "1 quarantined (its answer was lost), 0 failed"
+    },
+    "teacherMix": {
+      "value": "346 / 137 / 92",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "346 South African benign renders, 137 redacted sample lures",
+      "label": true
+    },
+    "teacherPublicSA": {
+      "value": "92",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "92 public-set pages hosted in South Africa"
+    },
+    "teacherReasoning": {
+      "value": "reasoning.effort: low, 2,000 output tokens",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "fixed with `reasoning.effort: low` and 2,000 output tokens",
+      "label": true
+    },
+    "teacherSpend": {
+      "value": "US$6.91",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Spend measured US$6.91 across both runs"
+    },
+    "sparkRecall": {
+      "value": "61%",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "base Spark's recall was 61 percent, which is the bar Loupe must beat",
+      "label": true
+    },
+    "evalPages": {
+      "value": "1,000",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "evaluation 1,000 lines (benign 429, public 524, samples 47"
+    },
+    "chainHost": {
+      "value": "weebly.com 57 brands",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "weebly.com 57 brands, google.com 32",
+      "label": true
+    },
+    "chainGroup": {
+      "value": "28,334",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "into one group of 28,334 pages"
+    },
+    "kitGroup": {
+      "value": "18,880",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "one group (18,880 pages: Facebook, Google, Amazon, Apple, Microsoft)"
+    },
+    "build1": {
+      "value": "2 h 35 min, 2.4 GB",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the first real 1.0 build (13:16 to 15:51 SAST, 2 h 35 min, 2.4 GB) was refused: training kept 29 of 100 sample-derived lures",
+      "label": true
+    },
+    "build2": {
+      "value": "1 h 16 min, 997 of 1,000",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000",
+      "label": true
+    },
+    "build2Fix": {
+      "value": "keep the teacher-verified twin",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "Both now keep the teacher-verified page first (`dedupe`, `capBrands`)",
+      "label": true
+    },
+    "loraRank": {
+      "value": "8",
+      "status": "measured",
+      "source": "scripts/glimmer/train_serverless.py",
+      "quote": "LORA_RANK = 8"
+    },
+    "learningRate": {
+      "value": "1e-4",
+      "status": "measured",
+      "source": "scripts/glimmer/train_serverless.py",
+      "quote": "LEARNING_RATE = 1e-4"
+    },
+    "batchSize": {
+      "value": "8",
+      "status": "measured",
+      "source": "scripts/glimmer/train_serverless.py",
+      "quote": "BATCH_SIZE = 8"
+    },
+    "maxSeqLen": {
+      "value": "8,192",
+      "status": "measured",
+      "source": "scripts/glimmer/train_serverless.py",
+      "quote": "MAX_SEQ_LEN = 8192",
+      "label": true
+    },
+    "epochs": {
+      "value": "1",
+      "status": "measured",
+      "source": "scripts/glimmer/train_serverless.py",
+      "quote": "\"epochs\": 1"
+    },
+    "checkpoint": {
+      "value": "200",
+      "status": "measured",
+      "source": "scripts/glimmer/train_serverless.py",
+      "quote": "CHECKPOINT_EVERY = 200"
+    },
+    "gate": {
+      "value": "promotion gate",
+      "status": "planned",
+      "source": "scripts/glimmer/version-gate.py",
+      "quote": "lure recall at least the previous one's and a false-alarm rate no higher, overall and on the South African slice",
+      "label": true
+    },
+    "gateHeldOut": {
+      "value": "same held-out file",
+      "status": "planned",
+      "source": "scripts/glimmer/version-gate.py",
+      "quote": "measured on the same held-out file",
+      "label": true
+    },
+    "gpu": {
+      "value": "1 x NVIDIA_H200_141GB",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "(live merge, `default` shape) on 1 x NVIDIA_H200_141GB"
+    },
+    "scaleToZero": {
+      "value": "300 s",
+      "status": "measured",
+      "source": "scripts/glimmer/deploy.ts",
+      "quote": "export const SCALE_TO_ZERO = \"300s\";",
+      "label": true
+    },
+    "versioning": {
+      "value": "isitlegit-loupe-1-0",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "isitlegit-loupe-1-0"
+    },
+    "accepted": {
+      "value": "7",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "count": "^\\| `[^`]+` \\|.*\\| accepted"
+    },
+    "rejected": {
+      "value": "46",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "count": "^\\| `[^`]+` \\|.*\\| rejected"
+    },
+    "evalLures": {
+      "value": "400 lures",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "trainLines": {
+      "value": "52,019",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "all 52,019 lines of the 1.0 dataset"
+    },
+    "trainTime": {
+      "value": "14 h 29 min",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last"
+    },
+    "lossFrom": {
+      "value": "0.725",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last"
+    },
+    "lossTo": {
+      "value": "0.036",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume), loss 0.725 at the first step to 0.036 at the last"
+    },
+    "accuracy": {
+      "value": "0.958",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "lureRecall": {
+      "value": "0.980",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "lureRecallOf": {
+      "value": "392 of 400 lures",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "falseAlarms": {
+      "value": "0.057",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "falseAlarmsOf": {
+      "value": "34 of 600 benign",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "lureTypeRight": {
+      "value": "0.635",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "latency": {
+      "value": "3.9 s",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Overall: accuracy 0.958, lure recall 0.980 (392 of 400 lures), false alarms 0.057 (34 of 600 benign), lure type right 0.635, median latency 3.9 s."
+    },
+    "saRecall": {
+      "value": "0.962",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "South Africa (545 pages): accuracy 0.947, lure recall 0.962 (50 of 52), false alarms 0.055 (27 of 493)."
+    },
+    "saRecallOf": {
+      "value": "50 of 52",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "South Africa (545 pages): accuracy 0.947, lure recall 0.962 (50 of 52), false alarms 0.055 (27 of 493)."
+    },
+    "paymentTyping": {
+      "value": "Payment lures are caught but mostly typed as another lure type",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Payment lures are caught but mostly typed as another lure type."
+    },
+    "coldStart": {
+      "value": "130.7 s",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "The one-token call answered 200 after 9 attempts and 130.7 s of cold start"
+    },
+    "build3": {
+      "value": "out-of-memory guard at 6.1 GB",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "met every floor and was stopped while publishing by the host's out-of-memory guard at 6.1 GB"
+    },
+    "build4": {
+      "value": "2.4 GB peak",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the fourth 1.0 build (19:19 to 21:15 SAST, 2.4 GB peak"
+    },
+    "ariyadasaTotal": {
+      "value": "83,275",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "83,275 HTML pages by Subhash Ariyadasa, Shantha Fernando and Subha Fernando"
+    },
+    "malloryTotal": {
+      "value": "15,902",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "15,902 pages collected by the uploader from PhishTank and the Majestic Million"
+    },
+    "build1Lures": {
+      "value": "29 of 100",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the first real 1.0 build (13:16 to 15:51 SAST, 2 h 35 min, 2.4 GB) was refused: training kept 29 of 100 sample-derived lures"
+    },
+    "build2Run": {
+      "value": "1 h 16 min, 2.4 GB",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000"
+    },
+    "build2Eval": {
+      "value": "997 of 1,000",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "the second 1.0 build (16:28 to 17:45 SAST, 1 h 16 min, 2.4 GB) was refused by 3 pages: evaluation balanced to 997 of 1,000"
+    },
+    "teacherFailed": {
+      "value": "0",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "1 quarantined (its answer was lost), 0 failed"
+    },
+    "chainBrands": {
+      "value": "57 brands",
+      "status": "measured",
+      "source": "todo/03-vision/TODO-04-glimmer.md",
+      "quote": "weebly.com 57 brands, google.com 32"
+    },
+    "scamferretShots": {
+      "value": "240 screenshots",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "2,400 top-page HTML captures and 240 screenshots"
+    },
+    "mallorySample": {
+      "value": "15,000",
+      "status": "measured",
+      "source": "docs/glimmer/sources.md",
+      "quote": "HTML cut at 32,767 characters by its spreadsheet; 15,000 sampled with seed 20261028"
+    },
+    "sparkBias": {
+      "value": "biased upward by construction",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "Spark's figures on them are biased upward by construction and are recorded as such, not as a fair bar."
+    },
+    "teacherBenign": {
+      "value": "346",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "346 South African benign renders, 137 redacted sample lures"
+    },
+    "teacherSamples": {
+      "value": "137",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "346 South African benign renders, 137 redacted sample lures"
+    },
+    "minReplicas": {
+      "value": "0",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "read back minimum 0, maximum 1, scale to zero 300s"
+    },
+    "maxReplicas": {
+      "value": "1",
+      "status": "measured",
+      "source": "docs/glimmer/training.md",
+      "quote": "read back minimum 0, maximum 1, scale to zero 300s"
+    }
+  }
+}

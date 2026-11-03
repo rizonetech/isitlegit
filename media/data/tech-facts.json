@@ -1,0 +1,669 @@
+{
+  "$comment": "Every figure video 02 shows, pinned to the commit below; proven by media/tools/check-facts.py. shipped means in src/ at that commit; planned means designed, not built.",
+  "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0",
+  "asOf": "31 Oct 2026",
+  "facts": {
+    "intakeAddress": {
+      "value": "check@isitlegit.co.za",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "intake address `check@isitlegit.co.za`"
+    },
+    "emailMaxBytes": {
+      "value": "25 MiB",
+      "status": "shipped",
+      "source": "src/intake/email.ts",
+      "quote": "export const MAX_MESSAGE_BYTES = 25 * 1024 * 1024;",
+      "label": true
+    },
+    "uploadMaxBytes": {
+      "value": "25 MiB",
+      "status": "shipped",
+      "source": "src/intake/upload.ts",
+      "quote": "export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;",
+      "label": true
+    },
+    "dropNoReply": {
+      "value": "dropped with no reply",
+      "status": "shipped",
+      "source": "src/intake/email.ts",
+      "quote": "anything else is dropped with no reply, so the"
+    },
+    "dupWindow": {
+      "value": "24 hours",
+      "status": "shipped",
+      "source": "src/intake/admit.ts",
+      "quote": "export const DUPLICATE_WINDOW_MS = 24 * 60 * 60_000;",
+      "label": true
+    },
+    "instanceId": {
+      "value": "instance id = case id",
+      "status": "shipped",
+      "source": "src/intake/admit.ts",
+      "quote": "start the Workflow (instance id = case id)"
+    },
+    "forwardAttach": {
+      "value": "Forward as attachment is the supported path.",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "**Forward as attachment is the supported path.**"
+    },
+    "sniffBytes": {
+      "value": "read from its bytes, never its name",
+      "status": "shipped",
+      "source": "src/intake/sniff.ts",
+      "quote": "read from its bytes, never its name"
+    },
+    "uploadKinds": {
+      "value": "a saved email (.eml or .msg), a PDF, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3)",
+      "status": "shipped",
+      "source": "src/intake/sniff.ts",
+      "quote": "Upload a saved email (.eml or .msg), a PDF, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3)."
+    },
+    "postalMime": {
+      "value": "postal-mime 4.1.4",
+      "status": "shipped",
+      "source": "package.json",
+      "quote": "\"postal-mime\": \"4.1.4\",",
+      "label": true
+    },
+    "bodyPartLimit": {
+      "value": "1 MiB",
+      "status": "shipped",
+      "source": "src/intake/parse.ts",
+      "quote": "export const BODY_PART_LIMIT = 1024 * 1024;",
+      "label": true
+    },
+    "voiceWav": {
+      "value": "16 kHz mono 16-bit WAV",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "to 16 kHz mono 16-bit WAV, the format the endpoint accepts, capped at 10 minutes"
+    },
+    "voiceMaxCode": {
+      "value": "1,800 s",
+      "status": "shipped",
+      "source": "src/voice/errors.ts",
+      "quote": "export const MAX_SECONDS = 1_800;",
+      "label": true
+    },
+    "voiceModel": {
+      "value": "muse-voice-transcribe-1.0",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "(`muse-voice-transcribe-1.0`, diarization mode)"
+    },
+    "stepNames": {
+      "value": "admit, parse, checks, verdict, store, reply, finish",
+      "status": "shipped",
+      "source": "src/pipeline/analysis-workflow.ts",
+      "quote": "export type StepName = \"admit\" | \"parse\" | \"checks\" | \"verdict\" | \"store\" | \"reply\" | \"finish\";",
+      "label": true
+    },
+    "retryLimit": {
+      "value": "3 retries, 2 seconds, exponential",
+      "status": "shipped",
+      "source": "src/pipeline/analysis-workflow.ts",
+      "quote": "retries: { limit: 3, delay: \"2 seconds\", backoff: \"exponential\" },",
+      "label": true
+    },
+    "stepTimeout": {
+      "value": "30 seconds",
+      "status": "shipped",
+      "source": "src/pipeline/analysis-workflow.ts",
+      "quote": "timeout: \"30 seconds\","
+    },
+    "stubVerdict": {
+      "value": "never safe",
+      "status": "shipped",
+      "source": "src/pipeline/analysis-workflow.ts",
+      "quote": "// The stub verdict until the checks and the agent exist: never `safe`",
+      "label": true
+    },
+    "partialCase": {
+      "value": "ends the case partial",
+      "status": "shipped",
+      "source": "src/pipeline/analysis-workflow.ts",
+      "quote": "ends the case `partial` naming it, and `reply` still runs",
+      "label": true
+    },
+    "cronReconcile": {
+      "value": "*/15 * * * *",
+      "status": "shipped",
+      "source": "src/schedules.ts",
+      "quote": "export const MAIN_CRON = \"*/15 * * * *\";"
+    },
+    "workflowName": {
+      "value": "isitlegit-analysis",
+      "status": "shipped",
+      "source": "wrangler.jsonc",
+      "quote": "\"workflows\": [{ \"name\": \"isitlegit-analysis\", \"binding\": \"ANALYSIS\""
+    },
+    "evidenceShape": {
+      "value": "Evidence { id, check, severity, summary, detail, artefacts[] }",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "Every check emits `Evidence { id, check, severity: info|low|medium|high|critical, summary, detail, artefacts[] }`.",
+      "label": true
+    },
+    "severities": {
+      "value": "info, low, medium, high, critical",
+      "status": "shipped",
+      "source": "src/checks/evidence.ts",
+      "quote": "export const SEVERITIES = [\"info\", \"low\", \"medium\", \"high\", \"critical\"] as const;",
+      "label": true
+    },
+    "checkMaxMs": {
+      "value": "20 seconds",
+      "status": "shipped",
+      "source": "src/checks/registry.ts",
+      "quote": "export const MAX_CHECK_MS = 20_000;",
+      "label": true
+    },
+    "authAlign": {
+      "value": "auth.alignment",
+      "status": "shipped",
+      "source": "src/checks/auth.ts",
+      "quote": "registry.register({ name: \"auth.alignment\""
+    },
+    "lookalikeSkeleton": {
+      "value": "UTS #39 skeleton",
+      "status": "shipped",
+      "source": "src/checks/lookalike.ts",
+      "quote": "a label's UTS #39 skeleton, which"
+    },
+    "rdap": {
+      "value": "registration dates from RDAP",
+      "status": "shipped",
+      "source": "src/checks/rdap.ts",
+      "quote": "Domain registration dates from RDAP"
+    },
+    "webRisk": {
+      "value": "Google Web Risk Lookup API",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "**Google Web Risk Lookup API** (`uris.search`)"
+    },
+    "webRiskFree": {
+      "value": "100,000 calls a month",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "Free up to 100,000 calls a month"
+    },
+    "cf112": {
+      "value": "Cloudflare 1.1.1.2",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "**Cloudflare 1.1.1.2** (malware-blocking resolver) over DNS-over-HTTPS"
+    },
+    "listNotAlone": {
+      "value": "A blocklist hit alone cannot make a verdict malicious.",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "A blocklist hit alone cannot make a verdict malicious."
+    },
+    "hiddenText": {
+      "value": "text written to steer an AI or a mail filter",
+      "status": "shipped",
+      "source": "src/checks/ai-instructions.ts",
+      "quote": "text written to steer an AI or a mail filter"
+    },
+    "floorRule": {
+      "value": "caps the verdict at suspicious or malicious regardless of model output",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "caps the verdict at suspicious or malicious regardless of model output"
+    },
+    "browserRun": {
+      "value": "Browser Run",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "**Browser Run** (formerly Browser Rendering) with `@cloudflare/puppeteer`"
+    },
+    "browserLimits": {
+      "value": "3 new browsers per second, 60 s inactivity timeout",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "3 new browsers per second, 60 s inactivity timeout"
+    },
+    "wonderLimits": {
+      "value": "max 8 steps, 60 seconds, no file downloads",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "max 8 steps, 60 seconds, no file downloads, no navigation outside http(s), only canary values may be typed, and every action logged"
+    },
+    "wonderCanary": {
+      "value": "canary credentials",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "types **canary credentials** (generated per case, never real)"
+    },
+    "wonderModel": {
+      "value": "muse-wonder-1.0",
+      "status": "shipped",
+      "source": "src/meta/models.ts",
+      "quote": "\"muse-wonder-1.0\": { unit: \"token\", input: 4, cached: 0.2, output: 20 },"
+    },
+    "samModel": {
+      "value": "sam-3.1",
+      "status": "shipped",
+      "source": "src/meta/models.ts",
+      "quote": "\"sam-3.1\": { unit: \"image\", perImage: 2.5 / 1000 },"
+    },
+    "samUse": {
+      "value": "SAM 3.1",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "**SAM 3.1** (`sam-3.1`, text prompt \"logo\") returns boxes and masks"
+    },
+    "sparkModel": {
+      "value": "muse-spark-1.3",
+      "status": "shipped",
+      "source": "src/meta/models.ts",
+      "quote": "\"muse-spark-1.3\": { unit: \"token\", input: 1.25, cached: 0.15, output: 4.25 },"
+    },
+    "storeFalse": {
+      "value": "store: false",
+      "status": "shipped",
+      "source": "src/meta/client.ts",
+      "quote": "const body: ResponseCreateParamsNonStreaming = { ...params, model, stream: false, store: false };"
+    },
+    "standardOnly": {
+      "value": "Standard IDs only",
+      "status": "shipped",
+      "source": "src/meta/models.ts",
+      "quote": "Standard IDs only, never a `-contributor` one"
+    },
+    "gatewayName": {
+      "value": "isitlegit",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "**AI Gateway** `isitlegit` (authenticated) with the account custom provider `meta`"
+    },
+    "gatewayRetention": {
+      "value": "7 days",
+      "status": "shipped",
+      "source": "docs/operations.md",
+      "quote": "| Retention | 7 days, then the log is gone |"
+    },
+    "liveSpark": {
+      "value": "15 / 64",
+      "status": "measured",
+      "source": "docs/live-checks.md",
+      "quote": "| passed | 15 / 64 | US$0.000291 |"
+    },
+    "untrustedBlocks": {
+      "value": "clearly delimited untrusted blocks",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "Email text, PDF text and page text reach a model only inside clearly delimited untrusted blocks"
+    },
+    "noModelRecipients": {
+      "value": "No model decides who gets mail.",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "**No model decides who gets mail.**"
+    },
+    "toolsZod": {
+      "value": "validated with zod",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "so every call is validated with zod before it runs"
+    },
+    "verdictJson": {
+      "value": "verdict, confidence, headline, explanation, cited_evidence_ids[], recommended_actions[]",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "Output JSON: `verdict, confidence, headline, explanation, cited_evidence_ids[], recommended_actions[]`."
+    },
+    "citeValidator": {
+      "value": "retries once, then the case falls back to a rule-based verdict",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "on failure the agent retries once, then the case falls back to a rule-based verdict"
+    },
+    "verdictClasses": {
+      "value": "safe, suspicious, malicious",
+      "status": "shipped",
+      "source": "src/db/cases.ts",
+      "quote": "export const Verdict = z.enum([\"safe\", \"suspicious\", \"malicious\"]);",
+      "label": true
+    },
+    "verdictTools": {
+      "value": "expand_link, screenshot_url, segment_logos, compare_logo, lookup_domain, ledger_lookup, walk_phishing_site",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "`expand_link`, `screenshot_url`, `segment_logos`, `compare_logo`, `lookup_domain`, `ledger_lookup`, `walk_phishing_site`",
+      "label": true
+    },
+    "bankChange": {
+      "value": "critical",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "→ **critical** evidence and a fixed instruction: confirm by phoning the supplier on the number in the ledger"
+    },
+    "invoiceFields": {
+      "value": "supplier name, supplier domain, bank, account holder, account number, branch code, amount, reference, due date",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "`supplier name, supplier domain, bank, account holder, account number, branch code, amount, reference, due date`"
+    },
+    "synthSet": {
+      "value": "SYNTHETIC",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "each stamped SYNTHETIC"
+    },
+    "trustProtected": {
+      "value": "domains, sending addresses, logo and bank account(s)",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "a business registers and verifies its real domains, sending addresses, logo and bank account(s)"
+    },
+    "bankPrivacy": {
+      "value": "registered bank details are never revealed to a checker",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "registered bank details are never revealed to a checker"
+    },
+    "cpLimit": {
+      "value": "5 per sender and 50 per protected business a day",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "limited to 5 per sender and 50 per protected business a day"
+    },
+    "closedLoop": {
+      "value": "emails the supplier's registered finance contact",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "the agent emails the supplier's registered finance contact asking for confirmation"
+    },
+    "badgeUrl": {
+      "value": "isitlegit.co.za/v/<business>",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "linking to `isitlegit.co.za/v/<business>`"
+    },
+    "sealFrame": {
+      "value": "frame-ancestors",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "`Content-Security-Policy: frame-ancestors`"
+    },
+    "monitorCron": {
+      "value": "Daily run",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "**Daily run** on a Cron Trigger"
+    },
+    "loupeSpec": {
+      "value": "scales to zero after 5 idle minutes and runs at most 30 minutes a day",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "scales to zero after 5 idle minutes and runs at most 30 minutes a day"
+    },
+    "lureTypes": {
+      "value": "credential, payment, fake_shop, impersonation, none",
+      "status": "shipped",
+      "source": "src/vision/page-screen.ts",
+      "quote": "export const LURE_TYPES = [\"credential\", \"payment\", \"fake_shop\", \"impersonation\", \"none\"] as const;",
+      "label": true
+    },
+    "d1Name": {
+      "value": "isitlegit",
+      "status": "shipped",
+      "source": "wrangler.jsonc",
+      "quote": "\"database_name\": \"isitlegit\","
+    },
+    "r2Bucket": {
+      "value": "isitlegit-artefacts",
+      "status": "shipped",
+      "source": "wrangler.jsonc",
+      "quote": "\"r2_buckets\": [{ \"binding\": \"ARTEFACTS\", \"bucket_name\": \"isitlegit-artefacts\" }],"
+    },
+    "r2Retention": {
+      "value": "deleted after 30 days",
+      "status": "shipped",
+      "source": "wrangler.jsonc",
+      "quote": "deleted after 30 days by the bucket's lifecycle rule, POPIA"
+    },
+    "kvCache": {
+      "value": "CACHE",
+      "status": "shipped",
+      "source": "wrangler.jsonc",
+      "quote": "\"kv_namespaces\": [{ \"binding\": \"CACHE\""
+    },
+    "summaryRetention": {
+      "value": "deleted within 30 days of closing it",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "deleted within 30 days of closing it"
+    },
+    "betterAuth": {
+      "value": "Better Auth 1.7.13",
+      "status": "shipped",
+      "source": "package.json",
+      "quote": "\"better-auth\": \"1.7.13\",",
+      "label": true
+    },
+    "roles": {
+      "value": "owner, admin, member",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "roles owner, admin, member"
+    },
+    "domainProof": {
+      "value": "a DNS TXT record or a code mailed to admin@ or postmaster@",
+      "status": "shipped",
+      "source": "src/auth/domains.ts",
+      "quote": "a domain by a DNS TXT record or a code mailed to admin@ or postmaster@ it"
+    },
+    "trialDays": {
+      "value": "14",
+      "status": "shipped",
+      "source": "src/auth/plans.ts",
+      "quote": "export const TRIAL_DAYS = 14;"
+    },
+    "inviteAtomic": {
+      "value": "uses < max_uses",
+      "status": "shipped",
+      "source": "src/auth/signup.ts",
+      "quote": "UPDATE invite_codes SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ?"
+    },
+    "signinRate": {
+      "value": "20",
+      "status": "shipped",
+      "source": "src/auth/ratelimit.ts",
+      "quote": "export const LINK_MAX = 20;"
+    },
+    "reportLinkDays": {
+      "value": "7",
+      "status": "shipped",
+      "source": "src/web/report-link.ts",
+      "quote": "export const LINK_DAYS = 7;"
+    },
+    "orgScope": {
+      "value": "from the session's activeOrganizationId only",
+      "status": "shipped",
+      "source": "src/auth/org.ts",
+      "quote": "organisation from the session's activeOrganizationId only (never from the request)"
+    },
+    "accessAdmin": {
+      "value": "Cloudflare Access",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "**Cloudflare Access** (email one-time PIN) in front of `/admin`"
+    },
+    "smtp2go": {
+      "value": "SMTP2GO",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "`POST https://api.smtp2go.com/v3/email/send`",
+      "label": true
+    },
+    "astro": {
+      "value": "Astro 7",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "**Astro 7** static site in `site/`"
+    },
+    "pnpm": {
+      "value": "pnpm 11.16.0",
+      "status": "shipped",
+      "source": "package.json",
+      "quote": "\"packageManager\": \"pnpm@11.16.0\",",
+      "label": true
+    },
+    "ts": {
+      "value": "TypeScript 7.0.2",
+      "status": "shipped",
+      "source": "package.json",
+      "quote": "\"typescript\": \"7.0.2\",",
+      "label": true
+    },
+    "wrangler": {
+      "value": "Wrangler 4.153.0",
+      "status": "shipped",
+      "source": "package.json",
+      "quote": "\"wrangler\": \"4.153.0\"",
+      "label": true
+    },
+    "biome": {
+      "value": "Biome 2.6.3",
+      "status": "shipped",
+      "source": "package.json",
+      "quote": "\"@biomejs/biome\": \"2.6.3\",",
+      "label": true
+    },
+    "compatDate": {
+      "value": "2026-10-26",
+      "status": "shipped",
+      "source": "wrangler.jsonc",
+      "quote": "\"compatibility_date\": \"2026-10-26\","
+    },
+    "evalTargets": {
+      "value": "detection rate at least 95%, false positive rate at most 2%",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "detection rate at least 95% on attacks; false positive rate at most 2% on genuine mail",
+      "label": true
+    },
+    "ablation": {
+      "value": "each Meta model switched off in turn",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "the runner repeats the eval with each Meta model switched off in turn"
+    },
+    "popia": {
+      "value": "deleted after 30 days",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "POPIA: raw messages and attachments deleted after 30 days (R2 lifecycle rule)"
+    },
+    "dataTerms": {
+      "value": "Zero Data Retention is not available to us",
+      "status": "planned",
+      "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
+      "quote": "Zero Data Retention is not available to us"
+    },
+    "vitestVer": {
+      "value": "Vitest 4.1.12",
+      "status": "shipped",
+      "source": "docs/specs/2026-10-26-tech-stack-design.md",
+      "quote": "`vitest` **4.1.12** + `@cloudflare/vitest-plugin` 1.4.8",
+      "label": true
+    },
+    "dailyCaps": {
+      "value": "50",
+      "status": "shipped",
+      "source": "src/db/cases.ts",
+      "quote": "export const DEFAULT_DAILY_CASES = 50;"
+    },
+    "cronRetry": {
+      "value": "* * * * *",
+      "status": "shipped",
+      "source": "src/schedules.ts",
+      "quote": "export const RETRY_CRON = \"* * * * *\";"
+    },
+    "reportPoll": {
+      "value": "every 2 seconds",
+      "status": "shipped",
+      "source": "src/web/pages/report-live.tsx",
+      "quote": "polls every 2 seconds"
+    },
+    "loupeTrained": {
+      "value": "trained",
+      "status": "shipped",
+      "source": "docs/glimmer/training.md",
+      "commit": "8e3c97ffed89e9873a6c986eb917f5957392db26",
+      "quote": "6,503 steps of 8, 22:20 UTC on 2026-10-30 to 12:49 UTC (14 h 29 min, no resume)",
+      "label": true
+    },
+    "benchNoteOurs": {
+      "value": "14 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| note (3 s, Ogg Opus) | 14 ms | 14 ms | 63 ms | 66 ms |"
+    },
+    "benchNoteFfmpeg": {
+      "value": "66 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| note (3 s, Ogg Opus) | 14 ms | 14 ms | 63 ms | 66 ms |"
+    },
+    "benchLongOurs": {
+      "value": "2,464 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| recording (25 min, Ogg Opus) | 1,029 ms | 2,464 ms | 2,477 ms | 6,109 ms |"
+    },
+    "benchLongFfmpeg": {
+      "value": "6,109 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| recording (25 min, Ogg Opus) | 1,029 ms | 2,464 ms | 2,477 ms | 6,109 ms |"
+    },
+    "benchWavOurs": {
+      "value": "216 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| upload-sized (25 MiB, WAV 48 kHz) | 216 ms | 216 ms | 505 ms | 514 ms |"
+    },
+    "benchWavFfmpeg": {
+      "value": "514 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| upload-sized (25 MiB, WAV 48 kHz) | 216 ms | 216 ms | 505 ms | 514 ms |"
+    },
+    "benchDamagedOurs": {
+      "value": "refused in 0 ms",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| damaged (Ogg Opus) | none | refused in 0 ms | none | 64 ms (decoded, damage concealed) |"
+    },
+    "benchDamagedFfmpeg": {
+      "value": "64 ms (decoded, damage concealed)",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "| damaged (Ogg Opus) | none | refused in 0 ms | none | 64 ms (decoded, damage concealed) |"
+    },
+    "benchCiRun": {
+      "value": "40602990459",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "CI run 40602990459 (`335df7e`, FFmpeg 6.1.1-3ubuntu5, medians of three)"
+    },
+    "benchFfmpegVer": {
+      "value": "FFmpeg 6.1.1-3ubuntu5",
+      "status": "measured",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "CI run 40602990459 (`335df7e`, FFmpeg 6.1.1-3ubuntu5, medians of three)"
+    },
+    "benchStopband": {
+      "value": "-60 dB",
+      "status": "shipped",
+      "source": "todo/01-intake/TODO-03-upload-and-voice.md",
+      "quote": "leaving at most -60 dB where they would alias"
+    }
+  }
+}

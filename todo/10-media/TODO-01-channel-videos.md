@@ -1,0 +1,207 @@
+---
+schema_version: 1
+id: media-channel-videos
+domain: 10-media
+status: active
+title: "TODO-01 -- Channel Videos: Development Process and Technical Deep Dive"
+track: day-6
+---
+
+# TODO-01 -- Channel Videos: Development Process and Technical Deep Dive
+
+> **Goal:** The IsItLegit YouTube channel (@DerickPayneDev) carries three explainers made in Remotion from the repository: "How IsItLegit is built" (the development process in long form, including the lanes, the coordinator and the Muse Wonder final review, labelled as tooling), "IsItLegit: how it works" (the technical deep dive in long form, with an honest shipped or planned mark per chapter) and "Loupe 1.0" (a technical deep dive on the page screener, figures pinned to the glimmer lane), each with an approved script, a licence basis on file, numbers read from the repository, and a public link recorded here.
+
+> **Current state:** Measured 2026-10-30. `media/` exists on branch `claude/trusting-pasteur-umwvqz` (commits `cc4d49c`, `0b45c62`, `6aed7c0`): its own pnpm root (`media/pnpm-workspace.yaml`, `media/pnpm-lock.yaml`), Remotion 4.0.539 pinned, the brand layer `media/src/brand.tsx` reading `design/` unchanged, videos 01 and 02 as long-form storyboards (`media/data/storyboards/`) rendered by the scene kit `media/src/kit/` after the operator asked for 5 to 10 minute learning videos (2026-10-30), replacing the 65 s and 60 s drafts, with figures from `media/tools/collect-stats.py` (git pace, per-domain stamps, review counts) and from `media/data/dev-facts.json` and `media/data/tech-facts.json`, every quote proven by `media/tools/check-facts.py`. Both render to 1920 x 1080 MP4; neither script is approved, the Remotion licence basis is not recorded, and nothing is uploaded. The lane is registered but uncoordinated (`docs/specs/2026-10-30-four-lanes-design.md`, Amendment: a fifth lane); its stamps carry the review waiver once D00 T01 §26 ships.
+
+## Inputs
+
+- `media/README.md`: the lane rules (no product feature claims for tooling, numbers from the repository, no Meta Model API calls, licensed music only).
+- `media/scripts/01-how-isitlegit-is-built.md` and `media/scripts/02-isitlegit-technical-deep-dive.md`: the chapter outlines the operator approves; the words are the storyboards in `media/data/storyboards/`.
+- `design/brand/README.md`, `design/tokens/colors.json`, `design/fonts/`: brand files used unchanged.
+- `README.md` "How it uses Meta's models" and "How it is built", `docs/specs/2026-10-26-tech-stack-design.md`: the facts in video 02.
+- `.conclave/reviewers.toml` and `docs/reviews/`: the review method and the receipts video 01 shows.
+- `CONTRIBUTIONS.md`: declares the review tooling as pre-existing development tooling (coordinator, `b223a08`).
+- `docs/hackathon-criteria.md`: rights to everything used; tooling never shown as a product feature.
+- Not this file: the demo video's Remotion assets are D09 T02 §4 and its recording and upload are D99 T02 §3 to §5. The waived stamp is D00 T01 §26.
+
+## Outcome
+
+- All three videos are public on @DerickPayneDev, play logged out, and their links are recorded here.
+- Every number on screen matches `media/tools/collect-stats.py` run on the rendered commit, which the closing frame names.
+- The Remotion licence basis for Rizonetech is recorded here before the final renders.
+
+**Adjacency:** all=not-applicable (marketing videos outside the product; they create no product records)
+
+**Adjacency rationale:** The videos are channel content rendered from repository facts. They hold no user data, no settings and no lifecycle; a wrong video is replaced by a new upload, recorded here.
+
+## Implementation Order
+
+| Order | Section | Deliverable | Depends On | Status |
+| ----- | ------- | ----------- | ---------- | ------ |
+| 1 | §1 | Media package and stats collector | -- | [ ] |
+| 2 | §2 | Remotion licence basis | -- | [ ] |
+| 3 | §3 | Video 01: development process, long form | §1, §2 | [ ] |
+| 4 | §4 | Video 02: technical deep dive, long form | §1, §2 | [ ] |
+| 5 | §5 | Uploads and links recorded | §3, §4 | [ ] |
+| 6 | §6 | Video 03: Loupe 1.0 technical deep dive | §1, §2 | [ ] |
+| 7 | §7 | Video 03 upload and link recorded | §6 | [ ] |
+
+## 1. Media package and stats collector
+
+The self-contained Remotion package every video renders from: its own pnpm root so the root workspace and lockfile are never touched (coordinator, D10 step 5), a brand layer that reads `design/` unchanged, and a collector that reads every on-screen number from the repository so no number is typed in.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Create the package in `media/` as its own pnpm root. Done when: `pnpm install --frozen-lockfile` in `media/` leaves the root `pnpm-lock.yaml` unchanged.
+2. Read the numbers in `media/tools/collect-stats.py` and prove the counting with a test. Done when: the test fails if the row or receipt patterns are broken.
+
+- [x] Create `media/package.json`, `media/pnpm-workspace.yaml` and `media/pnpm-lock.yaml` with `remotion` and `@remotion/cli` pinned to 4.0.539 (stack doc pin, D09 T02 §4). Done when: `pnpm install --frozen-lockfile` in `media/` succeeds and `git status` shows no change to the root lockfile. Cheaper substitute: adding `media` to the root `pnpm-workspace.yaml` fails the root-lockfile check. (`6aed7c0`)
+- [x] Serve `design/` as the public folder in `media/remotion.config.ts`. Done when: `staticFile("brand/logo-svg/isitlegit-logo.svg")` renders the logo in a still. Cheaper substitute: copying brand files into `media/` fails, since they would drift from `design/`. (`0b45c62`)
+- [x] Load Exo and Exo 2 from `design/fonts/` and expose the light theme tokens in `media/src/brand.tsx` (`design/brand/README.md` "Type", `design/tokens/colors.json`). Done when: a still shows Exo 2 body text, not a serif fallback. Cheaper substitute: hard-coded hex values fail when a token changes. (`0b45c62`)
+- [x] Write `media/tools/collect-stats.py` to count Implementation Order rows, stamped rows, `## Round` and non-`none` `## Final review` headings, and HEAD's date and short SHA, written atomically to `media/src/data/stats.json`. Done when: it prints the JSON and the file is replaced, never half-written. Cheaper substitute: numbers typed into a scene fail the moment a section ships. (`0b45c62`)
+- [x] Add `media/tools/test_collect_stats.py` (unittest) that builds a temporary tree with two rows (one `[x]`), one `## Round 1`, one `## Final review: wonder` and one `## Final review: none`, and asserts `sections=2, stamped=1, rounds=1, finals=1`. Done when: `python3 -m unittest discover -s media/tools` passes and fails when `FINAL` stops excluding `none`. (`8f7df4f3`)
+- [x] Let `collect-stats.py` take the repository root as an optional argument for the test. Done when: the test runs without touching the real tree. Cheaper substitute: a test that reads the live repository fails as soon as a section ships. (`8f7df4f3`)
+- [x] Commit: `media: test the stats collector` (`8f7df4f3`)
+
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm exec tsc -p .` exits 0.
+
+## 2. Remotion licence basis
+
+Remotion is free for individuals and for companies of up to three people; a larger company needs a paid company licence (coordinator caution, 2026-10-30). The hackathon requires rights to everything used (`docs/hackathon-criteria.md`). Rizonetech's headcount decides which applies, and only the operator knows it. Phase 6, not 99, because the renders in §3 and §4 wait on it.
+
+**Phase:** 6
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. The operator confirms which Remotion licence covers Rizonetech. Done when: one line records it here.
+
+- [x] Operator: check Rizonetech's headcount against the Remotion licence terms at `https://www.remotion.dev/license` and buy a company licence if over three people. Done when: the operator states which licence applies.
+- [x] Record the line `Remotion licence: <free (up to 3 people) | company licence, <reference>>, confirmed YYYY-MM-DD` under this section. Done when: the line is written. Cheaper substitute: assuming the free tier from the hackathon team size fails, since the licence counts the company.
+- [ ] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
+
+**Test checkpoint:** `grep -cE '^Remotion licence: ' todo/10-media/TODO-01-channel-videos.md` prints `1`.
+
+Remotion licence: free (up to 3 people), Rizonetech has 3 people, confirmed 2026-10-30
+
+## 3. Video 01: development process, long form
+
+The development process in about 11 and a half minutes, for learning and for the channel: the governing documents, the plan as a graph, the section contract, the five lanes as a team, the coordinator as team lead, the loop that runs around the clock (with commits by hour and by day from git), independent review with the Muse Wonder final review, the stamp and its receipt, the guards, and how it adds up to speed. Every scene carries the label "Our development process, not a product feature" (`docs/hackathon-criteria.md`, identify contributions). Long form on the operator's request, 2026-10-30.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Write `media/data/storyboards/01-development-process.json` with every figure named from `media/data/dev-facts.json` or the collector. Done when: `pnpm check:facts` passes.
+2. The operator approves `media/scripts/01-how-isitlegit-is-built.md`, then the final render. Done when: its approval line is written and `media/out/01-how-isitlegit-is-built.mp4` is 1920 x 1080.
+
+- [x] Pin the process facts in `media/data/dev-facts.json` (50 facts, quotes from `AGENTS.md`, `docs/specs/2026-10-30-four-lanes-design.md`, `.conclave/reviewers.toml`, `todo/README.md`, `scripts/`), with no writer model identifier, client data or account names. Done when: `python3 media/tools/check-facts.py` passes. Cheaper substitute: typed figures fail the lane rule.
+- [x] Add commits and stamps per day, commits per hour of day across every lane, merges, per-domain stamps and lines of code to `media/tools/collect-stats.py`, leaving out the template rows, with tests. Done when: its sections total equals `scripts/todo-graph.py validate`'s count.
+- [x] Write the storyboard and register it in `media/src/Root.tsx` as `DevProcess`. Done when: stills of all 33 content scenes show the label, Exo fonts and nothing cut off.
+- [x] Operator: answer the script's open questions (voiceover or text only; reviewer names). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
+- [ ] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
+- [ ] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
+- [ ] Commit: `media: video 01 approved and rendered (D10 T01 §3)`
+
+**Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/01-how-isitlegit-is-built.mp4` prints `1920,1080`, and `grep -c '^Script approved: 01, ' media/scripts/01-how-isitlegit-is-built.md` prints `1`.
+
+## 4. Video 02: technical deep dive, long form
+
+The product's technical specification in about 11 minutes: intake, uploads and voice, the Workflows pipeline, the evidence model and checks, reputation and the hard floor, link following with Muse Wonder, vision, the Meta model client and AI Gateway, the verdict agent, invoices, the trust network, storage and retention, the app, evaluation and the pinned stack. Every chapter card says shipped, partly built or planned, measured from `src/` and the stamped plan, and diagrams are never product screens, so it never stands in for the live demo (`docs/hackathon-criteria.md`, Demo). Replaces the 60-second tech stack draft on the operator's request, 2026-10-30.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Write `media/data/storyboards/02-technical-deep-dive.json` with every figure named from `media/data/tech-facts.json`. Done when: `pnpm check:facts` passes.
+2. The operator approves `media/scripts/02-isitlegit-technical-deep-dive.md`, then the final render. Done when: its approval line is written and `media/out/02-isitlegit-technical-deep-dive.mp4` is 1920 x 1080.
+
+- [x] Pin the product facts in `media/data/tech-facts.json` (92 facts, status `shipped` only for code in `src/` at the pin, `planned` for the design spec), with no client data, keys or account IDs. Done when: `python3 media/tools/check-facts.py` passes. Cheaper substitute: calling a designed feature shipped fails the no-mocks rule.
+- [x] Write the storyboard and register it in `media/src/Root.tsx` as `TechDeepDive`. Done when: stills of all 25 content scenes show the label and nothing cut off, including the wrapped code lines.
+- [ ] Operator: answer the script's open questions (voiceover; a re-render once the verdict agent ships). Done when: the answers are written into `media/scripts/02-isitlegit-technical-deep-dive.md`.
+- [ ] Record `Script approved: 02, YYYY-MM-DD` in `media/scripts/02-isitlegit-technical-deep-dive.md`. Done when: the line is written.
+- [ ] Re-check every chapter's shipped, partly built or planned mark against `src/` and the stamped rows at the final render's commit. Done when: each mark matches. Cheaper substitute: keeping the 30 Oct marks fails once the agent ships.
+- [ ] Re-pin and re-render with `pnpm render:02` on a committed tree. Done when: the file exists at 1920 x 1080.
+- [ ] Commit: `media: video 02 approved and rendered (D10 T01 §4)`
+
+**Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/02-isitlegit-technical-deep-dive.mp4` prints `1920,1080`, and `grep -c '^Script approved: 02, ' media/scripts/02-isitlegit-technical-deep-dive.md` prints `1`.
+
+## 5. Uploads and links recorded
+
+The operator uploads the two approved renders to @DerickPayneDev as public videos in an `IsItLegit` playlist, with the titles and descriptions from the scripts, and checks each one logged out.
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Upload both and record the links. Done when: two `Video 0N:` lines are written here and both play logged out.
+
+- [ ] Operator: upload `media/out/01-how-isitlegit-is-built.mp4` as public, in the `IsItLegit` playlist. Done when: it plays in a logged-out window at 1080p.
+- [ ] Operator: upload `media/out/02-isitlegit-technical-deep-dive.mp4` the same way. Done when: it plays logged out at 1080p.
+- [ ] Record `Video 01: https://www.youtube.com/watch?v=<id>` and `Video 02: https://www.youtube.com/watch?v=<id>` under this section. Done when: both lines are written.
+- [ ] Add both links to the Videos table in `media/README.md`. Done when: each row links its video.
+- [ ] Commit: `todo: record the channel video links (D10 T01 §5)`
+
+**Test checkpoint:** `grep -cE '^Video 0[12]: https://www\.youtube\.com/watch\?v=' todo/10-media/TODO-01-channel-videos.md` prints `2`.
+
+## 6. Video 03: Loupe 1.0 technical deep dive
+
+A 132-second technical video on Loupe, the page screener of D03 T04: the job behind `screenPage`, the Muse Glimmer 30B base model, the seven licensed sources and the benign renders, the 129,892-page collection, the Muse Spark teacher and its 61 percent bar, the split and its leakage controls, the two refused builds, the LoRA recipe, the promotion gate and the serving plan. Loupe 1.0 is not trained yet (measured 2026-10-30 at glimmer `3be0168e`), so every scene says so, planned values are tagged, and no result is claimed. Requested by the operator 2026-10-30 for technical depth.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Pin every figure in `media/data/loupe-facts.json` to the glimmer commit with a quote or a counted pattern, proven by `media/tools/check-facts.py`. Done when: `pnpm check:facts` passes and fails on a changed figure.
+2. Build `media/src/videos/LoupeV1.tsx` from `media/scripts/03-loupe-1-0.md` and render it. Done when: `media/out/03-loupe-1-0.mp4` is 1920 x 1080 and 132 seconds.
+
+- [x] Write `media/data/loupe-facts.json`: 52 facts, each `measured` or `planned`, pinned to `3be0168e0ffc03d72534ba756bf534a1ed72eca9`, with no client content, account names, keys, store paths or budgets (sources: `docs/glimmer/training.md`, `docs/glimmer/sources.md`, `docs/phase-runs/2026-10-30-glimmer-phase-0.md`, `todo/03-vision/TODO-04-glimmer.md`, `scripts/glimmer/`). Done when: `python3 media/tools/check-facts.py` prints `52 facts hold`. Cheaper substitute: figures typed into the scenes fail the lane rule that every number has a source.
+- [x] Write `media/tools/check-facts.py` (quote and count facts) and `media/tools/test_check_facts.py`. Done when: the six tests pass, and changing a value, a quote, a count, a source or a status fails.
+- [x] Write `media/scripts/03-loupe-1-0.md` with 13 scenes, the "not shown, on purpose" list and the open questions. Done when: the script names every scene's figures and their source file.
+- [x] Build `media/src/videos/LoupeV1.tsx` and register `LoupeV1` in `media/src/Root.tsx`, with the status label on every scene and a `planned` tag on the recipe, gate, serving and `screenPage` lines. Done when: `pnpm exec tsc -p .` exits 0 and stills of all 13 scenes show the label.
+- [x] Add `render:03` (after `check:facts`) to `media/package.json`. Done when: `pnpm render:03` writes `media/out/03-loupe-1-0.mp4` at 1920 x 1080, 132 s.
+- [ ] Operator: answer the script's open questions (teacher spend, the 61 percent bar, voiceover, a results re-render). Done when: the answers are written into `media/scripts/03-loupe-1-0.md`.
+- [ ] Record `Script approved: 03, YYYY-MM-DD` in `media/scripts/03-loupe-1-0.md`. Done when: the line is written.
+- [ ] Re-pin `commit` and refresh the facts to the glimmer lane's latest before the final render, so the video says what is true on the day. Done when: `pnpm check:facts` passes at the new commit. Cheaper substitute: rendering at the old pin fails once Loupe 1.0 has trained.
+- [ ] Render the final cut with `pnpm render:03` on a committed tree. Done when: the file exists at 1920 x 1080.
+- [ ] Commit: `media: video 03 approved and rendered (D10 T01 §6)`
+
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, `python3 media/tools/check-facts.py` exits 0, and `ffprobe -v error -show_entries stream=width,height:format=duration -of csv=p=0 media/out/03-loupe-1-0.mp4` prints `1920,1080` and `132.000000`.
+
+## 7. Video 03 upload and link recorded
+
+The operator uploads the approved video 03 to @DerickPayneDev as public, in the `IsItLegit` playlist, and checks it logged out.
+
+**Phase:** 99
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Upload and record the link. Done when: a `Video 03:` line is written here and the video plays logged out.
+
+- [ ] Operator: upload `media/out/03-loupe-1-0.mp4` as public, in the `IsItLegit` playlist. Done when: it plays in a logged-out window at 1080p.
+- [ ] Record `Video 03: https://www.youtube.com/watch?v=<id>` under this section. Done when: the line is written.
+- [ ] Add the link to the Videos table in `media/README.md`. Done when: the row links its video.
+- [ ] Commit: `todo: record the video 03 link (D10 T01 §7)`
+
+**Test checkpoint:** `grep -cE '^Video 03: https://www\.youtube\.com/watch\?v=' todo/10-media/TODO-01-channel-videos.md` prints `1`.
+
+## Verification
+
+- Both links play logged out, and each video's closing frame names a commit whose `media/tools/collect-stats.py` output matches the numbers shown.
+- `python3 -m unittest discover -s media/tools` passes.
+- `python3 scripts/todo-graph.py validate` and `python3 scripts/todo-graph.py plan --check` pass.

@@ -43,7 +43,7 @@ track: day-1
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [x] |
 | 7 | §7 | Sign-in page | §1, §11, D07 T01 §10, D07 T04 §1 | [x] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [x] |
-| 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
+| 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [x] |
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [x] |
@@ -52,14 +52,19 @@ track: day-1
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [x] |
 | 17 | §17 | Correct a mistyped | §13 | [ ] |
-| 18 | §18 | Passkey-first sign-in | §16 | [ ] |
-| 19 | §19 | Passkey on another device | §16 | [ ] |
+| 18 | §18 | Passkey-first sign-in | §16 | [x] |
+| 19 | §19 | Passkey on another device | §16 | [x] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
-| 25 | §25 | Same-device other-browser | §12 | [ ] |
+| 25 | §25 | Same-device other-browser | §12 | [x] |
+| 26 | §26 | Export and fresh sign-in before closure | §9 | [x] |
+| 27 | §27 | Close account control on the Account board | §9 | [ ] |
+| 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [x] |
+| 29 | §29 | Undo window after closing an organisation | §9, §26 | [ ] |
+| 30 | §30 | Passkey compatibility and second-line causes | §28 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -365,16 +370,21 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 
 1. Close an account and purge it on schedule. Done when: a closed organisation's cases, rows and R2 objects are gone within 30 days, and another organisation's are untouched.
 
-- [x] Add the owner's Close account control to `design/SPEC.md` (where it sits, the confirmation naming the 30-day purge, what members see afterwards) and build it on that page, posting to the closure route. Done when: the SPEC section and its board exist, and a rendered-page test finds the control by role and name for an owner only, refuses it without the confirmation, and closes the organisation with it. Cheaper substitute: a route with no control, or a control for every member, fails the test. Source: D07 T02 §1 completion review (Part 1 item 14), which found no control to start the closure.
+- [x] Add the owner's Close account control to `design/SPEC.md` (where it sits, the confirmation naming the 30-day purge, what members see afterwards) and build it on that page, posting to the closure route. Done when: the SPEC section exists, and a rendered-page test finds the control by role and name for an owner only, refuses it without the confirmation, and closes the organisation with it. The control drawn on the Account board is D07 T02 §27 (operator approval of the drawn change), with a Deviation recorded in M9. Cheaper substitute: a route with no control, or a control for every member, fails the test. Source: D07 T02 §1 completion review (Part 1 item 14), which found no control to start the closure.
 - [x] Record an organisation's closure (`closed_at`) when its owner closes the account, and refuse new cases for it from then on. Done when: a test closes an organisation and its next case is refused.
 - [x] Write the purge: a scheduled Worker run deletes, for each organisation closed 30 days or more, its R2 objects listed by each case's prefixes (`raw/<caseId>/` and `art/<caseId>/`, so an object whose row was never written goes too; D01 T01 §2) and then its cases (the child rows cascade), in batches that resume after a failure. Done when: a test with two organisations purges only the closed one's cases, rows and objects, and a purge interrupted halfway finishes on the next run. The purge also deletes the organisation's `invitation_uses` rows (migration 0012, which has no foreign key to `invitation`), so a spent invitation's user and time go with it (D07 T02 §3 final review).
 - [x] Revoke a closed organisation's domains and addresses at closure (mail from them is no longer admitted, and another organisation may then claim them) and purge its `org_domains`, `org_addresses`, `verification_codes` and `verification_sends` rows (migration 0015, D07 T02 §5), its `org_receivers` and `receiver_lookups` rows (migration 0034, D02 T02 §1), its `org_sender_salts` and `sender_observations` rows (migration 0037, D02 T02 §5: its senders, stored only as salted hashes; **Added 2026-10-30** at the checks lane's request through the coordinator, **Corrected 2026-10-30** to the tables D02 T02 §5 stamped at a0b5bc1) and its `intake_messages` claims (migration 0016, D01 T01 §3), none of which carries a foreign key to the organisation, with the rest. Done when: `test/auth/closure.test.ts` closes an organisation and `findMemberBySender` returns null for its domain at once, another organisation can then verify it, and after the purge none of those rows remain while another organisation's are untouched. Source: D07 T02 §5 completion review (Part 1 item 16); `intake_messages` added by D01 T01 §3's plan review, 2026-10-28.
 - [x] Purge a closed organisation's signup records with it (`invite_redemptions` rows naming it, migration 0013, with their address and consent time), and delete a pending redemption untouched for 30 days (an abandoned signup: its address, consent time and any user it made with no membership); a completed redemption of an open organisation is kept as its consent record. Done when: `test/auth/closure.test.ts` finds a closed organisation's redemptions gone after the purge and an abandoned pending one gone after 30 days, and an open organisation's kept. Source: D07 T02 §4 completion review (Part 1 item 12).
 - [x] State the period on the privacy page and in `docs/operations.md`. Done when: both name 30 days from closure.
 - [x] Delete a closed organisation's `auth_events` rows with its other data (from D07 T02 §6, which keeps them 12 months otherwise). Done when: the purge test finds none left for the closed organisation and another's untouched.
-- [ ] Commit: `app: account closure and the 30-day purge`
+- [x] Commit: `app: account closure and the 30-day purge`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts` passes, and fails if the purge touches an open organisation.
+
+> **Deferred:** the Close account control drawn on the Account board -> XREF: D07 T02 §27
+
+> **Verified:** 2026-11-03 | §9 | 74547a3de0c31ac5c34b1dc375f3dcc743d68f63
+> **Review:** `docs/reviews/d07-t02-s9.json`
 
 
 ## 10. Scanner-safe sign-in links
@@ -513,7 +523,7 @@ Wrong-device link: b (2026-10-30)
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass: the link opened in another browser does what the decision records, and the asking browser's code still signs it in. **Corrected 2026-11-01 (at start):** the code store's test file is `sign-in-code.test.ts`; the browser state added.
 
-> **Deferred:** the wording for a different browser on the same device -> XREF: D07 T02 §25
+> **Resolved:** the wording for a different browser on the same device -> XREF: D07 T02 §25. Resolved 2026-11-02 by D07 T02 §25 in `357ad030` and `3f678251`.
 
 > **Verified:** 2026-11-01 | §12 | e8b281807694a59db1b9b348541fbd56b53b93df
 > **Review:** `docs/reviews/d07-t02-s12.json`
@@ -719,6 +729,10 @@ An owner who typed their address wrong at signup fixes it without a second invit
 
 ## 18. Passkey-first sign-in
 
+> **Started:** 2026-11-02T23:43:51Z
+
+**Corrected 2026-11-02** (validation before build): the operator's 2026-11-02 decision recorded in this section (keep the email form first with the passkey button below, as SPEC A1 draws it; no board change) supersedes the 2026-11-01 deferral and answers the first item's question. The decided flow is A1 as built by §16; this section records the decision in `design/SPEC.md` A1 and proves the returning member's path with the existing browser test.
+
 Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. A1 leads with the email form and offers the passkey below it, so a member who signs in by passkey every time presses "Sign in with a passkey" first; Google's sign-in offers the passkey before anything is typed. Changing A1's order is a design decision first.
 
 **Phase:** 7
@@ -737,13 +751,20 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 1. Record the decision, then build the flow it names. Done when: the operator's choice is in `design/SPEC.md` A1 and a returning member reaches the device's prompt in no more activations than it names.
 
-- [ ] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
-- [ ] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
-- [ ] Commit: `web: passkey-first sign-in for a returning member`
+- [x] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
+- [x] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
+- [x] Commit: `web: passkey-first sign-in for a returning member`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the returning member's flow.
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the returning member's flow.
+
+> **Verified:** 2026-11-03 | §18 | 17562ebf26ef8c7e06ae747256b1bfdfcccac7de
+> **Review:** `docs/reviews/d07-t02-s18.json`
 
 ## 19. Passkey on another device
+
+> **Started:** 2026-11-02T23:59:04Z
+
+**Corrected 2026-11-02** (validation before build): the operator's 2026-11-02 decision in this section approves one sentence naming the phone or tablet in the panel, the email link kept; that answers the first item. The cross-device proof uses a second virtual authenticator on the hybrid transport where Chromium allows it, and the panel sentence itself is proven on the rendered prompt where it does not.
 
 Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. The passkey prompt's "No passkey found on this device?" panel sends the member to the email link, though the browser can use a passkey on their phone (a QR code, the hybrid transport) without one here. The ceremony already allows it; the words do not say so. A change to A1's prompt is a design decision first.
 
@@ -759,15 +780,20 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 **Treatment:** one sentence in the prompt's panel naming the phone, the email link kept
 **Chrome:** the passkey prompt (§16)
 
+> **Corrected 2026-11-03 (plan review):** Each cause is paired with its corrective action in the SPEC, the panel and the tests (a cause named without its remedy proves nothing), and the note stays reachable after the ceremony is cancelled or fails: the prompt disappears then, so the same note is shown with the failure reason on the sign-in page, where Try the passkey again and the email route are already offered. The browser test cancels and fails the ceremony, reads the note, and completes a recovery by keyboard.
+
 **Build order:**
 
 1. Word the other device in the prompt, once approved, and prove the journey. Done when: the panel names the phone and a sign-in with a passkey held by another authenticator succeeds.
 
-- [ ] Ask the operator (through the coordinator) to approve the panel's words for a passkey on a phone or tablet, recorded in `design/SPEC.md` A1 and the `Signin-States` board. Done when: the approved sentence is in the SPEC.
-- [ ] Draw the approved sentence in `PasskeyPrompt` (`src/web/pages/signin.tsx`) and prove a cross-device sign-in in `test/node/passkey-signin-browser.test.tsx` with a virtual authenticator on the hybrid transport (`transport: "hybrid"`, CDP `WebAuthn.addVirtualAuthenticator`). Done when: the test signs in with a passkey held only by the hybrid authenticator and finds the sentence. Cheaper substitute: the words alone, never proven.
-- [ ] Commit: `web: the passkey prompt names a passkey on another device`
+- [x] Ask the operator (through the coordinator) to approve the panel's words for a passkey on a phone or tablet, recorded in `design/SPEC.md` A1 and the `Signin-States` board. Done when: the approved sentence is in the SPEC.
+- [x] Draw the approved sentence in `PasskeyPrompt` (`src/web/pages/signin.tsx`), naming the QR scan and Bluetooth on both devices, and prove a cross-device sign-in against the real verifier in `test/node/passkey-e2e-browser.test.tsx` with a virtual authenticator on the hybrid transport (`transport: "hybrid"`, CDP `WebAuthn.addVirtualAuthenticator`), the session read back and the sentence asserted on the rendered panel in `test/node/passkey-signin-browser.test.tsx`. Done when: the test signs in with a passkey held only by the hybrid authenticator and finds the sentence. Cheaper substitute: the words alone, never proven.
+- [x] Commit: `web: the passkey prompt names a passkey on another device`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the hybrid sign-in.
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the hybrid sign-in.
+
+> **Verified:** 2026-11-03 | §19 | 1ec82e8243cb79dfc5da218f4ab4c342b0a446d2
+> **Review:** `docs/reviews/d07-t02-s19.json`
 
 ## 20. Demo domains as a private suffix
 
@@ -896,6 +922,10 @@ Filed 2026-10-31 at the coordinator's request, from the console lane's D07 T04 �
 
 ## 25. Same-device other-browser
 
+> **Started:** 2026-11-03T00:20:11Z
+
+**Browser wording (operator, 2026-11-02):** the page names "the browser where you asked", gives the code instruction, and keeps signing in here as the secondary choice. The heading reads "Finish in the browser where you asked"; the text names another browser, not another device.
+
 Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-T02-s12.md, G3): the other-device state compares browser handles, so a member who asked in Chrome and opens the email link in Edge on the same laptop is told "You asked for this link on another device" and to go back to it, when the original browser is on the same machine. Okta's email authenticator names the original browser or tab, not a device. `design/SPEC.md` A1 (the confirm, link asked for on another device state, built by §12 on the operator's decision b) fixes the device-only wording, so the wording change is the operator's first.
 
 **Phase:** 7
@@ -913,13 +943,151 @@ Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-
 1. Record the operator's wording for a different browser on the same device. Done when: the A1 state in `design/SPEC.md` names it and `owner-decision` is removed from Needs.
 2. Build the corrected wording. Done when: the other-browser page reads as the SPEC says for both journeys and the asking browser's code still works.
 
-- [ ] Record the operator's decision on the wording (browser, not device; whether the page can say anything more) as a `Browser wording:` line and remove `owner-decision` from Needs. Done when: the line is recorded and the Needs line reads `none`.
-- [ ] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
-- [ ] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
-- [ ] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
-- [ ] Commit: `auth: the other-browser link page names the browser`
+- [x] Record the operator's decision on the wording (browser, not device; whether the page can say anything more) as a `Browser wording:` line and remove `owner-decision` from Needs. Done when: the line is recorded and the Needs line reads `none`.
+- [x] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
+- [x] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
+- [x] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
+- [x] Commit: `auth: the other-browser link page names the browser`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass with the recorded wording.
+
+> **Verified:** 2026-11-03 | §25 | 3f678251e994caff31d356df319da41093b4eb4a
+> **Review:** `docs/reviews/d07-t02-s25.json`
+
+## 26. Export and fresh sign-in before closure
+
+> **Started:** 2026-11-03T00:43:24Z
+
+Closing an organisation is irreversible, and two things a member may want first are not offered (D07 T02 §9 completion review, 2026-11-02): a copy of the organisation's case summaries to keep, and a fresh sign-in (a passkey or email-link step-up within the last few minutes) before the closure is accepted, as banks ask before a destructive change.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (Account), board `Account`
+**Job:** an owner keeps what the law asks them to keep, and proves it is really them, before closing
+**Treatment:** the closure confirmation offers the case-summary export and asks for a fresh sign-in first
+**Chrome:** the Account page's closure confirmation (D07 T02 §9)
+
+**Build order:**
+
+1. Name the export and the step-up in `design/SPEC.md` M9. Done when: M9 names both and `python3 design/tools/check-design.py` passes.
+2. Offer the export and require the step-up on the closure confirmation. Done when: the browser journey below passes.
+
+- [x] Add the case-summary export (the organisation's cases with verdicts and dates, as one downloadable file) to the closure confirmation (`src/web/pages/settings-account.tsx`), offered before the final press. Done when: `test/auth/closure.test.ts` downloads it for the owner only and finds a case's verdict and date in it. Cheaper substitute: telling the owner to copy each report by hand.
+- [x] Make the export exact: a CSV (`case, received, status, verdict`) with every case of the organisation in received order, an unfinished case's verdict blank, read in pages until none are left, for the owner of an open or closed organisation only, another tenant's cases never in it. Done when: the test parses the download for an empty organisation, several cases including an unfinished one, and another tenant's exclusion, and a direct request from a non-owner is refused. Cheaper substitute: the first page of cases, silently incomplete.
+- [x] Require a fresh sign-in for closure: a session whose authentication is older than ten minutes (its session's creation, never its activity) is asked to sign in again (passkey or email link) and returns to a confirmation that binds the same organisation (`?org=` on the confirmation, ownership and closed state rechecked), requiring another explicit press. Done when: the route test refuses a stale session and a confirmation that goes stale while open, accepts a fresh one for the second of two organisations, and leaves `closedAt` unchanged on every refusal. Cheaper substitute: the signed confirmation token alone, which a stolen session also carries.
+- [x] Prove the journey in a browser test (the Account page's browser suite): export offered, stale session stepped up, confirmation cancelled and completed by keyboard. Done when: the test passes at phone and desktop widths in both themes.
+- [x] Commit: `app: export and fresh sign-in before closure`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts test/node/account-browser.test.tsx` passes with the export and step-up cases, and the browser journey passes.
+
+> **Deferred:** a recovery window after closure -> XREF: D07 T02 §29. Deferred 2026-11-03 from §26's completion review: reopening a closed organisation changes §9's irreversible-closure contract, so the window's length and terms are the operator's decision first (§29 carries `Needs: operator`). The drawn Close account control stays owned by D07 T02 §27.
+
+> **Verified:** 2026-11-03 | §26 | 14d3f824b41464896cfc38fd15cc2177d5195a4d
+> **Review:** `docs/reviews/d07-t02-s26.json`
+
+## 27. Close account control on the Account board
+
+The Close account control is built on the Account page and named in `design/SPEC.md` M9, but it is not drawn on the Account board (`design/mockups/source/Account.dc.html`), which the Fidelity contract requires before the surface is final (D07 T02 §9 completion and round reviews, 2026-11-02; a Deviation is recorded in M9 meanwhile). Drawing on a board needs the operator's approval of the drawn change.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (Account), board `Account`
+**Job:** the board the build is checked against shows the control the page has
+**Treatment:** the drawn Close account control and its confirmation on the Account board, matching the built page
+**Chrome:** the Account board (D07 T08 §3's page)
+
+**Build order:**
+
+1. Draw the control with the operator's approval. Done when: the approved drawing is on the board and re-exported.
+
+- [ ] Draw the Close account control and its confirmation state on `design/mockups/source/Account.dc.html`, matching the built Account page (owner only, the organisation named, the 30-day deletion). Done when: the operator has approved the drawn change and `design/tools/export-mockups.py import --approve` has taken it. Cheaper substitute: leaving the board without the control the page ships.
+- [ ] Re-export the Account board and remove the Deviation from `design/SPEC.md` M9. Done when: `python3 design/tools/check-design.py` passes and the page matches the board in the gallery.
+- [ ] Prove it in `test/node/gallery.test.tsx`: the Account board's fingerprint is current and the gallery's Account frame shows the control. Done when: the test passes.
+- [ ] Commit: `design: close account control on the Account board`
+
+**Test checkpoint:** `python3 design/tools/check-design.py` passes and `pnpm exec vitest run test/node/gallery.test.tsx` passes.
+
+## 28. Passkey troubleshooting on the sign-in page
+
+> **Started:** 2026-11-03T01:52:21Z
+
+The passkey prompt names the cross-device steps but offers no help when they fail: a phone without a screen lock, an older browser, or Bluetooth off (D07 T02 §19 completion review, 2026-11-02, against Google Account's passkey guidance).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
+**Job:** a member whose phone passkey will not answer learns why and what to change
+**Treatment:** a short troubleshooting note in the prompt's panel naming the screen lock, browser and Bluetooth causes
+**Chrome:** the passkey prompt (§16)
+
+**Build order:**
+
+1. Name the troubleshooting in `design/SPEC.md` A1. Done when: A1 names each cause and `python3 design/tools/check-design.py` passes.
+2. Draw it in the panel and prove it. Done when: the browser test below passes.
+
+- [x] Add the three causes (no phone screen lock, an older browser without cross-device passkeys, Bluetooth off on either device), each paired with what to change for it (set up a screen lock, update the browser, turn Bluetooth on on both devices), to `design/SPEC.md` A1's passkey prompt, including that the note stays reachable after cancellation or failure. Done when: A1 names each cause with its action and `python3 design/tools/check-design.py` passes. Cheaper substitute: a link away to another vendor's help, in words this service does not own.
+- [x] Draw the note in the `PasskeyPrompt` panel (`src/web/pages/signin.tsx`) beside the cross-device sentence, each cause with its action. Done when: the rendered prompt names each cause and action at phone width in both themes. Cheaper substitute: hiding it behind the email recovery, where a stuck member never looks.
+- [x] Keep the note reachable after cancellation or failure: when the ceremony ends without signing in, the sign-in page shows the same note with the failure reason (`src/web/client/app.ts` `passkeyEnded`), the passkey retry and the email route still offered. Done when: the browser test cancels the ceremony, reads each cause and action, and completes the email recovery by keyboard. Cheaper substitute: help that vanishes with the browser's own dialog, exactly when it is needed.
+- [x] Prove it in `test/node/passkey-signin-browser.test.tsx`: the panel names each cause with its action, and after a cancelled ceremony the note and the email recovery still work. Done when: the test passes and fails with the note or any remedy removed.
+- [x] Commit: `web: passkey troubleshooting on the sign-in page`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
+
+> **Deferred:** verified compatibility guidance and the second-line causes (a passkey store not set up, a private-browsing window) -> XREF: D07 T02 §30. Deferred 2026-11-03 from §28's completion review.
+
+> **Verified:** 2026-11-03 | §28 | 51121f93725b2098065538fa101e79a58aa51158
+> **Review:** `docs/reviews/d07-t02-s28.json`
+
+## 29. Undo window after closing an organisation
+
+Closing an organisation is irreversible from the moment it is pressed (§9), while the strongest account-deletion flows offer a short recovery window for an accidental closure (D07 T02 §26 completion review, 2026-11-03, against Google Account deletion). A window changes §9's decided contract, so it needs the operator's decision on its length and terms before any build; the purge (§9) already waits 25 days, so a window inside that period needs no purge change.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (Account), board `Account`
+**Job:** an owner who closed the wrong organisation by accident gets it back before anything is deleted
+**Treatment:** a time-boxed reopen on the Account page, offered only to the owner who closed it
+**Chrome:** the Account page's closure state (§9)
+
+**Build order:**
+
+1. Record the operator's decision (window length, who may reopen, what happens to cases refused while closed) in `design/SPEC.md` M9 and §9's contract. Done when: both name the same window and terms.
+2. Build the reopen and prove it. Done when: the route test below passes.
+
+- [ ] Add a Reopen control to the closed organisation's Account state (`src/web/pages/settings-account.tsx`), shown only to its owner and only inside the decided window. Done when: `test/auth/closure.test.ts` shows it to the owner inside the window and to no one else. Cheaper substitute: a support email address, which a panicked owner may not find in time.
+- [ ] Reopen by clearing `closedAt` (`src/auth/closure.ts`), accepting new cases again, with a fresh sign-in as closure requires (§26). Done when: the test reopens inside the window, refuses after it and for a non-owner, and forwarded mail is accepted again after reopening. Cheaper substitute: clearing the stamp without the step-up, weaker than the action it reverses.
+- [ ] Say the window on the closure confirmation and the closed state (`src/web/pages/settings-account-view.tsx`), with its end date. Done when: the Account browser test reads the window and its expiry in both themes. Cheaper substitute: naming the window only after closing, when the decision is already made.
+- [ ] Commit: `app: undo window after closing an organisation`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts test/node/account-browser.test.tsx` passes with the reopen cases.
+
+## 30. Passkey compatibility and second-line causes
+
+The troubleshooting note (§28) names the three usual causes, but a member whose device is already on its latest browser learns nothing about whether their combination can use a phone passkey at all, and two more real causes sit behind the first three: a passkey store that is not set up (for example iCloud Keychain off) and a private-browsing window that cannot reach the stored passkey (D07 T02 §28 completion review, 2026-11-03, against Google Account's passkey guidance).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
+**Job:** a member the first three fixes cannot help learns whether their device and browser can do this, and what else to change
+**Treatment:** verified compatibility guidance and the two second-line causes in the same note
+**Chrome:** the passkey prompt (§16) and its post-failure note (§28)
+
+**Build order:**
+
+1. Name the compatibility guidance and the two causes in `design/SPEC.md` A1. Done when: A1 names each and `python3 design/tools/check-design.py` passes.
+2. Draw them in the note and prove them. Done when: the browser test below passes.
+
+- [ ] Verify the supported device and browser combinations for cross-device passkeys from the platform vendors' own documentation and record them with their sources in `design/SPEC.md` A1. Done when: A1 names the combinations and where each was verified. Cheaper substitute: "update your browser", which says nothing to a member already on the latest their device allows.
+- [ ] Add the two second-line causes with their actions (turn on the passkey store, for example iCloud Keychain; leave the private-browsing window and sign in in a normal window) to the `PasskeyHelp` note (`src/web/pages/signin.tsx`), in the panel and after a failure. Done when: the rendered note names each at phone width in both themes. Cheaper substitute: leaving the member to search the web mid-sign-in.
+- [ ] Prove it in `test/node/passkey-signin-browser.test.tsx`: each second-line cause and the compatibility line are visible in the panel and after a cancelled ceremony, and the email recovery still works. Done when: the test passes and fails with any of them removed.
+- [ ] Commit: `web: passkey compatibility and second-line causes`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the second-line causes named.
 
 ## Verification
 

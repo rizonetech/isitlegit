@@ -207,9 +207,9 @@ const cleanText = (value: string | null, account: string | null): string | null 
     .replace(/\s+/g, " ")
     .trim();
   if (account) {
-    const digitsOnly = account.replace(/[\s-]+/g, "");
+    const digitsOnly = account.replace(/\D+/g, "");
     if (digitsOnly.length >= 7) {
-      const asPrinted = new RegExp(digitsOnly.split("").join("[\\s-]*"), "g");
+      const asPrinted = new RegExp(digitsOnly.split("").join("[^0-9A-Za-z]*"), "g");
       out = out.replace(asPrinted, `***${digitsOnly.slice(-3)}`);
     }
   }

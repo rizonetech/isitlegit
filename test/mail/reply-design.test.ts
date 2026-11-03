@@ -54,6 +54,36 @@ const send = (
     design: { ...DESIGN, ...patch.design },
   });
 
+describe("the stored sentence in the reply (D07 T03 s10)", () => {
+  it("draws a distinctive stored sentence in both bodies, and the fixed one when none is stored", () => {
+    const stored = send({
+      view: { meaning: "This message asks for the mailbox password on a page that is not NimbusMail's." },
+    });
+    expect(stored.text).toContain("This message asks for the mailbox password on a page that is not NimbusMail's.");
+    expect(stored.html).toContain("This message asks for the mailbox password on a page that is not NimbusMail&#39;s.");
+    expect(stored.text).not.toContain("do not click its links, open its attachments or pay anything it asks for.");
+    const none = send({ view: { meaning: null } });
+    expect(none.text).toContain(
+      "Treat it as unsafe: do not click its links, open its attachments or pay anything it asks for.",
+    );
+    expect(none.html).toContain("Treat it as unsafe: do not click its links");
+  });
+
+  it("keeps hostile stored markup literal in the text and escaped in the HTML", () => {
+    const hostile = send({ view: { meaning: "<script>alert(1)</script> Do not use it." } });
+    expect(hostile.text).toContain("<script>alert(1)</script> Do not use it.");
+    expect(hostile.html).not.toContain("<script>alert(1)</script>");
+    expect(hostile.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt; Do not use it.");
+    // At the stored field's 300-character maximum, the same holds in both bodies.
+    const longest = `<script>alert(1)</script> ${"Do not use it. ".repeat(30)}`.slice(0, 300);
+    expect(longest).toHaveLength(300);
+    const maxed = send({ view: { meaning: longest } });
+    expect(maxed.text).toContain(longest);
+    expect(maxed.html).not.toContain("<script>alert(1)</script>");
+    expect(maxed.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+  });
+});
+
 // What email clients drop or mishandle: stylesheets, scripts, CSS layout, unlabelled images, untokened colours; and
 // a size off the tokens (spacing on the 4 px scale, type on the type scale, radii the radius tokens, 1 px hairlines).
 const TOKENS = new Set(Object.values(L).map((c) => c.toLowerCase()));

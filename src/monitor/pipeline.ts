@@ -374,15 +374,21 @@ async function investigate(
         if (!crop) {
           items.push(logoNotComparedItem(brand, artefactKey, "no-logo-found"));
         } else {
+          const referenceBytes = new Uint8Array(await reference.arrayBuffer());
           const referenceImage: LogoImage = {
-            bytes: new Uint8Array(await reference.arrayBuffer()),
+            bytes: referenceBytes,
             mediaType: identity.logo.mediaType,
             label: "the registered logo",
           };
           const cropImage: LogoImage = crop;
           const judgement = await compareLogo(ctx, cropImage, referenceImage);
           logoCompared = true;
-          items.push(logoMatchItem(judgement, brand, artefactKey, domainJudgement));
+          items.push(
+            logoMatchItem(judgement, brand, artefactKey, domainJudgement, {
+              key: identity.logo.key,
+              sha256: await sha256Hex(referenceBytes),
+            }),
+          );
         }
       } catch {
         items.push(logoNotComparedItem(brand, artefactKey, "logo-comparison-failed"));

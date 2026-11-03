@@ -73,6 +73,64 @@ const fileLink = (page: string) => {
 };
 const bytes = async (res: Response) => new Uint8Array(await res.arrayBuffer());
 
+describe("the reference logo beside a crop (D07 T03 s14)", () => {
+  it("serves a brand's reference to the case's member only, and says not found for a brand with none", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const { id } = await caseWith(orgId, PNG, "image/png", "page.png", true);
+    const digest = await crypto.subtle.digest("SHA-256", PNG as BufferSource);
+    const sha = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const key = "ref/logos/20260101T000000Z/nimbusmail.png";
+    await bucket.put(key, PNG);
+    await bucket.put(
+      "ref/logos/index.json",
+      JSON.stringify({
+        version: 1,
+        generation: "20260101T000000Z",
+        generated_at: "2026-01-01T00:00:00Z",
+        logos: [
+          {
+            slug: "nimbusmail",
+            brand: "NimbusMail",
+            key,
+            page_url: "https://nimbusmail.example/",
+            source_url: "https://nimbusmail.example/logo.png",
+            source_kind: "fictional",
+            use: "detection-reference",
+            fetched_at: "2026-01-01T00:00:00Z",
+            media_type: "image/png",
+            width: 1,
+            height: 1,
+            sha256: sha,
+            fictional: true,
+          },
+        ],
+        missing: [],
+      }),
+    );
+    const served = await call(`/a/${id}/${encodeURIComponent("ref-logo:NimbusMail")}?inline=1`, {
+      headers: { cookie },
+    });
+    expect(served.status).toBe(200);
+    expect(served.headers.get("content-type")).toBe("image/png");
+    expect(new Uint8Array(await served.arrayBuffer())).toEqual(PNG);
+    const stranger = await call(`/a/${id}/${encodeURIComponent("ref-logo:NimbusMail")}?inline=1`);
+    expect(stranger.status).toBe(303);
+    const link = await signReportLink(SECRET, id, orgId);
+    const holder = await call(
+      `/a/${id}/${encodeURIComponent("ref-logo:NimbusMail")}${link.slice(link.indexOf("?"))}&inline=1`,
+    );
+    expect(holder.status).toBe(200);
+    expect(new Uint8Array(await holder.arrayBuffer())).toEqual(PNG);
+    const none = await call(`/a/${id}/${encodeURIComponent("ref-logo:UnknownBrand")}?inline=1`, {
+      headers: { cookie },
+    });
+    expect(none.status).toBe(404);
+    await bucket.delete(key);
+    await bucket.delete("ref/logos/index.json");
+  });
+});
+
 describe("the artefact route", () => {
   // Real 2x2 images (Pillow 13), and each damaged as attachments arrive damaged: cut short, a byte changed, padded.
   const IMAGES = {

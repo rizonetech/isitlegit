@@ -55,21 +55,26 @@ export async function memberOfSender(
           .first<{ org_id: string }>()
       : null,
   ]);
-  if (byAddress) return { orgId: byAddress.org_id, by: byDomain?.org_id === byAddress.org_id ? "domain" : "address" };
-  return byDomain ? { orgId: byDomain.org_id, by: "domain" } : null;
-}
-
-// The organisation alone, for the allowlist and the claim routes. A closed organisation's senders resolve to no
-// member (D07 T02 §9): forwarded mail for it takes the ordinary not-a-member answer, never a new case.
-export const findMemberBySender = async (db: D1Database, sender: string) => {
-  const orgId = (await memberOfSender(db, sender))?.orgId ?? null;
-  if (!orgId) return null;
+  const found = byAddress
+    ? {
+        orgId: byAddress.org_id,
+        by: byDomain?.org_id === byAddress.org_id ? ("domain" as const) : ("address" as const),
+      }
+    : byDomain
+      ? { orgId: byDomain.org_id, by: "domain" as const }
+      : null;
+  if (!found) return null;
+  // A closed organisation's senders are no members (D07 T02 §9), at the one resolution intake and the allowlist share.
   const closed = await db
     .prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
-    .bind(orgId)
+    .bind(found.orgId)
     .first<{ closedAt: string | null }>();
-  return closed?.closedAt ? null : orgId;
-};
+  return closed?.closedAt ? null : found;
+}
+
+// The organisation alone, for the allowlist and the claim routes: memberOfSender already refused a closed one.
+export const findMemberBySender = async (db: D1Database, sender: string) =>
+  (await memberOfSender(db, sender))?.orgId ?? null;
 
 // What an organisation accepts mail from, for the Cases list's first-run line (D07 T04 §1): its verified domains and
 // its verified addresses, each sorted.

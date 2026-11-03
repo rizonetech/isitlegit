@@ -95,8 +95,8 @@ const bodyOf = async (c: Context<OrgEnv>) => (await c.req.json().catch(() => nul
 // §24). A domain also records its method; an address has none.
 const verifySql = (table: "org_domains" | "org_addresses") =>
   table === "org_domains"
-    ? "UPDATE org_domains SET state = 'verified', verified_at = ?, method = ?, verified_by = ? WHERE id = ? AND state = 'pending'"
-    : "UPDATE org_addresses SET state = 'verified', verified_at = ?, verified_by = ? WHERE id = ? AND state = 'pending'";
+    ? "UPDATE org_domains SET state = 'verified', verified_at = ?, method = ?, verified_by = ? WHERE id = ? AND state = 'pending' AND org_id IN (SELECT id FROM \"organization\" WHERE \"closedAt\" IS NULL)"
+    : "UPDATE org_addresses SET state = 'verified', verified_at = ?, verified_by = ? WHERE id = ? AND state = 'pending' AND org_id IN (SELECT id FROM \"organization\" WHERE \"closedAt\" IS NULL)";
 const verifyBinds = (
   table: "org_domains" | "org_addresses",
   at: string,
@@ -707,9 +707,9 @@ domainRoutes.post("/domains", async (c) => {
   const token = randomHex(16);
   const inserted = await db
     .prepare(
-      "INSERT INTO org_domains (id, org_id, domain, token, state, created_at) SELECT ?, ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_domains WHERE org_id = ? AND state = 'pending') < ? ON CONFLICT DO NOTHING",
+      "INSERT INTO org_domains (id, org_id, domain, token, state, created_at) SELECT ?, ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_domains WHERE org_id = ? AND state = 'pending') < ? AND EXISTS (SELECT 1 FROM \"organization\" WHERE id = ? AND \"closedAt\" IS NULL) ON CONFLICT DO NOTHING",
     )
-    .bind(crypto.randomUUID(), org, domain, token, new Date().toISOString(), org, PENDING_DOMAINS)
+    .bind(crypto.randomUUID(), org, domain, token, new Date().toISOString(), org, PENDING_DOMAINS, org)
     .run();
   const claim = await claimedDomain(db, org, domain);
   if (!claim)
@@ -793,9 +793,9 @@ export async function sendAddressCode(env: Env, a: Actor, address: string, creat
       return { kind: "taken-elsewhere" };
     const inserted = await db
       .prepare(
-        "INSERT INTO org_addresses (id, org_id, address, state, created_at) SELECT ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_addresses WHERE org_id = ? AND state = 'pending') < ? ON CONFLICT DO NOTHING",
+        "INSERT INTO org_addresses (id, org_id, address, state, created_at) SELECT ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_addresses WHERE org_id = ? AND state = 'pending') < ? AND EXISTS (SELECT 1 FROM \"organization\" WHERE id = ? AND \"closedAt\" IS NULL) ON CONFLICT DO NOTHING",
       )
-      .bind(crypto.randomUUID(), a.orgId, address, new Date().toISOString(), a.orgId, PENDING_ADDRESSES)
+      .bind(crypto.randomUUID(), a.orgId, address, new Date().toISOString(), a.orgId, PENDING_ADDRESSES, a.orgId)
       .run();
     claim = await claimedAddress(db, a.orgId, address);
     if (!claim) return { kind: inserted.meta.changes === 0 ? "pending-limit" : "unavailable" };

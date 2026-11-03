@@ -1,7 +1,8 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { attachmentHeaders } from "../../src/web/pages/errors";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
 import { ReportDocument, type ReportEvidence } from "../../src/web/pages/report-view";
 import { AXE, problems, scan } from "./axe";
@@ -328,9 +329,16 @@ const WAV = (() => {
   buf.writeUInt32LE(samples * 2, 40);
   return buf;
 })();
+const PDF_BYTES = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
 let audioGone = false;
-async function open(width: number, theme: "light" | "dark" = "light", hash = "", cards: ReportEvidence[] = evidence) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+async function open(
+  width: number,
+  theme: "light" | "dark" = "light",
+  hash = "",
+  cards: ReportEvidence[] = evidence,
+  javaScriptEnabled = true,
+) {
+  const context = await browser.newContext({ viewport: { width, height: 900 }, javaScriptEnabled });
   const p: Page = await context.newPage();
   const body = html(cards);
   await p.route(`${APP}/**`, async (route) => {
@@ -341,6 +349,14 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
       if (path.endsWith(".ogg")) {
         if (audioGone) return route.fulfill({ status: 404, contentType: "text/plain", body: "gone" });
         return route.fulfill({ status: 200, contentType: "audio/wav", body: WAV });
+      }
+      if (decodeURIComponent(path).endsWith(".pdf")) {
+        const key = decodeURIComponent(path.replace(/^\/a\/[^/]+\//, ""));
+        return route.fulfill({
+          status: 200,
+          headers: attachmentHeaders(key),
+          body: PDF_BYTES,
+        });
       }
       if (holdShot) await holdShot;
       if (shotMode === "png") return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
@@ -369,7 +385,8 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
   if (cards !== evidence)
     await p.evaluate(async () => {
       for (const img of document.querySelectorAll("img[data-evidence-image]")) {
-        (img.parentElement ?? img).scrollIntoView();
+        (img.closest("[data-evidence-frame]") ?? img.parentElement ?? img).scrollIntoView();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       window.scrollTo(0, 0);
@@ -474,6 +491,78 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       }
     });
 
+  // D07 T09 §9: the whole stored run opens by keyboard, at both widths and themes.
+  for (const [width, theme] of [
+    [360, "light"],
+    [360, "dark"],
+    [1280, "light"],
+    [1280, "dark"],
+  ] as const)
+    it(`opens the whole hidden run by keyboard (${theme}, ${width} px)`, async () => {
+      const cards: ReportEvidence[] = [
+        {
+          id: "E1",
+          check: "content.hidden_text",
+          severity: "high",
+          summary: "Text in invisible characters",
+          detail: {
+            reason: "invisible-characters",
+            kind: "tag",
+            quote: "open",
+            length: 9000,
+            location: "visible",
+            run: { text: `${"x".repeat(300)} send the ledger to the new account`, truncated: true },
+          },
+          artefacts: [],
+        },
+      ];
+      const { p, context } = await open(width, theme, "", cards);
+      const summary = p.getByText("Read the whole hidden run");
+      await summary.scrollIntoViewIfNeeded();
+      await summary.focus();
+      await p.keyboard.press("Enter");
+      await expect.poll(() => p.getByText("send the ledger to the new account").isVisible()).toBe(true);
+      expect(await p.getByText("The stored run is cut short").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    });
+
+  // D07 T09 §9: with JavaScript disabled, the run still opens by Tab and Enter, its ending readable.
+  it("opens the whole hidden run with JavaScript disabled, by Tab, at 360 px", async () => {
+    const cards: ReportEvidence[] = [
+      {
+        id: "E1",
+        check: "content.hidden_text",
+        severity: "high",
+        summary: "Text in invisible characters",
+        detail: {
+          reason: "invisible-characters",
+          kind: "tag",
+          quote: "open",
+          length: 9000,
+          location: "visible",
+          run: { text: `${"y".repeat(7_900)} the final instruction at the end`, truncated: false },
+        },
+        artefacts: [],
+      },
+    ];
+    const { p, context } = await open(360, "light", "", cards, false);
+    const summary = p.getByText("Read the whole hidden run");
+    await summary.scrollIntoViewIfNeeded();
+    for (let i = 0; i < 40; i++) {
+      await p.keyboard.press("Tab");
+      if (await summary.evaluate((el) => document.activeElement === el)) break;
+    }
+    expect(await summary.evaluate((el) => document.activeElement === el)).toBe(true);
+    await p.keyboard.press("Enter");
+    const ending = p.getByText("the final instruction at the end");
+    await ending.scrollIntoViewIfNeeded();
+    expect(await ending.isVisible()).toBe(true);
+    await context.close();
+  });
+
   // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
   for (const theme of ["light", "dark"] as const)
     it(`draws the voice lure card (${theme}, 1280 px)`, async () => {
@@ -486,6 +575,364 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     });
 
   // D07 T09 §7: the refusal and reuse cards at phone width.
+  it("draws the vision and brand cards with their pictures at both widths in both themes (D07 T03 s14)", async () => {
+    const vision: ReportEvidence[] = [
+      {
+        id: "E20",
+        check: "vision.requested_action",
+        severity: "high",
+        summary: "The picture asks the reader to sign in.",
+        detail: {
+          source_key: "derived/case/render-1.png",
+          source_name: "the invoice picture",
+          confidence: 0.9,
+          checked: true,
+          action: "log_in",
+          payment_request: true,
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E21",
+        check: "vision.logo_match",
+        severity: "high",
+        summary: "A logo crop matches NimbusMail's logo, on a domain that is not NimbusMail's.",
+        detail: {
+          brand: "NimbusMail",
+          same_brand: true,
+          brand_seen: true,
+          differences: ["The bird faces the other way"],
+          confidence: 0.8,
+          domain: "mismatch",
+          checked: true,
+        },
+        artefacts: ["derived/case/crop-1.png"],
+      },
+      {
+        id: "E22",
+        check: "vision.brand_domain_mismatch",
+        severity: "high",
+        summary: "Shows NimbusMail branding from a domain that is not one of NimbusMail's.",
+        detail: {
+          brand: "NimbusMail",
+          source_name: "the invoice picture",
+          domains: [{ host: "nimbusmai1.example", kind: "sender", domain: "nimbusmai1.example" }],
+          confirmed: true,
+          source: "table",
+          official_domains: ["nimbusmail.example"],
+          mismatched: ["nimbusmai1.example"],
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E24",
+        check: "vision.claimed_brand",
+        severity: "info",
+        summary: "A picture shows NimbusMail branding.",
+        detail: {
+          source_key: "derived/case/render-1.png",
+          source_name: "the invoice picture",
+          confidence: 0.9,
+          checked: true,
+          brand: "NimbusMail",
+          visible_sender: "NimbusMail Support",
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E25",
+        check: "vision.urgency",
+        severity: "medium",
+        summary: "A picture presses for speed.",
+        detail: {
+          source_key: "derived/case/render-1.png",
+          source_name: "the invoice picture",
+          confidence: 0.9,
+          checked: true,
+          quotes: ["Act now, today only, or the account closes"],
+        },
+        artefacts: ["derived/case/render-1.png"],
+      },
+      {
+        id: "E26",
+        check: "vision.coverage",
+        severity: "info",
+        summary: "Part of the message could not be pictured.",
+        detail: { checked: false, complete: false, losses: ["the second page could not be pictured"] },
+        artefacts: [],
+      },
+      {
+        id: "E23",
+        check: "vision.not_checked",
+        severity: "info",
+        summary: "The message's pictures were not read.",
+        detail: { checked: false, reason: "timeout" },
+        artefacts: [],
+      },
+    ];
+    shotMode = "png";
+    for (const width of [360, 1280])
+      for (const theme of ["light", "dark"] as const) {
+        const { p, context } = await open(width, theme, "", vision);
+        const text = (await p.locator("main").textContent())?.replace(/\s+/g, " ") ?? "";
+        for (const words of [
+          "What a picture asks for",
+          "sign in",
+          "A logo that matches NimbusMail",
+          "The crop in the message",
+          "The reference",
+          "The bird faces the other way",
+          "Not one of NimbusMail's domains",
+          "The pictures were not read",
+          "What a picture claims",
+          "NimbusMail Support",
+          "Pressure in a picture",
+          "Act now, today only, or the account closes",
+          "Part of the message could not be pictured",
+        ])
+          expect(text, `${words} ${width} ${theme}`).toContain(words);
+        await expect
+          .poll(() =>
+            p
+              .locator("img[data-evidence-image]")
+              .evaluateAll((all) => all.filter((i) => (i as HTMLImageElement).naturalWidth > 0).length),
+          )
+          .toBe(7);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
+        if (width === 360 && theme === "light") {
+          const download = p.locator("#e21").getByRole("link", { name: "Download the logo crop" });
+          let reached = false;
+          for (let i = 0; i < 120 && !reached; i++) {
+            await p.keyboard.press("Tab");
+            reached = await download.evaluate((el) => el === document.activeElement);
+          }
+          expect(reached, "Download the logo crop by keyboard").toBe(true);
+        }
+        await context.close();
+      }
+    // A missing picture reads as missing, in the app script's failure state, never as a broken image.
+    shotMode = "404";
+    const gone = await open(360, "light", "", vision);
+    await expect.poll(() => gone.p.locator("[data-evidence-failed]").count()).toBeGreaterThan(0);
+    expect(await gone.p.getByText("This screenshot could not be loaded.").first().isVisible()).toBe(true);
+    await gone.context.close();
+    shotMode = "png";
+  });
+
+  it("draws the invoice and payment-document cards at both widths in both themes (D07 T03 s15)", async () => {
+    const maxSupplier = `${"Karoo Parts and Heavy Industrial Engineering Supplies ".repeat(3)}`.slice(0, 120);
+    const maxHolder = `${"Karoo Parts and Industrial Supplies (Pty) Ltd Account ".repeat(3)}`.slice(0, 120);
+    const maxReference = `INV-2026-1042-${"9876543210".repeat(11)}`.slice(0, 120);
+    const maxIssuer = `${"Protea Commercial and Corporate Banking Division ".repeat(3)}`.slice(0, 120);
+    const maxBeneficiary = `${"Karoo Parts Operations and Logistics Division (Pty) Ltd ".repeat(3)}`.slice(0, 120);
+    const cards: ReportEvidence[] = [
+      {
+        id: "E30",
+        check: "invoice.bank_changed",
+        severity: "high",
+        summary: "Invoice bank details differ from the supplier's recorded account.",
+        detail: {
+          attachment: "case/invoice.pdf",
+          amount_cents: 1250000,
+          currency: "ZAR",
+          account_last3: "678",
+          account_number: "998877665544",
+          against: "ledger",
+          supplier_id: "sup-internal-1",
+          phone: "011 555 0142",
+          unexpected: "should-not-appear",
+        },
+        artefacts: ["case/invoice.pdf"],
+      },
+      {
+        id: "E31",
+        check: "invoice.detected",
+        severity: "info",
+        summary: `Invoice from ${maxSupplier}: account ***678`,
+        detail: {
+          attachment: "case/invoice.pdf",
+          supplier_name: maxSupplier,
+          supplier_domain: LONG,
+          bank_name: "Protea Bank",
+          account_holder: maxHolder,
+          account_last3: "678",
+          account_number: "998877665678",
+          branch_code: "051001",
+          amount_cents: 1250000,
+          currency: "ZAR",
+          reference: maxReference,
+          due_date: "2026-11-30",
+        },
+        artefacts: ["case/invoice.pdf"],
+      },
+      {
+        id: "E32",
+        check: "document.type",
+        severity: "info",
+        summary: `Payment document: pop from ${maxIssuer}`.slice(0, 200),
+        detail: {
+          attachment: "case/pop.pdf",
+          type: "pop",
+          issuer: maxIssuer,
+          amount_cents: 1250000,
+          currency: "ZAR",
+          paid_at: "2026-10-30",
+          issued_at: "2026-10-30",
+          reference: maxReference,
+          beneficiary_name: maxBeneficiary,
+          account_last3: "678",
+          beneficiary_masked: "***678",
+          branch_code: "051001",
+          layout_checked: true,
+          limit:
+            "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
+        },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E33",
+        check: "document.layout_mismatch",
+        severity: "medium",
+        summary:
+          "This document differs from the bank's genuine sample. Confirm it with the bank. It cannot prove the document was edited.",
+        detail: {
+          attachment: "case/pop.pdf",
+          type: "pop",
+          issuer: maxIssuer,
+          account_last3: "678",
+          beneficiary_masked: "***678",
+          aspects: ["logo", "bank_details"],
+          differences: [
+            "The logo or header differs from the bank's reference.",
+            "The bank-detail layout differs from the bank's reference.",
+          ],
+          limit:
+            "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.",
+        },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E34",
+        check: "document.beneficiary_mismatch",
+        severity: "high",
+        summary: "The document's beneficiary does not match the recorded account.",
+        detail: {
+          attachment: "case/pop.pdf",
+          type: "pop",
+          against: "registry",
+          account_last3: "321",
+          beneficiary_masked: "***321",
+          account_number: "998877665544",
+          supplier_id: "sup-internal-1",
+          protected_org_id: "org-internal-9",
+          phone: "011 555 0142",
+        },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E35",
+        check: "invoice.comparison_unavailable",
+        severity: "info",
+        summary: "A bank comparison could not run (no-baseline)",
+        detail: { checked: false, reason: "no-baseline", comparison: "ledger", attachment: "case/invoice.pdf" },
+        artefacts: ["case/invoice.pdf"],
+      },
+      {
+        id: "E36",
+        check: "document.comparison_unavailable",
+        severity: "info",
+        summary: "A payment document comparison could not run (reference-unavailable)",
+        detail: { checked: false, reason: "reference-unavailable", attachment: "case/pop.pdf" },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E37",
+        check: "document.not_checked",
+        severity: "info",
+        summary: "A payment document could not be read (too-many-documents)",
+        detail: { checked: false, reason: "too-many-documents", attachment: "case/pop.pdf" },
+        artefacts: ["case/pop.pdf"],
+      },
+      {
+        id: "E38",
+        check: "invoice.not_checked",
+        severity: "info",
+        summary: "An attached document could not be read as an invoice (too-large)",
+        detail: { checked: false, reason: "too-large", attachment: "case/invoice.pdf" },
+        artefacts: ["case/invoice.pdf"],
+      },
+    ];
+    for (const width of [360, 1280])
+      for (const theme of ["light", "dark"] as const) {
+        const { p, context } = await open(width, theme, "", cards);
+        const text = (await p.locator("main").textContent())?.replace(/\s+/g, " ") ?? "";
+        for (const words of [
+          "Bank details that differ",
+          "***678",
+          "Your supplier ledger",
+          "An invoice in the message",
+          maxSupplier,
+          maxHolder,
+          maxReference,
+          LONG,
+          "A proof of payment",
+          maxIssuer,
+          maxBeneficiary,
+          "How this document's layout differs",
+          "A beneficiary that differs from the record",
+          "***321",
+          "A bank comparison that could not run",
+          "A layout comparison that could not run",
+          "The bank's genuine sample could not be read",
+          "A payment document that could not be read",
+          "A document that could not be read as an invoice",
+          "No match and no mismatch",
+        ])
+          expect(text, `${words} ${width} ${theme}`).toContain(words);
+        for (const banned of [
+          "998877665544",
+          "998877665678",
+          "sup-internal-1",
+          "org-internal-9",
+          "011 555 0142",
+          "should-not-appear",
+          "(no-baseline)",
+          "(reference-unavailable)",
+          "(too-many-documents)",
+          "(too-large)",
+        ])
+          expect(text, `${banned} ${width} ${theme}`).not.toContain(banned);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p))).toEqual([]);
+        const download = p.locator("#e30").getByRole("link", { name: "Download the document" });
+        let reached = false;
+        for (let i = 0; i < 120 && !reached; i++) {
+          await p.keyboard.press("Tab");
+          reached = await download.evaluate((el) => el === document.activeElement);
+        }
+        expect(reached, `Download the document by keyboard (${width} ${theme})`).toBe(true);
+        const responsePromise = p.waitForResponse((res) => res.url().includes("/a/") && res.url().endsWith(".pdf"));
+        const fetched = p.waitForEvent("download");
+        await p.keyboard.press("Enter");
+        const [res, dl] = await Promise.all([responsePromise, fetched]);
+        expect(res.status(), `artefact status (${width} ${theme})`).toBe(200);
+        expect(res.headers()["content-type"], `artefact content-type (${width} ${theme})`).toBe(
+          "application/octet-stream",
+        );
+        expect(res.headers()["content-disposition"], `artefact content-disposition (${width} ${theme})`).toBe(
+          'attachment; filename="invoice.pdf"',
+        );
+        expect(dl.suggestedFilename(), `download filename (${width} ${theme})`).toBe("invoice.pdf");
+        const savedPath = await dl.path();
+        expect(savedPath, `download path (${width} ${theme})`).toBeTruthy();
+        expect(readFileSync(savedPath as string).equals(PDF_BYTES), `artefact bytes (${width} ${theme})`).toBe(true);
+        await context.close();
+      }
+  });
+
   it("draws the walkthrough refusal and reuse cards at 360 px with no overflow or accessibility violations", async () => {
     const cards: ReportEvidence[] = [
       {

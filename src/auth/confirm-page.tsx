@@ -73,14 +73,14 @@ export function ConfirmPage(props: { token: string; callbackURL: string; retry?:
     return (
       <SigninFrame title="Sign in">
         <SigninState
-          heading="Finish on the device where you asked"
-          text="You asked for this link on another device. Go back to it and type the 6-digit code from the same email: it signs that device in. Or sign in on this device instead."
+          heading="Finish in the browser where you asked"
+          text="You asked for this link in another browser. Go back to it and type the 6-digit code from the same email: it signs that browser in. Or sign in in this browser instead."
         >
           <form method="post" action={CONFIRM_PATH} class="flex flex-col gap-16" data-busy>
             <input type="hidden" name="token" value={props.token} />
             <input type="hidden" name="callbackURL" value={props.callbackURL} />
             <Button type="submit" variant="ghost" data-busy-label="Signing in…">
-              Sign in on this device instead
+              Sign in in this browser instead
             </Button>
           </form>
         </SigninState>

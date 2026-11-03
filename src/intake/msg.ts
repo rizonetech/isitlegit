@@ -9,14 +9,15 @@
 // Outlook stores it. Each attachment keeps its content id, so the HTML's `cid:` references resolve, and an embedded
 // Outlook message is stored as the .msg bytes msgreader exports for it. The bodies are cut to §5's limits.
 //
-// A file msgreader cannot read, one it reads as holding nothing, and one whose body is only compressed RTF are each a
-// ParseError, so the case ends partial naming why rather than as an empty message (reading RTF bodies: D01 T01 §13).
+// A file msgreader cannot read, or one it reads as holding nothing, is a ParseError, so the case ends partial
+// naming why rather than as an empty message. A body held only as compressed RTF is read (D01 T01 §13, ./rtf).
 import PostalMime from "postal-mime";
 import { type CfbEntry, type CompoundFile, child, hide, readCompoundFile } from "./cfb";
 import { ParseError } from "./mime";
 import { loadMsgReader, loadMsgreaderConstants } from "./msgreader";
 import type { MsgSender } from "./original-header";
 import { BODY_PART_LIMIT, BODY_TOTAL_LIMIT, KEPT_PARTS_LIMIT, type ParsedMessage } from "./parse";
+import { decompressRtf, rtfToHtml, rtfToText } from "./rtf";
 
 export async function parseMsg(
   bytes: Uint8Array,
@@ -223,9 +224,7 @@ async function read(
   const htmlBytes = data.html?.length ? data.html : null;
   const htmlString = htmlBytes ? null : (rootProperty(file, HTML_UNICODE) ?? rootProperty(file, HTML_8BIT));
   const hasBody = !!(textEntry?.size || htmlBytes || htmlString?.size);
-  if (!hasBody && data.compressedRtf?.length)
-    throw new ParseError("the .msg's body is only compressed RTF, which is not read yet (D01 T01 §13)");
-  if (!hasBody && !subject && !transport && !data.attachments?.length)
+  if (!hasBody && !data.compressedRtf?.length && !subject && !transport && !data.attachments?.length)
     throw new ParseError("the .msg holds nothing readable (an empty or cut-off file)");
 
   // The bodies, cut to §5's limits with each cut part kept whole in its own charset. A cut part's kept text ends at its
@@ -246,7 +245,7 @@ async function read(
   // A string stream's text without the terminating NULs some writers leave in it.
   const textOf = (entry: CfbEntry, mediaType: string, charset: string) =>
     decodeBound(bound(file.read(entry), mediaType, charset), charset).replace(/\0+$/, "");
-  const text = textEntry?.size
+  let text = textEntry?.size
     ? textOf(textEntry, "text/plain", keyOf(textEntry) === TEXT_UNICODE ? "utf-16le" : ansiLabel)
     : null;
   let html: string | null = null;
@@ -256,6 +255,21 @@ async function read(
     html = decodeBound(bound(htmlBytes, "text/html", charset), charset);
   } else if (htmlString?.size) {
     html = textOf(htmlString, "text/html", keyOf(htmlString) === HTML_UNICODE ? "utf-16le" : ansiLabel);
+  }
+  // A body held only as compressed RTF (D01 T01 §13): decompressed within the same limits and read as the
+  // HTML it encapsulates, else as plain text, through the same byte budget. A stream that lies, fails its
+  // checksum or is not RTF refuses the message; a well-formed one with no text leaves the body empty.
+  if (!text && !html && data.compressedRtf?.length) {
+    const rtf = decompressRtf(data.compressedRtf, BODY_TOTAL_LIMIT);
+    if (!new TextDecoder().decode(rtf.subarray(0, 5)).startsWith("{\\rtf"))
+      throw new ParseError("the .msg's compressed RTF does not hold an RTF body");
+    const encapsulated = rtfToHtml(rtf, ansiLabel);
+    if (encapsulated !== null) {
+      html = decodeBound(bound(new TextEncoder().encode(encapsulated), "text/html", "utf-8"), "utf-8");
+    } else {
+      const plain = rtfToText(rtf, ansiLabel);
+      if (plain) text = decodeBound(bound(new TextEncoder().encode(plain), "text/plain", "utf-8"), "utf-8");
+    }
   }
 
   const attachments: ParsedMessage["attachments"] = [];

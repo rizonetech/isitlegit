@@ -32,6 +32,8 @@ export const FAMILIES = [
   "walkthrough",
   "voice",
   "document",
+  "invoice",
+  "vision",
   "reputation",
   "not_checked",
 ] as const;
@@ -129,9 +131,22 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
   );
 }
 
-type Drawn = { title: string; body: unknown; level?: Severity };
+export type ReputationRow = {
+  provider: string;
+  subject: string;
+  state: string;
+  obtainedAt: string;
+  cached: boolean;
+  note: string | null;
+};
+type Drawn = { title: string; body: unknown; level?: Severity; summary?: string | null };
 // The third argument is the case's verified request quote, for the one renderer that marks it (voice.transcript).
-type Renderer = (item: CardItem, file: FileLink, requestQuote?: string | null) => Drawn;
+type Renderer = (
+  item: CardItem,
+  file: FileLink,
+  requestQuote?: string | null,
+  reputation?: readonly ReputationRow[],
+) => Drawn;
 
 const PATH_WORDS: Record<string, string> = {
   rfc822: "Forwarded as an attached message",
@@ -436,9 +451,58 @@ function ReviewLink(props: { url: unknown }) {
 }
 // Reputation cards (D07 T03 §12; spec 4.3a): a listing names its provider and what was listed, and offers the
 // provider's review; a listing alone never decides anything, and what was not checked is never "not listed".
-const reputation: Renderer = (item, file) => {
+const PROVIDER_WORDS: Record<string, string> = {
+  "google-web-risk": "Google Web Risk",
+  cloudflare: "Cloudflare",
+  "well-known": "Well-known list",
+};
+const REPUTATION_STATE: Record<string, string> = {
+  listed: "Listed",
+  clear: "Not listed by this provider",
+  unavailable: "Could not be checked",
+  known: "On the well-known list",
+  unknown: "Not on the well-known list",
+};
+// A stored unavailable reason in plain words; a code nothing here knows is said as the provider not answering.
+function reasonWords(note: string): string {
+  if (note === "no_key") return "no provider key is configured";
+  if (note === "rate_limited") return "the provider limited the rate of asks";
+  if (note.startsWith("capped:")) return "the provider's limit for this run was reached";
+  if (note.includes("timed out") || note.includes("timeout")) return "the provider timed out";
+  return "the provider did not answer";
+}
+// One subject's stored provider answers (D07 T09 §5): every provider asked, its own state, when the answer was
+// obtained and whether it came from the cache. The count line counts only providers that answered, keeps the
+// well-known list apart, and never reads as a verdict.
+export function ProviderRows(props: { rows: readonly ReputationRow[] }) {
+  const answered = props.rows.filter((r) => r.state === "listed" || r.state === "clear");
+  const listed = answered.filter((r) => r.state === "listed").length;
+  return (
+    <div class="flex flex-col gap-8">
+      <ul class="m-0 flex list-none flex-col gap-8 p-0">
+        {props.rows.map((r) => (
+          <li class="text-14 wrap-anywhere">
+            <strong>{PROVIDER_WORDS[r.provider] ?? r.provider}</strong>
+            {`: ${REPUTATION_STATE[r.state] ?? r.state}`}
+            {r.note ? ` (${r.state === "unavailable" ? reasonWords(r.note) : r.note})` : ""}
+            {` · obtained ${r.obtainedAt}${r.cached ? " · from cache" : ""}`}
+          </li>
+        ))}
+      </ul>
+      {answered.length > 0 ? (
+        <p class="text-14 text-muted">{`${answered.length} provider${answered.length === 1 ? "" : "s"} answered: ${listed} listed, ${answered.length - listed} not listed`}</p>
+      ) : (
+        <p class="text-14 text-muted">No provider answered for this subject.</p>
+      )}
+    </div>
+  );
+}
+const reputation: Renderer = (item, file, _quote, reputation) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
+  const subject = text(d.listed) ?? text(d.domain);
+  const rows = subject && reputation ? reputation.filter((r) => r.subject === subject) : [];
+  const rowsEl = rows.length > 0 ? <ProviderRows rows={rows} /> : null;
   if (item.check === "reputation.counter_signal") {
     // An overflow item groups the domains it speaks for (the producer's `entries`), with the rest counted.
     const domains = records(d.entries)
@@ -451,7 +515,14 @@ const reputation: Renderer = (item, file) => {
           <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
           {domains.length > 0 ? (
             <>
-              <Bullets items={domains} />
+              {domains.map((domain) => (
+                <div class="flex flex-col gap-4">
+                  <p class="text-14 wrap-anywhere">{domain}</p>
+                  {reputation && reputation.filter((r) => r.subject === domain).length > 0 ? (
+                    <ProviderRows rows={reputation.filter((r) => r.subject === domain)} />
+                  ) : null}
+                </div>
+              ))}
               {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
                 <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
               )}
@@ -459,6 +530,7 @@ const reputation: Renderer = (item, file) => {
           ) : (
             <Facts rows={[["Domain", text(d.domain)]]} />
           )}
+          {rowsEl}
           {files}
         </>
       ),
@@ -489,6 +561,9 @@ const reputation: Renderer = (item, file) => {
                 ]}
               />
               <ReviewLink url={entry.delist_url} />
+              {reputation && reputation.filter((r) => r.subject === text(entry.listed)).length > 0 ? (
+                <ProviderRows rows={reputation.filter((r) => r.subject === text(entry.listed))} />
+              ) : null}
             </div>
           ))}
           {Math.max(0, (count(d.more) ?? 0) - entries.length) > 0 && (
@@ -522,6 +597,7 @@ const reputation: Renderer = (item, file) => {
           ]}
         />
         <ReviewLink url={d.delist_url} />
+        {rowsEl}
         {files}
       </>
     ),
@@ -775,6 +851,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   // Where the instruction sits in the run, when the producer found one (D02 T05 §6; D07 T03 §29): its own excerpt,
   // so a reader reads the instruction itself without decoding the original elsewhere.
   const instruction = runInstruction(d.instruction);
+  // The whole stored run (D02 T05 §11, drawn by D07 T09 §9): the decoded text past the excerpt, with its cut marked.
+  const run = d.run && typeof d.run === "object" && !Array.isArray(d.run) ? (d.run as Record<string, unknown>) : null;
+  const runText = run ? text(run.text) : null;
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -786,7 +865,12 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
           <>
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
             <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
-            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+            {cut &&
+              (runText ? (
+                <p class="text-13 text-muted">The whole run is below.</p>
+              ) : (
+                <p class="text-13 text-muted">The rest is in the original message.</p>
+              ))}
           </>
         )}
         {instruction && (
@@ -794,6 +878,17 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
             <p class="text-13 text-muted">{`The instruction, from character ${instruction.offset}`}</p>
             <EvidenceQuote>{`"${instruction.text}"`}</EvidenceQuote>
           </>
+        )}
+        {runText && (
+          <details>
+            <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Read the whole hidden run</summary>
+            <div class="flex flex-col gap-8 mt-8">
+              <EvidenceQuote>{runText}</EvidenceQuote>
+              {run?.truncated === true && (
+                <p class="text-13 text-muted">The stored run is cut short: the rest is in the original message.</p>
+              )}
+            </div>
+          </details>
         )}
         <Facts
           rows={[
@@ -1622,8 +1717,168 @@ const FORENSICS: Record<string, (d: Record<string, unknown>) => { title: string;
     ],
   }),
 };
+const DOC_TYPE: Record<string, string> = {
+  invoice: "An invoice",
+  pop: "A proof of payment",
+  bank_letter: "A letter from a bank",
+  other: "A payment document",
+};
+const masked = (last3: unknown, given: unknown): string | null => {
+  const stated = text(given);
+  if (stated) return /^\*{3}[0-9]{3}$/.test(stated) ? stated : null;
+  const tail = text(last3);
+  return tail && /^[0-9]{3}$/.test(tail) ? `***${tail}` : null;
+};
+const cleanField = (v: unknown, last3: unknown, given?: unknown): string | null => {
+  const raw = text(v);
+  if (!raw) return null;
+  const mask = masked(last3, given ?? null);
+  if (!mask) return raw;
+  const tail = mask.slice(3);
+  const sep = "[^0-9A-Za-z]{0,4}";
+  const tailPattern = tail.split("").join(sep);
+  return raw.replace(new RegExp(`[0-9](?:${sep}[0-9]){3,16}${sep}${tailPattern}`, "g"), mask);
+};
+// The payment documents (D07 T03 §15; the producers in src/invoice/payment-doc.ts and document-step.ts),
+// drawn beside the forensic family above under the same masking rule: the submitted beneficiary masked,
+// the comparison's source and outcome, never the recorded side.
+const paymentDocument = (item: CardItem, _file: FileLink): { title: string; body: unknown } | null => {
+  const d = item.detail;
+  const limit = text(d.limit) ? (
+    <p class="type-small text-muted wrap-anywhere">
+      <span class="weight-text-strong">What this cannot show: </span>
+      {text(d.limit)}
+    </p>
+  ) : null;
+  if (item.check === "document.type")
+    return {
+      title: DOC_TYPE[text(d.type) ?? ""] ?? "A payment document",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Says it is from", cleanField(d.issuer, d.account_last3, d.beneficiary_masked)],
+              ["Amount", money(d.amount_cents, d.currency)],
+              ["Paid at", text(d.paid_at)],
+              ["Issued at", text(d.issued_at)],
+              ["Reference", cleanField(d.reference, d.account_last3, d.beneficiary_masked)],
+              ["Beneficiary", cleanField(d.beneficiary_name, d.account_last3, d.beneficiary_masked)],
+              ["Account", masked(d.account_last3, d.beneficiary_masked)],
+              ["Branch", text(d.branch_code)],
+              [
+                "Layout compared",
+                d.layout_checked === true
+                  ? "Yes, against the bank's genuine sample"
+                  : d.layout_checked === false
+                    ? `No: ${COMPARE_REASON(text(d.layout_reason))}`
+                    : null,
+              ],
+            ]}
+          />
+          {limit}
+        </>
+      ),
+    };
+  if (item.check === "document.layout_mismatch")
+    return {
+      title: "How this document's layout differs",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Says it is from", cleanField(d.issuer, d.account_last3, d.beneficiary_masked)],
+              ["Account", masked(d.account_last3, d.beneficiary_masked)],
+            ]}
+          />
+          <Bullets items={texts(d.differences)} />
+          <p class="text-14 text-muted">A difference cannot prove the document was edited.</p>
+        </>
+      ),
+    };
+  if (item.check === "document.beneficiary_match" || item.check === "document.beneficiary_mismatch") {
+    const match = item.check === "document.beneficiary_match";
+    return {
+      title: match ? "A beneficiary that matches the record" : "A beneficiary that differs from the record",
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Account on the document", masked(d.account_last3, d.beneficiary_masked)],
+              ["Compared against", AGAINST[text(d.against) ?? ""] ?? null],
+              ["Result", match ? "It matches the recorded account" : "It differs from the recorded account"],
+            ]}
+          />
+          {!match && (
+            <p class="text-14 text-muted">
+              Confirm by phoning the supplier on the number in your own records, never one from this document.
+            </p>
+          )}
+        </>
+      ),
+    };
+  }
+  if (item.check === "document.comparison_unavailable" || item.check === "document.not_checked") {
+    // The producer writes both operations under this one name; its layout failures carry the payment-document
+    // summary and the reference or reading reasons, its beneficiary failures the account-comparison ones, so
+    // the title names the operation that failed and never blames the account comparison for a layout failure.
+    const reason = text(d.reason);
+    const layout =
+      item.check === "document.comparison_unavailable" &&
+      (d.comparison === "layout" ||
+        item.summary.startsWith("A payment document comparison") ||
+        reason === "reference-unavailable" ||
+        reason === "no-reference" ||
+        reason === "not-a-pop" ||
+        reason === "budget" ||
+        reason === "budget-unavailable" ||
+        reason === "timeout" ||
+        reason === "error" ||
+        reason?.startsWith("model-") === true ||
+        reason?.startsWith("output-") === true);
+    return {
+      title:
+        item.check === "document.not_checked"
+          ? "A payment document that could not be read"
+          : layout
+            ? "A layout comparison that could not run"
+            : "A beneficiary comparison that could not run",
+      body: (
+        <>
+          <Facts rows={[["Why", COMPARE_REASON(reason)]]} />
+          <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
+        </>
+      ),
+    };
+  }
+  if (item.check === "document.limit" || item.check === "document.proof_of_payment")
+    return {
+      title: item.check === "document.limit" ? "What this check cannot show" : "A document that says payment was made",
+      body: (
+        <>
+          {item.check === "document.proof_of_payment" && (
+            <p class="text-14">Confirm the money has cleared in your own banking app before releasing goods.</p>
+          )}
+          {limit}
+        </>
+      ),
+    };
+  return null;
+};
+
 const documentCard: Renderer = (item, file) => {
   const d = item.detail;
+  const payment = paymentDocument(item, file);
+  if (payment)
+    return {
+      ...payment,
+      summary: null,
+      body: (
+        <>
+          {payment.body}
+          <Files owner={item.id} keys={item.artefacts} file={file} name={text(d.filename)} />
+        </>
+      ),
+    } as ReturnType<Renderer>;
   const draw = item.check.startsWith("document.forensics.")
     ? FORENSICS[item.check.slice("document.forensics.".length)]
     : undefined;
@@ -1647,6 +1902,399 @@ const documentCard: Renderer = (item, file) => {
   };
 };
 
+// The invoice and payment-document comparisons (D07 T03 §15; the producers' stored shapes in
+// src/invoice/rules.ts, extract.ts, payment-doc.ts and document-step.ts). Only an allowlist of stored
+// fields is drawn: the submitted account masked (`***` and its last three), the comparison's source and
+// its outcome. The recorded side is never drawn, no differing field is inferred, a stored phone is never
+// drawn (the reader phones the number in their own records), and internal ids never reach the page. A
+// comparison that could not run says so and is neither a match nor a mismatch.
+const money = (cents: unknown, currency: unknown): string | null => {
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return null;
+  const amount = (cents / 100).toFixed(2);
+  return text(currency) ? `${text(currency)} ${amount}` : amount;
+};
+const AGAINST: Record<string, string> = {
+  ledger: "Your supplier ledger",
+  registry: "The supplier's registered account",
+};
+const COMPARE_REASON = (reason: string | null): string => {
+  if (!reason) return "It could not be completed";
+  if (reason === "no-baseline") return "No recorded account was there to compare with";
+  if (reason === "no-account") return "The document stated no usable account (a number and a branch code) to compare";
+  if (reason === "no-supplier") return "No supplier record fits this document";
+  if (reason === "supplier-ambiguous") return "More than one supplier record fits, so none was chosen";
+  if (reason === "keys" || reason === "keys-missing") return "The comparison could not be read";
+  if (reason === "registry") return "The registered-account comparison could not run";
+  if (reason === "rate-limited") return "The comparison service is at its limit for now";
+  if (reason === "too-large") return "The document is too large to read";
+  if (reason === "too-many-pages") return "The document has too many pages to read";
+  if (reason === "too-many-documents") return "The message held more documents than can be read";
+  if (reason === "unreadable" || reason === "damaged" || reason === "lookup-failed")
+    return "The document could not be read";
+  if (reason === "not-a-pop") return "It is not a proof of payment, so its layout was not compared";
+  if (reason === "no-reference") return "No genuine sample is stored to compare its layout with";
+  if (reason === "reference-unavailable") return "The bank's genuine sample could not be read";
+  if (reason === "budget" || reason === "budget-unavailable") return "The reading service had no capacity left";
+  if (reason === "timeout") return "It ran out of time";
+  if (reason.startsWith("output-")) return "The reading returned an answer that could not be used";
+  if (reason.startsWith("model-")) return "The reading service could not finish";
+  if (reason === "error") return "The reading did not finish";
+  return "It could not be completed";
+};
+const invoiceCard: Renderer = (item, file) => {
+  const d = item.detail;
+  const keys = item.artefacts.filter((k) => k !== "case");
+  if (item.check === "invoice.detected")
+    return {
+      title: "An invoice in the message",
+      summary: null,
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Supplier", cleanField(d.supplier_name, d.account_last3)],
+              ["Its domain", cleanField(d.supplier_domain, d.account_last3)],
+              ["Bank", cleanField(d.bank_name, d.account_last3)],
+              ["Account holder", cleanField(d.account_holder, d.account_last3)],
+              ["Account", masked(d.account_last3, null)],
+              ["Branch", text(d.branch_code)],
+              ["Amount", money(d.amount_cents, d.currency)],
+              ["Reference", cleanField(d.reference, d.account_last3)],
+              ["Due", text(d.due_date)],
+            ]}
+          />
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.bank_changed")
+    return {
+      title: "Bank details that differ",
+      summary: null,
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Account on the invoice", masked(d.account_last3, null)],
+              ["Amount", money(d.amount_cents, d.currency)],
+              ["Compared against", AGAINST[text(d.against) ?? ""] ?? null],
+              ["Result", "It differs from the recorded account"],
+            ]}
+          />
+          <p class="text-14 text-muted">
+            Confirm by phoning the supplier on the number in your own records, never one from this message.
+          </p>
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.supplier_domain_changed")
+    return {
+      title: "A domain the supplier has not used",
+      summary: null,
+      body: (
+        <>
+          <Facts rows={[["It came from", cleanField(d.domain, d.account_last3)]]} />
+          <p class="text-14 text-muted">
+            The supplier has not sent from this domain before. Confirm by phoning the supplier on the number in your own
+            records, never one from this message.
+          </p>
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.change_language")
+    return {
+      title: "The message says bank details changed",
+      summary: null,
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Account it asks for", masked(d.account_last3, null)],
+              ["Amount", money(d.amount_cents, d.currency)],
+            ]}
+          />
+          <p class="text-14 text-muted">
+            Confirm by phoning the supplier on the number in your own records, never one from this message.
+          </p>
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
+        </>
+      ),
+    };
+  if (item.check === "invoice.comparison_unavailable")
+    return {
+      title: "A bank comparison that could not run",
+      summary: null,
+      body: (
+        <>
+          <Facts
+            rows={[
+              ["Compared against", AGAINST[text(d.comparison) ?? ""] ?? null],
+              ["Why", COMPARE_REASON(text(d.reason))],
+            ]}
+          />
+          <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
+          <Files owner={item.id} keys={keys} file={file} name="the document" />
+        </>
+      ),
+    };
+  // invoice.not_checked
+  return {
+    title: "A document that could not be read as an invoice",
+    summary: null,
+    body: (
+      <>
+        <Facts rows={[["Why", COMPARE_REASON(text(d.reason))]]} />
+        <p class="text-14 text-muted">Its bank details were not checked.</p>
+        <Files owner={item.id} keys={keys} file={file} name="the document" />
+      </>
+    ),
+  };
+};
+
+// What the message's pictures claim, ask and press for, and the logo and brand comparisons over them
+// (D07 T03 §14; the producers' stored shapes in src/vision/reading.ts, src/vision/logo-compare.ts and
+// src/vision/brand.ts). A reading that could not run, and a comparison that did not run, say so in plain
+// words and never read as a finding or a clearance. Stored text is drawn as text throughout; a stored
+// `source_url` is words, never a link the reader could follow.
+const VISION_ACTION: Record<string, string> = {
+  log_in: "sign in",
+  pay: "pay",
+  open_file: "open a file",
+  call: "call a number",
+  reply_with_details: "reply with personal details",
+};
+const VISION_REASON = (reason: string | null): string => {
+  if (!reason) return "It could not be completed";
+  if (reason === "timeout" || reason === "deadline") return "It ran out of time";
+  if (reason === "no-picture") return "The message held no picture to read";
+  if (reason === "no-domain") return "This case holds no domain to compare it with";
+  if (reason === "unverified-domain") return "A domain proposed as the brand's could not be judged";
+  if (reason === "missing-crop") return "No logo crop was stored to compare";
+  if (reason === "crop-listing-unavailable" || reason === "manifest-unreadable")
+    return "The logo crops in the message could not be listed";
+  if (reason === "comparison-unavailable") return "The comparison could not run";
+  if (reason === "missing-brand" || reason === "missing-index") return "No reference logo is stored for the brand";
+  if (reason === "missing-image") return "The reference logo is not stored";
+  if (reason === "hash-mismatch") return "The stored reference logo did not match its record";
+  if (reason === "invalid-index" || reason === "too-large") return "The reference logos could not be read";
+  if (reason === "search-cap") return "The search that confirms a brand's domains had no capacity left";
+  if (reason.startsWith("render-")) return "The message could not be pictured";
+  return "It could not be completed";
+};
+// A reading's stored confidence as a reader's words: a percentage, said as how sure the reading is.
+const sure = (v: unknown): string | null =>
+  typeof v === "number" && Number.isFinite(v) ? `${Math.round(Math.min(1, Math.max(0, v)) * 100)}%` : null;
+const DOMAIN_KIND: Record<string, string> = { sender: "Sent from", landing: "It leads to", visible: "Shown" };
+const vision: Renderer = (item, file) => {
+  const d = item.detail;
+  const picture = item.artefacts[0];
+  const shot = picture ? (
+    <Shot
+      id={item.id}
+      url={file(picture)}
+      alt={text(d.source_name) ? `The picture read, ${text(d.source_name)}` : "The picture read"}
+      caption={text(d.source_name) ? `The picture read: ${text(d.source_name)}` : "The picture read"}
+    />
+  ) : null;
+  if (item.check === "vision.claimed_brand")
+    return {
+      title: "What a picture claims",
+      body: (
+        <>
+          {shot}
+          <Facts
+            rows={[
+              ["Brand it shows", text(d.brand)],
+              ["Sender it shows", text(d.visible_sender)],
+              ["How sure the reading is", sure(d.confidence)],
+              ["Read from", text(d.source_name)],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  if (item.check === "vision.requested_action")
+    return {
+      title: "What a picture asks for",
+      body: (
+        <>
+          {shot}
+          <Facts
+            rows={[
+              ["It asks the reader to", VISION_ACTION[text(d.action) ?? ""] ?? null],
+              ["Asks for a payment", d.payment_request === true ? "Yes" : d.payment_request === false ? "No" : null],
+              ["How sure the reading is", sure(d.confidence)],
+              ["Read from", text(d.source_name)],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  if (item.check === "vision.urgency")
+    return {
+      title: "Pressure in a picture",
+      body: (
+        <>
+          {shot}
+          <div class="flex flex-col gap-8">
+            {texts(d.quotes).map((quote) => (
+              <EvidenceQuote>{quote}</EvidenceQuote>
+            ))}
+          </div>
+          <Facts rows={[["How sure the reading is", sure(d.confidence)]]} />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  if (item.check === "vision.coverage")
+    return {
+      title: "Part of the message could not be pictured",
+      body: (
+        <>
+          <Bullets items={texts(d.losses)} />
+          <p class="text-14 text-muted">What the pictures show was only partly checked.</p>
+        </>
+      ),
+    };
+  if (item.check === "vision.not_checked")
+    return {
+      title: "The pictures were not read",
+      body: (
+        <>
+          <Facts rows={[["Why", VISION_REASON(text(d.reason))]]} />
+          <p class="text-14 text-muted">What the pictures show was not checked.</p>
+        </>
+      ),
+    };
+  if (item.check === "vision.logo_match") {
+    const brand = text(d.brand) ?? "the brand";
+    if (d.checked !== true)
+      return {
+        title: "A logo that was not compared",
+        body: (
+          <>
+            {shot}
+            <Facts
+              rows={[
+                ["Brand", text(d.brand)],
+                ["Why it was not compared", VISION_REASON(text(d.reason))],
+              ]}
+            />
+            <p class="text-14 text-muted">No match and no clearance: the comparison did not run.</p>
+            <Files owner={item.id} keys={item.artefacts} file={file} name="the logo crop" />
+          </>
+        ),
+      };
+    const reference = (
+      <Shot
+        id={`${item.id}-ref`}
+        url={file(`ref-logo:${brand}`)}
+        alt={`The reference logo for ${brand}`}
+        caption={`The reference logo for ${brand}`}
+      />
+    );
+    return {
+      title: d.same_brand === true ? `A logo that matches ${brand}` : `A logo that is not ${brand}'s`,
+      body: (
+        <>
+          <div class="grid gap-16 md:grid-cols-2">
+            <div class="flex flex-col gap-8">
+              <p class="text-14 weight-text-strong">The crop in the message</p>
+              {shot}
+            </div>
+            <div class="flex flex-col gap-8">
+              <p class="text-14 weight-text-strong">The reference</p>
+              {reference}
+              <Shot
+                id={`${item.id}-icon`}
+                url={file(`ref-logo-icon:${brand}`)}
+                alt={`The reference icon for ${brand}`}
+                caption={`The reference icon for ${brand}, when the brand has one`}
+              />
+            </div>
+          </div>
+          <Facts
+            rows={[
+              ["Brand", text(d.brand)],
+              ["Brand the crop shows", text(d.brand_seen)],
+              ["The same logo", d.same_brand === true ? "Yes" : d.same_brand === false ? "No" : null],
+              ["How sure the reading is", sure(d.confidence)],
+              [
+                "Where it was found",
+                d.domain === "mismatch"
+                  ? "On a domain that is not the brand's"
+                  : d.domain === "official"
+                    ? "On the brand's own domain"
+                    : "Its domain was not judged",
+              ],
+            ]}
+          />
+          <Bullets items={texts(d.differences)} />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the logo crop" />
+        </>
+      ),
+    };
+  }
+  // vision.brand_domain_mismatch
+  const brand = text(d.brand) ?? "the brand";
+  const compared = records(d.domains);
+  if (d.confirmed !== true)
+    return {
+      title: `${brand}'s domains could not be confirmed`,
+      body: (
+        <>
+          {shot}
+          <Facts
+            rows={[
+              ["Brand it shows", text(d.brand)],
+              ["Why", VISION_REASON(text(d.reason))],
+            ]}
+          />
+          <Bullets
+            items={compared.map(
+              (entry) =>
+                `${DOMAIN_KIND[text(entry.kind) ?? ""] ?? "Seen at"} ${text(entry.host) ?? "an unknown address"}`,
+            )}
+          />
+          <p class="text-14 text-muted">No match and no clearance: the brand's real domains were not confirmed.</p>
+          <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+        </>
+      ),
+    };
+  const mismatched = new Set(texts(d.mismatched));
+  return {
+    title: `Not one of ${brand}'s domains`,
+    body: (
+      <>
+        {shot}
+        <Facts
+          rows={[
+            ["Brand it shows", text(d.brand)],
+            [`${brand}'s real domains`, texts(d.official_domains).join(", ") || null],
+            ["Confirmed by", d.source === "table" ? "The brand table" : d.source === "search" ? "Search" : null],
+            ["Confirmed at", text(d.source_url)],
+          ]}
+        />
+        <Bullets
+          items={compared.map(
+            (entry) =>
+              `${DOMAIN_KIND[text(entry.kind) ?? ""] ?? "Seen at"} ${text(entry.host) ?? "an unknown address"}: ${
+                mismatched.has(text(entry.host) ?? "")
+                  ? "not one of the brand's domains"
+                  : "one of the brand's domains, or not judged"
+              }`,
+          )}
+        />
+        <Files owner={item.id} keys={item.artefacts} file={file} name="the picture" />
+      </>
+    ),
+  };
+};
+
 const RENDERERS: Record<Family, Renderer> = {
   intake,
   auth,
@@ -1658,14 +2306,22 @@ const RENDERERS: Record<Family, Renderer> = {
   walkthrough,
   voice,
   document: documentCard,
+  invoice: invoiceCard,
+  vision,
   reputation,
   not_checked: notChecked,
 };
 
-export function Card(props: { item: CardItem; file: FileLink; requestQuote?: string | null }) {
+export function Card(props: {
+  item: CardItem;
+  file: FileLink;
+  requestQuote?: string | null;
+  reputation?: readonly ReputationRow[];
+}) {
   const { item, file } = props;
   const family = familyOf(item.check);
-  const drawn = family ? RENDERERS[family](item, file, props.requestQuote) : null;
+  const drawn = family ? RENDERERS[family](item, file, props.requestQuote, props.reputation) : null;
+  const summary = drawn ? (drawn.summary !== undefined ? drawn.summary : item.summary) : null;
   return (
     <EvidenceCard
       id={item.id}
@@ -1673,7 +2329,7 @@ export function Card(props: { item: CardItem; file: FileLink; requestQuote?: str
       title={drawn?.title ?? item.summary}
       layout="compact"
     >
-      {drawn ? <p class="text-14 text-muted wrap-anywhere">{item.summary}</p> : null}
+      {summary ? <p class="text-14 text-muted wrap-anywhere">{summary}</p> : null}
       {drawn?.body as never}
     </EvidenceCard>
   );
@@ -1761,8 +2417,44 @@ export function EvidenceCards(props: {
         data?: { revision: string; id: string; source: "kv" | "bundled" };
       }[]
     | null;
+  // The run's stored per-provider reputation answers (D07 T09 §5), drawn on their subject's card; null when
+  // the read itself failed, which the block says rather than drawing nothing.
+  reputation?: readonly ReputationRow[] | null | undefined;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
+  const namedSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) namedSubjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) namedSubjects.add(s);
+    }
+  }
+  const uncovered = new Map<string, ReputationRow[]>();
+  // One card per subject draws its rows: the first card that names the subject, so a stored answer is never
+  // repeated on every card that mentions the same subject.
+  const claimed = new Map<string, ReputationRow[]>();
+  const seenSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    const subjects = new Set<string>();
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) subjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) subjects.add(s);
+    }
+    for (const s of subjects) {
+      if (seenSubjects.has(s)) continue;
+      seenSubjects.add(s);
+      const rows = (props.reputation ?? []).filter((r) => r.subject === s);
+      if (rows.length > 0) claimed.set(item.id, [...(claimed.get(item.id) ?? []), ...rows]);
+    }
+  }
+  for (const r of props.reputation ?? []) {
+    if (namedSubjects.has(r.subject)) continue;
+    uncovered.set(r.subject, [...(uncovered.get(r.subject) ?? []), r]);
+  }
   // The quote names no recording, so with two recordings on one case it marks neither: a mark on the wrong one is worse than none.
   const transcripts = props.items.filter((i) => i.check === "voice.transcript").length;
   const requestQuote =
@@ -1792,7 +2484,12 @@ export function EvidenceCards(props: {
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>
               {(all ? rest : cited).map((item) => (
-                <Card item={item} file={props.file} requestQuote={requestQuote} />
+                <Card
+                  item={item}
+                  file={props.file}
+                  requestQuote={requestQuote}
+                  reputation={claimed.get(item.id) ?? []}
+                />
               ))}
             </div>
           )}
@@ -1814,13 +2511,28 @@ export function EvidenceCards(props: {
               </summary>
               <div class={grid}>
                 {rest.map((item) => (
-                  <Card item={item} file={props.file} requestQuote={requestQuote} />
+                  <Card
+                    item={item}
+                    file={props.file}
+                    requestQuote={requestQuote}
+                    reputation={claimed.get(item.id) ?? []}
+                  />
                 ))}
               </div>
             </details>
           )}
         </>
       )}
+      {props.reputation === null && (
+        <p class="text-14 text-muted">The provider answers for this report could not be loaded.</p>
+      )}
+      {[...uncovered.entries()].map(([subject, rows]) => (
+        <div class="flex flex-col gap-8">
+          <h3 class="type-h3">What the reputation providers said</h3>
+          <p class="text-14 wrap-anywhere">{subject}</p>
+          <ProviderRows rows={rows} />
+        </div>
+      ))}
     </section>
   );
 }

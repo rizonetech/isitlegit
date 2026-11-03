@@ -122,7 +122,7 @@ async function gate(env: Env, signedIn: SignedIn, request: Request, change: bool
   if (!membership.ok)
     return membership.reason === "unavailable"
       ? { refused: outage(request, "membership") }
-      : { refused: errorPage(403, "", { email: signedIn.user.email }) };
+      : { refused: errorPage(403, "", { email: signedIn.user.email, closed: membership.reason === "closed" }) };
   const org = membership.org;
   const canEdit = ["owner", "admin"].includes(org.role);
   const refusal = async (draw: (shell: Awaited<ReturnType<typeof memberShell>>) => unknown, status: number) => {

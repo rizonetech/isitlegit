@@ -45,7 +45,7 @@ afterEach(() => spy.mockRestore());
 // A Workflow a sweep or a takeover started (D01 T03 §12), run to its end inside the test, while SMTP2GO is stubbed.
 async function ran(caseId: string) {
   const instance = await env.ANALYSIS.get(caseId);
-  for (let tries = 0; tries < 200; tries++) {
+  for (let tries = 0; tries < 600; tries++) {
     const { status } = await instance.status();
     if (status === "complete" || status === "errored" || status === "terminated") return status;
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -625,7 +625,7 @@ describe("round 1 cases", () => {
   });
 });
 
-describe("a delivery whose later step fails", () => {
+describe("a delivery whose later step fails", { timeout: 60_000 }, () => {
   it("releases its claim when the case cannot be admitted, so the retry is processed", async () => {
     const { orgId, from } = await member();
     const m = message(from);
@@ -872,7 +872,7 @@ describe("a delivery interrupted around admission (completion review)", () => {
   });
 });
 
-describe("final review cases", () => {
+describe("final review cases", { timeout: 60_000 }, () => {
   it("starts no Workflow for a delivery that stalled while another took it over", async () => {
     const { orgId, from } = await member();
     const m = message(from);

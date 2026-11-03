@@ -51,7 +51,8 @@ track: day-6
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
-| 15 | §15 | Fixed action on every critical invoice item | §12 | [ ] |
+| 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
+| 16 | §16 | Message-specific consequence sentences | §2 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -457,6 +458,8 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3: the abl
 
 ## 15. Fixed action on every critical invoice item
 
+> **Started:** 2026-11-03T01:45Z
+
 Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3): trust's rule needs a fixed action attached for every critical invoice item, and `fixedActionsFor` in `src/agent/loop.ts` today attaches the bank-change action only for the first trigger item and the proof-of-payment action once. Trust builds its Workflow proof against this extension and stamps when it gates to main (its proof half is already built against `bankChangeAction`).
 
 **Phase:** 7
@@ -468,11 +471,37 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3)
 
 1. Extend the deterministic actions to every critical invoice trigger. Done when: each critical invoice item's fixed action is on the verdict, in evidence order, with no duplicate.
 
-- [ ] Extend `fixedActionsFor` in `src/agent/loop.ts` so every critical `invoice.*` item (and each `agent.ledger_lookup` mismatch) carries its fixed action, keeping the numbered-trigger-wins rule of §12 and the actions' evidence order, deduplicated as the agent path deduplicates today. Done when: `test/agent/loop.test.ts` (or its successor) proves two critical invoice items yield two actions, a numberless trigger beside a numbered one still yields the numbered action, and no action repeats.
-- [ ] Prove it through the verdict path trust reads: the rule verdict and the agent fallback both carry the extended actions. Done when: the same suite reads the actions back on a stored verdict from each path.
-- [ ] Commit: `agent: fixed action on every critical invoice item`
+- [x] Extend `fixedActionsFor` in `src/agent/loop.ts` so every critical `invoice.*` item (and each `agent.ledger_lookup` mismatch) carries its fixed action, keeping the numbered-trigger-wins rule of §12 and the actions' evidence order, deduplicated as the agent path deduplicates today. Done when: `test/agent/loop.test.ts` (or its successor) proves two critical invoice items yield two actions, a numberless trigger beside a numbered one still yields the numbered action, and no action repeats.
+- [x] Prove it through the verdict path trust reads: the rule verdict and the agent fallback both carry the extended actions. Done when: the same suite reads the actions back on a stored verdict from each path.
+- [x] Commit: `agent: fixed action on every critical invoice item`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if a second critical invoice item yields no action of its own.
+
+**Corrected 2026-11-03** (plan review, 4 P2, `docs/reviews/04-agent/D04-T01-s15.md`): (1) the per-item rule is exact: triggers in evidence order each yield `bankChangeAction(phone)` for a string `detail.phone`, else the numberless action; identical strings deduplicate to one (distinct phones two actions, identical phones one, all-numberless one generic); when any numbered action stands, the generic numberless action is suppressed (the §12 numbered-wins rule), and surviving bank actions keep first-occurrence evidence order, followed by the proof-of-payment action, then the voice call-back. (2) Triggers are every critical `invoice.*` item (`invoice.bank_changed` from the ledger and the registry, `invoice.supplier_domain_changed`, `invoice.change_language`, whose detail carries no phone) and each `agent.ledger_lookup` mismatch; a noncritical invoice item and a matched lookup add nothing, a voice `change_bank_details` request with no trigger item keeps its generic action, and several proof-of-payment items still yield one `POP_ACTION`. (3) Overflow: fixed actions occupy the first slots of the verdict's existing ten-action stored cap (`src/db/verdicts.ts`), so a model or rule action never displaces one; past ten distinct fixed actions the earliest stand and the rest are cut by the paths' existing slice, which the tests state rather than hide. No schema change: the consumer's cases carry a handful of critical items, and raising the stored cap is a report-shape decision for its owner. (4) Read-back covers all three paths that compose fixed actions: the successful agent answer, the forced fallback (both `src/agent/loop.ts`), and the Workflow's rule-only branch (`src/pipeline/analysis-workflow.ts`, which is where fixed actions join a rule verdict), each storing the same fixed-action prefix.
+
+> **Verified:** 2026-11-03 | §15 | 8cc033b3ead34dcb30340c5fec068d99ebda5dd4
+> **Review:** `docs/reviews/d04-t01-s15.json`
+
+## 16. Message-specific consequence sentences
+
+Filed 2026-11-03 from the coordinator's filing request (app lane, D07 T03 §10's completion review): `ruleVerdict`'s `meaning` in `src/agent/rule-verdict.ts` is one fixed sentence per verdict, so a floored credential-theft case and a floored payment-diversion case read alike. The consequence sentence should name what this message would do, from the case's own evidence, still deterministic and still inside the stored verdict's existing shape.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Name the consequence from the floor's own evidence. Done when: each floor rule's raising evidence maps to one consequence sentence, chosen by code.
+
+- [ ] Add a consequence map in `src/agent/rule-verdict.ts` keyed by the floor evidence that raised the verdict (the credential-form, bank-change, malware and lookalike families `floorFor` in `src/agent/floor.ts` already classifies), each value one plain sentence of at most 300 characters naming the harm that acting on the message would do ("the sign-in page would take the password it asks for", "the payment would go to bank details that differ from the supplier's record"), never a value from the message itself. Done when: `test/agent/rule-verdict.test.ts` shows a credential-floored case and a bank-floored case storing different sentences, each fitting the `VerdictView` meaning schema. Cheaper substitute: picking the sentence from the verdict alone, which is today's fixed wording.
+- [ ] Use it where the floor decides: `ruleVerdict` writes the mapped sentence for a floored verdict (its `floorApplied` record names the raising evidence), and keeps today's per-verdict sentence when no floor raised it and for the partial and noted wordings. Done when: the same suite shows an unfloored malicious case keeping the fixed sentence, and a safe partial case keeping its partial wording.
+- [ ] Keep the agent path honest: the floored branch in `src/agent/loop.ts` (which already takes `rules.meaning` when the floor changes the verdict) stores the same mapped sentence, never the model's. Done when: `test/agent/loop.test.ts` stores the credential sentence for a floored credential answer and the bank sentence for a floored payment answer.
+- [ ] Prove it stored and read back through the pipeline: a floored case's stored verdict carries its consequence sentence, and the reply and report consumers read it as today's `meaning` with no shape change. Done when: `test/pipeline/analysis-workflow.test.ts` reads the mapped sentence back on a stored floored verdict.
+- [ ] Commit: `agent: message-specific consequence sentences`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/loop.test.ts` passes, and fails if a credential-floored and a bank-floored case store the same consequence sentence.
 
 ## Verification
 

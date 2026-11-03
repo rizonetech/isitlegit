@@ -35,6 +35,7 @@ export const OUTCOMES = [
   "passkey-still",
   "session-still",
   "org-closed",
+  "step-up",
   "others-none",
   "passkey-renamed",
   "rename-still",
@@ -113,6 +114,10 @@ const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
     text: "Your organisation is closed. It refuses new cases, and its stored mail, cases and history will be deleted within 30 days.",
     tone: "done",
   },
+  "step-up": {
+    text: "Nothing was closed: for a change this final, sign in again first (your last sign-in was more than ten minutes ago), then come back to Close account.",
+    tone: "refused",
+  },
   "passkey-removed": {
     text: "Passkey removed. It may still be listed in your device's password manager: remove it there too. Sessions you are signed in on are separate.",
     tone: "done",
@@ -184,6 +189,8 @@ export function AccountConfirm(props: {
   label: string;
   // A neighbouring action the member needs here (the passkey removal's Sign out other sessions).
   extra?: { href: string; label: string };
+  // Evidence of this confirmation step, required by the POST it sends (D07 T02 §9).
+  confirm?: string;
 }) {
   const body = (
     <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40 max-w-[640px]">
@@ -193,6 +200,13 @@ export function AccountConfirm(props: {
       {props.lines.map((line) => (
         <p class="text-16 wrap-anywhere">{line}</p>
       ))}
+      {props.extra && (
+        <p class="type-small">
+          <a class="underline text-orange-text" href={props.extra.href}>
+            {props.extra.label}
+          </a>
+        </p>
+      )}
       <form
         method="post"
         action="/settings/account"
@@ -202,6 +216,7 @@ export function AccountConfirm(props: {
       >
         <input type="hidden" name="action" value={props.action} />
         <input type="hidden" name="id" value={props.id} />
+        {props.confirm && <input type="hidden" name="confirm" value={props.confirm} />}
         <Button type="submit" variant="danger" data-busy-label="Working…">
           {props.label}
         </Button>
@@ -209,13 +224,6 @@ export function AccountConfirm(props: {
           Cancel
         </Button>
       </form>
-      {props.extra && (
-        <p class="type-small">
-          <a class="underline text-orange-text" href={props.extra.href}>
-            {props.extra.label}
-          </a>
-        </p>
-      )}
     </div>
   );
   return (

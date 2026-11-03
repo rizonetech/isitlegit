@@ -22,6 +22,7 @@ track: day-2
 - -> XREF: D01 T01 §4 -- the forward's path (`rfc822`, `eml`, `msg` or `inline`) that §1 writes as the `intake.forward` evidence item
 - -> XREF: D07 T03 §18 -- the report's count line and "Checks that found nothing" panel, which read §3's stored outcomes (`ran` with no findings is clean; `partial`, `skipped` and `failed` are not; null is "coverage not recorded")
 - -> XREF: D04 T02 §5 -- the walkthrough's evidence items, the first later producer that §5's `addEvidence` writes for
+- -> XREF: D07 T09 §10 -- the report's examined-target disclosure, whose completion review filed §10 and §11 here
 
 ## Outcome
 
@@ -44,7 +45,9 @@ track: day-2
 | 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 | 8 | §8 | Examined set stored for a clean check | §3 | [x] |
-| 9 | §9 | Protected-identity candidate for the trust match | §3 | [ ] |
+| 9 | §9 | Protected-identity candidate for the trust match | §3 | [x] |
+| 10 | §10 | Every examined target kept past the stored bound | §8 | [ ] |
+| 11 | §11 | Relation of each examined target to the message | §8 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -291,6 +294,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a c
 
 ## 9. Protected-identity candidate for the trust match
 
+> **Started:** 2026-11-03T01:08Z
+
 Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the trust match reads a protected identity's registered facts through a bounded candidate input the checks step fills on the case view, the same form as the document forensics fill trust already takes (D06 T02 §3). This section owns the checks side: the view field, its bound, and the fill; trust builds its matching and claim evidence contract against that input and stamps when the fill gates to main.
 
 **Phase:** 7
@@ -302,11 +307,60 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D05 T02 §2): the t
 
 1. Fill a bounded protected-identity candidate on the case view. Done when: the trust match reads the candidate from the view, and no registered identity detail beyond the candidate's bound reaches a check.
 
-- [ ] Add the candidate field to `CaseView` in `src/checks/case-view.ts`: the protected business's candidate names and domains as stored text, with its registered logo references (artefact keys, never bytes), each list bounded with its omission counted, in the shape trust D05 T02 §2 names at its build. Done when: `test/checks/case-view.test.ts` (or its successor) reads the field back with its bounds held on an over-bound input.
-- [ ] Fill the field in the `checks` step in `src/pipeline/analysis-workflow.ts` from the case's own organisation data, beside the fills it already makes, failing as the step's other fills fail. Done when: a checks-step test stores a case whose view carries the candidate, and a case with no protected identity carries none. Cheaper substitute: letting the trust match read the registry itself from the checks step, which crosses the lane's storage boundary.
-- [ ] Commit: `checks: protected-identity candidate for the trust match`
+- [x] Add the candidate field to `CaseView` in `src/checks/case-view.ts`: the protected business's candidate names and domains as stored text, with its registered logo references (artefact keys, never bytes), each list bounded with its omission counted, in the shape trust D05 T02 §2 names at its build. Done when: `test/checks/case-view.test.ts` (or its successor) reads the field back with its bounds held on an over-bound input.
+- [x] Fill the field in the `checks` step in `src/pipeline/analysis-workflow.ts` from the case's own organisation data, beside the fills it already makes, failing as the step's other fills fail. Done when: a checks-step test stores a case whose view carries the candidate, and a case with no protected identity carries none. Cheaper substitute: letting the trust match read the registry itself from the checks step, which crosses the lane's storage boundary.
+- [x] Commit: `checks: protected-identity candidate for the trust match`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a candidate names a business the case's organisation does not protect.
+
+**Corrected 2026-11-03** (plan review, 1 P1 and 5 P2, `docs/reviews/02-checks/D02-T01-s9.md`; the consumer contract is trust D05 T02 §2 correction (1)): (1) candidates are discovered across organisations, not from the case's own organisation: every effectively protected identity is a candidate, so an admitted member of business A forwarding mail that impersonates protected business B carries B as a candidate; the checkpoint below is corrected to match. (2) Filtering is at read time through the identity's own effective test: protection switched off, the last verified domain removed, or the finance contact's verification removed each exclude the identity. (3) The discovery projection is a new allowlisted reader owned by the identity store, `protectedIdentities` in `src/trust/identity.ts`, returning org id, display names, verified domains and the registered logo reference (key and media type, never bytes) for each effectively protected identity in org-id order; neither `getIdentity` (one known org, carries the finance contact) nor `findIdentityByClaim` (exact claims only, no logo, no bound) supplies it. The checks step stays the filler and the registered check stays pure. (4) Bounds live in `src/checks/case-view.ts`: at most 25 candidates, 10 names and 10 domains per candidate, each overflow counted (`omitted` on the set, `namesOmitted` and `domainsOmitted` per candidate), duplicates by org id removed, so a cut set is distinguishable from an exhaustive no-match. (5) A failed candidate read fails the checks step like its other awaited store reads, so the Workflow retries it; it never reads as an empty candidate set. An empty set means no identity is effectively protected. (6) The projection is allowlisted: no finance contact, bank detail, registered baseline value or logo bytes reach the view, and the tests assert the candidate's exact keys. The checks step persists evidence and outcomes, not the view; acceptance is the reader's tests, the view bound's test, and a checks-step test whose stored outcomes read back beside a case that carries a candidate.
+
+**Test checkpoint (corrected):** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts test/checks/case-view.test.ts` passes, fails if a candidate names a business that is not effectively protected, and passes for a member of one business checking mail that impersonates another protected business.
+
+> **Verified:** 2026-11-03 | §9 | 09816762b8d9e1a65aa6df97a137eb2a03bb3f3a
+> **Review:** `docs/reviews/d02-t01-s9.json`
+
+## 10. Every examined target kept past the stored bound
+
+Filed 2026-11-03 from D07 T09 §10's completion review (`docs/reviews/07-app/D07-T09-s10.md`, missing-out-of-scope, against VirusTotal's URL report, which pages a URL's contacted domains with a continuation cursor): §8 stores at most 50 targets of at most 255 characters in at most 8,000 bytes and counts the rest as `omitted`, so a reader of a clean check sees how many targets were left out but can never inspect them. This section keeps the whole examined set for a clean check and reads it back a page at a time; drawing the pages on the report is D07 T09's.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the targets §8 leaves out. Done when: a clean check whose examined set passes §8's bound has every target stored once, in order, beside the bounded summary §8 already stores.
+2. Read the whole set back in pages. Done when: a reader asking for the next page after the last target it saw gets the following targets in order and a cursor, or no cursor at the end.
+
+- [ ] Add the overflow store for a clean check's examined targets beyond §8's bound in `src/checks/evidence.ts` (one row per target, keyed by case, check and position, each target as stored text at §8's 255-character cut), under a migration numbered by the coordinator. Done when: `test/checks/examined-overflow.test.ts` stores a 120-target clean check and reads all 120 back in order, and §8's bounded `{targets, omitted}` reads back unchanged. Cheaper substitute: raising §8's 50-target bound, which only moves the cut.
+- [ ] Write the overflow rows in the same batch as the outcome in `saveEvidence` (`src/checks/evidence.ts`), so a failed save leaves neither. Done when: a test that fails the batch after the outcome finds no outcome and no overflow rows for the case.
+- [ ] Add `readExaminedPage(caseId, check, after?)` in `src/checks/evidence.ts`, returning at most 50 targets after the cursor and the next cursor. Done when: paging a 120-target set yields 50, 50 and 20 targets with a cursor on the first two pages only, and a cursor from another case or check is refused.
+- [ ] Keep the overflow rows under the case's own removal and retention, beside its outcomes (`src/db/` case removal and the retention sweep). Done when: removing a case removes its overflow rows, proven by a test that counts them before and after.
+- [ ] Commit: `checks: every examined target kept past the stored bound`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined-overflow.test.ts test/checks/examined.test.ts` passes, and fails if a target past the bound cannot be read back.
+
+## 11. Relation of each examined target to the message
+
+Filed 2026-11-03 from D07 T09 §10's completion review (`docs/reviews/07-app/D07-T09-s10.md`, missing-out-of-scope, against VirusTotal's URL report, which tells contacted domains, outgoing links and redirect destinations apart): §8 stores each examined target as plain text, so a reader cannot tell a link in the message from the page it redirected to, a header domain or an attachment. This section stores, per target, the relation that put it in the set; drawing it on the report is D07 T09's.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Name each target's relation when a check examines it. Done when: every target an `examined` hook returns carries one relation from a closed list, and a stored set reads back with each target's relation.
+
+- [ ] Define the closed relation list in `src/checks/registry.ts` (`message-link`, `redirect-step`, `landing-page`, `header-address`, `header-domain`, `attachment`, `message-part`), the `examined` hook returning `{target, relation}` entries. Done when: the type refuses an entry without a relation at `pnpm typecheck`.
+- [ ] Return the relation from each of §8's 17 audited hooks (the `intake`, `sender`, `domain`, `attachment` and `link` checks listed in §8's correction 3). Done when: `test/checks/examined.test.ts` proves each producer's exact `{target, relation}` list through runner, storage and `readCheckOutcomes`.
+- [ ] Store the relation in §8's examined JSON and in §10's overflow rows (`src/checks/evidence.ts`), counted inside §8's 8,000-byte bound. Done when: a set at the byte bound reads back with every kept target's relation and the same `omitted` count rule, and a set stored before this section reads back with no relation and no failure.
+- [ ] Commit: `checks: relation of each examined target to the message`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/examined.test.ts` passes, and fails if a stored target carries no relation.
 
 ## Verification
 

@@ -52,8 +52,8 @@ describe("the confirm page", () => {
       expect(html).toContain('name="callbackURL" value="/cases/42?tab=evidence"');
       // A fetch with no cookie is a browser that did not ask (D07 T02 §12): it reads where to finish and may still sign in
       // here by its own choice.
-      expect(html).toContain("Finish on the device where you asked");
-      expect(html).toContain("Sign in on this device instead");
+      expect(html).toContain("Finish in the browser where you asked");
+      expect(html).toContain("Sign in in this browser instead");
     }
     expect(await sessionsOf("scanned@demo.isitlegit.co.za")).toBe(0);
     // The fetches are logged, with no token.
@@ -97,11 +97,11 @@ describe("the confirm page", () => {
     expect(failed.status).toBe(503);
     expect(await failed.text()).toContain("Sign-in did not finish");
     expect(sessionCookie(failed)).toBe("");
-    // Reopened after the outage, the spent link reads the plain page, never "finish on the device where you asked"
+    // Reopened after the outage, the spent link reads the plain page, never "finish in the browser where you asked"
     // (D07 T02 §12 round 1).
     vi.restoreAllMocks();
     const reopened = await (await call(pathOf(smtp.sends[0]?.link ?? ""))).text();
-    expect(reopened).not.toContain("Finish on the device where you asked");
+    expect(reopened).not.toContain("Finish in the browser where you asked");
   });
 });
 

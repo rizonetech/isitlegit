@@ -1,7 +1,8 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { closeOrganisation, scheduledClosurePurge } from "../../src/auth/closure";
+import { closeOrganisation, purgeOrganisation, scheduledClosurePurge } from "../../src/auth/closure";
 import { findMemberBySender } from "../../src/auth/senders";
+import { admitCase } from "../../src/db/cases";
 import { FYNBOS_ORG_ID } from "../../src/demo/seed";
 import { authEnv, call, signIn } from "./helpers";
 
@@ -93,7 +94,31 @@ describe("closing an organisation", () => {
       .prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`)
       .bind(org, me?.id ?? "")
       .run();
-    const form = new URLSearchParams({ action: "close-account", id: org });
+    // A bare action-and-id post, without the confirmation page's evidence, closes nothing.
+    const bare = await call(
+      "/settings/account",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ action: "close-account", id: org }),
+      },
+      authEnv,
+    );
+    expect(bare.status).toBe(303);
+    expect(
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(org)
+          .first<{ c: string | null }>()
+      )?.c,
+    ).toBeNull();
+    const confirmPage = await call("/settings/account/close", { headers: { cookie } }, authEnv);
+    const confirmHtml = await confirmPage.text();
+    expect(confirmHtml).toContain("Karoo Couriers");
+    const token = /name="confirm" value="([^"]*)"/.exec(confirmHtml)?.[1] ?? "";
+    expect(token).not.toBe("");
+    const form = new URLSearchParams({ action: "close-account", id: org, confirm: token });
     const closed = await call(
       "/settings/account",
       { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: form },
@@ -116,6 +141,315 @@ describe("closing an organisation", () => {
       authEnv,
     );
     expect(foreign.status).toBe(403);
+  });
+
+  it("exports every case summary as exact CSV for the owner alone (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const other = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    await join(other, me?.id ?? "", "member");
+    const memberEmail = `member-${tag()}@demo.isitlegit.co.za`;
+    const memberSignIn = await signIn(memberEmail);
+    const member = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(memberEmail).first<{ id: string }>();
+    await join(org, member?.id ?? "", "member");
+    const add = (id: string, o: string, status: string, verdict: string | null, at: string) =>
+      db
+        .prepare(
+          `INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at) VALUES (?, ?, 'email', ?, ?, ?, ?)`,
+        )
+        .bind(id, o, status, verdict, at, at)
+        .run();
+    await add("case-a", org, "done", "malicious", "2026-10-26T01:00:00.000Z");
+    await add("case-b", org, "received", null, "2026-10-26T02:00:00.000Z");
+    await add("case-c", other, "done", "safe", "2026-10-26T00:00:00.000Z");
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/csv");
+    expect(await res.text()).toBe(
+      "case,received,status,verdict\n" +
+        "case-a,2026-10-26T01:00:00.000Z,done,malicious\n" +
+        "case-b,2026-10-26T02:00:00.000Z,received,\n",
+    );
+    const refused = await call(
+      `/settings/account/close/export?org=${org}`,
+      { headers: { cookie: memberSignIn.cookie } },
+      authEnv,
+    );
+    expect(refused.status).toBe(403);
+    expect((await refused.text()).length).toBeGreaterThan(0);
+    // An organisation with no cases exports the header alone.
+    const empty = await organisation();
+    await join(empty, me?.id ?? "", "owner");
+    const emptyRes = await call(`/settings/account/close/export?org=${empty}`, { headers: { cookie } }, authEnv);
+    expect(emptyRes.status).toBe(200);
+    expect(await emptyRes.text()).toBe("case,received,status,verdict\n");
+  });
+
+  it("answers an export failure with a retry that keeps the organisation (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    const downDb = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            if (sql.includes("FROM cases")) throw new Error("cases down");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, prop) as unknown;
+        return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    const down = { ...authEnv, DB: downDb } as Env;
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, down);
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(await res.text()).toContain(`/settings/account/close/export?org=${org}`);
+  });
+
+  it("exports every page in received order, and still exports after closure (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    // 501 cases inserted newest first, so received order has to come from the export, not the insertion.
+    await db
+      .prepare(
+        `WITH RECURSIVE n(x) AS (SELECT 500 UNION ALL SELECT x - 1 FROM n WHERE x > 0)
+         INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at)
+         SELECT 'case-' || printf('%04d', x), ?, 'email', 'done', 'safe',
+                '2026-10-26T00:00:00.000Z', '2026-10-26T00:00:00.000Z' FROM n`,
+      )
+      .bind(org)
+      .run();
+    await db.prepare(`UPDATE cases SET created_at = '2026-10-25T00:00:00.000Z' WHERE id = 'case-0500'`).run();
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).trimEnd().split("\n");
+    expect(lines).toHaveLength(502);
+    expect(lines[0]).toBe("case,received,status,verdict");
+    expect(lines[1]).toBe("case-0500,2026-10-25T00:00:00.000Z,done,safe");
+    expect(lines[501]).toContain("case-0499,");
+    expect(new Set(lines.slice(1).map((l) => l.split(",")[0]))).toHaveLength(501);
+    await closeOrganisation(db, org, me?.id ?? "", new Date());
+    const closedRes = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(closedRes.status).toBe(200);
+    expect((await closedRes.text()).trimEnd().split("\n")).toHaveLength(502);
+  });
+
+  it("loses no case when the purge deletes an exported case between export pages (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    await db
+      .prepare(
+        `WITH RECURSIVE n(x) AS (SELECT 500 UNION ALL SELECT x - 1 FROM n WHERE x > 0)
+         INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at)
+         SELECT 'purge-' || printf('%04d', x), ?, 'email', 'done', 'safe',
+                '2026-10-26T00:00:00.000Z', '2026-10-26T00:00:00.000Z' FROM n`,
+      )
+      .bind(org)
+      .run();
+    let pages = 0;
+    const purgingDb = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const statement = target.prepare(sql);
+            if (!sql.includes("FROM cases")) return statement;
+            pages += 1;
+            const mine = pages;
+            const wrap = (stmt: D1PreparedStatement): D1PreparedStatement =>
+              new Proxy(stmt, {
+                get(inner, innerProp) {
+                  if (innerProp === "bind") return (...a: unknown[]) => wrap(inner.bind(...a));
+                  if (innerProp === "all")
+                    return async (...a: unknown[]) => {
+                      if (mine === 2) await target.prepare(`DELETE FROM cases WHERE id = 'purge-0000'`).run();
+                      return (inner.all as (...x: unknown[]) => unknown)(...a);
+                    };
+                  const value = Reflect.get(inner, innerProp) as unknown;
+                  return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(inner) : value;
+                },
+              });
+            return wrap(statement);
+          };
+        const value = Reflect.get(target, prop) as unknown;
+        return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, {
+      ...authEnv,
+      DB: purgingDb,
+    } as Env);
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).trimEnd().split("\n");
+    expect(lines).toHaveLength(502);
+    expect(new Set(lines.slice(1).map((l) => l.split(",")[0]))).toHaveLength(501);
+    expect(lines[501]).toContain("purge-0500,");
+  });
+
+  it("closes the second of two organisations from its own confirmation while fresh (D07 T02 s26)", async () => {
+    const first = await organisation();
+    const second = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(first, me?.id ?? "", "owner");
+    await join(second, me?.id ?? "", "owner");
+    await db
+      .prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`)
+      .bind(first, me?.id ?? "")
+      .run();
+    const confirmPage = await call(`/settings/account/close?org=${second}`, { headers: { cookie } }, authEnv);
+    const confirmHtml = await confirmPage.text();
+    expect(confirmHtml).toContain("Karoo Couriers");
+    const token = /name="confirm" value="([^"]*)"/.exec(confirmHtml)?.[1] ?? "";
+    expect(token).not.toBe("");
+    const closed = await call(
+      "/settings/account",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ action: "close-account", id: second, confirm: token }),
+      },
+      authEnv,
+    );
+    expect(closed.status).toBe(303);
+    const closedAt = async (o: string) =>
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(o)
+          .first<{ c: string | null }>()
+      )?.c;
+    expect(await closedAt(second)).not.toBeNull();
+    expect(await closedAt(first)).toBeNull();
+  });
+
+  it("asks a stale session to sign in again before closing, and closes once fresh (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    await db
+      .prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`)
+      .bind(org, me?.id ?? "")
+      .run();
+    const confirmPage = await call("/settings/account/close", { headers: { cookie } }, authEnv);
+    const confirmHtml = await confirmPage.text();
+    expect(confirmHtml).toContain("Download the case summaries first");
+    const token = /name="confirm" value="([^"]*)"/.exec(confirmHtml)?.[1] ?? "";
+    expect(token).not.toBe("");
+    await db
+      .prepare(`UPDATE "session" SET "createdAt" = ?, "updatedAt" = ? WHERE "userId" = ?`)
+      .bind(new Date(Date.now() - 11 * 60_000).toISOString(), new Date().toISOString(), me?.id ?? "")
+      .run();
+    const stepped = await call("/settings/account/close", { headers: { cookie } }, authEnv);
+    expect(stepped.status).toBe(200);
+    const steppedHtml = await stepped.text();
+    expect(steppedHtml).toContain("Sign in again");
+    expect(steppedHtml).not.toContain("Download the case summaries first");
+    const stepUp = await call(
+      "/settings/account",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ action: "step-up", id: org }),
+      },
+      authEnv,
+    );
+    expect(stepUp.status).toBe(303);
+    expect(decodeURIComponent(stepUp.headers.get("location") ?? "")).toContain(
+      `/signin?next=/settings/account/close?org=${org}`,
+    );
+    const form = new URLSearchParams({ action: "close-account", id: org, confirm: token });
+    const refused = await call(
+      "/settings/account",
+      { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: form },
+      authEnv,
+    );
+    expect(refused.status).toBe(303);
+    expect(decodeURIComponent(refused.headers.get("location") ?? "")).toContain(`/settings/account/close?org=${org}`);
+    expect(
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(org)
+          .first<{ c: string | null }>()
+      )?.c,
+    ).toBeNull();
+    await db
+      .prepare(`UPDATE "session" SET "createdAt" = ? WHERE "userId" = ?`)
+      .bind(new Date().toISOString(), me?.id ?? "")
+      .run();
+    const closed = await call(
+      "/settings/account",
+      { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: form },
+      authEnv,
+    );
+    expect(closed.status).toBe(303);
+    expect(
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(org)
+          .first<{ c: string | null }>()
+      )?.c,
+    ).not.toBeNull();
+  });
+
+  it("rechecks ownership and closure when the owner returns from signing in again (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    const closedAt = async () =>
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(org)
+          .first<{ c: string | null }>()
+      )?.c;
+    // Ownership removed while away: the return offers no confirmation and no export, and nothing closes.
+    await db
+      .prepare(`DELETE FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+      .bind(org, me?.id ?? "")
+      .run();
+    const lostPage = await call(`/settings/account/close?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(lostPage.status).toBe(303);
+    const lostExport = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(lostExport.status).toBe(404);
+    expect(await closedAt()).toBeNull();
+    // Closed while away: the return names the closure and a late press keeps the first stamp.
+    await join(org, me?.id ?? "", "owner");
+    const confirmPage = await call(`/settings/account/close?org=${org}`, { headers: { cookie } }, authEnv);
+    const token = /name="confirm" value="([^"]*)"/.exec(await confirmPage.text())?.[1] ?? "";
+    expect(token).not.toBe("");
+    const first = new Date("2026-10-27T00:00:00.000Z");
+    await closeOrganisation(db, org, me?.id ?? "", first);
+    const backPage = await call(`/settings/account/close?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(backPage.status).toBe(303);
+    expect(decodeURIComponent(backPage.headers.get("location") ?? "")).toContain("r=org-closed");
+    await call(
+      "/settings/account",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ action: "close-account", id: org, confirm: token }),
+      },
+      authEnv,
+    );
+    expect(await closedAt()).toBe(first.toISOString());
   });
 
   it("refuses forwarded mail for a closed organisation", async () => {
@@ -193,6 +527,123 @@ describe("the scheduled purge", () => {
     expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(1);
   });
 
+  it("never purges an eligible organisation with a protected member, and refuses its next case", async () => {
+    const org = await organisation();
+    const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
+    await join(org, owner, "owner");
+    await join(org, await user("derick@rizonetech.com"));
+    await db
+      .prepare(`UPDATE "organization" SET "closedAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 26 * 86_400_000).toISOString(), org)
+      .run();
+    const report = await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
+    expect(report.purged).not.toContain(org);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(1);
+    const admitted = await admitCase(db, {
+      orgId: org,
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: owner,
+    }).catch(() => null);
+    expect(admitted && "ok" in admitted ? admitted.ok : false).toBe(false);
+    expect(await count(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`, org)).toBe(0);
+  });
+
+  it("resumes an interrupted purge on the next run", async () => {
+    const org = await organisation();
+    const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
+    await join(org, owner, "owner");
+    for (const _n of [1, 2]) {
+      const caseId = `case-${tag()}`;
+      await db
+        .prepare(
+          `INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, ?)`,
+        )
+        .bind(caseId, org, now(), now())
+        .run();
+      const key = `raw/${caseId}/message.eml`;
+      await bucket.put(key, "mail");
+      await db
+        .prepare(
+          `INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', ?, 'message/rfc822', 4)`,
+        )
+        .bind(key, caseId, "a".repeat(64))
+        .run();
+    }
+    const first = await purgeOrganisation({ DB: db, ARTEFACTS: bucket }, org, 1);
+    expect(first.done).toBe(false);
+    const second = await purgeOrganisation({ DB: db, ARTEFACTS: bucket }, org, 200);
+    expect(second.done).toBe(true);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(0);
+  });
+
+  it("cleans up an interrupted signup's user, organisation and redemption together", async () => {
+    const code = await db
+      .prepare(
+        `INSERT INTO invite_codes (id, code_hash, label, max_uses, expires_at, created_at) VALUES (?, ?, 'test', 1, ?, ?) RETURNING id`,
+      )
+      .bind(crypto.randomUUID(), "c".repeat(64), new Date(Date.now() + 86_400_000).toISOString(), now())
+      .first<{ id: string }>();
+    const redemptionId = crypto.randomUUID();
+    const interrupted = await user(`interrupted-${tag()}@demo.isitlegit.co.za`);
+    const orgId = `org-made-${tag()}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Interrupted', ?, ?)`)
+      .bind(orgId, `org-${redemptionId}`, now())
+      .run();
+    await join(orgId, interrupted, "owner");
+    const old = new Date(Date.now() - 31 * 86_400_000).toISOString();
+    await db
+      .prepare(
+        `INSERT INTO invite_redemptions (id, code_id, email, status, user_id, org_id, consented_at, created_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
+      )
+      .bind(redemptionId, code?.id, `interrupted-${tag()}@demo.isitlegit.co.za`, interrupted, orgId, old, old)
+      .run();
+    await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
+    expect(await count(`SELECT COUNT(*) AS n FROM invite_redemptions WHERE id = ?`, redemptionId)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE id = ?`, interrupted)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, orgId)).toBe(0);
+  });
+
+  it("recovers when a run fails between the object and its row, then finishes on the next run", async () => {
+    const org = await organisation();
+    const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
+    await join(org, owner, "owner");
+    const caseId = `case-${tag()}`;
+    await db
+      .prepare(
+        `INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, ?)`,
+      )
+      .bind(caseId, org, now(), now())
+      .run();
+    const key = `raw/${caseId}/message.eml`;
+    await bucket.put(key, "mail");
+    await db
+      .prepare(
+        `INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', ?, 'message/rfc822', 4)`,
+      )
+      .bind(key, caseId, "a".repeat(64))
+      .run();
+    await db
+      .prepare(`UPDATE "organization" SET "closedAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 26 * 86_400_000).toISOString(), org)
+      .run();
+    // The object goes, its row does not: the first scheduled run reports the failure, the second finishes.
+    const failing = {
+      ...bucket,
+      delete: async (k: string) => {
+        await bucket.delete(k);
+        throw new Error("interrupted");
+      },
+    } as unknown as R2Bucket;
+    const first = await scheduledClosurePurge({ DB: db, ARTEFACTS: failing }, new Date());
+    expect(first.failed.map((f) => f.id)).toContain(org);
+    expect(await bucket.head(key)).toBeNull();
+    const second = await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
+    expect(second.purged).toContain(org);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(0);
+  });
+
   it("deletes an abandoned signup untouched for 30 days, and keeps a completed one", async () => {
     const code = await db
       .prepare(
@@ -208,8 +659,18 @@ describe("the scheduled purge", () => {
       )
       .bind(crypto.randomUUID(), code?.id, `orphan-${tag()}@demo.isitlegit.co.za`, orphan, old, old)
       .run();
+    // A completed signup of an open organisation is its consent record and stays, however old.
+    const keeper = await user(`keeper-${tag()}@demo.isitlegit.co.za`);
+    await db
+      .prepare(
+        `INSERT INTO invite_redemptions (id, code_id, email, status, user_id, consented_at, created_at) VALUES (?, ?, ?, 'complete', ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), code?.id, `keeper-${tag()}@demo.isitlegit.co.za`, keeper, old, old)
+      .run();
     await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
     expect(await count(`SELECT COUNT(*) AS n FROM invite_redemptions WHERE user_id = ?`, orphan)).toBe(0);
     expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE id = ?`, orphan)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM invite_redemptions WHERE user_id = ?`, keeper)).toBe(1);
+    expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE id = ?`, keeper)).toBe(1);
   });
 });

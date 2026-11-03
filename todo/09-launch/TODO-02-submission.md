@@ -92,6 +92,8 @@ Every runtime and development dependency in the lockfiles, every vendored file a
 
 The 3-minute script from spec 5, updated for the decisions (fictional mail provider, no WhatsApp, voice note upload): exact fixtures, which inbox forwards what, what appears on screen when, the model-trace panel open (`?trace=1`), and the uncut forward-to-reply take with an on-screen clock.
 
+> **Started:** 2026-10-31T16:00Z (media lane; design: `docs/specs/2026-10-31-demo-video-design.md`)
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
@@ -111,7 +113,11 @@ The 3-minute script from spec 5, updated for the decisions (fictional mail provi
 
 ## 4. Remotion title cards and animation
 
-Title cards, the animated architecture diagram and the model-trace highlight cards in Remotion 4.x (`video/`), rendered to MP4 for the operator's edit (plan Day 8).
+Title cards, the animated architecture diagram and the model-trace highlight cards in Remotion 4.x (`media/`), rendered to MP4 for the demo video (plan Day 8).
+
+**Corrected 2026-10-31 (coordinator, 21fc5c8d):** the section moved to the media lane and lives in the existing `media/` Remotion root, not a new `video/` workspace package: `media/` already pins `remotion` and `@remotion/cli` 4.0.539 and holds the brand kit, fact pinning and voice pipeline, so a second install would duplicate them.
+
+> **Started:** 2026-10-31T16:00Z (media lane; design: `docs/specs/2026-10-31-demo-video-design.md`)
 
 **Phase:** 6
 **Needs:** none
@@ -119,14 +125,14 @@ Title cards, the animated architecture diagram and the model-trace highlight car
 
 **Build order:**
 
-1. Build the Remotion project. Done when: `pnpm --filter video render` writes the MP4 files.
+1. Build the demo compositions in `media/`. Done when: `cd media && pnpm render:demo` writes the MP4 files.
 
-- [ ] Create `video/` as a workspace package with exact `remotion` and `@remotion/cli` 4.0.539, the IsItLegit fonts and tokens, and record the Remotion Free License basis in `NOTICE.md`. Done when: the package installs.
+- [ ] Add a `render:demo` script to `media/package.json` that renders the demo compositions from `media/src/index.ts` (exact `remotion` and `@remotion/cli` 4.0.539, the IsItLegit fonts and tokens; the Remotion Free License basis is recorded in D10 T01 §2). Done when: `cd media && pnpm render:demo` runs.
 - [ ] Build compositions: opening title, architecture diagram (intake, Workflow steps, each Meta model, reply), one card per Meta model, and the closing card with the repository URL. Done when: each renders.
-- [ ] Render to `video/out/*.mp4` (git-ignored) and list them in `docs/demo-script.md`. Done when: the files exist.
-- [ ] Commit: `video: Remotion title cards and architecture animation`
+- [ ] Render to `media/out/demo-*.mp4` (git-ignored) and list them in `docs/demo-script.md`. Done when: the files exist.
+- [ ] Commit: `media: demo title cards and architecture animation`
 
-**Test checkpoint:** `pnpm --filter video render && ls video/out/*.mp4 | wc -l` prints at least `4`.
+**Test checkpoint:** `cd media && pnpm render:demo && ls out/demo-*.mp4 | wc -l` prints at least `4`.
 
 ## 5. Final eval run and dashboard screenshot
 

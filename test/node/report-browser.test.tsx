@@ -90,6 +90,10 @@ async function open(body: string, width: number, theme: "light" | "dark") {
   await p.route(`${APP}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.startsWith("/r/")) return route.fulfill({ status: 200, contentType: "text/html", body });
+    // The Cases list the report's Back link and u key return to: Google Chrome (CI) swaps an empty 404 for its own
+    // chrome-error page, so the list must answer as the app does for the return to be observable.
+    if (path === "/cases")
+      return route.fulfill({ status: 200, contentType: "text/html", body: "<title>Cases</title>" });
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });

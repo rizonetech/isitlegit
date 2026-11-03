@@ -9,8 +9,9 @@
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { parsedKey, peekArtefact, rawKey, readArtefact, readVisible, type Store, StoreError } from "../../intake/store";
+import { referenceLogos } from "../../vision/logo-reference";
 import { verifyReportLink } from "../report-link";
-import { artefactFailed, artefactGone, errorPage, HEADERS, reference } from "./errors";
+import { artefactFailed, artefactGone, attachmentHeaders, errorPage, HEADERS, reference } from "./errors";
 
 export const artefactRoutes = new Hono<{ Bindings: Env }>();
 
@@ -223,8 +224,6 @@ async function originalView(store: Store, id: string, part: ViewPart) {
   return { part, ...cut(text), source };
 }
 
-const filename = (key: string) => (key.split("/").pop() ?? "file").replace(/[^A-Za-z0-9._-]/g, "_").slice(-120);
-
 artefactRoutes.get("/a/:caseId/:key", async (c) => {
   const id = c.req.param("caseId");
   const key = c.req.param("key");
@@ -280,6 +279,33 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       .bind(id, orgId)
       .first<{ createdAt: string }>();
     if (!owned) return answer(errorPage(404, id));
+    // A brand's reference logo, drawn beside a logo crop (D07 T03 §14): not a case artefact, but served only
+    // under this route's access rule, verified above for this case. The reference store's own hash check
+    // stands behind the bytes; a brand with none, or a changed reference, answers not found, which the report
+    // draws as a missing image, never a wrong logo.
+    if (key.startsWith("ref-logo:") || key.startsWith("ref-logo-icon:")) {
+      const icon = key.startsWith("ref-logo-icon:");
+      const brand = key.slice(icon ? "ref-logo-icon:".length : "ref-logo:".length).trim();
+      if (!brand) return answer(errorPage(404, id));
+      try {
+        const logos = await referenceLogos(c.env.ARTEFACTS, brand);
+        const logo = icon ? logos.find((entry) => entry.variant === "icon") : logos[0];
+        if (!logo) return answer(errorPage(404, id));
+        return answer(
+          new Response(logo.bytes as BodyInit, {
+            headers: {
+              ...HEADERS,
+              "content-type": logo.mediaType,
+              "content-disposition": inline ? "inline" : "attachment",
+              "x-content-type-options": "nosniff",
+              "content-security-policy": "sandbox; default-src 'none'",
+            },
+          }),
+        );
+      } catch {
+        return answer(errorPage(404, id));
+      }
+    }
     const store = { bucket: c.env.ARTEFACTS, db: c.env.DB };
     // A preview reads the case's parsed summary and visible text, never the raw message itself: it only checks that the
     // message is the case's and still stored, without reading its body (up to 25 MiB).
@@ -318,8 +344,7 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       headers["content-type"] = audio;
       headers["content-disposition"] = "inline";
     } else {
-      headers["content-type"] = "application/octet-stream";
-      headers["content-disposition"] = `attachment; filename="${filename(key)}"`;
+      Object.assign(headers, attachmentHeaders(key));
     }
     return answer(new Response(file.body, { headers }));
   } catch (error) {

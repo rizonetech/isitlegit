@@ -74,6 +74,8 @@ const shell = () => {
   return rest;
 };
 
+let turn = 0;
+
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/probe") {
@@ -83,11 +85,13 @@ async function answer(req: IncomingMessage): Promise<Response> {
     return new Response(null, { status: 204 });
   }
   if (url.pathname === "/team" && req.method === "POST") {
+    const myTurn = turn;
     state.posts++;
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const form = new URLSearchParams(Buffer.concat(chunks).toString());
     await new Promise((done) => setTimeout(done, state.delay));
+    if (myTurn !== turn) return new Response(null, { status: 204 });
     // As src/web/pages/team.tsx answers a reader who is now a member: the notice as a redirect for htmx, else 403.
     if (state.reader.role === "member")
       return req.headers["hx-request"] === "true"
@@ -225,6 +229,7 @@ afterAll(async () => {
   await new Promise<void>((done) => server?.close(() => done()));
 });
 afterEach(() => {
+  turn++;
   Object.assign(state, {
     members: fresh(),
     reader: { userId: "u-thandi", role: "owner" },
@@ -235,10 +240,11 @@ afterEach(() => {
   });
 });
 
-async function open(path = "/team", options: { width?: number; js?: boolean } = {}) {
+async function open(path = "/team", options: { width?: number; js?: boolean; theme?: "light" | "dark" } = {}) {
   const context: BrowserContext = await browser.newContext({
     viewport: { width: options.width ?? 1280, height: 900 },
     javaScriptEnabled: options.js ?? true,
+    ...(options.theme ? { colorScheme: options.theme } : {}),
   });
   const p: Page = await context.newPage();
   await p.goto(`${origin}${path}`, { waitUntil: "load" });
@@ -492,8 +498,15 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     for (const width of [360, 1280] as const)
       for (const js of [true, false])
         it(`filters the history by person and pages with More (${theme}, ${width} px, ${js ? "with" : "without"} JavaScript) (D07 T04 §24)`, async () => {
-          const { p, context } = await open("/team", { width, js });
-          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          const { p, context } = await open("/team", { width, js, theme });
+          const themed = () =>
+            p.evaluate(
+              (t) =>
+                window.matchMedia(`(prefers-color-scheme: ${t})`).matches &&
+                getComputedStyle(document.documentElement).colorScheme.includes(t),
+              theme,
+            );
+          await expect.poll(themed).toBe(true);
           // By keyboard: type the person's name in the select, then press Apply with Enter.
           await p.locator("#history-person").focus();
           await p.keyboard.type("Sipho");
@@ -501,6 +514,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
           await p.keyboard.press("Enter");
           await expect.poll(() => p.url()).toContain("person=u-sipho");
           await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await expect.poll(themed).toBe(true);
           await expect.poll(() => p.getByText("Member removed").first().textContent()).toBeTruthy();
           expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
           if (js) {
@@ -511,6 +525,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
           await p.keyboard.press("Enter");
           await expect.poll(() => p.url()).toContain("after=");
           await expect.poll(() => p.locator("#history-person").inputValue()).toBe("u-sipho");
+          await expect.poll(themed).toBe(true);
           await context.close();
         });
 });

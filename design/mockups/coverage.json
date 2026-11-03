@@ -2378,7 +2378,7 @@
     "reason": "the Email-Weekly board awaits operator approval; the built weekly counts email is proven by its mail tests"
    },
    {
-    "name": "Fridays 16:00 SAST",
+    "name": "Fridays at 16h00 SAST",
     "kind": "state",
     "deferred": "D07 T04 §20",
     "reason": "the Email-Weekly board awaits operator approval; the Friday send window is proven by its mail tests"

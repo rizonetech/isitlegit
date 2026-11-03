@@ -130,6 +130,24 @@ export function PasskeyOption(props: { next: string }) {
         Sign in with a passkey
       </Button>
       <p data-passkey-message role="alert" class="text-14 text-mal empty:hidden" />
+      <div data-passkey-help hidden>
+        <PasskeyHelp />
+      </div>
+    </div>
+  );
+}
+
+// Why a phone passkey may not answer, and what to change (D07 T02 §28): in the prompt's panel while the ceremony
+// runs, and on the sign-in page after it is cancelled or fails, where the retry and the email route are.
+export function PasskeyHelp() {
+  return (
+    <div class="rounded-card bg-subtle px-16 py-12 flex flex-col gap-4">
+      <p class="text-14 weight-text-strong">Still stuck? Three usual causes</p>
+      <ul class="text-14 text-muted flex flex-col gap-4">
+        <li>Your phone has no screen lock: set up a PIN, fingerprint or face lock, then try again.</li>
+        <li>Your browser is older and cannot use a phone passkey: update it, or sign in with an email link.</li>
+        <li>Bluetooth is off: turn it on on this device and on your phone, then try again.</li>
+      </ul>
     </div>
   );
 }
@@ -145,8 +163,13 @@ export function PasskeyPrompt() {
       >
         <div class="rounded-card bg-subtle px-16 py-12 flex flex-col gap-4">
           <p class="text-14 weight-text-strong">No passkey found on this device?</p>
-          <p class="text-14 text-muted">Sign in with an email link, then add a passkey under Account.</p>
+          <p class="text-14 text-muted">
+            If your passkey is on your phone or tablet, choose the QR code option in the window your browser opened,
+            scan it with your phone (Bluetooth on both), then approve and unlock on your phone. Or sign in with an email
+            link, then add a passkey under Account.
+          </p>
         </div>
+        <PasskeyHelp />
         <div class="flex flex-col gap-12">
           <Button type="button" variant="dark" data-passkey-start>
             Try the passkey again

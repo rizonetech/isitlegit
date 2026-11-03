@@ -116,8 +116,14 @@ describe("the monitor pipeline", () => {
     const checks = evidence.map((e) => e.check);
     expect(checks).toContain("vision.logo_match");
     expect(checks).toContain("link.credential_form");
-    expect(evidence.find((e) => e.check === "vision.logo_match")?.severity).toBe("high");
-    expect(JSON.stringify(evidence)).not.toContain("ident/");
+    const logoItem = evidence.find((e) => e.check === "vision.logo_match");
+    expect(logoItem?.severity).toBe("high");
+    expect(logoItem?.detail).toMatchObject({
+      checked: true,
+      reference_key: `ident/${orgId}/logo.png`,
+      reference_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+    expect(evidence.flatMap((e) => e.artefacts).some((k) => k.startsWith("ident/"))).toBe(false);
     expect(walked).toEqual([row?.case_id]);
     // A repeated run skips the settled investigation and walks nothing again.
     const again = await monitorPipeline(deps(walked), orgId, "2026-11-01T00:00:00.000Z");
@@ -157,8 +163,13 @@ describe("the monitor pipeline", () => {
         .bind(org)
         .first<{ case_id: string }>();
       const evidence = await readEvidence(db, row?.case_id as string);
-      expect(evidence.some((e) => e.check === "vision.logo_match")).toBe(true);
-      expect(JSON.stringify(evidence)).not.toContain("ident/");
+      const logoItem = evidence.find((e) => e.check === "vision.logo_match");
+      expect(logoItem?.detail).toMatchObject({
+        checked: true,
+        reference_key: `ident/${org}/logo.png`,
+        reference_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      });
+      expect(evidence.flatMap((e) => e.artefacts).some((k) => k.startsWith("ident/"))).toBe(false);
     }
     // Each comparison received its own organisation's reference (distinct sizes, A then B).
     expect(references).toHaveLength(2);

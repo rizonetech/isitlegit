@@ -21,6 +21,7 @@ track: day-2
 - -> XREF: D07 T09 §7 -- the walkthrough refusal and reuse cards filed from D04 T02 §6, moved there at the 2026-11-02 gate merge when this file reached 55 sections
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
+- -> XREF: D02 T03 §12 -- the lookalike clean summary naming the domains compared, filed by §44's completion review
 - -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
 - -> XREF: D04 T01 §2 -- `case_verdicts.reasons` as `{ text, evidenceIds }[]` (each id an evidence item of the case; old `string[]` rows read as `{ text, evidenceIds: [] }`) and `VerdictView.meaning`, the banner's one sentence (old rows null), which §2's banner draws (cross-lane contract agreed 2026-10-31)
 - -> XREF: D04 T01 §5 -- the citation check that refuses a reason with no `evidenceIds` or an id not on the case, so every reason the banner shows has its evidence card
@@ -53,12 +54,12 @@ track: day-2
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
 | 8 | §8 | Full-size evidence viewer | §3 | [x] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
-| 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
+| 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [x] |
 | 11 | §11 | Follow-up question from | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
-| 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
-| 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
+| 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [x] |
+| 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [x] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [x] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
@@ -87,7 +88,7 @@ track: day-2
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
-| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [x] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
 | 47 | §47 | Previous attempt of a | §20 | [ ] |
@@ -158,7 +159,7 @@ The top of the report answers the question in a glance (spec 4.7, manifesto): ve
 >
 > **Deferred:** the ledger links in the actions ("Open <supplier> in the ledger", the Safe board's "supplier ledger") -> XREF: D06 T01 §6
 >
-> **Deferred:** the stored one-sentence meaning (asked of the checks lane through the coordinator, 2026-10-31); the fixed per-verdict sentence is drawn until it lands -> XREF: D07 T03 §10
+> **Resolved:** the stored one-sentence meaning -> XREF: D07 T03 §10. Resolved 2026-11-03 by D07 T03 §10: the band and both reply bodies draw the stored `meaning`, the fixed sentence only when none is stored.
 
 **Phase:** 2
 **Needs:** none
@@ -478,7 +479,11 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 
 ## 10. Stored verdict sentence, reasons
 
+> **Started:** 2026-11-03T02:19:37Z
+
 The verdict banner's third line is one sentence on what the verdict means for this message (`design/SPEC.md` M3, board `Main`: "The link leads to a lookalike login page that sends your password to someone else. Do not use it."). Filed 2026-10-31 from §2's validation: the stored verdict holds a headline but no such sentence, so §2 draws a fixed sentence per verdict until the verdict carries one (asked of the checks lane through the coordinator for D04 T01 §2's VerdictView change).
+
+> **Corrected 2026-11-03 (plan review):** The prerequisite has shipped: migration `0069_verdict_meaning.sql` and `src/db/verdicts.ts` already store and read `meaning` and structured reasons, so no reader is waited on; the remaining work is consumer rendering and its coverage. The band's "wraps" proof belongs in a browser test (serialized HTML cannot prove layout), the route proof carries the distinctive sentence as well as its reasons, and the reply's hostile stored sentence needs an escaping proof in both bodies: `meaningWords` supplies the plain text, `replyDesign` draws the HTML band independently.
 
 **Phase:** 7
 **Needs:** none
@@ -492,12 +497,17 @@ The verdict banner's third line is one sentence on what the verdict means for th
 
 1. Draw the stored sentence. Done when: a verdict with its sentence draws it and an older one draws the fixed sentence.
 
-- [ ] Draw the verdict's stored meaning sentence as the band's sentence in `src/web/pages/report-verdict.tsx`, and the fixed per-verdict sentence (§2) only when the stored verdict has none. Done when: `test/web/report-verdict.test.ts` draws a stored sentence, an older verdict draws its fixed one, and a hostile sentence (markup, 300 characters) renders as text and wraps.
-- [ ] Read a stored structured reason back through the report route once the checks lane's reader returns `{ text, evidenceIds }` (D04 T01 §2): the route test stores a structured verdict and finds its pills. Done when: `test/web/report-verdict.test.ts` reads one back through the route. **Added 2026-10-31** (D07 T03 §2's plan review).
-- [ ] Draw the stored sentence in the reply too: `meaningWords` in `src/mail/templates/reply.ts` uses the stored `meaning` for the plain-text body and the HTML band, and the fixed per-verdict sentence only when it is null. Done when: `test/mail/reply-design.test.ts` draws a distinctive stored sentence in both bodies and a null one draws the fixed sentence. Source: D04 T01 §2's completion review, 2026-11-01.
-- [ ] Commit: `web: the verdict banner draws its stored sentence`
+- [x] Draw the verdict's stored meaning sentence as the band's sentence in `src/web/pages/report-verdict.tsx`, and the fixed per-verdict sentence (§2) only when the stored verdict has none. Done when: `test/web/report-verdict.test.ts` draws a stored sentence, an older verdict draws its fixed one, and a hostile sentence (markup, 300 characters) renders as text; its wrapping is proven in the browser item below.
+- [x] Read a stored structured reason back through the report route (the checks lane's reader returns `{ text, evidenceIds }`, D04 T01 §2, shipped): the route test stores a structured verdict and finds its pills and its distinctive stored sentence. Done when: `test/web/report-verdict.test.ts` reads one back through the route. **Added 2026-10-31** (D07 T03 §2's plan review).
+- [x] Draw the stored sentence in the reply too: `meaningWords` in `src/mail/templates/reply.ts` uses the stored `meaning` for the plain-text body, `replyDesign`'s HTML band uses it too, and the fixed per-verdict sentence only when it is null. Done when: `test/mail/reply-design.test.ts` draws a distinctive stored sentence in both bodies, a null one draws the fixed sentence, and hostile stored markup stays literal in the plain text and escaped text with no injected element in the HTML. Source: D04 T01 §2's completion review, 2026-11-01.
+- [x] Prove the long stored sentence in a browser: `test/node/report-verdict-browser.test.tsx` draws a 300-character stored sentence in the band at phone and desktop widths, fully visible with no sideways scroll. Done when: the test passes at both widths. Cheaper substitute: asserting on serialized HTML, which cannot prove the sentence wraps.
+- [x] Commit: `web: the verdict banner draws its stored sentence`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
+**Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts test/mail/reply-design.test.ts test/node/report-verdict-browser.test.tsx` passes with the stored sentence drawn in the band and the reply.
+
+> **Verified:** 2026-11-03 | §10 | 513ba4477c691fd7030fb791d5c90aacfa580ebc
+> **Review:** `docs/reviews/d07-t03-s10.json`
+
 
 ## 11. Follow-up question from
 
@@ -540,6 +550,8 @@ A reputation finding shows the provider, what was listed, when, and the delistin
 **Job:** a sceptical reader sees the proof behind this kind of finding
 **Treatment:** the card frame of §3, the artefact as proof
 **Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
+
+> **Corrected 2026-11-03 (plan review):** The vision items are pipeline evidence, not registered checks, so the registry assertions cannot prove this family: the wiring (wording, family, dispatch) and a fixture per producer name are named as their own steps. The brand finding is `vision.brand_domain_mismatch` (no `brand.*` check exists). The logo item stores only the crop, not which reference variant was compared, so the card draws the brand's current reference beside the crop, labelled as the reference, with the stored differences carrying the comparison; the exact compared variant is the producer's to record (asked of the coordinator for the vision lane). Every operational variant is drawn in plain words: a check that could not run (`checked: false`, coverage losses, a not-checked reason) never reads as a successful comparison. Hostile detail (brand, sender, quotes, differences, domains) renders as escaped text, and a stored `source_url` is never drawn as a link. Images come through the artefact route's inline mode with the link holder's signature parameters kept, in the full-size viewer, with the app script's failure and retry state.
 
 **Build order:**
 
@@ -593,6 +605,8 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 
 ## 14. Vision and brand cards
 
+> **Started:** 2026-11-03T02:54:22Z
+
 A vision finding shows the rendered page or the logo crop beside its reference, and a brand finding the claimed brand against its real domains (M3, board `Main`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
 **Phase:** 7
@@ -605,14 +619,27 @@ A vision finding shows the rendered page or the logo crop beside its reference, 
 
 **Build order:**
 
-1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+1. Wire the family: `vision` in `FAMILIES` and `RENDERERS`, and every producer's check name in `CHECK_WORDS`. Done when: each `vision.*` name the producers write reaches its renderer in a test.
+2. Draw each check's card from its producer's stored detail. Done when: a producer-shaped fixture of each check draws its fields, hostile text as text.
+3. Serve the brand's reference logo beside the crop through the report's authorised file route. Done when: the crop and the reference draw in a browser from real image bytes, and a missing one reads as missing.
+4. Prove it in the browser at both widths in both themes. Done when: the checkpoint below passes.
 
-- [ ] Draw `vision` cards (the render with what was read, the logo crop beside the reference) and `brand` cards (the claimed brand, its real domains, the sending domain). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a logo fixture draws its crop beside the reference.
-- [ ] Commit: `web: vision and brand cards`
+- [x] Wire the family: add `vision` to `FAMILIES` and `RENDERERS` in `src/web/components/evidence/cards.tsx` and each producer name (`vision.claimed_brand`, `vision.requested_action`, `vision.urgency`, `vision.coverage`, `vision.not_checked`, `vision.logo_match`, `vision.brand_domain_mismatch`) to `CHECK_WORDS` in `src/web/components/evidence/check-words.ts`. Done when: `test/web/evidence-cards.test.ts` asserts each name maps to the vision family and reaches its renderer. Cheaper substitute: leaving the names unmapped, so every vision card stays plain while the registry test passes.
+- [x] Draw the reading cards: `vision.claimed_brand` (the picture it was read from as a figure through the artefact route's inline mode, the brand claimed, the visible sender), `vision.requested_action` (what it asks, a payment flag) and `vision.urgency` (its pressure quotes), each with the stored confidence. Done when: producer-shaped fixtures draw each field in `test/web/evidence-cards.test.ts`, hostile brand, sender and quote text as text. Cheaper substitute: the summary alone, which asks the reader to trust a reading they cannot see.
+- [x] Draw the statements that are not findings: `vision.coverage` names its losses, `vision.not_checked` its reason, and a `vision.logo_match` or `vision.brand_domain_mismatch` with `checked: false` says the comparison did not run and why. Done when: fixtures of each draw those words and none reads as a match or a clearance.
+- [x] Draw the logo card: the crop as a figure beside the brand's reference logo (served by the artefact route for a `ref-logo:` key, under the report's own access rule, labelled with the brand), the differences named, and the domain state in words (the brand's own domain, not its domain, or not judged). Done when: fixtures draw each state, and the browser test below draws real crop and reference bytes side by side. Cheaper substitute: the crop alone, which proves a logo was found but not what it was compared with.
+- [x] Draw the brand card: `vision.brand_domain_mismatch` with the brand claimed, its real domains, and each compared address with its kind (sent from, leads to, shown) and its judgement, confirmed and unconfirmed apart; a stored `source_url` is drawn as text, never a link. Done when: producer-shaped fixtures (sender, landing and visible kinds; confirmed and unconfirmed) draw them, hostile domains as text.
+- [x] Prove the journey in a browser: stored producer-shaped vision evidence through the member and signed-link report draws in `test/node/evidence-cards-browser.test.tsx` at 360 and 1280 in both themes, the lure (`vision.requested_action`) among them, real image bytes loading, a missing image in the app script's failure state, long hostile text wrapping, keyboard operation and the accessibility gate. Done when: the test passes and fails with the vision dispatch removed.
+- [x] Commit: `web: vision and brand cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
 
+> **Verified:** 2026-11-03 | §14 | 02b99d1e1e6055ca4767a57745568e66738419f5
+> **Review:** `docs/reviews/d07-t03-s14.json`
+
 ## 15. Invoice and document cards
+
+> **Started:** 2026-11-03T03:41:30Z
 
 An invoice finding shows the masked comparison of the invoice's bank details with the ledger, and a payment document its fields and the limit statement (M3, board `Report-Invoice`; S3 payment document card). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
@@ -624,14 +651,29 @@ An invoice finding shows the masked comparison of the invoice's bank details wit
 **Treatment:** the card frame of §3, the artefact as proof
 **Chrome:** `EvidenceCard`, `EvidenceFigure`, `EvidenceQuote` (D07 T01 §7)
 
+> **Corrected 2026-11-03 (plan review):** The producers store only the submitted side masked (`account_last3`, `beneficiary_masked`), the comparison source (`against`: the supplier ledger or the registered account) and the outcome, never the recorded side's masked fields, so the card draws exactly that and never infers which fields differ or what the recorded account ends in; the registered side stays match or no match only (the safety contract). No outlined PDF page is stored either: the card links the document itself through the artefact route (its file states already honest), and an outlined, masked page preview is producer work asked of the coordinator for the trust lane. A stored phone is never drawn, from the ledger or the document: the card tells the reader to phone the number in their own records, so no number from a message or document can become the confirmation contact. Only an allowlist of stored fields is drawn; `supplier_id`, `protected_org_id` and any unexpected key never reach the page.
+> **Deferred:** outlined, masked bank-block page preview on invoice and payment cards -> XREF: D07 T09 §20
+> **Deferred:** baseline verification provenance on invoice and payment comparisons -> XREF: D07 T09 §21
+
 **Build order:**
 
-1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
+1. Wire the families: `invoice` in `FAMILIES` and `RENDERERS`, every producer name in `CHECK_WORDS`, and the payment-document names dispatched in the document renderer beside `document.forensics.*`. Done when: each name reaches its renderer in a test.
+2. Draw each check's card from its producer's stored detail, masked and allowlisted. Done when: a producer-shaped fixture of each check draws its fields, and a hostile fixture proves nothing unmasked, internal or unexpected is drawn.
+3. State every could-not-run in plain words. Done when: each reason code draws its sentence and none reads as a match, a mismatch or a clearance.
+4. Prove it stored, through the report route and in a browser. Done when: the checkpoint below passes.
 
-- [ ] Draw `invoice` cards (the masked field comparison with the ledger and the registered account, the PDF page with the bank block outlined) and `document` cards (the extracted fields, the layout finding, the limit statement). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and an account number is never drawn unmasked.
-- [ ] Commit: `web: invoice and document cards`
+- [x] Wire the families: add `invoice` to `FAMILIES` and `RENDERERS` in `src/web/components/evidence/cards.tsx`; add `invoice.detected`, `invoice.bank_changed`, `invoice.supplier_domain_changed`, `invoice.change_language`, `invoice.comparison_unavailable`, `invoice.not_checked` and `document.type`, `document.layout_mismatch`, `document.beneficiary_match`, `document.beneficiary_mismatch`, `document.comparison_unavailable`, `document.not_checked`, `document.limit`, `document.proof_of_payment` to `CHECK_WORDS` in `src/web/components/evidence/check-words.ts`, dispatched in the document renderer. Done when: `test/web/evidence-cards.test.ts` asserts each name maps and reaches its renderer. Cheaper substitute: generic cards that name no comparison, which the registry test would still pass.
+- [x] Draw the invoice cards: `invoice.detected` (supplier, its domain, bank, account holder, account as `***` plus its last three, branch, amount, reference, due date), `invoice.bank_changed` (the submitted masked account, what it was compared against in words: your supplier ledger or the registered account, and that it differs), `invoice.supplier_domain_changed` (the domain it came from, never used before), `invoice.change_language` (the amount and masked account it arrived with). Done when: producer-shaped fixtures draw each field. Cheaper substitute: the verdict summary alone, which hides which document and which account were compared.
+- [x] Draw the payment-document cards: `document.type` (its kind, issuer, amount, dates, reference, beneficiary name and masked account, whether the layout was compared and, when not, why in plain words), `document.layout_mismatch` (each stored difference, and that a difference cannot prove the document was edited), `document.beneficiary_match` and `document.beneficiary_mismatch` (the submitted masked account, the comparison source, the outcome), `document.limit` and `document.proof_of_payment` (the stored limit statement). Done when: producer-shaped fixtures draw each, layout never worded as proof of editing.
+- [x] State every could-not-run in plain words: `invoice.comparison_unavailable` and `document.comparison_unavailable` (no recorded account, no account stated, an ambiguous supplier, the comparison keys, the rate limit), `invoice.not_checked` and `document.not_checked` (too large, too many pages or documents, a reading that failed), each saying the comparison did not run and is neither a match nor a mismatch. Done when: fixtures of each code draw its sentence.
+- [x] Prove the privacy contract: a fixture whose detail carries a full account number, `supplier_id`, `protected_org_id`, a phone and an unexpected key draws none of them, in the cards and read back through the report route; hostile text draws as text. Done when: `test/web/evidence-cards.test.ts` asserts their absence from the rendered cards and the routed report.
+- [x] Prove the journey in a browser: producer-shaped stored invoice and payment-document findings draw in `test/node/evidence-cards-browser.test.tsx` at 360 and 1280 in both themes (the invoice bank-changed card among them), long text wrapping, the document linked through the artefact route, keyboard operation and the accessibility gate. Done when: the test passes and fails with the invoice dispatch removed.
+- [x] Commit: `web: invoice and document cards`
 
-**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the families' checks drawn, the invoice bank-changed card among them at both widths in both themes.
+
+> **Verified:** 2026-11-03 | §15 | d9052a60864f2c8659f65a8146a6ec54c0cc0081
+> **Review:** `docs/reviews/d07-t03-s15.json`
 
 ## 16. Voice cards
 
@@ -715,7 +757,7 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 - [x] Prove the refreshed region carries both: in `test/web/report-status.test.ts` (**Corrected 2026-10-31 (build):** named `report-access.test.ts`; the status route's own tests and their member and link setup live in `report-status.test.ts`), a case stored running is read through `GET /r/:caseId/status` (no count line, no list), then its outcomes and safe verdict are stored and the same route returns the count line and the clean list, for a signed-in member and for a signed-link reader (`?t=`). Done when: both readers get the finished count and list from the status route alone, without loading the page. Cheaper substitute: rendering in `report-view.tsx` only fails this test.
 - [x] Check the clean list in the browser in `test/node/report-verdict-browser.test.tsx`'s safe variant: at 360 and 1280 px, light and dark, a list holding a retired check's long stored name (100 characters, the column's limit) and the count line pass the accessibility gate's rules with no sideways scroll, and the list reads as a heading and a list. Done when: the variant's matrix passes with the long name present and fails when the list overflows (a `whitespace-nowrap` on its items fails it). **Planned 2026-10-31 (plan review P2).**
 - [x] Record the board's per-check result words as a SPEC deviation: `Report-Safe` follows each clean check with what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), which the outcomes do not store; the list draws "<check words>: nothing found". Add the `Deviation` bullet under `design/SPEC.md` M3 and ask the checks lane, through the coordinator, for a per-check result summary in the stored outcome. Done when: the bullet is in the SPEC with the reason, and the ask is sent and its section ref recorded here as a `Deferred:` line. **Corrected 2026-10-31 (completion review):** the checks lane filed its half as D02 T01 §7 (on checks-lane at 7dbb51f8), which does not resolve on this branch yet; the Deferred owner is D07 T03 §44, filed here, which draws the stored summary, removes the deviation and takes D02 T01 §7 as its dependency once that row reaches this branch.
-> **Deferred:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44
+> **Resolved:** the board's per-check result words in Checks that found nothing (SPEC M3 deviation) -> XREF: D07 T03 §44. Resolved 2026-11-03 by D07 T03 §44 in `50c72859` and `69e3f29b`: `CleanChecks` (`src/web/pages/report-live.tsx`) draws each clean check's stored summary; the lookalike check's words naming the domains it compared follow in D02 T03 §12.
 
 - [x] Commit: `web: the report counts its checks`
 
@@ -1073,7 +1115,7 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
 
-> **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+> **Resolved:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9. Resolved 2026-11-03 by D07 T09 §9 in `15656175` and `d2f5545e`: the invisible-characters card (`src/web/components/evidence/cards.tsx`) opens the stored decoded run whole under one disclosure, with its cut named.
 
 > **Verified:** 2026-11-02 | §29 | e42119edfe34dc4d752bd58fa2d973c0b3dbbfed
 > **Review:** `docs/reviews/d07-t03-s29.json`
@@ -1530,9 +1572,14 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 - [x] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met. (2026-11-02: resolve names it, unmet empty.)
 - [x] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
 - [x] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
-- [ ] Commit: `web: clean checks say what they saw`
+- [x] Commit: `web: clean checks say what they saw`
+
+> **Deferred:** the lookalike check's clean words naming the domains it compared -> XREF: D02 T03 §12
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
+
+> **Verified:** 2026-11-03 | §44 | 69e3f29bbddc1e7a61f90c9fa940effcf20da240
+> **Review:** `docs/reviews/d07-t03-s44.json`
 
 ## 45. Unverified receiving chain on the auth card
 
