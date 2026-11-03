@@ -57,8 +57,10 @@ describe("the passkey prompt and its recoveries", () => {
     stub.optionsDelayMs = 600;
     await press(p);
     await expect
-      .poll(() => p.textContent("main"))
-      .toContain("choose the QR code option in the window your browser opened, scan it with your phone (Bluetooth on both), then approve and unlock on your phone");
+      .poll(async () => (await p.textContent("main"))?.replace(/\s+/g, " "))
+      .toContain(
+        "choose the QR code option in the window your browser opened, scan it with your phone (Bluetooth on both), then approve and unlock on your phone",
+      );
     expect(await p.getByRole("button", { name: "Email me a link instead" }).isVisible()).toBe(true);
     stub.optionsDelayMs = 0;
     await context.close();
