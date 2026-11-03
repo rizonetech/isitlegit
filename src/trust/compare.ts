@@ -34,6 +34,7 @@ import {
   type ClaimRoute,
   claimInputFromView,
   detectClaims,
+  MIN_LOGO_CLAIM_CONFIDENCE,
   ROUTE_ORDER,
   readTrustClaimDetail,
 } from "./claim";
@@ -239,6 +240,11 @@ function parseClaimsFromItemsOrHits(
       cropKeys: h.cropKeys,
     }));
     for (const u of input.unavailable) pushUnique(unavailable, u);
+    for (const j of input.logoJudgements) {
+      if ((j.confidence ?? 1) < MIN_LOGO_CLAIM_CONFIDENCE) {
+        pushUnique(unavailable, "a logo comparison had low confidence");
+      }
+    }
     return { claims: draftItems, unavailable };
   }
 
@@ -253,6 +259,11 @@ function parseClaimsFromItemsOrHits(
           continue;
         }
         const d = parsed.detail;
+        for (const l of d.logos ?? []) {
+          if ((l.confidence ?? 1) < MIN_LOGO_CLAIM_CONFIDENCE) {
+            pushUnique(unavailable, "a logo comparison had low confidence");
+          }
+        }
         const cropKeys = entry.artefacts.filter((a) => a.startsWith("art/"));
         byOrg.set(d.orgId, {
           orgId: d.orgId,
@@ -266,6 +277,11 @@ function parseClaimsFromItemsOrHits(
         pushUnique(unavailable, "a stored trust.claim item was malformed and could not be read");
       }
       continue;
+    }
+    for (const l of entry.logos ?? []) {
+      if ((l.confidence ?? 1) < MIN_LOGO_CLAIM_CONFIDENCE) {
+        pushUnique(unavailable, "a logo comparison had low confidence");
+      }
     }
     byOrg.set(entry.orgId, entry);
   }
@@ -650,16 +666,20 @@ function hasTextualOrVoiceClaim(business: RegistryComparisonBusiness): boolean {
 }
 
 // A negative logo judgement (`same === false`) counts as a logo mismatch for `business` only when:
-// 1. No crop in the message matched `business`'s registered logo (`!business.logos.some(l => l.same === true)`), and
-// 2. The mismatching crop purports to be `business` (`l.brandSeen` matches `business.name` or `business.knownNames`),
-//    so an unrelated second graphic or partner badge never triggers false logo impersonation or suppresses
+// 1. No crop in the message matched `business`'s registered logo (`!business.logos.some(l => l.same === true && (l.confidence ?? 1) >= MIN_LOGO_CLAIM_CONFIDENCE)`),
+// 2. The mismatching crop has sufficient confidence (`(l.confidence ?? 1) >= MIN_LOGO_CLAIM_CONFIDENCE`), and
+// 3. The mismatching crop purports to be `business` (`l.brandSeen` matches `business.name` or `business.knownNames`),
+//    so an uncertain crop or an unrelated second graphic never triggers false logo impersonation or suppresses
 //    `trust.verified_sender`.
 function hasIdentityLogoMismatch(business: RegistryComparisonBusiness): boolean {
-  if (business.logos.some((l) => l.same === true)) {
+  if (business.logos.some((l) => l.same === true && (l.confidence ?? 1) >= MIN_LOGO_CLAIM_CONFIDENCE)) {
     return false;
   }
   const allNames = [business.name, ...(business.knownNames ?? [])];
-  return business.logos.some((l) => l.same === false && nameMatchesList(l.brandSeen, allNames));
+  return business.logos.some(
+    (l) =>
+      l.same === false && (l.confidence ?? 1) >= MIN_LOGO_CLAIM_CONFIDENCE && nameMatchesList(l.brandSeen, allNames),
+  );
 }
 
 function businessArtefacts(business: RegistryComparisonBusiness, rawKey: string | null): string[] {

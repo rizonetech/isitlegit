@@ -429,6 +429,58 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
     });
     expect(doctoredItems.find((i) => i.check === "trust.verified_sender")).toBeUndefined();
 
+    // 3b. Uncertain / low-confidence Fynbos logo crop (`confidence < MIN_LOGO_CLAIM_CONFIDENCE`, where upstream sets
+    //     `same: false`) on genuine authenticated Fynbos mail: records unavailable logo coverage, preserves
+    //     `trust.verified_sender`, and emits zero `trust.impersonation`.
+    const lowConfCaseId = ulid();
+    const lowConfView = withClaimLogos(
+      buildView({
+        caseId: lowConfCaseId,
+        orgId: checkerOrgId,
+        protectedCandidates: candidates,
+        headers: [
+          { name: "Received", value: "by mx.google.com with ESMTPS id lc1; Tue, 03 Nov 2026 12:00:00 +0200" },
+          {
+            name: "Authentication-Results",
+            value:
+              "mx.google.com; spf=pass smtp.mailfrom=fynbosfreight.co.za; dkim=pass header.d=fynbosfreight.co.za; dmarc=pass",
+          },
+          { name: "From", value: '"Fynbos Freight" <billing@fynbosfreight.co.za>' },
+        ],
+        text: "Monthly dispatch statement from Fynbos Freight.",
+      }),
+      {
+        logoJudgements: [
+          {
+            orgId: fynbosOrgId,
+            same: false,
+            brandSeen: "Fynbos Freight",
+            differences: ["blurry low-resolution crop"],
+            confidence: 0.35,
+            cropKey: `art/${lowConfCaseId}/crop/blurry-logo.png`,
+          },
+        ],
+        unavailable: [],
+      },
+    );
+    const lowConfClaimItems = claimEvidence(claimInputFromView(lowConfView));
+    const lowConfComparison = await prepareRegistryComparison(
+      { db, keys },
+      lowConfCaseId,
+      lowConfView,
+      lowConfClaimItems,
+    );
+    const lowConfItems = comparisonEvidence(lowConfComparison);
+    expect(lowConfItems.map((i) => i.check)).toEqual(["trust.verified_sender"]);
+    expect(lowConfComparison.unavailable).toContain("a logo comparison had low confidence");
+    const lowConfOutcomes = comparisonOutcomes(withRegistryComparison(lowConfView, lowConfComparison));
+    expect(lowConfOutcomes.find((o) => o.check === "trust.impersonation")).toMatchObject({
+      check: "trust.impersonation",
+      outcome: "partial",
+      reason: "a logo comparison had low confidence",
+      findings: 0,
+    });
+
     // 4. Unauthenticated spoof on a registered domain (DMARC fail): yields neither verified_sender nor sender_not_registered.
     const spoofCaseId = ulid();
     const spoofView = buildView({
