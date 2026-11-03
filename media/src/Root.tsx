@@ -9,6 +9,7 @@ import { JudgeGuide, judgeGuideFrames } from "./videos/JudgeGuide";
 import { LogoReveal, DURATION as LOGO } from "./videos/LogoReveal";
 import { LoupeV1, loupeFrames } from "./videos/LoupeV1";
 import { THUMBS, Thumbnail } from "./videos/Thumbnail";
+import { TEASER_FRAMES, XTeaser } from "./videos/XTeaser";
 
 // Every video is 1920 x 1080 at 30 fps (operator, 2026-10-30); compositions take the size from here, never their own.
 export const VIDEO = { fps: 30, width: 1920, height: 1080 } as const;
@@ -31,6 +32,7 @@ export const Root: React.FC = () => (
     <Composition id="DemoXRayCards" component={DemoXRayCards} durationInFrames={180} {...VIDEO} />
     <Composition id="DemoTitleClose" component={DemoTitleClose} durationInFrames={300} {...VIDEO} />
     <Composition id="JudgeGuide" component={JudgeGuide} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: judgeGuideFrames() })} {...VIDEO} />
+    <Composition id="XTeaser" component={XTeaser} durationInFrames={TEASER_FRAMES} {...VIDEO} />
     <Composition id="LoupeV1" component={LoupeV1} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: loupeFrames() })} {...VIDEO} />
     {Object.keys(THUMBS).map((video) => (
       <Composition key={video} id={`Thumbnail${video}`} component={Thumbnail} defaultProps={{ video }} durationInFrames={60} {...VIDEO} />

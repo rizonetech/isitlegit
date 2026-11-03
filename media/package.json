@@ -11,6 +11,7 @@
     "check:facts": "python3 tools/check-facts.py",
     "render:03": "pnpm run stats && pnpm run check:facts && pnpm run voice && remotion render src/index.ts LoupeV1 out/raw/03-loupe-1-0.mp4 --concurrency=2 && remotion ffmpeg -loglevel error -y -i out/raw/03-loupe-1-0.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k out/03-loupe-1-0.mp4",
     "render:04": "pnpm run stats && pnpm run capture:index && python3 tools/voice-index.py 04 demo && remotion render src/index.ts JudgeGuide out/raw/04-judge-getting-started.mp4 --concurrency=2 && remotion ffmpeg -loglevel error -y -i out/raw/04-judge-getting-started.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k out/04-judge-getting-started.mp4",
+    "render:teaser": "pnpm run stats && pnpm run capture:index && python3 tools/voice-index.py demo && remotion render src/index.ts XTeaser out/raw/x-teaser-45s.mp4 --concurrency=2 && remotion ffmpeg -loglevel error -y -i out/raw/x-teaser-45s.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k out/x-teaser-45s.mp4",
     "render:logo": "pnpm run stats && pnpm run voice && remotion render src/index.ts LogoReveal out/isitlegit-logo-animation-1080p.mp4",
     "thumbs": "pnpm run stats && pnpm run voice && for v in 01 02 03; do remotion still src/index.ts Thumbnail$v out/thumbnail-$v.jpg --frame=45 --image-format=jpeg --jpeg-quality=90; done",
     "capture:demo": "node capture/run.ts",

@@ -232,8 +232,8 @@ A punchy 45-second native video teaser (`media/out/x-teaser-45s.mp4`, 1920 x 108
 
 1. Render the 45-second native X teaser clip. Done when: `media/out/x-teaser-45s.mp4` exists at 1920 x 1080 and is 45 seconds or shorter.
 
-- [ ] Add an `XTeaser` Remotion composition (`45 s`) highlighting the forward-to-verdict flow and all 5 Meta Model X-Ray overlays, and render to `media/out/x-teaser-45s.mp4`. Done when: the file renders cleanly.
-- [ ] Commit: `media: 45-second X viral teaser clip (D10 T01 §9)`
+- [x] Add an `XTeaser` Remotion composition (`45 s`) highlighting the forward-to-verdict flow and all 5 Meta Model X-Ray overlays, and render to `media/out/x-teaser-45s.mp4`. Done when: the file renders cleanly.
+- [x] Commit: `media: 45-second X viral teaser clip (D10 T01 §9)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/x-teaser-45s.mp4` prints `1920,1080`.
 
