@@ -283,6 +283,7 @@ export async function dismissFinding(
   if (!trimmed || trimmed.length > 500) return false;
   const nowIso = now().toISOString();
   let capturedKey = "";
+  let decisionSeq: number | undefined;
   let updated = false;
   for (let attempt = 0; attempt < 8; attempt++) {
     const finding = await db
@@ -304,6 +305,12 @@ export async function dismissFinding(
       reason: trimmed,
       at: nowIso,
     });
+    decisionSeq = parseFindingDecisions({
+      status: "dismissed",
+      capture_key: finding.capture_key,
+      dismissed_reason: trimmed,
+      dismissed_capture_key: encodedDecisions,
+    }).find((d) => d.captureKey === finding.capture_key)?.seq;
     const res = await db
       .prepare(
         `UPDATE monitor_findings
@@ -332,6 +339,7 @@ export async function dismissFinding(
   }
   if (!updated || !capturedKey) return false;
   if (bucket && isBenignDismissalReason(trimmed)) {
+    const captureUrl = await resolveCaptureUrl(db, bucket, orgId, host, capturedKey);
     const current = await db
       .prepare(
         "SELECT status, capture_key, dismissed_reason, dismissed_capture_key FROM monitor_findings WHERE org_id = ? AND host = ?",
@@ -346,8 +354,10 @@ export async function dismissFinding(
     const activeDecision = current
       ? parseFindingDecisions(current).find((d) => d.captureKey === capturedKey)
       : undefined;
-    if (!activeDecision || activeDecision.kind === "dismissal") {
-      const captureUrl = await resolveCaptureUrl(db, bucket, orgId, host, capturedKey);
+    if (
+      (!activeDecision || activeDecision.kind === "dismissal") &&
+      (decisionSeq === undefined || activeDecision?.seq === undefined || activeDecision.seq <= decisionSeq)
+    ) {
       await copyForTraining(
         bucket,
         {
@@ -359,6 +369,7 @@ export async function dismissFinding(
           why: `dismissed as not a fake: ${trimmed.slice(0, 120)}`,
           source: "dismissal",
           sourceRef: `finding:${orgId}:${host}:${capturedKey}`,
+          ...(decisionSeq !== undefined ? { decisionSeq } : {}),
         },
         now,
       ).catch(() => "missing-source");
@@ -376,6 +387,7 @@ export async function restoreFinding(
 ): Promise<boolean> {
   const nowIso = now().toISOString();
   let targetKey = "";
+  let decisionSeq: number | undefined;
   let changed = false;
   for (let attempt = 0; attempt < 8; attempt++) {
     const existing = await db
@@ -397,6 +409,12 @@ export async function restoreFinding(
       reason: "finding restored by business",
       at: nowIso,
     });
+    decisionSeq = parseFindingDecisions({
+      status: "watching",
+      capture_key: existing.capture_key,
+      dismissed_reason: null,
+      dismissed_capture_key: encodedDecisions,
+    }).find((d) => d.captureKey === targetKey)?.seq;
     const result = await db
       .prepare(
         `UPDATE monitor_findings
@@ -420,7 +438,7 @@ export async function restoreFinding(
     }
   }
   if (changed && bucket && targetKey) {
-    await retractTrainingCopy(bucket, orgId, host, targetKey, "finding restored by business", now).catch(
+    await retractTrainingCopy(bucket, orgId, host, targetKey, "finding restored by business", now, decisionSeq).catch(
       () => "missing",
     );
   }

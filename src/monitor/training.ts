@@ -20,6 +20,7 @@ export type TrainingCopy = {
   why: string;
   source: TrainingSource;
   sourceRef?: string;
+  decisionSeq?: number;
 };
 
 export type TrainingHistoryEntry = {
@@ -46,6 +47,7 @@ export type StoredTrainingMeta = {
   updatedAt: string;
   retracted?: boolean;
   retractedAt?: string;
+  decisionSeq?: number;
   history?: TrainingHistoryEntry[];
 };
 
@@ -56,6 +58,7 @@ export type FindingDecision = {
   kind: "dismissal" | "restore";
   reason: string;
   at: string;
+  seq?: number;
 };
 
 export function latestDismissedCaptureKey(raw: string | null | undefined): string | null {
@@ -105,6 +108,7 @@ export function parseFindingDecisions(row: {
           kind: parsed.kind,
           reason: parsed.reason,
           at: typeof parsed.at === "string" ? parsed.at : "",
+          ...(typeof parsed.seq === "number" ? { seq: parsed.seq } : {}),
         });
       }
     } catch {
@@ -145,11 +149,15 @@ export function encodeFindingDecision(
 ): string {
   const prior = parseFindingDecisions(existing);
   const byCapture = new Map<string, FindingDecision>();
+  let maxSeq = 0;
   for (const item of prior) {
     byCapture.set(item.captureKey, item);
+    if (typeof item.seq === "number" && item.seq > maxSeq) maxSeq = item.seq;
   }
+  if (maxSeq === 0 && prior.length > 0) maxSeq = prior.length;
+  const nextSeq = next.seq ?? maxSeq + 1;
   if (next.kind === "restore" || isBenignDismissalReason(next.reason)) {
-    byCapture.set(next.captureKey, next);
+    byCapture.set(next.captureKey, { ...next, seq: nextSeq });
   }
   const head = next.kind === "restore" ? `restored:${next.captureKey}` : next.captureKey;
   const serialized = [...byCapture.values()].map((d) => JSON.stringify(d));
@@ -396,12 +404,44 @@ export async function copyForTraining(
 
     let effectiveCopy: TrainingCopy = copy;
     if (existingMeta) {
+      if (
+        existingMeta.decisionSeq !== undefined &&
+        copy.decisionSeq !== undefined &&
+        copy.decisionSeq < existingMeta.decisionSeq
+      ) {
+        if (existingMeta.retracted || existingMeta.source === "restore") {
+          if (doneHead !== null) return "exists";
+          const nowIso = now().toISOString();
+          const ok = await putChecked(
+            bucket,
+            copy.orgId,
+            copy.host,
+            prefix,
+            `${prefix}done.json`,
+            JSON.stringify({
+              at: existingMeta.updatedAt ?? existingMeta.copiedAt ?? nowIso,
+              label: existingMeta.label,
+              source: "restore",
+              sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
+              retracted: true,
+            }),
+            { httpMetadata: { contentType: "application/json" } },
+          );
+          return ok ? "updated" : "removed";
+        }
+        return "exists";
+      }
       // Precedence: restore (retracted) > human dismissal > automated pipeline / second-look.
       // Precedence holds even when an earlier write was interrupted before done.json or before the
       // page bytes landed: automated recovery repairs missing objects without downgrading a human
       // dismissal or retraction.
       if (existingMeta.retracted || existingMeta.source === "restore") {
-        if (copy.source !== "dismissal") {
+        if (
+          copy.source !== "dismissal" ||
+          (existingMeta.decisionSeq !== undefined &&
+            copy.decisionSeq !== undefined &&
+            copy.decisionSeq <= existingMeta.decisionSeq)
+        ) {
           if (doneHead !== null) return "exists";
           const nowIso = now().toISOString();
           const ok = await putChecked(
@@ -431,8 +471,14 @@ export async function copyForTraining(
             source: "dismissal",
             sourceRef: existingMeta.sourceRef ?? `finding:${copy.orgId}:${copy.host}:${copy.captureKey}`,
             captureUrl: existingMeta.url ?? copy.captureUrl ?? null,
+            ...(existingMeta.decisionSeq !== undefined ? { decisionSeq: existingMeta.decisionSeq } : {}),
           };
-        } else if (complete && existingMeta.label === copy.label && existingMeta.why === copy.why) {
+        } else if (
+          complete &&
+          existingMeta.label === copy.label &&
+          existingMeta.why === copy.why &&
+          (copy.decisionSeq === undefined || existingMeta.decisionSeq === copy.decisionSeq)
+        ) {
           return "exists";
         }
       } else if (complete && existingMeta.source === copy.source && existingMeta.label === copy.label) {
@@ -511,6 +557,11 @@ export async function copyForTraining(
       copiedAt: existingMeta?.copiedAt ?? nowIso,
       updatedAt: sameMetaAsExisting ? (existingMeta?.updatedAt ?? nowIso) : nowIso,
       retracted: false,
+      ...(effectiveCopy.decisionSeq !== undefined
+        ? { decisionSeq: effectiveCopy.decisionSeq }
+        : existingMeta?.decisionSeq !== undefined
+          ? { decisionSeq: existingMeta.decisionSeq }
+          : {}),
       ...(history.length ? { history } : {}),
     };
     if (
@@ -552,6 +603,7 @@ export async function retractTrainingCopy(
   captureKey: string,
   reason = "finding restored by business",
   now: () => Date = () => new Date(),
+  decisionSeq?: number,
 ): Promise<"retracted" | "missing" | "removed"> {
   const cleanKey = captureKey.replace(/^restored:/, "");
   const parsed = parseCaptureKey(cleanKey, orgId, host);
@@ -568,7 +620,10 @@ export async function retractTrainingCopy(
     ]);
     const nowIso = now().toISOString();
     const sourceRef = `finding:${orgId}:${host}:${cleanKey}`;
-    if (existing?.retracted) {
+    if (existing?.decisionSeq !== undefined && decisionSeq !== undefined && decisionSeq < existing.decisionSeq) {
+      return "retracted";
+    }
+    if (existing?.retracted && (decisionSeq === undefined || existing.decisionSeq === decisionSeq)) {
       if (!doneHead) {
         const ok = await putChecked(
           bucket,
@@ -601,6 +656,7 @@ export async function retractTrainingCopy(
           },
         ]
       : [];
+    const nextSeq = decisionSeq ?? existing?.decisionSeq;
     const updated: StoredTrainingMeta = existing
       ? {
           ...existing,
@@ -610,6 +666,7 @@ export async function retractTrainingCopy(
           updatedAt: nowIso,
           retracted: true,
           retractedAt: nowIso,
+          ...(nextSeq !== undefined ? { decisionSeq: nextSeq } : {}),
           ...(history.length ? { history } : {}),
         }
       : {
@@ -627,6 +684,7 @@ export async function retractTrainingCopy(
           updatedAt: nowIso,
           retracted: true,
           retractedAt: nowIso,
+          ...(nextSeq !== undefined ? { decisionSeq: nextSeq } : {}),
         };
     if (
       !(await putChecked(bucket, orgId, host, prefix, `${prefix}meta.json`, JSON.stringify(updated), {
@@ -990,7 +1048,15 @@ export async function recoverPendingTrainingCopies(
               bucket.head(`${parsed.prefix}done.json`),
             ]);
             if (removedNow || !meta?.retracted || !doneHead) {
-              const out = await retractTrainingCopy(bucket, orgId, row.host, targetKey, decision.reason, now);
+              const out = await retractTrainingCopy(
+                bucket,
+                orgId,
+                row.host,
+                targetKey,
+                decision.reason,
+                now,
+                decision.seq,
+              );
               if (out === "retracted") recovered++;
             }
           }
@@ -1007,6 +1073,7 @@ export async function recoverPendingTrainingCopies(
               why: `dismissed as not a fake: ${decision.reason.trim().slice(0, 120)}`,
               source: "dismissal",
               sourceRef: `finding:${orgId}:${row.host}:${targetKey}`,
+              ...(decision.seq !== undefined ? { decisionSeq: decision.seq } : {}),
             },
             now,
           );

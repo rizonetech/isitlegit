@@ -1135,5 +1135,51 @@ describe("copyForTraining", () => {
     ) as StoredTrainingMeta;
     expect(metaE.retracted).toBe(true);
     expect(metaE.source).toBe("restore");
+
+    // 4. In-flight qualifying dismissal delayed during URL lookup while restore completes must NOT overwrite the retraction in R2.
+    let pauseUrlGet = true;
+    let notifyUrlGetPaused!: () => void;
+    const urlGetPaused = new Promise<void>((resolve) => {
+      notifyUrlGetPaused = resolve;
+    });
+    let releaseUrlGet!: () => void;
+    const urlGetGate = new Promise<void>((resolve) => {
+      releaseUrlGet = resolve;
+    });
+    const delayedUrlBucket = {
+      head: (k: string) => bucket.head(k),
+      get: async (k: string) => {
+        if (pauseUrlGet && k === `${captureE}url.txt`) {
+          pauseUrlGet = false;
+          notifyUrlGetPaused();
+          await urlGetGate;
+        }
+        return bucket.get(k);
+      },
+      put: (k: string, v: ArrayBuffer | string, o?: R2PutOptions) => bucket.put(k, v, o),
+      delete: (k: string | string[]) => bucket.delete(k),
+      list: (o?: R2ListOptions) => bucket.list(o),
+    } as unknown as R2Bucket;
+
+    const delayedQualifyingDismiss = dismissFinding(
+      db,
+      orgId,
+      hostConcurrent,
+      "Not a fake, this is our own regional site",
+      () => new Date("2026-11-02T09:46:00.000Z"),
+      delayedUrlBucket,
+    );
+    await urlGetPaused;
+    expect(await restoreFinding(db, orgId, hostConcurrent, () => new Date("2026-11-02T09:46:30.000Z"), bucket)).toBe(
+      true,
+    );
+    releaseUrlGet();
+    expect(await delayedQualifyingDismiss).toBe(true);
+
+    const metaAfterRace = JSON.parse(
+      (await (await bucket.get(`training/${captureE}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(metaAfterRace.retracted).toBe(true);
+    expect(metaAfterRace.source).toBe("restore");
   });
 });
