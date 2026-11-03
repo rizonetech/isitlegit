@@ -45,6 +45,9 @@ track: day-6
 | 5 | §5 | Uploads and links recorded | §3, §4 | [ ] |
 | 6 | §6 | Video 03: Loupe 1.0 technical deep dive | §1, §2 | [ ] |
 | 7 | §7 | Video 03 upload and link recorded | §6 | [ ] |
+| 8 | §8 | Video 04: judge getting-started guide | §1, §2 | [ ] |
+| 9 | §9 | X 45-second viral teaser clip | §1, §2 | [ ] |
+| 10 | §10 | YouTube channel banner (@DerickPayneDev) | §1, §2 | [ ] |
 
 ## 1. Media package and stats collector
 
@@ -129,7 +132,7 @@ The product's technical specification in about 11 minutes: intake, uploads and v
 - [x] Write the storyboard and register it in `media/src/Root.tsx` as `TechDeepDive`. Done when: stills of all 25 content scenes show the label and nothing cut off, including the wrapped code lines.
 - [ ] Operator: answer the script's open questions (voiceover; a re-render once the verdict agent ships). Done when: the answers are written into `media/scripts/02-isitlegit-technical-deep-dive.md`.
 - [ ] Record `Script approved: 02, YYYY-MM-DD` in `media/scripts/02-isitlegit-technical-deep-dive.md`. Done when: the line is written.
-- [ ] Re-check every chapter's shipped, partly built or planned mark against `src/` and the stamped rows at the final render's commit. Done when: each mark matches. Cheaper substitute: keeping the 30 Oct marks fails once the agent ships.
+- [ ] Re-check every chapter's shipped, partly built or planned mark against `src/` and the stamped rows at the final render's commit, and upgrade the composition to the Demo standard: embed the live Playwright product captures, the abstract animated background (`GENERATED.loop` / plates), the live `/eval` ablation chart, and the 5 Remotion Meta Model "How It's Done" X-Ray overlays (`muse-spark-1.3` untrusted fence and floor, `sam-3.1` segmentation mask crop, `muse-wonder-1.0` containment HUD and canary, `Loupe 1.1 -> Muse Spark` cascade, and `WASM Opus -> muse-voice-transcribe-1.0` pipeline). Done when: each mark matches and the upgraded scenes render. Cheaper substitute: keeping the 30 Oct static slides and `planned` marks fails once the product ships.
 - [ ] Re-pin and re-render with `pnpm render:02` on a committed tree. Done when: the file exists at 1920 x 1080.
 - [ ] Commit: `media: video 02 approved and rendered (D10 T01 §4)`
 
@@ -175,7 +178,7 @@ A 132-second technical video on Loupe, the page screener of D03 T04: the job beh
 - [x] Add `render:03` (after `check:facts`) to `media/package.json`. Done when: `pnpm render:03` writes `media/out/03-loupe-1-0.mp4` at 1920 x 1080, 132 s.
 - [ ] Operator: answer the script's open questions (teacher spend, the 61 percent bar, voiceover, a results re-render). Done when: the answers are written into `media/scripts/03-loupe-1-0.md`.
 - [ ] Record `Script approved: 03, YYYY-MM-DD` in `media/scripts/03-loupe-1-0.md`. Done when: the line is written.
-- [ ] Re-pin `commit` and refresh the facts to the glimmer lane's latest before the final render, so the video says what is true on the day. Done when: `pnpm check:facts` passes at the new commit. Cheaper substitute: rendering at the old pin fails once Loupe 1.0 has trained.
+- [ ] Re-pin `commit` and refresh `media/data/loupe-facts.json` and `media/src/videos/LoupeV1.tsx` to the Demo standard before the final render: replace the Oct 30 `planned` tags with the measured Loupe 1.0 training results (`52,019` lines, `14 h 29 min`, `0.980` recall, `0.057` false alarms, `3.9 s` median latency), the honest weak-spot diagnosis (`0.635` lure-type accuracy), the Loupe 1.1 upgrade (`172,987` frozen pages, `Loupe -> Muse Spark` confidence escalation from D03 T04 §48, prompt-injection robustness, and the open-weight LoRA adapter at `huggingface.co/rizonetech/isitlegit-loupe`), plus live captures of `#model-trace` and `/eval`, the Remotion X-Ray cascade overlay, and the abstract animated background (`GENERATED.loop`). Done when: `pnpm check:facts` passes at the new commit. Cheaper substitute: rendering at the old Oct 30 pin fails once Loupe has trained.
 - [ ] Render the final cut with `pnpm render:03` on a committed tree. Done when: the file exists at 1920 x 1080.
 - [ ] Commit: `media: video 03 approved and rendered (D10 T01 §6)`
 
@@ -193,12 +196,63 @@ The operator uploads the approved video 03 to @DerickPayneDev as public, in the 
 
 1. Upload and record the link. Done when: a `Video 03:` line is written here and the video plays logged out.
 
-- [ ] Operator: upload `media/out/03-loupe-1-0.mp4` as public, in the `IsItLegit` playlist. Done when: it plays in a logged-out window at 1080p.
+- [ ] Operator: upload `media/out/03-loupe-1-0.mp4` as public, in the `IsItLegit` playlist (ordered: 1. 3-Minute Live Demo, 2. Judge Getting-Started Guide, 3. Video 03 Loupe Deep Dive, 4. Video 02 Technical Deep Dive, 5. Video 01 How IsItLegit Was Built, 6. Extended Demo Cut if time permits). Done when: it plays in a logged-out window at 1080p.
 - [ ] Record `Video 03: https://www.youtube.com/watch?v=<id>` under this section. Done when: the line is written.
 - [ ] Add the link to the Videos table in `media/README.md`. Done when: the row links its video.
 - [ ] Commit: `todo: record the video 03 link (D10 T01 §7)`
 
 **Test checkpoint:** `grep -cE '^Video 03: https://www\.youtube\.com/watch\?v=' todo/10-media/TODO-01-channel-videos.md` prints `1`.
+
+## 8. Video 04: judge getting-started guide
+
+A 60 to 90 second Judge Getting-Started walkthrough video rendered in Remotion (`media/out/04-judge-getting-started.mp4`) and embedded at the top of `README.md` and #2 in the `IsItLegit` YouTube playlist, walking judges through both zero-friction paths: (1) the 60-second live web path (`isitlegit.co.za` / `app.isitlegit.co.za` with the pre-populated Fynbos Freight demo org, forwarding/uploading an email, invoice or voice note, opening `?trace=1` `#model-trace` to inspect `muse-spark-1.3`, `muse-wonder-1.0`, `sam-3.1`, `Loupe`, and `muse-voice-transcribe-1.0`, and checking `/eval` and `huggingface.co/rizonetech/isitlegit-loupe`), and (2) the zero-account local replay path (`pnpm judge:demo`, answering Yash Khare's 2026-11-03 guidance with recorded pairs and clear provenance labels).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Build and render `media/out/04-judge-getting-started.mp4` at 1920 x 1080 (60 to 90 s). Done when: the MP4 renders and covers both the live web quickstart and `pnpm judge:demo`.
+
+- [ ] Build the Judge Getting-Started Remotion composition in `media/src/videos/` combining live Playwright captures of `isitlegit.co.za` (`?trace=1`, `/eval`, Hugging Face) and the `pnpm judge:demo` local replay terminal and browser view, with Brian's voiceover and the abstract animated background. Done when: `cd media && pnpm render:04` writes `media/out/04-judge-getting-started.mp4`.
+- [ ] Commit: `media: judge getting-started video (D10 T01 §8)`
+
+**Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/04-judge-getting-started.mp4` prints `1920,1080`.
+
+## 9. X 45-second viral teaser clip
+
+A punchy 45-second native video teaser (`media/out/x-teaser-45s.mp4`, 1920 x 1080) cut from Scene 3's live product investigation and Remotion Meta Model "How It's Done" X-Ray overlays (`sam-3.1` logo crop, `muse-wonder-1.0` contained browser walkthrough with canary credentials, `Loupe 1.1 -> Muse Spark` bank-change verdict, and `#model-trace`) for the US$20,000 Most Viral Project on X post tagging `@AIMetaDevs` (D99 T02 §8).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Render the 45-second native X teaser clip. Done when: `media/out/x-teaser-45s.mp4` exists at 1920 x 1080 and is 45 seconds or shorter.
+
+- [ ] Add an `XTeaser` Remotion composition (`45 s`) highlighting the forward-to-verdict flow and all 5 Meta Model X-Ray overlays, and render to `media/out/x-teaser-45s.mp4`. Done when: the file renders cleanly.
+- [ ] Commit: `media: 45-second X viral teaser clip (D10 T01 §9)`
+
+**Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/x-teaser-45s.mp4` prints `1920,1080`.
+
+## 10. YouTube channel banner (@DerickPayneDev)
+
+A personal developer YouTube channel banner (`2560 x 1440` PNG with all key typography and branding inside the `1546 x 423` centred TV/desktop/mobile safe zone) for `@DerickPayneDev`, unrelated to IsItLegit (branded around Derick Payne, AI Engineering, Systems Architecture and Production Builds) so the channel header is permanent and professional.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Render `media/out/youtube-banner-derickpaynedev.png` at 2560 x 1440. Done when: the PNG exists and passes the safe-zone dimensions check.
+
+- [ ] Build a `ChannelBanner` still composition in `media/src/videos/` at `2560 x 1440` (`1546 x 423` safe area) for `@DerickPayneDev` (unrelated to IsItLegit) and render to `media/out/youtube-banner-derickpaynedev.png`. Done when: the file exists at `2560 x 1440`.
+- [ ] Commit: `media: @DerickPayneDev YouTube channel banner (D10 T01 §10)`
+
+**Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/youtube-banner-derickpaynedev.png` prints `2560,1440`.
 
 ## Verification
 

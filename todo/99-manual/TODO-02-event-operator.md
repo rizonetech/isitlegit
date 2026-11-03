@@ -182,7 +182,7 @@ Post the public demo thread and video on X (`@AIMetaDevs` tagged) for the US$20,
 
 1. Publish the X launch post and record its URL. Done when: the post is live, tags `@AIMetaDevs`, and is recorded here.
 
-- [ ] Publish the demo video and launch thread on X tagging `@AIMetaDevs`, include the live `https://isitlegit.co.za` demo, GitHub repo, and Hugging Face links, and record `X post: https://x.com/<handle>/status/<id>` here. Done when: the line is written here and included in the Cerebral Valley submission.
+- [ ] Publish the 45-second native X teaser clip (`media/out/x-teaser-45s.mp4`, D10 T01 §9) and launch thread on X tagging `@AIMetaDevs` (with the first reply linking the full 3-minute YouTube demo, the live `https://isitlegit.co.za` demo, GitHub repo, and Hugging Face model card), and record `X post: https://x.com/<handle>/status/<id>` here. Done when: the line is written here and included in the Cerebral Valley submission.
 - [ ] Commit: `todo: record X launch post`
 
 **Test checkpoint:** `grep -cE '^X post: https://(x|twitter)\.com/' todo/99-manual/TODO-02-event-operator.md` prints `1`.
@@ -199,7 +199,7 @@ Verify in a clean incognito browser that a hackathon judge landing on the GitHub
 
 1. Verify the 60-second judge quickstart in a logged-out browser. Done when: every step works logged out and the check is recorded here.
 
-- [ ] Verify the Judge Quickstart at the top of `README.md` in an incognito browser: (1) open the pre-populated demo org and sample cases (`https://isitlegit.co.za`), (2) sign in with the judge demo invite code or trigger a live upload check, (3) forward a test email to `check@isitlegit.co.za`, and (4) inspect the per-case model trace (Muse Spark, Muse Wonder browser walkthrough, SAM 3.1 logo segmentation, Loupe / Muse Glimmer screener, and Muse Voice Transcribe), then record `Judge quickstart verified: YYYY-MM-DD` here. Done when: the line is written here.
+- [ ] Verify the Judge Quickstart and the embedded 60-to-90-second Judge Getting-Started video (`D10 T01 §8`) at the top of `README.md` in an incognito browser (plus upload the `@DerickPayneDev` YouTube banner from `D10 T01 §10` and verify the ordered `IsItLegit` YouTube playlist: 1. 3-Minute Live Demo, 2. Judge Getting-Started Guide, 3. Video 03 Loupe Deep Dive, 4. Video 02 Technical Deep Dive, 5. Video 01 How IsItLegit Was Built, 6. Extended Demo Cut if time permits): (1) open the pre-populated demo org and sample cases (`https://isitlegit.co.za`), (2) sign in with the judge demo invite code or run `pnpm judge:demo` locally with no keys, (3) forward a test email to `check@isitlegit.co.za`, and (4) inspect the per-case model trace (Muse Spark, Muse Wonder browser walkthrough, SAM 3.1 logo segmentation, Loupe / Muse Glimmer screener, and Muse Voice Transcribe), then record `Judge quickstart verified: YYYY-MM-DD` here. Done when: the line is written here.
 - [ ] Commit: `todo: record judge quickstart verification`
 
 **Test checkpoint:** `grep -cE '^Judge quickstart verified: 2026-11-0[1-4]$' todo/99-manual/TODO-02-event-operator.md` prints `1`.

@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 142
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 105 | Checklist items: 672
+Sections: 108 | Checklist items: 678
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -399,6 +399,9 @@ Sections: 105 | Checklist items: 672
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
 | [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive      | none                  | 10    |
+| [ ]    | D10 T01 §8  | Video 04: judge getting-started guide        | none                  | 2     |
+| [ ]    | D10 T01 §9  | X 45-second viral teaser clip                | none                  | 2     |
+| [ ]    | D10 T01 §10 | YouTube channel banner (@DerickPayneDev)     | none                  | 2     |
 
 ### Phase 7: After the event
 
@@ -661,6 +664,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 387/585 verified sections, 119 ready to run now.
+Progress: 387/588 verified sections, 119 ready to run now.
 
-Checklist: 2912/3623 items completed (includes Commit items).
+Checklist: 2912/3629 items completed (includes Commit items).
