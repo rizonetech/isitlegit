@@ -1008,6 +1008,8 @@ The Close account control is built on the Account page and named in `design/SPEC
 
 ## 28. Passkey troubleshooting on the sign-in page
 
+> **Started:** 2026-11-03T01:50:00Z
+
 The passkey prompt names the cross-device steps but offers no help when they fail: a phone without a screen lock, an older browser, or Bluetooth off (D07 T02 §19 completion review, 2026-11-02, against Google Account's passkey guidance).
 
 **Phase:** 7
