@@ -411,8 +411,18 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
               )
                 .bind(orgId, email, heldRow.id, startedAt)
                 .all<{ id: string }>();
-              for (const m of made.results) await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
-              results.push({ email, word: "Refused", detail: "That invitation was revoked while this was sending." });
+              let tidied = true;
+              for (const m of made.results) {
+                const cancelled = await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
+                if (!cancelled?.ok) tidied = false;
+              }
+              if (!tidied)
+                console.log(JSON.stringify({ event: "team", outcome: "revoked-not-tidied", email }));
+              results.push(
+                tidied
+                  ? { email, word: "Refused", detail: "That invitation was revoked while this was sending." }
+                  : { email, word: "Unknown", detail: "It was revoked while this was sending, and tidying up did not finish. Check the invitations below." },
+              );
               continue;
             }
           }
@@ -495,7 +505,7 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
           200,
         );
       }
-      const email = a.form.email.trim();
+      const email = addresses[0] ?? a.form.email.trim();
       const role = a.form.role;
       const draft = (error: string): InviteDraft => ({
         email,
