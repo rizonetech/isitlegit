@@ -63,6 +63,7 @@ track: day-1
 | 26 | §26 | Export and fresh sign-in before closure | §9 | [ ] |
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
 | 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [ ] |
+| 29 | §29 | Undo window after closing an organisation | §9, §26 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -977,6 +978,8 @@ Closing an organisation is irreversible, and two things a member may want first 
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts test/node/account-browser.test.tsx` passes with the export and step-up cases, and the browser journey passes.
 
+> **Deferred:** a recovery window after closure -> XREF: D07 T02 §29. Deferred 2026-11-03 from §26's completion review: reopening a closed organisation changes §9's irreversible-closure contract, so the window's length and terms are the operator's decision first (§29 carries `Needs: operator`). The drawn Close account control stays owned by D07 T02 §27.
+
 ## 27. Close account control on the Account board
 
 The Close account control is built on the Account page and named in `design/SPEC.md` M9, but it is not drawn on the Account board (`design/mockups/source/Account.dc.html`), which the Fidelity contract requires before the surface is final (D07 T02 §9 completion and round reviews, 2026-11-02; a Deviation is recorded in M9 meanwhile). Drawing on a board needs the operator's approval of the drawn change.
@@ -1023,6 +1026,30 @@ The passkey prompt names the cross-device steps but offers no help when they fai
 - [ ] Commit: `web: passkey troubleshooting on the sign-in page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
+
+## 29. Undo window after closing an organisation
+
+Closing an organisation is irreversible from the moment it is pressed (§9), while the strongest account-deletion flows offer a short recovery window for an accidental closure (D07 T02 §26 completion review, 2026-11-03, against Google Account deletion). A window changes §9's decided contract, so it needs the operator's decision on its length and terms before any build; the purge (§9) already waits 25 days, so a window inside that period needs no purge change.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (Account), board `Account`
+**Job:** an owner who closed the wrong organisation by accident gets it back before anything is deleted
+**Treatment:** a time-boxed reopen on the Account page, offered only to the owner who closed it
+**Chrome:** the Account page's closure state (§9)
+
+**Build order:**
+
+1. Record the operator's decision (window length, who may reopen, what happens to cases refused while closed) in `design/SPEC.md` M9 and §9's contract. Done when: both name the same window and terms.
+2. Build the reopen and prove it. Done when: the route test below passes.
+
+- [ ] Add a Reopen control to the closed organisation's Account state (`src/web/pages/settings-account.tsx`), shown only to its owner and only inside the decided window. Done when: `test/auth/closure.test.ts` shows it to the owner inside the window and to no one else. Cheaper substitute: a support email address, which a panicked owner may not find in time.
+- [ ] Reopen by clearing `closedAt` (`src/auth/closure.ts`), accepting new cases again, with a fresh sign-in as closure requires (§26). Done when: the test reopens inside the window, refuses after it and for a non-owner, and forwarded mail is accepted again after reopening. Cheaper substitute: clearing the stamp without the step-up, weaker than the action it reverses.
+- [ ] Say the window on the closure confirmation and the closed state (`src/web/pages/settings-account-view.tsx`), with its end date. Done when: the Account browser test reads the window and its expiry in both themes. Cheaper substitute: naming the window only after closing, when the decision is already made.
+- [ ] Commit: `app: undo window after closing an organisation`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts test/node/account-browser.test.tsx` passes with the reopen cases.
 
 ## Verification
 

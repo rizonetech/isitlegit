@@ -188,6 +188,60 @@ describe("closing an organisation", () => {
     expect(await emptyRes.text()).toBe("case,received,status,verdict\n");
   });
 
+  it("answers an export failure with a retry that keeps the organisation (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    const downDb = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            if (sql.includes("FROM cases")) throw new Error("cases down");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, prop) as unknown;
+        return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      },
+    });
+    const down = { ...authEnv, DB: downDb } as Env;
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, down);
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(await res.text()).toContain(`/settings/account/close/export?org=${org}`);
+  });
+
+  it("exports every page in received order, and still exports after closure (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    // 501 cases inserted newest first, so received order has to come from the export, not the insertion.
+    await db
+      .prepare(
+        `WITH RECURSIVE n(x) AS (SELECT 500 UNION ALL SELECT x - 1 FROM n WHERE x > 0)
+         INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at)
+         SELECT 'case-' || printf('%04d', x), ?, 'email', 'done', 'safe',
+                '2026-10-26T00:00:00.000Z', '2026-10-26T00:00:00.000Z' FROM n`,
+      )
+      .bind(org)
+      .run();
+    await db.prepare(`UPDATE cases SET created_at = '2026-10-25T00:00:00.000Z' WHERE id = 'case-0500'`).run();
+    const res = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(res.status).toBe(200);
+    const lines = (await res.text()).trimEnd().split("\n");
+    expect(lines).toHaveLength(502);
+    expect(lines[0]).toBe("case,received,status,verdict");
+    expect(lines[1]).toBe("case-0500,2026-10-25T00:00:00.000Z,done,safe");
+    expect(lines[501]).toContain("case-0499,");
+    expect(new Set(lines.slice(1).map((l) => l.split(",")[0]))).toHaveLength(501);
+    await closeOrganisation(db, org, me?.id ?? "", new Date());
+    const closedRes = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(closedRes.status).toBe(200);
+    expect((await closedRes.text()).trimEnd().split("\n")).toHaveLength(502);
+  });
+
   it("closes the second of two organisations from its own confirmation while fresh (D07 T02 s26)", async () => {
     const first = await organisation();
     const second = await organisation();
@@ -242,8 +296,8 @@ describe("closing an organisation", () => {
     const token = /name="confirm" value="([^"]*)"/.exec(confirmHtml)?.[1] ?? "";
     expect(token).not.toBe("");
     await db
-      .prepare(`UPDATE "session" SET "createdAt" = ? WHERE "userId" = ?`)
-      .bind(new Date(Date.now() - 11 * 60_000).toISOString(), me?.id ?? "")
+      .prepare(`UPDATE "session" SET "createdAt" = ?, "updatedAt" = ? WHERE "userId" = ?`)
+      .bind(new Date(Date.now() - 11 * 60_000).toISOString(), new Date().toISOString(), me?.id ?? "")
       .run();
     const stepped = await call("/settings/account/close", { headers: { cookie } }, authEnv);
     expect(stepped.status).toBe(200);
@@ -270,7 +324,7 @@ describe("closing an organisation", () => {
       authEnv,
     );
     expect(refused.status).toBe(303);
-    expect(refused.headers.get("location") ?? "").toContain("r=step-up");
+    expect(decodeURIComponent(refused.headers.get("location") ?? "")).toContain(`/settings/account/close?org=${org}`);
     expect(
       (
         await db
@@ -297,6 +351,51 @@ describe("closing an organisation", () => {
           .first<{ c: string | null }>()
       )?.c,
     ).not.toBeNull();
+  });
+
+  it("rechecks ownership and closure when the owner returns from signing in again (D07 T02 s26)", async () => {
+    const org = await organisation();
+    const email = `owner-${tag()}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const me = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    await join(org, me?.id ?? "", "owner");
+    const closedAt = async () =>
+      (
+        await db
+          .prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`)
+          .bind(org)
+          .first<{ c: string | null }>()
+      )?.c;
+    // Ownership removed while away: the return offers no confirmation and no export, and nothing closes.
+    await db
+      .prepare(`DELETE FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+      .bind(org, me?.id ?? "")
+      .run();
+    const lostPage = await call(`/settings/account/close?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(lostPage.status).toBe(303);
+    const lostExport = await call(`/settings/account/close/export?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(lostExport.status).toBe(404);
+    expect(await closedAt()).toBeNull();
+    // Closed while away: the return names the closure and a late press keeps the first stamp.
+    await join(org, me?.id ?? "", "owner");
+    const confirmPage = await call(`/settings/account/close?org=${org}`, { headers: { cookie } }, authEnv);
+    const token = /name="confirm" value="([^"]*)"/.exec(await confirmPage.text())?.[1] ?? "";
+    expect(token).not.toBe("");
+    const first = new Date("2026-10-27T00:00:00.000Z");
+    await closeOrganisation(db, org, me?.id ?? "", first);
+    const backPage = await call(`/settings/account/close?org=${org}`, { headers: { cookie } }, authEnv);
+    expect(backPage.status).toBe(303);
+    expect(decodeURIComponent(backPage.headers.get("location") ?? "")).toContain("r=org-closed");
+    await call(
+      "/settings/account",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ action: "close-account", id: org, confirm: token }),
+      },
+      authEnv,
+    );
+    expect(await closedAt()).toBe(first.toISOString());
   });
 
   it("refuses forwarded mail for a closed organisation", async () => {

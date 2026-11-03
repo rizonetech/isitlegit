@@ -196,6 +196,13 @@ export function AccountConfirm(props: {
       {props.lines.map((line) => (
         <p class="text-16 wrap-anywhere">{line}</p>
       ))}
+      {props.extra && (
+        <p class="type-small">
+          <a class="underline text-orange-text" href={props.extra.href}>
+            {props.extra.label}
+          </a>
+        </p>
+      )}
       <form
         method="post"
         action="/settings/account"
@@ -213,13 +220,6 @@ export function AccountConfirm(props: {
           Cancel
         </Button>
       </form>
-      {props.extra && (
-        <p class="type-small">
-          <a class="underline text-orange-text" href={props.extra.href}>
-            {props.extra.label}
-          </a>
-        </p>
-      )}
     </div>
   );
   return (

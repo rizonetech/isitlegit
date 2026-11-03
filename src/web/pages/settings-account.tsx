@@ -258,7 +258,7 @@ accountRoutes.get(
         if (page.results.length < 500) break;
       }
     } catch {
-      return outage("export", "/settings/account/close");
+      return outage("export", `/settings/account/close/export?org=${closure.orgId}`);
     }
     return c.body(`${rows.join("\n")}\n`, 200, {
       "Content-Type": "text/csv; charset=utf-8",
@@ -552,7 +552,8 @@ accountRoutes.post(
     if (form?.action === "step-up")
       return c.redirect(`/signin?next=${encodeURIComponent(`/settings/account/close?org=${form.id ?? ""}`)}`, 303);
     if (form?.action === "close-account") {
-      if (!freshSession(signedIn)) return back(secret, signedIn.user.id, { r: "step-up" });
+      if (!freshSession(signedIn))
+        return c.redirect(`/settings/account/close?org=${encodeURIComponent(form.id ?? "")}`, 303);
       // Only the confirmation page's own signed evidence closes an organisation: a bare action-and-id post does not.
       const evidence = await sign(secret, `${signedIn.user.id}\nclose\n${form.id ?? ""}`);
       if (!form.confirm || form.confirm !== evidence) return back(secret, signedIn.user.id, { r: "refused" });

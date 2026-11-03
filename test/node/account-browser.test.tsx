@@ -337,6 +337,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
       state.closed = false;
       const ctx = await context(width);
       const p = await ctx.newPage();
+      const themed = async (theme: "light" | "dark") => {
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p)), theme).toEqual([]);
+      };
       const press = async (role: "link" | "button", name: string) => {
         const target = p.getByRole(role, { name, exact: true });
         let reached = false;
@@ -349,20 +355,27 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
       };
       // Stale: the confirmation asks for a fresh sign-in and returns to the same organisation.
       await p.goto(`${origin}/settings/account/close?stale=1`, { waitUntil: "load" });
+      await themed(width === 360 ? "light" : "dark");
       expect(await p.locator("#confirm-title").textContent()).toContain("Sign in again to close Karoo Couriers");
       expect(await p.getByRole("link", { name: "Download the case summaries first", exact: true }).count()).toBe(0);
       await press("button", "Sign in again");
       expect(p.url()).toContain("/signin");
       expect(decodeURIComponent(p.url())).toContain(`next=/settings/account/close?org=${ORG.id}`);
       expect(state.closed).toBe(false);
-      // Fresh: the export is offered first, at both themes; Cancel closes nothing.
+      // Fresh: the export is offered before the destructive press, in the other theme; Cancel closes nothing.
       await p.goto(`${origin}/settings/account/close`, { waitUntil: "load" });
-      await p.addScriptTag({ path: AXE });
-      for (const theme of ["light", "dark"] as const) {
-        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
-        expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(width);
-        expect(problems(await scan(p)), theme).toEqual([]);
-      }
+      await themed(width === 360 ? "dark" : "light");
+      expect(
+        await p.evaluate(() => {
+          const link = document.querySelector('a[href^="/settings/account/close/export"]');
+          const button = [...document.querySelectorAll("button")].find(
+            (b) => b.textContent?.trim() === "Close account",
+          );
+          return link && button
+            ? (link.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+            : false;
+        }),
+      ).toBe(true);
       const download = p.waitForEvent("download");
       await p.getByRole("link", { name: "Download the case summaries first", exact: true }).click();
       const file = await download;
