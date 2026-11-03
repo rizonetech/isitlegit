@@ -348,7 +348,12 @@ teamRoutes.get(
       // A protected account is not asked about: the page says it cannot be removed (only a reader who could remove
       // anyone else gets here, so nothing is told to those who could not).
       if (isProtectedAccount(member.email))
-        return back(secret, who.org.id, { r: "protected", name: member.name || member.email }, new URL(c.req.url).searchParams.get("find") ?? "");
+        return back(
+          secret,
+          who.org.id,
+          { r: "protected", name: member.name || member.email },
+          new URL(c.req.url).searchParams.get("find") ?? "",
+        );
       return html(
         <RemoveConfirm shell={shell} member={member} find={new URL(c.req.url).searchParams.get("find") ?? undefined} />,
       );

@@ -140,7 +140,8 @@ describe("no bare 429 reaches a browser", () => {
     expect(mismatches([["src/web/pages/cases.tsx", "return c.text('slow down', 429);"]])).toEqual([
       `src/web/pages/cases.tsx: 1 unclassified site(s): ${FIX}`,
     ]);
-    const team = "if (x) return refuse(draft, 429);\nreturn refuse(draft, 429);\nreturn c.text('bare', 429);\nreturn c.text('bare', 429);";
+    const team =
+      "if (x) return refuse(draft, 429);\nreturn refuse(draft, 429);\nreturn c.text('bare', 429);\nreturn c.text('bare', 429);";
     expect(mismatches([["src/web/pages/team.tsx", team]])).toEqual([
       `src/web/pages/team.tsx: 4 sites, classified 3: ${FIX}`,
     ]);
