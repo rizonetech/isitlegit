@@ -493,8 +493,10 @@ describe("a case removed mid-write (D01 T01 §24)", () => {
       putArtefact(removing(workerId), workerId, "render", "page.png", body, "image/png", Date.now() - 1),
     ).rejects.toEqual(expect.objectContaining({ message: expect.stringContaining("was fenced: its case is gone") }));
     expect(await env.ARTEFACTS.head(await keyOf(workerId))).toBeNull();
-    // The insert's own SQL deadline: the statement is delayed past it after the Worker check passed.
+    // The insert's own SQL deadline: the statement is delayed past it after the Worker check passed,
+    // and the counter proves the SQL branch, not the Worker branch, did the fencing (round 1).
     const sqlId = await newCase();
+    let insertRuns = 0;
     const slowDb = new Proxy(env.DB, {
       get(target, prop) {
         if (prop === "prepare")
@@ -504,7 +506,8 @@ describe("a case removed mid-write (D01 T01 §24)", () => {
             return {
               bind: (...values: unknown[]) => ({
                 run: async () => {
-                  await new Promise((resolve) => setTimeout(resolve, 90));
+                  insertRuns++;
+                  await new Promise((resolve) => setTimeout(resolve, 600));
                   return statement.bind(...(values as never[])).run();
                 },
               }),
@@ -522,9 +525,10 @@ describe("a case removed mid-write (D01 T01 §24)", () => {
         "page.png",
         body,
         "image/png",
-        Date.now() + 40,
+        Date.now() + 300,
       ),
     ).rejects.toEqual(expect.objectContaining({ message: expect.stringContaining("was fenced: its case is gone") }));
+    expect(insertRuns).toBe(1);
     expect(await env.ARTEFACTS.head(await keyOf(sqlId))).toBeNull();
     // A deadline alone, the case still there: the object stays for the retry, which then lands.
     const alive = await newCase();

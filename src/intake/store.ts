@@ -138,6 +138,11 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
       return null;
     }
   };
+  const uncheckedCase = () =>
+    new StoreError(
+      "storage",
+      `${item.key} could not be checked against its case; its object is left for the removal sweep`,
+    );
   if (created === null) {
     // Already there: an earlier attempt's, or another writer's. Only the same content is the same object.
     let existing: R2Object | null;
@@ -149,8 +154,9 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
     // Gone between the two calls: a removal sweeping it is the removal fence below, not a retry; the
     // lifecycle rule or the purge, with the case still there, can be completed by a retry.
     if (!existing) {
-      if ((await caseStillThere()) === false)
-        throw new StoreError("storage", `${item.key} was fenced: its case is gone`);
+      const there = await caseStillThere();
+      if (there === false) throw new StoreError("storage", `${item.key} was fenced: its case is gone`);
+      if (there === null) throw uncheckedCase();
       throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
     }
     // Objects this store wrote carry the SHA-256 it supplied; one written without it is checked by its bytes.
@@ -163,8 +169,9 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
         throw new StoreError("storage", `reading ${item.key}: ${(error as Error).message}`);
       }
       if (stored === null) {
-        if ((await caseStillThere()) === false)
-          throw new StoreError("storage", `${item.key} was fenced: its case is gone`);
+        const there = await caseStillThere();
+        if (there === false) throw new StoreError("storage", `${item.key} was fenced: its case is gone`);
+        if (there === null) throw uncheckedCase();
         throw new StoreError("storage", `${item.key} disappeared while being written; try again`);
       }
     }
@@ -176,11 +183,6 @@ async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: n
   // A write across its case's removal is fenced (D01 T01 §24): the insert below joins the case, so a case
   // gone at insert time records no row; an object this call just created is removed again, while an
   // earlier attempt's object is recorded work the removal flow's prefix sweep owns, never deleted here.
-  const uncheckedCase = () =>
-    new StoreError(
-      "storage",
-      `${item.key} could not be checked against its case; its object is left for the removal sweep`,
-    );
   const fencedByRemoval = async (): Promise<StoreError> => {
     if (created !== null) {
       try {
