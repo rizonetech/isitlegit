@@ -530,6 +530,7 @@ export function dedupe(
   const order = (a: Entry, b: Entry) =>
     Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) ||
     Number(verified(b)) - Number(verified(a)) ||
+    Number(sampleLure(b.page)) - Number(sampleLure(a.page)) ||
     a.page.id.localeCompare(b.page.id);
   const index = (entry: Entry, keys: number[], lo: number, hi: number, len: number) => {
     const idx = indexedEntries.length;
