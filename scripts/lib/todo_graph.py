@@ -33,24 +33,22 @@ NEEDS = {"meta-api", "cloudflare", "live-mail", "whatsapp",
          "attended", "owner-decision", "third-party", "operator"}
 WAITING = {"owner-decision", "third-party", "operator"}
 STATUSES = {"draft", "active", "blocked", "done", "superseded"}
-# stopped-at-33 is the current review-round cap; stopped-at-22, -13, -8 and -3 stay valid on receipts written under
-# earlier caps.
+# stopped-at-3 is the current review-round cap (3 regular rounds + plan + completion = 5 reviews total; operator,
+# 2026-11-03 20:02 SAST); stopped-at-33, -22, -13 and -8 stay valid on receipts written under earlier caps.
 # stopped-low-severity: after SEVERITY_CUTOFF_ROUND, a round whose findings are all P3 or advisory ends the loop and
 # its findings are filed as leftovers (review-todo-section). With the cutoff at 0 that is the first such round.
 VERDICTS = {"clean", "fixed", "stopped-at-33", "stopped-at-22", "stopped-at-13", "stopped-at-8", "stopped-at-3",
             "stopped-low-severity"}
-REVIEW_ROUND_CAP = 33
-# A `Risk: light` section (tooling, tests, docs, the marketing site's and the videos' own files: nothing the running
-# service needs) stops at 8 rounds; its leftover findings are filed as rows and polished after the critical work, not
-# dropped (operator, 2026-10-31: critical parts polished first and fully, the rest after; the bar never drops).
-LIGHT_ROUND_CAP = 8
+REVIEW_ROUND_CAP = 3
+# Both light and full sections stop at 3 regular rounds (5 reviews total with plan and completion; operator, 2026-11-03).
+LIGHT_ROUND_CAP = 3
 
 
 def round_cap(risk):
     """The review-round cap for a section of this Risk: the full loop for every section the service depends on."""
     return LIGHT_ROUND_CAP if risk == "light" else REVIEW_ROUND_CAP
 # Caps a receipt that records round_cap may name: the current one and the earlier ones this repository used.
-EARLIER_CAPS = {8, 13, 22}
+EARLIER_CAPS = {8, 13, 22, 33}
 # Receipts older than the rounds_spent field (stamped under the earlier process). Each is frozen by the
 # digest of its content in LEGACY_RECEIPTS, so a new receipt cannot pass by dropping the field. Their round counts vary
 # (up to 16), so unlike their verdicts they are not bounded here; the digest is what binds them.

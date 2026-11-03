@@ -20,7 +20,7 @@ schema_version = 1
 [reviewers.astra]
 cli = "codex"
 model = "gpt-6-astra"
-effort = "medium"
+effort = "low"
 
 # Muse Wonder through Muse Code (the operator's subscription, Standard mode, contributor mode off on every call), the
 # final reviewer: one review per section after the Astra rounds stop (operator, 2026-10-26 23:03). It is no route:
@@ -57,22 +57,23 @@ muse = ["astra"]
 [schedule]
 severity_stop_after = 0
 
-# Every pass that ran at high runs at medium from 2026-10-31 11:35 SAST (operator: quicker, the build is behind). A pass
-# keeps the schedule of the pin it ran under, so sections already in their rounds stamp unchanged.
+# Every pass runs at low from 2026-11-03 20:02 SAST (operator: low effort across plan, completion and all rounds,
+# capped at 3 regular rounds / 5 reviews total). A pass keeps the schedule of the pin it ran under, so sections
+# already in their rounds stamp unchanged.
 [schedule.plan]
-effort = "medium"
+effort = "low"
 lenses = ["plan"]
 
 [schedule.completion]
-effort = "medium"
+effort = "low"
 
-# Round 1 at high, not xhigh, from 2026-10-30 00:30 SAST; at medium from 2026-10-31 11:35 SAST (operator).
+# All rounds at low from 2026-11-03 20:02 SAST (operator).
 [[schedule.rounds]]
-effort = "medium"
+effort = "low"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 
 [[schedule.rounds]]
-effort = "medium"
+effort = "low"
 lenses = ["adversarial"]
 
 [[schedule.rounds]]
@@ -83,14 +84,14 @@ lenses = ["adversarial"]
 # documentation) runs these fixed rounds in place of the list above; the rotation, the escalation and the severity stop
 # are the same, so a round that finds a P1 or P2 still earns another round to prove its fix.
 [schedule.light]
-rounds = [{ effort = "medium", lenses = ["adversarial", "plan-delivery"] }]
+rounds = [{ effort = "low", lenses = ["adversarial", "plan-delivery"] }]
 
 [schedule.rotation]
 effort = "low"
 lenses = ["consistency", "quality", "design", "optimization", "record"]
 
 [schedule.escalation]
-effort = "medium"
+effort = "low"
 lenses = ["adversarial"]
 
 # One final review per section by Muse Wonder, after the rounds stop (the last returned round declares no P1 or

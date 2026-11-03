@@ -15,7 +15,7 @@
     python scripts/todo-graph.py stamp 'D02 T01 §1' --sha <40-char commit> \
         --plan '<findings file>' \
         --completion '<findings file>:<complete|completed|filed>' \
-        --review '<round>:<report path>:<clean|fixed|stopped-at-33|stopped-low-severity>' --check '<command> -> <result>' \
+        --review '<round>:<report path>:<clean|fixed|stopped-at-3|stopped-low-severity>' --check '<command> -> <result>' \
         [--cap-outcome '<what was done when the review cap was reached>']   # required with a stopped verdict
         [--final '<findings file>:<clean|fixed>']   # required when the schedule has a final step
     python scripts/todo-graph.py unstamp 'D02 T01 §1' --reason '<what regressed, and the repair section>'

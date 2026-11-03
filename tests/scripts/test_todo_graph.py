@@ -804,13 +804,13 @@ class Stamp(Tree):
                                                 for n in range(1, last + 1)), encoding="utf-8")
         self.ensure_plan()
 
-    def test_the_cap_is_33_and_earlier_caps_stay_valid(self):
-        # Owner decision 2026-10-23: the review-round cap moved from 22 to 33.
-        self.assertEqual(tg.REVIEW_ROUND_CAP, 33)
-        self.assertIn("stopped-at-33", tg.VERDICTS)
-        for earlier in (22, 13, 8, 3):
+    def test_the_cap_is_3_and_earlier_caps_stay_valid(self):
+        # Operator decision 2026-11-03: the review-round cap moved to 3 regular rounds (5 reviews total with plan + completion).
+        self.assertEqual(tg.REVIEW_ROUND_CAP, 3)
+        self.assertIn("stopped-at-3", tg.VERDICTS)
+        for earlier in (33, 22, 13, 8, 3):
             self.assertIn(f"stopped-at-{earlier}", tg.VERDICTS)
-        self.assertEqual(tg.EARLIER_CAPS, {8, 13, 22})
+        self.assertEqual(tg.EARLIER_CAPS, {8, 13, 22, 33})
 
     def make_light(self):
         """The fixture again, with §1 a `Risk: light` section naming only tooling from its first commit."""
@@ -818,44 +818,44 @@ class Stamp(Tree):
         self.light = True
         self.setUp()
 
-    def test_a_light_section_stops_at_8_rounds_and_a_full_one_does_not(self):
-        # Operator, 2026-10-31: non-critical (Risk: light) sections stamp at 8 rounds with their leftovers filed;
-        # every section the service depends on keeps the full 33-round loop.
-        self.assertEqual((tg.round_cap("light"), tg.round_cap("full")), (8, 33))
+    def test_a_light_section_and_a_full_one_stop_at_3_rounds(self):
+        # Operator, 2026-11-03: both light and full sections stamp at 3 regular rounds with their leftovers filed.
+        self.assertEqual((tg.round_cap("light"), tg.round_cap("full")), (3, 3))
         report = "docs/reviews/00-workspace/D00-T01-s1.md"
-        stopped = [{"round": 8, "report": report, "verdict": "stopped-at-8"}]
+        stopped = [{"round": 3, "report": report, "verdict": "stopped-at-3"}]
         self.tick_work()
         self.record_rounds(8)
         with self.assertRaises(tg.Refused) as ctx:  # a full section does not stop at 8
-            self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13", cap_outcome="filed")
-        self.assertIn("stopped-at-33", str(ctx.exception))
+            self.stamp("D00 T01 §1", self.sha, [{"round": 8, "report": report, "verdict": "stopped-at-8"}],
+                       ["true -> ok"], "2026-10-13", cap_outcome="filed")
+        self.assertIn("stopped-at-3", str(ctx.exception))
         self.make_light()
         self.tick_work()
-        self.record_rounds(8)
+        self.record_rounds(3)
         receipt = self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13",
                              cap_outcome="filed the leftovers as D00 T01 §2")
         data = json.loads((self.root / receipt).read_text(encoding="utf-8"))
-        self.assertEqual((data["rounds_spent"], data["round_cap"]), (8, 8))
+        self.assertEqual((data["rounds_spent"], data["round_cap"]), (3, 3))
         tg.graph(self.root)
 
-    def test_a_light_section_still_needs_its_8_rounds_to_stop_at_the_cap(self):
+    def test_a_light_section_still_needs_its_3_rounds_to_stop_at_the_cap(self):
         self.make_light()
         self.tick_work()
-        self.record_rounds(5)
+        self.record_rounds(2)
         with self.assertRaises(tg.Refused):
-            self.stamp("D00 T01 §1", self.sha, [{"round": 5, "report": "docs/reviews/00-workspace/D00-T01-s1.md",
-                                                 "verdict": "stopped-at-8"}], ["true -> ok"], "2026-10-13",
+            self.stamp("D00 T01 §1", self.sha, [{"round": 2, "report": "docs/reviews/00-workspace/D00-T01-s1.md",
+                                                 "verdict": "stopped-at-3"}], ["true -> ok"], "2026-10-13",
                        cap_outcome="filed")
 
-    def test_a_receipt_written_under_the_22_round_cap_still_validates(self):
+    def test_a_receipt_written_under_earlier_round_caps_still_validates(self):
         self.tick_work()
         self.record_rounds(22)
         stopped = [{"round": 22, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "stopped-at-22"}]
         with self.assertRaises(tg.Refused):  # a new stamp stops only at the current cap
             self.stamp("D00 T01 §1", self.sha, stopped, ["true -> ok"], "2026-10-13", cap_outcome="filed")
-        self.record_rounds(33)
+        self.record_rounds(3)
         receipt = self.root / self.stamp("D00 T01 §1", self.sha, [
-            {"round": 33, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "stopped-at-33"}],
+            {"round": 3, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": "stopped-at-3"}],
             ["true -> ok"], "2026-10-13", cap_outcome="filed")
         # The same section as a receipt from the 22-round era: 22 rounds, stopped-at-22, round_cap 22.
         self.record_rounds(22)
@@ -1070,7 +1070,7 @@ class Stamp(Tree):
         self.tick_work()
         self.record_rounds(tg.REVIEW_ROUND_CAP)
         before = self.snapshot()
-        for n, verdict in ((1, f"stopped-at-{tg.REVIEW_ROUND_CAP}"), (3, "stopped-at-3"), (13, "stopped-at-13")):
+        for n, verdict in ((1, f"stopped-at-{tg.REVIEW_ROUND_CAP}"), (3, "stopped-at-8"), (13, "stopped-at-13")):
             early = [{"round": n, "report": "docs/reviews/00-workspace/D00-T01-s1.md", "verdict": verdict}]
             with self.assertRaises(tg.Refused) as ctx:
                 self.stamp("D00 T01 §1", self.sha, early, ["true -> ok"], "2026-10-13", cap_outcome="filed")
@@ -1436,6 +1436,9 @@ class Stamp(Tree):
     def live(self, surface=False, risk=None):
         """Pin the live schedule shape (and, with surface, make §1 a surface section; with risk, give §1 that Risk
         line, naming a tooling path), committed as the stamped commit."""
+        cap_patch = mock.patch.object(tg, "REVIEW_ROUND_CAP", 33)
+        cap_patch.start()
+        self.addCleanup(cap_patch.stop)
         (self.root / tg.PIN).write_text(SCHEDULE_PIN, encoding="utf-8")
         if risk:
             path = self.root / "todo/00-workspace/TODO-01-a.md"
