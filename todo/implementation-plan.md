@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 196 | Checklist items: 833
+Sections: 197 | Checklist items: 837
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -511,6 +511,7 @@ Sections: 196 | Checklist items: 833
 | [ ]    | D07 T02 §27 | Close account control on the Account board                  | operator             | 4     |
 | [ ]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
+| [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 2     |
@@ -630,6 +631,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 351/554 verified sections, 131 ready to run now.
+Progress: 351/555 verified sections, 131 ready to run now.
 
-Checklist: 2710/3445 items completed (includes Commit items).
+Checklist: 2710/3449 items completed (includes Commit items).

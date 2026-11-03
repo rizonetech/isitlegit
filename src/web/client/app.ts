@@ -1785,8 +1785,10 @@ function passkeyEnded(reason: string): void {
   promptShown(false);
   const line = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-message]");
   if (line) line.textContent = reason;
+  // However the ceremony ended without signing in (a refusal, a cancellation, or the switch to the email
+  // route), the troubleshooting note stays reachable beside the retry and the email route (D07 T02 §28).
   const help = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-help]");
-  if (help) help.hidden = !reason;
+  if (help) help.hidden = false;
   const request = document.querySelector<HTMLButtonElement>('form[action="/signin/link"] button[type=submit]');
   const heading = passkeyOption()?.closest("section")?.querySelector<HTMLElement>("h1");
   if (heading) heading.tabIndex = -1;

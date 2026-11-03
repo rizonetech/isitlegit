@@ -78,7 +78,10 @@ describe("the passkey prompt and its recoveries", () => {
     for (const theme of ["light", "dark"] as const) {
       await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
       const text = (await p.textContent("[data-passkey-prompt]"))?.replace(/\s+/g, " ") ?? "";
-      for (const cause of causes) expect(text, theme).toContain(cause);
+      for (const cause of causes) {
+        expect(text, theme).toContain(cause);
+        expect(await p.locator("[data-passkey-prompt]").getByText(cause, { exact: true }).isVisible(), theme).toBe(true);
+      }
       expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(360);
     }
     stub.optionsDelayMs = 0;
@@ -90,6 +93,17 @@ describe("the passkey prompt and its recoveries", () => {
     expect(await cancelled.p.locator("[data-passkey-help]").isVisible()).toBe(true);
     const help = (await cancelled.p.textContent("[data-passkey-help]"))?.replace(/\s+/g, " ") ?? "";
     for (const cause of causes) expect(help).toContain(cause);
+    for (const cause of causes)
+      expect(await cancelled.p.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible()).toBe(true);
+    // A refused ceremony leaves the same note visible.
+    const refused = await signinWith("/signin", { width: 360 });
+    stub.answers = [{ status: 401, code: "AUTHENTICATION_FAILED" }];
+    await press(refused.p);
+    await expect.poll(() => message(refused.p)).toContain("That passkey could not be checked");
+    expect(await refused.p.locator("[data-passkey-help]").isVisible()).toBe(true);
+    for (const cause of causes)
+      expect(await refused.p.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible()).toBe(true);
+    await refused.context.close();
     await cancelled.p.getByLabel("Work email").fill("m@k.example");
     await cancelled.p.getByRole("button", { name: "Email me a sign-in link" }).focus();
     await cancelled.p.keyboard.press("Enter");
@@ -182,6 +196,8 @@ describe("the passkey prompt and its recoveries", () => {
     await before.p.keyboard.press("Enter");
     expect(await focusedType(before.p)).toBe("email");
     expect(await before.p.locator("[data-passkey-prompt]").isHidden()).toBe(true);
+    // The troubleshooting note stays reachable on the page the member lands on (D07 T02 §28).
+    expect(await before.p.locator("[data-passkey-help]").isVisible()).toBe(true);
     await optionsDropped;
     // The late answer has gone out too (the stub sent it), and the page made nothing of it.
     await expect.poll(() => stub.answered, { timeout: 5_000 }).toBe(1);

@@ -64,6 +64,7 @@ track: day-1
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
 | 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [ ] |
 | 29 | §29 | Undo window after closing an organisation | §9, §26 | [ ] |
+| 30 | §30 | Passkey compatibility and second-line causes | §28 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -1035,6 +1036,8 @@ The passkey prompt names the cross-device steps but offers no help when they fai
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
 
+> **Deferred:** verified compatibility guidance and the second-line causes (a passkey store not set up, a private-browsing window) -> XREF: D07 T02 §30. Deferred 2026-11-03 from §28's completion review.
+
 ## 29. Undo window after closing an organisation
 
 Closing an organisation is irreversible from the moment it is pressed (§9), while the strongest account-deletion flows offer a short recovery window for an accidental closure (D07 T02 §26 completion review, 2026-11-03, against Google Account deletion). A window changes §9's decided contract, so it needs the operator's decision on its length and terms before any build; the purge (§9) already waits 25 days, so a window inside that period needs no purge change.
@@ -1058,6 +1061,30 @@ Closing an organisation is irreversible from the moment it is pressed (§9), whi
 - [ ] Commit: `app: undo window after closing an organisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts test/node/account-browser.test.tsx` passes with the reopen cases.
+
+## 30. Passkey compatibility and second-line causes
+
+The troubleshooting note (§28) names the three usual causes, but a member whose device is already on its latest browser learns nothing about whether their combination can use a phone passkey at all, and two more real causes sit behind the first three: a passkey store that is not set up (for example iCloud Keychain off) and a private-browsing window that cannot reach the stored passkey (D07 T02 §28 completion review, 2026-11-03, against Google Account's passkey guidance).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
+**Job:** a member the first three fixes cannot help learns whether their device and browser can do this, and what else to change
+**Treatment:** verified compatibility guidance and the two second-line causes in the same note
+**Chrome:** the passkey prompt (§16) and its post-failure note (§28)
+
+**Build order:**
+
+1. Name the compatibility guidance and the two causes in `design/SPEC.md` A1. Done when: A1 names each and `python3 design/tools/check-design.py` passes.
+2. Draw them in the note and prove them. Done when: the browser test below passes.
+
+- [ ] Verify the supported device and browser combinations for cross-device passkeys from the platform vendors' own documentation and record them with their sources in `design/SPEC.md` A1. Done when: A1 names the combinations and where each was verified. Cheaper substitute: "update your browser", which says nothing to a member already on the latest their device allows.
+- [ ] Add the two second-line causes with their actions (turn on the passkey store, for example iCloud Keychain; leave the private-browsing window and sign in in a normal window) to the `PasskeyHelp` note (`src/web/pages/signin.tsx`), in the panel and after a failure. Done when: the rendered note names each at phone width in both themes. Cheaper substitute: leaving the member to search the web mid-sign-in.
+- [ ] Prove it in `test/node/passkey-signin-browser.test.tsx`: each second-line cause and the compatibility line are visible in the panel and after a cancelled ceremony, and the email recovery still works. Done when: the test passes and fails with any of them removed.
+- [ ] Commit: `web: passkey compatibility and second-line causes`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the second-line causes named.
 
 ## Verification
 
