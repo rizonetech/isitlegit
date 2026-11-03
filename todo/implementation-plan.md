@@ -396,7 +396,7 @@ Sections: 99 | Checklist items: 631
 
 ### Phase 7: After the event
 
-Sections: 200 | Checklist items: 876
+Sections: 204 | Checklist items: 893
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -432,12 +432,15 @@ Sections: 200 | Checklist items: 876
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item                  | none                 | 3     |
 | [x]    | D02 T01 §8  | Examined set stored for a clean check                       | none                 | 3     |
 | [ ]    | D02 T01 §9  | Protected-identity candidate for the trust match            | none                 | 3     |
+| [ ]    | D02 T01 §10 | Every examined target kept past the stored bound            | none                 | 5     |
+| [ ]    | D02 T01 §11 | Relation of each examined target to the message             | none                 | 4     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                             | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
+| [ ]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured                       | none                 | 3     |
 | [ ]    | D02 T04 §10 | Attachment content                                          | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
@@ -520,7 +523,7 @@ Sections: 200 | Checklist items: 876
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                               | attended             | 2     |
 | [ ]    | D07 T03 §27 | Reply and report in your language                           | none                 | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding                     | none                 | 2     |
-| [ ]    | D07 T03 §44 | Clean checks with their result summary                      | none                 | 4     |
+| [x]    | D07 T03 §44 | Clean checks with their result summary                      | none                 | 4     |
 | [ ]    | D07 T03 §47 | Previous attempt of a                                       | none                 | 4     |
 | [ ]    | D07 T03 §50 | Mail refusal reason in the trace                            | none                 | 3     |
 | [ ]    | D07 T03 §51 | Walkthrough action to its                                   | none                 | 4     |
@@ -581,16 +584,16 @@ Sections: 200 | Checklist items: 876
 | [ ]    | D07 T08 §23 | Money-at-risk aggregation                                   | none                 | 2     |
 | [ ]    | D07 T08 §24 | Feedback queue search and step                              | none                 | 8     |
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page                   | operator             | 4     |
-| [ ]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
+| [x]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 3     |
 | [x]    | D07 T09 §3  | Dispute from inside the mailbox                             | none                 | 4     |
 | [x]    | D07 T09 §4  | Measured phone attribution                                  | none                 | 4     |
-| [ ]    | D07 T09 §5  | Per-provider reputation results                             | none                 | 3     |
+| [x]    | D07 T09 §5  | Per-provider reputation results                             | none                 | 5     |
 | [x]    | D07 T09 §6  | The voice note's player and transcript                      | none                 | 5     |
 | [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards                         | none                 | 5     |
 | [x]    | D07 T09 §8  | Bounded preview image transfer                              | none                 | 3     |
-| [ ]    | D07 T09 §9  | Complete decoded run on the card                            | none                 | 5     |
-| [ ]    | D07 T09 §10 | Every target a clean check examined                         | none                 | 5     |
+| [x]    | D07 T09 §9  | Complete decoded run on the card                            | none                 | 5     |
+| [x]    | D07 T09 §10 | Every target a clean check examined                         | none                 | 5     |
 | [x]    | D07 T09 §11 | Outcome and reason beside each version                      | none                 | 4     |
 | [x]    | D07 T09 §12 | Detection data beside each version                          | none                 | 4     |
 | [ ]    | D07 T09 §13 | A fresh walk from a reused card                             | none                 | 4     |
@@ -599,6 +602,7 @@ Sections: 200 | Checklist items: 876
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
 | [ ]    | D07 T09 §18 | Playback failure, retry and follow-along for the voice note | none                 | 3     |
+| [ ]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -638,6 +642,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 366/562 verified sections, 127 ready to run now.
+Progress: 371/566 verified sections, 127 ready to run now.
 
-Checklist: 2806/3506 items completed (includes Commit items).
+Checklist: 2826/3523 items completed (includes Commit items).

@@ -19,6 +19,7 @@ track: day-2
 - Unicode Technical Standard #39 (confusables, `confusables.txt`, Unicode License v3) and RFC 9083 (RDAP JSON responses).
 - Stack doc: own confusables module over the Unicode table; `tldts` 7.4.19.
 - -> XREF: D05 T04 §1 -- the impersonation monitor's candidate generator reuses this module
+- -> XREF: D07 T03 §44 -- the report's clean-check words, whose completion review filed §12 here
 
 ## Outcome
 
@@ -44,6 +45,7 @@ track: day-2
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [x] |
 | 11 | §11 | Demo domains kept apart in the checks | §2 | [x] |
+| 12 | §12 | Lookalike clean summary names the domains compared | §7, D02 T01 §7 | [ ] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -333,6 +335,25 @@ It builds on D07 T02 §20's `registrable()` and `claimable()`, which reach `main
 
 > **Verified:** 2026-11-01 | §11 | ee31ac2631390e819d3b65af1f03b4823256642f
 > **Review:** `docs/reviews/d02-t03-s11.json`
+
+## 12. Lookalike clean summary names the domains compared
+
+Filed 2026-11-03 from D07 T03 §44's completion review (`docs/reviews/07-app/D07-T03-s44.md`, gaps 1 and 4, and round 1's P3 on `design/SPEC.md` M3): when `domain.lookalike` runs clean, `lookalikeSummary` in `src/checks/domain-lookalike.ts` stores "no lookalike of a known name", so the report's Checks that found nothing cannot say what the check looked at, where the board (`Report-Safe`) shows the domains seen. This section makes the clean summary name how many domains were compared and the first of them, inside D02 T01 §7's 120-character bound; the report already draws the stored summary (D07 T03 §44).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Say what a clean lookalike check compared. Done when: a clean lookalike outcome's stored summary names the count of domains compared and the first registrable domain, and a check that compared none says so.
+
+- [ ] Give `lookalikeSummary` in `src/checks/domain-lookalike.ts` the domains the check compared (the header and link registrable domains its `examined` hook already lists, D02 T01 §8), and write a clean summary of the form "no lookalike among 3 domains, from fynbosfreight.example", the first domain cut so the whole stays inside D02 T01 §7's 120-character bound. Done when: `test/checks/domain-lookalike.test.ts` reads back that summary for a clean three-domain case, a one-domain case in the singular, and a 63-character hostname cut inside the bound.
+- [ ] Keep the uncompared wording: a clean run with some domains not compared still says so, after the count. Done when: a test with one compared and one uncompared domain reads "no lookalike among 1 domain compared, from <domain>, some not compared".
+- [ ] Record the board's lookalike words as met in `design/SPEC.md` M3 (round 1's P3 at `design/SPEC.md:740`). Done when: M3 names the lookalike summary's form and `python3 design/tools/check-design.py` passes.
+- [ ] Commit: `checks: lookalike clean summary names the domains compared`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes, and fails if a clean summary names no domain when one was compared.
 
 ## Verification
 

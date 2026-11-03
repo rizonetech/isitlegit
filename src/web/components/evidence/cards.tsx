@@ -129,9 +129,22 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
   );
 }
 
+export type ReputationRow = {
+  provider: string;
+  subject: string;
+  state: string;
+  obtainedAt: string;
+  cached: boolean;
+  note: string | null;
+};
 type Drawn = { title: string; body: unknown; level?: Severity };
 // The third argument is the case's verified request quote, for the one renderer that marks it (voice.transcript).
-type Renderer = (item: CardItem, file: FileLink, requestQuote?: string | null) => Drawn;
+type Renderer = (
+  item: CardItem,
+  file: FileLink,
+  requestQuote?: string | null,
+  reputation?: readonly ReputationRow[],
+) => Drawn;
 
 const PATH_WORDS: Record<string, string> = {
   rfc822: "Forwarded as an attached message",
@@ -436,9 +449,58 @@ function ReviewLink(props: { url: unknown }) {
 }
 // Reputation cards (D07 T03 §12; spec 4.3a): a listing names its provider and what was listed, and offers the
 // provider's review; a listing alone never decides anything, and what was not checked is never "not listed".
-const reputation: Renderer = (item, file) => {
+const PROVIDER_WORDS: Record<string, string> = {
+  "google-web-risk": "Google Web Risk",
+  cloudflare: "Cloudflare",
+  "well-known": "Well-known list",
+};
+const REPUTATION_STATE: Record<string, string> = {
+  listed: "Listed",
+  clear: "Not listed by this provider",
+  unavailable: "Could not be checked",
+  known: "On the well-known list",
+  unknown: "Not on the well-known list",
+};
+// A stored unavailable reason in plain words; a code nothing here knows is said as the provider not answering.
+function reasonWords(note: string): string {
+  if (note === "no_key") return "no provider key is configured";
+  if (note === "rate_limited") return "the provider limited the rate of asks";
+  if (note.startsWith("capped:")) return "the provider's limit for this run was reached";
+  if (note.includes("timed out") || note.includes("timeout")) return "the provider timed out";
+  return "the provider did not answer";
+}
+// One subject's stored provider answers (D07 T09 §5): every provider asked, its own state, when the answer was
+// obtained and whether it came from the cache. The count line counts only providers that answered, keeps the
+// well-known list apart, and never reads as a verdict.
+export function ProviderRows(props: { rows: readonly ReputationRow[] }) {
+  const answered = props.rows.filter((r) => r.state === "listed" || r.state === "clear");
+  const listed = answered.filter((r) => r.state === "listed").length;
+  return (
+    <div class="flex flex-col gap-8">
+      <ul class="m-0 flex list-none flex-col gap-8 p-0">
+        {props.rows.map((r) => (
+          <li class="text-14 wrap-anywhere">
+            <strong>{PROVIDER_WORDS[r.provider] ?? r.provider}</strong>
+            {`: ${REPUTATION_STATE[r.state] ?? r.state}`}
+            {r.note ? ` (${r.state === "unavailable" ? reasonWords(r.note) : r.note})` : ""}
+            {` · obtained ${r.obtainedAt}${r.cached ? " · from cache" : ""}`}
+          </li>
+        ))}
+      </ul>
+      {answered.length > 0 ? (
+        <p class="text-14 text-muted">{`${answered.length} provider${answered.length === 1 ? "" : "s"} answered: ${listed} listed, ${answered.length - listed} not listed`}</p>
+      ) : (
+        <p class="text-14 text-muted">No provider answered for this subject.</p>
+      )}
+    </div>
+  );
+}
+const reputation: Renderer = (item, file, _quote, reputation) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
+  const subject = text(d.listed) ?? text(d.domain);
+  const rows = subject && reputation ? reputation.filter((r) => r.subject === subject) : [];
+  const rowsEl = rows.length > 0 ? <ProviderRows rows={rows} /> : null;
   if (item.check === "reputation.counter_signal") {
     // An overflow item groups the domains it speaks for (the producer's `entries`), with the rest counted.
     const domains = records(d.entries)
@@ -451,7 +513,14 @@ const reputation: Renderer = (item, file) => {
           <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
           {domains.length > 0 ? (
             <>
-              <Bullets items={domains} />
+              {domains.map((domain) => (
+                <div class="flex flex-col gap-4">
+                  <p class="text-14 wrap-anywhere">{domain}</p>
+                  {reputation && reputation.filter((r) => r.subject === domain).length > 0 ? (
+                    <ProviderRows rows={reputation.filter((r) => r.subject === domain)} />
+                  ) : null}
+                </div>
+              ))}
               {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
                 <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
               )}
@@ -459,6 +528,7 @@ const reputation: Renderer = (item, file) => {
           ) : (
             <Facts rows={[["Domain", text(d.domain)]]} />
           )}
+          {rowsEl}
           {files}
         </>
       ),
@@ -489,6 +559,9 @@ const reputation: Renderer = (item, file) => {
                 ]}
               />
               <ReviewLink url={entry.delist_url} />
+              {reputation && reputation.filter((r) => r.subject === text(entry.listed)).length > 0 ? (
+                <ProviderRows rows={reputation.filter((r) => r.subject === text(entry.listed))} />
+              ) : null}
             </div>
           ))}
           {Math.max(0, (count(d.more) ?? 0) - entries.length) > 0 && (
@@ -522,6 +595,7 @@ const reputation: Renderer = (item, file) => {
           ]}
         />
         <ReviewLink url={d.delist_url} />
+        {rowsEl}
         {files}
       </>
     ),
@@ -775,6 +849,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   // Where the instruction sits in the run, when the producer found one (D02 T05 §6; D07 T03 §29): its own excerpt,
   // so a reader reads the instruction itself without decoding the original elsewhere.
   const instruction = runInstruction(d.instruction);
+  // The whole stored run (D02 T05 §11, drawn by D07 T09 §9): the decoded text past the excerpt, with its cut marked.
+  const run = d.run && typeof d.run === "object" && !Array.isArray(d.run) ? (d.run as Record<string, unknown>) : null;
+  const runText = run ? text(run.text) : null;
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -786,7 +863,12 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
           <>
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
             <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
-            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+            {cut &&
+              (runText ? (
+                <p class="text-13 text-muted">The whole run is below.</p>
+              ) : (
+                <p class="text-13 text-muted">The rest is in the original message.</p>
+              ))}
           </>
         )}
         {instruction && (
@@ -794,6 +876,17 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
             <p class="text-13 text-muted">{`The instruction, from character ${instruction.offset}`}</p>
             <EvidenceQuote>{`"${instruction.text}"`}</EvidenceQuote>
           </>
+        )}
+        {runText && (
+          <details>
+            <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Read the whole hidden run</summary>
+            <div class="flex flex-col gap-8 mt-8">
+              <EvidenceQuote>{runText}</EvidenceQuote>
+              {run?.truncated === true && (
+                <p class="text-13 text-muted">The stored run is cut short: the rest is in the original message.</p>
+              )}
+            </div>
+          </details>
         )}
         <Facts
           rows={[
@@ -1662,10 +1755,15 @@ const RENDERERS: Record<Family, Renderer> = {
   not_checked: notChecked,
 };
 
-export function Card(props: { item: CardItem; file: FileLink; requestQuote?: string | null }) {
+export function Card(props: {
+  item: CardItem;
+  file: FileLink;
+  requestQuote?: string | null;
+  reputation?: readonly ReputationRow[];
+}) {
   const { item, file } = props;
   const family = familyOf(item.check);
-  const drawn = family ? RENDERERS[family](item, file, props.requestQuote) : null;
+  const drawn = family ? RENDERERS[family](item, file, props.requestQuote, props.reputation) : null;
   return (
     <EvidenceCard
       id={item.id}
@@ -1761,8 +1859,44 @@ export function EvidenceCards(props: {
         data?: { revision: string; id: string; source: "kv" | "bundled" };
       }[]
     | null;
+  // The run's stored per-provider reputation answers (D07 T09 §5), drawn on their subject's card; null when
+  // the read itself failed, which the block says rather than drawing nothing.
+  reputation?: readonly ReputationRow[] | null | undefined;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
+  const namedSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) namedSubjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) namedSubjects.add(s);
+    }
+  }
+  const uncovered = new Map<string, ReputationRow[]>();
+  // One card per subject draws its rows: the first card that names the subject, so a stored answer is never
+  // repeated on every card that mentions the same subject.
+  const claimed = new Map<string, ReputationRow[]>();
+  const seenSubjects = new Set<string>();
+  for (const item of props.items) {
+    if (!item.check.startsWith("reputation.")) continue;
+    const subjects = new Set<string>();
+    for (const s of [text(item.detail.listed), text(item.detail.domain)]) if (s) subjects.add(s);
+    for (const e of records(item.detail.entries)) {
+      const s = text(e.listed) ?? text(e.domain);
+      if (s) subjects.add(s);
+    }
+    for (const s of subjects) {
+      if (seenSubjects.has(s)) continue;
+      seenSubjects.add(s);
+      const rows = (props.reputation ?? []).filter((r) => r.subject === s);
+      if (rows.length > 0) claimed.set(item.id, [...(claimed.get(item.id) ?? []), ...rows]);
+    }
+  }
+  for (const r of props.reputation ?? []) {
+    if (namedSubjects.has(r.subject)) continue;
+    uncovered.set(r.subject, [...(uncovered.get(r.subject) ?? []), r]);
+  }
   // The quote names no recording, so with two recordings on one case it marks neither: a mark on the wrong one is worse than none.
   const transcripts = props.items.filter((i) => i.check === "voice.transcript").length;
   const requestQuote =
@@ -1792,7 +1926,12 @@ export function EvidenceCards(props: {
           {(all ? rest : cited).length > 0 && (
             <div class={grid}>
               {(all ? rest : cited).map((item) => (
-                <Card item={item} file={props.file} requestQuote={requestQuote} />
+                <Card
+                  item={item}
+                  file={props.file}
+                  requestQuote={requestQuote}
+                  reputation={claimed.get(item.id) ?? []}
+                />
               ))}
             </div>
           )}
@@ -1814,13 +1953,28 @@ export function EvidenceCards(props: {
               </summary>
               <div class={grid}>
                 {rest.map((item) => (
-                  <Card item={item} file={props.file} requestQuote={requestQuote} />
+                  <Card
+                    item={item}
+                    file={props.file}
+                    requestQuote={requestQuote}
+                    reputation={claimed.get(item.id) ?? []}
+                  />
                 ))}
               </div>
             </details>
           )}
         </>
       )}
+      {props.reputation === null && (
+        <p class="text-14 text-muted">The provider answers for this report could not be loaded.</p>
+      )}
+      {[...uncovered.entries()].map(([subject, rows]) => (
+        <div class="flex flex-col gap-8">
+          <h3 class="type-h3">What the reputation providers said</h3>
+          <p class="text-14 wrap-anywhere">{subject}</p>
+          <ProviderRows rows={rows} />
+        </div>
+      ))}
     </section>
   );
 }

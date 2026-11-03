@@ -6,7 +6,7 @@ import { artefactUrl } from "../artefact-url";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Document } from "../components/Document";
-import { type CardItem, EvidenceCards } from "../components/evidence/cards";
+import { type CardItem, EvidenceCards, type ReputationRow } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
 import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-header";
 import { type Coverage, CoverageNotice, evidenceCount, type LiveProps, ReportLive } from "./report-live";
@@ -89,6 +89,7 @@ function ReportBody(props: {
   link?: string;
   progress: Progress;
   coverage: Coverage;
+  reputation?: readonly ReputationRow[] | null | undefined;
   delivery: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
   dispute?: boolean;
@@ -141,6 +142,7 @@ function ReportBody(props: {
           file={(key) => artefactUrl(stored.id, key, view === "public" ? props.link : undefined)}
           intro={evidenceCount(evidence, props.coverage)}
           versions={props.coverage}
+          reputation={props.reputation}
         />
       ) : (
         <ReportLive
@@ -153,6 +155,7 @@ function ReportBody(props: {
           {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
           {...(props.dispute ? { dispute: true } : {})}
           evidence={evidence}
+          reputation={props.reputation}
           progress={props.progress}
           coverage={props.coverage}
           retry={props.retry ?? null}
@@ -262,6 +265,7 @@ export function ReportDocument(props: {
   // The case's step progress and stored check outcomes (§4); a caller with neither draws no steps and no coverage.
   progress?: Progress;
   coverage?: Coverage;
+  reputation?: readonly ReputationRow[] | null | undefined;
   delivery?: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
   dispute?: boolean;
@@ -285,6 +289,7 @@ export function ReportDocument(props: {
       {...(linkExpires ? { linkExpires } : {})}
       {...(props.link ? { link: props.link } : {})}
       progress={props.progress ?? progressOf([])}
+      reputation={props.reputation}
       coverage={props.coverage ?? null}
       delivery={props.delivery ?? null}
       {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
