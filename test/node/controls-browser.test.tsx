@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Button } from "../../src/web/components/Button";
 import { Checkbox } from "../../src/web/components/Checkbox";
 import { Field } from "../../src/web/components/Field";
+import { Select } from "../../src/web/components/Select";
 import { chromiumPath, focused, launch } from "./browser";
 
 // The controls in a real browser (D07 T01 §6): focus is visible, the keyboard activates what a mouse does, disabled
@@ -60,7 +61,31 @@ const BODY = String(
     ))}
     <form id="form">
       <Field id="email" name="email" label="Email" value="a@b.example" />
+      <Field id="notes" name="notes" label="Notes" rows={2} value="Check this" />
       <Field id="bad" name="bad" label="Bad" error="Enter a value" />
+      <div id="select-row" class="flex items-center gap-8">
+        <label for="verdict" class="text-14">
+          Verdict
+        </label>
+        <Select id="verdict" name="verdict">
+          <option value="all" selected>
+            All verdicts
+          </option>
+          <option value="malicious">Malicious</option>
+          <option value="safe">Safe</option>
+        </Select>
+      </div>
+      <div id="select-col" class="flex flex-col gap-6" style="width: 260px">
+        <label for="locked-select" class="text-14">
+          Locked select
+        </label>
+        <Select id="locked-select" name="lockedSelect" disabled>
+          <option value="owner" selected>
+            Owner
+          </option>
+          <option value="member">Member</option>
+        </Select>
+      </div>
       <Checkbox id="consent" name="consent" value="yes" required>
         I agree
       </Checkbox>
@@ -115,25 +140,127 @@ const events = (page: Page) => page.evaluate(() => (window as unknown as { event
 // A real browser on a loaded CI runner can take longer than Vitest's 5 s default for one test (run 40481145558).
 describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", { timeout: 30_000 }, () => {
   for (const theme of ["light", "dark"] as const)
-    it(`shows a focus ring of 3:1 or more on every control reached with Tab, invalid fields included (${theme})`, async () => {
+    it(`shows a 3:1+ focus indicator on every control reached with Tab: outline on buttons/links/checkboxes and one-border on fields/selects, invalid fields included (${theme})`, async () => {
       const page = await open(theme);
-      const reached: Record<string, { outline: string; contrast: number }> = {};
-      for (let i = 0; i < 30; i++) {
+      const t = colors[theme];
+      const reached: Record<string, { outline: string; border: string; borderColor: string; contrast: number }> = {};
+      for (let i = 0; i < 35; i++) {
         await page.keyboard.press("Tab");
         const focus = await focused(page);
         // Past the last control focus returns to the document itself, which has nothing behind it to measure.
         if (!focus) continue;
         const id = focus.key;
         expect(focus.opaque, `an opaque background behind ${id}`).toBe(true);
-        reached[id] = { outline: focus.outline, contrast: focus.contrast };
+        reached[id] = {
+          outline: focus.outline,
+          border: focus.border,
+          borderColor: focus.borderColor,
+          contrast: focus.contrast,
+        };
       }
       const placed = BACKGROUNDS.flatMap((bg) => ["primary", "danger", "small", "link"].map((v) => `${bg}-${v}`));
-      for (const id of ["primary", "ghost", "dark", "go", ...placed, "email", "bad", "consent", "plain", "submit"]) {
+      for (const id of ["primary", "ghost", "dark", "go", ...placed, "consent", "plain", "submit"]) {
         expect(reached[id], `${id} reached`).toBeDefined();
         expect(reached[id]?.outline, `${id} focus ring`).toMatch(/^solid [1-9]/);
         expect(reached[id]?.contrast, `${id} focus contrast`).toBeGreaterThanOrEqual(3);
       }
-      for (const id of ["off", "offlink", "ariaoff", "locked"]) expect(Object.keys(reached)).not.toContain(id);
+      for (const id of ["email", "notes", "bad", "verdict"]) {
+        expect(reached[id], `${id} reached`).toBeDefined();
+        expect(reached[id]?.outline, `${id} has no second outline`).toMatch(/^none\b/);
+        expect(reached[id]?.border, `${id} keeps its 1 px solid border`).toBe("solid 1px");
+        expect(reached[id]?.borderColor, `${id} switches its border to orange-text`).toBe(rgb(t["orange-text"]));
+        expect(reached[id]?.contrast, `${id} focus border contrast`).toBeGreaterThanOrEqual(3);
+      }
+      for (const id of ["off", "offlink", "ariaoff", "locked", "locked-select"])
+        expect(Object.keys(reached)).not.toContain(id);
+      await page.close();
+    });
+
+  for (const theme of ["light", "dark"] as const)
+    it(`visibly switches an invalid field's border from mal to orange-text on focus and restores mal on blur while keeping aria-invalid and the error message (${theme})`, async () => {
+      const page = await open(theme);
+      const t = colors[theme];
+      const state = () =>
+        page.evaluate(() => {
+          const el = document.getElementById("bad") as HTMLElement;
+          const err = document.getElementById("bad-error") as HTMLElement;
+          const s = getComputedStyle(el);
+          return {
+            outline: s.outlineStyle,
+            border: s.borderTopColor,
+            ariaInvalid: el.getAttribute("aria-invalid"),
+            errorText: err?.textContent,
+            errorVisible: err ? getComputedStyle(err).display !== "none" : false,
+          };
+        });
+      expect(await state()).toEqual({
+        outline: "none",
+        border: rgb(t.mal),
+        ariaInvalid: "true",
+        errorText: "Enter a value",
+        errorVisible: true,
+      });
+      await page.focus("#bad");
+      expect(await state()).toEqual({
+        outline: "none",
+        border: rgb(t["orange-text"]),
+        ariaInvalid: "true",
+        errorText: "Enter a value",
+        errorVisible: true,
+      });
+      await page.focus("#email");
+      expect(await state()).toEqual({
+        outline: "none",
+        border: rgb(t.mal),
+        ariaInvalid: "true",
+        errorText: "Enter a value",
+        errorVisible: true,
+      });
+      await page.close();
+    });
+
+  it("restores a 2 px solid outline on focused valid and invalid fields and selects in forced-colors mode", async () => {
+    const context = await browser.newContext({ forcedColors: "active" });
+    const page = await context.newPage();
+    await page.setContent(
+      `<!doctype html><html data-theme="light"><head><style>${css}</style></head><body class="bg-surface text-ink">${BODY}</body></html>`,
+    );
+    for (const id of ["email", "notes", "bad", "verdict"]) {
+      await page.focus(`#${id}`);
+      const outline = await page.evaluate((sel) => {
+        const s = getComputedStyle(document.getElementById(sel) as HTMLElement);
+        return `${s.outlineStyle} ${s.outlineWidth}`;
+      }, id);
+      expect(outline, `${id} in forced-colors mode`).toBe("solid 2px");
+    }
+    await context.close();
+  });
+
+  for (const theme of ["light", "dark"] as const)
+    it(`draws Select with appearance: none and its ChevronIcon inset 12 px from the right edge in both row and column layouts (${theme})`, async () => {
+      const page = await open(theme);
+      for (const id of ["verdict", "locked-select"]) {
+        const box = await page.evaluate((sel) => {
+          const select = document.getElementById(sel) as HTMLSelectElement;
+          const svg = select.parentElement?.querySelector("svg") as SVGElement;
+          const sr = select.getBoundingClientRect();
+          const vr = svg.getBoundingClientRect();
+          return {
+            appearance: getComputedStyle(select).appearance,
+            pointerEvents: getComputedStyle(svg).pointerEvents,
+            rightInset: Math.round(sr.right - vr.right),
+            insideVertically: vr.top >= sr.top && vr.bottom <= sr.bottom,
+            insideHorizontally: vr.left >= sr.left && vr.right <= sr.right,
+          };
+        }, id);
+        expect(box, `${id} in ${theme}`).toEqual({
+          appearance: "none",
+          pointerEvents: "none",
+          rightInset: 12,
+          insideVertically: true,
+          insideHorizontally: true,
+        });
+      }
       await page.close();
     });
 
@@ -181,8 +308,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", { ti
     await page.keyboard.press("Space");
     await page.click("text=Locked", { force: true });
     expect(await page.isChecked("#locked")).toBe(false);
+    await page.focus("#verdict");
+    await page.keyboard.press("ArrowDown");
+    expect(await page.inputValue("#verdict")).toBe("malicious");
     await page.click("#submit");
-    expect(await events(page)).toEqual(["plain", "submit:email=a%40b.example&bad=&consent=yes"]);
+    expect(await events(page)).toEqual([
+      "plain",
+      "submit:email=a%40b.example&notes=Check+this&bad=&verdict=malicious&consent=yes",
+    ]);
     await page.close();
   });
 

@@ -22,6 +22,7 @@ import {
 import { Field } from "../components/Field";
 import { CopyIcon, MenuIcon } from "../components/icons";
 import { Pill, type PillVariant } from "../components/Pill";
+import { Select } from "../components/Select";
 import {
   EmptyState,
   type ErrorCode,
@@ -223,6 +224,41 @@ export const GALLERY_STATES: State[] = [
         autocomplete="one-time-code"
         maxlength={7}
       />
+    ),
+  },
+  {
+    id: "select/default",
+    render: () => (
+      <div class="flex flex-col gap-6">
+        <label for="g-select" class="text-14 weight-text-strong">
+          Verdict
+        </label>
+        <Select id="g-select" name="verdict">
+          <option value="">All verdicts</option>
+          <option value="malicious" selected>
+            Malicious
+          </option>
+          <option value="suspicious">Suspicious</option>
+          <option value="safe">Safe</option>
+        </Select>
+      </div>
+    ),
+  },
+  {
+    id: "select/disabled",
+    render: () => (
+      <div class="flex flex-col gap-6">
+        <label for="g-select-disabled" class="text-14 weight-text-strong">
+          Role
+        </label>
+        <Select id="g-select-disabled" name="role" disabled>
+          <option value="owner" selected>
+            Owner
+          </option>
+          <option value="admin">Admin</option>
+          <option value="member">Member</option>
+        </Select>
+      </div>
     ),
   },
   {

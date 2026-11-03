@@ -7,6 +7,7 @@ import { raw } from "hono/html";
 import type { Finding } from "../../monitor/findings";
 import { parseAllowanceRefusal } from "../../monitor/pipeline";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
+import { cx, FIELD_FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 import { Document } from "../components/Document";
 import { Pill, type PillVariant } from "../components/Pill";
@@ -255,7 +256,10 @@ export function MonitorPage(props: {
                             <label class="text-13">
                               Reason
                               <input
-                                class="ml-8 rounded-small border border-line px-8 py-4"
+                                class={cx(
+                                  "ml-8 rounded-small border border-control-border bg-surface text-ink px-8 py-4",
+                                  FIELD_FOCUS,
+                                )}
                                 name="reason"
                                 required
                                 maxlength={500}
