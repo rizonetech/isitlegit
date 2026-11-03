@@ -941,6 +941,10 @@ The organisation's role changes, revocations and removals (D07 T02 §6's owner-o
 
 Filter the team history by one person, as the actor or the target, in one step, paging through every match. Moved 2026-10-31 from §3.
 
+> **Started:** 2026-11-03T02:56:56Z
+
+**Corrected 2026-11-03 (checked against the tree):** `readTeamHistory` already filters by actor and target; the endpoint `GET /api/team/history` (D07 T02 §6) does not pass them yet, and the page's person filter is one select of the organisation's members (plus anyone) whose choice filters by actor or target together. Paging follows the reader's cursor: a More link carrying the cursor and every filter, so an owner pages through all of one person's matches. People who have left stay named as §23 names them and are not offered in the select, because the page has no stored name to offer for them.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
