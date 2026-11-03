@@ -5,7 +5,7 @@
 // flagging settles taken offline.
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { identityContact } from "../trust/identity";
-import { isDemoOrg } from "./seeds";
+import { inactiveSeedHosts, isDemoOrg, seedsFor } from "./seeds";
 import {
   copyForTraining,
   encodeFindingDecision,
@@ -83,10 +83,13 @@ export async function findingsFromInvestigations(
         resolves: number | null;
       }>()
   ).results;
+  const activeSeeds = await seedsFor(db, orgId);
+  const inactiveSeeds = await inactiveSeedHosts(db, orgId, activeSeeds);
   let created = 0;
   let reopened = 0;
   for (const inv of settled) {
     const host = inv.domain;
+    if (inactiveSeeds.has(host.toLowerCase())) continue;
     const existing = await db
       .prepare("SELECT * FROM monitor_findings WHERE org_id = ? AND host = ?")
       .bind(orgId, host)
@@ -220,6 +223,8 @@ export async function alertNewFindings(
     rawContact.toLowerCase().endsWith(".demo.isitlegit.co.za") && (await isDemoOrg(db, orgId))
       ? "alerts@demo.isitlegit.co.za"
       : rawContact;
+  const activeSeeds = await seedsFor(db, orgId);
+  const inactiveSeeds = await inactiveSeedHosts(db, orgId, activeSeeds);
   const pending = (
     await db
       .prepare(
@@ -227,7 +232,7 @@ export async function alertNewFindings(
       )
       .bind(orgId)
       .all<Finding>()
-  ).results;
+  ).results.filter((f) => !inactiveSeeds.has(f.host.toLowerCase()));
   let sent = 0;
   for (const finding of pending) {
     const outcome: SendOutcome = await sendMail(deps.mail, {

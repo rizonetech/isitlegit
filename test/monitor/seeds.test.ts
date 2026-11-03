@@ -7,6 +7,7 @@ import { createCase } from "../../src/db/cases";
 import { readSubmissions } from "../../src/fixtures/collect";
 import { FIXTURES_HOST, fixturesResponse } from "../../src/fixtures/redirects";
 import { alertNewFindings, findingsFromInvestigations } from "../../src/monitor/findings";
+import { monitorPipeline } from "../../src/monitor/pipeline";
 import type { MonitorDeps } from "../../src/monitor/run";
 import { monitorOrg } from "../../src/monitor/run";
 import { addSeed, isDemoOrg, removeSeed, revokeDemoFlag, seedsFor } from "../../src/monitor/seeds";
@@ -80,6 +81,7 @@ describe("monitor seeds", () => {
       .bind(JSON.stringify({ demo: true }), orgId)
       .run();
     await addSeed(db, orgId, { host: "fixtures.isitlegit.co.za", path: "fynbos-lookalike/" });
+    await addSeed(db, orgId, { host: "fixtures.isitlegit.co.za", path: "fynbos-lookalike/" });
     await addSeed(db, orgId, { host: "fynbos-seeded-custom.example", path: "portal/login/" });
     const captured: string[] = [];
     const screened: string[] = [];
@@ -123,6 +125,7 @@ describe("monitor seeds", () => {
         },
         screen: async (page: { host?: string }) => {
           screened.push(page.host ?? "");
+          const isSeedLure = page.host === "fixtures.isitlegit.co.za" || page.host === "fynbos-seeded-custom.example";
           return {
             ok: true as const,
             tier: "glimmer" as const,
@@ -130,15 +133,28 @@ describe("monitor seeds", () => {
             spark_calls: [],
             screen: {
               screener: "glimmer" as const,
-              brand: "Fynbos Freight",
-              has_login_form: true,
+              brand: isSeedLure ? "Fynbos Freight" : null,
+              has_login_form: isSeedLure,
               has_payment_form: false,
-              lure: true,
-              lure_type: "credential" as const,
+              lure: isSeedLure,
+              lure_type: isSeedLure ? ("credential" as const) : ("none" as const),
               confidence: 0.96,
             },
           };
         },
+        second: async () => ({
+          ok: true as const,
+          decision: "lure" as const,
+          screen: {
+            screener: "spark" as const,
+            brand: "Fynbos Freight",
+            has_login_form: true,
+            has_payment_form: false,
+            lure: true,
+            lure_type: "credential" as const,
+            confidence: 0.98,
+          },
+        }),
         open: async () => ({ state: "warm", reservedUntil: 0, burst: { id: "b", wakeAt: 0, deadline: 0 } }) as never,
         close: async () => ({ ok: true }) as never,
         settle: async () => ({ ok: true }) as never,
@@ -176,6 +192,38 @@ describe("monitor seeds", () => {
     expect(captured.some((c) => c.includes("fynbos-seeded-custom.example"))).toBe(false);
     expect(screened).not.toContain("fynbos-seeded-custom.example");
 
+    // Failing the seed-exclusion query fails closed instead of re-enabling the removed seed.
+    const failingExclusionDb = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            if (sql.includes("SELECT DISTINCT lower(host) AS host FROM monitor_seeds")) {
+              return {
+                bind: () => ({
+                  all: async () => {
+                    throw new Error("seed-exclusion-read-failed");
+                  },
+                }),
+              };
+            }
+            return target.prepare(sql);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    captured.length = 0;
+    screened.length = 0;
+    await expect(
+      monitorOrg(
+        { ...makeDeps("2026-11-04T14:30:00.000Z", []), db: failingExclusionDb },
+        orgId,
+        `monitor-${orgId}-seed-exclusion-err`,
+      ),
+    ).rejects.toThrow("seed-exclusion-read-failed");
+    expect(captured).toHaveLength(0);
+    expect(screened).toHaveLength(0);
+
     // Cross-tenant isolation: another organisation whose own CT/generated candidates include
     // `fynbos-seeded-custom.example` is NOT suppressed by `orgId`'s seed or removed seed.
     const { orgId: otherTenant } = await business();
@@ -189,18 +237,83 @@ describe("monitor seeds", () => {
     expect(captured).toContain("root:fynbos-seeded-custom.example");
     expect(screened).toContain("fynbos-seeded-custom.example");
 
-    // Now revoke the demo flag and leave an unscreened capture row for fixtures.isitlegit.co.za in monitor_hosts:
-    // the next run must neither resolve, capture, nor screen the persisted seed host.
+    // Interruption after screening a seed as a lure (with both a flagged screen and an outstanding
+    // `investigating` row), followed by seed removal / demo revocation and a full rerun across
+    // `monitorOrg`, `monitorPipeline`, and `findingsFromInvestigations`, stops all pending
+    // investigations and alerts for disabled seeds.
+    await db
+      .prepare(
+        `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, state, created_at, updated_at)
+         VALUES (?, 'fynbos-seeded-custom.example', 'monitor/custom/interrupted/', NULL, 'investigating', '2026-11-04T02:01:00.000Z', '2026-11-04T02:01:00.000Z')`,
+      )
+      .bind(orgId)
+      .run();
     await revokeDemoFlag(db, orgId);
     await db
       .prepare("DELETE FROM monitor_screens WHERE org_id = ? AND domain = 'fixtures.isitlegit.co.za'")
       .bind(orgId)
+      .run();
+    // Re-insert a flagged lure screen for fixtures.isitlegit.co.za as if the previous run stopped right after screening.
+    const fixtureCaptureRow = await db
+      .prepare("SELECT capture_key FROM monitor_hosts WHERE org_id = ? AND domain = 'fixtures.isitlegit.co.za'")
+      .bind(orgId)
+      .first<{ capture_key: string }>();
+    await db
+      .prepare(
+        `INSERT INTO monitor_screens (org_id, domain, capture_key, outcome, screener, brand, has_login_form, has_payment_form, lure, lure_type, confidence, second_look, screened_at)
+         VALUES (?, 'fixtures.isitlegit.co.za', ?, 'screened', 'glimmer', 'Fynbos Freight', 1, 0, 1, 'credential', 0.96, NULL, '2026-11-04T02:01:00.000Z')`,
+      )
+      .bind(orgId, fixtureCaptureRow?.capture_key ?? "monitor/f/1/")
       .run();
     captured.length = 0;
     screened.length = 0;
     await monitorOrg(makeDeps("2026-11-05T02:00:00.000Z"), orgId, `monitor-${orgId}-seed-2`);
     expect(captured.some((c) => c.includes("fixtures.isitlegit.co.za"))).toBe(false);
     expect(screened).not.toContain("fixtures.isitlegit.co.za");
+
+    let pipelineCalls = 0;
+    const pipeSummary = await monitorPipeline(
+      {
+        db,
+        store: { put: async () => ({ key: "k", sha256: "h", bytes: 0 }), get: async () => null } as never,
+        bucket: env.ARTEFACTS,
+        kv: (env as unknown as { CACHE: KVNamespace }).CACHE,
+        meta: {} as never,
+        cropLogo: async () => {
+          pipelineCalls++;
+          return null;
+        },
+        walk: async () => {
+          pipelineCalls++;
+          return { steps: [], outcome: "completed" } as never;
+        },
+        now: () => new Date("2026-11-05T02:01:00.000Z"),
+      },
+      orgId,
+      "2026-11-04T00:00:00.000Z",
+    );
+    expect(pipeSummary.investigated).toBe(0);
+    expect(pipelineCalls).toBe(0);
+
+    const findingsSummary = await findingsFromInvestigations(
+      db,
+      orgId,
+      {
+        appUrl: "https://isitlegit.co.za",
+        mail: {
+          db,
+          apiKey: "k",
+          fetch: async () => {
+            pipelineCalls++;
+            return Response.json({ data: { succeeded: 1, failed: 0, email_id: "x" } });
+          },
+        },
+      },
+      () => new Date("2026-11-05T02:02:00.000Z"),
+    );
+    expect(findingsSummary.created).toBe(0);
+    expect(findingsSummary.alerted).toBe(0);
+    expect(pipelineCalls).toBe(0);
   });
 
   it("applies FIXTURES_PREFIX only to FIXTURES_HOST in monitorDeps.captureSeed and preserves the final URL in browserCapture", async () => {
@@ -272,6 +385,7 @@ describe("monitor seeds", () => {
       .prepare(`UPDATE "organization" SET metadata = ? WHERE id = ?`)
       .bind(JSON.stringify({ demo: true }), orgId)
       .run();
+    await addSeed(db, orgId, { host: "fixtures.isitlegit.co.za", path: "fynbos-lookalike/" });
 
     // 1. An unconfirmed investigation creates a finding but sends no alert.
     await db

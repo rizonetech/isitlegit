@@ -324,8 +324,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     }
     const own = new Set(domains);
     const isOwn = (host: string) => domains.some((d) => host === d || host.endsWith(`.${d}`));
-    const seeds = await seedsFor(deps.db, orgId).catch(() => []);
-    const inactiveSeeds = await inactiveSeedHosts(deps.db, orgId, seeds).catch(() => new Set<string>());
+    const seeds = await seedsFor(deps.db, orgId);
+    const inactiveSeeds = await inactiveSeedHosts(deps.db, orgId, seeds);
     for (const host of inactiveSeeds) known.delete(host);
     const seedPaths = new Map(seeds.filter((s) => !own.has(s.host)).map((s) => [s.host, s.path]));
     const seedHostSet = new Set(seedPaths.keys());

@@ -21,8 +21,7 @@ export async function isDemoOrg(db: D1Database, orgId: string): Promise<boolean>
   const row = await db
     .prepare(`SELECT metadata FROM "organization" WHERE id = ?`)
     .bind(orgId)
-    .first<{ metadata: string | null }>()
-    .catch(() => null);
+    .first<{ metadata: string | null }>();
   if (!row?.metadata) return false;
   try {
     return (JSON.parse(row.metadata) as { demo?: unknown }).demo === true;
@@ -60,15 +59,15 @@ export async function seedsFor(db: D1Database, orgId: string): Promise<MonitorSe
   const rows = await db
     .prepare("SELECT host, path FROM monitor_seeds WHERE org_id = ? ORDER BY host")
     .bind(orgId)
-    .all<MonitorSeed>()
-    .catch(() => ({ results: [] as MonitorSeed[] }));
+    .all<MonitorSeed>();
   return rows.results.map(normaliseSeed).filter((s): s is MonitorSeed => s !== null);
 }
 
 // Hosts that were seeded in `monitor_seeds` for this organisation (or the internal fixtures host
 // itself) but are not active for this organisation right now, so an ordinary organisation or one
-// whose demo flag or seed was disabled never resolves, captures, or screens a previously persisted
-// seed host, while never suppressing another organisation's legitimate candidates.
+// whose demo flag or seed was disabled never resolves, captures, screens, investigates, or alerts
+// a previously persisted seed host, while never suppressing another organisation's legitimate
+// candidates. Errors propagate so a transient D1 failure fails closed instead of re-enabling seeds.
 export async function inactiveSeedHosts(
   db: D1Database,
   orgId: string,
@@ -80,8 +79,7 @@ export async function inactiveSeedHosts(
   const rows = await db
     .prepare("SELECT DISTINCT lower(host) AS host FROM monitor_seeds WHERE org_id = ?")
     .bind(orgId)
-    .all<{ host: string }>()
-    .catch(() => ({ results: [] as { host: string }[] }));
+    .all<{ host: string }>();
   for (const r of rows.results) {
     if (r.host && !active.has(r.host)) inactive.add(r.host);
   }

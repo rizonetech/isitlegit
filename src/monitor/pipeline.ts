@@ -15,6 +15,7 @@ import { compareLogo, type LogoImage, logoMatchItem, logoNotComparedItem } from 
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "../vision/reading";
 import { type Flagged, flaggedForWalkthrough } from "./flagged";
 import { protectedOrgs } from "./run";
+import { inactiveSeedHosts, seedsFor } from "./seeds";
 import { copyForTraining, recoverPendingTrainingCopies, resolveCaptureUrl } from "./training";
 
 export type InvestigationState = "investigating" | "confirmed" | "unconfirmed" | "partial";
@@ -460,6 +461,8 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
   // The monitor's own eligibility gate (round 4): no protection on, no investigation, whatever
   // outstanding rows an earlier run left.
   if (!(await protectedOrgs(deps.db)).includes(orgId)) return summary;
+  const activeSeeds = await seedsFor(deps.db, orgId);
+  const inactiveSeeds = await inactiveSeedHosts(deps.db, orgId, activeSeeds);
   // Outstanding investigations and rollover-eligible allowance refusals are recovered whatever
   // their age or whether a newer capture replaced them (completion review gap 5; D05 T04 §12).
   const outstandingRows = (
@@ -478,9 +481,13 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
       }>()
   ).results;
   const outstanding = outstandingRows.filter(
-    (row) => row.state === "investigating" || isAllowanceRecoveryEligible(row.evidence_refs, now()),
+    (row) =>
+      !inactiveSeeds.has(row.domain.toLowerCase()) &&
+      (row.state === "investigating" || isAllowanceRecoveryEligible(row.evidence_refs, now())),
   );
-  const pages: Flagged[] = [...(await flaggedForWalkthrough(deps.db, orgId, since))];
+  const pages: Flagged[] = (await flaggedForWalkthrough(deps.db, orgId, since)).filter(
+    (p) => !inactiveSeeds.has(p.domain.toLowerCase()),
+  );
   for (const row of outstanding)
     if (!pages.some((p) => p.capture_key === row.capture_key))
       pages.push({
