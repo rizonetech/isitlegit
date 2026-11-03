@@ -36,7 +36,7 @@ track: day-3
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [x] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [x] |
 | 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
-| 6 | §6 | Ablation flag in page screening | D03 T04 §1, D04 T01 §14 | [ ] |
+| 6 | §6 | Ablation flag in page screening | D03 T04 §1, D04 T01 §14 | [x] |
 
 ## 1. Email HTML rendering to a screenshot
 
@@ -224,6 +224,9 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 - [x] Commit: `vision: ablation flag in page screening`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes, and fails if a flagged page is sent to Loupe.
+
+> **Verified:** 2026-11-03 | §6 | c40f1017b20e9abc4e9f9b6386f3bb67cc44cd86
+> **Review:** `docs/reviews/d03-t02-s6.json`
 
 ## Verification
 

@@ -37,7 +37,7 @@ track: day-4
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [x] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [x] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
-| 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
+| 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [x] |
 | 7 | §7 | Compared reference in logo_match detail | §3 | [x] |
 
 ## 1. SAM 3.1 client, parser and crops
@@ -255,6 +255,9 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 - [x] Commit: `vision: ablation flag in segmentation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/step.test.ts` passes, and fails if a flagged case sends a SAM request.
+
+> **Verified:** 2026-11-03 | §6 | c40f1017b20e9abc4e9f9b6386f3bb67cc44cd86
+> **Review:** `docs/reviews/d03-t03-s6.json`
 
 ## 7. Compared reference in logo_match detail
 
