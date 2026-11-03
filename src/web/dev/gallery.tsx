@@ -420,6 +420,136 @@ export const GALLERY_STATES: State[] = [
       </div>
     ),
   },
+  {
+    id: "polish/signin-autofill",
+    render: () => (
+      <form class="flex flex-col gap-16 max-w-signin-column">
+        <Field
+          id="g-autofill-email"
+          label="Work email"
+          name="email"
+          type="email"
+          value="thandi@karoocouriers.co.za"
+          data-autofilled="true"
+        />
+      </form>
+    ),
+  },
+  {
+    id: "polish/cases-stats",
+    render: () => (
+      <div class="flex flex-col gap-16">
+        <dl class="grid gap-16 grid-cols-1 md:grid-cols-3">
+          <div class="flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0">
+            <dt class="text-14 text-muted">Checked this week</dt>
+            <dd id="g-stat-111" class="font-text weight-heading text-40 leading-none tabular-nums">
+              111
+            </dd>
+            <dd id="g-stat-888" class="font-text weight-heading text-40 leading-none tabular-nums">
+              888
+            </dd>
+          </div>
+          <div class="flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0">
+            <dt class="text-14 text-muted">Malicious or suspicious</dt>
+            <dd class="font-text weight-heading text-40 leading-none tabular-nums text-mal">19</dd>
+            <dd class="text-13 text-muted tabular-nums">12 phishing, 7 invoice</dd>
+          </div>
+          <div class="flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0">
+            <dt class="text-14 text-muted">Counts export preview</dt>
+            <dd class="font-mono text-13 tabular-nums">2026-10-26: 111 checked · 19 flagged</dd>
+            <dd class="font-mono text-13 tabular-nums">2026-11-02: 888 checked · 84 flagged</dd>
+          </div>
+        </dl>
+      </div>
+    ),
+  },
+  {
+    id: "polish/wide-table",
+    render: () => (
+      <section class="border border-line rounded-card overflow-x-auto bg-surface" tabindex={0} aria-label="Wide table">
+        <table class="w-full min-w-[640px] text-left border-collapse">
+          <thead>
+            <tr class="type-small text-muted border-b border-line bg-subtle">
+              <th scope="col" class="sticky left-0 bg-subtle px-16 py-12 weight-text-strong">
+                Case
+              </th>
+              <th scope="col" class="px-16 py-12 weight-text-strong">
+                Organisation
+              </th>
+              <th scope="col" class="px-16 py-12 weight-text-strong">
+                Our verdict
+              </th>
+              <th scope="col" class="px-16 py-12 weight-text-strong">
+                They say
+              </th>
+              <th scope="col" class="px-16 py-12 weight-text-strong text-right">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="sticky left-0 bg-surface px-16 py-12 weight-text-strong">
+                <a href="/r/01CASE" class="text-ink underline underline-offset-4">
+                  INV-2026-0841 bank details changed
+                </a>
+              </td>
+              <td class="px-16 py-12">Karoo Couriers</td>
+              <td class="px-16 py-12">
+                <Pill variant="malicious" size="compact">
+                  Malicious
+                </Pill>
+              </td>
+              <td class="px-16 py-12">
+                <Pill variant="safe" size="compact">
+                  Safe
+                </Pill>
+              </td>
+              <td class="px-16 py-12 text-right">
+                <Button size="small" variant="ghost" href="/admin/feedback?selected=01CASE">
+                  Review
+                </Button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    ),
+  },
+  {
+    id: "polish/long-names",
+    render: () => {
+      const longTitle =
+        "URGENT-REMITTANCE-ADVICE-Bloemfonteinvervoerdienstverskaffers-Mountain-View-Logistics-2026-11-03-revised-banking-confirmation.pdf";
+      const longSender = "accounts-payable-verification@bloemfonteinvervoerdienstverskaffers-logistics.co.za";
+      return (
+        <div class="flex flex-col gap-8 p-16 border border-line rounded-card bg-surface max-w-full min-w-0">
+          <a
+            id="g-long-title"
+            href="/r/01LONGCASE"
+            title={longTitle}
+            class="weight-text-strong text-ink underline-offset-4 hover:underline block max-w-full truncate"
+          >
+            {longTitle}
+          </a>
+          <span id="g-long-sender" title={longSender} class="type-small text-muted block max-w-full truncate">
+            {longSender}
+          </span>
+        </div>
+      );
+    },
+  },
+  {
+    id: "polish/loading-sequence",
+    render: () => (
+      <div class="flex flex-col gap-16">
+        <LoadingState>Loading cases</LoadingState>
+        <VerdictBand state="running" elapsed={12} headline="We are investigating this message.">
+          Most checks finish within a minute. This page updates by itself.
+        </VerdictBand>
+      </div>
+    ),
+  },
 ];
 
 // Every frame of the shell (§3) in the states it draws, each a document of its own.

@@ -139,10 +139,18 @@ function CaseCell(props: { item: ListedCase; filters: CaseFilters; class?: strin
   const { title, detail } = caseLines(props.item);
   return (
     <span class={cx("flex flex-col gap-2 min-w-0", props.class)}>
-      <a href={reportHref(props.filters, props.item.id)} class={ROW_LINK}>
+      <a
+        href={reportHref(props.filters, props.item.id)}
+        title={title}
+        class={cx(ROW_LINK, "block max-w-full truncate")}
+      >
         {title}
       </a>
-      {detail && <span class="type-small text-muted wrap-anywhere">{detail}</span>}
+      {detail && (
+        <span class="type-small text-muted block max-w-full truncate" title={detail}>
+          {detail}
+        </span>
+      )}
     </span>
   );
 }
@@ -406,7 +414,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
         aria-label="Pages"
         class="flex flex-wrap items-center justify-between gap-12 px-16 py-16 border-t border-line"
       >
-        <p class="type-small text-muted">{countLine(list)}</p>
+        <p class="type-small text-muted tabular-nums">{countLine(list)}</p>
         <div class="flex gap-8">
           <PagerLink id="case-previous" to={list.page > 1 ? { ...at, page: list.page - 1 } : null}>
             Previous
@@ -682,7 +690,7 @@ export function verdictTime(seconds: number | null): string {
 }
 
 const TILE = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
-const TILE_NUMBER = "font-heading weight-heading text-40 leading-none";
+const TILE_NUMBER = "font-text weight-heading text-40 leading-none tabular-nums";
 
 // The board's threat kinds line (D07 T04 §18): kinds present, descending, ties in the board's order.
 export function kindLine(kinds: WeeklyStats["thisWeek"]["kinds"]): string {
@@ -712,12 +720,14 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
         <div class={TILE}>
           <dt class="text-14 text-muted">Checked this week</dt>
           <dd class={TILE_NUMBER}>{thisWeek.checked}</dd>
-          <dd class="text-13 text-muted">{lastWeekChecked} last week</dd>
+          <dd class="text-13 text-muted tabular-nums">{lastWeekChecked} last week</dd>
         </div>
         <div class={TILE}>
           <dt class="text-14 text-muted">Malicious or suspicious</dt>
           <dd class={cx(TILE_NUMBER, flagged ? "text-mal" : "text-ink")}>{flagged}</dd>
-          {kindLine(thisWeek.kinds) ? <dd class="text-13 text-muted">{kindLine(thisWeek.kinds)}</dd> : null}
+          {kindLine(thisWeek.kinds) ? (
+            <dd class="text-13 text-muted tabular-nums">{kindLine(thisWeek.kinds)}</dd>
+          ) : null}
         </div>
         <div class={TILE}>
           <dt class="text-14 text-muted">Median time to verdict</dt>

@@ -21,7 +21,7 @@ const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden 
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 const TH = "px-16 py-12 text-left text-13 weight-text-strong text-muted bg-subtle border-b border-line";
 const TD = "px-16 py-12 text-14 border-b border-line";
-const NUM = "text-right whitespace-nowrap";
+const NUM = "text-right whitespace-nowrap tabular-nums";
 // Words (a target sentence), not a figure: they wrap, so no column outgrows a phone-width panel.
 const WORDS = "text-right";
 
@@ -84,7 +84,7 @@ function Tile(props: { label: string; value: string; pill?: { words: string; var
   return (
     <div class={CARD}>
       <p class="text-14 text-muted">{props.label}</p>
-      <p class="type-h1 wrap-anywhere">{props.value}</p>
+      <p class="type-h1 font-text tabular-nums wrap-anywhere">{props.value}</p>
       {props.pill ? (
         <Pill variant={props.pill.variant} class="self-start">
           {props.pill.words}

@@ -18,7 +18,7 @@ const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-car
 const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden";
 const TH = "text-left text-13 text-muted weight-text-strong px-16 py-12 border-b border-line";
 const TD = "text-14 px-16 py-12 border-b border-line align-top";
-const NUM = "text-right";
+const NUM = "text-right tabular-nums";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
 export const frontierUrl = (commit: string) =>
@@ -60,7 +60,7 @@ function Tile(props: { label: string; value: string; state: string; note: string
   return (
     <div class={CARD}>
       <p class="text-14 text-muted">{props.label}</p>
-      <p class="type-h1 wrap-anywhere">{props.value}</p>
+      <p class="type-h1 font-text tabular-nums wrap-anywhere">{props.value}</p>
       <Pill variant={s.variant} class="self-start">
         {s.words}
       </Pill>

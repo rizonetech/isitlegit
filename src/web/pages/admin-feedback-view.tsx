@@ -98,11 +98,11 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
     );
   }
   return (
-    <section class="card overflow-hidden" aria-label="Feedback reports">
-      <table class="table">
+    <section class="card overflow-x-auto min-w-0" tabindex={0} aria-label="Feedback reports">
+      <table class="table min-w-[640px] w-full">
         <thead>
           <tr>
-            <th>Case</th>
+            <th class="sticky left-0 bg-surface">Case</th>
             <th>Organisation</th>
             <th>Our verdict</th>
             <th>They say</th>
@@ -113,7 +113,7 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
         <tbody>
           {props.items.map((item) => (
             <tr class={item.id === props.selected ? "bg-subtle" : undefined}>
-              <td>
+              <td class={cx("sticky left-0", item.id === props.selected ? "bg-subtle" : "bg-surface")}>
                 <a
                   href={`/admin/feedback?triage=${props.tab}&page=${props.page}&selected=${item.id}`}
                   class="weight-text-strong"
