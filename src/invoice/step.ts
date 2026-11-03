@@ -162,7 +162,7 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
   // document's own bytes, so a settled reading is the reading of this document, never of another.
   const priorByArtefact = new Map(
     (await readEvidence(deps.db, caseId))
-      .filter((e) => e.check.startsWith("invoice.") && typeof e.detail.attachment === "string")
+      .filter((e) => e.check === "invoice.detected" && typeof e.detail.attachment === "string")
       .map((e) => [e.detail.attachment as string, e]),
   );
   for (const doc of call) {
@@ -250,11 +250,16 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
   // The bank-change rules (§3) judge what was read, in the same producer write: their items join this
   // run's list before the write, so extraction and rule evidence land together and replace together.
   if (readings.length > 0) {
-    const ruled = await invoiceRules(
-      { db: deps.db, keys },
-      { caseId, orgId, readings, visibleText: await visibleTextOf(deps.store, caseId) },
-    );
-    items.push(...ruled);
+    try {
+      const ruled = await invoiceRules(
+        { db: deps.db, keys },
+        { caseId, orgId, readings, visibleText: await visibleTextOf(deps.store, caseId) },
+      );
+      items.push(...ruled);
+    } catch (error) {
+      await writeAll();
+      throw error;
+    }
   }
   await writeAll();
   if (invoices > 0) return { outcome: "read", invoices };

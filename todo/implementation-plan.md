@@ -513,7 +513,7 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D05 T04 §11 | Settled pages handed to Loupe capture                       | cloudflare           | 5     |
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
-| [ ]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
+| [x]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 402/597 verified sections, 118 ready to run now.
+Progress: 403/597 verified sections, 119 ready to run now.
 
-Checklist: 2986/3686 items completed (includes Commit items).
+Checklist: 2988/3686 items completed (includes Commit items).
