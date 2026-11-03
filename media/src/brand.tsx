@@ -86,8 +86,23 @@ export const Scene: React.FC<{ children: React.ReactNode; label?: string; center
 };
 
 /**
+ * Meta infinity SVG mark (permitted per 2026-11-03 07:08 ruling in docs/hackathon-criteria.md).
+ */
+export const MetaInfinity: React.FC<{ size?: number; color?: string }> = ({ size = 28, color = c.orange }) => (
+  <svg width={size} height={Math.round(size * 0.68)} viewBox="0 0 64 44" fill="none" aria-hidden>
+    <path
+      d="M17.2 6C9.6 6 4 12.6 4 21.6C4 30.2 9.2 38 16.8 38C22.4 38 26.8 33.8 32 25.4C37.2 33.8 41.6 38 47.2 38C54.8 38 60 30.2 60 21.6C60 12.6 54.4 6 46.8 6C41 6 36.4 10.4 32 18.2C27.6 10.4 23 6 17.2 6Z"
+      stroke={color}
+      strokeWidth={6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+/**
  * The marker on scenes where one of Meta's models does the work (operator, 2026-10-31), so a judge skimming any frame
- * sees where Meta's tooling sits: top right, an orange dot and the model's name.
+ * sees where Meta's tooling sits: top right, the Meta infinity SVG mark and the model's name.
  */
 export const MetaBadge: React.FC<{ text: string }> = ({ text }) => {
   const p = useIn(18, 20);
@@ -112,11 +127,44 @@ export const MetaBadge: React.FC<{ text: string }> = ({ text }) => {
         transform: `translateY(${(1 - p) * -10}px)`,
       }}
     >
-      <div style={{ width: 12, height: 12, borderRadius: 6, background: c.orange }} />
+      <MetaInfinity size={26} />
       Meta AI: {text}
     </div>
   );
 };
+
+/**
+ * Two-row attribution strip naming the 5 Runtime Meta AI models and the Meta Muse Code + full-stack engineering toolchain.
+ */
+export const MetaAttributionStrip: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+      background: `${CARD}ee`,
+      border: `2px solid ${c.orange}`,
+      borderRadius: 16,
+      padding: "14px 24px",
+      ...style,
+    }}
+  >
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <span style={{ ...mono, fontSize: 16, fontWeight: 700, color: c.orange, letterSpacing: 1 }}>RUNTIME META AI:</span>
+      <MetaInfinity size={22} />
+      <span style={{ ...body, fontSize: 18, fontWeight: 600, color: c.ink }}>
+        Muse Spark 1.3 · Muse Wonder 1.0 · SAM 3.1 · Loupe 1.1 (Muse Glimmer 30B LoRA) · Muse Voice Transcribe 1.0
+      </span>
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <span style={{ ...mono, fontSize: 15, fontWeight: 700, color: c.muted, letterSpacing: 1 }}>DEVELOPMENT, TRAINING & INFRASTRUCTURE:</span>
+      <MetaInfinity size={20} />
+      <span style={{ ...body, fontSize: 16, color: c["ink-2"] }}>
+        Built with Meta Muse Code (Wonder 1.0) · Reviewed with GPT-6 Astra, Claude Opus 5.5 & Gemini 4 Argon · Cloudflare Workers & Workflows · Fireworks AI · Hugging Face
+      </span>
+    </div>
+  </div>
+);
 
 /** The corner label that says what kind of video this is, on every scene but the title. */
 export const Label: React.FC<{ text: string }> = ({ text }) => (
