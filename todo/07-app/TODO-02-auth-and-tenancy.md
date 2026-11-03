@@ -60,7 +60,7 @@ track: day-1
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
 | 25 | §25 | Same-device other-browser | §12 | [x] |
-| 26 | §26 | Export and fresh sign-in before closure | §9 | [ ] |
+| 26 | §26 | Export and fresh sign-in before closure | §9 | [x] |
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
 | 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [ ] |
 | 29 | §29 | Undo window after closing an organisation | §9, §26 | [ ] |
@@ -974,11 +974,14 @@ Closing an organisation is irreversible, and two things a member may want first 
 - [x] Make the export exact: a CSV (`case, received, status, verdict`) with every case of the organisation in received order, an unfinished case's verdict blank, read in pages until none are left, for the owner of an open or closed organisation only, another tenant's cases never in it. Done when: the test parses the download for an empty organisation, several cases including an unfinished one, and another tenant's exclusion, and a direct request from a non-owner is refused. Cheaper substitute: the first page of cases, silently incomplete.
 - [x] Require a fresh sign-in for closure: a session whose authentication is older than ten minutes (its session's creation, never its activity) is asked to sign in again (passkey or email link) and returns to a confirmation that binds the same organisation (`?org=` on the confirmation, ownership and closed state rechecked), requiring another explicit press. Done when: the route test refuses a stale session and a confirmation that goes stale while open, accepts a fresh one for the second of two organisations, and leaves `closedAt` unchanged on every refusal. Cheaper substitute: the signed confirmation token alone, which a stolen session also carries.
 - [x] Prove the journey in a browser test (the Account page's browser suite): export offered, stale session stepped up, confirmation cancelled and completed by keyboard. Done when: the test passes at phone and desktop widths in both themes.
-- [ ] Commit: `app: export and fresh sign-in before closure`
+- [x] Commit: `app: export and fresh sign-in before closure`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts test/node/account-browser.test.tsx` passes with the export and step-up cases, and the browser journey passes.
 
 > **Deferred:** a recovery window after closure -> XREF: D07 T02 §29. Deferred 2026-11-03 from §26's completion review: reopening a closed organisation changes §9's irreversible-closure contract, so the window's length and terms are the operator's decision first (§29 carries `Needs: operator`). The drawn Close account control stays owned by D07 T02 §27.
+
+> **Verified:** 2026-11-03 | §26 | 14d3f824b41464896cfc38fd15cc2177d5195a4d
+> **Review:** `docs/reviews/d07-t02-s26.json`
 
 ## 27. Close account control on the Account board
 
