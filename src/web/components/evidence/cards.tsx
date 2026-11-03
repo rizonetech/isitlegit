@@ -863,7 +863,12 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
           <>
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
             <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
-            {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+            {cut &&
+              (runText ? (
+                <p class="text-13 text-muted">The whole run is below.</p>
+              ) : (
+                <p class="text-13 text-muted">The rest is in the original message.</p>
+              ))}
           </>
         )}
         {instruction && (

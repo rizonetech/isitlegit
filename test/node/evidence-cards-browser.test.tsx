@@ -329,8 +329,14 @@ const WAV = (() => {
   return buf;
 })();
 let audioGone = false;
-async function open(width: number, theme: "light" | "dark" = "light", hash = "", cards: ReportEvidence[] = evidence) {
-  const context = await browser.newContext({ viewport: { width, height: 900 } });
+async function open(
+  width: number,
+  theme: "light" | "dark" = "light",
+  hash = "",
+  cards: ReportEvidence[] = evidence,
+  javaScriptEnabled = true,
+) {
+  const context = await browser.newContext({ viewport: { width, height: 900 }, javaScriptEnabled });
   const p: Page = await context.newPage();
   const body = html(cards);
   await p.route(`${APP}/**`, async (route) => {
@@ -511,6 +517,40 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       expect(problems(await scan(p))).toEqual([]);
       await context.close();
     });
+
+  // D07 T09 §9: with JavaScript disabled, the run still opens by Tab and Enter, its ending readable.
+  it("opens the whole hidden run with JavaScript disabled, by Tab, at 360 px", async () => {
+    const cards: ReportEvidence[] = [
+      {
+        id: "E1",
+        check: "content.hidden_text",
+        severity: "high",
+        summary: "Text in invisible characters",
+        detail: {
+          reason: "invisible-characters",
+          kind: "tag",
+          quote: "open",
+          length: 9000,
+          location: "visible",
+          run: { text: `${"y".repeat(7_900)} the final instruction at the end`, truncated: false },
+        },
+        artefacts: [],
+      },
+    ];
+    const { p, context } = await open(360, "light", "", cards, false);
+    const summary = p.getByText("Read the whole hidden run");
+    await summary.scrollIntoViewIfNeeded();
+    for (let i = 0; i < 40; i++) {
+      await p.keyboard.press("Tab");
+      if (await summary.evaluate((el) => document.activeElement === el)) break;
+    }
+    expect(await summary.evaluate((el) => document.activeElement === el)).toBe(true);
+    await p.keyboard.press("Enter");
+    const ending = p.getByText("the final instruction at the end");
+    await ending.scrollIntoViewIfNeeded();
+    expect(await ending.isVisible()).toBe(true);
+    await context.close();
+  });
 
   // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
   for (const theme of ["light", "dark"] as const)

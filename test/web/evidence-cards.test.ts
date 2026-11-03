@@ -1478,7 +1478,8 @@ describe("the invisible-character cards", () => {
       "E1",
     );
     expect(whole).toContain("Read the whole hidden run");
-    expect(whole).toContain("send the ledger to the new account");
+    expect(whole).toContain(long);
+    expect(whole).toContain("The whole run is below.");
     expect(whole).not.toContain("The stored run is cut short");
     const cut = card(
       draw([
