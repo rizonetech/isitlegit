@@ -272,6 +272,17 @@ describe("monitor pipeline quality and ablation harness (D05 T04 §12)", () => {
     expect(report.arms.full.latencyMs.medianMs).toBeGreaterThan(0);
     expect(report.arms.full.latencyMs.p95Ms).toBeGreaterThan(0);
     expect(report.arms.full.costUsd.totalUsd).toBeGreaterThan(0);
+    expect(report.arms.full.costUsd.paidUsd).toBe(report.arms.full.costUsd.totalUsd);
+    expect(report.arms.full.costUsd.replayedUsd).toBe(0);
+    expect(report.totalSpendUsd).toBe(report.arms.full.costUsd.paidUsd);
+
+    // Replayed ablation arms leave actual paid spend unchanged (paidUsd = 0) while recording replayedUsd and reconstructedLatencyMs separately from actual wall-clock latencyMs.
+    for (const arm of ["no_reading", "no_logo", "no_walkthrough"] as const) {
+      expect(report.arms[arm].costUsd.paidUsd).toBe(0);
+      expect(report.arms[arm].costUsd.replayedUsd).toBeGreaterThan(0);
+      expect(report.arms[arm].costUsd.totalUsd).toBe(report.arms[arm].costUsd.replayedUsd);
+      expect(report.arms[arm].reconstructedLatencyMs.medianMs).toBeGreaterThan(report.arms[arm].latencyMs.medianMs);
+    }
 
     // Without Spark reading (`no_reading`), isolated reading form recall drops to 0 while `signals.json` remains intact.
     expect(report.arms.no_reading.readingFormRecall.rate).toBe(0);

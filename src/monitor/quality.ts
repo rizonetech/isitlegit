@@ -59,7 +59,10 @@ export type CaseObservation = {
   formDetected: "log_in" | "pay" | "none" | "unavailable";
   readingFormDetected: "log_in" | "pay" | "none" | "unavailable";
   latencyMs: number;
+  reconstructedLatencyMs: number;
   costUsd: number;
+  paidCostUsd: number;
+  replayedCostUsd: number;
 };
 
 export type RateMetric = {
@@ -83,7 +86,8 @@ export type ArmSummary = {
   falsePositiveRate: RateMetric;
   partialRate: RateMetric & { refusedCount: number };
   latencyMs: { medianMs: number; p95Ms: number };
-  costUsd: { totalUsd: number; meanUsdPerCase: number };
+  reconstructedLatencyMs: { medianMs: number; p95Ms: number };
+  costUsd: { totalUsd: number; meanUsdPerCase: number; paidUsd: number; replayedUsd: number };
   cases: CaseObservation[];
 };
 
@@ -97,12 +101,25 @@ export type AblationDelta = {
   partialRateDelta: number;
 };
 
+export type QualityRunProvenance = {
+  liveRunId: string;
+  d1ReservationId: string;
+  requestedCapUsd: number;
+  baselineFullSpendUsd: number;
+  uncachedAblationSpendUsd: number;
+  ledgerSettledSpendUsd: number;
+  settledCalls: number;
+  uncertainCalls: number;
+  note: string;
+};
+
 export type QualityRunReport = {
   version: "1.0";
   corpusVersion: string;
   ranAt: string;
   maxSpendUsd: number;
   totalSpendUsd: number;
+  provenance?: QualityRunProvenance;
   complete: boolean;
   arms: Record<QualityArm, ArmSummary>;
   ablationDeltas?: Partial<Record<Exclude<QualityArm, "full">, AblationDelta>>;
@@ -273,7 +290,10 @@ export function computeArmMetrics(
   }
 
   const latencies = observations.map((o) => o.latencyMs);
+  const reconstructedLatencies = observations.map((o) => o.reconstructedLatencyMs);
   const totalUsd = round6(observations.reduce((acc, o) => acc + o.costUsd, 0));
+  const paidUsd = round6(observations.reduce((acc, o) => acc + o.paidCostUsd, 0));
+  const replayedUsd = round6(observations.reduce((acc, o) => acc + o.replayedCostUsd, 0));
   const meanUsdPerCase = observations.length > 0 ? round6(totalUsd / observations.length) : 0;
 
   const rate = (num: number, den: number): RateMetric => ({
@@ -300,9 +320,15 @@ export function computeArmMetrics(
       medianMs: median(latencies),
       p95Ms: percentileNearestRank(latencies, 95),
     },
+    reconstructedLatencyMs: {
+      medianMs: median(reconstructedLatencies),
+      p95Ms: percentileNearestRank(reconstructedLatencies, 95),
+    },
     costUsd: {
       totalUsd,
       meanUsdPerCase,
+      paidUsd,
+      replayedUsd,
     },
     cases: observations,
   };
@@ -402,15 +428,50 @@ export async function evaluateMonitorArm(
     if (deps.stageCache && cacheEntry) {
       deps.stageCache.set(item.id, cacheEntry);
     }
+    let nextPipelineStage: "reading" | "logoCompare" = "reading";
+    let pendingSettleStage: "reading" | "logoCompare" | null = null;
+    const localReservations = new Set<string>();
 
     const guardedBudget: Budget = {
       ...deps.budget,
       reserve: async (model, estimateUsd, attempt, id, call) => {
+        const step = (call?.owner as { step?: string } | undefined)?.step;
+        const isLocalReading =
+          step === "pipeline" &&
+          nextPipelineStage === "reading" &&
+          (arm === "no_reading" || Boolean(cacheEntry?.reading));
+        const isLocalLogoCompare =
+          step === "pipeline" &&
+          nextPipelineStage === "logoCompare" &&
+          arm !== "no_logo" &&
+          Boolean(cacheEntry?.logoCompare);
+        if (isLocalReading || isLocalLogoCompare) {
+          const reservationId = id ?? "local-res";
+          localReservations.add(reservationId);
+          return reservationId;
+        }
         if (deps.budget.spentUsd() + estimateUsd > deps.maxSpendUsd) {
           budgetStopped = true;
           throw new Error("quality budget cap reached");
         }
         return deps.budget.reserve(model, estimateUsd, attempt, id, call);
+      },
+      settle: async (id, actualUsd, meta) => {
+        if (localReservations.delete(id)) return;
+        if (cacheEntry && arm === "full" && pendingSettleStage) {
+          const target = cacheEntry[pendingSettleStage];
+          if (target) target.costUsd = round6(target.costUsd + actualUsd);
+          pendingSettleStage = null;
+        }
+        return deps.budget.settle(id, actualUsd, meta);
+      },
+      uncertain: async (id, meta) => {
+        if (localReservations.delete(id)) return;
+        return deps.budget.uncertain(id, meta);
+      },
+      outputFailed: async (id, meta) => {
+        if (localReservations.delete(id)) return;
+        return deps.budget.outputFailed(id, meta);
       },
     };
 
@@ -418,6 +479,9 @@ export async function evaluateMonitorArm(
       const rawBody = typeof init?.body === "string" ? init.body : "";
       const isReadingCall = rawBody.includes("mail_reading");
       const isLogoCompareCall = rawBody.includes("logo_comparison");
+      if (isReadingCall) {
+        nextPipelineStage = "logoCompare";
+      }
       if (arm !== "no_reading" && isReadingCall && cacheEntry?.reading) {
         replayedUsd += cacheEntry.reading.costUsd;
         replayedMs += cacheEntry.reading.ms;
@@ -448,10 +512,16 @@ export async function evaluateMonitorArm(
           body: cloned,
           status: res.status,
           costUsd: Math.max(0, deps.budget.spentUsd() - callBeforeUsd),
-          ms: Math.max(0, clockMs() - callStartMs),
+          ms: Math.max(0.001, clockMs() - callStartMs),
         };
-        if (isReadingCall) cacheEntry.reading = stageRecord;
-        if (isLogoCompareCall) cacheEntry.logoCompare = stageRecord;
+        if (isReadingCall) {
+          cacheEntry.reading = stageRecord;
+          pendingSettleStage = "reading";
+        }
+        if (isLogoCompareCall) {
+          cacheEntry.logoCompare = stageRecord;
+          pendingSettleStage = "logoCompare";
+        }
       }
       return res;
     }) as typeof fetch;
@@ -608,8 +678,12 @@ export async function evaluateMonitorArm(
     };
 
     await monitorPipeline(pipelineDeps, orgId, "2026-11-01T00:00:00.000Z");
-    const elapsedMs = round4(replayedMs > 0 ? replayedMs : Math.max(0, clockMs() - startMs));
-    const deltaUsd = round6(Math.max(0, deps.budget.spentUsd() - beforeUsd) + replayedUsd);
+    const rawElapsedMs = Math.max(0, clockMs() - startMs);
+    const elapsedMs = round4(rawElapsedMs);
+    const reconstructedLatencyMs = round4(rawElapsedMs + replayedMs);
+    const paidCostUsd = round6(Math.max(0, deps.budget.spentUsd() - beforeUsd));
+    const replayedCostUsd = round6(replayedUsd);
+    const deltaUsd = round6(paidCostUsd + replayedCostUsd);
 
     if (budgetStopped) {
       return computeArmMetrics(arm, parsed.cases, observations, false, "budget_exhausted");
@@ -668,7 +742,10 @@ export async function evaluateMonitorArm(
       formDetected,
       readingFormDetected,
       latencyMs: elapsedMs,
+      reconstructedLatencyMs,
       costUsd: deltaUsd,
+      paidCostUsd,
+      replayedCostUsd,
     });
   }
 
