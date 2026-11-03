@@ -109,9 +109,9 @@ The development process in about 11 and a half minutes, for learning and for the
 - [x] Add commits and stamps per day, commits per hour of day across every lane, merges, per-domain stamps and lines of code to `media/tools/collect-stats.py`, leaving out the template rows, with tests. Done when: its sections total equals `scripts/todo-graph.py validate`'s count.
 - [x] Write the storyboard and register it in `media/src/Root.tsx` as `DevProcess`. Done when: stills of all 33 content scenes show the label, Exo fonts and nothing cut off.
 - [x] Operator: answer the script's open questions (voiceover or text only; reviewer names). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
-- [ ] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
-- [ ] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
-- [ ] Commit: `media: video 01 approved and rendered (D10 T01 §3)`
+- [x] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
+- [x] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
+- [x] Commit: `media: video 01 approved and rendered (D10 T01 §3)`
 
 **Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/01-how-isitlegit-is-built.mp4` prints `1920,1080`, and `grep -c '^Script approved: 01, ' media/scripts/01-how-isitlegit-is-built.md` prints `1`.
 
