@@ -39,7 +39,7 @@ Sections: 32 | Checklist items: 398
 | [x]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 4     |
 | [x]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [x]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
-| [ ]    | D03 T04 §38 | Benign render against a crawler            | none                 | 4     |
+| [x]    | D03 T04 §38 | Benign render against a crawler            | none                 | 4     |
 | [ ]    | D03 T04 §39 | A stratified grouped split as the baseline | none                 | 2     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
@@ -599,6 +599,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/523 verified sections, 132 ready to run now.
+Progress: 316/523 verified sections, 131 ready to run now.
 
-Checklist: 2501/3270 items completed (includes Commit items).
+Checklist: 2502/3270 items completed (includes Commit items).

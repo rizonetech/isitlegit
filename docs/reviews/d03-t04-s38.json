@@ -1,0 +1,116 @@
+{
+  "ref": "D03 T04 \u00a738",
+  "title": "Benign render against a crawler",
+  "implementation_sha": "f28db9ef7f590148ee6007194445d984fd0ef0c5",
+  "date": "2026-11-03",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/compare-pipelines.test.ts -> exit 0, Test Files 1 passed (1), Tests 33 passed (33)",
+    "pnpm exec vitest run test/node/glimmer-render.test.ts -> exit 0, Test Files 1 passed (1), Tests 15 passed (15)",
+    "node scripts/glimmer/compare-pipelines.ts benign --check -> status: current, figures under Measurements in docs/glimmer/training.md derived from runs/compare/benign.json"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s38.md",
+    "verdict": "completed",
+    "candidate": "c87f1d253eea88a8fafa199e7daf3fe07a4f0163",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s38.md",
+    "candidate": "31ae0d2540376a93747e8a6daab1ca1cff6e4bec",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
