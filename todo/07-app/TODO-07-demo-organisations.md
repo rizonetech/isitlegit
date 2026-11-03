@@ -30,7 +30,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Fictional demo businesses | D05 T01 §2, D01 T02 §4 | [x] |
-| 2 | §2 | Judge demo organisation | §1, D04 T01 §4 | [ ] |
+| 2 | §2 | Judge demo organisation | §1, D04 T01 §4 | [x] |
 | 3 | §3 | Production demo seed | §1 | [ ] |
 
 ## 1. Fictional demo businesses
@@ -100,6 +100,9 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 - [x] Commit: `demo: judge organisation with live sample cases`
 
 **Test checkpoint:** `node scripts/seed-demo.ts --check-judges --remote --org <judge organisation id>` prints five cases with status `done` and exits 0 (local half proven on stubbed tests; live half proven by the coordinator's recorded run).
+
+> **Verified:** 2026-11-04 | §2 | c43bf4e6832848055e2297215a5d30f6f53f6622
+> **Review:** `docs/reviews/d07-t07-s2.json`
 
 ## 3. Production demo seed
 
