@@ -45,7 +45,7 @@ track: day-4
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [ ] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
-| 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [ ] |
+| 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [x] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -342,6 +342,9 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes, and fails if a flagged case launches a browser.
 
 **Corrected 2026-11-03** (plan review, 2 P2 and 1 P3, `docs/reviews/04-agent/D04-T02-s9.md`): (1) the marker is exact: one item `walkthrough.ablated` at info, summary naming the ablation, `detail: { ablated: "no-walkthrough", url, revision }`, no artefacts and no `checked` field (missing coverage is `walkthrough.not_checked`'s statement, never this one's), stored through `addEvidence` as the walkthrough producer so a retry replaces rather than duplicates. (2) `StepDeps` gains an optional flag reader, read after the target is chosen and before the cache key, cache, canary and launch; the Workflow builds it from `ablateFlagFor` over the case's own organisation, and tests prove a populated cache is neither read nor written for a flagged case, no target reads no flag, and absent, null, other-flag and failed readers all walk as today. (3) `StepResult` gains `{ outcome: "ablated", url, items: 1 }`, returned only after the marker is stored; a failed marker write propagates to the Workflow's existing step failure handling.
+
+> **Verified:** 2026-11-03 | §9 | 30ea8cb0f0b0daa458083245d194f55695e76bac
+> **Review:** `docs/reviews/d04-t02-s9.json`
 
 ## Verification
 

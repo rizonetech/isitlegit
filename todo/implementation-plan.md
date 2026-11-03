@@ -308,7 +308,7 @@ Sections: 95 | Checklist items: 613
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
 | [ ]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
 | [ ]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
-| [ ]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
+| [x]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks           | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs           | meta-api              | 2     |
@@ -626,6 +626,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 349/550 verified sections, 131 ready to run now.
+Progress: 350/550 verified sections, 130 ready to run now.
 
 Checklist: 2698/3427 items completed (includes Commit items).
