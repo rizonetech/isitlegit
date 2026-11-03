@@ -4,8 +4,10 @@
 // over the case, the code and its moment, so the page says only what a retry of its own met lately.
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
+import { filtersFrom } from "../../db/case-filters";
 import { type RetryRefusal, retryCase } from "../../pipeline/retry";
 import { fresh, resultHolds, signResult } from "../signed-result";
+import { reportHref } from "./cases-view";
 import { HEADERS } from "./errors";
 import { RETRY_WORDS, type RetryNote } from "./retry-words";
 
@@ -21,12 +23,22 @@ const plain = (status: number, text: string) =>
 const to = (location: string) => new Response(null, { status: 303, headers: { ...HEADERS, location } });
 const signed = (caseId: string, code: string, at: number) => [caseId, code, String(at)].join("\n");
 
-async function back(secret: string, caseId: string, code: RetryRefusal["code"] | null) {
-  if (code === null || !WORDS[code]) return to(`/r/${caseId}`);
+async function back(secret: string, caseId: string, code: RetryRefusal["code"] | null, nav = "") {
+  if (code === null || !WORDS[code]) return to(`/r/${caseId}${nav}`);
   const at = Date.now();
   const query = new URLSearchParams({ retry: code, rt: String(at) });
   query.set("rs", await signResult(secret, PURPOSE, signed(caseId, code, at)));
+  const kept = new URLSearchParams(nav.startsWith("?") ? nav.slice(1) : nav);
+  for (const [name, value] of kept) query.set(name, value);
   return to(`/r/${caseId}?${query}`);
+}
+
+// The list context a retry form carries (D07 T04 §9), rebuilt canonically from its address, or nothing.
+function navOf(request: Request): string {
+  const url = new URL(request.url);
+  if (url.searchParams.get("list") !== "1") return "";
+  const filters = filtersFrom(url.searchParams);
+  return reportHref(filters, url.pathname.split("/")[2] ?? "").replace(/^\/r\/[^?]+/, "");
 }
 
 // The refusal a report address carries, when its signature holds for this case and it is recent; else none.
@@ -59,12 +71,12 @@ retryRoutes.post("/r/:caseId/retry", async (c) => {
     member = user && row ? { userId: user.id, orgId: row.orgId } : null;
   } catch {
     // An outage before anything was written: the report says so, never a 500.
-    return back(secret, id, "database");
+    return back(secret, id, "database", navOf(c.req.raw));
   }
   if (!member) return plain(404, "Not found");
   const result = await retryCase(c.env.DB, c.env, member.orgId, id, member.userId);
-  if (result.ok) return back(secret, id, null);
+  if (result.ok) return back(secret, id, null, navOf(c.req.raw));
   if (result.error.code === "not_found") return plain(404, "Not found");
   console.log(JSON.stringify({ event: "report-retry", outcome: result.error.code }));
-  return back(secret, id, result.error.code);
+  return back(secret, id, result.error.code, navOf(c.req.raw));
 });

@@ -14,6 +14,7 @@ import { isProtectedAccount, PROTECTED_ACCOUNT } from "../../auth/protected";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import {
+  type InviteBatch,
   type InviteDraft,
   inviteRoles,
   mayRemove,
@@ -23,6 +24,8 @@ import {
   type Reader,
   RemoveConfirm,
   type Role,
+  type TeamHistory,
+  type TeamHistoryRow,
   type TeamMember,
   TeamPage,
 } from "./team-view";
@@ -190,6 +193,95 @@ async function memberOf(env: Env, signedIn: SignedIn) {
   return { org: membership.org };
 }
 
+const HISTORY_WORDS: Record<string, string> = {
+  "update-member-role": "Role changed",
+  "cancel-invitation": "Invitation revoked",
+  "remove-member": "Member removed",
+  "leave-organization": "Member left",
+};
+const roleWord = (r: string) => (r === "owner" ? "Owner" : r === "admin" ? "Admin" : r === "member" ? "Member" : r);
+
+// The owner-only team history for the page (D07 T04 §23): names resolved inside this organisation, the stored
+// detail read through an allowlist, and a read failure drawn as the section's own error, never the page's.
+async function historyFor(
+  db: D1Database,
+  orgId: string,
+  reader: Reader,
+  members: TeamMember[],
+  url: URL,
+): Promise<TeamHistory> {
+  const action = url.searchParams.get("action") ?? "";
+  const from = url.searchParams.get("from") ?? "";
+  const to = url.searchParams.get("to") ?? "";
+  const base: TeamHistory = { rows: [], action, from, to };
+  const dateOk = (v: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    if (!m) return false;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    return (
+      d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3])
+    );
+  };
+  if (action && !["update-member-role", "cancel-invitation", "remove-member", "leave-organization"].includes(action))
+    return { ...base, error: "Choose one of the listed actions." };
+  if ((from && !dateOk(from)) || (to && !dateOk(to)))
+    return { ...base, error: "Give real calendar dates, or leave a date empty." };
+  if (from && to && from > to)
+    return { ...base, error: "The To date is before the From date. Swap them and try again." };
+  try {
+    const { readTeamHistory } = await import("../../auth/audit");
+    const { changes, next } = await readTeamHistory(db, orgId, {
+      ...(action ? { action } : {}),
+      ...(from ? { from: new Date(`${from}T00:00:00+02:00`).toISOString() } : {}),
+      ...(to ? { to: new Date(`${to}T23:59:59.999+02:00`).toISOString() } : {}),
+    });
+    const byUser = new Map(members.map((m) => [m.userId, m]));
+    const nameOf = (id: string | null): string => {
+      if (!id) return "IsItLegit";
+      if (id === reader.userId) return "You";
+      const held = byUser.get(id);
+      return held ? held.name || held.email : "A member who has left";
+    };
+    const rows: TeamHistoryRow[] = [];
+    for (const change of changes) {
+      let detail: Record<string, unknown> = {};
+      try {
+        detail = change.detail_json ? (JSON.parse(change.detail_json) as Record<string, unknown>) : {};
+      } catch {
+        detail = {};
+      }
+      let what = HISTORY_WORDS[change.kind] ?? change.kind;
+      if (change.kind === "update-member-role" && typeof detail.from === "string" && typeof detail.to === "string")
+        what = `Role changed, ${roleWord(detail.from)} to ${roleWord(detail.to)}`;
+      let whom: string;
+      if (change.kind === "cancel-invitation") {
+        const held = change.target_id
+          ? await db
+              .prepare(`SELECT email FROM "invitation" WHERE id = ? AND "organizationId" = ?`)
+              .bind(change.target_id, orgId)
+              .first<{ email: string }>()
+          : null;
+        whom = held?.email ?? "An invitation that is gone";
+      } else whom = nameOf(change.target_id);
+      // The writers' own words for a success (src/auth/auth.ts): a change, a revocation, a leaving, a removal.
+      let outcome = ["changed", "revoked", "left", "removed", "resent", "made", "done", "ok"].includes(change.outcome)
+        ? "Done"
+        : "Refused";
+      if (change.kind === "remove-member" && outcome === "Done")
+        outcome =
+          detail.sessionsEnded === true
+            ? "Done, sessions ended"
+            : detail.sessionsEnded === false
+              ? "Done, but its sessions could not be ended"
+              : "Done";
+      rows.push({ at: change.at, what, who: nameOf(change.actor_id), whom, outcome });
+    }
+    return { rows, action, from, to, more: next !== null };
+  } catch {
+    return { ...base, failed: true };
+  }
+}
+
 teamRoutes.get(
   "/team",
   sessionGate(() => outage("session")),
@@ -206,6 +298,10 @@ teamRoutes.get(
         reader.role === "member" ? Promise.resolve([]) : readInvitations(c.env.DB, who.org.id),
       ]);
       const lost = new URL(c.req.url).searchParams.get("unanswered") === "1";
+      const history =
+        reader.role === "owner"
+          ? await historyFor(c.env.DB, who.org.id, reader, members, new URL(c.req.url))
+          : undefined;
       return html(
         <TeamPage
           shell={shell}
@@ -214,6 +310,7 @@ teamRoutes.get(
           outcome={outcome}
           lost={lost}
           invites={invites}
+          history={history}
           now={new Date()}
         />,
       );
@@ -275,7 +372,7 @@ type InviteAction = {
   secret: string;
   orgId: string;
   origin: string;
-  form: { email: string; role: string; id: string };
+  form: { email: string; role: string; id: string; batch?: string };
 };
 
 // An invitation made, sent again or revoked through Better Auth's own handler (its hooks, allowlist and send key run as
@@ -321,7 +418,231 @@ async function invitation(c: Context<GateEnv>, a: InviteAction) {
   };
   try {
     if (action === "invite") {
-      const email = a.form.email.trim();
+      // Several addresses at once (D07 T04 §22): split on commas or lines, trim, drop empties, and invite a
+      // case-insensitive duplicate once. More than one address (or a Retry, marked `batch`) takes the batch
+      // answer below; one address keeps the flow after it, word for word.
+      const parts = a.form.email
+        .split(/[,\n]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const seen = new Set<string>();
+      const addresses: string[] = [];
+      const duplicates = new Set<string>();
+      for (const part of parts) {
+        const key = part.toLowerCase();
+        if (seen.has(key)) duplicates.add(key);
+        else {
+          seen.add(key);
+          addresses.push(part);
+        }
+      }
+      if (parts.length > 1 || a.form.batch === "1") {
+        const role = a.form.role;
+        const draft = (error: string): InviteDraft => ({
+          email: a.form.email,
+          role: (inviteRoles(reader) as string[]).includes(role) ? (role as InviteDraft["role"]) : "member",
+          error,
+        });
+        if (!(inviteRoles(reader) as string[]).includes(role))
+          return await refuse(draft("Choose a role you can give."), 400);
+        if (addresses.length > 20)
+          return await refuse(draft("Up to 20 addresses at a time. Remove some and try again."), 400);
+        if (!addresses.length) return await refuse(draft("Enter the email addresses to invite."), 400);
+        const [memberRows, pendingRows] = await Promise.all([
+          readMembers(c.env.DB, orgId),
+          readInvitations(c.env.DB, orgId),
+        ]);
+        const memberEmails = new Set(memberRows.map((m) => m.email.toLowerCase()));
+        const pendingByEmail = new Map(pendingRows.map((i) => [i.email.toLowerCase(), i] as const));
+        const results: InviteBatch["results"] = [];
+        const retry: string[] = [];
+        let stopped: string | null = null;
+        for (const email of addresses) {
+          const dup = duplicates.has(email.toLowerCase()) ? "Listed twice, invited once." : undefined;
+          if (stopped) {
+            results.push({ email, word: "Not invited", detail: stopped });
+            continue;
+          }
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            results.push({ email, word: "Refused", detail: "Enter a real email address." });
+            continue;
+          }
+          if (memberEmails.has(email.toLowerCase())) {
+            results.push({ email, word: "Refused", detail: "That person is already a member of this organisation." });
+            continue;
+          }
+          const heldRow = pendingByEmail.get(email.toLowerCase());
+          const held = heldRow?.delivery;
+          if (held === "sent") {
+            results.push({ email, word: "Refused", detail: "That address already has an invitation below." });
+            continue;
+          }
+          if (held === "unknown") {
+            results.push({
+              email,
+              word: "Unknown",
+              detail: "Its invitation is below; whether its email went is not known.",
+            });
+            continue;
+          }
+          if (held === "not-sent" && heldRow && !(inviteRoles(reader) as string[]).includes(heldRow.role)) {
+            results.push({ email, word: "Refused", detail: "That invitation has a role you cannot give." });
+            continue;
+          }
+          if (held === "not-sent" && heldRow && heldRow.role !== role) {
+            results.push({
+              email,
+              word: "Refused",
+              detail: `That invitation was made with a different role (${heldRow.role}). Send it again from the list below.`,
+            });
+            continue;
+          }
+          const startedAt = new Date().toISOString();
+          let res: Response | null = null;
+          try {
+            res = await call("invite-member", {
+              email,
+              role: held === "not-sent" && heldRow ? heldRow.role : role,
+              organizationId: orgId,
+              ...(held === "not-sent" ? { resend: true } : {}),
+            });
+          } catch {
+            res = null;
+          }
+          if (held === "not-sent" && heldRow && (res?.ok || res?.status === 502)) {
+            const nowRow = await c.env.DB.prepare(`SELECT status FROM "invitation" WHERE id = ?`)
+              .bind(heldRow.id)
+              .first<{ status: string }>();
+            const spent =
+              nowRow?.status !== "pending" &&
+              (await c.env.DB.prepare(`SELECT 1 AS spent FROM invitation_uses WHERE invitation_id = ?`)
+                .bind(heldRow.id)
+                .first());
+            if (nowRow?.status !== "pending" && !spent) {
+              const made = await c.env.DB.prepare(
+                `SELECT id FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?) AND status = 'pending' AND id <> ? AND "createdAt" >= ?`,
+              )
+                .bind(orgId, email, heldRow.id, startedAt)
+                .all<{ id: string }>();
+              let tidied = true;
+              for (const m of made.results) {
+                const cancelled = await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
+                if (!cancelled?.ok) tidied = false;
+              }
+              if (!tidied) console.log(JSON.stringify({ event: "team", outcome: "revoked-not-tidied", email }));
+              results.push(
+                tidied
+                  ? { email, word: "Refused", detail: "That invitation was revoked while this was sending." }
+                  : {
+                      email,
+                      word: "Unknown",
+                      detail:
+                        "It was revoked while this was sending, and tidying up did not finish. Check the invitations below.",
+                    },
+              );
+              continue;
+            }
+          }
+          if (res?.ok) {
+            results.push({ email, word: "Sent", ...(dup ? { detail: dup } : {}) });
+            pendingByEmail.set(email.toLowerCase(), {
+              ...(heldRow ?? ({} as PendingInvite)),
+              delivery: "sent",
+            } as PendingInvite);
+          } else if (res?.status === 401) return signin();
+          else if (res?.status === 502) {
+            // A 502 covers both a confirmed refusal and a lost answer (the auth hook's own mapping): the stored
+            // delivery decides which one this was before it is named or retried.
+            const now = await readInvitations(c.env.DB, orgId);
+            const heldNow = now.find((i) => i.email.toLowerCase() === email.toLowerCase());
+            if (heldNow?.delivery === "unknown") {
+              results.push({
+                email,
+                word: "Unknown",
+                detail: "The invitation was made; check it below before sending again.",
+              });
+              pendingByEmail.set(email.toLowerCase(), heldNow);
+            } else {
+              results.push({ email, word: "Not sent", detail: "The invitation stands below; its email did not go." });
+              retry.push(email);
+              if (heldNow) pendingByEmail.set(email.toLowerCase(), heldNow);
+            }
+          } else if (res?.status === 403) {
+            const said = (await res
+              .clone()
+              .json()
+              .catch(() => null)) as { code?: string; message?: string } | null;
+            if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`)) {
+              results.push({
+                email,
+                word: "Refused",
+                detail: "This organisation has too many open invitations. Revoke one, or wait for one to lapse.",
+              });
+              stopped = "Not tried: too many open invitations.";
+            } else {
+              results.push({ email, word: "Refused", detail: "You can no longer change the team." });
+              stopped = "Not tried: the batch stopped.";
+            }
+          } else if (res?.status === 429) {
+            results.push({
+              email,
+              word: "Refused",
+              detail: "Too many invitations just now. Try again in a little while.",
+            });
+            stopped = "Not tried: too many invitations just now.";
+          } else if (res === null || res.status >= 500) {
+            // The answer was lost: what storage holds decides whether Retry may send this one again.
+            const now = await readInvitations(c.env.DB, orgId);
+            if (now.some((i) => i.email.toLowerCase() === email.toLowerCase())) {
+              results.push({
+                email,
+                word: "Unknown",
+                detail: "The invitation was made; check it below before sending again.",
+              });
+              const heldNow = now.find((i) => i.email.toLowerCase() === email.toLowerCase());
+              if (heldNow) pendingByEmail.set(email.toLowerCase(), heldNow);
+            } else {
+              results.push({
+                email,
+                word: "Unknown",
+                detail: "We could not tell whether it went. Retry sends it again.",
+              });
+              retry.push(email);
+            }
+          } else {
+            const said = (await res
+              .clone()
+              .json()
+              .catch(() => null)) as { code?: string; message?: string } | null;
+            const text = `${said?.code ?? ""} ${said?.message ?? ""}`.toUpperCase();
+            results.push({
+              email,
+              word: "Refused",
+              detail: /ALREADY.*MEMBER/.test(text)
+                ? "That person is already a member of this organisation."
+                : "That address cannot be invited.",
+            });
+          }
+        }
+        const [members, shell, invites] = await Promise.all([
+          readMembers(c.env.DB, orgId),
+          memberShell(c.env.DB, signedIn.user, orgId, "team"),
+          readInvitations(c.env.DB, orgId),
+        ]);
+        return html(
+          <TeamPage
+            shell={shell}
+            members={members}
+            reader={reader}
+            outcome={null}
+            invites={invites}
+            inviteBatch={{ role: role as InviteBatch["role"], results, retry }}
+            now={new Date()}
+          />,
+          200,
+        );
+      }
+      const email = addresses[0] ?? a.form.email.trim();
       const role = a.form.role;
       const draft = (error: string): InviteDraft => ({
         email,
@@ -474,7 +795,8 @@ teamRoutes.post(
       action: 20,
       member: 200,
       role: 20,
-      email: 320,
+      email: 7000,
+      batch: 20,
       invitation: 200,
     });
     if (!form) return back(secret, orgId, { r: "refused" });
@@ -491,7 +813,7 @@ teamRoutes.post(
         secret,
         orgId,
         origin,
-        form: { email: field("email"), role, id: field("invitation") },
+        form: { email: field("email"), role, id: field("invitation"), batch: field("batch") },
       });
     // Not a request this page sends (an unknown action, a role that does not exist): refused, nothing claimed.
     if (action !== "remove" && !(action === "role" && ["owner", "admin", "member"].includes(role)))

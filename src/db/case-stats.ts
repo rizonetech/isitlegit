@@ -21,7 +21,7 @@ export function weekStart(now: Date): string {
   return new Date(today - sinceMonday * DAY_MS).toISOString();
 }
 
-type Row = { created_at: string; verdict: string | null; status: string; decided_at: string | null };
+type Row = { id: string; created_at: string; verdict: string | null; status: string; decided_at: string | null };
 
 // The middle value; the mean of the middle two for an even count.
 export function median(values: number[]): number | null {
@@ -32,19 +32,22 @@ export function median(values: number[]): number | null {
 }
 
 // The counts of the `weeks` weeks ending with the one holding `now`, newest first, from one scoped read.
-export async function weeklyCounts(db: D1Database, orgId: string, now: Date, weeks: number): Promise<WeekCounts[]> {
+export async function weeklyCounts(
+  db: D1Database,
+  orgId: string,
+  now: Date,
+  weeks: number,
+  endExclusive?: string,
+): Promise<WeekCounts[]> {
   const current = Date.parse(weekStart(now));
   const from = new Date(current - (weeks - 1) * WEEK_MS).toISOString();
-  const rows = (
-    await db
-      .prepare(
-        `SELECT c.created_at, c.verdict, c.status, v.created_at AS decided_at
-         FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
-         WHERE c.org_id = ? AND c.created_at >= ?`,
-      )
-      .bind(orgId, from)
-      .all<Row>()
-  ).results;
+  const rowsStatement = db
+    .prepare(
+      `SELECT c.id, c.created_at, c.verdict, c.status, v.created_at AS decided_at
+       FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
+       WHERE c.org_id = ? AND c.created_at >= ?${endExclusive ? " AND c.created_at < ?" : ""}`,
+    )
+    .bind(...(endExclusive ? [orgId, from, endExclusive] : [orgId, from]));
   const out: WeekCounts[] = Array.from({ length: weeks }, (_, i) => ({
     weekStart: new Date(current - i * WEEK_MS).toISOString(),
     checked: 0,
@@ -52,8 +55,39 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     suspicious: 0,
     safe: 0,
     unfinished: 0,
+    kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     medianSecondsToVerdict: null,
   }));
+  // Threat kinds (D07 T04 §18): each flagged case of a week takes at most one kind, from positive evidence on
+  // its current run alone, in invoice, impersonation, phishing order. The flags are read in SQL, one row per
+  // flagged case, so no evidence detail crosses into the Worker. A flagged case with none of these (a
+  // malware-only case) counts in no kind, so the kinds need not sum to the week's flagged total.
+  const flaggedStatement = db
+    .prepare(
+      `SELECT c.id, c.created_at,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND (e."check" = 'invoice.detected'
+               OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') = 'invoice'))) AS inv,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND ((e."check" = 'domain.lookalike' AND e.severity IN ('medium', 'high'))
+               OR (e."check" = 'vision.brand_domain_mismatch' AND json_extract(e.detail_json, '$.confirmed') = 1))) AS imp,
+           EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+             AND e."check" IN ('link.credential_form', 'link.card_form', 'link.lure_button', 'walkthrough.credential_target')) AS ph
+         FROM cases c
+         WHERE c.org_id = ? AND c.created_at >= ?${endExclusive ? " AND c.created_at < ?" : ""} AND c.status IN ('done', 'partial')
+           AND c.verdict IN ('malicious', 'suspicious')`,
+    )
+    .bind(...(endExclusive ? [orgId, from, endExclusive] : [orgId, from]));
+  // One batch, one snapshot: the totals and the kinds can never disagree about a case decided mid-read.
+  const [rowsResult, flaggedResult] = await db.batch([rowsStatement, flaggedStatement]);
+  const rows = (rowsResult?.results ?? []) as Row[];
+  const flaggedRows = (flaggedResult?.results ?? []) as {
+    id: string;
+    created_at: string;
+    inv: number;
+    imp: number;
+    ph: number;
+  }[];
   const times: number[][] = out.map(() => []);
   // Weeks are counted in milliseconds from the oldest Monday, never by SQLite's floating julianday, so a case at
   // Monday 00:00:00.000 SAST is that week's.
@@ -75,12 +109,41 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     const m = median(times[i] ?? []);
     week.medianSecondsToVerdict = m === null ? null : Math.round(m);
   });
+  for (const row of flaggedRows) {
+    const kind = row.inv === 1 ? "invoice" : row.imp === 1 ? "impersonation" : row.ph === 1 ? "phishing" : null;
+    if (!kind) continue;
+    const index = weeks - 1 - Math.floor((Date.parse(row.created_at) - fromMs) / WEEK_MS);
+    const week = out[index];
+    if (week) week.kinds[kind]++;
+  }
   return out;
 }
 
 export async function weeklyStats(db: D1Database, orgId: string, now = new Date()): Promise<WeeklyStats> {
   const [thisWeek, lastWeek] = await weeklyCounts(db, orgId, now, 2);
   return { thisWeek: thisWeek as WeekCounts, lastWeekChecked: lastWeek?.checked ?? 0 };
+}
+
+// The weeks overlapping a chosen SAST date range (D07 T04 §19), oldest first for the export: the window is
+// anchored to the range's end and sized to both overlapping Mondays (two calendar years can overlap 106 weeks).
+export async function periodWeeks(
+  db: D1Database,
+  orgId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<WeekCounts[]> {
+  const fromMonday = Date.parse(weekStart(new Date(`${fromDate}T00:00:00+02:00`)));
+  const toMonday = Date.parse(weekStart(new Date(`${toDate}T00:00:00+02:00`)));
+  const count = Math.round((toMonday - fromMonday) / WEEK_MS) + 1;
+  const endExclusive = new Date(toMonday + WEEK_MS).toISOString();
+  const weeks = await weeklyCounts(db, orgId, new Date(`${toDate}T12:00:00+02:00`), count, endExclusive);
+  const todayMonday = Date.parse(weekStart(new Date()));
+  return weeks
+    .filter((w) => {
+      const start = Date.parse(w.weekStart);
+      return start >= fromMonday && start <= toMonday && start <= todayMonday;
+    })
+    .reverse();
 }
 
 // The CSV of the last 12 weeks' counts, newest first: counts only, never a subject, sender or file name.
