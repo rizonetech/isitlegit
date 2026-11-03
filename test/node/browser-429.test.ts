@@ -21,8 +21,8 @@ const CLASSIFIED: Record<string, Site> = {
     proof: "test/auth/magic-link-confirm.test.ts",
   },
   "src/web/pages/team.tsx": {
-    sites: 2,
-    why: "the Team page redraws itself with the refusal under the field (its 429 branch is defensive: Better Auth's invite handler has no limiter rule here today, and the same refusal page is held by the 400 refusals in the proof)",
+    sites: 3,
+    why: "the Team page redraws itself with the refusal under the field (its single-invite 429 branch is defensive: Better Auth's invite handler has no limiter rule here today, and the same refusal page is held by the 400 refusals in the proof); the batch branch reads the outbound 429 and draws that address's Too many outcome on the Team page, never returning a bare status",
     proof: "test/web/team-page.test.ts",
   },
   "src/web/pages/upload.tsx": {
@@ -140,12 +140,12 @@ describe("no bare 429 reaches a browser", () => {
     expect(mismatches([["src/web/pages/cases.tsx", "return c.text('slow down', 429);"]])).toEqual([
       `src/web/pages/cases.tsx: 1 unclassified site(s): ${FIX}`,
     ]);
-    const team = "if (x) return refuse(draft, 429);\nreturn refuse(draft, 429);\nreturn c.text('bare', 429);";
+    const team = "if (x) return refuse(draft, 429);\nreturn refuse(draft, 429);\nreturn c.text('bare', 429);\nreturn c.text('bare', 429);";
     expect(mismatches([["src/web/pages/team.tsx", team]])).toEqual([
-      `src/web/pages/team.tsx: 3 sites, classified 2: ${FIX}`,
+      `src/web/pages/team.tsx: 4 sites, classified 3: ${FIX}`,
     ]);
     expect(mismatches([["src/web/pages/team.tsx", "return refuse(draft, 429);"]])).toEqual([
-      `src/web/pages/team.tsx: 1 sites, classified 2: ${FIX}`,
+      `src/web/pages/team.tsx: 1 sites, classified 3: ${FIX}`,
     ]);
     expect(mismatches([["src/web/pages/cases.tsx", "return c.text('fine', 200);"]])).toEqual([]);
     // A site after a block comment, and two on one line, are both found; a 429 in prose is not.

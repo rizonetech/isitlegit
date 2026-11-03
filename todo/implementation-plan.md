@@ -543,7 +543,7 @@ Sections: 197 | Checklist items: 859
 | [x]    | D07 T04 §23 | Team history for owners                                     | none                 | 4     |
 | [ ]    | D07 T04 §24 | Team history by person                                      | none                 | 2     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page                 | none                 | 5     |
-| [ ]    | D07 T04 §26 | Find a person on the Team page                              | none                 | 4     |
+| [x]    | D07 T04 §26 | Find a person on the Team page                              | none                 | 4     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page                         | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page                         | none                 | 5     |
@@ -632,6 +632,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 359/556 verified sections, 129 ready to run now.
+Progress: 360/556 verified sections, 128 ready to run now.
 
 Checklist: 2787/3479 items completed (includes Commit items).

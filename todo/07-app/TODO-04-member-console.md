@@ -56,7 +56,7 @@ track: day-6
 | 23 | §23 | Team history for owners | §3 | [x] |
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
-| 26 | §26 | Find a person on the Team page | §3 | [ ] |
+| 26 | §26 | Find a person on the Team page | §3 | [x] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
 | 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
@@ -1025,6 +1025,9 @@ A search over the team's names and emails that finds one person in one step, key
 - [x] Commit: `web: find a person on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a search shows another organisation's member.
+
+> **Verified:** 2026-11-03 | §26 | 98dc5baf9d0d0afce77eada66a7142f591b7bbd7
+> **Review:** `docs/reviews/d07-t04-s26.json`
 
 ## 27. Add a single address and verify it by code
 
