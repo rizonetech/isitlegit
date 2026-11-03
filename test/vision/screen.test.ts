@@ -583,9 +583,10 @@ describe("no-screening ablation (D03 T02 §6)", () => {
       return completion(JSON.stringify(BENIGN));
     }) as typeof fetch;
 
-    let sparkShouldFail = false;
+    let sparkMode: "ok" | "500" | "invalid" = "ok";
     const sparkFetch = (async () => {
-      if (sparkShouldFail) return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
+      if (sparkMode === "500") return new Response(JSON.stringify({ error: { message: "down" } }), { status: 500 });
+      if (sparkMode === "invalid") return metaText('{"lure": "maybe"}');
       return metaText(JSON.stringify(BENIGN));
     }) as typeof fetch;
 
@@ -626,10 +627,10 @@ describe("no-screening ablation (D03 T02 §6)", () => {
         .first<{ screener: string; glimmer_reason: string | null; tier: string }>();
       expect(rowB1).toEqual({ screener: "glimmer", glimmer_reason: null, tier: "glimmer" });
 
-      // Under no-screening, a Spark failure on orgA stays failed/partial with no screening row and no Loupe fallback.
+      // Under no-screening, Spark failures on orgA (500, invalid output, and budget refusal) stay failed/partial with no screening row and no Loupe fallback.
       await seedOwed(orgA, hostA2, "2026-11-03T06:30:00.000Z");
       const fwBeforeFail = fwSent.length;
-      sparkShouldFail = true;
+      sparkMode = "500";
       const sumFail = await monitorOrg(makeDeps(`run-${orgA}-fail`), orgA, `run-${orgA}-fail`);
       expect(sumFail.outcome).toBe("partial");
       expect(sumFail.screenFailed).toBe(1);
@@ -640,8 +641,46 @@ describe("no-screening ablation (D03 T02 §6)", () => {
         .bind(orgA, hostA2)
         .first();
       expect(rowA2Missing).toBeNull();
+
+      // Invalid output through monitorOrg under no-screening: partial, no screening row, zero Loupe calls.
+      sparkMode = "invalid";
+      const sumInvalid = await monitorOrg(makeDeps(`run-${orgA}-invalid`), orgA, `run-${orgA}-invalid`);
+      expect(sumInvalid.outcome).toBe("partial");
+      expect(sumInvalid.screenFailed).toBe(1);
+      expect(sumInvalid.errors).toContain("screen:ablated/output-invalid");
+      expect(fwSent).toHaveLength(fwBeforeFail);
+      expect(
+        await db
+          .prepare("SELECT screener FROM monitor_screens WHERE org_id = ? AND domain = ?")
+          .bind(orgA, hostA2)
+          .first(),
+      ).toBeNull();
+
+      // Budget refusal through monitorOrg under no-screening: partial, no screening row, zero Loupe calls.
+      sparkMode = "ok";
+      await db
+        .prepare(
+          "INSERT INTO model_spend (id, at, day, source, caller, model, attempt, estimate_usd, state) VALUES ('cap-mon-ablate', ?1, ?2, 'worker', 't', 'muse-spark-1.3', 1, 1000, 'reserved')",
+        )
+        .bind(new Date().toISOString(), new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 10))
+        .run();
+      try {
+        const sumBudget = await monitorOrg(makeDeps(`run-${orgA}-budget`), orgA, `run-${orgA}-budget`);
+        expect(sumBudget.outcome).toBe("partial");
+        expect(sumBudget.screenFailed).toBe(1);
+        expect(sumBudget.errors).toContain("screen:ablated/budget");
+        expect(fwSent).toHaveLength(fwBeforeFail);
+        expect(
+          await db
+            .prepare("SELECT screener FROM monitor_screens WHERE org_id = ? AND domain = ?")
+            .bind(orgA, hostA2)
+            .first(),
+        ).toBeNull();
+      } finally {
+        await db.prepare("DELETE FROM model_spend WHERE id = 'cap-mon-ablate'").run();
+      }
     } finally {
-      sparkShouldFail = false;
+      sparkMode = "ok";
       await kv.delete(ablateKey(orgA));
     }
 

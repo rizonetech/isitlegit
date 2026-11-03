@@ -205,9 +205,22 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
     }) as typeof fetch;
 
     const first = await mailCase("org-no-sam-1", "whole-cache-proof");
+    const putKeysFresh: string[] = [];
+    const trackedBucketFresh = new Proxy(env.ARTEFACTS, {
+      get(target, prop) {
+        if (prop === "put")
+          return (key: string, value: unknown, options?: unknown) => {
+            putKeysFresh.push(key);
+            return (target.put as (...a: unknown[]) => unknown)(key, value, options);
+          };
+        const v = Reflect.get(target, prop);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    }) as R2Bucket;
     const out1 = await visionStep(
       {
         ...deps(first, () => puppeteer.launch(env.BROWSER)),
+        store: { bucket: trackedBucketFresh, db: env.DB },
         meta: { env: META, budget: d1Budget(env.DB, { caller: "vision", caseId: first }), fetch: fetchStub },
         ablateFlag: async () => "no-sam",
       },
@@ -217,6 +230,7 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
     expect(seen).toEqual(["mail_reading"]);
     expect(readingCalls).toBe(1);
     expect(await artefactsOf(store, first, "crop")).toHaveLength(0);
+    expect(putKeysFresh.filter((k) => k.includes("/crop/") || k.includes("-manifest-"))).toEqual([]);
 
     const evidence1 = await readEvidence(env.DB, first);
     const cov1 = evidence1.find((e) => e.check === "vision.coverage");
@@ -351,11 +365,25 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
     expect(evBefore.some((e) => e.check === "vision.brand_domain_mismatch")).toBe(true);
 
     // Replay the same case under no-sam: zero SAM, grounding or logo-comparison calls, zero new crop
-    // or manifest writes, and prior vision.logo_match items are removed while reading and brand items remain.
+    // or manifest writes (and zero overwrites of existing crops or manifests), and prior vision.logo_match
+    // items are removed while reading and brand items remain.
     calls.length = 0;
+    const putKeysReplay: string[] = [];
+    const trackedBucketReplay = new Proxy(env.ARTEFACTS, {
+      get(target, prop) {
+        if (prop === "put")
+          return (key: string, value: unknown, options?: unknown) => {
+            putKeysReplay.push(key);
+            return (target.put as (...a: unknown[]) => unknown)(key, value, options);
+          };
+        const v = Reflect.get(target, prop);
+        return typeof v === "function" ? v.bind(target) : v;
+      },
+    }) as R2Bucket;
     const replayed = await visionStep(
       {
         ...deps(caseId, () => puppeteer.launch(env.BROWSER)),
+        store: { bucket: trackedBucketReplay, db: env.DB },
         meta: { env: META, budget: d1Budget(env.DB, { caller: "vision", caseId }), fetch: fetchStub },
         ablateFlag: async () => "no-sam",
       },
@@ -365,6 +393,7 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
     expect(calls).not.toContain("sam-3.1");
     expect(calls).not.toContain("logo_grounding");
     expect(calls).not.toContain("logo_comparison");
+    expect(putKeysReplay.filter((k) => k.includes("/crop/") || k.includes("-manifest-"))).toEqual([]);
     const cropsAfter = await artefactsOf(store, caseId, "crop");
     expect(cropsAfter.map((c) => c.key)).toEqual(cropsBefore.map((c) => c.key));
 
