@@ -55,6 +55,8 @@ track: day-2
 
 ## 1. Early results first
 
+> **Started:** 2026-11-03T01:16:34Z
+
 Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw once the checks step stores its outcomes, and that step also runs slower work (link following, landing pages, domain age), so results a member could act on wait behind unrelated work. The pipeline change is the checks lane's; this section owns the report's side and its proof.
 
 **Phase:** 7
