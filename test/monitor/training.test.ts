@@ -976,5 +976,81 @@ describe("copyForTraining", () => {
     expect(metaA.why).toContain("our own staging site");
     expect(metaB.retracted).toBe(true);
     expect(metaB.source).toBe("restore");
+
+    // 1. Non-qualifying dismissal ("duplicate ticket") after a restore during an R2 outage must NOT erase the pending restore.
+    const hostNonQual = "nonqual-after-restore.example";
+    const captureC = `monitor/${orgId}/${hostNonQual}/2026-11-02T09:20:00.000Z/`;
+    await seedCapture(captureC, `https://${hostNonQual}/c`, "Non-qualifying after restore");
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+         VALUES (?, ?, ?, 'case-mo-c', ?, 'confirmed', '["E3"]', '2026-11-02T09:21:00.000Z', '2026-11-02T09:21:00.000Z')`,
+      )
+      .bind(orgId, hostNonQual, captureC, `https://${hostNonQual}/c`)
+      .run();
+    await findingsFromInvestigations(
+      db,
+      orgId,
+      { mail: null, appUrl: "https://app.isitlegit.co.za" },
+      () => new Date("2026-11-02T09:22:00.000Z"),
+      bucket,
+    );
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        hostNonQual,
+        "Not a fake, this is our own regional site",
+        () => new Date("2026-11-02T09:23:00.000Z"),
+        bucket,
+      ),
+    ).toBe(true);
+    // Restore during R2 outage, then dismiss with non-qualifying reason "duplicate ticket" while R2 is still down.
+    expect(
+      await restoreFinding(db, orgId, hostNonQual, () => new Date("2026-11-02T09:24:00.000Z"), failingBucket),
+    ).toBe(true);
+    expect(
+      await dismissFinding(
+        db,
+        orgId,
+        hostNonQual,
+        "duplicate ticket",
+        () => new Date("2026-11-02T09:25:00.000Z"),
+        failingBucket,
+      ),
+    ).toBe(true);
+    await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T09:26:00.000Z"));
+    const metaC = JSON.parse(
+      (await (await bucket.get(`training/${captureC}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(metaC.retracted).toBe(true);
+    expect(metaC.source).toBe("restore");
+
+    // 2. Legacy pending restore row (status = 'watching', dismissed_reason = NULL, unprefixed dismissed_capture_key) recovers after upgrade.
+    const hostLegacy = "legacy-restore.example";
+    const captureD = `monitor/${orgId}/${hostLegacy}/2026-11-02T09:30:00.000Z/`;
+    await seedCapture(captureD, `https://${hostLegacy}/d`, "Legacy restore capture");
+    await copyForTraining(bucket, {
+      orgId,
+      host: hostLegacy,
+      captureKey: captureD,
+      captureUrl: `https://${hostLegacy}/d`,
+      label: "benign",
+      why: "dismissed as not a fake: Not a fake",
+      source: "dismissal",
+    });
+    await db
+      .prepare(
+        `INSERT OR REPLACE INTO monitor_findings (org_id, host, status, first_seen, capture_key, case_id, outcome, evidence_refs, dismissed_reason, dismissed_at, dismissed_capture_key, created_at, updated_at)
+         VALUES (?, ?, 'watching', '2026-11-02T09:30:00.000Z', ?, 'case-mo-d', 'confirmed', '["E4"]', NULL, NULL, ?, '2026-11-02T09:30:00.000Z', '2026-11-02T09:31:00.000Z')`,
+      )
+      .bind(orgId, hostLegacy, captureD, captureD)
+      .run();
+    await recoverPendingTrainingCopies(db, bucket, orgId, () => new Date("2026-11-02T09:32:00.000Z"));
+    const metaD = JSON.parse(
+      (await (await bucket.get(`training/${captureD}meta.json`))?.text()) ?? "{}",
+    ) as StoredTrainingMeta;
+    expect(metaD.retracted).toBe(true);
+    expect(metaD.source).toBe("restore");
   });
 });

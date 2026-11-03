@@ -474,6 +474,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     summary.screenFailed = screening.failed;
     summary.screenDeferred = screening.deferred;
     for (const e of screening.errors) noteError(summary, e);
+    for (const e of screening.trainingRecoveryErrors ?? []) noteError(summary, `training:${e}`);
     const looks = await deps.db
       .prepare(
         `SELECT COALESCE(SUM(second_look = 'declined'), 0) AS declined, COALESCE(SUM(second_look = 'unavailable'), 0) AS unavailable,
@@ -500,7 +501,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       summary.screenFailed ||
       summary.screenDeferred ||
       summary.ctFailed ||
-      summary.candidatesDeferred
+      summary.candidatesDeferred ||
+      screening.trainingRecoveryFailed
         ? "partial"
         : "completed";
   } catch (error) {

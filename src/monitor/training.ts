@@ -115,14 +115,14 @@ export function parseFindingDecisions(row: {
   const isHeadRestore = head.startsWith("restored:");
   const headKey = head.replace(/^restored:/, "");
   if (headKey && !byCapture.has(headKey)) {
-    if (isHeadRestore && row.status !== "dismissed") {
+    if ((isHeadRestore || !row.dismissed_reason) && row.status !== "dismissed") {
       byCapture.set(headKey, {
         captureKey: headKey,
         kind: "restore",
         reason: "finding restored by business",
         at: "",
       });
-    } else if (row.dismissed_reason) {
+    } else if (row.dismissed_reason && isBenignDismissalReason(row.dismissed_reason)) {
       byCapture.set(headKey, {
         captureKey: headKey,
         kind: "dismissal",
@@ -148,7 +148,9 @@ export function encodeFindingDecision(
   for (const item of prior) {
     byCapture.set(item.captureKey, item);
   }
-  byCapture.set(next.captureKey, next);
+  if (next.kind === "restore" || isBenignDismissalReason(next.reason)) {
+    byCapture.set(next.captureKey, next);
+  }
   const head = next.kind === "restore" ? `restored:${next.captureKey}` : next.captureKey;
   const serialized = [...byCapture.values()].map((d) => JSON.stringify(d));
   return [head, ...serialized].join("\n");
@@ -793,69 +795,71 @@ export async function recoverPendingTrainingCopies(
   // interrupted or failed post-write check.
   const orgPrefix = `training/monitor/${orgId}/`;
   const failedRemovedPrefixes = new Set<string>();
-  try {
-    const allOrgObjects: { key: string }[] = [];
-    let cursor: string | undefined;
-    while (true) {
-      const listed = await bucket.list({ prefix: orgPrefix, ...(cursor ? { cursor } : {}) });
-      allOrgObjects.push(...listed.objects);
-      if (!listed.truncated) break;
-      cursor = listed.cursor;
-      if (!cursor) break;
-    }
-    const removedHosts = new Set<string>();
-    const removedCapturePrefixes = new Set<string>();
-    const residualByPrefix = new Map<string, { host: string; keys: string[] }>();
-    for (const obj of allOrgObjects) {
-      const rel = obj.key.slice(orgPrefix.length);
-      const parts = rel.split("/");
-      const host = parts[0];
-      if (!host) continue;
-      if (parts.length === 2 && parts[1] === "removed.json") {
-        removedHosts.add(host);
-        continue;
+  if (typeof bucket.list === "function") {
+    try {
+      const allOrgObjects: { key: string }[] = [];
+      let cursor: string | undefined;
+      while (true) {
+        const listed = await bucket.list({ prefix: orgPrefix, ...(cursor ? { cursor } : {}) });
+        allOrgObjects.push(...listed.objects);
+        if (!listed.truncated) break;
+        cursor = listed.cursor;
+        if (!cursor) break;
       }
-      const moment = parts[1];
-      if (moment && /^\d{4}-\d{2}-\d{2}T/.test(moment)) {
-        const prefix = `${orgPrefix}${host}/${moment}/`;
-        if (parts.length === 3 && parts[2] === "removed.json") {
-          removedCapturePrefixes.add(prefix);
-        } else {
-          const entry = residualByPrefix.get(prefix) ?? { host, keys: [] };
-          entry.keys.push(obj.key);
-          residualByPrefix.set(prefix, entry);
+      const removedHosts = new Set<string>();
+      const removedCapturePrefixes = new Set<string>();
+      const residualByPrefix = new Map<string, { host: string; keys: string[] }>();
+      for (const obj of allOrgObjects) {
+        const rel = obj.key.slice(orgPrefix.length);
+        const parts = rel.split("/");
+        const host = parts[0];
+        if (!host) continue;
+        if (parts.length === 2 && parts[1] === "removed.json") {
+          removedHosts.add(host);
+          continue;
         }
-      }
-    }
-    for (const [prefix, info] of residualByPrefix.entries()) {
-      if (removedHosts.has(info.host) || removedCapturePrefixes.has(prefix)) {
-        try {
-          const cleaned = await cleanupCaptureObjects(bucket, prefix, info.keys);
-          if (!removedCapturePrefixes.has(prefix)) {
-            const trainingId = prefix.replace(/^training\//, "").replace(/\/$/, "");
-            await bucket.put(
-              `${prefix}removed.json`,
-              JSON.stringify({
-                trainingId,
-                orgId,
-                host: info.host,
-                reason: "reconciled after host removal",
-                removedAt: now().toISOString(),
-              }),
-              { httpMetadata: { contentType: "application/json" } },
-            );
+        const moment = parts[1];
+        if (moment && /^\d{4}-\d{2}-\d{2}T/.test(moment)) {
+          const prefix = `${orgPrefix}${host}/${moment}/`;
+          if (parts.length === 3 && parts[2] === "removed.json") {
+            removedCapturePrefixes.add(prefix);
+          } else {
+            const entry = residualByPrefix.get(prefix) ?? { host, keys: [] };
+            entry.keys.push(obj.key);
+            residualByPrefix.set(prefix, entry);
           }
-          if (cleaned || info.keys.length > 0) recovered++;
-        } catch (err) {
-          failedRemovedPrefixes.add(prefix);
-          failed++;
-          errors.push(`reconcile-removed:${prefix}:${(err as Error).message || "failed"}`);
         }
       }
+      for (const [prefix, info] of residualByPrefix.entries()) {
+        if (removedHosts.has(info.host) || removedCapturePrefixes.has(prefix)) {
+          try {
+            const cleaned = await cleanupCaptureObjects(bucket, prefix, info.keys);
+            if (!removedCapturePrefixes.has(prefix)) {
+              const trainingId = prefix.replace(/^training\//, "").replace(/\/$/, "");
+              await bucket.put(
+                `${prefix}removed.json`,
+                JSON.stringify({
+                  trainingId,
+                  orgId,
+                  host: info.host,
+                  reason: "reconciled after host removal",
+                  removedAt: now().toISOString(),
+                }),
+                { httpMetadata: { contentType: "application/json" } },
+              );
+            }
+            if (cleaned || info.keys.length > 0) recovered++;
+          } catch (err) {
+            failedRemovedPrefixes.add(prefix);
+            failed++;
+            errors.push(`reconcile-removed:${prefix}:${(err as Error).message || "failed"}`);
+          }
+        }
+      }
+    } catch (err) {
+      failed++;
+      errors.push(`list-org:${(err as Error).message || "failed"}`);
     }
-  } catch (err) {
-    failed++;
-    errors.push(`list-org:${(err as Error).message || "failed"}`);
   }
 
   let declined: { domain: string; capture_key: string }[] = [];
