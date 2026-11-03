@@ -131,6 +131,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("accessibility of the compon
         for (const state of GALLERY_STATES) {
           const path = `/dev/components/state/${anchorOf("state", state.id)}`;
           const { p, context } = await open(path, {}, width, theme);
+          if (state.id === "field/focused") {
+            await p.focus("#g-focused");
+            expect(await p.evaluate(() => document.activeElement?.id), `${state.id} focused`).toBe("g-focused");
+            expect(
+              await p.evaluate(() => getComputedStyle(document.getElementById("g-focused") as Element).outlineStyle),
+              `${state.id} one-border focus`,
+            ).toBe("none");
+          }
           failures.push(...problems(await scan(p)).map((x) => `${state.id}: ${x}`));
           await context.close();
         }

@@ -79,7 +79,16 @@ const BODY = String(
         <label for="locked-select" class="text-14">
           Locked select
         </label>
-        <Select id="locked-select" name="lockedSelect" disabled>
+        <Select id="locked-select" name="lockedSelect" disabled data-action="locked-select">
+          <option value="owner" selected>
+            Owner
+          </option>
+          <option value="member">Member</option>
+        </Select>
+        <label for="aria-locked-select" class="text-14">
+          Aria locked select
+        </label>
+        <Select id="aria-locked-select" name="ariaLockedSelect" aria-disabled="true" data-action="aria-locked-select">
           <option value="owner" selected>
             Owner
           </option>
@@ -171,7 +180,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", { ti
         expect(reached[id]?.borderColor, `${id} switches its border to orange-text`).toBe(rgb(t["orange-text"]));
         expect(reached[id]?.contrast, `${id} focus border contrast`).toBeGreaterThanOrEqual(3);
       }
-      for (const id of ["off", "offlink", "ariaoff", "locked", "locked-select"])
+      for (const id of ["off", "offlink", "ariaoff", "locked", "locked-select", "aria-locked-select"])
         expect(Object.keys(reached)).not.toContain(id);
       await page.close();
     });
@@ -311,6 +320,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("controls in Chromium", { ti
     await page.focus("#verdict");
     await page.keyboard.press("ArrowDown");
     expect(await page.inputValue("#verdict")).toBe("malicious");
+    // Both disabled Select spellings (`disabled` and `aria-disabled="true"`) ignore pointer and keyboard interaction,
+    // fire no delegated data-action, keep their initial option and are omitted from FormData on submit.
+    for (const id of ["locked-select", "aria-locked-select"]) {
+      await page.click(`#${id}`, { force: true });
+      await page.focus("#email");
+      expect(
+        await page.evaluate(
+          (i) => (document.getElementById(i) as HTMLElement).focus() ?? document.activeElement?.id,
+          id,
+        ),
+      ).toBe("email");
+      await page.keyboard.press("ArrowDown");
+      expect(await page.inputValue(`#${id}`), `${id} unchanged`).toBe("owner");
+    }
     await page.click("#submit");
     expect(await events(page)).toEqual([
       "plain",

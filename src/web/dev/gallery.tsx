@@ -200,6 +200,10 @@ export const GALLERY_STATES: State[] = [
   },
   { id: "field/plain", render: () => <Field id="g-email" label="Work email" name="email" type="email" /> },
   {
+    id: "field/focused",
+    render: () => <Field id="g-focused" label="Focused field" name="focused" value="check@isitlegit.co.za" autofocus />,
+  },
+  {
     id: "field/hint",
     render: () => <Field id="g-hint" label="Organisation name" name="org" hint="As your clients know it." />,
   },
