@@ -9,7 +9,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
-import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT } from "./build-dataset.ts";
+import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT, shingles } from "./build-dataset.ts";
+import type { ListEntry } from "./render.ts";
 
 // The Wilson 95 percent interval for k of n; (0, 1) for no observations.
 export function wilson(k: number, n: number, z = 1.96): { low: number; high: number } {
@@ -143,6 +144,7 @@ export type SplitFigures = {
   eval: number;
   dropped: number;
   lure_share_eval: number | null;
+  lure_share_train?: number | null;
   cross_brand: number; // brands on both sides
   cross_site: number; // sites on both sides
   near_duplicate_eval_pages: number; // eval pages with a near-duplicate in train
@@ -220,23 +222,32 @@ const typeCounts = (list: Page[]) => {
 // The permitted gap between a stratified seed's evaluation lure share and the built split's, in share points: whole
 // groups cannot always hit a target exactly, and a seed outside it is reported as unmet rather than called matched.
 export const BALANCE_TOLERANCE = 0.05;
-// How far a stratified seed is from the build's balance: the lure-share gap, each lure type's share of the evaluation
-// lures against the build's, and whether the share is within `BALANCE_TOLERANCE`.
+// How far a stratified seed is from the build's balance on both sides: each side's lure-share gap and each lure
+// type's share of that side's lures against the build's, and whether every gap is within `BALANCE_TOLERANCE`.
 export function balanceOf(built: SplitFigures, other: SplitFigures) {
-  const shares = (f: SplitFigures) => {
-    const counts = f.lure_types?.eval ?? {};
+  const shares = (f: SplitFigures, side: "eval" | "train") => {
+    const counts = f.lure_types?.[side] ?? {};
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     return Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, total ? v / total : 0]));
   };
-  const target = shares(built);
-  const got = shares(other);
-  const types = [...new Set([...Object.keys(target), ...Object.keys(got)])].sort();
+  const gaps = (side: "eval" | "train") => {
+    const target = shares(built, side);
+    const got = shares(other, side);
+    const types = [...new Set([...Object.keys(target), ...Object.keys(got)])].sort();
+    return Object.fromEntries(types.map((t) => [t, Math.abs((got[t] ?? 0) - (target[t] ?? 0))]));
+  };
+  const type_share_gap = gaps("eval");
+  const train_type_share_gap = gaps("train");
   const share_gap = Math.abs((other.lure_share_eval ?? 0) - (built.lure_share_eval ?? 0));
+  const train_share_gap = Math.abs((other.lure_share_train ?? 0) - (built.lure_share_train ?? 0));
+  const all = [share_gap, train_share_gap, ...Object.values(type_share_gap), ...Object.values(train_type_share_gap)];
   return {
     share_gap,
-    within_tolerance: share_gap <= BALANCE_TOLERANCE,
+    train_share_gap,
+    within_tolerance: all.every((g) => g <= BALANCE_TOLERANCE),
     tolerance: BALANCE_TOLERANCE,
-    type_share_gap: Object.fromEntries(types.map((t) => [t, Math.abs((got[t] ?? 0) - (target[t] ?? 0))])),
+    type_share_gap,
+    train_type_share_gap,
   };
 }
 
@@ -255,6 +266,7 @@ export function splitFigures(pages: Page[], assignment: Map<string, Side>): Spli
     eval: evals.length,
     dropped: pages.length - train.length - evals.length,
     lure_share_eval: evals.length ? evals.filter((p) => p.lure).length / evals.length : null,
+    lure_share_train: train.length ? train.filter((p) => p.lure).length / train.length : null,
     cross_brand: [...brands(evals)].filter((b) => trainBrands.has(b)).length,
     cross_site: [...sites(evals)].filter((s) => trainSites.has(s)).length,
     near_duplicate_eval_pages: evals.filter((p) => findNear(p) !== null).length,
@@ -338,46 +350,153 @@ export function groupShuffleSplit(pages: Page[], random: () => number, evalShare
   return assignment;
 }
 
-// The stronger baseline (§39): the same whole groups, but each side's lure share is matched to the built split's, so the
-// comparison does not credit §10 for a balance a conventional split also reaches. Groups are drawn in turn from the
-// lure-leaning and the benign-leaning ones, whichever keeps the evaluation side's lure share nearest the target, and
-// near-duplicates of the evaluation side are then removed from training as in the plain baseline.
+// The stronger baseline (§39): the same whole groups, but class-aware on both sides, as StratifiedGroupKFold is:
+// each step takes the remaining whole group whose addition brings both the evaluation side and the training
+// complement nearest the built split's lure share and lure-type shares (bucketing groups by their exact class
+// profile so every remaining group is considered at every step in O(distinct profiles) time, with ties broken by
+// the seeded shuffle); near-duplicates of the evaluation side are then removed from training as in the plain baseline.
 export function stratifiedGroupSplit(
   pages: Page[],
   random: () => number,
   evalShare: number,
   targetLureShare: number,
+  targetTypeShares?: Record<string, number>,
+  targetTrainLureShare?: number,
+  targetTrainTypeShares?: Record<string, number>,
 ): Map<string, Side> {
+  const groupKey = (page: Page) =>
+    page.brand ? `brand:${brandIdentity(page.brand)}` : page.site ? `site:${page.site}` : `page:${page.id}`;
   const groups = new Map<string, Page[]>();
   for (const page of pages) {
-    const key = page.brand ? `brand:${brandIdentity(page.brand)}` : page.site ? `site:${page.site}` : `page:${page.id}`;
+    const key = groupKey(page);
     (groups.get(key) ?? groups.set(key, []).get(key))?.push(page);
   }
-  const shuffled = (keys: string[]) => {
-    const out = [...keys].sort();
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      [out[i], out[j]] = [out[j] as string, out[i] as string];
+  const remaining = [...groups.keys()].sort();
+  for (let i = remaining.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [remaining[i], remaining[j]] = [remaining[j] as string, remaining[i] as string];
+  }
+  const overallTypes: Record<string, number> = {};
+  for (const p of pages)
+    if (p.lure) overallTypes[p.lureType ?? "unspecified"] = (overallTypes[p.lureType ?? "unspecified"] ?? 0) + 1;
+  const totalLures = Object.values(overallTypes).reduce((a, b) => a + b, 0);
+  const overallTypeShares = Object.fromEntries(
+    Object.entries(overallTypes).map(([k, v]) => [k, totalLures ? v / totalLures : 0]),
+  );
+  const typeTarget = targetTypeShares ?? overallTypeShares;
+  const trainLureTarget = targetTrainLureShare ?? (pages.length ? totalLures / pages.length : targetLureShare);
+  const trainTypeTarget = targetTrainTypeShares ?? typeTarget;
+  const types = [
+    ...new Set([...Object.keys(overallTypes), ...Object.keys(typeTarget), ...Object.keys(trainTypeTarget)]),
+  ].sort();
+  // Cross-group near-duplicates that placing a group on `eval` would remove from `train`, so post-dedup training
+  // balance is respected directly when whole groups have near-duplicate copies in other groups.
+  const crossNearByGroup = new Map<string, { len: number; lures: number; types: number[] }>();
+  if (pages.length <= 5_000) {
+    const bands = new Map<string, Page[]>();
+    for (const page of pages)
+      for (const k of bandKeys(page.hash)) (bands.get(k) ?? bands.set(k, []).get(k))?.push(page);
+    for (const [key, g] of groups) {
+      const seen = new Set<string>();
+      const hits: Page[] = [];
+      for (const page of g)
+        for (const bk of bandKeys(page.hash))
+          for (const other of bands.get(bk) ?? [])
+            if (groupKey(other) !== key && !seen.has(other.id) && nearConventional(page, other)) {
+              seen.add(other.id);
+              hits.push(other);
+            }
+      crossNearByGroup.set(key, {
+        len: hits.length,
+        lures: hits.filter((p) => p.lure).length,
+        types: types.map((t) => hits.filter((p) => p.lure && (p.lureType ?? "unspecified") === t).length),
+      });
     }
-    return out;
-  };
-  const lureShare = (key: string) =>
-    (groups.get(key) ?? []).filter((p) => p.lure).length / (groups.get(key)?.length || 1);
-  const all = [...groups.keys()];
-  const leaning = shuffled(all.filter((k) => lureShare(k) >= 0.5));
-  const benign = shuffled(all.filter((k) => lureShare(k) < 0.5));
+  }
   const target = Math.round(pages.length * evalShare);
+  type Bucket = {
+    len: number;
+    lures: number;
+    typeCounts: number[];
+    dropLen: number;
+    dropLures: number;
+    dropTypes: number[];
+    items: { key: string; rank: number }[];
+  };
+  const buckets = new Map<string, Bucket>();
+  for (let rank = 0; rank < remaining.length; rank++) {
+    const key = remaining[rank] as string;
+    const g = groups.get(key) ?? [];
+    const lures = g.filter((p) => p.lure).length;
+    const typeCounts = types.map((t) => g.filter((p) => p.lure && (p.lureType ?? "unspecified") === t).length);
+    const drop = crossNearByGroup.get(key) ?? { len: 0, lures: 0, types: types.map(() => 0) };
+    const sig = `${g.length}:${lures}:${typeCounts.join(",")}:${drop.len}:${drop.lures}:${drop.types.join(",")}`;
+    let b = buckets.get(sig);
+    if (!b) {
+      b = {
+        len: g.length,
+        lures,
+        typeCounts,
+        dropLen: drop.len,
+        dropLures: drop.lures,
+        dropTypes: drop.types,
+        items: [],
+      };
+      buckets.set(sig, b);
+    }
+    b.items.push({ key, rank });
+  }
   const assignment = new Map<string, Side>();
   let held = 0;
   let heldLures = 0;
+  const heldTypes = types.map(() => 0);
+  let droppedTrain = 0;
+  let droppedTrainLures = 0;
+  const droppedTrainTypes = types.map(() => 0);
+  const totalTypes = types.map((t) => overallTypes[t] ?? 0);
   for (const page of pages) assignment.set(page.id, "train");
-  while (held < target && (leaning.length || benign.length)) {
-    const wantLure = held === 0 ? targetLureShare >= 0.5 : heldLures / held < targetLureShare;
-    const key = (wantLure ? (leaning.shift() ?? benign.shift()) : (benign.shift() ?? leaning.shift())) as string;
-    for (const page of groups.get(key) ?? []) {
-      assignment.set(page.id, "eval");
-      held++;
-      if (page.lure) heldLures++;
+  const score = (b: Bucket) => {
+    const nEval = held + b.len;
+    const luresEval = heldLures + b.lures;
+    const nTrain = Math.max(0, pages.length - nEval - droppedTrain - b.dropLen);
+    const luresTrain = Math.max(0, totalLures - luresEval - droppedTrainLures - b.dropLures);
+    let s = Math.abs((nEval ? luresEval / nEval : 0) - targetLureShare);
+    s += Math.abs((nTrain ? luresTrain / nTrain : 0) - trainLureTarget);
+    for (let i = 0; i < types.length; i++) {
+      const t = types[i] as string;
+      const cEval = (heldTypes[i] ?? 0) + (b.typeCounts[i] ?? 0);
+      const cTrain = Math.max(0, (totalTypes[i] ?? 0) - cEval - (droppedTrainTypes[i] ?? 0) - (b.dropTypes[i] ?? 0));
+      s += Math.abs((nEval ? cEval / nEval : 0) - targetLureShare * (typeTarget[t] ?? 0));
+      s += Math.abs((nTrain ? cTrain / nTrain : 0) - trainLureTarget * (trainTypeTarget[t] ?? 0));
+    }
+    if (nEval > target) s += (nEval - target) / Math.max(1, target);
+    return s;
+  };
+  while (held < target) {
+    let bestBucket: Bucket | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    let bestRank = Number.POSITIVE_INFINITY;
+    for (const b of buckets.values()) {
+      const head = b.items[0];
+      if (!head) continue;
+      const s = score(b);
+      if (s < bestScore - 1e-12 || (Math.abs(s - bestScore) <= 1e-12 && head.rank < bestRank)) {
+        bestScore = s;
+        bestBucket = b;
+        bestRank = head.rank;
+      }
+    }
+    if (!bestBucket) break;
+    const picked = bestBucket.items.shift();
+    if (!picked) break;
+    for (const page of groups.get(picked.key) ?? []) assignment.set(page.id, "eval");
+    held += bestBucket.len;
+    heldLures += bestBucket.lures;
+    droppedTrain += bestBucket.dropLen;
+    droppedTrainLures += bestBucket.dropLures;
+    for (let i = 0; i < types.length; i++) {
+      heldTypes[i] = (heldTypes[i] ?? 0) + (bestBucket.typeCounts[i] ?? 0);
+      droppedTrainTypes[i] = (droppedTrainTypes[i] ?? 0) + (bestBucket.dropTypes[i] ?? 0);
     }
   }
   const findNear = nearIndex(
@@ -398,10 +517,14 @@ const lines = (file: string) =>
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 // What a pinned page is: the digest of every consumed file of every page (its metadata, screenshot and text), so a page
-// that is relabelled, repaired or replaced changes the identity the result records.
+// that is relabelled, repaired or replaced changes the identity the result records. When an earlier dataset version's
+// page left `pages/` on a later re-import or wall recheck, its lossless page folder in `dataset/<version>/pages/<id>/`
+// is read instead.
 type PageRead = { meta: string; shot: Uint8Array; text: string };
-function pageFiles(dir: string, id: string): PageRead {
-  const folder = join(dir, "pages", id);
+function pageFiles(dir: string, id: string, version?: string): PageRead {
+  const storeFolder = join(dir, "pages", id);
+  const folder =
+    existsSync(join(storeFolder, "meta.json")) || !version ? storeFolder : join(dir, "dataset", version, "pages", id);
   const meta = readFileSync(join(folder, "meta.json"), "utf-8");
   return {
     meta,
@@ -507,7 +630,7 @@ export async function compareSplit(
     let done = 0;
     for (const id of sides.keys()) {
       try {
-        const files = pageFiles(dir, id);
+        const files = pageFiles(dir, id, version);
         const meta = JSON.parse(files.meta) as {
           host: string | null;
           labels: { brand?: string | null; lure?: boolean; lure_type?: string | null };
@@ -546,7 +669,23 @@ export async function compareSplit(
     const idsOn = (a: Map<string, Side>, side: Side) => pages.filter((p) => a.get(p.id) === side).map((p) => p.id);
     const builtFigures = splitFigures(pages, sides);
     const stratified = STRATIFIED_SEEDS.map((seed) => {
-      const assignment = stratifiedGroupSplit(pages, seeded(seed), evalShare, builtFigures.lure_share_eval ?? 0.5);
+      const builtEvalTypes = builtFigures.lure_types?.eval ?? {};
+      const builtEvalLures = Object.values(builtEvalTypes).reduce((a, b) => a + b, 0);
+      const builtTrainTypes = builtFigures.lure_types?.train ?? {};
+      const builtTrainLures = Object.values(builtTrainTypes).reduce((a, b) => a + b, 0);
+      const assignment = stratifiedGroupSplit(
+        pages,
+        seeded(seed),
+        evalShare,
+        builtFigures.lure_share_eval ?? 0.5,
+        Object.fromEntries(
+          Object.entries(builtEvalTypes).map(([k, v]) => [k, builtEvalLures ? v / builtEvalLures : 0]),
+        ),
+        builtFigures.lure_share_train ?? builtFigures.lure_share_eval ?? 0.5,
+        Object.fromEntries(
+          Object.entries(builtTrainTypes).map(([k, v]) => [k, builtTrainLures ? v / builtTrainLures : 0]),
+        ),
+      );
       const figures = splitFigures(pages, assignment);
       return {
         seed,
@@ -578,7 +717,7 @@ export async function compareSplit(
           conventional:
             "group by brand identity, else site, else page; shuffle groups; fill the evaluation side to the built split's share; drop training pages that are near-duplicates of an evaluation page (screenshot hash and MinHash)",
           stratified:
-            "the same whole groups, each side's lure share matched to the built split's (groups drawn from the lure-leaning and benign-leaning ones to keep the evaluation lure share on target), near-duplicates of the evaluation side removed from training; run at the seeds listed in `stratified`",
+            "the same whole groups, class-aware: each step takes the remaining whole group bringing the evaluation side nearest the built split's lure share and lure-type shares (training is the complement), near-duplicates of the evaluation side removed from training; run at the seeds listed in `stratified`",
           stratified_seeds: [...STRATIFIED_SEEDS],
           leaks_counted_by: "the build's own exact rule (screenshot hash and exact text Jaccard)",
         },
@@ -603,6 +742,523 @@ export async function compareSplit(
   } catch (error) {
     return { status: "incomplete", name, inputs, missing: [`the comparison could not run: ${message(error)}`] };
   }
+}
+
+// ---- The benign render against a conventional crawl-and-filter pipeline (§38) ---------------------------------------
+
+export type BenignForm = "login" | "payment" | "none" | Unknown;
+export type BenignLabel = {
+  wall: boolean | Unknown;
+  form: BenignForm;
+  eligible: boolean | Unknown;
+  eligibility_reason?: string;
+  // Who assigned the label by viewing the page (absent on a pending label).
+  source?: string;
+};
+// The capture an annotation was made from: replay must reproduce it before either pipeline is scored on the page.
+export type ViewedCapture = {
+  status: number;
+  text: string;
+  has_login_form: boolean;
+  has_payment_form: boolean;
+  title?: string;
+  finalUrl?: string;
+  overlays?: string;
+  // The production renderer's wall evidence on the recorded visit (a CAPTCHA frame, a consent wall, a challenge or
+  // image cover), and the screenshot an annotator viewed with its difference hash.
+  walls?: { captcha: boolean; consentWall: boolean; challengeCover: boolean; imageCover: boolean };
+  screenshot?: { file: string; sha256: string; dhash: string };
+};
+// What one pipeline's replay of a page showed, checked against the viewed capture before it is scored.
+export type ReplayedCapture = Omit<ViewedCapture, "screenshot"> & { admitted: boolean; dhash?: string };
+export type CorpusPage = {
+  id: string;
+  url: string;
+  // The list context the page was listed under, so production admission keeps its brand, kind and allowed redirects.
+  entry?: { kind: string; brand?: string; also: string[] };
+  archive: Record<string, { status?: number; headers?: Record<string, string>; bodyBase64: string }>;
+  viewed: ViewedCapture;
+  label: BenignLabel;
+};
+export type BenignPipelinePage = {
+  id: string;
+  label: BenignLabel;
+  replay_failure: boolean;
+  replay_reason?: string;
+  production: { admitted: boolean; form: BenignForm } | null;
+  conventional: { admitted: boolean; form: BenignForm } | null;
+};
+// The vendor wording a conventional crawl-and-filter pipeline blocks on, pinned so a figure names its filter.
+export const BENIGN_BLOCKLIST = [
+  "just a moment",
+  "verify you are human",
+  "checking your browser",
+  "are you a robot",
+  "cloudflare",
+  "captcha",
+  "press & hold",
+  "access denied",
+] as const;
+export const BENIGN_MIN_STRATUM = 20;
+const evaluable = (v: unknown) => v !== "unknown" && v !== "disputed";
+// Whether the corpus can support the comparison at all: each blocking stratum needs its minimum of evaluable
+// pages. Payment forms and walls are reported, not blocking: the benign lists almost never show a payment form
+// without a cart session (1 of 114 recorded pages, 3 of 8,734 stored benign pages), and a wall is transient at
+// record time (10 of 177 recorded pages showed one, the October journal's wall exclusions mostly rendering clean
+// today; both measured 2026-11-02), so a minimum there would make the comparison impossible rather than honest;
+// the shortfalls stand in the figures.
+export function benignCoverage(pages: CorpusPage[]): { strata: Record<string, number>; insufficient: string[] } {
+  const strata: Record<string, number> = {
+    walls: pages.filter((p) => p.label.wall === true).length,
+    genuine: pages.filter((p) => p.label.eligible === true && p.label.wall === false).length,
+    login_forms: pages.filter((p) => p.label.form === "login").length,
+    payment_forms: pages.filter((p) => p.label.form === "payment").length,
+  };
+  return {
+    strata,
+    insufficient: Object.entries(strata)
+      .filter(([k, n]) => k !== "payment_forms" && k !== "walls" && n < BENIGN_MIN_STRATUM)
+      .map(([k, n]) => `${k} has ${n} evaluable pages, under the minimum ${BENIGN_MIN_STRATUM}`),
+  };
+}
+// The form a capture shows, in the label's terms.
+export const formOf = (c: { has_login_form: boolean; has_payment_form: boolean }): BenignForm =>
+  c.has_payment_form ? "payment" : c.has_login_form ? "login" : "none";
+// The conventional pipeline over a main-world read: HTTP 2xx, enough text, and no vendor blocklist wording.
+export function conventionalBenign(
+  c: Pick<ViewedCapture, "status" | "text" | "has_login_form" | "has_payment_form" | "title">,
+): { admitted: boolean; form: BenignForm } {
+  const text = `${c.title ?? ""}\n${c.text}`.toLowerCase();
+  const admitted =
+    c.status >= 200 && c.status <= 299 && c.text.trim().length >= 50 && !BENIGN_BLOCKLIST.some((w) => text.includes(w));
+  return { admitted, form: formOf(c) };
+}
+export type BenignFigures = ReturnType<typeof scoreBenign>;
+// Both pipelines on the same replayed pages. Retained is eligible pages admitted; contaminated is admitted pages
+// annotated wall or ineligible; a mislabelled form is a shown form that differs from the annotated one.
+export function scoreBenign(pages: BenignPipelinePage[]) {
+  const scored = pages.filter((p) => !p.replay_failure);
+  const pipeline = (key: "production" | "conventional") => {
+    const rows = scored.filter((p) => p[key] !== null);
+    const eligible = rows.filter((p) => p.label.eligible === true);
+    const retained = eligible.filter((p) => p[key]?.admitted);
+    const walls = rows.filter((p) => p.label.wall === true);
+    const admittedWalls = walls.filter((p) => p[key]?.admitted);
+    // Unresolved annotations (unknown or disputed) enter no rate: they are counted as uncertainty, never
+    // treated as clean pages that dilute contamination.
+    const admitted = rows.filter((p) => p[key]?.admitted && evaluable(p.label.eligible) && evaluable(p.label.wall));
+    const contaminated = admitted.filter((p) => p.label.wall === true || p.label.eligible === false);
+    const forms = rows.filter((p) => evaluable(p.label.form));
+    const mislabelled = forms.filter((p) => p[key]?.form !== p.label.form);
+    const rate = (k: number, n: number) => ({ k, n, rate: n ? k / n : null, interval: wilson(k, n) });
+    return {
+      retained: rate(retained.length, eligible.length),
+      admitted_walls: rate(admittedWalls.length, walls.length),
+      contaminated: rate(contaminated.length, admitted.length),
+      mislabelled_forms: rate(mislabelled.length, forms.length),
+    };
+  };
+  return {
+    pages: pages.length,
+    replay_failures: pages.length - scored.length,
+    unresolved: {
+      wall: scored.filter((p) => !evaluable(p.label.wall)).length,
+      eligible: scored.filter((p) => !evaluable(p.label.eligible)).length,
+      form: scored.filter((p) => !evaluable(p.label.form)).length,
+    },
+    config: { blocklist: [...BENIGN_BLOCKLIST], min_stratum: BENIGN_MIN_STRATUM },
+    production: pipeline("production"),
+    conventional: pipeline("conventional"),
+  };
+}
+// Where a replayed capture differs from the viewed one in anything admission or a label reads: the status, the
+// visible text (word-shingle Jaccard at the near-duplicate threshold: a rotating banner or a date line is not a
+// different page), the forms, the title, the final URL, the wall evidence, and the picture itself (difference hash
+// within the near-duplicate distance), so an image-based challenge that replay lost is a mismatch even when the text
+// and forms hold. A field the viewed capture did not record is not compared.
+export function replayMismatches(viewed: ViewedCapture, got: ReplayedCapture): string[] {
+  const reasons: string[] = [];
+  if (got.status !== viewed.status) reasons.push(`status ${got.status} against viewed ${viewed.status}`);
+  if (jaccard(shingles(got.text), shingles(viewed.text)) < NEAR_TEXT)
+    reasons.push("visible text differs from the viewed capture");
+  if (got.has_login_form !== viewed.has_login_form || got.has_payment_form !== viewed.has_payment_form)
+    reasons.push("forms differ from the viewed capture");
+  if (viewed.title !== undefined && got.title !== viewed.title) reasons.push("title differs from the viewed capture");
+  if (viewed.finalUrl !== undefined && got.finalUrl !== viewed.finalUrl)
+    reasons.push(`landed on ${got.finalUrl ?? "nothing"} against viewed ${viewed.finalUrl}`);
+  if (viewed.overlays !== undefined) {
+    const vOverlays = viewed.overlays.trim();
+    const gOverlays = (got.overlays ?? "").trim();
+    if (
+      Boolean(vOverlays) !== Boolean(gOverlays) ||
+      (vOverlays && jaccard(shingles(gOverlays), shingles(vOverlays)) < NEAR_TEXT)
+    )
+      reasons.push("overlays differ from the viewed capture");
+  }
+  if (viewed.walls) {
+    const changed = (Object.keys(viewed.walls) as (keyof NonNullable<ViewedCapture["walls"]>)[]).filter(
+      (k) => got.walls?.[k] !== viewed.walls?.[k],
+    );
+    if (changed.length) reasons.push(`wall evidence differs from the viewed capture (${changed.join(", ")})`);
+  }
+  if (viewed.screenshot) {
+    const distance = got.dhash ? hamming(BigInt(`0x${got.dhash}`), BigInt(`0x${viewed.screenshot.dhash}`)) : null;
+    if (distance === null || distance > NEAR_BITS)
+      reasons.push(`the picture differs from the viewed screenshot (${distance ?? "no"} bits)`);
+  }
+  return reasons;
+}
+// Where a conventional main-world visit differs from the viewed visit in status, landed URL, title or screenshot:
+// a broken conventional replay is counted as a replay failure, never scored as a pipeline decision.
+export function conventionalReplayMismatches(
+  viewed: ViewedCapture,
+  conv: ViewedCapture & { dhash?: string },
+): string[] {
+  const reasons: string[] = [];
+  if (conv.status !== viewed.status) reasons.push(`conventional status ${conv.status} against viewed ${viewed.status}`);
+  if (viewed.finalUrl !== undefined && conv.finalUrl !== viewed.finalUrl)
+    reasons.push(`conventional landed on ${conv.finalUrl ?? "nothing"} against viewed ${viewed.finalUrl}`);
+  if (viewed.title !== undefined && conv.title !== viewed.title)
+    reasons.push("conventional title differs from the viewed capture");
+  if (viewed.screenshot) {
+    const distance = conv.dhash ? hamming(BigInt(`0x${conv.dhash}`), BigInt(`0x${viewed.screenshot.dhash}`)) : null;
+    if (distance === null || distance > NEAR_BITS)
+      reasons.push(`conventional picture differs from the viewed screenshot (${distance ?? "no"} bits)`);
+  }
+  return reasons;
+}
+export const corpusDir = (dir: string) => join(dir, "runs", "compare", "corpus");
+export const corpusPageFile = (dir: string, id: string) => join(corpusDir(dir), "pages", `${id}.json`);
+// The corpus is a manifest (`corpus.json`, naming each page file and its sha256) plus one file a page: a single
+// file for the whole corpus exceeds the runtime's string limit once archives are embedded.
+export function readCorpus(dir: string): {
+  pages: CorpusPage[];
+  seed: number | null;
+  file: string;
+  pageFiles: { id: string; file: string }[];
+} {
+  const file = join(corpusDir(dir), "corpus.json");
+  if (!existsSync(file)) return { pages: [], seed: null, file, pageFiles: [] };
+  const parsed = JSON.parse(readFileSync(file, "utf-8")) as {
+    seed?: number;
+    pages?: CorpusPage[];
+    page_files?: { id: string; sha256?: string }[];
+  };
+  if (parsed.page_files) {
+    // One page file per id: a manifest naming an id twice would score one file as two observations.
+    const repeated = parsed.page_files.map((p) => p.id).filter((id, i, ids) => ids.indexOf(id) !== i);
+    if (repeated.length)
+      throw new Error(`the benign corpus manifest names ${[...new Set(repeated)].join(", ")} more than once`);
+    return {
+      pages: parsed.page_files.map((p) => {
+        const raw = readFileSync(corpusPageFile(dir, p.id));
+        if (p.sha256 && sha(raw) !== p.sha256)
+          throw new Error(`benign corpus page ${p.id} does not match the manifest's sha256`);
+        const page = JSON.parse(raw.toString("utf-8")) as CorpusPage;
+        const label = page.label as BenignLabel | undefined;
+        if (
+          !label ||
+          !(label.wall === true || label.wall === false || label.wall === "unknown" || label.wall === "disputed") ||
+          !["login", "payment", "none", "unknown", "disputed"].includes(label.form) ||
+          !(
+            label.eligible === true ||
+            label.eligible === false ||
+            label.eligible === "unknown" ||
+            label.eligible === "disputed"
+          )
+        )
+          throw new Error(`benign corpus page ${p.id} has no valid wall, form and eligibility label`);
+        return page;
+      }),
+      seed: parsed.seed ?? null,
+      file,
+      pageFiles: parsed.page_files.map((p) => ({ id: p.id, file: corpusPageFile(dir, p.id) })),
+    };
+  }
+  return { pages: parsed.pages ?? [], seed: parsed.seed ?? null, file, pageFiles: [] };
+}
+export async function conventionalReadOnBrowser(
+  browser: { newContext: (options: Record<string, unknown>) => Promise<import("playwright-core").BrowserContext> },
+  page: CorpusPage,
+  limitMs = 60_000,
+): Promise<ViewedCapture & { title?: string; dhash?: string }> {
+  const { replayResponder, SETTLE_MS } = await import("./render.ts");
+  const { normaliseScreenshot } = await import("./source-pages.ts");
+  const { MAX_HEIGHT, MAX_WIDTH } = await import("./store.ts");
+  const { dhash } = await import("./build-dataset.ts");
+  let timer: NodeJS.Timeout | undefined;
+  let context: import("playwright-core").BrowserContext | undefined;
+  let abandoned = false;
+  const work = (async () => {
+    const made = await browser.newContext({
+      viewport: { width: MAX_WIDTH, height: MAX_HEIGHT },
+      acceptDownloads: false,
+      serviceWorkers: "block",
+      permissions: [],
+      ignoreHTTPSErrors: false,
+    });
+    if (abandoned) {
+      await made.close().catch(() => undefined);
+      throw new Error(`the conventional read passed ${limitMs / 1000} seconds`);
+    }
+    context = made;
+    const respond = replayResponder(page.archive);
+    await context.routeWebSocket(/.*/, (socket) => socket.close());
+    await context.route("**/*", async (route) => {
+      const req = route.request();
+      const entry = respond(req.url(), req.method(), req.postData() ?? "");
+      if (!entry) return route.abort();
+      return route.fulfill({
+        status: entry.status ?? 200,
+        headers: entry.headers ?? {},
+        body: Buffer.from(entry.bodyBase64, "base64"),
+      });
+    });
+    const tab = await context.newPage();
+    let status: number | undefined;
+    tab.on("response", (answer) => {
+      if (answer.request().isNavigationRequest() && answer.frame() === tab.mainFrame()) status = answer.status();
+    });
+    await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch((error: Error) => {
+      if (status !== undefined && status >= 400) return;
+      throw error;
+    });
+    await tab.waitForLoadState("networkidle", { timeout: SETTLE_MS }).catch(() => undefined);
+    // Main-world reads in the page and every frame it shows: a sign-in form inside a frame is still shown.
+    const read = await tab.evaluate(() => ({
+      // biome-ignore lint/performance/useDomNodeTextContent: conventional crawler reads rendered text
+      text: document.body?.innerText ?? "",
+      title: document.title,
+      height: document.documentElement?.scrollHeight ?? 0,
+      has_login_form: false,
+      has_payment_form: false,
+    }));
+    for (const frame of tab.frames()) {
+      if (frame.isDetached()) continue;
+      const forms = await frame
+        .evaluate(() => {
+          const inputs = [...document.querySelectorAll("input")];
+          return {
+            has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
+            has_payment_form: inputs.some(
+              (i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card"),
+            ),
+          };
+        })
+        .catch((error: Error) => {
+          if (frame.isDetached()) return { has_login_form: false, has_payment_form: false };
+          throw error;
+        });
+      read.has_login_form = read.has_login_form || forms.has_login_form;
+      read.has_payment_form = read.has_payment_form || forms.has_payment_form;
+    }
+    const shot = await tab.screenshot({
+      type: "png",
+      clip: { x: 0, y: 0, width: MAX_WIDTH, height: Math.max(1, Math.min(MAX_HEIGHT, read.height)) },
+      timeout: 10_000,
+    });
+    const normalised = await normaliseScreenshot(new Uint8Array(shot));
+    return {
+      status: status ?? 0,
+      finalUrl: tab.url(),
+      text: read.text,
+      title: read.title,
+      has_login_form: read.has_login_form,
+      has_payment_form: read.has_payment_form,
+      dhash: (await dhash(normalised)).toString(16).padStart(16, "0"),
+    };
+  })();
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`the conventional read passed ${limitMs / 1000} seconds`)), limitMs);
+  });
+  try {
+    return await Promise.race([work, limit]);
+  } finally {
+    abandoned = true;
+    clearTimeout(timer);
+    work.catch(() => undefined);
+    if (context) {
+      let closeTimer: NodeJS.Timeout | undefined;
+      await Promise.race([
+        context.close().catch(() => undefined),
+        new Promise<void>((r) => {
+          closeTimer = setTimeout(r, 5_000);
+        }),
+      ]).finally(() => clearTimeout(closeTimer));
+    }
+  }
+}
+// Run both pipelines over the recorded corpus. The production side renders each page through the replay seam and
+// applies `unusable()` unchanged; a replayed capture that differs from the viewed one is a replay failure, counted
+// apart and never scored. An injected renderer keeps the test off the browser.
+export async function compareBenign(
+  dir: string,
+  renderPage?: (page: CorpusPage) => Promise<ReplayedCapture>,
+  readConventional?: (page: CorpusPage) => Promise<ViewedCapture & { dhash?: string }>,
+): Promise<
+  Result<BenignFigures & { seed: number | null; strata: Record<string, number>; decisions: BenignPipelinePage[] }>
+> {
+  const name = "benign";
+  let corpus: ReturnType<typeof readCorpus>;
+  try {
+    corpus = readCorpus(dir);
+  } catch (error) {
+    // A malformed corpus is a structured refusal naming the file, never a crash.
+    return {
+      status: "incomplete",
+      name,
+      inputs: [describeInput("benign corpus manifest", join(corpusDir(dir), "corpus.json"))],
+      missing: [`the benign corpus cannot be read: ${message(error)}`],
+    };
+  }
+  const { pages, seed, file, pageFiles } = corpus;
+  // One combined digest over every page file, so the result names the whole corpus in one input while a changed
+  // or missing archive body, viewed capture or label still changes it (and a missing file names itself).
+  const pageInputs = pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file));
+  const missingPage = pageInputs.find((i) => i.sha256 === null);
+  const combined: Input = {
+    name: `benign corpus pages (${pageFiles.length} files: archives, viewed captures, labels)`,
+    path: join(corpusDir(dir), "pages"),
+    sha256: missingPage ? null : sha(pageInputs.map((i) => `${i.name} ${i.sha256}`).join("\n")),
+    bytes: pageInputs.reduce((a, i) => a + (i.bytes ?? 0), 0),
+    ...(missingPage ? { error: `a corpus page file is missing or unreadable: ${missingPage.name}` } : {}),
+  };
+  const inputs = [describeInput("benign corpus manifest", file), combined];
+  const missing = incompleteIfMissing(name, inputs);
+  if (missing) return missing;
+  const coverage = benignCoverage(pages);
+  if (coverage.insufficient.length) return { status: "incomplete", name, inputs, missing: coverage.insufficient };
+  const { openRenderer, unusable } = await import("./render.ts");
+  const { dhash } = await import("./build-dataset.ts");
+  const { chromium } = await import("playwright-core");
+  const { chromiumPath } = await import("../lib/chromium.ts");
+  // One production renderer and one plain browser for the whole run. The conventional pipeline reads the main
+  // world itself (its own navigation, text and form reads over the same archive), never the production capture,
+  // with the same replay containment (service workers and WebSockets blocked, no downloads or non-proxied UDP).
+  const executablePath = chromiumPath();
+  const browser =
+    renderPage || !executablePath
+      ? null
+      : await chromium.launch({
+          executablePath,
+          chromiumSandbox: true,
+          args: [
+            "--no-first-run",
+            "--disable-site-isolation-trials",
+            "--disable-features=IsolateOrigins,site-per-process",
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+          ],
+        });
+  const conventionalRead = async (page: CorpusPage): Promise<ViewedCapture & { title?: string; dhash?: string }> => {
+    if (!browser) throw new Error("no browser for the conventional read");
+    return conventionalReadOnBrowser(browser, page, 60_000);
+  };
+  const replaying = renderPage ? null : await openRenderer({ replay: {} });
+  const rows: BenignPipelinePage[] = new Array(pages.length);
+  try {
+    let next = 0;
+    const worker = async () => {
+      while (next < pages.length) {
+        const index = next++;
+        const page = pages[index] as CorpusPage;
+        try {
+          // One page's replay is bounded: a hung render or read is that page's replay failure, never the run's.
+          const work = (async (): Promise<ReplayedCapture> =>
+            renderPage
+              ? await renderPage(page)
+              : await (async () => {
+                  if (!replaying) throw new Error("no renderer for replay");
+                  const capture = await replaying.render(page.url, { replay: page.archive });
+                  const entry = page.entry ?? { kind: "home", also: [] as string[] };
+                  return {
+                    status: capture.status,
+                    text: capture.text,
+                    title: capture.title,
+                    finalUrl: capture.finalUrl,
+                    overlays: capture.overlays,
+                    has_login_form: capture.has_login_form,
+                    has_payment_form: capture.has_payment_form,
+                    walls: {
+                      captcha: capture.captcha,
+                      consentWall: capture.consentWall,
+                      challengeCover: capture.challengeCover,
+                      imageCover: capture.imageCover,
+                    },
+                    dhash: (await dhash(capture.screenshot)).toString(16).padStart(16, "0"),
+                    admitted:
+                      unusable(capture, {
+                        url: page.url,
+                        kind: entry.kind as ListEntry["kind"],
+                        ...(entry.brand ? { brand: entry.brand } : {}),
+                        also: entry.also ?? [],
+                      }) === null,
+                  };
+                })())();
+          let renderTimer: NodeJS.Timeout | undefined;
+          const got = await Promise.race([
+            work,
+            new Promise<never>((_, reject) => {
+              renderTimer = setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000);
+            }),
+          ]).finally(() => {
+            clearTimeout(renderTimer);
+            work.catch(() => undefined);
+          });
+          const conv = readConventional
+            ? await readConventional(page)
+            : renderPage
+              ? got
+              : await conventionalRead(page);
+          // Fidelity: both visits must reproduce the viewed status, landed URL, title and picture, and production
+          // must also reproduce the viewed text, forms, overlays and wall evidence.
+          const reasons: string[] = [
+            ...replayMismatches(page.viewed, got),
+            ...(readConventional || !renderPage ? conventionalReplayMismatches(page.viewed, conv) : []),
+          ];
+          const replayFailure = reasons.length > 0;
+          rows[index] = {
+            id: page.id,
+            label: page.label,
+            replay_failure: replayFailure,
+            ...(replayFailure ? { replay_reason: reasons.join("; ") } : {}),
+            production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
+            conventional: replayFailure ? null : conventionalBenign(conv),
+          };
+        } catch (error) {
+          rows[index] = {
+            id: page.id,
+            label: page.label,
+            replay_failure: true,
+            replay_reason: `the replay render failed: ${message(error).split("\n")[0]}`,
+            production: null,
+            conventional: null,
+          };
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: renderPage ? 1 : Math.min(4, Math.max(1, pages.length)) }, worker));
+  } finally {
+    if (replaying) await replaying.close();
+    if (browser) await browser.close();
+  }
+  // Scored coverage: replay may thin a stratum below its minimum, and then the comparison has not measured it.
+  const scoredCoverage = benignCoverage(
+    rows.filter((r) => !r.replay_failure).map((r) => ({ label: r.label }) as CorpusPage),
+  );
+  if (scoredCoverage.insufficient.length)
+    return {
+      status: "incomplete",
+      name,
+      inputs,
+      missing: scoredCoverage.insufficient.map((s) => `after replay, ${s}`),
+    };
+  return {
+    status: "complete",
+    name,
+    inputs,
+    figures: { ...scoreBenign(rows), seed, strata: coverage.strata, decisions: rows },
+  };
 }
 
 export const SAMPLE_SIZE = 40;
@@ -793,8 +1449,21 @@ export function checkResult(dir: string, name: string): Check {
         continue;
       }
       try {
-        const entries = ids.map((id) => pageLine(id, pageFiles(dir, id)));
+        const version = name.startsWith("split-") ? name.replace(/^split-/, "") : undefined;
+        const entries = ids.map((id) => pageLine(id, pageFiles(dir, id, version)));
         if (pagesInput(dir, entries).sha256 !== input.sha256) changed.push(input.name);
+      } catch (error) {
+        changed.push(`${input.name}: ${message(error)}`);
+      }
+    } else if (name === "benign" && input.name.startsWith("benign corpus pages")) {
+      // Recompute the combined corpus digest from the manifest's page files (§38).
+      try {
+        const { pageFiles } = readCorpus(dir);
+        const digests = pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file));
+        const combined = digests.some((d) => d.sha256 === null)
+          ? null
+          : sha(digests.map((d) => `${d.name} ${d.sha256}`).join("\n"));
+        if (combined !== input.sha256) changed.push(input.name);
       } catch (error) {
         changed.push(`${input.name}: ${message(error)}`);
       }
@@ -824,9 +1493,29 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
       }).join("; ");
     return `- ${date}, labels against annotations (D03 T04 §31; \`node scripts/glimmer/compare-pipelines.ts labels\`, result \`runs/compare/labels.json\`; ${id}): ${f.sample} pages drawn from the independent reference set with seed ${SAMPLE_SEED} and annotated by viewing each page (brand, lure type and lure judged independently; a lure the page alone cannot show is \`unknown\`). Finished labels (rule, teacher and source together): ${row("finished")}. The source's own labels alone: ${row("source")}. Every page's annotation, labels and outcome are in the result file.`;
   }
+  if (result.name === "benign") {
+    const f = (result as Complete<BenignFigures & { seed: number | null; strata: Record<string, number> }>).figures;
+    const row = (p: BenignFigures["production"]) =>
+      `retained ${p.retained.k} of ${p.retained.n} eligible (95% ${ci(p.retained.interval)}), admitted walls ${p.admitted_walls.k} of ${p.admitted_walls.n} (95% ${ci(p.admitted_walls.interval)}), contaminated ${p.contaminated.k} of ${p.contaminated.n} admitted (95% ${ci(p.contaminated.interval)}), mislabelled forms ${p.mislabelled_forms.k} of ${p.mislabelled_forms.n} (95% ${ci(p.mislabelled_forms.interval)})`;
+    return `- ${date}, the benign render against a conventional crawl-and-filter pipeline (D03 T04 §38; \`node scripts/glimmer/compare-pipelines.ts benign\`, result \`runs/compare/benign.json\`; ${id}): ${f.pages} recorded pages (seed ${f.seed ?? "n/a"}; strata ${Object.entries(
+      f.strata,
+    )
+      .map(([k, v]) => `${k} ${v}`)
+      .join(
+        ", ",
+      )}), ${f.replay_failures} replay failures counted apart. Production renderer: ${row(f.production)}. Conventional (main-world reads, vendor-wording blocklist pinned in the result): ${row(f.conventional)}.`;
+  }
   const f = (result as Complete<SplitResultFigures>).figures;
+  const typesOf = (x: SplitFigures, s: "train" | "eval") => {
+    const counts = Object.entries(x.lure_types?.[s] ?? {});
+    const total = counts.reduce((acc, [, v]) => acc + v, 0);
+    const raw = counts.map(([k, v]) => `${k} ${v}`).join(" ");
+    if (!total) return raw;
+    const shares = counts.map(([k, v]) => `${k} ${pct(v / total)}`).join(", ");
+    return `${raw} (of ${total} lures: ${shares})`;
+  };
   const side = (x: SplitFigures) =>
-    `train ${x.train}, eval ${x.eval}, ${x.dropped} dropped, eval lure share ${pct(x.lure_share_eval)}, ${x.cross_brand} brands, ${x.cross_site} sites and ${x.near_duplicate_eval_pages} eval pages with a near-duplicate across the sides`;
+    `train ${x.train}, eval ${x.eval}, ${x.dropped} dropped, eval lure share ${pct(x.lure_share_eval)}, train lure share ${pct(x.lure_share_train ?? null)}, ${x.cross_brand} brands, ${x.cross_site} sites and ${x.near_duplicate_eval_pages} eval pages with a near-duplicate across the sides, eval lure types ${typesOf(x, "eval")}, train lure types ${typesOf(x, "train")}`;
   const population = f.population;
   return `- ${date}, §10's split against group-shuffle with MinHash near-duplicate removal (D03 T04 §31; \`node scripts/glimmer/compare-pipelines.ts split\`, result \`runs/compare/${result.name}.json\`; ${id}): both split the same ${f.pages} pages, the ones the build kept after its own selection (frozen ${population.frozen ?? "n/a"}; dropped before the split: ${Object.entries(
     population.dropped_before_split,
@@ -834,14 +1523,16 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
     .map(([k, v]) => `${k} ${v}`)
     .join(
       ", ",
-    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. Stratified grouped baseline (the same groups, aiming at the build's evaluation lure share of ${pct(f.built.lure_share_eval)} within ${BALANCE_TOLERANCE * 100} share points; a seed outside it is called UNMET): ${f.stratified
+    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. Stratified grouped baseline (the same groups, aiming at the build's evaluation lure share of ${pct(f.built.lure_share_eval)} and training lure share of ${pct(f.built.lure_share_train ?? null)} plus both sides' lure-type shares within ${BALANCE_TOLERANCE * 100} share points; a seed outside it is called UNMET): ${f.stratified
     .map(
       (x) =>
-        `seed ${x.seed}: ${side(x.figures)}, share gap ${(x.balance.share_gap * 100).toFixed(1)} points (${x.balance.within_tolerance ? "met" : "UNMET"}), eval lure types ${Object.entries(
-          x.figures.lure_types?.eval ?? {},
+        `seed ${x.seed}: ${side(x.figures)}, share gap ${(x.balance.share_gap * 100).toFixed(1)} points, train share gap ${((x.balance.train_share_gap ?? 0) * 100).toFixed(1)} points, eval type gaps ${Object.entries(
+          x.balance.type_share_gap,
         )
-          .map(([k, v]) => `${k} ${v}`)
-          .join(" ")}`,
+          .map(([k, v]) => `${k} ${(v * 100).toFixed(1)}`)
+          .join(" ")}, train type gaps ${Object.entries(x.balance.train_type_share_gap ?? {})
+          .map(([k, v]) => `${k} ${(v * 100).toFixed(1)}`)
+          .join(" ")} (${x.balance.within_tolerance ? "met" : "UNMET"})`,
     )
     .join(" | ")}. The brands, sites and pages behind every figure are in the result file.`;
 }
@@ -856,7 +1547,7 @@ export function recordMeasurement(doc: string, line: string): string | null {
   return `${doc.slice(0, start)}\n${line}\n${doc.slice(start)}`;
 }
 
-export const REPORTED = ["labels", "split-1.0"] as const;
+export const REPORTED = ["labels", "split-1.0", "benign"] as const;
 // Records every required result, or none: a result that is missing stops the report and is named.
 export function report(dir: string, doc: string, date: string): { text: string; written: number } {
   const missing = REPORTED.filter((name) => !existsSync(resultFile(dir, name)));
@@ -880,15 +1571,27 @@ export function report(dir: string, doc: string, date: string): { text: string; 
 // The command line: one command, and `--check` only where it means something; anything else is usage.
 export function parseArgs(
   args: string[],
-): { command: "split" | "labels" | "sample" | "report"; check: boolean } | null {
+): { command: "split" | "labels" | "sample" | "report" | "benign"; check: boolean } | null {
   const [command, ...rest] = args;
-  if (command !== "split" && command !== "labels" && command !== "sample" && command !== "report") return null;
+  if (
+    command !== "split" &&
+    command !== "labels" &&
+    command !== "sample" &&
+    command !== "report" &&
+    command !== "benign"
+  )
+    return null;
   if (!rest.length) return { command, check: false };
-  if (rest.length === 1 && rest[0] === "--check" && (command === "split" || command === "labels"))
+  if (
+    rest.length === 1 &&
+    rest[0] === "--check" &&
+    (command === "split" || command === "labels" || command === "benign")
+  )
     return { command, check: true };
   return null;
 }
-export const USAGE = "usage: node scripts/glimmer/compare-pipelines.ts <split|labels> [--check] | sample | report";
+export const USAGE =
+  "usage: node scripts/glimmer/compare-pipelines.ts <split|labels|benign> [--check] | sample | report";
 
 if (import.meta.filename === process.argv[1]) {
   const parsed = parseArgs(process.argv.slice(2));
@@ -900,15 +1603,17 @@ if (import.meta.filename === process.argv[1]) {
   const dir = storeDir();
   const { command } = parsed;
   if (parsed.check) {
-    const check = checkResult(dir, command === "labels" ? "labels" : "split-1.0");
+    const check = checkResult(dir, command === "labels" ? "labels" : command === "benign" ? "benign" : "split-1.0");
     console.log(JSON.stringify(check, null, 2));
     process.exit(check.status === "current" ? 0 : 1);
   }
-  if (command === "split" || command === "labels") {
+  if (command === "split" || command === "labels" || command === "benign") {
     const result =
       command === "labels"
         ? compareLabels(dir)
-        : await compareSplit(dir, "1.0", (line) => console.error(`compare: ${line}`));
+        : command === "benign"
+          ? await compareBenign(dir)
+          : await compareSplit(dir, "1.0", (line) => console.error(`compare: ${line}`));
     writeResult(resultFile(dir, result.name), result);
     console.log(
       JSON.stringify(

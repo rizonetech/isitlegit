@@ -18,6 +18,7 @@ import {
   answerOf,
   balance,
   balanceEvaluation,
+  balanceKeeping,
   brandIdentity,
   buildDataset,
   capBrands,
@@ -32,15 +33,19 @@ import {
   groupEntries,
   groupOf,
   hamming,
+  hardNegativeKind,
   heldOutItemsFile,
   holdablePages,
+  isHardNegative,
   jaccard,
+  lureBrandSet,
   NEAR_TEXT,
   NO_FLOORS,
   netNewLures,
   PublicationRefused,
   previousHeldOut,
   previousHeldOutItems,
+  readFreeze,
   referenceFile,
   referenceItemsFile,
   ShortfallError,
@@ -53,6 +58,7 @@ import {
   siteOf,
   sizesAllow,
   split,
+  splitBalanceReport,
   validateLine,
   writeLinesAtomic,
   writeReference,
@@ -64,10 +70,18 @@ import {
   redactionState,
   samplePagesDigest,
 } from "../../scripts/glimmer/import-samples.ts";
+import { readExcluded } from "../../scripts/glimmer/label-rules.ts";
 import { ENTITY_CONFIG } from "../../scripts/glimmer/redact.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
 import { writeReceipt } from "../../scripts/glimmer/teacher-label.ts";
-import { buildScreenRequest, buildTrainingLine, PageAnswer } from "../../src/vision/page-screen.ts";
+import {
+  BrandFreePageAnswer,
+  buildScreenRequest,
+  buildTrainingLine,
+  PageAnswer,
+  SCREENER_SYSTEM_PROMPT,
+  SCREENER_SYSTEM_PROMPT_V1_1,
+} from "../../src/vision/page-screen.ts";
 
 // scripts/glimmer/build-dataset.ts (D03 T04 §10): duplicates go, no brand passes 300, lures stay within 40 to 60
 // percent, and the evaluation set shares no brand, site, template or near duplicate with training and holds only
@@ -122,16 +136,15 @@ function page(id: string, over: Partial<StoredPage> = {}, labels: Partial<Stored
   } as StoredPage;
 }
 
-describe("the taught confidence (§45)", () => {
-  it("teaches confidence as P(lure): benign below the band, lure above it", () => {
-    expect(answerOf(page("benign"))?.confidence).toBe(0.05);
+describe("the taught confidence (§48)", () => {
+  it("is P(lure): a lure carries its certainty, a benign page one minus it (URGENT loupe-confidence)", () => {
     expect(answerOf(page("lure", {}, { lure: true, lure_type: "credential" }))?.confidence).toBe(0.95);
-    const unverified = page("unv", { label_source: { lure: "unverified" } } as Partial<StoredPage>, {
-      lure: true,
-      lure_type: "credential",
-    });
+    expect(answerOf(page("benign"))?.confidence).toBe(0.05);
+    const unverified = page("u", {}, { lure: true, lure_type: "credential" });
+    unverified.label_source.lure = "unverified";
     expect(answerOf(unverified)?.confidence).toBe(0.7);
-    const unverifiedBenign = page("unvb", { label_source: { lure: "unverified" } } as Partial<StoredPage>);
+    const unverifiedBenign = page("ub");
+    unverifiedBenign.label_source.lure = "unverified";
     expect(answerOf(unverifiedBenign)?.confidence).toBe(0.3);
   });
 });
@@ -221,7 +234,7 @@ describe("caps and balance", () => {
   it("keeps lures between 40 and 60 percent", () => {
     const lures = Array.from({ length: 900 }, (_, i) => entry(`l${i}`, { lure: true, lure_type: "credential" }));
     const benign = Array.from({ length: 100 }, (_, i) => entry(`n${i}`, {}));
-    const share = (set: { answer: PageAnswer }[]) => set.filter((e) => e.answer.lure).length / set.length;
+    const share = (set: { answer: { lure: boolean } }[]) => set.filter((e) => e.answer.lure).length / set.length;
     expect(share(balance([...lures, ...benign], random))).toBeLessThanOrEqual(0.6);
     expect(share(balance([...lures.slice(0, 50), ...benign.concat(benign, benign)], random))).toBeGreaterThanOrEqual(
       0.4,
@@ -596,7 +609,9 @@ const AGREED = { status: "agreed" as const, answer: null, applied: true };
 function ready(store: ReturnType<typeof openStore>, leak: { clean?: boolean } = {}) {
   const { key } = redactionState(store);
   if (key) {
-    const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
+    // The real check digests the dataset-eligible pages only, so this simulated verdict does the same.
+    const excluded = readExcluded(store.dir);
+    const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples" && !excluded.has(p.id));
     writeFileSync(
       leakCheckFile(store.dir),
       JSON.stringify({ clean: leak.clean ?? true, key, pages: samplePagesDigest(pages) }),
@@ -1914,21 +1929,47 @@ describe("held-out protection covers every item and the reference set (§27)", (
     expect(built.dropped.near).toBe(1);
   });
 
-  it("refuses a list cut short by a crash, and a build whose earlier held-out page is gone from the store", async () => {
+  it("refuses a list cut short by a crash, and protects a gone held-out page from its metadata", async () => {
     const { store, ids } = await fill(dir, specs);
     teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
     const base = { store, mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
     const first = await buildDataset({ redaction: REDACTION, ...base, version: "1.0", seed: 3 });
     const held = idsIn(first.dir, "eval");
-    // The source of a held-out page is removed: its copies could no longer be found, so nothing is built past it.
+    // The source of a held-out page is removed (a wall capture on recheck, coordinator 2026-11-02 option b):
+    // the build no longer refuses, it protects the page's identities from the 1.0 evaluation metadata.
+    const heldMeta = readFileSync(join(first.dir, "eval.meta.jsonl"), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as { id: string; screenshot: string });
+    const goneShot = heldMeta.find((row) => row.id === held[0])?.screenshot;
     store.removePage(held[0] as string);
+    const second = await buildDataset({
+      redaction: REDACTION,
+      ...base,
+      version: "1.1",
+      seed: 5,
+      heldOut: previousHeldOut(store.dir, "1.1"),
+    });
+    const summary = JSON.parse(readFileSync(join(second.dir, "summary.json"), "utf-8")) as {
+      metadataProtection: { pages: string[]; excludedFromTraining: number };
+    };
+    expect(summary.metadataProtection.pages).toContain(held[0]);
+    const trainShots = readFileSync(join(second.dir, "train.meta.jsonl"), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => (JSON.parse(line) as { screenshot: string }).screenshot);
+    expect(trainShots).not.toContain(goneShot);
+    // A gone page no identity survives for still refuses the build.
+    const metaFile = join(first.dir, "eval.meta.jsonl");
+    const rows = heldMeta.map((row) => (row.id === held[0] ? { id: row.id } : row));
+    writeFileSync(metaFile, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
     await expect(
       buildDataset({
         redaction: REDACTION,
         ...base,
-        version: "1.1",
+        version: "1.2",
         seed: 5,
-        heldOut: previousHeldOut(store.dir, "1.1"),
+        heldOut: previousHeldOut(store.dir, "1.2"),
       }),
     ).rejects.toThrow(/no longer in the store/);
     // A list with fewer rows than the version has evaluation pages (an empty file after a power cut) is refused.
@@ -2402,5 +2443,204 @@ describe("the reference export (§13)", () => {
         protectedTerms: ["Kestrel Holdings"],
       }),
     ).toThrow(/never replaced/);
+  });
+});
+
+describe("Loupe 1.1: brand as grouping only, hard negatives, split balance (D03 T04 §45)", () => {
+  const entry = (
+    id: string,
+    over: Partial<StoredPage> = {},
+    labels: Partial<StoredPage["labels"]> = {},
+    labelSource?: Partial<StoredPage["label_source"]>,
+  ) => {
+    const p = page(id, over, labels);
+    if (labelSource) p.label_source = { ...p.label_source, ...labelSource };
+    return {
+      page: p,
+      answer: answerOf(p, false) as NonNullable<ReturnType<typeof answerOf>>,
+      hash: 0n,
+      words: new Uint32Array(0),
+    };
+  };
+
+  it("omits brand completely from 1.1 answers and prompts, accepts pages without a brand label, and keeps 1.0's taught brand", async () => {
+    const p = page("b1", {}, { brand: "Acme Bank", lure: true, lure_type: "credential" });
+    const v10 = answerOf(p);
+    const v11 = answerOf(p, false);
+    expect(v10?.brand).toBe("Acme Bank");
+    expect(v11).toBeDefined();
+    expect("brand" in (v11 ?? {})).toBe(false);
+    expect(BrandFreePageAnswer.safeParse(v11).success).toBe(true);
+    expect(BrandFreePageAnswer.safeParse(v10).success).toBe(false);
+    // A page with `labels.brand === undefined` is incomplete for 1.0 (`brandAsTruth = true`) and complete for 1.1 (`brandAsTruth = false`).
+    const noBrandField = page("b2", {}, { lure: true, lure_type: "credential" });
+    delete (noBrandField.labels as { brand?: string | null }).brand;
+    expect(answerOf(noBrandField, true)).toBeNull();
+    expect(answerOf(noBrandField, false)).toMatchObject({ lure: true, lure_type: "credential" });
+    // Grouping still sees the brand through the page's own labels.
+    expect(groupOf(p)).toBe("brand:acmebank");
+    // 1.1 lines use `SCREENER_SYSTEM_PROMPT_V1_1` and `BrandFreePageAnswer`, refusing any `brand` key.
+    const req11 = buildScreenRequest({
+      image: await shot(1),
+      host: "login.example.com",
+      text: "Sign in",
+      mode: "image",
+      nonce: "0123456789abcdef0123456789abcdef",
+      brandAsTruth: false,
+    });
+    expect(req11.messages[0]?.content).toBe(SCREENER_SYSTEM_PROMPT_V1_1);
+    expect(req11.messages[0]?.content).not.toBe(SCREENER_SYSTEM_PROMPT);
+    const line11 = buildTrainingLine(req11, v11 as NonNullable<typeof v11>);
+    const validated11 = validateLine(line11, "image", false);
+    expect("brand" in validated11.answer).toBe(false);
+    expect(() => validateLine(line11, "image", true)).toThrow(/system prompt/);
+    const parsedLine11 = JSON.parse(line11) as { messages: unknown[] };
+    const withBrandKey = JSON.stringify({
+      messages: [
+        parsedLine11.messages[0],
+        parsedLine11.messages[1],
+        { role: "assistant", content: JSON.stringify({ ...v11, brand: null }) },
+      ],
+    });
+    expect(() => validateLine(withBrandKey, "image", false)).toThrow(/not a BrandFreePageAnswer/);
+  });
+
+  it("classifies all four hard-negative kinds, rejects untrusted brand sources, keeps lures within 40 to 60 percent, and enforces hard-negative floors", () => {
+    const lure = entry("l1", {}, { brand: "Acme Bank", lure: true, lure_type: "credential" });
+    const unseen = entry("n1", { host: "other.example" }, { brand: "New Bank" });
+    const own = entry("n2", { host: "acmebank.example" }, { brand: "Acme Bank" });
+    const small = entry("n3", { host: "plain.example" }, { brand: null });
+    const newsBrand = entry("n4", { host: "daily-herald.example" }, { brand: "Acme Bank" });
+    const newsUrl = entry(
+      "n5",
+      { host: "portal.example", url: "https://portal.example/news/story-1" },
+      { brand: null },
+    );
+    const untrustedUnseen = entry(
+      "u1",
+      { host: "untrusted.example" },
+      { brand: "Untrusted Bank" },
+      { brand: "grouping-only" },
+    );
+    const untrustedSpark = entry("u2", { host: "acmebank.example" }, { brand: "Acme Bank" }, { brand: "spark" });
+    const brands = lureBrandSet([lure, unseen, own, small, newsBrand, newsUrl, untrustedUnseen, untrustedSpark]);
+    expect(hardNegativeKind(unseen, brands)).toBe("unseen-brand");
+    expect(hardNegativeKind(own, brands)).toBe("own-page");
+    expect(hardNegativeKind(small, brands)).toBe("small-site");
+    expect(hardNegativeKind(newsBrand, brands)).toBe("news-or-fan");
+    expect(hardNegativeKind(newsUrl, brands)).toBe("news-or-fan");
+    // Untrusted brand sources (`grouping-only`, `spark`, `unverified`) never qualify as `unseen-brand` or `own-page`.
+    expect(hardNegativeKind(untrustedUnseen, brands)).toBeNull();
+    expect(hardNegativeKind(untrustedSpark, brands)).toBeNull();
+    expect(isHardNegative(unseen, brands)).toBe(true);
+    expect(isHardNegative(own, brands)).toBe(true);
+    expect(isHardNegative(small, brands)).toBe(false);
+    // Even when hard negatives outnumber lures, `balanceKeeping` keeps the lure share within 40 to 60 percent.
+    const lures10 = Array.from({ length: 10 }, (_, i) =>
+      entry(`lure-${i}`, {}, { brand: "Acme Bank", lure: true, lure_type: "credential" }),
+    );
+    const hard30 = Array.from({ length: 30 }, (_, i) =>
+      entry(`hard-${i}`, { host: `unseen${i}.example` }, { brand: `Unseen ${i}` }),
+    );
+    const balanced = balanceKeeping(
+      [...lures10, ...hard30],
+      () => 0.5,
+      (e) => isHardNegative(e, lureBrandSet(lures10)),
+      { "unseen-brand": 5, "own-page": 0, "small-site": 0, "news-or-fan": 0 },
+    );
+    const lureShare = balanced.filter((e) => e.answer.lure).length / balanced.length;
+    expect(lureShare).toBeGreaterThanOrEqual(0.4);
+    expect(lureShare).toBeLessThanOrEqual(0.6);
+    // `checkFloors` refuses when any hard-negative floor is missed.
+    const hardFloors: Floors = {
+      ...NO_FLOORS,
+      hardNegatives: { "unseen-brand": 2, "own-page": 1, "small-site": 1, "news-or-fan": 1 },
+    };
+    expect(
+      checkFloors({ train: [lure, unseen, own, small, newsBrand], evaluation: [], admittedSampleLures: 0 }, hardFloors),
+    ).toEqual(["hard negative unseen-brand training 1 of 2"]);
+    const unseen2 = entry("n1b", { host: "other2.example" }, { brand: "New Bank 2" });
+    expect(
+      checkFloors(
+        { train: [lure, unseen, unseen2, own, small, newsBrand], evaluation: [], admittedSampleLures: 0 },
+        hardFloors,
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports per-side counts, denominators, targets and gaps, and refuses an UNMET split when splitBalance is enabled", () => {
+    const lure = (id: string, type: "credential" | "payment" | "fake_shop" | "impersonation" = "credential") =>
+      entry(id, {}, { brand: `Brand ${id}`, lure: true, lure_type: type });
+    const benign = (id: string) => entry(id, {}, {});
+    const met = splitBalanceReport([lure("a"), benign("b")], [lure("c"), benign("d")]);
+    expect(met.status).toBe("MET");
+    expect(met.met).toBe(true);
+    expect(met.lure).toMatchObject({
+      trainCount: 1,
+      trainDenominator: 2,
+      train: 0.5,
+      evaluationCount: 1,
+      evaluationDenominator: 2,
+      evaluation: 0.5,
+      gap: 0,
+      met: true,
+    });
+    expect(met.byLureType.credential?.train).toBe(1);
+    const unmet = splitBalanceReport([lure("a"), lure("b")], [benign("c"), benign("d")]);
+    expect(unmet.status).toBe("UNMET");
+    expect(unmet.met).toBe(false);
+    expect(unmet.lure.gap).toBe(1);
+    const balanceFloors: Floors = { ...NO_FLOORS, splitBalance: true };
+    expect(
+      checkFloors(
+        { train: [lure("a"), lure("b")], evaluation: [benign("c"), benign("d")], admittedSampleLures: 0 },
+        balanceFloors,
+      ),
+    ).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^split balance lure gap 100\.0 points exceeds 5\.0 points/)]),
+    );
+  });
+
+  it("reconciles lineage-migrated IMPORT.json bindings and post-freeze sample re-imports in readFreeze, and refuses drifted sources or missing non-sample pages", () => {
+    const freezeRoot = mkdtempSync(join(tmpdir(), "glimmer-readfreeze-"));
+    try {
+      mkdirSync(join(freezeRoot, "raw", "phreshphish"), { recursive: true });
+      mkdirSync(join(freezeRoot, "raw", "samples"), { recursive: true });
+      mkdirSync(join(freezeRoot, "pages", "phreshphish-1111"), { recursive: true });
+      mkdirSync(join(freezeRoot, "pages", "samples-body-new1"), { recursive: true });
+      const importBytes = Buffer.from(JSON.stringify({ status: "complete", stored: 1, rows: "rows-sha-1" }));
+      const newImportSha = createHash("sha256").update(importBytes).digest("hex");
+      writeFileSync(join(freezeRoot, "raw", "phreshphish", "IMPORT.json"), importBytes);
+      writeFileSync(
+        join(freezeRoot, "raw", "phreshphish", "ITEMS.import.jsonl"),
+        `${JSON.stringify({ inputs: "in-1", rows: "rows-sha-1", export: "ex-1", import: newImportSha })}\n`,
+      );
+      writeFileSync(
+        join(freezeRoot, "raw", "samples", "REDACTION.json"),
+        JSON.stringify({ key: "k-current", building: null }),
+      );
+      writeFileSync(
+        join(freezeRoot, "raw", "FROZEN-1.1.json"),
+        JSON.stringify({
+          pages: ["phreshphish-1111", "samples-body-old1"],
+          sources: { phreshphish: { import_sha256: "old-import-sha", stored: 1, rows: "rows-sha-1" } },
+          renders: { majestic: { stored: 1 }, "benign-sa": { stored: 1 } },
+        }),
+      );
+      const reconciled = readFreeze(freezeRoot, "1.1");
+      expect([...reconciled].sort()).toEqual(["phreshphish-1111", "samples-body-new1"]);
+      // If a non-sample frozen page is missing from `pages/`, sample reconciliation does not hide it.
+      rmSync(join(freezeRoot, "pages", "phreshphish-1111"), { recursive: true, force: true });
+      const unreconciled = readFreeze(freezeRoot, "1.1");
+      expect(unreconciled.has("samples-body-old1")).toBe(true);
+      // If `rows` in `IMPORT.json` changed since the freeze, `readFreeze` refuses.
+      writeFileSync(
+        join(freezeRoot, "raw", "phreshphish", "IMPORT.json"),
+        JSON.stringify({ status: "complete", stored: 1, rows: "rows-sha-different" }),
+      );
+      expect(() => readFreeze(freezeRoot, "1.1")).toThrow(/imported again since the freeze: phreshphish/);
+    } finally {
+      rmSync(freezeRoot, { recursive: true, force: true });
+    }
   });
 });

@@ -6,6 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "inputs.py"
@@ -207,7 +208,135 @@ class ItemLedger(unittest.TestCase):
         twice.sample_out("row-a")
         with self.assertRaisesRegex(inputs.Refused, "names an item twice"):
             twice.write_items(self.dir, "i" * 64, "r" * 64)
+        omitted = inputs.Receipt()
+        omitted.note_inventory("row-a")
+        omitted.note_inventory("row-b")
+        omitted.export("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "does not match the input inventory"):
+            omitted.write_items(self.dir, "i" * 64, "r" * 64)
+        dup_inv = inputs.Receipt()
+        dup_inv.note_inventory("row-a")
+        dup_inv.note_inventory("row-a")
+        dup_inv.export("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "input inventory names an item twice"):
+            dup_inv.write_items(self.dir, "i" * 64, "r" * 64)
         self.assertEqual(list(self.dir.iterdir()), [])
+
+    def test_charges_lineage_bookkeeping_and_serialization_to_limits_and_writes_inventory(self):
+        # Retained limit breached by inventory or outcome bookkeeping (completion review G1).
+        tight_retained = inputs.Limits(retained=300)
+        bounded = inputs.Receipt(tight_retained)
+        bounded.note_inventory("row-a")
+        with self.assertRaisesRegex(inputs.Refused, "bytes retained at once"):
+            bounded.export("row-a")
+        # Allocation limit breached during write_items serialization before building a 3,000-byte ledger (Round 1 finding 1).
+        tight_alloc = inputs.Limits(retained=100_000, allocation=1000)
+        alloc_receipt = inputs.Receipt(tight_alloc)
+        for idx in range(60):
+            item_id = f"row-{idx:04d}"
+            alloc_receipt.note_inventory(item_id)
+            alloc_receipt.export(item_id)
+        before_retained = tight_alloc.retained
+        serialized_chunks = []
+        orig_dumps = inputs.json.dumps
+
+        def spy_dumps(*args, **kwargs):
+            out = orig_dumps(*args, **kwargs)
+            serialized_chunks.append(len(out))
+            return out
+
+        with unittest.mock.patch.object(inputs.json, "dumps", side_effect=spy_dumps):
+            with self.assertRaisesRegex(inputs.Refused, "ITEMS.jsonl serialization .* passes the 1000 byte allocation limit"):
+                alloc_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+        self.assertLessEqual(sum(serialized_chunks), 1000)
+        self.assertEqual(tight_alloc.retained, before_retained)
+        self.assertEqual(list(self.dir.iterdir()), [])
+        # Escape-heavy single record (500 NUL or DEL chars -> >3,000 JSON bytes) refused before json.dumps runs on it (Round 2 & 3 finding 1).
+        for ch in ("\x00", "\x7f"):
+            escape_limits = inputs.Limits(retained=50_000, allocation=1000)
+            escape_receipt = inputs.Receipt(escape_limits)
+            escape_receipt.note_inventory("row-a")
+            escape_receipt.reject(ch * 500, "row-a")
+            escape_before = escape_limits.retained
+            escape_chunks = []
+
+            def spy_escape_dumps(*args, **kwargs):
+                out = orig_dumps(*args, **kwargs)
+                escape_chunks.append(len(out))
+                return out
+
+            with unittest.mock.patch.object(inputs.json, "dumps", side_effect=spy_escape_dumps):
+                with self.assertRaisesRegex(inputs.Refused, "ITEMS.jsonl serialization .* passes the 1000 byte allocation limit"):
+                    escape_receipt.write_items(self.dir, "i" * 64, "r" * 64)
+            self.assertTrue(all(c < 200 for c in escape_chunks))
+            self.assertEqual(escape_limits.retained, escape_before)
+            self.assertEqual(list(self.dir.iterdir()), [])
+        # Within limits (including U+007F DEL): writes both ITEMS.jsonl and ITEMS.inventory.jsonl and releases all scratch retained bytes.
+        ok_limits = inputs.Limits()
+        ok = inputs.Receipt(ok_limits)
+        ok.reject("bad\x7fbyte", "row-a")
+        held_before_write = ok_limits.retained
+        ok.write_items(self.dir, "i" * 64, "r" * 64, inventory=["row-a"])
+        self.assertEqual(ok_limits.retained, held_before_write)
+        inv_lines = [json.loads(line) for line in (self.dir / inputs.INVENTORY_ITEMS).read_text().splitlines()]
+        self.assertEqual(inv_lines, [{"inputs": "i" * 64}, {"item": "row-a"}])
+
+        # Round 5 finding 2: Receipt.publish stages and validates ledgers before replacing rows.jsonl or writing EXPORT.json,
+        # so a limit refusal during ledger staging leaves pre-existing outputs completely untouched.
+        out_rows = self.dir / "rows.jsonl"
+        out_rows.write_text('{"sha256":"prev"}\n', encoding="utf-8")
+        (self.dir / inputs.EXPORT).write_text('{"rows_sha256":"prev-export"}\n', encoding="utf-8")
+        (self.dir / inputs.ITEMS).write_text('{"inputs":"prev","rows":"prev"}\n', encoding="utf-8")
+        (self.dir / inputs.INVENTORY_ITEMS).write_text('{"inputs":"prev"}\n', encoding="utf-8")
+        staged_rows = self.dir / ".rows.jsonl.99999.tmp"
+        staged_rows.write_text('{"sha256":"new-0"}\n' * 60, encoding="utf-8")
+        pub_limits = inputs.Limits(retained=40_000, allocation=1000)
+        pub_receipt = inputs.Receipt(pub_limits)
+        for idx in range(60):
+            item_id = f"new-{idx:04d}"
+            pub_receipt.note_inventory(item_id)
+            pub_receipt.export(item_id)
+        with self.assertRaisesRegex(inputs.Refused, "more than 40000 bytes retained at once"):
+            pub_receipt.publish(self.dir, staged_rows, out_rows, Path(__file__), "n" * 64)
+        self.assertEqual(out_rows.read_text(encoding="utf-8"), '{"sha256":"prev"}\n')
+        self.assertEqual((self.dir / inputs.EXPORT).read_text(encoding="utf-8"), '{"rows_sha256":"prev-export"}\n')
+        self.assertEqual((self.dir / inputs.ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev","rows":"prev"}\n')
+        self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
+        self.assertEqual([p.name for p in self.dir.iterdir() if p.name.startswith(".ITEMS")], [])
+
+        # Round 7 finding 1: ENOSPC while staging EXPORT.json or an interrupted replacement mid-sequence preserves
+        # the previous generation intact without leaving half-replaced files behind.
+        staged_rows2 = self.dir / ".rows.jsonl.99999.tmp"
+        staged_rows2.write_text('{"sha256":"new-0"}\n', encoding="utf-8")
+        enospc_receipt = inputs.Receipt(inputs.Limits())
+        enospc_receipt.note_inventory("new-0")
+        enospc_receipt.export("new-0")
+        with unittest.mock.patch.object(inputs.json, "dump", side_effect=OSError(28, "No space left on device")):
+            with self.assertRaisesRegex(OSError, "No space left on device"):
+                enospc_receipt.publish(self.dir, staged_rows2, out_rows, Path(__file__), "n" * 64)
+        self.assertEqual(out_rows.read_text(encoding="utf-8"), '{"sha256":"prev"}\n')
+        self.assertEqual((self.dir / inputs.EXPORT).read_text(encoding="utf-8"), '{"rows_sha256":"prev-export"}\n')
+        self.assertEqual((self.dir / inputs.ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev","rows":"prev"}\n')
+        self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
+
+        staged_rows3 = self.dir / ".rows.jsonl.99999.tmp"
+        staged_rows3.write_text('{"sha256":"new-0"}\n', encoding="utf-8")
+        real_replace = inputs.os.replace
+        calls = {"n": 0}
+
+        def fail_third_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 3:
+                raise OSError(5, "Input/output error mid-replacement")
+            return real_replace(src, dst)
+
+        with unittest.mock.patch.object(inputs.os, "replace", side_effect=fail_third_replace):
+            with self.assertRaisesRegex(OSError, "Input/output error mid-replacement"):
+                enospc_receipt.publish(self.dir, staged_rows3, out_rows, Path(__file__), "n" * 64)
+        self.assertEqual(out_rows.read_text(encoding="utf-8"), '{"sha256":"prev"}\n')
+        self.assertEqual((self.dir / inputs.EXPORT).read_text(encoding="utf-8"), '{"rows_sha256":"prev-export"}\n')
+        self.assertEqual((self.dir / inputs.ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev","rows":"prev"}\n')
+        self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
 
 
 if __name__ == "__main__":

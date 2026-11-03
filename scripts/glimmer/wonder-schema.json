@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lure", "lure_type", "capture_valid", "reasons"],
+  "properties": {
+    "lure": { "type": "boolean" },
+    "lure_type": { "type": "string", "enum": ["credential", "payment", "fake_shop", "impersonation", "none"] },
+    "capture_valid": { "type": "boolean" },
+    "reasons": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 300 }, "maxItems": 10 }
+  }
+}

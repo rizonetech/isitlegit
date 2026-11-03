@@ -59,7 +59,9 @@ export const LABEL_SOURCES = [
   // A value derived by a fixed rule from the page's other labels (D03 T04 §9: a lure's type from its form flags). It
   // trains, but evaluation never trusts it.
   "rule",
-  // The §9 teacher labelling a captured production page (D03 T04 §46): it trains only after judging and admission.
+  // A source's brand kept only to group and cap pages (D03 T04 §45): never a trusted label, never taught or scored.
+  "grouping-only",
+  // The §9 teacher labelling a captured production page (D03 T04 §49): it trains only after judging and admission.
   "spark-teacher",
 ] as const;
 
@@ -353,10 +355,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
     const meta = PageMeta.parse({ ...current, labels, label_source, ...(licence ? { licence } : {}) });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 
@@ -389,10 +394,13 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     });
     const meta = PageMeta.parse({ ...current, items: [...listed.map(clean), clean(item)] });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 
@@ -412,19 +420,55 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
       ...(kept.length > 1 ? { items: kept } : {}),
     });
     const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
-    write(temporary, `${JSON.stringify(meta, null, 2)}\n`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
     sync(temporary);
-    renameSync(temporary, join(folder, "meta.json"));
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
     sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
+    return { id, ...meta };
+  }
+
+  // Updates a stored page's lineage and capture evidence (D03 T04 §28), validated and written whole (temp then rename).
+  function setLineage(
+    id: string,
+    update: {
+      item?: string | undefined;
+      input?: string | undefined;
+      items?: PageMeta["items"] | undefined;
+      evidence?: PageMeta["evidence"] | undefined;
+    },
+  ): StoredPage {
+    const folder = join(pages, id);
+    const current = PageMeta.parse(JSON.parse(readFileSync(join(folder, "meta.json"), "utf-8")));
+    const meta = PageMeta.parse({
+      ...current,
+      ...(update.item !== undefined ? { item: update.item } : {}),
+      ...(update.input !== undefined ? { input: update.input } : {}),
+      ...(update.items !== undefined ? { items: update.items } : {}),
+      ...(update.evidence !== undefined ? { evidence: update.evidence } : {}),
+    });
+    const temporary = join(folder, `.meta.json.${process.pid}.${randomBytes(4).toString("hex")}.tmp`);
+    const written = `${JSON.stringify(meta, null, 2)}\n`;
+    write(temporary, written);
+    sync(temporary);
+    const target = join(folder, "meta.json");
+    renameSync(temporary, target);
+    sync(folder);
+    if (readFileSync(target, "utf-8") !== written) throw new Error(`page ${id} meta.json did not read back as written`);
     return { id, ...meta };
   }
 
   // Every page's record. A `meta.json` that does not read throws, unless `tolerant`: then that page is left out, for a
   // caller (a resumed import) that finds and repairs damaged pages through `verify()` and `putPage()`.
-  function manifest(options: { tolerant?: boolean } = {}): StoredPage[] {
+  function manifest(options: { tolerant?: boolean; source?: string } = {}): StoredPage[] {
     if (!existsSync(pages)) return [];
+    const own = options.source
+      ? new RegExp(`^${options.source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-[0-9a-f]{16}$`)
+      : null;
     return readdirSync(pages)
-      .filter((name) => !name.startsWith(".") && statSync(join(pages, name)).isDirectory())
+      .filter((name) => !name.startsWith(".") && (!own || own.test(name)) && statSync(join(pages, name)).isDirectory())
       .sort()
       .flatMap((id) => {
         try {
@@ -529,6 +573,7 @@ export function openStore(dir: string = storeDir(), options: { write?: Writer; s
     addItem,
     keepItems,
     setLabels,
+    setLineage,
     manifest,
     counts,
     readPage,

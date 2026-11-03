@@ -104,9 +104,13 @@ def compphish(folder, receipt, limits, manifest=None):
         if info.is_dir():
             continue
         if serial in labels:
-            yield f"compphish-{serial}", labels[serial], lambda a=archive, i=info: read_entry(a, i)
+            item_id = f"compphish-{serial}"
+            receipt.note_inventory(item_id)
+            yield item_id, labels[serial], lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("no phishing or benign label in the mapping file", f"compphish:{info.filename}")
+            item_id = f"compphish:{info.filename}"
+            receipt.note_inventory(item_id)
+            receipt.reject("no phishing or benign label in the mapping file", item_id)
 
 
 def ariyadasa(folder, receipt, limits, manifest=None):
@@ -131,9 +135,13 @@ def ariyadasa(folder, receipt, limits, manifest=None):
                 continue
             name = Path(info.filename).name
             if name in rows:
-                yield f"ariyadasa-{Path(name).stem}", rows[name], lambda a=archive, i=info: read_entry(a, i)
+                item_id = f"ariyadasa-{Path(name).stem}"
+                receipt.note_inventory(item_id)
+                yield item_id, rows[name], lambda a=archive, i=info: read_entry(a, i)
             else:
-                receipt.reject("not in the dataset's index", f"ariyadasa:{part.name}/{info.filename}")
+                item_id = f"ariyadasa:{part.name}/{info.filename}"
+                receipt.note_inventory(item_id)
+                receipt.reject("not in the dataset's index", item_id)
 
 
 def kempf(folder, receipt, limits, manifest=None):
@@ -145,9 +153,13 @@ def kempf(folder, receipt, limits, manifest=None):
         parts = Path(info.filename).parts
         if len(parts) == 3 and parts[1] in ("Phish", "NotPhish") and parts[2].endswith(".html"):
             label = "phish" if parts[1] == "Phish" else "benign"
-            yield f"kempf-{parts[0]}-{Path(parts[2]).stem}", (None, label), lambda a=archive, i=info: read_entry(a, i)
+            item_id = f"kempf-{parts[0]}-{Path(parts[2]).stem}"
+            receipt.note_inventory(item_id)
+            yield item_id, (None, label), lambda a=archive, i=info: read_entry(a, i)
         else:
-            receipt.reject("not a labelled HTML page in the archive's layout", f"kempf:{info.filename}")
+            item_id = f"kempf:{info.filename}"
+            receipt.note_inventory(item_id)
+            receipt.reject("not a labelled HTML page in the archive's layout", item_id)
 
 
 def mallory(folder, receipt, limits, manifest=None):
@@ -173,12 +185,14 @@ def mallory(folder, receipt, limits, manifest=None):
         raise inputs_module.Refused(f"html.xlsx has {len(pages)} rows and urls.xlsx {len(urls)}: they cannot be paired")
     for number, ((category, html), (url_category, url)) in enumerate(zip(pages, urls), 1):
         limits.check_deadline()
+        item_id = f"mallory-{number}"
+        receipt.note_inventory(item_id)
         if category not in ("spam", "ham") or not html:
-            receipt.reject("not a spam or ham row with a page", f"mallory-{number}")
+            receipt.reject("not a spam or ham row with a page", item_id)
             continue
         # A URL row is trusted only when its category matches the page's; otherwise the page has no host.
         same = url_category == category and isinstance(url, str)
-        yield f"mallory-{number}", (url if same else None, "phish" if category == "spam" else "benign"), (
+        yield item_id, (url if same else None, "phish" if category == "spam" else "benign"), (
             lambda h=html: str(h))
 
 
@@ -199,7 +213,8 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=20261028)
     args = parser.parse_args(argv)
     folder = store_dir() / "raw" / args.source
-    receipt, limits = Receipt(), Limits()
+    limits = Limits()
+    receipt = Receipt(limits)
     out = folder / "rows.jsonl"
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     try:
@@ -227,7 +242,9 @@ def main(argv=None):
                 sink.write(json.dumps({"sha256": item_id, "url": url, "html": html, "label": label, "target": None},
                                       ensure_ascii=False) + "\n")
                 receipt.export(item_id)
-        os.replace(temporary, out)
+        # Validate and stage the ledgers before replacing rows.jsonl or EXPORT.json (§28 Round 5 finding 2).
+        receipt.publish(folder, temporary, out, Path(__file__), inputs_digest,
+                        {"source": args.source, "max": args.max, "seed": args.seed})
     except inputs_module.Refused as error:
         temporary.unlink(missing_ok=True)
         print(f"dataset-rows: {args.source}: refused ({error})", file=sys.stderr)
@@ -235,10 +252,6 @@ def main(argv=None):
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
-    exported = receipt.write(folder, out, Path(__file__), inputs_digest,
-                             {"source": args.source, "max": args.max, "seed": args.seed})
-    # Every item met, named, in the item ledger beside the receipt (§28 G3).
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     rejected = sum(receipt.rejected.values())
     print(f"dataset-rows: {args.source}: {receipt.exported} rows ({rejected} rejected, {receipt.sampled_out} sampled out) into {out}")
     return 0

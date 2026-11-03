@@ -311,18 +311,34 @@ export function derivedBrand(page: StoredPage, text: string): string | null | un
 const PARKED =
   /this domain (is|may be) for sale|buy this domain|domain (is )?parked|parked (free|domain)|this (account|website|site) (has been |is )?suspended|(this|the) (website|site|page) (has been |was |is )?(taken down|disabled|blocked|removed|suspended)|(phishing|deceptive) (site|page)s? (has been |was )?(taken down|removed|blocked)|deceptive site ahead|(site|page|website) (has been |was )?reported (as )?(a )?phishing/i;
 
-// Why a page's capture cannot carry its publisher's label (§18, plan review gap 5): the capture shows something other
-// than the page the label was given for. Null when it can.
+// Why a page's capture cannot carry its publisher's label (§18, plan review gap 5; §28, G6 and plan review gap 6):
+// the capture shows something other than the page the label was given for, or is blank with no form. Null when it can.
 // Little text alone is no sign: a lure can be a logo and two fields, its screenshot carrying it.
-// The render's title and overlays, when it kept them, go to the wall rule with the text, as the renderer reads them.
-export function captureProblem(text: string, evidence?: { title: string; overlays: string }): string | null {
+// The render's title, overlays and structural readings go to the wall and error rules, as the renderer reads them.
+export function captureProblem(
+  text: string,
+  evidence?: {
+    title: string;
+    overlays: string;
+    captcha?: boolean | undefined;
+    consentWall?: boolean | undefined;
+    challengeCover?: boolean | undefined;
+    wall?: boolean | undefined;
+  },
+  flags?: { has_login_form?: boolean | undefined; has_payment_form?: boolean | undefined },
+): string | null {
+  if (evidence?.captcha) return "a CAPTCHA frame";
+  if (evidence?.consentWall) return "a cookie wall covering the page";
+  if (evidence?.challengeCover) return "a bot challenge drawn over the page";
   // The whole text for the site's own notices, which name the site and nothing a lure says: one padded below ordinary
-  // copy is still the page's (§18 final review). The error rule reads the page's head only, as the renderer does: its
-  // phrases ("cannot be found", "no longer available") are also what a delivery or offer lure says further down.
+  // copy is still the page's (§18 final review). The error rule reads the page's head and title, as the renderer does:
+  // its phrases ("cannot be found", "no longer available") are also what a delivery or offer lure says further down.
   if (PARKED.test(text)) return "a parked, suspended or taken-down page";
   if (NO_SITE.test(text.slice(0, 2000))) return "a directory listing, an empty placeholder or a suspended host";
-  if (NOT_FOUND.test(text.slice(0, 3000))) return "an error page";
-  if (wallShown({ title: evidence?.title ?? "", text, overlays: evidence?.overlays ?? "" })) return "a bot challenge";
+  if (NOT_FOUND.test(`${evidence?.title ?? ""}\n${text.slice(0, 3000)}`)) return "an error page";
+  if (evidence?.wall || wallShown({ title: evidence?.title ?? "", text, overlays: evidence?.overlays ?? "" }))
+    return "a bot challenge";
+  if (!text.trim() && !flags?.has_login_form && !flags?.has_payment_form) return "an empty page";
   return null;
 }
 
@@ -431,7 +447,7 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
     const { page, text } = read;
     // A publisher's label holds only for a capture that shows the page it was given for (§18, plan review gap 5).
     if (page.origin === "public") {
-      const shown = captureProblem(text, page.evidence);
+      const shown = captureProblem(text, page.evidence, page.labels);
       if (shown) {
         excluded.set(page.id, `the capture is ${shown}, not the page its label was given for`);
         continue;
@@ -483,6 +499,32 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
     }
     const problem = labelProblem(current);
     if (problem) excluded.set(page.id, problem);
+  }
+  // A sample page the leak check flagged (raw/samples/LEAK-CHECK.json, read here by path as the teacher's state
+  // is): barred from every dataset, split and evaluation until a section 19 round re-admits it after a clean
+  // leak check over it (coordinator decision, 2026-11-02). The checker's OCR entity pass finds names and places
+  // the importer's per-item checker stored past; the flagged page itself never trains or is evaluated on.
+  // A page barred for a leak flag stays barred: the entry is carried forward from the last exclusions file,
+  // so a later clean check over the eligible remainder never silently re-admits it. Re-admission is the
+  // section 19 round's recorded act (the entry removed, then a clean leak check over the page).
+  for (const [id, reason] of readExcluded(store.dir))
+    if (reason.startsWith("flagged by the sample leak check") && !excluded.has(id)) excluded.set(id, reason);
+  const leakFile = join(store.dir, "raw", "samples", "LEAK-CHECK.json");
+  if (existsSync(leakFile)) {
+    try {
+      const { failures } = JSON.parse(readFileSync(leakFile, "utf-8")) as {
+        failures?: { id: string; representation?: string; reason?: string }[];
+      };
+      const stored = new Set(listedPages.filter((p) => p.origin === "samples").map((p) => p.id));
+      for (const failure of failures ?? [])
+        if (stored.has(failure.id))
+          excluded.set(
+            failure.id,
+            `flagged by the sample leak check (${failure.representation ?? "record"}: ${failure.reason ?? "a client detail shows"}); barred from every dataset until a section 19 round re-admits it`,
+          );
+    } catch {
+      // A record that does not read flags nothing; the leak check's own verdict stands in the build.
+    }
   }
   // A page whose teacher answer was lost (`quarantined` in raw/teacher/state.json, read here without the teacher's
   // module) may have been disputed: kept out of training and evaluation.

@@ -38,7 +38,13 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { sastDay } from "../../src/meta/day.ts";
 import { BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard.ts";
-import { jpegSize, MAX_TEXT_CHARACTERS, PageAnswer } from "../../src/vision/page-screen.ts";
+import {
+  BrandFreePageAnswer,
+  jpegSize,
+  MAX_TEXT_CHARACTERS,
+  PageAnswer,
+  type VersionedPageAnswer,
+} from "../../src/vision/page-screen.ts";
 import { configureNetwork } from "../fireworks-check.ts";
 import { ledgerId, localBudget } from "../lib/meta-budget.ts";
 import {
@@ -82,7 +88,7 @@ export type Message = { role: string; content: unknown };
 export type Reply = { text: string; usd: number | null; incomplete?: string };
 export type AnswerLine = {
   id: string;
-  answer: PageAnswer | null;
+  answer: VersionedPageAnswer | null;
   error: string | null;
   latency_ms: number;
   // Null where the page's cost is not known per request (Loupe's deployment is billed by GPU time).
@@ -153,14 +159,29 @@ export function requestOf(line: string): Message[] {
   return messages;
 }
 
-// What a model said, parsed strictly. null when it is not a PageAnswer.
-export function parseAnswer(text: string): PageAnswer | null {
+// What a model said, parsed strictly. null when it is not a PageAnswer (or BrandFreePageAnswer when brandAsTruth is false).
+export function parseAnswer(text: string, brandAsTruth = true): VersionedPageAnswer | null {
   try {
-    const parsed = PageAnswer.safeParse(JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, "")));
+    const raw = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+    const parsed = brandAsTruth ? PageAnswer.safeParse(raw) : BrandFreePageAnswer.safeParse(raw);
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
+}
+
+export function datasetBrandAsTruth(dataset: string): boolean {
+  for (const candidate of [join(dataset, "summary.json"), join(dataset, "..", "summary.json")]) {
+    if (!existsSync(candidate)) continue;
+    try {
+      const summary = JSON.parse(readFileSync(candidate, "utf-8")) as { brandAsTruth?: unknown; version?: unknown };
+      if (typeof summary.brandAsTruth === "boolean") return summary.brandAsTruth;
+      if (typeof summary.version === "string") return summary.version === "1.0";
+    } catch {
+      // fall through
+    }
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -422,6 +443,7 @@ export async function runAnswers(options: {
     sha256?: { evaluation?: string };
   };
   if (summary.sha256?.evaluation !== sha256) throw new Error("eval.jsonl is not the file summary.json names");
+  const brandAsTruth = datasetBrandAsTruth(dataset);
   const file = answersFile(runs, screener);
   if (options.model) bindAnswers(runs, screener, { model: options.model, eval_sha256: sha256 });
   const done = readAnswers(file);
@@ -464,7 +486,7 @@ export async function runAnswers(options: {
       let line: AnswerLine;
       try {
         const reply = await ask(requestOf(readSpan(fd, spans[item.index] as Span)), item.meta.id);
-        const answer = reply.incomplete ? null : parseAnswer(reply.text);
+        const answer = reply.incomplete ? null : parseAnswer(reply.text, brandAsTruth);
         line = {
           id: item.meta.id,
           answer,
@@ -472,7 +494,9 @@ export async function runAnswers(options: {
             ? null
             : reply.incomplete
               ? `the reply was cut off (${reply.incomplete})`
-              : "the reply was not a valid PageAnswer",
+              : brandAsTruth
+                ? "the reply was not a valid PageAnswer"
+                : "the reply was not a valid BrandFreePageAnswer",
           latency_ms: Math.round(clock() - started),
           // Spark's cost is Meta's, or its estimate when Meta reports none; Loupe's is not known per page.
           cost_usd: reply.usd ?? (screener === "spark" ? ESTIMATE_USD : null),
@@ -658,7 +682,7 @@ export type Scored = {
   // The lure types among the South African lures, with their counts: what the South African figures cover.
   south_africa_lure_types: Record<string, number>;
 };
-type Row = { meta: PageMeta; line: AnswerLine | undefined; answer: PageAnswer | null };
+type Row = { meta: PageMeta; line: AnswerLine | undefined; answer: VersionedPageAnswer | null };
 
 const ratio = (top: number, bottom: number) => (bottom ? top / bottom : null);
 const median = (values: number[]) => {
@@ -699,11 +723,20 @@ export function sliceOf(rows: Row[], costKnown = true): Slice {
   };
 }
 
-export function scoreScreener(metas: PageMeta[], answers: Map<string, AnswerLine>, costKnown = true): Scored {
+export function scoreScreener(
+  metas: PageMeta[],
+  answers: Map<string, AnswerLine>,
+  costKnown = true,
+  brandAsTruth = true,
+): Scored {
   const rows: Row[] = metas.map((meta) => {
     const line = answers.get(meta.id);
     // Parsed again, strictly: a line that does not hold a PageAnswer is unanswered, never a guess.
-    const parsed = line?.answer ? PageAnswer.safeParse(line.answer) : null;
+    const parsed = line?.answer
+      ? brandAsTruth
+        ? PageAnswer.safeParse(line.answer)
+        : BrandFreePageAnswer.safeParse(line.answer)
+      : null;
     return { meta, line, answer: parsed?.success ? parsed.data : null };
   });
   const group = (select: (row: Row) => string | null) => {
@@ -825,13 +858,14 @@ export function scoreSet(dataset: string, runs: string) {
   };
   const evaluation = summary.sha256?.evaluation;
   if (typeof evaluation !== "string") throw new Error("summary.json does not name the evaluation file's sha256");
+  const brandAsTruth = datasetBrandAsTruth(dataset);
   const loupeFile = answersFile(runs, "loupe");
   if (!existsSync(loupeFile)) throw new Error(`no Loupe answers at ${loupeFile}; run the loupe command first`);
   // Loupe's cost per page is not known per request (its deployment is billed by GPU time): reconciled from the bill.
-  const loupe = scoreScreener(metas, readAnswers(loupeFile), false);
+  const loupe = scoreScreener(metas, readAnswers(loupeFile), false, brandAsTruth);
   const sparkPath = answersFile(runs, "spark");
   const sparkAnswers = existsSync(sparkPath) ? readAnswers(sparkPath) : null;
-  const spark = sparkAnswers ? scoreScreener(metas, sparkAnswers) : null;
+  const spark = sparkAnswers ? scoreScreener(metas, sparkAnswers, true, brandAsTruth) : null;
   // Pages Spark has not been asked yet (a run still going, or stopped at a cap) are not Spark's misses.
   const sparkPending = sparkAnswers ? metas.filter((m) => !sparkAnswers.has(m.id)).length : null;
   const identities = { loupe: readIdentity(runs, "loupe"), spark: readIdentity(runs, "spark") };
@@ -968,6 +1002,7 @@ export function proposeCauses(
   const dataset = set === "reference" ? referenceDataset(store, version) : training;
   const runs = set === "reference" ? referenceRuns(store, version) : runDir(store, version);
   const metas = readMetas(join(dataset, "eval.meta.jsonl"));
+  const brandAsTruth = datasetBrandAsTruth(dataset);
   const answers = readAnswers(answersFile(runs, screener));
   // The training set's brands and lure types, from its own records.
   const brands = new Set<string>();
@@ -1014,7 +1049,12 @@ export function proposeCauses(
       Object.entries(everyPage).map(([cause, n]) => [cause, Math.round((n / Math.max(1, metas.length)) * 1000) / 1000]),
     );
     metas.forEach((meta, index) => {
-      const parsed = answers.get(meta.id)?.answer ? PageAnswer.safeParse(answers.get(meta.id)?.answer) : null;
+      const rawAnswer = answers.get(meta.id)?.answer;
+      const parsed = rawAnswer
+        ? brandAsTruth
+          ? PageAnswer.safeParse(rawAnswer)
+          : BrandFreePageAnswer.safeParse(rawAnswer)
+        : null;
       const answer = parsed?.success ? parsed.data : null;
       const lure = meta.lure_type !== "none";
       const kind = lure && answer?.lure !== true ? "missed" : !lure && answer?.lure === true ? "false alarm" : null;

@@ -77,6 +77,24 @@ export const pages: Record<string, (res: import("node:http").ServerResponse, ori
       `<p>${words}</p><div id=host></div><script>host.attachShadow({ mode: 'open' }).innerHTML = '<div style="position:fixed;inset:0;background:#fff">We use cookies. Accept all cookies to continue.</div>'</script>`,
     ),
   "/frame-login": (res) => html(res, `<p>${words}</p><input type=password>`),
+  // §38 replay fidelity: a sign-in form inside a shown frame, a payment form a script builds after load from POST
+  // and repeated GET responses, and a picture that carries the page's look.
+  "/replay-mix": (res) =>
+    html(
+      res,
+      `<title>Example checkout</title><p>${words}</p><img src="/wall.svg" width=1200 height=900><iframe src="/frame-login" width=400 height=200></iframe><div id=pay></div><script>addEventListener("load", async () => { const a = await (await fetch("/poll")).text(); const b = await (await fetch("/poll")).text(); const c = await (await fetch("/poll", { method: "POST", body: "step=1" })).text(); document.getElementById("pay").innerHTML = '<p>' + a + ' then ' + b + ' (' + c + ')</p><input autocomplete=cc-number name=card>'; })</script>`,
+    ),
+  "/wall.svg": (res) => {
+    res.writeHead(200, { "content-type": "image/svg+xml" });
+    res.end(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><rect width="600" height="900" fill="#000"/><rect x="600" width="600" height="900" fill="#fff"/><rect y="450" width="1200" height="450" fill="#888"/></svg>',
+    );
+  },
+  "/poll": (res) => {
+    replayPolls++;
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.end(replayPolls % 2 ? "first answer" : "second answer");
+  },
   // A bot-detection script's trick (Game, Makro, Nexstar, 2026-10-29): a hidden frame, and a hidden element, whose own
   // DOM methods and inline style return nothing.
   "/masked": (res) =>
@@ -337,6 +355,7 @@ export let secret: Server;
 export let secretOrigin: string;
 export let secretHits = 0;
 export let dripOpen = 0;
+export let replayPolls = 0;
 export let stunPort = 0;
 export let frameServer: Server;
 export let stunSocket: ReturnType<typeof createSocket> | undefined;

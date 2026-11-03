@@ -1,19 +1,25 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { readFreeze } from "../../scripts/glimmer/build-dataset.ts";
+import { captureProblem } from "../../scripts/glimmer/label-rules.ts";
+import { recoverHtmlEvidence } from "../../scripts/glimmer/source-pages.ts";
 import {
   type Frozen,
   freezeCollection,
   manifestDigest,
+  migrateLineage,
   parseSources,
   RECEIPTED,
   reconcile,
+  removeSourceFromStore,
   storeProblems,
   syntheticLeftovers,
+  verifyExistingFreeze,
   writeFreeze,
 } from "../../scripts/glimmer/sources.ts";
 import { openStore, type StoredPage } from "../../scripts/glimmer/store.ts";
@@ -345,6 +351,9 @@ describe("reconcile", () => {
         labels: { lure: true },
         label_source: { lure: "ground-truth" },
         redacted: false,
+        item: "set-a-1",
+        input: "c".repeat(64),
+        evidence,
       } as Parameters<typeof pages.putPage>[1]);
       const manifest = { files: [{ name: "set-a.zip" }] };
       mkdirSync(join(store, "raw", "set-a"), { recursive: true });
@@ -611,5 +620,799 @@ describe("binding each import to its inputs and rows (D03 T04 §18)", () => {
         { phreshphish: { manifest: "m1", export: { ...receipt, met: 4 } } },
       ).join(),
     ).toMatch(/accounts for 3 of 4/);
+  });
+
+  it("reconciles item ledgers, input inventory and stored-page lineage, and refuses disagreements (D03 T04 §28)", () => {
+    const receipt = {
+      met: 3,
+      exported: 2,
+      sampled_out: 0,
+      rejected: { "not a page": 1 },
+      rows_sha256: "r1",
+      converter_sha256: "c1",
+      inputs: "m1",
+    };
+    const evidence = {
+      title: "Login",
+      overlays: "",
+      captcha: false,
+      consentWall: false,
+      challengeCover: false,
+      wall: false,
+    };
+    const storedPage: StoredPage = {
+      ...page("phreshphish"),
+      id: "phreshphish-0000000000000001",
+      item: "item-1",
+      input: "in-1",
+      items: [
+        { id: "item-1", input: "in-1" },
+        { id: "item-2", input: "in-2" },
+      ],
+      evidence,
+    };
+    const record = {
+      status: "complete" as const,
+      expected: 2,
+      imported: 1,
+      duplicates: 1,
+      excluded: [],
+      stored: 1,
+      inputs: "m1",
+      rows: "r1",
+    };
+    const converterItems = {
+      header: { inputs: "m1", rows: "r1" },
+      entries: [
+        { item: "item-1", outcome: "exported" as const },
+        { item: "item-2", outcome: "exported" as const },
+        { item: "item-3", outcome: "rejected" as const, reason: "not a page" },
+      ],
+    };
+    const importItems = {
+      header: { inputs: "m1", rows: "r1", export: "ex1", import: "im1" },
+      entries: [
+        { item: "item-1", input: "in-1", outcome: "imported" as const, page: storedPage.id },
+        { item: "item-2", input: "in-2", outcome: "duplicate" as const, page: storedPage.id },
+      ],
+    };
+    const notice = "| `phreshphish`: PhreshPhish | CC BY 4.0 | credit |";
+    const sources = [header, row("phreshphish", "accepted")].join("\n");
+    const runCheck = (overrideBinding: Record<string, unknown>, pages = [storedPage]) =>
+      reconcile({
+        sources,
+        notice,
+        imports: { phreshphish: record },
+        pages,
+        bindings: {
+          phreshphish: {
+            checkLineage: true,
+            manifest: "m1",
+            export: receipt,
+            exportSha256: "ex1",
+            importSha256: "im1",
+            converterItems,
+            importItems,
+            inventory: ["item-1", "item-2", "item-3"],
+            rowItems: [
+              { item: "item-1", input: "in-1" },
+              { item: "item-2", input: "in-2" },
+            ],
+            ...overrideBinding,
+          },
+        },
+      });
+    expect(runCheck({})).toEqual([]);
+    // Input omitted from converter ledger and store, caught by independent inventory.
+    expect(runCheck({ inventory: ["item-1", "item-2", "item-3", "item-4"] }).join()).toMatch(
+      /does not match the converter's input inventory/,
+    );
+    // Exported row omitted from import ledger, caught by rowItems / converterItems comparison.
+    expect(
+      runCheck({
+        rowItems: [
+          { item: "item-1", input: "in-1" },
+          { item: "item-2", input: "in-2" },
+          { item: "item-extra", input: "in-x" },
+        ],
+      }).join(),
+    ).toMatch(/rows\.jsonl items/);
+    // Item appearing twice in ITEMS.jsonl or ITEMS.import.jsonl.
+    expect(
+      runCheck({
+        converterItems: {
+          ...converterItems,
+          entries: [...converterItems.entries, { item: "item-1", outcome: "rejected", reason: "dup" }],
+        },
+      }).join(),
+    ).toMatch(/item item-1 appears more than once in ITEMS\.jsonl/);
+    expect(
+      runCheck({
+        importItems: {
+          ...importItems,
+          entries: [...importItems.entries, { item: "item-1", outcome: "excluded", reason: "dup" }],
+        },
+      }).join(),
+    ).toMatch(/item item-1 appears more than once in ITEMS\.import\.jsonl/);
+    // Stored page and ITEMS.import.jsonl disagree on which items made the page or on the input digest.
+    expect(
+      runCheck({}, [
+        {
+          ...storedPage,
+          items: [{ id: "item-1", input: "in-1" }],
+        },
+      ]).join(),
+    ).toMatch(/ITEMS\.import\.jsonl says item-2 is on phreshphish-0000000000000001, store says no page/);
+    expect(
+      runCheck({}, [
+        {
+          ...storedPage,
+          items: [
+            { id: "item-1", input: "in-1" },
+            { id: "item-2", input: "wrong-digest" },
+          ],
+        },
+      ]).join(),
+    ).toMatch(/disagree on the input digest of item-2/);
+    // Stored page lacking capture-problem evidence.
+    const { evidence: _dropped, ...withoutEvidence } = storedPage;
+    expect(runCheck({}, [withoutEvidence]).join()).toMatch(/has no capture-problem evidence/);
+    // Completion review G2, G3, G8: synthetic placeholder IDs, missing ITEMS.inventory.jsonl, missing input digests,
+    // wall evidence on a stored page, or missing/conflicting per-item lure on multi-item pages are refused.
+    expect(runCheck({ requireInventory: true, inventory: undefined }).join()).toMatch(
+      /no ITEMS\.inventory\.jsonl from its converter/,
+    );
+    expect(
+      runCheck({
+        converterItems: {
+          ...converterItems,
+          entries: [
+            { item: "item-1", outcome: "exported" },
+            { item: "item-2", outcome: "exported" },
+            { item: "phreshphish:rejected-1", outcome: "rejected", reason: "not a page" },
+          ],
+        },
+        inventory: ["item-1", "item-2", "phreshphish:rejected-1"],
+      }).join(),
+    ).toMatch(/contains synthetic placeholder item phreshphish:rejected-1/);
+    expect(
+      runCheck({
+        importItems: {
+          ...importItems,
+          entries: [
+            { item: "item-1", outcome: "imported", page: storedPage.id },
+            { item: "item-2", input: "in-2", outcome: "duplicate", page: storedPage.id },
+          ],
+        },
+      }).join(),
+    ).toMatch(/item item-1 in ITEMS\.import\.jsonl has no input digest/);
+    expect(
+      runCheck({}, [
+        {
+          ...storedPage,
+          evidence: { ...evidence, wall: true },
+        },
+      ]).join(),
+    ).toMatch(/has a capture-problem wall in its evidence/);
+    expect(
+      runCheck(
+        {
+          rowItems: [
+            { item: "item-1", input: "in-1", lure: true },
+            { item: "item-2", input: "in-2", lure: false },
+          ],
+        },
+        [
+          {
+            ...storedPage,
+            items: [
+              { id: "item-1", input: "in-1", lure: true },
+              { id: "item-2", input: "in-2" },
+            ],
+          },
+        ],
+      ).join(),
+    ).toMatch(/item item-2 is missing or disagrees with its row lure label/);
+  });
+
+  it("removes ITEMS.import.jsonl when removing a source, and migrateLineage upgrades a pre-change store end to end while refusing synthetic IDs, unmatched items or changed generations (D03 T04 §28)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "glimmer-mig-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-mig-store-"));
+    try {
+      mkdirSync(join(root, "docs", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs", "glimmer", "sources.md"), [header, row("compphish", "accepted")].join("\n"));
+      writeFileSync(join(root, "NOTICE.md"), "| `compphish`: CompPhish | CC BY 4.0 | credit |\n");
+      const shot = new Uint8Array(
+        await sharp({ create: { width: 16, height: 16, channels: 3, background: "#a22" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      const pages = openStore(store);
+      await pages.putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      });
+      const folder = join(store, "raw", "compphish");
+      mkdirSync(folder, { recursive: true });
+      const manifest = { files: [{ name: "All_HTML.zip" }] };
+      const inputsDigest = manifestDigest(manifest);
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify(manifest));
+      const row1 = JSON.stringify({
+        sha256: "compphish-1",
+        url: "https://example.test/login",
+        html: "<!doctype html><html><head><title>Account Login</title></head><body><p>Sign in to your account</p></body></html>",
+        label: "phish",
+        target: null,
+      });
+      const row2 = JSON.stringify({
+        sha256: "compphish-2",
+        url: "https://example.test/empty",
+        html: "<!doctype html><html><body></body></html>",
+        label: "phish",
+        target: null,
+      });
+      const rowsText = `${row1}\n${row2}\n`;
+      writeFileSync(join(folder, "rows.jsonl"), rowsText);
+      const { fileSha256 } = await import("../../scripts/glimmer/import-source.ts");
+      const rowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 3,
+          exported: 2,
+          sampled_out: 0,
+          rejected: { "no label": 1 },
+          rows_sha256: rowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 0,
+          skipped: 0,
+          filtered: [{ item: "compphish-2", reason: "an empty page" }],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: rowsSha,
+        }),
+      );
+      // Pre-migration store fails storeProblems because ITEMS.inventory.jsonl, ITEMS.jsonl, ITEMS.import.jsonl, item/input and evidence are missing.
+      const beforeProblems = storeProblems(store, root).problems.join("\n");
+      expect(beforeProblems).toContain("no item or input lineage");
+      expect(beforeProblems).toContain("no capture-problem evidence");
+      expect(beforeProblems).toContain("no ITEMS.inventory.jsonl");
+      expect(beforeProblems).toContain("no ITEMS.jsonl");
+      expect(beforeProblems).toContain("no ITEMS.import.jsonl");
+
+      // Completion review G2: migrateLineage refuses when non-exported items lack real converter inventory.
+      await expect(migrateLineage(store, root)).rejects.toThrow(
+        /cannot migrate ITEMS\.jsonl without real converter inventory/,
+      );
+
+      // Provide the converter's real inventory (including rejected item compphish-3).
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: rowsSha },
+          { item: "compphish-1" },
+          { item: "compphish-2" },
+          { item: "compphish-3" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+
+      // Completion review G6: migrateLineage refuses when a rendered row does not match any stored page by content.
+      const otherShot = new Uint8Array(
+        await sharp({ create: { width: 16, height: 16, channels: 3, background: "#119" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      await expect(
+        migrateLineage(store, root, {
+          renderHtml: async () => ({
+            screenshot: otherShot,
+            text: "Completely unrelated text",
+            has_login_form: false,
+            has_payment_form: false,
+            evidence: {
+              title: "Other",
+              overlays: "",
+              captcha: false,
+              consentWall: false,
+              challengeCover: false,
+              wall: false,
+            },
+          }),
+        }),
+      ).rejects.toThrow(/did not match any stored page by content/);
+
+      await migrateLineage(store, root, {
+        renderHtml: async () => ({
+          screenshot: shot,
+          text: "Sign in to your account",
+          has_login_form: true,
+          has_payment_form: false,
+          evidence: {
+            title: "Account Login",
+            overlays: "",
+            captcha: false,
+            consentWall: false,
+            challengeCover: false,
+            wall: false,
+          },
+        }),
+      });
+      expect(storeProblems(store, root, { hashRows: true }).problems).toEqual([]);
+      const [migratedPage] = openStore(store).manifest({ source: "compphish" });
+      expect(migratedPage?.item).toBe("compphish-1");
+      expect(migratedPage?.evidence?.title).toBe("Account Login");
+      expect(existsSync(join(folder, "ITEMS.jsonl"))).toBe(true);
+      expect(existsSync(join(folder, "ITEMS.inventory.jsonl"))).toBe(true);
+      expect(existsSync(join(folder, "ITEMS.import.jsonl"))).toBe(true);
+
+      // Completion review G7: migrateLineage refuses when INPUTS.json changes instead of overwriting EXPORT.json / IMPORT.json.
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify({ files: [{ name: "New_HTML.zip" }] }));
+      await expect(migrateLineage(store, root)).rejects.toThrow(/other inputs than INPUTS\.json names/);
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify(manifest));
+
+      // Round 1 finding 2: migrateLineage preserves Python's {"inputs": ...}-only ITEMS.inventory.jsonl and refuses
+      // when ITEMS.jsonl names rejected item C while ITEMS.inventory.jsonl names rejected item B, without overwriting it.
+      const invWithB = `${[
+        { inputs: inputsDigest },
+        { item: "compphish-1" },
+        { item: "compphish-2" },
+        { item: "compphish-rejected-B" },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n")}\n`;
+      const ledgerWithC = `${[
+        { inputs: inputsDigest, rows: rowsSha },
+        { item: "compphish-1", outcome: "exported" },
+        { item: "compphish-2", outcome: "exported" },
+        { item: "compphish-rejected-C", outcome: "rejected", reason: "no html" },
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n")}\n`;
+      writeFileSync(join(folder, "ITEMS.inventory.jsonl"), invWithB);
+      writeFileSync(join(folder, "ITEMS.jsonl"), ledgerWithC);
+      await expect(migrateLineage(store, root)).rejects.toThrow(/does not match ITEMS\.inventory\.jsonl/);
+      expect(readFileSync(join(folder, "ITEMS.inventory.jsonl"), "utf-8")).toBe(invWithB);
+
+      // Round 1 finding 3: recoverHtmlEvidence detects stylesheet-defined (<style>) full-screen image covers with
+      // challenge-vendor scripts, and migrateLineage refuses when a re-rendered page has a capture-problem wall.
+      const cssCoverHtml =
+        '<html><head><style>.cover { position: fixed; inset: 0; width: 100vw; height: 100vh; background-image: url("/bg.png"); }</style><script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script></head><body><div class="cover"></div></body></html>';
+      const cssEvidence = recoverHtmlEvidence(cssCoverHtml, "");
+      expect(cssEvidence.challengeCover).toBe(true);
+      expect(captureProblem("Sign in", cssEvidence, { has_login_form: true, has_payment_form: false })).toBe(
+        "a bot challenge drawn over the page",
+      );
+
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${[{ inputs: inputsDigest }, { item: "compphish-1" }, { item: "compphish-2" }, { item: "compphish-3" }]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: rowsSha },
+          { item: "compphish-1", outcome: "exported" },
+          { item: "compphish-2", outcome: "exported" },
+          { item: "compphish-3", outcome: "rejected", reason: "no html" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      removeSourceFromStore(store, "compphish");
+      await openStore(store).putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      });
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 0,
+          skipped: 0,
+          filtered: [{ item: "compphish-2", reason: "an empty page" }],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: rowsSha,
+        }),
+      );
+      await expect(
+        migrateLineage(store, root, {
+          renderHtml: async () => ({
+            screenshot: shot,
+            text: "Sign in to your account",
+            has_login_form: false,
+            has_payment_form: false,
+            evidence: {
+              title: "Verify you are human",
+              overlays: "",
+              captcha: false,
+              consentWall: false,
+              challengeCover: true,
+              wall: true,
+            },
+          }),
+        }),
+      ).rejects.toThrow(/capture-problem wall/);
+
+      // Removing a source cleans ITEMS.import.jsonl alongside marking IMPORT.json incomplete.
+      expect(removeSourceFromStore(store, "compphish")).toBe(1);
+      expect(existsSync(join(folder, "ITEMS.import.jsonl"))).toBe(false);
+      expect(JSON.parse(readFileSync(join(folder, "IMPORT.json"), "utf-8")).status).toBe("incomplete");
+
+      // Round 5 finding 1: when rows.jsonl has duplicate HTML rows and no existing ITEMS.import.jsonl,
+      // migrateLineage matches duplicates by SHA-256 digest (htmlHashByItem) and reads HTML on demand only for
+      // the single row rendered, without retaining raw HTML strings across all rows.
+      const dupHtml =
+        "<html><head><title>Account Login</title></head><body><form><input type='password'/>Sign in to your account</form></body></html>";
+      const dupRowsContent = `${[
+        {
+          sha256: "compphish-dup-1",
+          url: "https://login.example.com/a",
+          html: dupHtml,
+          label: "phish",
+          target: "Example",
+        },
+        {
+          sha256: "compphish-dup-2",
+          url: "https://login.example.com/a",
+          html: dupHtml,
+          label: "phish",
+          target: "Example",
+        },
+      ]
+        .map((r) => JSON.stringify(r))
+        .join("\n")}\n`;
+      writeFileSync(join(folder, "rows.jsonl"), dupRowsContent);
+      const dupRowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 2,
+          exported: 2,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: dupRowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 1,
+          skipped: 0,
+          filtered: [],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: dupRowsSha,
+        }),
+      );
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${[{ inputs: inputsDigest }, { item: "compphish-dup-1" }, { item: "compphish-dup-2" }]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: dupRowsSha },
+          { item: "compphish-dup-1", outcome: "exported" },
+          { item: "compphish-dup-2", outcome: "exported" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      const s2 = openStore(store);
+      const dupPageId = await s2.putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+      });
+      await migrateLineage(store, root, {
+        renderHtml: async () => ({
+          screenshot: shot,
+          text: "Sign in to your account",
+          has_login_form: true,
+          has_payment_form: false,
+          evidence: {
+            title: "Account Login",
+            overlays: "",
+            captcha: false,
+            consentWall: false,
+            challengeCover: false,
+            wall: false,
+          },
+        }),
+      });
+      const dupImportLines = readFileSync(join(folder, "ITEMS.import.jsonl"), "utf-8")
+        .trim()
+        .split("\n")
+        .map((l) => JSON.parse(l));
+      expect(dupImportLines.slice(1)).toEqual([
+        { item: "compphish-dup-1", outcome: "imported", page: dupPageId, input: expect.any(String) },
+        { item: "compphish-dup-2", outcome: "duplicate", page: dupPageId, input: expect.any(String) },
+      ]);
+
+      // Round 6 finding 1: when a stored page already has item/evidence and a second row with different HTML
+      // goes through the fallback renderer during needLedgerBuild, migrateLineage checks captureProblem and
+      // refuses if the fallback-rendered row has a wall, rather than matching it by text hash as a duplicate.
+      rmSync(join(folder, "ITEMS.import.jsonl"), { force: true });
+      openStore(store).setLineage(dupPageId, {
+        item: "compphish-dup-1",
+        input: dupImportLines[1].input,
+        items: [{ id: "compphish-dup-1", input: dupImportLines[1].input, lure: true }],
+        evidence: {
+          title: "Account Login",
+          overlays: "",
+          captcha: false,
+          consentWall: false,
+          challengeCover: false,
+          wall: false,
+        },
+      });
+      const diffRowsContent = `${[
+        {
+          sha256: "compphish-dup-1",
+          url: "https://login.example.com/a",
+          html: dupHtml,
+          label: "phish",
+          target: "Example",
+        },
+        {
+          sha256: "compphish-dup-2",
+          url: "https://login.example.com/a",
+          html: `${dupHtml}<!-- different html bytes -->`,
+          label: "phish",
+          target: "Example",
+        },
+      ]
+        .map((r) => JSON.stringify(r))
+        .join("\n")}\n`;
+      writeFileSync(join(folder, "rows.jsonl"), diffRowsContent);
+      const diffRowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 2,
+          exported: 2,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: diffRowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 2,
+          imported: 1,
+          duplicates: 1,
+          skipped: 0,
+          filtered: [],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: diffRowsSha,
+        }),
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${[
+          { inputs: inputsDigest, rows: diffRowsSha },
+          { item: "compphish-dup-1", outcome: "exported" },
+          { item: "compphish-dup-2", outcome: "exported" },
+        ]
+          .map((e) => JSON.stringify(e))
+          .join("\n")}\n`,
+      );
+      await expect(
+        migrateLineage(store, root, {
+          renderHtml: async () => ({
+            screenshot: shot,
+            text: "Sign in to your account",
+            has_login_form: true,
+            has_payment_form: false,
+            evidence: {
+              title: "Account Login",
+              overlays: "",
+              captcha: true,
+              consentWall: false,
+              challengeCover: false,
+              wall: true,
+            },
+          }),
+        }),
+      ).rejects.toThrow(/compphish-dup-2 rendered with a capture-problem wall/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
+  });
+
+  it("documents captureProblem() and ledger reconciliation in docs/glimmer/importing.md (D03 T04 §28)", () => {
+    const doc = readFileSync(join(import.meta.dirname, "../../docs/glimmer/importing.md"), "utf-8");
+    expect(doc).not.toContain("renders under 20 characters of text");
+    expect(doc).toContain("captureProblem()");
+    expect(doc).toContain("15 percent");
+    expect(doc).toContain("new_rows.py");
+    expect(doc).toContain("import-new.ts");
+    expect(doc).toContain("ITEMS.inventory.jsonl");
+    expect(doc).toContain("ITEMS.import.jsonl");
+    expect(doc).toContain("migrate-lineage");
+  });
+
+  it("verifies an existing freeze without replacing it when reconciled, and refuses when drifted (D03 T04 §45)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "glimmer-vfreeze-root-"));
+    const store = mkdtempSync(join(tmpdir(), "glimmer-vfreeze-store-"));
+    try {
+      mkdirSync(join(root, "docs", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "docs", "glimmer", "sources.md"), [header, row("compphish", "accepted")].join("\n"));
+      writeFileSync(join(root, "NOTICE.md"), "| `compphish`: CompPhish | CC BY 4.0 | credit |\n");
+      const shot = new Uint8Array(
+        await sharp({ create: { width: 16, height: 16, channels: 3, background: "#a22" } })
+          .jpeg()
+          .toBuffer(),
+      );
+      const rowLine = JSON.stringify({
+        sha256: "compphish-1",
+        url: "https://example.test",
+        html: "<p>Sign in</p>",
+        label: "phish",
+        target: null,
+      });
+      const inputDigest = createHash("sha256").update(rowLine).digest("hex");
+      const pages = openStore(store);
+      const pageId = await pages.putPage("compphish", {
+        screenshot: shot,
+        text: "Sign in to your account",
+        origin: "public",
+        licence: "CC BY 4.0",
+        host: null,
+        template: null,
+        south_africa: false,
+        labels: { lure: true },
+        label_source: { lure: "ground-truth" },
+        redacted: false,
+        item: "compphish-1",
+        input: inputDigest,
+        items: [{ id: "compphish-1", input: inputDigest, lure: true }],
+        evidence: {
+          title: "Login",
+          overlays: "",
+          captcha: false,
+          consentWall: false,
+          challengeCover: false,
+          wall: false,
+        },
+      });
+      const folder = join(store, "raw", "compphish");
+      mkdirSync(folder, { recursive: true });
+      const manifest = { files: [{ name: "All_HTML.zip" }] };
+      const inputsDigest = manifestDigest(manifest);
+      writeFileSync(join(folder, "INPUTS.json"), JSON.stringify(manifest));
+      writeFileSync(join(folder, "rows.jsonl"), `${rowLine}\n`);
+      const { fileSha256 } = await import("../../scripts/glimmer/import-source.ts");
+      const rowsSha = fileSha256(join(folder, "rows.jsonl"));
+      writeFileSync(
+        join(folder, "EXPORT.json"),
+        JSON.stringify({
+          met: 1,
+          exported: 1,
+          sampled_out: 0,
+          rejected: {},
+          rows_sha256: rowsSha,
+          converter_sha256: "c1",
+          inputs: inputsDigest,
+        }),
+      );
+      const exportSha = fileSha256(join(folder, "EXPORT.json"));
+      writeFileSync(
+        join(folder, "IMPORT.json"),
+        JSON.stringify({
+          status: "complete",
+          expected: 1,
+          imported: 1,
+          duplicates: 0,
+          skipped: 0,
+          filtered: [],
+          excluded: [],
+          stored: 1,
+          inputs: inputsDigest,
+          rows: rowsSha,
+        }),
+      );
+      const importSha = fileSha256(join(folder, "IMPORT.json"));
+      writeFileSync(
+        join(folder, "ITEMS.inventory.jsonl"),
+        `${JSON.stringify({ inputs: inputsDigest, rows: rowsSha })}\n${JSON.stringify({ item: "compphish-1" })}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.jsonl"),
+        `${JSON.stringify({ inputs: inputsDigest, rows: rowsSha })}\n${JSON.stringify({ item: "compphish-1", outcome: "exported" })}\n`,
+      );
+      writeFileSync(
+        join(folder, "ITEMS.import.jsonl"),
+        `${JSON.stringify({ inputs: inputsDigest, rows: rowsSha, export: exportSha, import: importSha })}\n${JSON.stringify({ item: "compphish-1", input: inputDigest, outcome: "imported", page: pageId })}\n`,
+      );
+      mkdirSync(join(root, "eval", "glimmer"), { recursive: true });
+      writeFileSync(join(root, "eval", "glimmer", "benign-sa-urls.txt"), "home\thttps://bank.example/\tBank\n");
+      mkdirSync(join(store, "raw", "majestic"), { recursive: true });
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,example.org\n");
+      mkdirSync(join(store, "raw", "benign"), { recursive: true });
+      writeFileSync(
+        join(store, "raw", "benign", "progress.jsonl"),
+        [
+          { url: "https://example.org/", event: "excluded", reason: "empty", at: "2026-10-29T08:00:00.000Z" },
+          { url: "https://bank.example/", event: "excluded", reason: "empty", at: "2026-10-29T08:00:01.000Z" },
+        ]
+          .map((event) => `${JSON.stringify(event)}\n`)
+          .join(""),
+      );
+      const { problems: freezeProblems, frozen } = freezeCollection(store, root, new Date("2026-11-02T00:00:00Z"));
+      expect(freezeProblems).toEqual([]);
+      writeFreeze(store, frozen as Frozen, "1.1");
+      const file = join(store, "raw", "FROZEN-1.1.json");
+      const originalBytes = readFileSync(file, "utf-8");
+      const check1 = verifyExistingFreeze(store, "1.1", root);
+      expect(check1.problems).toEqual([]);
+      expect(check1.reconciledPages?.size).toBe(1);
+      expect(readFileSync(file, "utf-8")).toBe(originalBytes);
+
+      // Drift the render list: verifyExistingFreeze reports the drift without altering the freeze file.
+      writeFileSync(join(store, "raw", "majestic", "top.csv"), "GlobalRank,Domain\n1,other.org\n");
+      const check2 = verifyExistingFreeze(store, "1.1", root);
+      expect(check2.problems.join("\n")).toMatch(/majestic: render receipt drifted from the freeze/);
+      expect(readFileSync(file, "utf-8")).toBe(originalBytes);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(store, { recursive: true, force: true });
+    }
   });
 });

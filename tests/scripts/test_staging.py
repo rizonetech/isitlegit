@@ -28,6 +28,15 @@ class Staging(unittest.TestCase):
         self.assertEqual(removed, sorted([f".dataset.extracting-{dead.pid}", f".rows.jsonl.{dead.pid}.tmp"]))
         self.assertEqual(sorted(p.name for p in folder.iterdir()), sorted([f".rows.jsonl.{os.getppid()}.tmp", "rows.jsonl"]))
 
+        # Round 7 finding 1: if a dead writer died mid-publication with uncommitted staging and .prev backups,
+        # remove_dead_staging restores the .prev backup and cleans up all dead staging files.
+        (folder / "rows.jsonl").write_text("new-partial")
+        (folder / f".prev.rows.jsonl.{dead.pid}.tmp").write_text("previous-whole")
+        (folder / f".EXPORT.json.{dead.pid}.tmp").write_text("{}")
+        restored = staging.remove_dead_staging(folder)
+        self.assertEqual(restored, sorted([f".EXPORT.json.{dead.pid}.tmp", f".prev.rows.jsonl.{dead.pid}.tmp"]))
+        self.assertEqual((folder / "rows.jsonl").read_text(), "previous-whole")
+
 
 if __name__ == "__main__":
     unittest.main()

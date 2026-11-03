@@ -1,4 +1,4 @@
-"""scripts/glimmer/version-gate.py (D03 T04 §13, §47): a version is promoted only when, on the same held-out file, it
+"""scripts/glimmer/version-gate.py (D03 T04 §13, §50): a version is promoted only when, on the same held-out file, it
 is better: higher lure recall with no more false alarms, or fewer false alarms with no less recall."""
 import importlib.util
 import json

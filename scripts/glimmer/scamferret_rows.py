@@ -97,7 +97,7 @@ def screenshots(path, limits, found=None):
     return found
 
 
-def export(path, found, out, receipt, limits):
+def export(path, found, out, receipt, limits, stage_only=False):
     """Second pass: one row a page, written as its parts arrive. Returns the ids written."""
     pending, written, seen, done = {}, set(), set(), set()
     temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
@@ -125,6 +125,7 @@ def export(path, found, out, receipt, limits):
                     if item_id in seen:  # a member the archive holds twice is one item
                         continue
                     seen.add(item_id)
+                    receipt.note_inventory(item_id)
                     # Bounded before the page is read, and again as it is decompressed.
                     limits.check_allocation(member.size, item_id)
                     if member.size > MAX_HTML:
@@ -170,7 +171,8 @@ def export(path, found, out, receipt, limits):
                         html = row["html"]
                         write(sink, row["id"], key, pending.pop(key))
                         limits.release_retained(len(html) + len(encoded))
-        os.replace(temporary, out)
+        if not stage_only:
+            os.replace(temporary, out)
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
@@ -188,19 +190,21 @@ def main(argv=None):
         print(f"scamferret-rows: {path} is missing", file=sys.stderr)
         return 2
     out = folder / "rows.jsonl"
-    receipt, limits = Receipt(), Limits()
+    temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
+    limits = Limits()
+    receipt = Receipt(limits)
     try:
         # Nothing is read from an archive that is not the one bound in the manifest.
         _, inputs_digest = verify(folder, INPUT_FILES)
         remove_dead_staging(folder)
         found = screenshots(path, limits)
         limits.new_pass()  # the second pass counts its own entries and bytes, but not its own clock
-        written = export(path, found, out, receipt, limits)
+        written = export(path, found, out, receipt, limits, stage_only=True)
+        receipt.publish(folder, temporary, out, Path(__file__), inputs_digest)  # every page met, named (§28 G3)
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
+        temporary.unlink(missing_ok=True)
         print(f"scamferret-rows: refused ({error})", file=sys.stderr)
         return 1
-    exported = receipt.write(folder, out, Path(__file__), inputs_digest)
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])  # every page met, named (§28 G3)
     rejected = sum(receipt.rejected.values())
     print(f"scamferret-rows: {len(written)} rows ({rejected} rejected) into {out}")
     return 0

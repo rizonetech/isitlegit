@@ -35,6 +35,11 @@ Loupe, IsItLegit's page screener, is a LoRA of Muse Glimmer 30B trained on these
 | `7-days-later`: 7 Days Later: Analyzing Phishing-Site Lifespan After Detected, the public sample (https://zenodo.org/records/14885725, DOI 10.5281/zenodo.14885725) | CC BY 4.0 | By Kyungchan Lim, Kiho Lee, Hyoungshick Kim, Yonghwi Kwon and Doowon Kim. The live captures of its phishing URLs, rendered without scripts or network, and their labels train Loupe. |
 | `look-for-mallory`: Look For Mallory (https://www.kaggle.com/datasets/rmdhirr/look-for-mallory) | Apache 2.0 | By its Kaggle publisher (rmdhirr). A seeded sample of its HTML pages and labels trains Loupe. |
 | `majestic`: Majestic Million (https://majestic.com/reports/majestic-million) | CC BY 3.0 | By Majestic. Its domain ranking chooses the benign homepages IsItLegit renders itself for training (D03 T04 §6). |
+| `ows`: A Comprehensive Dataset for Webpage Classification, Part 1 (https://zenodo.org/records/10775260) | CC BY 4.0 | Its malicious HTML file only (never the adult file); the Phishing sublabel's pages, rendered without scripts or network, train Loupe 1.1. |
+| `phishingeval-ji`: Evaluating the Effectiveness and Robustness of Visual Similarity-based Phishing Detection (https://zenodo.org/records/14668190) | CC BY 4.0 | By Fujiao Ji and co-authors (USENIX Security 2025). Named subsets only (phishing4190, crawl_benign, archive100, expand277): their HTML and screenshots train Loupe 1.1, brands as grouping only. |
+| `phishdecloaker`: PhishDecloaker Datasets (https://zenodo.org/records/11228974) | CC BY 4.0 | Its phishing kits' static HTML pages, rendered without scripts or network, train Loupe 1.1; the kits' code is never run. |
+| `putra`: Phishing Website Dataset (https://zenodo.org/records/8041387) | CC BY 4.0 | By Putra and co-authors. Five of its 500-site zips only (four phishing, one not-phishing) plus its CSVs train Loupe 1.1, brands as grouping only. |
+| `van-dooremaal-ares-2021`: ARES Phishing website dataset (https://zenodo.org/records/4922598) | CC BY 4.0 | By van Dooremaal and co-authors. Its phishing and benign rawdata archives only train Loupe 1.1. |
 
 ## Entering the build
 

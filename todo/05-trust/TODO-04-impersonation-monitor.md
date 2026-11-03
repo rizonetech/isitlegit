@@ -41,7 +41,7 @@ track: day-6
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [x] |
 | 10 | §10 | Findings exported to | §5 | [x] |
-| 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §46 | [ ] |
+| 11 | §11 | Settled pages handed to Loupe capture | §4, D03 T04 §49 | [ ] |
 | 12 | §12 | Monitor case allowance and quality | §4 | [x] |
 | 13 | §13 | Unseeded autonomous discovery evaluation | §6, §7, §12 | [ ] |
 
@@ -366,7 +366,7 @@ Loupe gets better on real South African lures only if what the monitor learns fl
 
 ## 11. Settled pages handed to Loupe capture
 
-Every settled monitor page (§3 and §4's screens) and every settled case page (the vision step's read of a case's page) is handed to Loupe's capture (`captureScreenedPage` in `scripts/glimmer/store.ts`, D03 T04 §46, vision lane) so Loupe trains on pages as they were judged, not as they later became. Filed 2026-11-02 at the coordinator's routing of vision D03 T04 §46's plan review gap 2: vision builds the store, clearance, labelling, queue and admission in §46; the producers, the durable production-to-local transfer and retries are this section's.
+Every settled monitor page (§3 and §4's screens) and every settled case page (the vision step's read of a case's page) is handed to Loupe's capture (`captureScreenedPage` in `scripts/glimmer/store.ts`, D03 T04 §49, vision lane) so Loupe trains on pages as they were judged, not as they later became. Filed 2026-11-02 at the coordinator's routing of vision D03 T04 §49's plan review gap 2: vision builds the store, clearance, labelling, queue and admission in §49; the producers, the durable production-to-local transfer and retries are this section's.
 
 **Phase:** 7
 **Needs:** cloudflare

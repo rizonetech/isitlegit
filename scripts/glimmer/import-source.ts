@@ -3,20 +3,68 @@
 // run's account goes to `<store>/raw/<source>/IMPORT.json` (temp-then-rename): items expected, imported (new pages),
 // duplicates (pages already stored, so a rerun stores nothing twice), excluded (each with its item and reason: an item
 // that failed to load or store), filtered (each with its item and reason: a page that loaded but renders almost no
-// text, which no rerun changes) and stored (the source's pages in the store afterwards). More than 5 percent excluded,
+// text, which no rerun changes) and stored (the source's pages in the store afterwards). More than 15 percent excluded,
 // or a stop on a write failure,
-// reads `incomplete`; the source is not used until a rerun completes it.
+// reads `incomplete`; the source is not used until a rerun completes it. The bar is 15 percent for Loupe 1.1
+// (coordinator decision, 2026-11-02): the section 19 redaction tightened after the 1.0 store was built, and its
+// survivor refusals exclude about 12 percent of the sample items, every one of which stays excluded from every
+// dataset. Reversal cost: this one constant back to 0.05 and one re-import.
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  statfsSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
-import type { Labels, openStore, PageInput } from "./store.ts";
+import { captureProblem } from "./label-rules.ts";
+import type { Labels, openStore, PageInput, StoredPage } from "./store.ts";
 
-export const MAX_EXCLUDED_SHARE = 0.05;
+export const MAX_EXCLUDED_SHARE = 0.15;
 export const MIN_TEXT_CHARACTERS = 20;
 // An item gets this long to load, whatever its loader does: a load that never settles becomes the item's exclusion,
 // so no worker waits forever (the reader's own page deadline is 30 seconds; this is the backstop around it).
 export const ITEM_DEADLINE_MS = 120_000;
+
+export function defaultFreeBytes(dir: string): number {
+  const st = statfsSync(dir);
+  return Number(st.bavail) * Number(st.bsize);
+}
+
+function existingMetaBytes(dir: string, pageId: string): number {
+  const metaPath = join(dir, "pages", pageId, "meta.json");
+  try {
+    return existsSync(metaPath) ? statSync(metaPath).size : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function checkFreeSpace(
+  dir: string,
+  minFreeBytes: number,
+  freeBytes: (dir: string) => number = defaultFreeBytes,
+  neededBytes = 1,
+): number {
+  if (!minFreeBytes || minFreeBytes <= 0) return 0;
+  const pending = Math.max(1, Math.ceil(neededBytes));
+  const free = freeBytes(dir);
+  if (free - pending < minFreeBytes) {
+    const err = new Error(
+      `only ${free} bytes free under ${dir}; writing ${pending} bytes would breach the ${minFreeBytes} byte reserve (${minFreeBytes} bytes must stay free)`,
+    ) as NodeJS.ErrnoException;
+    err.code = "ENOSPC";
+    throw err;
+  }
+  return free;
+}
 
 function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
@@ -28,7 +76,13 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 
 export type SourceItem = {
   id: string; // the item's name inside the dataset, for exclusions
-  load: () => Promise<{ screenshot: Uint8Array; text: string; has_login_form?: boolean; has_payment_form?: boolean }>;
+  load: () => Promise<{
+    screenshot: Uint8Array;
+    text: string;
+    has_login_form?: boolean | undefined;
+    has_payment_form?: boolean | undefined;
+    evidence?: PageInput["evidence"];
+  }>;
   // The screenshot is the dataset's live capture while the text and form flags come from an inert copy of its HTML
   // (7 Days Later, §18): a form a script builds shows in the picture and not in the copy, so a false flag is untrusted.
   inertFlags?: boolean;
@@ -122,19 +176,39 @@ export function concurrencyArg(argv: string[] = process.argv): number {
 export const IMPORT_ITEMS = "ITEMS.import.jsonl";
 export type ImportOutcome = {
   item: string;
+  input?: string | undefined;
   outcome: "imported" | "duplicate" | "stored" | "excluded" | "filtered";
   page?: string;
   reason?: string;
 };
-export function writeImportItems(path: string, binding: { inputs: string; rows: string }, outcomes: ImportOutcome[]) {
+export function writeImportItems(
+  path: string,
+  binding: { inputs: string; rows: string; export?: string | undefined; import?: string | undefined },
+  outcomes: ImportOutcome[],
+  options: { write?: (path: string, data: string) => void } = {},
+) {
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  const lines = [
-    JSON.stringify({ inputs: binding.inputs, rows: binding.rows }),
-    ...outcomes.map((o) => JSON.stringify(o)),
-  ];
-  writeFileSync(temporary, `${lines.join("\n")}\n`);
-  renameSync(temporary, path);
+  const header = {
+    inputs: binding.inputs,
+    rows: binding.rows,
+    ...(binding.export ? { export: binding.export } : {}),
+    ...(binding.import ? { import: binding.import } : {}),
+  };
+  const lines = [JSON.stringify(header), ...outcomes.map((o) => JSON.stringify(o))];
+  const written = `${lines.join("\n")}\n`;
+  try {
+    (options.write ?? ((p, d) => writeFileSync(p, d)))(temporary, written);
+    renameSync(temporary, path);
+  } catch (error) {
+    try {
+      if (existsSync(temporary)) writeFileSync(temporary, "");
+    } catch {
+      // ignore cleanup error
+    }
+    throw error;
+  }
+  if (readFileSync(path, "utf-8") !== written) throw new Error(`${path} did not read back as written`);
 }
 
 export function writeImport(path: string, result: ImportResult): void {
@@ -165,10 +239,29 @@ export async function importSource(options: {
   redacted?: boolean;
   southAfrica?: boolean;
   // The converter's binding for the rows imported (`exportBinding`), recorded in IMPORT.json.
-  binding?: { inputs: string; rows: string };
+  binding?: { inputs: string; rows: string; export?: string };
+  // Test hooks for interrupted or failing ledger writes (D03 T04 §28 plan review gap 5).
+  afterImportWrite?: () => void;
+  writeLedger?: (path: string, data: string) => void;
+  // Minimum free bytes on the store filesystem during conversion and import (D03 T04 §44 plan review gap 2).
+  minFreeBytes?: number;
+  freeBytes?: (dir: string) => number;
+  // Pre-publication coverage hook run while IMPORT.json is still `running` (D03 T04 §44 Round 1 finding 1).
+  beforePublish?: (storedPages: StoredPage[]) => string | undefined;
 }): Promise<ImportResult> {
   const { source, store, items } = options;
   const importJson = options.importJson ?? join(store.dir, "raw", source, "IMPORT.json");
+  const publicationReserveBytes = items.length * 256 + 16_384;
+  let initialFree: number | undefined;
+  let committedBytes = 0;
+  const effectiveFreeBytes = (dir: string): number => {
+    const current = (options.freeBytes ?? defaultFreeBytes)(dir);
+    if (initialFree === undefined) initialFree = current;
+    return Math.min(current, initialFree - committedBytes);
+  };
+  if (options.minFreeBytes && options.minFreeBytes > 0) {
+    checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, publicationReserveBytes);
+  }
   // Tolerant: a page whose record does not read is damaged, and this run repairs it rather than failing on it.
   const manifest = store.manifest({ tolerant: true });
   const before = new Set(manifest.map((page) => page.id));
@@ -202,8 +295,14 @@ export async function importSource(options: {
   let skipped = 0;
   let relabelled = 0;
   let rerendered = 0;
+  let inFlightBytes = 0;
   const outcomes = new Map<string, ImportOutcome>();
-  const record = (outcome: ImportOutcome) => outcomes.set(outcome.item, outcome);
+  const record = (outcome: ImportOutcome) => {
+    const clean = { ...outcome };
+    if (clean.input === undefined) delete clean.input;
+    outcomes.set(clean.item, clean);
+  };
+  const itemDigest = (item: SourceItem): string | undefined => item.input;
   let imported = 0;
   let duplicates = 0;
   let stopped: string | undefined;
@@ -212,6 +311,14 @@ export async function importSource(options: {
   let next = 0;
   async function worker() {
     while (!stopped && next < items.length) {
+      if (options.minFreeBytes && options.minFreeBytes > 0) {
+        try {
+          checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
+        } catch (error) {
+          stopped = (error as Error).message.split("\n")[0] ?? "low disk space";
+          break;
+        }
+      }
       const item = items[next++] as SourceItem;
       let stored = intactByItem.get(item.id);
       // An item whose input changed since its page was rendered (§28 G4): it leaves that page (the page is removed when
@@ -222,8 +329,29 @@ export async function importSource(options: {
         const others = (stored.items?.map((entry) => entry.id) ?? [stored.item as string]).filter(
           (id) => id !== item.id,
         );
-        if (others.length) store.keepItems(stored.id, others);
-        else store.removePage(stored.id);
+        if (others.length) {
+          const keepBytes = existingMetaBytes(store.dir, stored.id) + 512;
+          inFlightBytes += keepBytes;
+          try {
+            if (options.minFreeBytes && options.minFreeBytes > 0) {
+              checkFreeSpace(
+                store.dir,
+                options.minFreeBytes,
+                effectiveFreeBytes,
+                inFlightBytes + publicationReserveBytes,
+              );
+            }
+            const updated = store.keepItems(stored.id, others);
+            for (const otherId of others) intactByItem.set(otherId, updated);
+          } catch (error) {
+            stopped = (error as Error).message.split("\n")[0] ?? "store failed";
+            break;
+          } finally {
+            inFlightBytes = Math.max(0, inFlightBytes - keepBytes);
+          }
+        } else {
+          store.removePage(stored.id);
+        }
         intactByItem.delete(item.id);
         rerendered++;
         stored = undefined;
@@ -249,26 +377,61 @@ export async function importSource(options: {
           JSON.stringify(labels) !== JSON.stringify(stored.labels) ||
           JSON.stringify(label_source) !== JSON.stringify(stored.label_source);
         if (changed) {
-          store.setLabels(stored.id, labels, label_source, options.licence);
-          relabelled++;
+          const relabelBytes =
+            existingMetaBytes(store.dir, stored.id) +
+            Buffer.byteLength(JSON.stringify({ labels, label_source, licence: options.licence }, null, 2), "utf-8") +
+            512;
+          inFlightBytes += relabelBytes;
+          try {
+            if (options.minFreeBytes && options.minFreeBytes > 0) {
+              checkFreeSpace(
+                store.dir,
+                options.minFreeBytes,
+                effectiveFreeBytes,
+                inFlightBytes + publicationReserveBytes,
+              );
+            }
+            store.setLabels(stored.id, labels, label_source, options.licence);
+            relabelled++;
+          } catch (error) {
+            stopped = (error as Error).message.split("\n")[0] ?? "store failed";
+            break;
+          } finally {
+            inFlightBytes = Math.max(0, inFlightBytes - relabelBytes);
+          }
         }
         skipped++;
-        record({ item: item.id, outcome: "stored", page: stored.id });
+        record({ item: item.id, input: itemDigest(item), outcome: "stored", page: stored.id });
         continue;
       }
       let page: Awaited<ReturnType<SourceItem["load"]>>;
       try {
         page = await withDeadline(item.load(), options.itemMs ?? ITEM_DEADLINE_MS);
       } catch (error) {
-        excluded.push({ item: item.id, reason: (error as Error).message.split("\n")[0] ?? "load failed" });
-        record({ item: item.id, outcome: "excluded", reason: excluded.at(-1)?.reason as string });
+        const reason = (error as Error).message.split("\n")[0] ?? "load failed";
+        if ((error as NodeJS.ErrnoException).code === "ENOSPC") {
+          stopped = reason;
+          break;
+        }
+        excluded.push({ item: item.id, reason });
+        record({
+          item: item.id,
+          input: itemDigest(item),
+          outcome: "excluded",
+          reason: excluded.at(-1)?.reason as string,
+        });
         continue;
       }
-      // A page that renders to almost no text (a script-only shell, a blank frame) teaches nothing: it is filtered out,
-      // and counted apart from failures, because it is what the dataset holds rather than an import that went wrong.
-      if (page.text.trim().length < MIN_TEXT_CHARACTERS) {
-        filtered.push({ item: item.id, reason: `renders under ${MIN_TEXT_CHARACTERS} characters of text` });
-        record({ item: item.id, outcome: "filtered", reason: filtered.at(-1)?.reason as string });
+      // Why a capture cannot carry its publisher's label (§28 G6 and plan review gap 6): an empty page with no text or
+      // form, a parked or error page, or a textual or structural wall is filtered out with its reason; a sparse lure
+      // with a logo and form fields is admitted. Redacted client samples still filter script-only shells under 20 chars.
+      const problem =
+        options.origin === "samples" && page.text.trim().length < MIN_TEXT_CHARACTERS
+          ? `renders under ${MIN_TEXT_CHARACTERS} characters of text`
+          : captureProblem(page.text, page.evidence, page);
+      if (problem) {
+        filtered.push({ item: item.id, reason: problem });
+        record({ item: item.id, input: itemDigest(item), outcome: "filtered", reason: problem });
         continue;
       }
       const labels: Labels = { ...item.labels };
@@ -284,30 +447,63 @@ export async function importSource(options: {
         label_source.has_payment_form = flagSource(page.has_payment_form);
       }
       const host = hostOf(item.url);
+      const digest = itemDigest(item);
+      const pageInput: PageInput = {
+        screenshot: page.screenshot,
+        text: page.text,
+        origin: options.origin ?? "public",
+        licence: options.licence,
+        host,
+        template: null,
+        south_africa: options.southAfrica || (host?.endsWith(".za") ?? false),
+        labels,
+        label_source,
+        redacted: options.redacted ?? false,
+        item: item.id,
+        ...(digest ? { input: digest } : {}),
+        ...(page.evidence ? { evidence: page.evidence } : {}),
+      };
+      const { screenshot: _screenshot, text: _text, ...metaFields } = pageInput;
+      const serializedMetaBytes = Buffer.byteLength(
+        `${JSON.stringify(
+          {
+            ...metaFields,
+            source,
+            sha256: { screenshot: "0".repeat(64), text: "0".repeat(64) },
+          },
+          null,
+          2,
+        )}\n`,
+        "utf-8",
+      );
+      const contentDigest = createHash("sha256").update(page.screenshot).update("\0").update(page.text).digest("hex");
+      const candidateId = `${source}-${contentDigest.slice(0, 16)}`;
+      const duplicateItemBytes = Buffer.byteLength(
+        JSON.stringify({ id: item.id, input: digest, lure: labels.lure, lure_type: labels.lure_type }, null, 2),
+        "utf-8",
+      );
+      const duplicateMetaBytes = before.has(candidateId)
+        ? existingMetaBytes(store.dir, candidateId) + duplicateItemBytes + 256
+        : 0;
+      const newPageBytes = page.screenshot.byteLength + Buffer.byteLength(page.text, "utf-8") + serializedMetaBytes;
+      const pageBytes = Math.max(duplicateMetaBytes, newPageBytes) + 256;
+      inFlightBytes += pageBytes;
       try {
-        const id = await store.putPage(source, {
-          screenshot: page.screenshot,
-          text: page.text,
-          origin: options.origin ?? "public",
-          licence: options.licence,
-          host,
-          template: null,
-          south_africa: options.southAfrica || (host?.endsWith(".za") ?? false),
-          labels,
-          label_source,
-          redacted: options.redacted ?? false,
-          item: item.id,
-          ...(item.input ? { input: item.input } : {}),
-        });
+        if (options.minFreeBytes && options.minFreeBytes > 0) {
+          checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, inFlightBytes + publicationReserveBytes);
+        }
+        const id = await store.putPage(source, pageInput);
         if (before.has(id)) {
           duplicates++;
           // Another item with this content: kept on the page with its own lure label, never dropped (§28, G3).
-          store.addItem(id, { id: item.id, input: item.input, lure: labels.lure, lure_type: labels.lure_type });
-          record({ item: item.id, outcome: "duplicate", page: id });
+          store.addItem(id, { id: item.id, input: digest, lure: labels.lure, lure_type: labels.lure_type });
+          committedBytes += duplicateItemBytes;
+          record({ item: item.id, input: digest, outcome: "duplicate", page: id });
         } else {
           before.add(id);
           imported++;
-          record({ item: item.id, outcome: "imported", page: id });
+          committedBytes += newPageBytes;
+          record({ item: item.id, input: digest, outcome: "imported", page: id });
         }
       } catch (error) {
         const reason = (error as Error).message.split("\n")[0] ?? "store failed";
@@ -315,8 +511,10 @@ export async function importSource(options: {
         if ((error as NodeJS.ErrnoException).code) stopped = reason;
         else {
           excluded.push({ item: item.id, reason });
-          record({ item: item.id, outcome: "excluded", reason });
+          record({ item: item.id, input: digest, outcome: "excluded", reason });
         }
+      } finally {
+        inFlightBytes = Math.max(0, inFlightBytes - pageBytes);
       }
       const handled = imported + duplicates + skipped + excluded.length + filtered.length;
       if (handled % 250 === 0) options.log?.(`${source}: ${handled} of ${items.length}`);
@@ -336,21 +534,43 @@ export async function importSource(options: {
   // render failed or was excluded is then on no page, never on its old content. An unbound import only reports them.
   let replaced = 0;
   if (options.binding && !stopped)
-    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source && p.item)) {
+    for (const page of store.manifest({ tolerant: true, source }).filter((p) => p.source === source && p.item)) {
       const ids = page.items?.map((entry) => entry.id) ?? [page.item as string];
       const live = ids.filter((id) => listed.has(id));
       if (live.length === ids.length) continue;
-      if (live.length) store.keepItems(page.id, live);
-      else store.removePage(page.id);
+      if (live.length) {
+        if (options.minFreeBytes && options.minFreeBytes > 0) {
+          try {
+            checkFreeSpace(
+              store.dir,
+              options.minFreeBytes,
+              effectiveFreeBytes,
+              existingMetaBytes(store.dir, page.id) + publicationReserveBytes + 512,
+            );
+          } catch (error) {
+            stopped = (error as Error).message.split("\n")[0] ?? "low disk space";
+            break;
+          }
+        }
+        store.keepItems(page.id, live);
+      } else store.removePage(page.id);
       replaced++;
     }
-  const sourcePages = store.manifest({ tolerant: true }).filter((page) => page.source === source);
+  const sourcePages = store.manifest({ tolerant: true, source }).filter((page) => page.source === source);
   const stored = sourcePages.length;
   const stale = stopped ? 0 : sourcePages.filter((page) => page.item && !listed.has(page.item)).length;
   const legacy = sourcePages.filter((page) => !page.item).length;
+  let coverageFailure: string | undefined;
+  if (!stopped && !tooMany && !stillDamaged && !stale && options.beforePublish) {
+    try {
+      coverageFailure = options.beforePublish(sourcePages);
+    } catch (error) {
+      coverageFailure = (error as Error).message.split("\n")[0] ?? "coverage check failed";
+    }
+  }
   const result: ImportResult = {
-    ...(options.binding ?? {}),
-    status: stopped || tooMany || stillDamaged || stale ? "incomplete" : "complete",
+    ...(options.binding ? { inputs: options.binding.inputs, rows: options.binding.rows } : {}),
+    status: stopped || tooMany || stillDamaged || stale || coverageFailure ? "incomplete" : "complete",
     expected: items.length,
     imported,
     duplicates,
@@ -369,29 +589,77 @@ export async function importSource(options: {
         : stale
           ? { reason: `${stale} stored pages are not in the dataset any more; remove them` }
           : tooMany
-            ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
-            : {}),
+            ? { reason: `${excluded.length} of ${items.length} items excluded (over 15 percent)` }
+            : coverageFailure
+              ? { reason: coverageFailure }
+              : {}),
     started: started.toISOString(),
     finished: new Date().toISOString(),
     seconds: Math.round((Date.now() - started.getTime()) / 1000),
     pages_per_minute: Math.round(((imported + duplicates) * 60_000) / Math.max(1, Date.now() - started.getTime())),
     concurrency,
   };
-  // The ledger before the record: a complete IMPORT.json never stands beside an earlier run's ledger. A page an
-  // import later settled (removed, or its item moved) is read back from the store, so the ledger names where each
-  // item is now.
-  if (options.binding && !stopped) {
-    const where = new Map<string, string>();
-    for (const page of store.manifest({ tolerant: true }).filter((p) => p.source === source))
-      for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
-    const settled = items.map((item): ImportOutcome => {
-      const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
-      if (had.page && !where.has(item.id))
-        return { item: item.id, outcome: "excluded", reason: "its page was settled away" };
-      return had.page ? { ...had, page: where.get(item.id) as string } : had;
-    });
-    writeImportItems(join(dirname(importJson), IMPORT_ITEMS), options.binding, settled);
+  const plannedImport = options.publish === false ? { ...result, status: "running" as const } : result;
+  try {
+    options.afterImportWrite?.();
+    // The import ledger is bound to the inputs, export and import digests it belongs to, written temp-then-replace and
+    // read back before IMPORT.json publishes `complete` (§28 plan review gap 5 and completion review G9). A failure or
+    // stop here marks IMPORT.json incomplete, and a hard kill before writeImport leaves IMPORT.json as `running`.
+    const importText = `${JSON.stringify(plannedImport, null, 2)}\n`;
+    if ((options.binding || options.writeLedger) && !stopped) {
+      const binding = options.binding ?? { inputs: "", rows: "" };
+      const where = new Map<string, string>();
+      for (const page of sourcePages)
+        for (const id of page.items?.map((entry) => entry.id) ?? (page.item ? [page.item] : [])) where.set(id, page.id);
+      const settled = items.map((item): ImportOutcome => {
+        const digest = itemDigest(item);
+        const had = outcomes.get(item.id) ?? { item: item.id, outcome: "excluded", reason: "not reached" };
+        if (had.page && !where.has(item.id))
+          return {
+            item: item.id,
+            ...(digest ? { input: digest } : {}),
+            outcome: "excluded",
+            reason: "its page was settled away",
+          };
+        return had.page
+          ? { ...had, ...(digest ? { input: digest } : {}), page: where.get(item.id) as string }
+          : { ...had, ...(digest ? { input: digest } : {}) };
+      });
+      const exportFile = join(dirname(importJson), "EXPORT.json");
+      const exportDigest = binding.export ?? (existsSync(exportFile) ? fileSha256(exportFile) : undefined);
+      const importDigest = createHash("sha256").update(importText, "utf-8").digest("hex");
+      const itemsOnlyBytes = settled.reduce(
+        (sum, entry) => sum + Buffer.byteLength(JSON.stringify(entry), "utf-8") + 1,
+        256,
+      );
+      const ledgerBytes = Buffer.byteLength(importText, "utf-8") + itemsOnlyBytes;
+      if (options.minFreeBytes && options.minFreeBytes > 0) {
+        checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, ledgerBytes);
+      }
+      writeImportItems(
+        join(dirname(importJson), IMPORT_ITEMS),
+        { ...binding, export: exportDigest, import: importDigest },
+        settled,
+        options.writeLedger ? { write: options.writeLedger } : {},
+      );
+      committedBytes += itemsOnlyBytes;
+    }
+    if (options.minFreeBytes && options.minFreeBytes > 0) {
+      checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, Buffer.byteLength(importText, "utf-8"));
+    }
+    writeImport(importJson, plannedImport);
+  } catch (error) {
+    result.status = "incomplete";
+    if (!result.reason) result.reason = (error as Error).message;
+    try {
+      if (options.minFreeBytes && options.minFreeBytes > 0) {
+        const failureBytes = Buffer.byteLength(`${JSON.stringify(result, null, 2)}\n`, "utf-8");
+        checkFreeSpace(store.dir, options.minFreeBytes, effectiveFreeBytes, failureBytes);
+      }
+      writeImport(importJson, result);
+    } catch {
+      // Insufficient free space to publish the failure receipt: preserve the already-published `running` receipt.
+    }
   }
-  writeImport(importJson, options.publish === false ? { ...result, status: "running" } : result);
   return result;
 }

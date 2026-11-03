@@ -50,9 +50,11 @@ export function phreshItem(
   // text and the form flags.
   shot?: () => Uint8Array,
 ): SourceItem {
+  const inputProp = (row as PhreshIndex).input ? { input: (row as PhreshIndex).input as string } : {};
   if ((row as PhreshIndex).oversized) {
     const reason = `the row is over ${MAX_ROW_BYTES / 1024 / 1024} MB`;
     return {
+      ...inputProp,
       id: row.sha256,
       url: null,
       labels: {},
@@ -63,6 +65,7 @@ export function phreshItem(
   if (row.label !== "phish" && row.label !== "benign") {
     const reason = `label "${String(row.label).slice(0, 40)}" is neither phish nor benign`;
     return {
+      ...inputProp,
       id: row.sha256,
       url: row.url,
       labels: {},
@@ -73,7 +76,7 @@ export function phreshItem(
   const lure = row.label === "phish";
   const brand = row.target && row.target.toLowerCase() !== "other" ? row.target.slice(0, 200) : null;
   return {
-    ...((row as PhreshIndex).input ? { input: (row as PhreshIndex).input as string } : {}),
+    ...inputProp,
     id: row.sha256,
     url: row.url,
     labels: lure ? { lure: true, ...(brand ? { brand } : {}) } : { lure: false, lure_type: "none" },
@@ -102,9 +105,12 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
     let lineStart = 0;
     let lineNumber = 0;
     let position = 0;
+    let lineHasher = createHash("sha256");
     const finish = (end: number) => {
       lineNumber++;
       const length = end - lineStart;
+      const input = lineHasher.digest("hex");
+      lineHasher = createHash("sha256");
       // A row over the limit is neither held whole nor parsed: it becomes one item's exclusion.
       if (length > MAX_ROW_BYTES) {
         pending = [];
@@ -119,6 +125,7 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
           shot: false,
           oversized: true,
           identity,
+          input,
         });
         return;
       }
@@ -128,11 +135,11 @@ export async function indexRows(path: string): Promise<PhreshIndex[]> {
       held = 0;
       if (line.trim()) {
         const { html: _html, screenshot, ...row } = JSON.parse(line) as PhreshRow;
-        const input = createHash("sha256").update(bytes).digest("hex");
         index.push({ ...row, offset: lineStart, length, shot: Boolean(screenshot), identity, input });
       }
     };
     const hold = (part: Buffer) => {
+      if (part.length > 0) lineHasher.update(part);
       if (held <= MAX_ROW_BYTES) pending.push(Buffer.from(part));
       held += part.length;
     };

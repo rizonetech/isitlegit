@@ -36,7 +36,21 @@ import { type Browser, type BrowserContext, chromium } from "playwright-core";
 import { getDomain } from "tldts";
 import { HOST } from "../../src/vision/page-screen.ts";
 import { chromiumPath } from "../lib/chromium.ts";
-import { bounded, type FormFlags, normaliseScreenshot, readFormFlags, shownText } from "./source-pages.ts";
+import {
+  bounded,
+  CHALLENGE,
+  type FormFlags,
+  NO_SITE,
+  NOT_FOUND,
+  normaliseScreenshot,
+  readFormFlags,
+  readWalls,
+  shownText,
+  wallShown,
+} from "./source-pages.ts";
+
+export { CHALLENGE, NO_SITE, NOT_FOUND, readWalls, wallShown };
+
 import { MAX_HEIGHT, MAX_WIDTH, openStore, PAGE_KINDS, type PageInput, type StoredPage, storeDir } from "./store.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -151,153 +165,6 @@ export class HttpStatus extends Error {
     super(`HTTP ${status}`);
     this.status = status;
   }
-}
-
-// Signs that the page is not the site but a wall in front of it. Run inside the page.
-export function readWalls(): {
-  captcha: boolean;
-  consentWall: boolean;
-  overlays: string;
-  challengeCover: boolean;
-  imageCover: boolean;
-} {
-  const width = innerWidth;
-  const height = innerHeight;
-  // The browser's own methods, never ones the page left on an element (see `readFormFlags`).
-  const area = (el: Element) => {
-    const box = Element.prototype.getBoundingClientRect.call(el);
-    return (
-      Math.max(0, Math.min(box.right, width) - Math.max(box.left, 0)) *
-      Math.max(0, Math.min(box.bottom, height) - Math.max(box.top, 0))
-    );
-  };
-  const shown = (el: Element) =>
-    Element.prototype.checkVisibility.call(el, { opacityProperty: true, visibilityProperty: true });
-  // Every element, those inside open shadow roots included: a consent manager often draws its banner in one.
-  const all: Element[] = [];
-  const walk = (root: Document | ShadowRoot) => {
-    for (const el of root.querySelectorAll("*")) {
-      all.push(el);
-      if (el.shadowRoot) walk(el.shadowRoot);
-    }
-  };
-  walk(document);
-  const frames = all.filter((el): el is HTMLIFrameElement => el instanceof HTMLIFrameElement);
-  // A challenge the viewer must solve, not a protection badge: a visible CAPTCHA frame larger than a corner badge.
-  const captcha = frames.some((frame) => {
-    if (
-      !/recaptcha|hcaptcha|challenges\.cloudflare\.com|turnstile|arkoselabs|funcaptcha|captcha/i.test(frame.src || "")
-    )
-      return false;
-    // A widget the viewer is asked to solve (a Turnstile, hCaptcha or reCAPTCHA checkbox is about 300 by 65), not the
-    // invisible kind's corner badge (`size=invisible`).
-    if (/[?&]size=invisible\b/i.test(frame.src || "")) return false;
-    const box = Element.prototype.getBoundingClientRect.call(frame);
-    return shown(frame) && box.width >= 150 && box.height >= 50 && area(frame) > 0;
-  });
-  const consentWords =
-    /we use cookies|accept (all )?cookies|(cookie|privacy) (settings|preferences)|manage cookies|consent to|your consent/i;
-  // A consent provider's own frame in front of the page.
-  const providerFrame = frames.some(
-    (frame) =>
-      /consent|cookiebot|onetrust|cookielaw|didomi|trustarc|quantcast|consensu\.org|privacy-mgmt|sourcepoint|usercentrics|cookiefirst|iubenda/i.test(
-        frame.src || "",
-      ) &&
-      shown(frame) &&
-      area(frame) >= 0.15 * width * height,
-  );
-  let covering = false;
-  let backdrop = false;
-  let dialog = false;
-  let cover = false;
-  // A large picture with almost no words of its own, in any position (a wall can sit in the page's flow): its words, if
-  // any, are in its pixels, which the render reads by OCR before storing the page.
-  let imageCover = false;
-  for (const el of all) {
-    if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
-    if (area(el) < 0.4 * width * height || !shown(el)) continue;
-    // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
-    if (((el as HTMLElement).innerText || "").trim().length >= 40) continue;
-    if (
-      el.matches("img, canvas, svg, video, object, embed") ||
-      getComputedStyle(el).backgroundImage !== "none" ||
-      el.querySelector("img, canvas, svg, video, object, embed")
-    )
-      imageCover = true;
-  }
-  const overlays: string[] = [];
-  for (const el of all) {
-    if (el === document.documentElement || el === document.body || el instanceof HTMLHeadElement) continue;
-    const style = getComputedStyle(el);
-    if (style.position !== "fixed" && style.position !== "absolute") continue;
-    if (!shown(el)) continue;
-    // What the overlay shows: its rendered text, and its open shadow root's own text, which `innerText` leaves out.
-    const rootText = el.shadowRoot
-      ? [...el.shadowRoot.childNodes]
-          .map((node) =>
-            node.nodeType === Node.TEXT_NODE ? (node.nodeValue ?? "") : (node as HTMLElement).textContent || "",
-          )
-          .join("\n")
-      : "";
-    // biome-ignore lint/performance/useDomNodeTextContent: what the overlay shows is the point
-    const text = `${(el as HTMLElement).innerText || ""}\n${rootText}`.trim();
-    const big = area(el) >= 0.5 * width * height;
-    // A consent wall asks for consent; a page wrapped whole in a positioned frame (Microsoft's sign-in) only links
-    // its "Privacy & cookies" policy in a footer.
-    if (big && text.length < 3000 && consentWords.test(text)) covering = true;
-    // A full-screen backdrop with almost nothing written on it, and a consent dialog of any size above the page.
-    if (big && text.trim().length < 40) backdrop = true;
-    if (text.length < 3000 && consentWords.test(text)) dialog = true;
-    // What sits over the page, wherever it is and however small: every shown positioned element's text, kept whole.
-    if (text.trim()) overlays.push(text.trim());
-    // A cover with no words of its own but a picture: an image, a canvas or a frame itself, one inside it, or a CSS
-    // background image. A wall drawn as an image.
-    if (
-      big &&
-      text.trim().length < 40 &&
-      (el.matches("img, canvas, svg, iframe, video, object, embed") ||
-        style.backgroundImage !== "none" ||
-        el.querySelector("img, canvas, svg, iframe, video, object, embed"))
-    )
-      cover = true;
-  }
-  // A cover drawn by a pseudo-element of any element: a fixed or absolute ::before or ::after with an image (its
-  // background or its content) spanning most of the view. Its box cannot be measured, so its computed size or its
-  // insets decide.
-  const spans = (size: string, start: string, end: string, view: number) =>
-    Number.parseFloat(size) >= 0.5 * view || (start === "0px" && end === "0px");
-  for (const el of all) {
-    for (const part of ["::before", "::after"]) {
-      const style = getComputedStyle(el, part);
-      if (style.content === "none" || style.content === "normal") continue;
-      // Words a pseudo-element draws (`content: "Press & Hold"`) reach no text reader: they join the overlays, when the
-      // element and its pseudo-element are shown (an inactive widget's hidden wording is not on the page).
-      if (!shown(el) || style.display === "none" || style.visibility === "hidden") continue;
-      const drawn = [...style.content.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) =>
-        (m[1] ?? "").replace(/\\(.)/g, "$1"),
-      );
-      if (drawn.join("").trim()) overlays.push(drawn.join(" ").trim());
-      if (style.position !== "fixed" && style.position !== "absolute") continue;
-      if (style.backgroundImage === "none" && !/url\(/.test(style.content)) continue;
-      if (spans(style.width, style.left, style.right, width) && spans(style.height, style.top, style.bottom, height))
-        cover = true;
-    }
-  }
-  // A bot-wall vendor's script on the page: HUMAN (PerimeterX), DataDome, Imperva (Incapsula), Akamai, hCaptcha.
-  // Cloudflare's challenge platform, GeeTest, Kasada, F5 (TSPD), Akamai's sensor and Arkose too.
-  const vendor = [...document.scripts].some((script) =>
-    /perimeterx|px-cdn|px-cloud|captcha-delivery|datadome|incapsula|_incapsula_|akam\/|hcaptcha|arkoselabs|funcaptcha|cdn-cgi\/challenge-platform|challenges\.cloudflare\.com|geetest|kasada|\/TSPD\/|_bm\/|sec-cpt|recaptcha\/(api|enterprise)/i.test(
-      script.src || "",
-    ),
-  );
-  return {
-    captcha,
-    consentWall: covering || providerFrame || (backdrop && dialog),
-    // Bounded only against a hostile page's size; the evidence kept with a stored page is cut later, after checking.
-    overlays: overlays.join("\n").slice(0, 200_000),
-    challengeCover: cover && vendor,
-    imageCover,
-  };
 }
 
 // A frame's owner element as its document lays it out, run on that element (`this`) in the document's isolated world:
@@ -428,34 +295,6 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   if (entry.brand && !brandShown(entry.brand, capture)) return `the listed brand (${entry.brand}) is not on the page`;
   return null;
 }
-
-// What a bot wall shows instead of the site: Cloudflare's, Akamai's, and HUMAN's "Press & Hold" and Imperva's checkbox
-// (both found stored as benign pages, 2026-10-29). Wording no page uses but a wall counts wherever it is drawn; wording a
-// page may use in passing ("access denied" in an article) counts in the title, the page's opening, or an overlay.
-export const CHALLENGE =
-  /just a moment|verify you are human|access denied|attention required|checking your browser|are you a robot|are you a human|press (&|and) hold|additional security check is required|pass the security check/i;
-// The hosts' and firewalls' own wording only: "I'm not a robot" is also a fake-CAPTCHA lure's, and "we have detected
-// unauthorized activity" a phishing line, so neither counts alone.
-const WALL_ONLY =
-  /are you a human|press (&|and) hold|additional security check is required|pass the security check|verify you are (a )?human|checking (if the site connection is secure|your browser)|your request is being verified|running an automatic check to ensure a safe connection|you are seeing this page because we have detected unauthori[sz]ed activity/i;
-// What a host shows where no site is (found stored as benign pages and evaluated on, 2026-10-31, D03 T04 §13): a
-// directory listing, an empty placeholder, a suspended hosting account. Read from the page's opening.
-export const NO_SITE =
-  /^\s*index of \/[\s\S]{0,300}?\blast modified\b|(there is|there's) (currently )?no content here|hosting account (associated with this domain )?(has been |is )?suspended/i;
-
-// Whether a capture (or a stored page's kept evidence) shows a bot wall, whitespace folded so "Press\n&\nHold" reads
-// as one phrase (§26, plan review gaps 3 and 4).
-export function wallShown(seen: { title: string; text: string; overlays: string; imageText?: string }): boolean {
-  const fold = (s: string) => s.replace(/\s+/g, " ");
-  // What OCR read off a picture covering the page counts as what is drawn over it.
-  const drawn = `${seen.overlays}\n${seen.imageText ?? ""}`;
-  const anywhere = fold(`${seen.title}\n${seen.text}\n${drawn}`);
-  const opening = fold(`${seen.title}\n${seen.text.slice(0, 2000)}\n${drawn}`);
-  return WALL_ONLY.test(anywhere) || CHALLENGE.test(opening);
-}
-
-export const NOT_FOUND =
-  /page not found|404 not found|error 404|\b404\b.{0,20}(page|error)|(page|file) (you|you're) (were )?looking for|(doesn't|does not|could not|can't|cannot) be found|no longer (exists|available)/i;
 
 const SIGN_IN_PATH =
   /(^|\/)(log-?in|sign-?in|signin|auth|authenticate|accounts?\/login|session\/new|oauth2?)(\/|$|\?|\.)/i;
@@ -669,11 +508,47 @@ function openEgress(allowOrigins: Set<string>, checked: ReturnType<typeof public
 // The browser's start has its own bound: one cold start on a loaded machine is not a page's render time.
 export const BROWSER_START_MS = 60_000;
 
+// One recorded response in a replay archive (§38): the status, headers and body a request was answered with, and
+// the later responses the same URL was answered with on the recorded visit, in order (a polled or re-requested URL).
+export type ReplayResponse = { status?: number; headers?: Record<string, string>; bodyBase64: string };
+export type ReplayEntry = ReplayResponse & { later?: ReplayResponse[] };
+// A replay archive (§38): every request URL the recorded page made, mapped to its recorded response.
+export type ReplayArchive = Record<string, ReplayEntry>;
+// Answers one replayed visit: each request gets the next recorded response for its exact method, URL and POST body,
+// the last one repeating once the recording runs out; an unrecorded request, method or POST body gets null.
+export function replayResponder(
+  archive: ReplayArchive,
+): (url: string, method?: string, postData?: string) => ReplayResponse | null {
+  const served = new Map<string, number>();
+  return (url, method = "GET", postData = "") => {
+    const verb = method.toUpperCase();
+    const key = verb === "GET" ? url : `${verb} ${url}${postData ? ` ${postData}` : ""}`;
+    const first = archive[key];
+    if (!first) return null;
+    const n = served.get(key) ?? 0;
+    served.set(key, n + 1);
+    const sequence: ReplayResponse[] = [first, ...(first.later ?? [])];
+    return sequence[Math.min(n, sequence.length - 1)] ?? null;
+  };
+}
+export function loadReplayArchive(file: string): ReplayArchive {
+  const parsed = JSON.parse(readFileSync(file, "utf-8")) as unknown;
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    throw new Error(`replay archive ${file} is not an object of recorded responses`);
+  for (const [url, entry] of Object.entries(parsed as Record<string, unknown>)) {
+    const e = entry as { bodyBase64?: unknown };
+    if (typeof e?.bodyBase64 !== "string") throw new Error(`replay archive entry for ${url} has no bodyBase64`);
+  }
+  return parsed as ReplayArchive;
+}
+
 export async function openRenderer(
   options: {
     allowOrigins?: string[];
     limitMs?: number;
     resolve?: Resolve;
+    // §38: serve every request from this recorded archive instead of the egress layer, refusing anything not recorded.
+    replay?: ReplayArchive;
     // How a browser is started (tests slow it or break it); Chromium's own launch otherwise.
     launch?: (launchOptions: Parameters<typeof chromium.launch>[0]) => Promise<Browser>;
     // A fault to raise when a frame is read (tests make a shown frame unreadable); none otherwise.
@@ -1085,11 +960,18 @@ export async function openRenderer(
   // The browser starts (or is reused) under its own bound; then the whole render, the context's setup included, runs
   // under one deadline. The context's close gets 5 seconds more, and a browser that does not close it is dropped, so
   // no worker waits on it again. The render's egress proxy closes with it, ending every outbound connection.
-  async function render(url: string): Promise<Capture> {
+  const replayRefusals: string[] = [];
+  // `recordHar` (§38, live only): the visit's every response, bodies embedded, written to that file when the visit's
+  // context closes, so a replay archive and the capture it is checked against come from the same visit. `replay` overrides
+  // the renderer's own archive for one visit so one shared browser can replay a whole corpus.
+  async function render(url: string, call: { recordHar?: string; replay?: ReplayArchive } = {}): Promise<Capture> {
     const mine = current();
     const browser = await mine;
-    const egress = openEgress(allowOrigins, checkedLookup);
-    const proxy = await egress.listen();
+    const replay = call.replay ?? options.replay;
+    const egress = replay
+      ? { refused: [] as string[], listen: async () => "", close: () => undefined }
+      : openEgress(allowOrigins, checkedLookup);
+    const proxy = replay ? "" : await egress.listen();
     const deadline = Date.now() + limitMs;
     let timer: NodeJS.Timeout | undefined;
     let context: BrowserContext | undefined;
@@ -1103,9 +985,28 @@ export async function openRenderer(
         serviceWorkers: "block",
         permissions: [],
         ignoreHTTPSErrors: false,
-        // `<-loopback>` sends loopback addresses through the proxy too, where they are refused.
-        proxy: { server: proxy, bypass: "<-loopback>" },
+        // `<-loopback>` sends loopback addresses through the proxy too, where they are refused. In replay (§38)
+        // there is no proxy and no egress: every request is answered from the archive or refused.
+        ...(replay ? {} : { proxy: { server: proxy, bypass: "<-loopback>" } }),
+        ...(call.recordHar && !replay ? { recordHar: { path: call.recordHar, content: "embed" as const } } : {}),
       });
+      if (replay) {
+        const respond = replayResponder(replay);
+        await made.route("**/*", async (route) => {
+          const req = route.request();
+          const entry = respond(req.url(), req.method(), req.postData() ?? "");
+          if (!entry) {
+            replayRefusals.push(req.url());
+            await route.abort();
+            return;
+          }
+          await route.fulfill({
+            status: entry.status ?? 200,
+            headers: entry.headers ?? {},
+            body: Buffer.from(entry.bodyBase64, "base64"),
+          });
+        });
+      }
       // Made after the deadline gave up on this render: closed here, since nothing else will.
       if (abandoned) {
         void bounded(made.close());
@@ -1163,6 +1064,8 @@ export async function openRenderer(
 
   return {
     render,
+    // §38: every request replay refused because it was not in the archive, in the order it was asked for.
+    replayRefusals: () => [...replayRefusals],
     openContexts: () => contexts.size,
     launches: () => launched,
     warmups: () => warmed,

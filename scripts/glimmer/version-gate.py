@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Whether a Loupe version may replace the one deployed (D03 T04 §13; operator, 2026-10-28 21:36 SAST: "on each version,
-the aim is to increase the instructions, with better quality, less false positives and more detections").
+"""Whether a Loupe version may replace the one deployed (D03 T04 §13; operator, 2026-11-02, D03 T04 §50).
 
     python3 scripts/glimmer/version-gate.py <new version> <previous version>
 
@@ -11,7 +10,7 @@ measurement `<store>/runs/eval-<version>/metrics.json`, measured on the same eva
      "south_africa": {"lure_recall": 0.9, "false_alarm_rate": 0.03}}
 
 and prints both versions' figures with their denominators, then `promote`, or `keep <previous>: <reason>`. The one
-gate (operator, 2026-11-02, D03 T04 §47) is that the new version is better on the same held-out file: lure recall
+gate (operator, 2026-11-02, D03 T04 §50) is that the new version is better on the same held-out file: lure recall
 higher with false alarms no higher, or false alarms lower with recall no lower. The South African slice prints and
 is no longer a gate, and neither is the number of training lines. Exit 0 to promote, 1 to keep, 2 when a record is
 missing or unreadable.
@@ -67,7 +66,7 @@ def decide(new, previous):
     for key in ("lure_recall", "false_alarm_rate"):
         if not isinstance(new_s.get(key), (int, float)) or not isinstance(old_s.get(key), (int, float)):
             return f"overall {key} is missing"
-    # The operator's one gate (§47): better, exactly. More training lines and the South African slice are recorded
+    # The operator's one gate (§50): better, exactly. More training lines and the South African slice are recorded
     # and printed, and neither vetoes a better version.
     better_recall = new_s["lure_recall"] > old_s["lure_recall"] and new_s["false_alarm_rate"] <= old_s["false_alarm_rate"]
     fewer_alarms = new_s["false_alarm_rate"] < old_s["false_alarm_rate"] and new_s["lure_recall"] >= old_s["lure_recall"]

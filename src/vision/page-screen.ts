@@ -7,7 +7,10 @@ import { randomNonce, stripDelimiters, UNTRUSTED_WARNING, untrustedBlock } from 
 
 export const LURE_TYPES = ["credential", "payment", "fake_shop", "impersonation", "none"] as const;
 
-// The model's answer. Strict, so an answer that tries to name its own screener, or anything else, is refused.
+// The model's answer for Loupe 1.0 (where brand is taught) and the runtime screener contract until 1.1 promotion
+// (switching the production runtime screener contract on promotion is owned by D03 T04 §36 and D03 T04 §50; monitor
+// persistence is owned by D05 T04 §3 in the trust lane). Strict, so an answer that tries to name its own screener, or
+// anything else, is refused.
 export const PageAnswer = z
   .strictObject({
     brand: z.string().min(1).max(200).nullable(),
@@ -22,6 +25,24 @@ export const PageAnswer = z
     path: ["lure_type"],
   });
 export type PageAnswer = z.infer<typeof PageAnswer>;
+
+// The model's answer from Loupe 1.1 onward (D03 T04 §45): brand is grouping metadata only, never taught or scored as
+// truth (and `brand: null` is not taught either; the `brand` field is omitted from the schema). Strict, so any answer
+// carrying `brand`, `screener`, or any other extra field is refused.
+export const BrandFreePageAnswer = z
+  .strictObject({
+    has_login_form: z.boolean(),
+    has_payment_form: z.boolean(),
+    lure: z.boolean(),
+    lure_type: z.enum(LURE_TYPES),
+    confidence: z.number().min(0).max(1),
+  })
+  .refine((answer) => (answer.lure_type === "none") === !answer.lure, {
+    message: "lure_type is none exactly when lure is false",
+    path: ["lure_type"],
+  });
+export type BrandFreePageAnswer = z.infer<typeof BrandFreePageAnswer>;
+export type VersionedPageAnswer = PageAnswer | (BrandFreePageAnswer & { brand?: undefined });
 
 export type Screener = "glimmer" | "spark";
 // The caller's record of a judgement: the answer plus which screener gave it, set here and never by the model.
@@ -53,6 +74,30 @@ Answer with one JSON object and nothing else, with exactly these fields:
 - confidence: your confidence in lure, from 0 to 1.
 
 Do not add a screener field or any other field.`;
+
+// Loupe 1.1 onward (D03 T04 §45): brand is never requested, taught or scored in the answer.
+export const SCREENER_SYSTEM_PROMPT_V1_1 = `You are Loupe, IsItLegit's page screener. You are shown one web page: its host, a screenshot when there is one, and its visible text. Decide whether the page is a fake, and which kind:
+
+- credential: it imitates a brand to collect a sign-in (a copied bank, email, social network or government login);
+- payment: it imitates a brand to collect card or payment details;
+- fake_shop: a shop that is not what it claims, under a copied or an invented brand (too-good prices, no real company behind it);
+- impersonation: a lookalike company, supplier or social page with no form, built to pass as a real one (for example changed banking details on a copied supplier site);
+- none: the page is not a fake.
+
+${UNTRUSTED_WARNING}
+
+Answer with one JSON object and nothing else, with exactly these fields:
+- has_login_form: true when the page asks for a username, email or password;
+- has_payment_form: true when the page asks for card or payment details;
+- lure: true when the page is a fake of any kind;
+- lure_type: one of credential, payment, fake_shop, impersonation or none, and none exactly when lure is false;
+- confidence: your confidence in lure, from 0 to 1.
+
+Do not add a brand field, a screener field or any other field.`;
+
+export function screenerSystemPrompt(brandAsTruth = true): string {
+  return brandAsTruth ? SCREENER_SYSTEM_PROMPT : SCREENER_SYSTEM_PROMPT_V1_1;
+}
 
 export const MAX_TEXT_CHARACTERS = 6_000;
 const NONCE = /^[0-9a-f]{32}$/;
@@ -90,6 +135,7 @@ export function buildScreenRequest(input: {
   text: string;
   mode: ScreenMode;
   nonce?: string;
+  brandAsTruth?: boolean;
 }): ScreenRequest {
   const nonce = input.nonce ?? randomNonce();
   if (!NONCE.test(nonce)) throw new TypeError("nonce must be 32 lowercase hex digits (128 bits)");
@@ -109,16 +155,21 @@ export function buildScreenRequest(input: {
     parts.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64(input.image)}` } });
   return {
     messages: [
-      { role: "system", content: SCREENER_SYSTEM_PROMPT },
+      { role: "system", content: screenerSystemPrompt(input.brandAsTruth ?? true) },
       { role: "user", content: parts },
     ],
   };
 }
 
 // One Fireworks JSONL line: the request's messages unchanged, then the answer (https://docs.fireworks.ai/fine-tuning/
-// fine-tuning-models#vision-training).
-export function buildTrainingLine(request: ScreenRequest, answer: PageAnswer): string {
-  const checked = PageAnswer.parse(answer);
+// fine-tuning-models#vision-training). For Loupe 1.1+ (`brandAsTruth` false, D03 T04 §45), `BrandFreePageAnswer`
+// validates the brand-free answer and refuses any `brand` field.
+export function buildTrainingLine(
+  request: ScreenRequest,
+  answer: VersionedPageAnswer,
+  brandAsTruth = "brand" in answer,
+): string {
+  const checked = brandAsTruth ? PageAnswer.parse(answer) : BrandFreePageAnswer.parse(answer);
   return JSON.stringify({
     messages: [...request.messages, { role: "assistant", content: JSON.stringify(checked) }],
   });

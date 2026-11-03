@@ -1,5 +1,6 @@
 // D03 T04 §31: the comparison core counts, divides and detects leaks the way its figures claim.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
@@ -10,10 +11,14 @@ import {
   annotationSample,
   BALANCE_TOLERANCE,
   balanceOf,
+  benignCoverage,
   builtMembership,
   checkResult,
+  compareBenign,
   compareLabels,
   compareSplit,
+  conventionalReadOnBrowser,
+  conventionalReplayMismatches,
   describeInput,
   groupShuffleSplit,
   incompleteIfMissing,
@@ -23,10 +28,13 @@ import {
   measurementLine,
   type Page,
   parseArgs,
+  readCorpus,
   recordMeasurement,
+  replayMismatches,
   report,
   resultFile,
   STRATIFIED_SEEDS,
+  scoreBenign,
   scoreLabels,
   seeded,
   splitFigures,
@@ -35,6 +43,464 @@ import {
   wilson,
   writeResult,
 } from "../../scripts/glimmer/compare-pipelines.ts";
+
+describe("the benign comparison (§38)", () => {
+  const label = (wall: boolean, form: "login" | "payment" | "none", eligible: boolean) => ({ wall, form, eligible });
+  it("counts admitted walls, retained benign and mislabelled forms, with replay failures apart", () => {
+    const figures = scoreBenign([
+      {
+        id: "wall",
+        label: label(true, "none", false),
+        replay_failure: false,
+        production: { admitted: true, form: "none" },
+        conventional: { admitted: false, form: "none" },
+      },
+      {
+        id: "good",
+        label: label(false, "login", true),
+        replay_failure: false,
+        production: { admitted: true, form: "login" },
+        conventional: { admitted: true, form: "none" },
+      },
+      {
+        id: "lost",
+        label: label(false, "none", true),
+        replay_failure: false,
+        production: { admitted: false, form: "none" },
+        conventional: { admitted: true, form: "none" },
+      },
+      {
+        id: "broken",
+        label: label(false, "payment", true),
+        replay_failure: true,
+        production: null,
+        conventional: null,
+      },
+    ]);
+    expect(figures.replay_failures).toBe(1);
+    expect(figures.production.retained).toMatchObject({ k: 1, n: 2 });
+    expect(figures.production.admitted_walls).toMatchObject({ k: 1, n: 1 });
+    expect(figures.production.contaminated).toMatchObject({ k: 1, n: 2 });
+    expect(figures.conventional.mislabelled_forms).toMatchObject({ k: 1, n: 3 });
+    // Rejecting an ineligible page never counts as losing a valid benign page: denominators are eligible only.
+    expect(figures.conventional.retained.n).toBe(2);
+  });
+
+  it("refuses a corpus whose strata are too thin, and runs a covered corpus end to end", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-"));
+    try {
+      const corpusPage = (id: string, wall: boolean, form: "login" | "payment" | "none", eligible: boolean) => ({
+        id,
+        url: `https://example.com/${id}`,
+        archive: {},
+        viewed: {
+          status: 200,
+          text: "a real page with enough visible text for a person to read and use today",
+          has_login_form: form === "login",
+          has_payment_form: form === "payment",
+        },
+        label: { wall, form, eligible, eligibility_reason: eligible ? "valid" : "wall" },
+      });
+      const pages = [
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`w${i}`, true, "none" as const, false)),
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`g${i}`, false, "none" as const, true)),
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`l${i}`, false, "login" as const, true)),
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`p${i}`, false, "payment" as const, true)),
+      ];
+      expect(benignCoverage(pages.slice(0, 10)).insufficient.length).toBeGreaterThan(0);
+      mkdirSync(join(dir, "runs", "compare", "corpus"), { recursive: true });
+      writeFileSync(join(dir, "runs", "compare", "corpus", "corpus.json"), JSON.stringify({ seed: 7, pages }));
+      const result = await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: !p.label.wall }));
+      expect(result.status).toBe("complete");
+      if (result.status === "complete") {
+        expect(result.figures.production.retained.k).toBe(60);
+        expect(result.figures.replay_failures).toBe(0);
+        const line = measurementLine(result, "2026-11-02", "f".repeat(64));
+        expect(line).toContain("the benign render against a conventional crawl-and-filter pipeline");
+        expect(line).toContain("Production renderer: retained 60 of 60 eligible");
+        // Per-page decisions and the pinned baseline configuration are persisted, and the saved result reads
+        // back current until an input changes.
+        expect(result.figures.decisions).toHaveLength(80);
+        expect(result.figures.config.blocklist).toContain("just a moment");
+        writeResult(resultFile(dir, "benign"), result);
+        expect(checkResult(dir, "benign").status).toBe("current");
+        writeFileSync(join(dir, "runs", "compare", "corpus", "corpus.json"), JSON.stringify({ seed: 8, pages }));
+        expect(checkResult(dir, "benign").status).toBe("stale");
+      }
+      // A replayed capture that differs from the viewed one is a replay failure, never scored.
+      const broken = await compareBenign(dir, async (p) => ({
+        ...p.viewed,
+        text: "something else entirely",
+        admitted: true,
+      }));
+      expect(broken.status).toBe("incomplete");
+      if (broken.status === "incomplete") expect(broken.missing[0]).toContain("after replay");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the benign comparison's evidence (§38, round 1)", () => {
+  const scored = (id: string, label: BenignLabelLike, admitted: boolean) => ({
+    id,
+    label,
+    replay_failure: false,
+    production: { admitted, form: "none" as const },
+    conventional: { admitted, form: "none" as const },
+  });
+  type BenignLabelLike = Parameters<typeof scoreBenign>[0][number]["label"];
+  it("keeps unresolved labels out of every rate and counts them apart", () => {
+    const clean = { wall: false, form: "none", eligible: true } as const;
+    const base = [scored("wall", { wall: true, form: "none", eligible: false }, true), scored("ok", clean, true)];
+    const before = scoreBenign(base);
+    // Round 1 finding 5: an admitted page with unknown wall and eligibility used to enter the denominator only.
+    const after = scoreBenign([
+      ...base,
+      scored("u1", { wall: "unknown", form: "unknown", eligible: "unknown" }, true),
+      scored("u2", { wall: "disputed", form: "none", eligible: true }, true),
+    ]);
+    expect(before.production.contaminated).toMatchObject({ k: 1, n: 2 });
+    expect(after.production.contaminated).toMatchObject({ k: 1, n: 2 });
+    expect(after.unresolved).toEqual({ wall: 2, eligible: 1, form: 1 });
+  });
+
+  it("calls a replay unfaithful when anything admission or a label reads has moved", () => {
+    const viewed = {
+      status: 200,
+      text: "a real page with enough visible text for a person to read and use today",
+      title: "Example",
+      finalUrl: "https://example.com/",
+      has_login_form: false,
+      has_payment_form: false,
+      walls: { captcha: false, consentWall: false, challengeCover: false, imageCover: true },
+      screenshot: { file: "shots/x.jpg", sha256: "a".repeat(64), dhash: "00000000000000ff" },
+    };
+    const { screenshot: _shot, ...rest } = viewed;
+    const same = { ...rest, admitted: true, dhash: "00000000000000fe" };
+    expect(replayMismatches(viewed, same)).toEqual([]);
+    expect(replayMismatches(viewed, { ...same, finalUrl: "https://example.com/elsewhere" })[0]).toContain("landed on");
+    expect(replayMismatches(viewed, { ...same, title: "Other" })).toEqual(["title differs from the viewed capture"]);
+    expect(replayMismatches({ ...viewed, overlays: "Accept cookies" }, { ...same, overlays: "" })).toEqual([
+      "overlays differ from the viewed capture",
+    ]);
+    // An image-based challenge that replay lost: text and forms hold, the wall evidence and the picture do not.
+    const lost = replayMismatches(viewed, {
+      ...same,
+      walls: { ...viewed.walls, imageCover: false },
+      dhash: "ffffffffffffff00",
+    });
+    expect(lost).toEqual([
+      "wall evidence differs from the viewed capture (imageCover)",
+      "the picture differs from the viewed screenshot (64 bits)",
+    ]);
+    expect(replayMismatches(viewed, { ...rest, admitted: true })).toContain(
+      "the picture differs from the viewed screenshot (no bits)",
+    );
+    expect(conventionalReplayMismatches(viewed, { ...rest, dhash: "00000000000000fe" })).toEqual([]);
+    expect(conventionalReplayMismatches(viewed, { ...rest, status: 0, dhash: "00000000000000fe" })).toEqual([
+      "conventional status 0 against viewed 200",
+    ]);
+  });
+
+  // A file-backed corpus as the recorder writes it: a manifest of page files with their sha256.
+  const writeCorpus = (dir: string, pages: Record<string, unknown>[], ids = pages.map((p) => p.id as string)) => {
+    const root = join(dir, "runs", "compare", "corpus");
+    mkdirSync(join(root, "pages"), { recursive: true });
+    const digest = new Map<string, string>();
+    for (const page of pages) {
+      const data = JSON.stringify(page);
+      writeFileSync(join(root, "pages", `${page.id}.json`), data);
+      digest.set(page.id as string, createHash("sha256").update(data).digest("hex"));
+    }
+    writeFileSync(
+      join(root, "corpus.json"),
+      JSON.stringify({ seed: 3, page_files: ids.map((id) => ({ id, sha256: digest.get(id) })), failed: [] }),
+    );
+    return root;
+  };
+  const filePage = (id: string, form: "login" | "none", eligible: boolean) => ({
+    id,
+    url: `https://example.com/${id}`,
+    archive: {},
+    viewed: {
+      status: 200,
+      text: "a real page with enough visible text for a person to read and use today",
+      has_login_form: form === "login",
+      has_payment_form: false,
+    },
+    label: { wall: false, form, eligible, eligibility_reason: eligible ? "valid" : "brand missing", source: "test" },
+  });
+  const covered = () => [
+    ...Array.from({ length: 20 }, (_, i) => filePage(`g${i}`, "none", true)),
+    ...Array.from({ length: 20 }, (_, i) => filePage(`l${i}`, "login", true)),
+  ];
+
+  it("excludes a conventional replay failure from both pipelines instead of scoring it as a decision", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-conv-fail-"));
+    try {
+      writeCorpus(dir, covered());
+      const result = await compareBenign(
+        dir,
+        async (p) => ({ ...p.viewed, admitted: true }),
+        async (p) => (p.id === "g0" ? { ...p.viewed, status: 0 } : p.viewed),
+      );
+      expect(result.status).toBe("complete");
+      if (result.status === "complete") {
+        expect(result.figures.replay_failures).toBe(1);
+        expect(result.figures.production.retained).toMatchObject({ k: 39, n: 39 });
+        expect(result.figures.conventional.retained).toMatchObject({ k: 39, n: 39 });
+        expect(result.figures.decisions[0]).toMatchObject({
+          id: "g0",
+          replay_failure: true,
+          replay_reason: "conventional status 0 against viewed 200",
+          production: null,
+          conventional: null,
+        });
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("closes the browser context when a conventional read exceeds its deadline", async () => {
+    let closed = 0;
+    const fakeBrowser = {
+      newContext: async () =>
+        ({
+          routeWebSocket: async () => undefined,
+          route: async () => undefined,
+          newPage: async () => ({
+            on: () => undefined,
+            mainFrame: () => ({}),
+            goto: async () => undefined,
+            waitForLoadState: async () => undefined,
+            evaluate: () => new Promise<never>(() => undefined),
+          }),
+          close: async () => {
+            closed++;
+          },
+        }) as unknown as import("playwright-core").BrowserContext,
+    };
+    await expect(conventionalReadOnBrowser(fakeBrowser, filePage("g0", "none", true) as never, 20)).rejects.toThrow(
+      "the conventional read passed 0.02 seconds",
+    );
+    expect(closed).toBe(1);
+  });
+
+  it("refuses a manifest that names a page twice, a page whose file changed and a missing page file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-files-"));
+    try {
+      const pages = covered();
+      const root = writeCorpus(dir, pages, [...pages.map((p) => p.id), "g3"]);
+      // Round 1 finding 1: 227 manifest entries held 218 ids, and the repeats were scored as observations.
+      expect(() => readCorpus(dir)).toThrow(/names g3 more than once/);
+      expect(await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: true }))).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("more than once")],
+      });
+      writeCorpus(dir, pages);
+      writeFileSync(join(root, "pages", "l4.json"), JSON.stringify({ ...pages[24], url: "https://changed.example/" }));
+      expect(await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: true }))).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("l4 does not match the manifest's sha256")],
+      });
+      writeCorpus(dir, pages);
+      rmSync(join(root, "pages", "g7.json"));
+      expect(await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: true }))).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("the benign corpus cannot be read")],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("checks a saved benign result against the page files and reads it back through report", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-report-"));
+    try {
+      const pages = covered();
+      const root = writeCorpus(dir, pages);
+      const result = await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: p.id !== "g0" }));
+      expect(result.status).toBe("complete");
+      writeResult(resultFile(dir, "benign"), result);
+      expect(checkResult(dir, "benign").status).toBe("current");
+      // The other reported comparisons recorded as incomplete: report still writes the benign line.
+      for (const name of ["labels", "split-1.0"])
+        writeResult(resultFile(dir, name), { status: "incomplete", name, inputs: [], missing: ["not run"] });
+      const { text } = report(dir, "## Measurements\n", "2026-11-03");
+      expect(text).toContain("the benign render against a conventional crawl-and-filter pipeline");
+      expect(text).toContain("Production renderer: retained 39 of 40 eligible");
+      // A changed label in one page file makes the saved result stale; a missing page file too.
+      writeFileSync(
+        join(root, "pages", "g1.json"),
+        JSON.stringify({ ...pages[1], label: { ...pages[1]?.label, eligible: false } }),
+      );
+      expect(checkResult(dir, "benign")).toMatchObject({ status: "stale" });
+      writeCorpus(dir, pages);
+      expect(checkResult(dir, "benign").status).toBe("current");
+      rmSync(join(root, "pages", "g2.json"));
+      expect(checkResult(dir, "benign")).toMatchObject({
+        status: "stale",
+        changed: [expect.stringContaining("benign corpus")],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("recording the benign corpus (§38)", () => {
+  it("keeps images and every answer a URL got, in order, and drops only video, audio and oversized bodies", async () => {
+    const { harToArchive, seededSample } = await import("../../scripts/glimmer/record-corpus.ts");
+    const { replayResponder } = await import("../../scripts/glimmer/render.ts");
+    const response = (status: number, text: string, mimeType: string, encoding?: string) => ({
+      status,
+      headers: [{ name: "Content-Type", value: mimeType }],
+      content: { text, mimeType, ...(encoding ? { encoding } : {}) },
+    });
+    const archive = harToArchive({
+      log: {
+        entries: [
+          { request: { url: "https://example.com/" }, response: response(200, "<p>hi</p>", "text/html") },
+          { request: { url: "https://example.com/a.png" }, response: response(200, "aGk=", "image/png", "base64") },
+          { request: { url: "https://example.com/clip" }, response: response(200, "AAAA", "video/mp4", "base64") },
+          { request: { url: "https://example.com/poll" }, response: response(200, "first", "text/plain") },
+          { request: { url: "https://example.com/poll" }, response: response(503, "second", "text/plain") },
+          {
+            request: { url: "https://example.com/step", method: "POST", postData: { text: "step=1" } },
+            response: response(200, "step-one", "text/plain"),
+          },
+          {
+            request: { url: "https://example.com/step", method: "POST", postData: { text: "step=2" } },
+            response: response(200, "step-two", "text/plain"),
+          },
+        ],
+      },
+    });
+    expect(Buffer.from(archive["https://example.com/"]?.bodyBase64 ?? "", "base64").toString()).toBe("<p>hi</p>");
+    // An image is admission evidence (an image-based challenge): kept.
+    expect(archive["https://example.com/a.png"]?.bodyBase64).toBe("aGk=");
+    expect(archive["https://example.com/clip"]?.bodyBase64).toBe("");
+    // A URL answered twice keeps both answers; replay serves them in order and then repeats the last.
+    const respond = replayResponder(archive);
+    const body = (r: ReturnType<typeof respond>) => Buffer.from(r?.bodyBase64 ?? "", "base64").toString();
+    expect(body(respond("https://example.com/poll"))).toBe("first");
+    expect(respond("https://example.com/poll")?.status).toBe(503);
+    expect(body(respond("https://example.com/poll"))).toBe("second");
+    expect(body(respond("https://example.com/step", "POST", "step=2"))).toBe("step-two");
+    expect(body(respond("https://example.com/step", "POST", "step=1"))).toBe("step-one");
+    // Round 2 finding 2: an unrecorded POST body or method is refused, never answered with another body's response.
+    expect(respond("https://example.com/step", "POST", "step=not-recorded")).toBeNull();
+    expect(respond("https://example.com/step", "POST", "")).toBeNull();
+    expect(respond("https://example.com/step", "GET")).toBeNull();
+    expect(respond("https://example.com/never")).toBeNull();
+    // A fresh visit starts the sequence again.
+    expect(body(replayResponder(archive)("https://example.com/poll"))).toBe("first");
+    expect(seededSample([1, 2, 3, 4, 5], 3)).toEqual(seededSample([1, 2, 3, 4, 5], 3));
+    expect(seededSample([1, 2, 3, 4, 5], 3)).toHaveLength(3);
+  });
+
+  it("numbers a top-up past the stratum's largest id, gaps and other strata aside", async () => {
+    const { nextTopupOffset } = await import("../../scripts/glimmer/record-corpus.ts");
+    // Round 1 finding 1: recording failures left gaps, and a count of pages reused walls-topup-87.
+    expect(nextTopupOffset(["walls-0", "walls-3", "walls-topup-87", "walls-topup-2"], "walls")).toBe(88);
+    // Another stratum's numbers never count: login-topup-* is not walls-*, and walls-30 is not login-*.
+    expect(nextTopupOffset(["walls-30", "login-2", "login-topup-5"], "login")).toBe(6);
+    expect(nextTopupOffset(["genuine-0"], "payment")).toBe(0);
+  });
+
+  it("applies a viewed label only to the screenshot that was viewed, and refuses a malformed one", async () => {
+    const { applyAnnotation, parseAnnotations, PENDING_LABEL } = await import("../../scripts/glimmer/record-corpus.ts");
+    const shot = "a".repeat(64);
+    const page = {
+      id: "login-1",
+      url: "https://example.com/login",
+      archive: {},
+      viewed: {
+        status: 200,
+        text: "sign in",
+        has_login_form: true,
+        has_payment_form: false,
+        screenshot: { file: "shots/login-1.jpg", sha256: shot, dhash: "0".repeat(16) },
+      },
+      label: PENDING_LABEL,
+    };
+    const good = {
+      id: "login-1",
+      screenshot_sha256: shot,
+      wall: false,
+      form: "login",
+      eligible: false,
+      reason: "the listed brand is not on the page",
+      annotator: "claude-viewed",
+    };
+    const { annotations, problems } = parseAnnotations(`${JSON.stringify(good)}\n`);
+    expect(problems).toEqual([]);
+    expect(applyAnnotation(page, annotations[0] as (typeof annotations)[number]).label).toEqual({
+      wall: false,
+      form: "login",
+      eligible: false,
+      eligibility_reason: "the listed brand is not on the page",
+      source: "claude-viewed",
+    });
+    expect(() =>
+      applyAnnotation(page, { ...(annotations[0] as (typeof annotations)[number]), screenshot_sha256: "b".repeat(64) }),
+    ).toThrow(/different screenshot/);
+    const bad = parseAnnotations(
+      [
+        JSON.stringify(good),
+        JSON.stringify(good),
+        JSON.stringify({ ...good, id: "x", form: "maybe", reason: "" }),
+        "not json",
+        "null",
+        "[]",
+      ].join("\n"),
+    ).problems;
+    expect(bad).toEqual([
+      "line 2 (login-1) repeats an id",
+      "line 3 (x) has no form",
+      "line 3 (x) has no reason",
+      "line 4 is not JSON",
+      "line 5 is not a JSON object",
+      "line 6 is not a JSON object",
+    ]);
+    // A pending label resolves nothing: it enters no rate.
+    expect(PENDING_LABEL).toMatchObject({ wall: "unknown", form: "unknown", eligible: "unknown" });
+  });
+
+  it("judges viewed eligibility across HTTP-200 error pages, suspended hosts, missing brands and allowed redirects", async () => {
+    const { viewedEligibility } = await import("../../scripts/glimmer/record-corpus.ts");
+    const base = {
+      status: 200,
+      title: "Acme Portal",
+      text: "Welcome to the Acme customer portal with enough visible text for a person to read and use today.",
+      finalUrl: "https://www.acme.co.za/",
+      url: "https://acme.co.za/",
+      brand: "Acme",
+      also: ["auth.acme-group.com"],
+      wall: false,
+    };
+    expect(viewedEligibility(base)).toEqual({ eligible: true, reason: "valid benign capture" });
+    // Legitimate subdomain and `also` destinations stay eligible (Round 1 finding 3).
+    expect(viewedEligibility({ ...base, finalUrl: "https://login.acme.co.za/start" }).eligible).toBe(true);
+    expect(viewedEligibility({ ...base, finalUrl: "https://sso.auth.acme-group.com/login" }).eligible).toBe(true);
+    // Unlisted cross-site redirects, HTTP-200 error/suspended/parked pages, missing brand, non-2xx and walls are ineligible.
+    expect(viewedEligibility({ ...base, finalUrl: "https://other.example/" })).toEqual({
+      eligible: false,
+      reason: "cross-site redirect to other.example",
+    });
+    expect(viewedEligibility({ ...base, title: "404 Not Found" }).eligible).toBe(false);
+    expect(viewedEligibility({ ...base, text: `${base.text} Account has been suspended.` }).eligible).toBe(false);
+    expect(viewedEligibility({ ...base, text: `${base.text} This domain is parked.` }).eligible).toBe(false);
+    expect(
+      viewedEligibility({ ...base, title: "Generic", text: "Enough visible words on the page to pass fifty chars." }),
+    ).toEqual({
+      eligible: false,
+      reason: "the listed brand (Acme) is not on the page",
+    });
+  });
+});
 
 describe("the Wilson interval", () => {
   it("matches known values and the empty case", () => {
@@ -197,6 +663,83 @@ describe("split figures and the conventional split", () => {
     expect(balanceOf(built, built)).toMatchObject({ share_gap: 0, within_tolerance: true });
   });
 
+  it("calls a seed unmet on a type-only gap and on a training-only gap, independently", () => {
+    const base = {
+      train: 100,
+      eval: 100,
+      dropped: 0,
+      lure_share_eval: 0.5,
+      lure_share_train: 0.5,
+      cross_brand: 0,
+      cross_site: 0,
+      near_duplicate_eval_pages: 0,
+      lure_types: { train: { credential: 50, fake_shop: 50 }, eval: { credential: 50, fake_shop: 50 } },
+    };
+    const typeOnly = { ...base, lure_types: { train: { credential: 50, fake_shop: 50 }, eval: { credential: 100 } } };
+    expect(balanceOf(base, typeOnly).within_tolerance).toBe(false);
+    expect(balanceOf(base, typeOnly).share_gap).toBe(0);
+    const trainOnly = { ...base, lure_share_train: 0.7 };
+    expect(balanceOf(base, trainOnly).within_tolerance).toBe(false);
+    expect(balanceOf(base, trainOnly).train_share_gap).toBeCloseTo(0.2);
+    const trainTypeOnly = {
+      ...base,
+      lure_types: { train: { credential: 100 }, eval: { credential: 50, fake_shop: 50 } },
+    };
+    expect(balanceOf(base, trainTypeOnly).within_tolerance).toBe(false);
+    expect(balanceOf(base, base).within_tolerance).toBe(true);
+  });
+
+  it("the stratified baseline matches lure-type shares, not only the lure share", () => {
+    const typed = (id: string, brand: string, lure: boolean, type: string | null, n: number): Page => ({
+      ...page(id, brand, `${brand}.com`, lure, BigInt(n) << 9n, n),
+      lureType: type,
+    });
+    const pages: Page[] = [];
+    let n = 0;
+    for (let b = 0; b < 20; b++)
+      for (let k = 0; k < 2; k++) pages.push(typed(`cred${b}-${k}`, `Cred${b}`, true, "credential", n++));
+    for (let b = 0; b < 20; b++)
+      for (let k = 0; k < 2; k++) pages.push(typed(`shop${b}-${k}`, `Shop${b}`, true, "fake_shop", n++));
+    for (let b = 0; b < 20; b++) pages.push(typed(`ok${b}`, `Benign${b}`, false, null, n++));
+    const sides = stratifiedGroupSplit(pages, seeded(3), 0.3, 0.5, { credential: 0.5, fake_shop: 0.5 });
+    const figures = splitFigures(pages, sides);
+    const evalTypes = figures.lure_types?.eval ?? {};
+    const evalLures = Object.values(evalTypes).reduce((a, b) => a + b, 0);
+    expect(Math.abs((evalTypes.credential ?? 0) / evalLures - 0.5)).toBeLessThan(0.15);
+    expect(Math.abs((evalTypes.fake_shop ?? 0) / evalLures - 0.5)).toBeLessThan(0.15);
+  });
+
+  it("stratifies both evaluation and training lure-type shares even after near-duplicate removal", () => {
+    const typed = (id: string, brand: string, lure: boolean, type: string | null, hash: bigint, n: number): Page => ({
+      ...page(id, brand, `${brand}.com`, lure, hash, n),
+      lureType: type,
+    });
+    const pages: Page[] = [];
+    // DirtyCred has 8 cross-group near-duplicate credential pages in other groups: picking DirtyCred for eval would
+    // wipe out training's credential lures during near-duplicate removal. CleanCred has no cross-group near-duplicates.
+    pages.push(typed("dirty-0", "DirtyCred", true, "credential", 0n, 1));
+    pages.push(typed("dirty-1", "DirtyCred", true, "credential", 0n, 1));
+    for (let i = 0; i < 8; i++) pages.push(typed(`dup-cred-${i}`, `DupCred${i}`, true, "credential", 0n, 1));
+    pages.push(typed("clean-0", "CleanCred", true, "credential", 1n << 20n, 20));
+    pages.push(typed("clean-1", "CleanCred", true, "credential", 1n << 21n, 21));
+    for (let i = 0; i < 10; i++)
+      pages.push(typed(`shop-${i}`, `Shop${Math.floor(i / 2)}`, true, "fake_shop", BigInt(30 + i) << 12n, 30 + i));
+    for (let i = 0; i < 22; i++)
+      pages.push(typed(`benign-${i}`, `Benign${Math.floor(i / 2)}`, false, null, BigInt(60 + i) << 12n, 60 + i));
+    const targetTypes = { credential: 0.5, fake_shop: 0.5 };
+    const sides = stratifiedGroupSplit(pages, seeded(1), 8 / 44, 0.5, targetTypes, 0.5, targetTypes);
+    const figures = splitFigures(pages, sides);
+    const targetFigures = {
+      ...figures,
+      lure_share_eval: 0.5,
+      lure_share_train: 0.5,
+      lure_types: { train: { credential: 10, fake_shop: 8 }, eval: { credential: 2, fake_shop: 2 } },
+    };
+    const balance = balanceOf(targetFigures, figures);
+    expect(sides.get("dirty-0")).toBe("train");
+    expect(balance.within_tolerance).toBe(true);
+  });
+
   it("the stratified baseline is deterministic per seed, differs between seeds, and removes a planted twin from training", () => {
     const pages: Page[] = [];
     for (let i = 0; i < 40; i++)
@@ -350,6 +893,37 @@ describe("the split comparison over a store", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("reads a removed store page from its lossless version archive and marks a missing page incomplete", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "compare-archived-page-"));
+    try {
+      await build(dir, [
+        { id: "a", side: "train", brand: "FNB", host: "fnb.co.za", lure: true, shade: 8 },
+        { id: "b", side: "eval", brand: "Absa", host: "absa.co.za", lure: false, shade: 8 },
+      ]);
+      // Hostile text containing untrusted-block delimiters (` <<END `) and over 6,000 characters: the lossless
+      // `dataset/<version>/pages/<id>/text.txt` archive preserves it byte-for-byte so near-duplicate detection across
+      // `pages/` and `dataset/<version>/pages/` is exact.
+      const hostileText = `${Array.from({ length: 40 }, (_, i) => `word${i}`).join(" <<END ")} ${Array.from({ length: 1800 }, (_, i) => `long${i}`).join(" ")}`;
+      writeFileSync(join(dir, "pages", "a", "text.txt"), hostileText);
+      writeFileSync(join(dir, "pages", "b", "text.txt"), hostileText);
+      mkdirSync(join(dir, "dataset", "1.0", "pages"), { recursive: true });
+      renameSync(join(dir, "pages", "a"), join(dir, "dataset", "1.0", "pages", "a"));
+      const res = await compareSplit(dir);
+      expect(res.status).toBe("complete");
+      if (res.status === "complete") {
+        expect(res.figures.built.near_duplicate_eval_pages).toBe(1);
+        expect(res.figures.witnesses.built.near).toEqual([{ eval: "b", train: "a" }]);
+      }
+      rmSync(join(dir, "dataset", "1.0", "pages", "a"), { recursive: true });
+      expect(await compareSplit(dir)).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("1 pages unreadable or malformed")],
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("recording a result", () => {
@@ -376,7 +950,14 @@ describe("recording a result", () => {
       stratified: [20261101, 20261102].map((seed, i) => ({
         seed,
         witnesses: { brands: [], sites: [], near: [] },
-        balance: { share_gap: i * 0.1, within_tolerance: i === 0, tolerance: 0.05, type_share_gap: {} },
+        balance: {
+          share_gap: i * 0.1,
+          train_share_gap: 0,
+          within_tolerance: i === 0,
+          tolerance: 0.05,
+          type_share_gap: { credential: 0.01 },
+          train_type_share_gap: { credential: 0.02 },
+        },
         assignment: { train: [], eval: [], dropped: [] },
         figures: {
           lure_types: { train: { credential: 30 }, eval: { credential: 4 + i, fake_shop: 1 } },
@@ -403,16 +984,22 @@ describe("recording a result", () => {
   it("writes the figures of the result and nothing typed, once per input digest", () => {
     const line = measurementLine(split, "2026-11-01", "f".repeat(64));
     expect(line).toContain("the same 100 pages");
-    expect(line).toContain("train 85, eval 10, 5 dropped, eval lure share 40.0%, 0 brands, 3 sites");
+    expect(line).toContain(
+      "train 85, eval 10, 5 dropped, eval lure share 40.0%, train lure share n/a, 0 brands, 3 sites",
+    );
     expect(line).toContain("train.meta.jsonl aaaaaaaaaaaa");
     // The stratified baseline, every seed, beside §10's (§39).
     expect(line).toContain("Stratified grouped baseline");
     expect(line).toContain("seed 20261101: train 86, eval 10, 4 dropped, eval lure share 50.0%");
     // The balance claim names its tolerance and calls a seed outside it unmet, with the lure types on the eval side.
     expect(line).toContain("within 5 share points");
-    expect(line).toContain("share gap 0.0 points (met)");
-    expect(line).toContain("share gap 10.0 points (UNMET)");
+    expect(line).toContain(
+      "share gap 0.0 points, train share gap 0.0 points, eval type gaps credential 1.0, train type gaps credential 2.0 (met)",
+    );
+    expect(line).toContain("share gap 10.0 points");
+    expect(line).toContain("(UNMET)");
     expect(line).toContain("eval lure types credential 4 fake_shop 1");
+    expect(line).toContain("train lure types credential 30");
     expect(line).toContain("seed 20261102: train 87, eval 10, 3 dropped");
     const doc = "# T\n\n## Measurements\n\n- old\n\n## Decisions\n";
     const once = recordMeasurement(doc, line) as string;

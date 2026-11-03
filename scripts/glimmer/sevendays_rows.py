@@ -95,7 +95,7 @@ def choose(path, limits=None, folders=None):
     return earliest
 
 
-def export(path, chosen, out, limits=None):
+def export(path, chosen, out, limits=None, stage_only=False):
     """The chosen captures' rows, written as each capture's two files arrive. Returns the folders written."""
     limits = limits or Limits()
     pending, written = {}, set()
@@ -137,7 +137,8 @@ def export(path, chosen, out, limits=None):
                     written.add(folder)
                     del pending[folder]
                     limits.release_retained(held)
-        os.replace(temporary, out)
+        if not stage_only:
+            os.replace(temporary, out)
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
@@ -154,6 +155,8 @@ def main(argv=None):
     if not path.is_file():
         print(f"sevendays-rows: {path} is missing", file=sys.stderr)
         return 2
+    out = folder / "rows.jsonl"
+    temporary = out.with_name(f".rows.jsonl.{os.getpid()}.tmp")
     try:
         # Nothing is read from an archive that is not the one bound in the manifest.
         _, inputs_digest = verify(folder, [ARCHIVE])
@@ -165,27 +168,28 @@ def main(argv=None):
             keys = sorted(random.Random(args.seed).sample(keys, args.max))
         remove_dead_staging(folder)
         limits.new_pass()  # the second pass counts its own entries and bytes, but not its own clock
-        written = export(path, {key: earliest[key] for key in keys}, folder / "rows.jsonl", limits)
+        written = export(path, {key: earliest[key] for key in keys}, out, limits, stage_only=True)
+        # Every URL folder met, by outcome, each named by the id its row carries (`7dl-<folder prefix>`), so the item ledger
+        # and the import name it alike (§28 G3).
+        receipt = Receipt(limits)
+        chosen = set(keys)
+        for key in sorted(met):
+            item = f"7dl-{key.split('-', 1)[0]}"
+            receipt.note_inventory(item)
+            if key in written:
+                receipt.export(item)
+            elif key in chosen:
+                receipt.reject("its chosen capture's files did not both arrive", item)
+            elif key in earliest:
+                receipt.sample_out(item)
+            else:
+                receipt.reject("no capture answered 200 with a screenshot and HTML", item)
+        receipt.publish(folder, temporary, out, Path(__file__), inputs_digest,
+                        {"max": args.max, "seed": args.seed})
     except Exception as error:  # a refused input or a limit: the earlier rows file stays whole
+        temporary.unlink(missing_ok=True)
         print(f"sevendays-rows: refused ({error})", file=sys.stderr)
         return 1
-    # Every URL folder met, by outcome, each named by the id its row carries (`7dl-<folder prefix>`), so the item ledger
-    # and the import name it alike (§28 G3).
-    receipt = Receipt()
-    chosen = set(keys)
-    for key in sorted(met):
-        item = f"7dl-{key.split('-', 1)[0]}"
-        if key in written:
-            receipt.export(item)
-        elif key in chosen:
-            receipt.reject("its chosen capture's files did not both arrive", item)
-        elif key in earliest:
-            receipt.sample_out(item)
-        else:
-            receipt.reject("no capture answered 200 with a screenshot and HTML", item)
-    exported = receipt.write(folder, folder / "rows.jsonl", Path(__file__), inputs_digest,
-                             {"max": args.max, "seed": args.seed})
-    receipt.write_items(folder, inputs_digest, exported["rows_sha256"])
     print(f"sevendays-rows: {len(written)} rows from {len(earliest)} URLs with a live capture into {folder / 'rows.jsonl'}")
     return 0
 
