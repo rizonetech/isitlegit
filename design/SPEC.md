@@ -118,7 +118,7 @@ Every page and message IsItLegit shows. Each row names its owning TODO section; 
 | N7 | Monitor alert with takedown pack | The protected business | D05 T04 §5 |
 | N8 | Daily limit reached | The member | D07 T02 §4 |
 | N9 | Operator notice (budget cap, feedback) | The operator | D03 T01 §2, D07 T03 §6 |
-| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays 16:00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
+| N10 | Weekly counts (opt-in): the three Cases tiles' numbers for the week and a link to Cases, Fridays at 16h00 SAST, never message content, with a one-step unsubscribe | The opted-in member | D07 T04 §20 |
 
 No acknowledgement is mailed when a forward is admitted (operator, 2026-10-28, D01 T01 §11): the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain.
 
@@ -1317,6 +1317,23 @@ States:
 - operator notice: one notice per event to the operator, for a budget cap or a piece of feedback. (Email-Operator)
 - budget cap: Spend figures and Open the admin overview. (Email-Operator)
 - feedback: Summary and Open the feedback queue. (Email-Operator-Feedback)
+- loading: No loading state. Not applicable: email message, delivered whole.
+- empty: No empty state. Not applicable: email message, always sent with its content.
+- error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
+
+### N10 Weekly counts
+
+The Email-Weekly board awaits the operator's approval (D07 T04 §20); the built message is proven by its mail tests.
+
+Controls:
+
+- the three Cases tiles' numbers for the week and a link to Cases: Checked this week, Malicious or suspicious, Median time to verdict, and Open your cases.
+- with a one-step unsubscribe: Stop these emails, one step, no sign-in.
+
+States:
+
+- Fridays at 16h00 SAST: sent inside the Friday 16h00 SAST to Monday 00:00 SAST window, once per opted-in member per week.
+- never message content: counts only, never a case's subject, sender or message content.
 - loading: No loading state. Not applicable: email message, delivered whole.
 - empty: No empty state. Not applicable: email message, always sent with its content.
 - error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
