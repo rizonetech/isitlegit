@@ -357,7 +357,7 @@ function nameMatchesList(candidateName: string | null | undefined, names: readon
   if (target.length < 3) return false;
   return names.some((n) => {
     const norm = normaliseName(n);
-    return norm.length >= 3 && (norm === target || norm.includes(target) || target.includes(norm));
+    return norm.length >= 3 && norm === target;
   });
 }
 
@@ -418,9 +418,11 @@ export async function prepareRegistryComparison(
   const sender = parseSenderFromView(view);
   const rawKey = isCaseArtefactKey(view.raw) ? view.raw : null;
 
-  // Identify every active protected business that owns the message's From domain and matches the From display name.
+  // Identify every active protected business that owns the message's From domain, matches the From display name,
+  // and passes aligned DMARC authentication on that From domain.
   const verifiedSenderOrgIds = new Set<string>();
-  if (sender.fromDomain && sender.fromDisplayName) {
+  let partnerLookupFailed = false;
+  if (sender.fromDomain && sender.fromDisplayName && hasAlignedDmarcPass(view, sender.fromDomain)) {
     const fromSite = registrable(sender.fromDomain) ?? sender.fromDomain;
     try {
       const rows = await deps.db
@@ -437,7 +439,7 @@ export async function prepareRegistryComparison(
         }
       }
     } catch {
-      // Non-fatal: do not suppress sender checks if lookup fails.
+      partnerLookupFailed = true;
     }
   }
 
@@ -518,11 +520,17 @@ export async function prepareRegistryComparison(
               .bind(claim.orgId, sender.fromAddress)
               .first<{ ok: number }>(),
           ]);
-          senderChecked = true;
           senderDomainRegistered = domainRow !== null;
           senderAddressRegistered = addressRow !== null;
-          if (senderDomainRegistered) {
-            dmarcAlignedPass = hasAlignedDmarcPass(view, sender.fromDomain);
+          const isLogoOnlyClaim = routes.includes("logo") && !routes.some((r) => TEXTUAL_OR_HEADER_ROUTES.has(r));
+          if (partnerLookupFailed && isLogoOnlyClaim && !senderDomainRegistered && !senderAddressRegistered) {
+            senderChecked = false;
+            pushUnique(senderUnavailable, "the sender's registration could not be read right now");
+          } else {
+            senderChecked = true;
+            if (senderDomainRegistered) {
+              dmarcAlignedPass = hasAlignedDmarcPass(view, sender.fromDomain);
+            }
           }
         }
       }

@@ -390,6 +390,91 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
       { check: "trust.verified_sender", orgId: hadedaOrgId },
     ]);
 
+    // 2b. Spoofed partner-logo mail: unauthenticated spoof claiming Hadeda Couriers in From (`dmarc=fail`) while
+    //     carrying Fynbos Freight's logo (`same: true`). Because Hadeda's sender is NOT authenticated by aligned DMARC,
+    //     the partner-logo exception is NOT granted and Fynbos's logo-based claim emits `trust.sender_not_registered`
+    //     and `trust.impersonation`.
+    const spoofedPartnerCaseId = ulid();
+    const spoofedPartnerBaseView = buildView({
+      caseId: spoofedPartnerCaseId,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [
+        { name: "Received", value: "by mx.google.com with ESMTPS id sppart1; Tue, 03 Nov 2026 12:00:00 +0200" },
+        {
+          name: "Authentication-Results",
+          value:
+            "mx.google.com; spf=fail smtp.mailfrom=hadedacouriers.co.za; dkim=none; dmarc=fail (p=REJECT dis=NONE)",
+        },
+        { name: "From", value: '"Hadeda Couriers" <ops@hadedacouriers.co.za>' },
+      ],
+      text: "Dispatch update.",
+    });
+    const spoofedPartnerView = withClaimLogos(spoofedPartnerBaseView, {
+      logoJudgements: [
+        {
+          orgId: fynbosOrgId,
+          same: true,
+          brandSeen: "Fynbos Freight",
+          differences: [],
+          confidence: 0.95,
+          cropKey: `art/${spoofedPartnerCaseId}/crop/partner-logo.png`,
+        },
+      ],
+      unavailable: [],
+    });
+    const spoofedPartnerClaims = claimEvidence(claimInputFromView(spoofedPartnerView));
+    const spoofedPartnerComparison = await prepareRegistryComparison(
+      { db, keys },
+      spoofedPartnerCaseId,
+      spoofedPartnerView,
+      spoofedPartnerClaims,
+    );
+    const spoofedPartnerItems = comparisonEvidence(spoofedPartnerComparison);
+    expect(
+      spoofedPartnerItems.some((i) => i.check === "trust.sender_not_registered" && i.detail.orgId === fynbosOrgId),
+    ).toBe(true);
+    expect(spoofedPartnerItems.some((i) => i.check === "trust.impersonation" && i.detail.orgId === fynbosOrgId)).toBe(
+      true,
+    );
+    expect(spoofedPartnerItems.find((i) => i.check === "trust.verified_sender")).toBeUndefined();
+
+    // 2c. Transient failure during partner lookup: if the initial verified-partner query fails on genuine partner-logo
+    //     mail, Fynbos's logo-only claim records unavailable sender coverage rather than a false critical accusation.
+    let firstDistinctPrepare = true;
+    const flakyPartnerDb = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            if (firstDistinctPrepare && sql.includes("SELECT DISTINCT org_id FROM org_domains")) {
+              firstDistinctPrepare = false;
+              return {
+                bind: () => ({
+                  all: async () => {
+                    throw new Error("transient D1 partner lookup failure");
+                  },
+                }),
+              };
+            }
+            return target.prepare(sql);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const flakyPartnerComparison = await prepareRegistryComparison(
+      { db: flakyPartnerDb, keys },
+      partnerCaseId,
+      partnerView,
+      partnerClaimItems,
+    );
+    const flakyPartnerItems = comparisonEvidence(flakyPartnerComparison);
+    expect(flakyPartnerItems.filter((i) => i.check === "trust.sender_not_registered")).toEqual([]);
+    expect(flakyPartnerItems.filter((i) => i.check === "trust.impersonation")).toEqual([]);
+    const flakyFynbos = flakyPartnerComparison.businesses.find((b) => b.orgId === fynbosOrgId);
+    expect(flakyFynbos?.senderChecked).toBe(false);
+    expect(flakyFynbos?.senderUnavailable).toContain("the sender's registration could not be read right now");
+
     // 3. Doctored logo crop purporting to be Fynbos Freight (`same: false, brandSeen: "Fynbos Freight"`) alongside a
     //    textual claim triggers `logo-mismatch` in `trust.impersonation`.
     const doctoredLogoCaseId = ulid();
@@ -641,6 +726,30 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
       reason: "the extracted bank account could not be tied to one claimed business",
       findings: 0,
     });
+
+    // Overlapping business name ("Fynbos Freight Logistics" when only "Fynbos Freight" is claimed) is treated as a
+    // conflict rather than attributed by substring, and payer accounts (`role: "payer"`) are excluded from comparison.
+    const overlapAndPayerCmp = await prepareRegistryComparison({ db, keys }, singleCaseId, singleView, undefined, [
+      {
+        number: "9998887776",
+        branchCode: "250655",
+        supplierName: "Fynbos Freight Logistics",
+        role: "payee",
+        artefactKey: `raw/${singleCaseId}/overlapping-supplier.pdf`,
+      },
+      {
+        number: "1112223334",
+        branchCode: "632005",
+        supplierName: "Fynbos Freight",
+        role: "payer",
+        artefactKey: `raw/${singleCaseId}/payer-account.pdf`,
+      },
+    ]);
+    expect(comparisonEvidence(overlapAndPayerCmp).filter((i) => i.check === "trust.bank_mismatch")).toEqual([]);
+    expect(overlapAndPayerCmp.businesses[0]?.bankMatches).toEqual([]);
+    expect(overlapAndPayerCmp.businesses[0]?.bankUnavailable).toContain(
+      "the extracted bank account could not be tied to one claimed business",
+    );
   });
 
   it("maps every typed refusal (AccountRefused, NoBaseline, KeyMismatch, IdentityRefused, MatchLimited, BankKeysMissing) to unavailable coverage with zero trust.bank_mismatch items while preserving sender findings", async () => {
@@ -771,6 +880,152 @@ describe("D05 T02 §3: registry comparison evidence that reveals nothing", () =>
         (o) => o.check === "trust.bank_mismatch",
       )?.reason,
     ).toBe("the business's protection is not active");
+  });
+
+  it("handles malformed stored trust.claim items, missing or duplicate From headers while preserving bank mismatches, and transient registry lookup failures", async () => {
+    const { keys, checkerOrgId, fynbosOrgId, candidates } = await seedFynbosAndChecker();
+    const caseId = ulid();
+
+    // 1. Malformed stored trust.claim item alongside a valid claim: records unavailable reason and still evaluates the valid claim.
+    const validView = buildView({
+      caseId,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [
+        { name: "Received", value: "by mx.google.com with ESMTPS id b1; Tue, 03 Nov 2026 12:00:00 +0200" },
+        { name: "From", value: '"Fynbos Freight" <impersonator@gmail.com>' },
+      ],
+      text: "Urgent payment for Fynbos Freight.",
+    });
+    const malformedClaimDraft: EvidenceDraft = {
+      check: "trust.claim",
+      severity: "info",
+      summary: "Corrupted claim row",
+      detail: { checked: true, broken: true } as unknown as EvidenceDraft["detail"],
+      artefacts: [],
+    };
+    const validClaimDrafts = claimEvidence(claimInputFromView(validView));
+    const malformedCmp = await prepareRegistryComparison({ db, keys }, caseId, validView, [
+      malformedClaimDraft,
+      ...validClaimDrafts,
+    ]);
+    expect(malformedCmp.unavailable).toContain("a stored trust.claim item was malformed and could not be read");
+    expect(comparisonEvidence(malformedCmp).some((i) => i.check === "trust.sender_not_registered")).toBe(true);
+    expect(
+      comparisonOutcomes(withRegistryComparison(validView, malformedCmp)).find(
+        (o) => o.check === "trust.sender_not_registered",
+      ),
+    ).toMatchObject({
+      outcome: "partial",
+      reason: "a stored trust.claim item was malformed and could not be read",
+      findings: 1,
+    });
+
+    // 2. Missing From header: records unavailable sender coverage while still emitting critical trust.bank_mismatch
+    //    and trust.impersonation from the mismatched beneficiary bank account.
+    const missingFromView = buildView({
+      caseId: `${caseId}-nofrom`,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [{ name: "Subject", value: "Fynbos Freight Invoice" }],
+      text: "Kind regards,\nFynbos Freight",
+    });
+    const missingFromCmp = await prepareRegistryComparison(
+      { db, keys },
+      `${caseId}-nofrom`,
+      missingFromView,
+      undefined,
+      [
+        {
+          number: "9112233445",
+          branchCode: "632005",
+          supplierName: "Fynbos Freight",
+          role: "payee",
+          artefactKey: `raw/${caseId}-nofrom/invoice.pdf`,
+        },
+      ],
+    );
+    const missingFromItems = comparisonEvidence(missingFromCmp);
+    expect(missingFromItems.some((i) => i.check === "trust.bank_mismatch")).toBe(true);
+    expect(missingFromItems.some((i) => i.check === "trust.impersonation")).toBe(true);
+    expect(missingFromItems.some((i) => i.check === "trust.sender_not_registered")).toBe(false);
+    const missingFromOutcomes = comparisonOutcomes(withRegistryComparison(missingFromView, missingFromCmp));
+    expect(missingFromOutcomes.find((o) => o.check === "trust.sender_not_registered")).toEqual({
+      check: "trust.sender_not_registered",
+      outcome: "skipped",
+      reason: "the original message had no From header",
+      findings: 0,
+    });
+
+    // 3. Duplicate From headers: refuses to trust ambiguous From headers, records unavailable sender coverage, and
+    //    preserves independent bank mismatch findings.
+    const dupFromView = buildView({
+      caseId: `${caseId}-dupfrom`,
+      orgId: checkerOrgId,
+      protectedCandidates: candidates,
+      headers: [
+        { name: "From", value: '"Fynbos Freight" <billing@fynbosfreight.co.za>' },
+        { name: "From", value: '"Fynbos Freight" <attacker@gmail.com>' },
+      ],
+      text: "Kind regards,\nFynbos Freight",
+    });
+    const dupFromCmp = await prepareRegistryComparison({ db, keys }, `${caseId}-dupfrom`, dupFromView, undefined, [
+      {
+        number: "9112233445",
+        branchCode: "632005",
+        supplierName: "Fynbos Freight",
+        role: "payee",
+        artefactKey: `raw/${caseId}-dupfrom/invoice.pdf`,
+      },
+    ]);
+    const dupFromItems = comparisonEvidence(dupFromCmp);
+    expect(dupFromItems.some((i) => i.check === "trust.bank_mismatch")).toBe(true);
+    expect(dupFromItems.some((i) => i.check === "trust.sender_not_registered")).toBe(false);
+    const dupFromOutcomes = comparisonOutcomes(withRegistryComparison(dupFromView, dupFromCmp));
+    expect(dupFromOutcomes.find((o) => o.check === "trust.sender_not_registered")).toEqual({
+      check: "trust.sender_not_registered",
+      outcome: "skipped",
+      reason: "multiple From headers were present and could not be trusted",
+      findings: 0,
+    });
+
+    // 4. Registry lookup failure during per-business identity read: records "the sender's registration could not be read right now".
+    const brokenRegistryDb = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            if (sql.includes("FROM identities")) {
+              return {
+                bind: () => ({
+                  first: async () => {
+                    throw new Error("D1 identity lookup failure");
+                  },
+                }),
+              };
+            }
+            return target.prepare(sql);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const registryFailedCmp = await prepareRegistryComparison({ db: brokenRegistryDb, keys }, caseId, validView, [
+      { orgId: fynbosOrgId, name: "Fynbos Freight", routes: ["display-name"] },
+    ]);
+    expect(registryFailedCmp.businesses[0]?.senderUnavailable).toContain(
+      "the sender's registration could not be read right now",
+    );
+    expect(comparisonEvidence(registryFailedCmp).filter((i) => i.check === "trust.sender_not_registered")).toEqual([]);
+    expect(
+      comparisonOutcomes(withRegistryComparison(validView, registryFailedCmp)).find(
+        (o) => o.check === "trust.sender_not_registered",
+      ),
+    ).toEqual({
+      check: "trust.sender_not_registered",
+      outcome: "skipped",
+      reason: "the sender's registration could not be read right now",
+      findings: 0,
+    });
   });
 
   it("fails the leak detector immediately when a registered domain, address, finance contact, or account fragment is planted", () => {
