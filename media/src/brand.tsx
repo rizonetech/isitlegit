@@ -86,25 +86,25 @@ export const Scene: React.FC<{ children: React.ReactNode; label?: string; center
 };
 
 /**
- * Meta infinity SVG mark (permitted per 2026-11-03 07:08 ruling in docs/hackathon-criteria.md).
+ * The Meta logo mark (permitted per the 2026-11-03 07:08 ruling in docs/hackathon-criteria.md): the official infinity
+ * outline (Simple Icons "meta", CC0), in Meta blue unless a colour is given. Never redrawn by hand.
  */
-export const MetaInfinity: React.FC<{ size?: number; color?: string }> = ({ size = 28, color = c.orange }) => (
-  <svg width={size} height={Math.round(size * 0.68)} viewBox="0 0 64 44" fill="none" aria-hidden>
-    <path
-      d="M17.2 6C9.6 6 4 12.6 4 21.6C4 30.2 9.2 38 16.8 38C22.4 38 26.8 33.8 32 25.4C37.2 33.8 41.6 38 47.2 38C54.8 38 60 30.2 60 21.6C60 12.6 54.4 6 46.8 6C41 6 36.4 10.4 32 18.2C27.6 10.4 23 6 17.2 6Z"
-      stroke={color}
-      strokeWidth={6}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
+const META_PATH =
+  "M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z";
+export const META_BLUE = "#0082FB";
+
+export const MetaInfinity: React.FC<{ size?: number; color?: string }> = ({ size = 28, color = META_BLUE }) => (
+  <svg width={size} height={Math.round(size * 0.66)} viewBox="0 3.4 24 16" aria-hidden>
+    <path d={META_PATH} fill={color} />
   </svg>
 );
 
 /**
  * The marker on scenes where one of Meta's models does the work (operator, 2026-10-31), so a judge skimming any frame
- * sees where Meta's tooling sits: top right, the Meta infinity SVG mark and the model's name.
+ * sees where Meta's tooling sits: above the window's top right corner, the Meta logo and the model's name, never on
+ * top of the product.
  */
-export const MetaBadge: React.FC<{ text: string }> = ({ text }) => {
+export const MetaBadge: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
   const p = useIn(18, 20);
   return (
     <div
@@ -112,57 +112,36 @@ export const MetaBadge: React.FC<{ text: string }> = ({ text }) => {
         ...body,
         position: "absolute",
         right: 60,
-        top: 48,
+        top: 22,
         display: "flex",
         alignItems: "center",
-        gap: 14,
-        fontSize: 24,
+        gap: 12,
+        fontSize: 22,
         fontWeight: 600,
         color: c.ink,
-        background: `${CARD}cc`,
-        border: `2px solid ${c.orange}`,
+        background: `${CARD}e6`,
+        border: `1px solid ${c["line-strong"]}`,
         borderRadius: 999,
-        padding: "8px 22px",
+        padding: "6px 18px 6px 14px",
         opacity: p,
         transform: `translateY(${(1 - p) * -10}px)`,
+        ...style,
       }}
     >
-      <MetaInfinity size={26} />
-      Meta AI: {text}
+      <MetaInfinity size={28} />
+      {text}
     </div>
   );
 };
 
-/**
- * Two-row attribution strip naming the 5 Runtime Meta AI models and the Meta Muse Code + full-stack engineering toolchain.
- */
+/** The attribution: what runs in the product on Meta's models, and how it was built. One line each, centred. */
 export const MetaAttributionStrip: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
-  <div
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      background: `${CARD}ee`,
-      border: `2px solid ${c.orange}`,
-      borderRadius: 16,
-      padding: "14px 24px",
-      ...style,
-    }}
-  >
-    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <span style={{ ...mono, fontSize: 16, fontWeight: 700, color: c.orange, letterSpacing: 1 }}>RUNTIME META AI:</span>
-      <MetaInfinity size={22} />
-      <span style={{ ...body, fontSize: 18, fontWeight: 600, color: c.ink }}>
-        Muse Spark 1.3 · Muse Wonder 1.0 · SAM 3.1 · Loupe 1.1 (Muse Glimmer 30B LoRA) · Muse Voice Transcribe 1.0
-      </span>
+  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, ...style }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <MetaInfinity size={32} />
+      <span style={{ ...body, fontSize: 24, fontWeight: 600, color: c.ink }}>Runs on Muse Spark, Muse Wonder, SAM 3.1, Muse Voice and Loupe on Muse Glimmer</span>
     </div>
-    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-      <span style={{ ...mono, fontSize: 15, fontWeight: 700, color: c.muted, letterSpacing: 1 }}>DEVELOPMENT, TRAINING & INFRASTRUCTURE:</span>
-      <MetaInfinity size={20} />
-      <span style={{ ...body, fontSize: 16, color: c["ink-2"] }}>
-        Built with Meta Muse Code (Wonder 1.0) · Reviewed with GPT-6 Astra, Claude Opus 5.5 & Gemini 4 Argon · Cloudflare Workers & Workflows · Fireworks AI · Hugging Face
-      </span>
-    </div>
+    <div style={{ ...body, fontSize: 19, color: c.muted }}>Built with Meta Muse Code · Cloudflare Workers · Fireworks AI</div>
   </div>
 );
 
