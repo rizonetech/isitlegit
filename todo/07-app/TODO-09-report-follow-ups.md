@@ -291,6 +291,8 @@ Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-siz
 
 ## 9. Complete decoded run on the card
 
+> **Started:** 2026-11-03T02:09:26Z
+
 Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence item): the card shows the run's opening and the first instruction's excerpt, so a reader still cannot read an instruction that runs past the stored excerpt, or a later instruction in the same run, without decoding the original elsewhere (Embrace The Red's ASCII Smuggler). The producer keeps one excerpt of at most 250 characters (`SPOT_TEXT` in `src/checks/instruction-phrases.ts`), and widening that storage is the checks lane's producer work: this section waits on that row, asked through the coordinator; the field shape below is a proposal for it, not a decision.
 
 **Phase:** 7
