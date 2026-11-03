@@ -264,6 +264,9 @@ describe("copyForTraining", () => {
     expect(isBenignDismissalReason("does not belong to us")).toBe(false);
     expect(isBenignDismissalReason("This impersonates our site, already reported")).toBe(false);
     expect(isBenignDismissalReason("Clones our domain, takedown filed")).toBe(false);
+    expect(isBenignDismissalReason("I am not sure this is our site")).toBe(false);
+    expect(isBenignDismissalReason("This is anything but a legitimate site")).toBe(false);
+    expect(isBenignDismissalReason("Maybe our site?")).toBe(false);
     expect(isBenignDismissalReason("Not a fake, this is our own campaign site")).toBe(true);
     expect(isBenignDismissalReason("legitimate partner domain")).toBe(true);
 

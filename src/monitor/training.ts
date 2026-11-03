@@ -84,32 +84,25 @@ export function defaultSourceRef(copy: Pick<TrainingCopy, "orgId" | "host" | "ca
   }
 }
 
-const NEGATED_BENIGN_PATTERN =
-  /\b(?:not|no|never|isn'?t|wasn'?t|aren'?t|weren'?t|don'?t|doesn'?t|didn'?t|cannot|can'?t|won'?t|wouldn'?t|shouldn'?t|hardly|barely|neither|nor|without)\s+(?:(?:a|an|the|any|really|actually|even|at\s+all|longer|more|be|being|been|seem|seems|look|looks)\s+){0,3}(?:our\s+(?:own|site|domain|brand|page)|legitimate|authori[sz]ed|official(?:\s+(?:site|domain|partner))?|partner(?:\s+(?:site|domain))?|false\s+positive|belong(?:s|ing)?\s+to\s+us)\b/i;
+const ANCHORED_NOT_FAKE_CLAUSE =
+  /^(?:(?:this|it)(?:\s+(?:site|domain|page|url|host))?\s+is\s+)?not\s+(?:a\s+|an\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonation|spoof|fraud)(?:\s+(?:site|domain|page))?$/i;
 
-const POSITIVE_NOT_FAKE_GLOBAL_PATTERN =
-  /\bnot\s+(?:a\s+|an\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonat\w*|spoof\w*|fraud\w*)\b/gi;
+const ANCHORED_BENIGN_CLAUSE =
+  /^(?:(?:(?:this|it)(?:\s+(?:site|domain|page|url|host))?\s+is\s+)?(?:(?:our|the\s+business'?s)\s+(?:own\s+)?(?:(?:legitimate|official|authori[sz]ed|valid|real|genuine|approved|known|test|campaign|marketing|staging|regional|secondary|partner)\s+){0,2}(?:site|domain|brand|page|url|host|property|portal|landing\s+page)|(?:a\s+|an\s+)?(?:legitimate|official|authori[sz]ed|valid|real|genuine|approved|known|partner)\s+(?:(?:partner|vendor|agency|brand|company|business|campaign|test|marketing|staging|regional)\s+){0,2}(?:site|domain|page|url|host|portal)|(?:legitimate|official|authori[sz]ed)|(?:a\s+)?false\s+positive|owned\s+by\s+us)|(?:(?:this|it)(?:\s+(?:site|domain|page|url|host))?\s+)?belong(?:s|ing)?\s+to\s+us)$/i;
 
-const POSITIVE_NOT_FAKE_PATTERN =
-  /\bnot\s+(?:a\s+|an\s+)?(?:fake|lure|phish(?:ing)?|scam|impersonat\w*|spoof\w*|fraud\w*)\b/i;
-
-const DISQUALIFYING_THREAT_OR_TRIAGE_PATTERN =
-  /\b(?:fake|lure|phish\w*|scam\w*|impersonat\w*|spoof\w*|fraud\w*|malicious|clone\w*|cop(?:y|ied|ies)|mimic\w*|pretend\w*|steal\w*|stolen|takedown|taken\s+down|report(?:ed|ing)?|duplicate|expired|offline|down|parked|blocked|handled|resolved|sinkhole\w*|suspicious)\b/i;
-
-const POSITIVE_BENIGN_PATTERN =
-  /\b(?:(?:this|it)\s+is\s+(?:our\s+(?:own\s+)?(?:site|domain|brand|page)|legitimate|authori[sz]ed|an?\s+(?:official|authori[sz]ed|legitimate)\s+(?:site|domain|partner))|^our\s+(?:own\s+)?(?:site|domain|brand|page)\b|\bour\s+own\s+(?:campaign\s+|test\s+|marketing\s+)?(?:site|domain|brand|page)\b|\blegitimate\s+(?:site|domain|partner|page|campaign|business)\b|^legitimate$|\bauthori[sz]ed\s+(?:site|domain|partner|page|campaign)\b|^authori[sz]ed$|\bofficial\s+(?:site|domain|partner)\b|\bpartner\s+(?:site|domain)\b|\bfalse\s+positive\b|\bbelong(?:s|ing)?\s+to\s+us\b)/i;
-
-// A dismissal qualifies as a benign training label only when its reason unambiguously classifies
-// the page as benign (not a fake, false positive, or the business's own / authorised / legitimate
-// site) and contains no un-negated threat or operational-triage terms ("This impersonates our site,
-// already reported", "duplicate", "expired", "not legitimate", "not our site").
+// A dismissal qualifies as a benign training label only when every clause is an anchored,
+// unambiguous affirmative benign classification (not a fake, false positive, or the business's
+// own / authorised / legitimate site), rejecting any uncertainty, negation, question, or
+// operational-triage statement.
 export function isBenignDismissalReason(reason: string): boolean {
   const trimmed = reason.trim();
-  if (!trimmed) return false;
-  if (NEGATED_BENIGN_PATTERN.test(trimmed)) return false;
-  const residual = trimmed.replace(POSITIVE_NOT_FAKE_GLOBAL_PATTERN, " ");
-  if (DISQUALIFYING_THREAT_OR_TRIAGE_PATTERN.test(residual)) return false;
-  return POSITIVE_NOT_FAKE_PATTERN.test(trimmed) || POSITIVE_BENIGN_PATTERN.test(trimmed);
+  if (!trimmed || trimmed.includes("?")) return false;
+  const clauses = trimmed
+    .split(/[,;:.!\n]+/)
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (clauses.length === 0) return false;
+  return clauses.every((clause) => ANCHORED_NOT_FAKE_CLAUSE.test(clause) || ANCHORED_BENIGN_CLAUSE.test(clause));
 }
 
 // Reads the immutable final URL captured with `captureKey`: explicit caller value first, then the
