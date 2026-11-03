@@ -638,7 +638,7 @@ Sections: 8 | Checklist items: 40
 | Status | Reference   | Deliverable                                          | Needs                | Items |
 | ------ | ----------- | ---------------------------------------------------- | -------------------- | ----- |
 | [x]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 6     |
-| [ ]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 10    |
+| [x]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 10    |
 | [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis    | meta-api             | 4     |
 | [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing           | cloudflare, meta-api | 4     |
 | [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording       | none                 | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 401/597 verified sections, 120 ready to run now.
+Progress: 402/597 verified sections, 119 ready to run now.
 
-Checklist: 2997/3688 items completed (includes Commit items).
+Checklist: 2998/3688 items completed (includes Commit items).
