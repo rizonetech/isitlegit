@@ -903,6 +903,10 @@ One submit invites several addresses with one shared role, each address's outcom
 
 The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
 
+> **Started:** 2026-11-03T01:44:01Z
+
+**Corrected 2026-11-03 (checked against the tree):** the page reads `readTeamHistory` (`src/auth/audit.ts`, the reader behind D07 T02 §6's owner-only endpoint) on the server, as every Team read does, filtered by the page's own `action`, `from` and `to` query values. Columns: When, What (the action in plain words), Who (the actor's name or email, "A member who has left" when they have), Whom, and Outcome. An owner who is no longer a member of the organisation reads nothing; admins and members never receive the section at all, not even its heading.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Owner-only team history under the pending invitations, filtered by action and date (SPEC M7 names place, columns, filters and the empty and error states).
 
