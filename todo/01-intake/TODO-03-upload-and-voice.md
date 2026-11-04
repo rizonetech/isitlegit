@@ -558,11 +558,15 @@ Filed 2026-11-01 from §4's completion review (Part 2, item 2): the extraction i
 
 ## 15. Figures read out of a transcript by code
 
+> **Started:** 2026-11-04T07:23:53+00:00
+
 Filed 2026-11-01 from §4's review rounds: the model does not restate the amounts and accounts a speaker gives (four rounds found a way to read a figure out of the middle of another, however it was matched), so §4 keeps the speaker's sentence. A reader that needs the figures themselves, such as matching a spoken account number against the organisation's supplier accounts (D05 T02), needs them read by code from the transcript, which is deterministic and checkable.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
+
+**Implementation clarification 2026-11-04:** Parse the complete original transcript in `src/voice/extract.ts` at verification time, then keep only whole figures wholly contained in the matched payment-quote source span. Parsing the model-selected substring alone could turn part of a longer figure into a new amount/account. Preserve exact source text, UTF-16 source offsets and decimal strings (never floating-point monetary rounding), distinguish amount currency from account digits, and reject malformed or ambiguous numeric runs as a whole. Persist the deterministically derived optional figures through `src/voice/schema.ts`; historical claims without them must not manufacture figures from a quote alone. Prove stored evidence with D1 read-back as well as pure parser tests.
 
 **Build order:**
 
