@@ -523,7 +523,7 @@ Sections: 226 | Checklist items: 1023
 | [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
 | [ ]    | D06 T02 §8  | Native PDF forensic detection and coverage repair           | none                 | 5     |
-| [ ]    | D06 T02 §9  | PNG encoding at the doctored fixture producer               | none                 | 8     |
+| [x]    | D06 T02 §9  | PNG encoding at the doctored fixture producer               | none                 | 8     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                            | attended             | 3     |
@@ -678,6 +678,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 414/602 verified sections, 117 ready to run now.
+Progress: 415/602 verified sections, 116 ready to run now.
 
 Checklist: 3043/3724 items completed (includes Commit items).

@@ -40,7 +40,7 @@ track: day-5
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 | 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
 | 8 | §8 | Native PDF forensic detection and coverage repair | §1, §5, §6 | [ ] |
-| 9 | §9 | PNG encoding at the doctored fixture producer | §4 | [ ] |
+| 9 | §9 | PNG encoding at the doctored fixture producer | §4 | [x] |
 
 ## 1. PDF forensics
 
@@ -300,6 +300,9 @@ Coordinator scoped authority 2026-11-04: own the narrow shared producer `scripts
 - [x] Commit: `fixtures: encode doctored payment images as PNG`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/make-doctored.test.ts` passes, fails on non-PNG saved output before the fix, and the corpus normalization record proves all 19 repairs without pixel changes.
+
+> **Verified:** 2026-11-04 | §9 | a4e04dad45e02ba03e64d6ffa61e9c789b959301
+> **Review:** `docs/reviews/d06-t02-s9.json`
 
 ## Verification
 
