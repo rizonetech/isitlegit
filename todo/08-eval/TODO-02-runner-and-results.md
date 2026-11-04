@@ -47,6 +47,7 @@ track: day-6
 | 14 | §14 | Paired-evidence investigation | §13 | [x] |
 | 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
+| 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -520,6 +521,33 @@ Filed 2026-11-03 from the app lane's D07 T03 §10 completion review, relayed by 
 - [ ] Commit: `eval: blinded comprehension comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-metrics.test.ts` passes with the blinding, pairing and scoring cases, and the published figures recompute from the recorded answers.
+
+## 17. Per-case ablation orchestration repair
+
+> **Started:** 2026-11-04T09:38:39.640304+02:00 (current plan preparation; no implementation for this scoped repair yet)
+
+Coordinator `critical-path-contract` (2026-11-04) assigns eval the remaining runner transport, immutable selection and orchestration gap. This is a genuine current repair section, preserving §3's historical Muse plan and unfinished live acceptance without inventing retrospective approval. At baseline `4777f305`, `eval/ablate-run.ts` always refuses live arms, `runAblation` holds state in memory, and the upload adapter does not transport experiment metadata. Checks owns additive migration 0095, intake/persistence (D01 T03 §17), consumer hooks (D04 T01 §17) and the separate monitor screening binding; eval does not edit those paths. Offline implementation may proceed; live arms require those exact hooks merged, deployed and verified first.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Validate and persist immutable experiment and arm identities. Done when: restart loads the same selected IDs, digest, deployment and per-arm replay identity, and drift is refused before upload.
+2. Connect runner transport and durable attribution checks. Done when: tagged full/ablated cases carry the agreed JSON and a forged/mismatched persisted reply cannot enter metrics.
+3. Run the resumable orchestration against injected live clients and expose the real CLI. Done when: the entry point uses the same tested path, refuses missing prerequisites before spend, preserves completed results across restart and publishes only comparable measured arms.
+
+- [ ] Add a strict immutable manifest codec in `eval/ablate.ts`. Done when: experimentId and arm replay IDs are bounded ASCII, arm is full or one existing flag, manifest digest is SHA-256 of fixed-order `JSON.stringify({seed,sets,setVersions,deployment,ids})` with sorted setVersions keys, and duplicate/unknown fields or population/deployment drift are rejected. Cheaper substitute: deriving identity from mutable arm status. Source: agreed checks/eval contract 2026-11-04 and original §3 comparability contract.
+- [ ] Persist orchestration state through temp-file-then-rename in `eval/ablate-run.ts`. Done when: each arm gets one fresh replayRunId before any upload, a restart preserves that ID and stored selection, completed arms are read back, and uncertain dispatch never silently creates a new paid arm. Cheaper substitute: in-memory progress or fresh identities on retry. Source: §3 recovery contract.
+- [ ] Carry multipart `ablate` JSON `{experimentId,arm,manifestDigest,deployment}` plus mandatory `replayRunId` through `eval/run.ts`, including explicit full baseline. Done when: fake clients see exactly these fields, existing ordinary/replay callers stay unchanged, and response experiment attribution on both 201 and duplicate 200 matches the immutable manifest before accepting a case. Cheaper substitute: org-wide KV flags or treating a full arm as ablated. Source: checks locked JSON contract 2026-11-04.
+- [ ] Verify durable attribution through `case_experiments`, `eval_experiments` and `eval_experiment_arms` using the existing eval D1 reader. Done when: org, experiment, arm, replay ID, digest and deployment mismatch or missing context refuses the row, and recovery verifies persisted state rather than trusting the upload echo. Cheaper substitute: trusting client flags without stored proof. Source: D01 T03 §17 owned contract.
+- [ ] Replace the unconditional refusal in `eval/ablate-run.ts` with the tested live adapter and prerequisite preflight. Done when: exact deployed commit/capability and immutable selected sample hashes are verified before uploads, each arm uses a stated positive cap within the shared budget, and missing hooks, cap refusal, malformed replies and failed arms stop later spending with recoverable evidence. Cheaper substitute: bypassing accounting or running before the hooks are deployed. Source: coordinator critical-path-contract and design spec 4.9.
+- [ ] Repair `eval/ablate.ts` report/resume integration. Done when: all completed arms, including those completed before restart, are recomputed from stored rows on the identical population/deployment; null verdicts, stale-only arms and unexercised models remain not measured, failed/incomparable arms cannot publish, and `eval/RESULTS.md` preserves other sections with atomic read-back. Uploads do not invoke Loupe, so no-screening stays explicitly not measured pending the separately owned labelled monitor experiment in original §3. Cheaper substitute: invented zero contribution or mixing monitor pages into case denominators. Source: manifesto and §3 model-contribution contract.
+- [ ] Add `test/node/eval-ablation-transport.test.ts` with stubbed live effects and real CLI dependency injection. Done when: tests cover immutable identity, interrupted writes, restart after a completed arm, response/D1 mismatch, no spend on refusal, different replay IDs between arms but stable IDs on resume, exact hand-computed comparable metrics and preservation of unrelated result sections. Cheaper substitute: a CLI test that only checks a hard-coded refusal.
+- [ ] Commit: `eval: bind ablation runs to durable per-case identities`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-ablation.test.ts test/node/eval-ablation-transport.test.ts test/node/eval-run.test.ts` passes; changing the dispatched arm or resumed replay identity, discarding a previously completed arm, or accepting mismatched durable attribution makes its regression fail. Live measurements and original §3 remain unclaimed until the exact hook deployment is measured.
 
 ## Verification
 
