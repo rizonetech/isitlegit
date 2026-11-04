@@ -31,11 +31,12 @@ import { UNTRUSTED_WARNING, untrusted, untrustedBlock } from "../meta/untrusted"
 import { ablateFlagFor } from "../pipeline/ablate";
 import { recordEvent } from "../pipeline/events";
 import type { BankKeys } from "../trust/bank";
+import { DETECTOR, type Detector, groundLogos } from "../vision/detector";
 import { compareLogo, logoMatchItem } from "../vision/logo-compare";
 import { referenceLogos } from "../vision/logo-reference";
 import { CROP_TIMEOUT_MS, cropBoxes, imageSize, SegmentError, segment, selectBoxes, storeCrops } from "../vision/sam";
 import { SPARK_REASONING_EFFORT } from "../vision/screen-request";
-import { landingHostsFrom, messageLinkHostsOf, parsedSummaryOf, senderDomainOf } from "../vision/step";
+import { parsedSummaryOf, senderDomainOf } from "../vision/step";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
@@ -467,47 +468,81 @@ async function resolveLogoDomainJudgement(
       // Ignore malformed manifest.
     }
   }
+  if (!sourceKey) return "unjudged";
   const caseEvidence = await readEvidence(db, caseId).catch(() => [] as Evidence[]);
-  if (sourceKey) {
-    for (const item of caseEvidence) {
-      if (
-        item.check === "vision.brand_domain_mismatch" &&
-        item.artefacts.includes(sourceKey) &&
-        typeof item.detail.brand === "string" &&
-        (getBrand(table, item.detail.brand)?.name ?? item.detail.brand) === brandName
-      ) {
-        return item.severity === "high" ? "mismatch" : "unjudged";
-      }
+  for (const item of caseEvidence) {
+    if (
+      item.check === "vision.brand_domain_mismatch" &&
+      item.artefacts.includes(sourceKey) &&
+      typeof item.detail.brand === "string" &&
+      (getBrand(table, item.detail.brand)?.name ?? item.detail.brand) === brandName
+    ) {
+      return item.severity === "high" ? "mismatch" : "unjudged";
     }
   }
-  if (sourceKey) {
-    const shot = caseEvidence.find((e) => e.check === "agent.screenshot_url" && e.artefacts.includes(sourceKey));
-    const targetUrl =
-      typeof shot?.detail.final === "string"
-        ? shot.detail.final
-        : typeof shot?.detail.url === "string"
-          ? shot.detail.url
-          : null;
-    if (targetUrl) {
+  const shot = caseEvidence.find((e) => e.check === "agent.screenshot_url" && e.artefacts.includes(sourceKey));
+  const targetUrl =
+    typeof shot?.detail.final === "string"
+      ? shot.detail.final
+      : typeof shot?.detail.url === "string"
+        ? shot.detail.url
+        : null;
+  if (targetUrl) {
+    try {
+      const host = new URL(targetUrl).hostname.toLowerCase();
+      const match = brandForDomain(table, host);
+      return match && match.brand.name === brandName && match.official ? "official" : "mismatch";
+    } catch {
+      return "unjudged";
+    }
+  }
+  if (sourceKey.startsWith(`art/${caseId}/page/`)) {
+    let pageUrl: string | null = null;
+    for (const item of caseEvidence) {
+      if (!item.artefacts.includes(sourceKey)) continue;
+      if (item.check === "walkthrough.chain" && Array.isArray(item.detail.pages)) {
+        const keptPages = item.detail.pages.filter(
+          (p): p is { url: string; withheld?: boolean } =>
+            Boolean(p) &&
+            typeof p === "object" &&
+            !(p as { withheld?: boolean }).withheld &&
+            typeof (p as { url?: unknown }).url === "string",
+        );
+        const idx = item.artefacts.indexOf(sourceKey);
+        if (idx >= 0 && keptPages[idx]?.url) {
+          pageUrl = keptPages[idx].url;
+          break;
+        }
+      } else if (item.check === "walkthrough.hidden_text" && typeof item.detail.page === "string") {
+        pageUrl = item.detail.page;
+        break;
+      } else if (item.check.startsWith("link.")) {
+        if (item.detail.frame !== true && typeof item.detail.page === "string") {
+          pageUrl = item.detail.page;
+          break;
+        }
+        if (typeof item.detail.final === "string") {
+          pageUrl = item.detail.final;
+          break;
+        }
+      }
+    }
+    if (pageUrl) {
       try {
-        const host = new URL(targetUrl).hostname.toLowerCase();
+        const host = new URL(pageUrl).hostname.toLowerCase();
         const match = brandForDomain(table, host);
         return match && match.brand.name === brandName && match.official ? "official" : "mismatch";
       } catch {
-        // Fall through to case hosts.
+        return "unjudged";
       }
     }
+    return "unjudged";
   }
   const parsed = await parsedSummaryOf(store, caseId);
   const sender = senderDomainOf(parsed);
-  const landings = [...new Set([...landingHostsFrom(caseEvidence), ...(await messageLinkHostsOf(store, parsed))])];
-  const hosts = [...new Set([...(sender ? [sender] : []), ...landings])];
-  if (hosts.length === 0) return "unjudged";
-  const allOfficial = hosts.every((host) => {
-    const match = brandForDomain(table, host);
-    return Boolean(match && match.brand.name === brandName && match.official);
-  });
-  return allOfficial ? "official" : "mismatch";
+  if (!sender) return "unjudged";
+  const match = brandForDomain(table, sender);
+  return match && match.brand.name === brandName && match.official ? "official" : "mismatch";
 }
 
 // The Workflow's tool implementations (D04 T01 §4 and §10): the link follower and landing capture of D02 T07,
@@ -526,6 +561,7 @@ export function verdictToolDeps(
     policy?: ExpandDeps["policy"];
     metaFetch?: typeof fetch;
     waitUntil?: (promise: Promise<unknown>) => void;
+    detector?: Detector;
   } = {},
 ) {
   const launch = overrides.launch ?? (() => puppeteer.launch(env.BROWSER));
@@ -709,18 +745,19 @@ export function verdictToolDeps(
         const size = await imageSize(browser, read.body, opLeft());
         if (fence.expired()) throw new SegmentError("incomplete", "the tool deadline passed during image sizing");
         const dataUrl = `data:${metaRow.mediaType};base64,${toBase64(read.body)}`;
-        const boxes = await segment(
-          {
-            env,
-            budget: d1Budget(db, { caller: "verdict-agent", caseId }),
-            owner: { kind: "case", caseId, step: "verdict" },
-            deadlineMs: Math.max(1, fence.deadlineAt - Date.now()),
-            expired: fence.expired,
-            ...(overrides.metaFetch ? { fetch: overrides.metaFetch } : {}),
-          },
-          dataUrl,
-          concept,
-        );
+        const metaCtx = {
+          env,
+          budget: d1Budget(db, { caller: "verdict-agent", caseId }),
+          owner: { kind: "case" as const, caseId, step: "verdict" },
+          deadlineMs: Math.max(1, fence.deadlineAt - Date.now()),
+          expired: fence.expired,
+          waitUntil,
+          ...(overrides.metaFetch ? { fetch: overrides.metaFetch } : {}),
+        };
+        const boxes =
+          concept === "logo" && (overrides.detector ?? DETECTOR) === "grounding"
+            ? await groundLogos(metaCtx, dataUrl, size, fence.deadlineAt)
+            : await segment(metaCtx, dataUrl, concept);
         if (fence.expired()) throw new SegmentError("incomplete", "the tool deadline passed after segmentation");
         const selected = selectBoxes(boxes, size).filter((b) => b.concept === concept);
         if (selected.length === 0) {

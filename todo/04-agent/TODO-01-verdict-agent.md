@@ -2,7 +2,7 @@
 schema_version: 1
 id: verdict-agent
 domain: 04-agent
-status: active
+status: done
 title: "TODO-01 -- Verdict Agent, Citations, Deterministic Floor and Injection Defence"
 frozen: true
 track: day-6
@@ -44,15 +44,15 @@ track: day-6
 | 5 | §5 | Citation validator with fallback | §4 | [x] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [x] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [x] |
-| 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
+| 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [x] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
-| 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
+| 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [x] |
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
-| 16 | §16 | Message-specific consequence sentences | §2 | [ ] |
+| 16 | §16 | Message-specific consequence sentences | §2 | [x] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -276,7 +276,7 @@ Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it clas
 
 ## 8. Partial checks weigh on the verdict
 
-> **Started:** 2026-11-03T23:41:00+02:00
+> **Started:** 2026-11-04T01:35:00+02:00
 
 > **Corrected 2026-11-03 (plan validation against the tree):** (1) Stored verdict values in `src/db/cases.ts` are `"safe" | "suspicious" | "malicious"`, where `"safe"` renders as `legit` and `"suspicious"` renders as `unsure`. (2) `floorFor(evidence, outcomes?)` in `src/agent/floor.ts` takes optional `outcomes?: readonly Pick<CheckOutcome, "check" | "outcome" | "reason">[] | null` from `readCheckOutcomes(db, caseId)`; when `outcomes` has no `partial` `attachment.*` row, `floorFor` returns `{ verdict, evidenceIds }` unchanged and `FLOOR_REVISION` stays `"1"` so `test/agent/floor.test.ts` passes without change. When any outcome has `check.startsWith("attachment.") && outcome === "partial"`, `floorFor` caps the floor at least at `"suspicious"` (never lowering `"malicious"`), returns `partialReason` naming the partial attachment check(s) and their stored reason (for example `"Attachment check partial (attachment.macro, attachment.executable: 2 archive members not read by content)."`), and cites the matching `attachment.*` evidence IDs (preferring `detail.checked === false`, or falling back to `[evidence[0].id]` when the partial check emitted no evidence row of its own). (3) `ruleVerdict(evidence, headersAvailable, outcomes?)` in `src/agent/rule-verdict.ts`, `runAgent` in `src/agent/loop.ts`, and `verdict()` in `src/pipeline/analysis-workflow.ts` pass the case's `readCheckOutcomes(db, caseId)` to `floorFor` and `ruleVerdict`; when a partial attachment check caps a non-malicious verdict at `"suspicious"`, one reason in `VerdictView.reasons` (within `MAX_REASONS = 3`) is the templated partial-attachment reason cited to its existing Evidence ID.
 
@@ -297,6 +297,9 @@ Filed 2026-10-31 from D02 T04 §8's completion review (Part 1 item 9, out of sco
 - [x] Commit: `agent: partial checks weigh on the verdict`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/floor-partial.test.ts` passes.
+
+> **Verified:** 2026-11-04 | §8 | 560a867b8a368ede3b31f517e7f45d882a658045
+> **Review:** `docs/reviews/d04-t01-s8.json`
 
 ## 9. Impersonation family in rule verdict
 
@@ -328,7 +331,7 @@ The rule-based verdict is suspicious when a finding of medium severity or higher
 
 ## 10. Logo tools for the agent
 
-> **Started:** 2026-11-03T23:41:00+02:00
+> **Started:** 2026-11-04T01:35:00+02:00
 
 > **Corrected 2026-11-03 (plan validation against the tree):** (1) `segment_logos` (`artefact_key: z.string().min(1).max(1024)`, `concept: z.enum(SEGMENT_CONCEPTS)`) and `compare_logo` (`crop_key: z.string().min(1).max(1024)`, `brand: z.string().min(1).max(200)`) join `TOOL_SCHEMAS` and `DESCRIPTIONS` in `src/agent/tools.ts`, so `toolDefinitions()` returns all seven spec 4.6 tools (`test/agent/tools.test.ts` updated for the seven-tool count as anticipated by §3's coordinator note, while keeping `segmentLogos` and `compareLogo` optional on `ToolDeps` so five-tool stubs continue to work). (2) Before calling its implementation, `segment_logos` verifies that `artefact_key` starts with `art/${ctx.caseId}/render/` or `art/${ctx.caseId}/page/` and exists in `artefacts` for `ctx.caseId` with `kind IN ('render', 'page')` (otherwise `outcome: "refused"`, `reason: "artefact_not_in_case"`). `compare_logo` verifies that `crop_key` starts with `art/${ctx.caseId}/crop/` (excluding `-manifest-\d+\.json` manifests) and exists in `artefacts` for `ctx.caseId` with `kind = 'crop'` and a raster `media_type` (otherwise `outcome: "refused"`, `reason: "artefact_not_in_case"`), and resolves `brand` through `getBrand(ctx.brands ?? bundled, brand)` (otherwise `outcome: "refused"`, `reason: "unknown_brand"`). (3) Both tools share the `agent` producer, the eight-call and 90-second executor caps of §3, and the case's shared Meta budget in `verdictToolDeps` (`src/agent/loop.ts`), mapping to `segment` / `selectBoxes` / `cropBoxes` / `storeCrops` (`src/vision/sam.ts`) and `referenceLogos` / `compareLogo` / `logoMatchItem` (`src/vision/logo-reference.ts`, `src/vision/logo-compare.ts`).
 
@@ -352,6 +355,9 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 - [x] Commit: `agent: logo tools for the verdict agent`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
+
+> **Verified:** 2026-11-04 | §10 | 560a867b8a368ede3b31f517e7f45d882a658045
+> **Review:** `docs/reviews/d04-t01-s10.json`
 
 ## 11. Floor outcome persisted with the verdict
 
@@ -496,7 +502,7 @@ Filed 2026-11-03 from the coordinator's routing (trust lane, D06 T01 §3 item 3)
 
 ## 16. Message-specific consequence sentences
 
-> **Started:** 2026-11-03T23:41:00+02:00
+> **Started:** 2026-11-04T01:35:00+02:00
 
 > **Corrected 2026-11-03 (plan validation against the tree):** (1) `FLOOR_CONSEQUENCES` in `src/agent/rule-verdict.ts` maps the four floor families (`credential`, `bank`, `malware`, `lookalike`) to deterministic plain-text sentences under 300 characters with no `[E<n>]` markers and no values copied from the message: `credential` (`walkthrough.credential_target`, `walkthrough.form_fields`, `link.credential_form`, `attachment.html`, `vision.requested_action`) -> `"The sign-in page would take the password it asks for."`; `bank` (`invoice.*`, `agent.ledger_lookup`, `document.proof_of_payment`, `voice.request`) -> `"The payment would go to bank details that differ from the supplier's record."`; `malware` (`attachment.executable`, `attachment.macro`, `attachment.encrypted_archive`, `attachment.type_mismatch`) -> `"Opening the attachment could run a program or hidden code on your device."`; `lookalike` (`domain.lookalike`, `vision.brand_domain_mismatch`, `vision.logo_match`, `agent.compare_logo`, `sender.display_brand`, `sender.display_address`) -> `"Replying or following its links would reach a lookalike domain, not the organisation it names."`. (2) When `floorFor` raises the verdict (`floor.verdict !== "safe"`) and its raising `floor.evidenceIds` match one of the four families (evaluated at highest raising severity first in evidence order), `ruleVerdict` sets `meaning` to that family's sentence; when no floor raised the verdict (for example an impersonation-family medium rule trigger, or a safe / partial / noted case) or the floor item is outside the four families (for example an uncapped `reputation.listing` or `link.text_mismatch` at `high`), `ruleVerdict` keeps `MEANINGS[verdict]` (and `PARTIAL_MEANING`, `NOTED_MEANING`, `NOTED_PARTIAL_MEANING` when `safe`). (3) In `src/agent/loop.ts`, a floored agent answer (`floored === true`) already uses `rules.meaning`, so it stores the mapped consequence sentence while an unfloored agent answer keeps the model's `answer.meaning` unless an unfloored rule fallback runs without one of the four floor families.
 
@@ -520,6 +526,9 @@ Filed 2026-11-03 from the coordinator's filing request (app lane, D07 T03 §10's
 - [x] Commit: `agent: message-specific consequence sentences`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/loop.test.ts` passes, and fails if a credential-floored and a bank-floored case store the same consequence sentence.
+
+> **Verified:** 2026-11-04 | §16 | 560a867b8a368ede3b31f517e7f45d882a658045
+> **Review:** `docs/reviews/d04-t01-s16.json`
 
 ## Verification
 
