@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import puppeteer, { type Browser } from "@cloudflare/puppeteer";
 import { describe, it } from "vitest";
 import { arrivalEvidence, observedTransport, type Report, ReportSchema } from "../../eval/frontier/multistep-core";
+import { captureExecution, exceptionDiagnostic } from "../../eval/frontier/multistep-observation";
 import { ulid } from "../../src/db/ulid";
 import { canaryFor } from "../../src/walkthrough/canary";
 import { dohResolve } from "../../src/walkthrough/url-policy";
@@ -21,39 +22,49 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
     const began = Date.now();
     let walkBegan = began,
       caseId = "";
-    try {
+    const captured = await captureExecution(async (at) => {
       caseId = ulid();
-      const at = new Date().toISOString();
-      await env.DB.prepare(
-        "INSERT INTO cases(id,org_id,channel,created_at,updated_at) VALUES(?,'org-frontier','email',?,?)",
-      )
-        .bind(caseId, at, at)
-        .run();
-      const canary = await canaryFor(env.DB, caseId);
-      if (!canary.ok) throw new Error("canary unavailable");
-      browser = await puppeteer.launch(env.BROWSER);
-      walkBegan = Date.now();
-      result = await walk(browser, {
-        caseId,
-        walkId: reservationId,
-        canary,
-        startUrl: start.href,
-        store: { db: env.DB, bucket: env.ARTEFACTS },
-        resolve: dohResolve(),
-        meta: {
-          env: {
-            META_API_KEY: input.WALK_META_API_KEY ?? "",
-            CF_AIG_TOKEN: input.WALK_CF_AIG_TOKEN ?? "",
-            META_GATEWAY_URL: input.WALK_GATEWAY_URL ?? "",
-          },
-          budget,
-          transportAttempts: 1,
-          fetch: observedTransport(fetch, capacity),
-        },
+      const createdAt = new Date().toISOString();
+      await at("case-creation", () =>
+        env.DB.prepare(
+          "INSERT INTO cases(id,org_id,channel,created_at,updated_at) VALUES(?,'org-frontier','email',?,?)",
+        )
+          .bind(caseId, createdAt, createdAt)
+          .run(),
+      );
+      const canary = await at("canary", async () => {
+        const value = await canaryFor(env.DB, caseId);
+        if (!value.ok) throw new Error("canary unavailable");
+        return value;
       });
-    } catch {
-      /* The validated unsuccessful observation below retains every attempted charge. */
-    } finally {
+      const activeBrowser = await at("browser-launch", () => puppeteer.launch(env.BROWSER));
+      browser = activeBrowser;
+      walkBegan = Date.now();
+      return at("walk", () =>
+        walk(activeBrowser, {
+          caseId,
+          walkId: reservationId,
+          canary,
+          startUrl: start.href,
+          store: { db: env.DB, bucket: env.ARTEFACTS },
+          resolve: dohResolve(),
+          meta: {
+            env: {
+              META_API_KEY: input.WALK_META_API_KEY ?? "",
+              CF_AIG_TOKEN: input.WALK_CF_AIG_TOKEN ?? "",
+              META_GATEWAY_URL: input.WALK_GATEWAY_URL ?? "",
+            },
+            budget,
+            transportAttempts: 1,
+            fetch: observedTransport(fetch, capacity),
+          },
+        }),
+      );
+    });
+    result = captured.result;
+    const diagnostic = captured.diagnostic;
+    const followupDiagnostics: NonNullable<Report["diagnostic"]>[] = [];
+    {
       const stage = (raw: string): Report["pages"][number]["stage"] => {
         try {
           const url = new URL(raw);
@@ -65,17 +76,32 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
           return "other";
         }
       };
-      const rows = caseId
-        ? (
-            await env.DB.prepare(
-              "SELECT seq,at,screenshot_key FROM walkthrough_actions WHERE case_id=? AND walk_id=? AND kind='action' ORDER BY seq",
-            )
-              .bind(caseId, reservationId)
-              .all()
-          ).results
-        : [];
-      const arrivals = arrivalEvidence(rows, walkBegan);
+      let rows: { seq: number; at: string; screenshot_key: string | null }[] = [];
+      let arrivals: ReturnType<typeof arrivalEvidence> = new Map();
+      try {
+        rows = caseId
+          ? ((
+              await env.DB.prepare(
+                "SELECT seq,at,screenshot_key FROM walkthrough_actions WHERE case_id=? AND walk_id=? AND kind='action' ORDER BY seq",
+              )
+                .bind(caseId, reservationId)
+                .all()
+            ).results as typeof rows)
+          : [];
+        arrivals = arrivalEvidence(rows, walkBegan);
+      } catch (error) {
+        followupDiagnostics.push(exceptionDiagnostic("evidence-read", error));
+      }
+      if (browser?.connected) {
+        try {
+          await browser.close();
+        } catch (error) {
+          followupDiagnostics.push(exceptionDiagnostic("browser-close", error));
+        }
+      }
       const report = ReportSchema.parse({
+        diagnostic,
+        followupDiagnostics,
         ordinal,
         reservationId,
         outcome: result?.outcome ?? "crashed",
@@ -94,7 +120,6 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
         capacity,
       });
       (task.meta as Record<string, unknown>).multistep = report;
-      if (browser?.connected) await browser.close();
     }
   });
 });

@@ -3,17 +3,48 @@ import { z } from "zod";
 import type { Budget } from "../../src/meta/guard.ts";
 import { estimateUsd } from "../../src/meta/pricing.ts";
 import { IMAGES_KEPT, MAX_OUTPUT_TOKENS, MODEL } from "../../src/walkthrough/limits.ts";
+import { DiagnosticSchema } from "./multistep-observation.ts";
 
 export class Refusal extends Error {}
 export const INITIAL_CAP = 5;
 export const ALLOWANCE =
   9 * estimateUsd(MODEL, { inputBytes: 13000, images: IMAGES_KEPT, maxOutputTokens: MAX_OUTPUT_TOKENS });
+const ConfigurationHash = z.string().regex(/^[a-f0-9]{64}$/);
+export const ConfigurationSchema = z.strictObject({
+  model: z.literal("muse-wonder-1.0"),
+  promptReference: z.literal("src/walkthrough/wonder.ts#GOAL"),
+  promptSha256: ConfigurationHash,
+  untrustedReference: z.literal("src/meta/untrusted.ts#UNTRUSTED_WARNING"),
+  untrustedSha256: ConfigurationHash,
+  promptTemplateReference: z.literal("src/walkthrough/wonder.ts#walk"),
+  promptTemplateSourceSha256: ConfigurationHash,
+  toolSchemaReference: z.literal("src/walkthrough/driver.ts#Action"),
+  toolSchemaSourceSha256: ConfigurationHash,
+  clientReference: z.literal("src/meta/client.ts"),
+  clientSourceSha256: ConfigurationHash,
+  maxOutputTokens: z.literal(1024),
+  screenshotsRetained: z.literal(2),
+  maxViewText: z.literal(4000),
+  transportAttempts: z.literal(1),
+  stepLimit: z.literal(8),
+  timeLimitMs: z.literal(60000),
+  toolChoice: z.literal("auto"),
+  parallelToolCalls: z.literal(false),
+  store: z.literal(false),
+  reasoningEffort: z.null(),
+  downloadsAllowed: z.literal(false),
+  credentials: z.literal("per-case-canaries-only"),
+});
+export type Configuration = z.infer<typeof ConfigurationSchema>;
+
 const Money = z.number().finite().nonnegative();
 const Id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const Sha = z.string().regex(/^[a-f0-9]{40}$/);
 export const ReportSchema = z.strictObject({
   ordinal: z.number().int().min(1).max(5),
   reservationId: Id,
+  diagnostic: DiagnosticSchema.optional(),
+  followupDiagnostics: z.array(DiagnosticSchema).max(2).optional(),
   outcome: z.enum([
     "finished",
     "limit",
@@ -143,6 +174,7 @@ const SlotSchema = z.strictObject({
 });
 export const StateSchema = z.strictObject({
   version: z.literal(1),
+  configuration: ConfigurationSchema.optional(),
   id: Id,
   sourceSha: Sha,
   deployedSha: Sha,
@@ -175,6 +207,8 @@ export function validateState(raw: unknown): State {
   }
   if (cap !== s.capUsd) throw new Refusal("cap change needs recorded authority");
   for (const slot of s.slots) {
+    if (s.configuration && slot.report && !slot.report.diagnostic)
+      throw new Refusal("configured observation lacks bounded diagnostic");
     if (slot.report && (slot.report.ordinal !== slot.ordinal || slot.report.reservationId !== slot.reservationId))
       throw new Refusal("report identity mismatch");
     if (["pending", "unknown"].includes(slot.status) && slot.report)
@@ -328,6 +362,7 @@ export async function runNext(s: State, d: Deps): Promise<boolean> {
   if (!ledgerMatches(row, slot.reservationId) || row.state !== "reserved")
     throw new Refusal("reservation read-back failed");
   const report = ReportSchema.parse(await d.perform(slot.ordinal, slot.reservationId, ALLOWANCE));
+  if (s.configuration && !report.diagnostic) throw new Refusal("configured observation lacks bounded diagnostic");
   if (report.ordinal !== slot.ordinal || report.reservationId !== slot.reservationId)
     throw new Refusal("child report identity mismatch");
   slot.report = report;

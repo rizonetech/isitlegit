@@ -268,3 +268,91 @@ No model call was attempted; model navigation capability was not measured. Reach
 - Run observed 2026-11-04, ending 12:30 UTC. All five outcomes were `error` before any model transport attempt, with no recorded page or action. This is an execution failure, not a measurement of Wonder navigation quality. The configured model was `muse-wonder-1.0`; the eight-step and sixty-second limits were unchanged.
 - Evidence: `eval/frontier/multistep-results-2026-11-04.json`, an exact copy of the durable five-ordinal state (SHA-256 a95aac8db68b9bf64b98c7911450f286ed556819147f54d600f0704cf3b48c18). Each whole-walk reservation settled at zero; no capacity response, unknown outcome, cap change or sixth attempt occurred. Historical caller spend remains separate and retained.
 - Follow-up proposed to the coordinator: the driver owner should diagnose the pre-model runtime failure without relaxing containment. The adapter did not retain the driver reason, so the root cause is unproven. No rerun or replacement denominator is authorized. The four-of-five navigation target was not attained. Local scripted fixture and stubbed-driver tests remain separate evidence.
+
+## Wonder configuration and diagnostics: 5a123694-7b66-4c27-939a-8913313a782d
+
+Configured from immutable source 6fece3444d15155df25d77752e3c7189906477da; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.
+
+Configuration:
+
+```json
+{
+  "model": "muse-wonder-1.0",
+  "promptReference": "src/walkthrough/wonder.ts#GOAL",
+  "promptSha256": "42e81eba1408c0680d3b1857517a7d35d6625b61b34075e1a83e524b9c94ace7",
+  "untrustedReference": "src/meta/untrusted.ts#UNTRUSTED_WARNING",
+  "untrustedSha256": "7c17054faee0e5b3449fce15c5e382ffa9c81763c69ff1ec11b3b1029bea5fc9",
+  "promptTemplateReference": "src/walkthrough/wonder.ts#walk",
+  "promptTemplateSourceSha256": "f659fcef0a6df870bb6895c8be1c701e38a4b4dde13efdc2e3f9f0e07474b451",
+  "toolSchemaReference": "src/walkthrough/driver.ts#Action",
+  "toolSchemaSourceSha256": "be898eb321110354fee50d571bdd34789515ec3047231fca0fba1e461f0ba299",
+  "clientReference": "src/meta/client.ts",
+  "clientSourceSha256": "1b1bd6a6f946c277dc1f35549e79f0b079b0a3a3684d599c50ec70bc54a095c8",
+  "maxOutputTokens": 1024,
+  "screenshotsRetained": 2,
+  "maxViewText": 4000,
+  "transportAttempts": 1,
+  "stepLimit": 8,
+  "timeLimitMs": 60000,
+  "toolChoice": "auto",
+  "parallelToolCalls": false,
+  "store": false,
+  "reasoningEffort": null,
+  "downloadsAllowed": false,
+  "credentials": "per-case-canaries-only"
+}
+```
+
+Diagnostics:
+
+```json
+[
+  {
+    "ordinal": 1,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 2,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 3,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 4,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 5,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  }
+]
+```
+
+Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.

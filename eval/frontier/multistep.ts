@@ -18,6 +18,7 @@ import { z } from "zod";
 import { execute, localBudget } from "../../scripts/lib/meta-budget.ts";
 import { GATEWAY_URL, readSecretsFromVault } from "../../scripts/meta-smoke.ts";
 import { MODEL } from "../../src/walkthrough/limits.ts";
+import { renderSupplement, sourceConfiguration, verifyPublished } from "./multistep-configuration.ts";
 import {
   ALLOWANCE,
   capacityDelay,
@@ -39,6 +40,8 @@ const NAMES = ["index", "lure", "login", "submitted"] as const;
 const SOURCE_PATHS = [
   "eval/frontier/multistep.ts",
   "eval/frontier/multistep-core.ts",
+  "eval/frontier/multistep-observation.ts",
+  "eval/frontier/multistep-configuration.ts",
   "eval/frontier/multistep-vitest.config.ts",
   "test/eval/frontier-multistep-live.test.ts",
   "fixtures/nimbusmail-multistep",
@@ -157,6 +160,11 @@ export async function preflight(state: State, rawUrl: string, fetcher: typeof fe
     git(["diff", "--exit-code", state.sourceSha, "--", ...SOURCE_PATHS]);
     git(["diff", "--exit-code", state.deployedSha, "--", "src"]);
   }
+  if (checkGit) {
+    const config = sourceConfiguration(state.sourceSha);
+    if (state.configuration && JSON.stringify(config) !== JSON.stringify(state.configuration))
+      throw new Refusal("configuration differs from frozen source");
+  }
   const health = await fetcher("https://app.isitlegit.co.za/health", {
     redirect: "error",
     signal: AbortSignal.timeout(30000),
@@ -252,7 +260,9 @@ function childWalk(
     });
     if (code !== 0 || !existsSync(reportPath))
       throw new Refusal("child outcome unavailable; reconcile before any later attempt");
-    return readChildReport(reportPath, ordinal, reservationId);
+    const report = readChildReport(reportPath, ordinal, reservationId);
+    if (!report.diagnostic) throw new Refusal("new child observation lacks bounded diagnostics");
+    return report;
   })();
 }
 export function readChildReport(reportPath: string, ordinal: number, reservationId: string) {
@@ -274,6 +284,7 @@ export function createState(deployedSha: string, url: string): State {
   if (!/^[a-f0-9]{40}$/.test(deployedSha)) throw new Refusal("full deployed SHA required");
   return validateState({
     version: 1,
+    configuration: sourceConfiguration(git(["rev-parse", "HEAD"])),
     id: randomUUID(),
     sourceSha: git(["rev-parse", "HEAD"]),
     deployedSha,
@@ -364,10 +375,14 @@ export async function main(argv: string[]): Promise<number> {
     if (command === "score") {
       const output = render(state);
       if (check) {
-        if (scoreExperiment(state).unknown || !readFileSync(resolve(check), "utf8").includes(output.trim()))
-          throw new Refusal("published log differs or experiment remains incomplete");
+        if (scoreExperiment(state).unknown) throw new Refusal("experiment remains incomplete");
+        try {
+          verifyPublished(state, output, readFileSync(resolve(check), "utf8"));
+        } catch {
+          throw new Refusal("published log differs or required configuration/diagnostics are missing");
+        }
         console.log("multi-step measurement verified");
-      } else process.stdout.write(output);
+      } else process.stdout.write(`${output}\n${renderSupplement(state)}`);
       return 0;
     }
     if (cap || decision) raiseCap(state, cap, decision, new Date());
