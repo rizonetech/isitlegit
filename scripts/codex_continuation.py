@@ -401,7 +401,9 @@ class Registry:
                     self.save(state)
                     self.cancel(client, state)
                     return "stalled"
-                if not pending and (state["phase"] != "idle" or not state["observed"].get("Stop") or not self.wait_ready(state)):
+                if not self.wait_ready(state):
+                    return "not eligible"
+                if not pending and (state["phase"] != "idle" or not state["observed"].get("Stop")):
                     return "not eligible"
                 thread = client.call("thread/read", {"threadId": state["session"], "includeTurns": False})["thread"]
                 if thread["status"]["type"] != "idle" or Path(thread["cwd"]).resolve() != Path(state["worktree"]):
@@ -446,6 +448,8 @@ class Registry:
             thread = client.call("thread/read", {"threadId": session, "includeTurns": False})["thread"]
             if thread["status"]["type"] != "idle":
                 return "awaiting acknowledgement"
+            if not self.wait_ready(current):
+                return "not eligible"
             try:
                 turn = client.call("thread/queue/start", {"threadId": session, "queuedSubmissionId": submission})["turn"]
                 current = self.read(lane)
