@@ -231,6 +231,8 @@ Split from §2 on 2026-11-01: the redirect fixtures host (`src/fixtures/redirect
 
 ## 8. One URL policy with the walkthrough
 
+> **Started:** 2026-11-04T11:58:24.000983+00:00
+
 Filed 2026-11-03 from the coordinator's routing (walkthrough lane, D04 T02 §7): two URL policies judge what may be opened, the link expansion's interception policy in `src/checks/expand.ts` (D02 T07 §2) and the walkthrough's own in `src/walkthrough/url-policy.ts`, and a URL one refuses must not be opened by the other. This section owns the checks side of the comparison and the unification; the walkthrough lane does its side on request through the coordinator.
 
 **Phase:** 7
