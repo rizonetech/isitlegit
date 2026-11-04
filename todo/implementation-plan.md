@@ -407,7 +407,7 @@ Sections: 110 | Checklist items: 695
 
 ### Phase 7: After the event
 
-Sections: 222 | Checklist items: 994
+Sections: 222 | Checklist items: 997
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -483,7 +483,7 @@ Sections: 222 | Checklist items: 994
 | [x]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1             | none                 | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses               | none                 | 4     |
 | [x]    | D03 T04 §41 | Day-zero case capture into the training store               | cloudflare           | 9     |
-| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 3     |
+| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 6     |
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version                      | none                 | 2     |
 | [x]    | D03 T04 §44 | Five new sources for Loupe 1.1                              | none                 | 7     |
 | [x]    | D03 T04 §46 | Muse Wonder teacher pilot                                   | none                 | 3     |
@@ -678,4 +678,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 400/600 verified sections, 123 ready to run now.
 
-Checklist: 2995/3708 items completed (includes Commit items).
+Checklist: 2995/3711 items completed (includes Commit items).

@@ -1453,24 +1453,31 @@ Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief
 
 ## 42. A pinned download mode for fetch.py
 
+> **Started:** 2026-11-04T08:55:05.702849Z
+
 Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
 
 **Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
+**Resumed 2026-11-04:** coordinator directs ready offline work while §51 and §52 await shared review-policy resolution. This new Codex plan precedes pinned-mode implementation; it neither recollects data nor changes the active trainer or frozen datasets. The historical pause remains above as history.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
-**Risk:** light
 
 **Build order:**
 
-1. Add the mode and prove it admits only pins. Done when: its tests pass.
+1. Define and implement pinned download admission at the existing fetch and input-validation layer. Done when: immutable pins can admit first bytes with recorded SHA-256, and later changed bytes or pin identities refuse.
+2. Integrate standalone collection and prove both command modes. Done when: the copied downloader and its validation helper work outside the repository, and the second-sweep brief accurately documents admission and recovery.
 
-- [ ] Add a pinned mode to `scripts/glimmer/fetch.py` (`--pin <immutable ref>` in place of `--sha256`/`--md5`): the file is fetched to the partial as now, its SHA-256 is taken from the bytes at the end, and the file is published only when the pin passes `check_pin()`. Done when: `tests/scripts/test_glimmer_fetch.py` publishes a pinned file with no published digest, records our SHA-256 beside it, and refuses a moving branch name and a rerun whose bytes differ from the SHA-256 first recorded. Cheaper substitute: trusting the first download without recording its digest lets a later run swap the file.
-- [ ] Teach `docs/glimmer/astra-collection-brief-2.md` and `scripts/astra-collect.py` the pinned download line. Done when: `test/node/astra-brief.test.ts` fails the brief without it, and a source with an immutable pin and no digest is no longer sent to `REJECTED-2.md` for that reason alone.
+- [ ] Add `--pin <immutable ref>` to `scripts/glimmer/fetch.py` as an alternative to exactly one published SHA-256 or MD5, including per-file manifest entries. Validate through `check_pin()` and accept only supported, verifiable immutable-reference syntax; reject empty, moving, unsupported or mixed verification modes before any download. Bind supported GitHub/Hugging Face pins to the matching repository and commit in the source URL and each mirror. Done when: single-file and manifest fixtures accept commit-pinned sources, reject moving or unrelated URL/pin combinations, and retain all existing digest-mode refusals. Cheaper substitute: a valid commit string beside an unrelated moving URL proves nothing about the downloaded bytes.
+- [ ] Record first-download pin identity and SHA-256 beside the file under a hidden per-source pin-receipt folder in `scripts/glimmer/fetch.py`, using the existing destination lock. Stage the receipt durably and read it back before file publication; retries verify its identity and digest rather than replacing it. Done when: interrupted receipt or file publication recovers without accepting unrecorded bytes, concurrent fetches cannot establish different first digests, and an existing file without a pin receipt is refused rather than retrospectively certified. Cheaper substitute: computing a hash without retaining its pin binding lets later runs silently replace the source.
+- [ ] Preserve the existing transfer guarantees in `scripts/glimmer/fetch.py` for pinned mode: source/free-space limits, partial resume, connection/attempt bounds, segmented and mirror downloads, cancellation and changed-byte refusal. Done when: the recorded first SHA-256 governs every later retry and resume, a changed pin never reuses another pin's partial, and no first-download record is written for an incomplete transfer. Cheaper substitute: a separate unbounded downloader would bypass the ingestion contract.
+- [ ] Place the shared pin validator with `.fetch.py` in `scripts/astra-collect.py` and document pinned single-file and manifest commands in `docs/glimmer/astra-collection-brief-2.md`. Done when: the standalone copied downloader imports the exact owning validator, missing helpers refuse safely, and a supported immutable pin with no published digest is not rejected for that absence alone; unsupported or unpinned sources still are. Cheaper substitute: duplicating validation in the copied script lets collection and conversion disagree.
+- [ ] Add synthetic local-server and fault-injection coverage in `tests/scripts/test_glimmer_fetch.py`, collector placement coverage in `tests/scripts/test_astra_collect.py`, and brief deletion/refusal assertions in `test/node/astra-brief.test.ts`. Done when: tests cover successful first fetch, unchanged rerun, changed content, conflicting pin, missing/failed receipt, concurrent publication, partial restart, single/manifest parity and copied-script operation without external network or client data. Cheaper substitute: testing pin syntax alone cannot prove the downloaded file stays bound to the recorded bytes.
 - [ ] Commit: `glimmer: a pinned download mode for sources with no published digest`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the pinned cases.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass with pinned cases and existing digest-mode recovery guarantees intact.
 
 ## 43. One command to rebuild a Loupe version
 
