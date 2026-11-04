@@ -148,7 +148,12 @@ export async function executeSlot(version: string, dataset: string, output: stri
     });
     if (response.status === 404 && method === "GET") return null;
     // Never propagate management response content into diagnostics or chat.
-    if (!response.ok) throw new Error(`diagnostic management ${method} status ${response.status}`);
+    if (!response.ok) {
+      // An explicit create/undelete conflict never grants ownership of the other caller's capacity.
+      // Keep the reservation for reconciliation instead of deleting or claiming zero runtime.
+      if (method === "POST" && response.status === 409) touched = false;
+      throw new Error(`diagnostic management ${method} status ${response.status}`);
+    }
     return JSON.parse((await response.text()) || "{}");
   }
   // Existing live targets belong to another run. Never take them over or delete them.

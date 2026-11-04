@@ -104,6 +104,7 @@ function fixture(mode = "ok") {
       expect(rows[0]?.deployment).toBe("isitlegit-loupe-eval-1-1");
       expect(rows[0]?.reserved_minutes).toBe(RESERVE_MINUTES);
       expect(JSON.parse(String(init?.body)).deploymentShape).toContain("/versions/");
+      if (mode === "creation-conflict") return new Response(null, { status: 409 });
       exists = true;
       return Response.json(target);
     }
@@ -188,6 +189,13 @@ describe("diagnostic lifecycle uses real runtime ledger", () => {
     await expect(executeSlot("1.1", "unused", f.output, f.dependencies)).rejects.toThrow("refused");
     expect(f.events.some((e) => e.startsWith("POST deployments?"))).toBe(false);
     expect(f.events.some((e) => e.includes("completions"))).toBe(false);
+    f.db.close();
+  });
+  it("never deletes a conflicting target owned by another creator", async () => {
+    const f = fixture("creation-conflict");
+    await expect(executeSlot("1.1", "unused", f.output, f.dependencies)).rejects.toThrow("409");
+    expect(f.events.some((e) => e.startsWith("DELETE"))).toBe(false);
+    expect(f.db.prepare("SELECT * FROM glimmer_runtime").get()?.used_minutes).toBeNull();
     f.db.close();
   });
 });
