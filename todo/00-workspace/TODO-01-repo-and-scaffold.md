@@ -83,6 +83,7 @@ track: day-0
 | 42 | §42 | Synthetic review pin authorization isolation | §38 | [x] |
 | 43 | §43 | Upload refusal matches reviewed admission | D01 T03 §17 | [x] |
 | 44 | §45 | Batched CI with complete project test shards | -- | [x] |
+| 45 | §46 | Explicit withdrawn work in the live plan | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1459,6 +1460,29 @@ Operator CI-BATCHING-OPERATOR-DECISION authorizes batching independent ready rev
 
 > **Verified:** 2026-11-04 | §45 | f4b37d489b638d91362add9e2bb351d9d0b55d96
 > **Review:** `docs/reviews/d00-t01-s45.json`
+
+## 46. Explicit withdrawn work in the live plan
+
+> **Started:** 2026-11-04T16:37:01.717246+00:00 (plan preparation only; no implementation before genuine plan review)
+
+Operator requests truthful plan progress after explicitly withdrawing three unverified submission sections. Arbitrary prose currently leaves them ready/manual and active totals misleading. Coordinator approves only unverified-section withdrawal metadata; stamped retirement is outside this scope. Canonical withdrawal documents remain with the documentation owner until release.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Parse one explicit dated operator withdrawal marker without rewriting the original section or review history. Done when: malformed or duplicate markers and withdrawal of stamped work refuse.
+2. Project and query withdrawal distinctly from verified work. Done when: withdrawn sections are absent from active ready/manual/blocked totals but remain visible with their dated reason; dependent requirements remain blocked.
+
+- [ ] Add strict optional `**Withdrawn:** YYYY-MM-DD | operator | reason` metadata to unverified sections only in `scripts/lib/todo_graph.py`; validate a real calendar date and nonempty single-line reason, refuse duplicates/malformed markers/stamped withdrawal, and expose it without manufacturing receipt/checkmark/completion. Preserve every original checklist, contract, review attempt and stamp validator. Arbitrary prose has no effect. Done when: parser and receipt-preservation regressions distinguish exact authorized metadata from ordinary text and reject forged completed withdrawal.
+- [ ] Add distinct withdrawn disposition/status to resolve/classify/query plan and visible generated plan rows. Exclude withdrawn sections and their checklist items from active progress denominators, ready/blocked/manual work; report the separate withdrawal count while keeping all historical rows visible. Done when: fixture queries/rendering show Withdrawn rather than verified, and active totals reconcile without ticking anything. Preserve unchanged output where no withdrawals exist where practical.
+- [ ] Keep direct and transitive dependents blocked: withdrawn is never settled and stamp refuses both withdrawn work and an unmet withdrawn dependency. Done when: failing-first tests cover ready/manual/stats, CLI resolve/query plan, projections, dependency chains and refusal without writing receipts. No implicit dependency deletion, normalization of old review evidence or broad waiver.
+- [ ] Document marker, unverified-only boundary, reversal through explicit operator correction/removing metadata, preserved obligations and separate dependency decisions in `todo/README.md`; leave canonical user-withdrawal rows to their owner. Run focused graph/CLI regressions and normal validation/projection hooks, without a local full product suite.
+- [ ] Commit: `todo: represent explicit withdrawn work without claiming delivery`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_withdrawal` passes with parser, plan, query, blocked-dependency and no-receipt regressions; removing withdrawal handling makes the new tests fail and no historical stamp is weakened.
 
 ## Verification
 
