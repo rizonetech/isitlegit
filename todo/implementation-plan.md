@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 114 | Checklist items: 718
+Sections: 115 | Checklist items: 723
 
 | Status | Reference   | Deliverable                                      | Needs                 | Items |
 | ------ | ----------- | ------------------------------------------------ | --------------------- | ----- |
@@ -316,6 +316,7 @@ Sections: 114 | Checklist items: 718
 | [x]    | D04 T01 §20 | Bounded verdict validation diagnostics           | none                  | 7     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                 | none                  | 2     |
 | [x]    | D04 T02 §10 | Multi-step evaluation fixture routes             | none                  | 5     |
+| [ ]    | D04 T02 §11 | Bounded driver failure diagnostics               | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                    | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks               | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs               | meta-api              | 2     |
@@ -685,6 +686,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 429/609 verified sections, 116 ready to run now.
+Progress: 429/610 verified sections, 117 ready to run now.
 
-Checklist: 3129/3760 items completed (includes Commit items).
+Checklist: 3129/3765 items completed (includes Commit items).

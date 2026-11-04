@@ -2,7 +2,7 @@
 schema_version: 1
 id: walkthrough
 domain: 04-agent
-status: done
+status: active
 title: "TODO-02 -- Muse Wonder Phishing-Site Walkthrough"
 frozen: true
 track: day-4
@@ -47,6 +47,7 @@ track: day-4
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
 | 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [x] |
 | 10 | §10 | Multi-step evaluation fixture routes | §1 | [x] |
+| 11 | §11 | Bounded driver failure diagnostics | §3, §4 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -381,6 +382,30 @@ Eval's D08 T03 §3 owns the synthetic multi-step assets and five-walk measuremen
 
 > **Verified:** 2026-11-04 | §10 | b51322786245a8ca522ce99f1692f7fa1d686371
 > **Review:** `docs/reviews/d04-t02-s10.json`
+
+## 11. Bounded driver failure diagnostics
+
+> **Started:** 2026-11-04T13:56:23.961445+00:00
+
+Coordinator EVAL-S3-DRIVER-DIAGNOSTICS authorizes offline owning driver diagnostics after the voice review boundary. Existing Driver.fail retains only an error name, so pre-model failures cannot distinguish setup, policy, navigation, asynchronous interception/target containment or initial view. The observed eval failures do not establish a runtime cause. This section adds bounded diagnostic identity, not a retry, new cohort, limit change or claim that the incident is fixed. Checks owns driver/wonder; eval adapter serialization remains eval-owned and any required change is coordinated through the coordinator.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** Existing 8-step/60-second enforcement, DNS/SSRF, canary-only typing, download denial and browser-wide interception remain unchanged. Existing `test/walkthrough/driver.test.ts`, `test/walkthrough/wonder-loop.test.ts`, `test/walkthrough/canary.test.ts` and `test/walkthrough/url-policy.test.ts` pass unchanged.
+
+**Build order:**
+
+1. Define a strict bounded diagnostic schema and bind failures to their actual operation. Done when: injected failures identify the owning operation without exposing input data or changing terminal precedence.
+2. Carry the safe optional diagnostic to the actual walk result and prove it through the production entrypoint. Done when: an eval adapter can read safe metadata without changing a model call or reconstructing a root cause.
+
+- [ ] Add a strict finite diagnostic type/schema in `src/walkthrough/driver.ts` or its owning helper: static operation/stage, allowlisted error category and optional finite network code only. Done when: unknown names/codes map to static unknown, malicious names/messages/properties cannot appear in output, no raw exception/message/URL/header/DOM/canary/token or arbitrary property is persisted, and older results without diagnostics remain valid. Cheaper substitute: retaining Error.name alone hides the failure location and can retain arbitrary caller text.
+- [ ] Capture diagnostic identity at the actual awaited operation in setup, start policy/navigation, interception/target containment and first view; bind async callback context lexically, not through a shared mutable stage. Done when: deterministic overlapping failures preserve the first terminal outcome and its actual causative diagnostic, including timer/refusal precedence and late callback failures. Existing ordinary behavior, budgets and containment stay unchanged. Cheaper substitute: a global current-stage label misattributes concurrent interception failures.
+- [ ] Expose only validated optional metadata through Driver terminal/action/view results and actual `walk` return in `src/walkthrough/wonder.ts`; preserve safe end-record read-back where that existing persistence succeeds without creating a new write dependency. Done when: production walk entrypoint tests with injected browser/CDP/storage failures observe the expected stage/category, no model calls for pre-model failure, no private values in result or persisted diagnostic, and normal completion remains unchanged. Return exact field/schema to coordinator for the separately owned eval adapter; no adapter edit here.
+- [ ] Add failing-first deterministic offline tests in `test/walkthrough/driver-diagnostics.test.ts` for setup suboperations, policy/navigation, intercepted request failure, containment and first-view screenshot/read failure, malicious exception metadata, timer/late-failure races, persistence failure and unchanged normal results. Done when: assertions fail before implementation and pass afterward through real Driver/walk logic with injected transport, without live browser probes, provider/model calls or spend. Run affected existing frozen suites on assigned cores; do not weaken them.
+- [ ] Commit: `walkthrough: retain bounded operation failure diagnostics`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/driver-diagnostics.test.ts test/walkthrough/driver.test.ts test/walkthrough/wonder-loop.test.ts test/walkthrough/canary.test.ts test/walkthrough/url-policy.test.ts` passes; full typecheck and dry build pass. Tests fail if diagnostics are missing, misattributed, unbounded or private, or if ordinary containment/terminal behavior changes. Deployment and any later diagnostic execution require coordinator gates.
 
 ## Verification
 
