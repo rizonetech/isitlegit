@@ -407,7 +407,7 @@ Sections: 110 | Checklist items: 692
 
 ### Phase 7: After the event
 
-Sections: 224 | Checklist items: 1003
+Sections: 224 | Checklist items: 1005
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -418,7 +418,7 @@ Sections: 224 | Checklist items: 1003
 | [x]    | D00 T01 §21 | Pre-push excerpt from the tools' error output               | none                 | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard                            | none                 | 6     |
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push                          | none                 | 5     |
-| [ ]    | D00 T01 §29 | Stamp recovery after a killed process                       | none                 | 4     |
+| [ ]    | D00 T01 §29 | Stamp recovery after a killed process                       | none                 | 6     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                            | operator             | 2     |
 | [x]    | D00 T01 §32 | Wake dispatched after each                                  | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
@@ -680,4 +680,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 423/602 verified sections, 116 ready to run now.
 
-Checklist: 3095/3716 items completed (includes Commit items).
+Checklist: 3095/3718 items completed (includes Commit items).
