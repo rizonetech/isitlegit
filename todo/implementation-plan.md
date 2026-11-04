@@ -294,7 +294,7 @@ Sections: 111 | Checklist items: 699
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
-| [ ]    | D01 T03 §17 | Immutable per-case ablation admission        | none                  | 8     |
+| [x]    | D01 T03 §17 | Immutable per-case ablation admission        | none                  | 8     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail      | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
@@ -679,6 +679,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 412/603 verified sections, 116 ready to run now.
+Progress: 413/603 verified sections, 116 ready to run now.
 
-Checklist: 3028/3726 items completed (includes Commit items).
+Checklist: 3036/3726 items completed (includes Commit items).
