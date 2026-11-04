@@ -384,7 +384,10 @@ describe("AnalysisWorkflow", () => {
     // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
     // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "walkthrough", "vision", "invoice"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      ...["admit", "parse", "checks", "walkthrough", "vision", "invoice", "verification"].flatMap((s) => [
+        `${s}:started`,
+        `${s}:done`,
+      ]),
       "verdict:started",
       "agent:failed",
       "verdict:done",
@@ -453,8 +456,8 @@ describe("AnalysisWorkflow", () => {
     expect(reply).toMatchObject({ state: { status: "partial", failedStep: "checks" } });
   });
 
-  it("ends partial naming parse, store or reply when each fails on every attempt", async () => {
-    for (const step of ["parse", "store", "reply"] as const) {
+  it("ends partial naming parse, verification, store or reply when each fails on every attempt", async () => {
+    for (const step of ["parse", "verification", "store", "reply"] as const) {
       const id = await caseWith(forwards["inline-forward"]);
       await run(id, (m) => m.mockStepError({ name: step }, new Error("down"), 4));
       expect((await caseRow(id))?.status, step).toBe("partial");
@@ -818,7 +821,7 @@ describe("round 1 cases", () => {
     );
   });
 
-  it("resumes with admission through store cached, running only reply and finish", async () => {
+  it("resumes with core results cached and runs the remaining steps once", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
     expect((await saveVerdict(env.DB, id, STUB_VERDICT)).ok).toBe(true);
@@ -840,6 +843,8 @@ describe("round 1 cases", () => {
       "vision:done",
       "invoice:started",
       "invoice:done",
+      "verification:started",
+      "verification:done",
       "reply:started",
       "reply:done",
       "finish:started",

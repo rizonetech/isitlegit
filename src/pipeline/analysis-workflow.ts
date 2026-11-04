@@ -101,6 +101,7 @@ import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
 import { caseAblateFlagFor, readCaseExperiment } from "./case-experiments";
 import { recordEvent } from "./events";
+import { verificationStep } from "./verification-request";
 
 // The analysis pipeline for one case (D01 T01 §7): durable steps, so a failure resumes without repeating finished work
 // (the paid model calls of later sections). `admit` takes the case, `parse` reads the forward, `checks` and `verdict`
@@ -121,6 +122,7 @@ export type StepName =
   | "walkthrough"
   | "vision"
   | "invoice"
+  | "verification"
   | "verdict"
   | "store"
   | "reply"
@@ -137,7 +139,7 @@ const RETRIES: WorkflowStepConfig = {
   retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
   timeout: "30 seconds",
 };
-// The reply's own budget (the final review): its two optional reads (OPTIONAL_READ_MS each), then up to MAX_ATTEMPTS
+// The reply and verification send budget (the final review): its two optional reads (OPTIONAL_READ_MS each), then up to MAX_ATTEMPTS
 // provider calls of REPLY_SEND_TIMEOUT_MS with 1 and 2 seconds between them, all inside one attempt, so the attempt is
 // never stopped while SMTP2GO is still inside its own timeout and the send's outcome unrecorded.
 export const REPLY_SEND_TIMEOUT_MS = 20_000;
@@ -284,7 +286,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
       step.do(
         name,
-        name === "reply"
+        name === "reply" || name === "verification"
           ? REPLY_RETRIES
           : name === "transcribe"
             ? TRANSCRIBE_RETRIES
@@ -564,6 +566,22 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       } catch {
         await step.do("invoice:unchecked", RETRIES, () => safely(() => recordInvoiceNotRun(store, caseId, "error")));
       }
+      current = "verification";
+      await timed("verification", () =>
+        verificationStep(
+          {
+            db,
+            secret: this.env.BETTER_AUTH_SECRET,
+            mail: {
+              apiKey: this.env.SMTP2GO_API_KEY,
+              operator: this.env.OPERATOR_EMAIL,
+              timeoutMs: REPLY_SEND_TIMEOUT_MS,
+            },
+          },
+          caseId,
+          orgId,
+        ),
+      );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(this.env, db, store, caseId));
       current = "store";
