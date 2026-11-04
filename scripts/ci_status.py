@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Report the CI state of main: the latest completed run of each watched workflow, and runs still in progress.
 
+    python scripts/ci_status.py --sha <40-character-sha> --json  # exact coordinator gate, exit 0 only if all jobs pass
     python scripts/ci_status.py                  # the watched workflows on main
     python scripts/ci_status.py --json           # the same report as one JSON object
     python scripts/ci_status.py --workflow build.yml --branch main
@@ -15,12 +16,17 @@ For a red verdict it names the failed (or timed-out) jobs from `gh run view <id>
 The watched workflows are the `--workflow` arguments, else the `workflows` list in `.conclave/ci.json` (the ones whose
 results gate main), else every `.yml` and `.yaml` file in `.github/workflows/`.
 
-Exit 0: no watched workflow is red. Exit 1: at least one is red (the workflow, the commit, the run's URL and its
+Without --sha this is historical reporting, not promotion proof. Exact --sha mode requires the latest matching gate and every required job to be completed successfully; missing or incomplete evidence exits 1, unavailable API exits 3.
+
+History mode exit 0: no watched workflow is red. Exit 1: at least one is red (the workflow, the commit, the run's URL and its
 failed jobs are printed). Exit 2: bad usage. Exit 3: `gh` is missing, not authenticated, or failed, so the state is
 unknown; that is never treated as green. The red-first policy that consumes this is in the `process-phase` skill.
 Stdlib only; the `gh` runner is injectable for tests.
 """
 import argparse
+from collections import Counter
+from datetime import datetime
+import re
 import json
 import os
 from pathlib import Path
@@ -136,6 +142,65 @@ def workflow_status(runner, workflow, branch):
     return entry
 
 
+
+# Exact gate names are checked against the workflow by test_ci_workflow.py. History mode is not promotion evidence.
+GATE_JOBS = (
+    "Worker gates", "Voice decoder against FFmpeg", "TODO graph", "Kit script tests",
+    *(f"Worker tests ({i} of 4)" for i in range(1, 5)),
+    *(f"Browser tests ({i} of 3)" for i in range(1, 4)),
+    *(f"Project script tests ({i} of 4)" for i in range(1, 5)),
+)
+GATE_FIELDS = FIELDS + ",headBranch"
+
+
+def gate_report(runner, sha):
+    """Only the latest exact-candidate coordinator gate can approve promotion, never branch history."""
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ValueError("gate SHA must be 40 lowercase hexadecimal characters")
+    runs = gh_json(runner, ["run", "list", "--branch", "coordinator-gate", "--workflow", "ci.yml",
+                            "--commit", sha, "--limit", str(LIMIT), "--json", GATE_FIELDS])
+    if not isinstance(runs, list) or any(not isinstance(r, dict) for r in runs):
+        raise Unavailable("gate run list is malformed")
+    result = {"mode":"exact-gate", "sha":sha, "branch":"coordinator-gate", "verdict":"not-green", "run":None}
+    def refused(reason):
+        return {**result, "reason":reason, "exit":1}, 1
+    if not runs:
+        return refused("no exact-candidate gate run")
+    def ordering(run):
+        if type(run.get("databaseId")) is not int or run["databaseId"] <= 0:
+            raise Unavailable("gate run identities are malformed")
+        try:
+            timestamp = datetime.fromisoformat(run["createdAt"].replace("Z", "+00:00"))
+            if timestamp.tzinfo is None:
+                raise ValueError("missing timezone")
+        except (KeyError, AttributeError, TypeError, ValueError):
+            raise Unavailable("gate run timestamps are malformed") from None
+        return timestamp, run["databaseId"]
+    latest = max(runs, key=ordering)
+    result["run"] = brief(latest)
+    def identity(r):
+        return (r.get("headSha") == sha and r.get("headBranch") == "coordinator-gate"
+                and r.get("event") in ("push", "workflow_dispatch"))
+    if not identity(latest):
+        return refused("gate run identity differs")
+    if latest.get("status") != "completed" or latest.get("conclusion") != "success":
+        return refused("latest exact-candidate gate is not completed successfully")
+    view = gh_json(runner, ["run", "view", str(latest["databaseId"]), "--json", GATE_FIELDS + ",jobs"])
+    if not isinstance(view, dict):
+        raise Unavailable("gate run details are malformed")
+    if (not identity(view) or view.get("databaseId") != latest["databaseId"]
+            or view.get("status") != "completed" or view.get("conclusion") != "success"):
+        return refused("gate run changed or its detail identity differs")
+    jobs = view.get("jobs")
+    if not isinstance(jobs, list) or any(not isinstance(j, dict) or not isinstance(j.get("name"), str) for j in jobs):
+        raise Unavailable("gate job list is malformed")
+    if Counter(j["name"] for j in jobs) != Counter(GATE_JOBS):
+        return refused("required job multiset differs")
+    if any(j.get("status") != "completed" or j.get("conclusion") != "success" for j in jobs):
+        return refused("a required job is not completed successfully")
+    return {**result, "verdict":"green", "exit":0}, 0
+
+
 def timed_out_jobs(runner, run_id):
     """The jobs of a cancelled run that GitHub stopped at their timeout-minutes, each as a failed job whose conclusion
     is `timed out`; empty when every cancelled job was stopped by hand or by a newer run. Unreadable jobs or
@@ -192,10 +257,21 @@ def describe(entry):
 def main(argv=None, runner=run_gh, root=ROOT):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--json", action="store_true", help="print the report as one JSON object")
-    parser.add_argument("--branch", default="main", help="the branch whose runs are read (default main)")
+    parser.add_argument("--sha", help="full candidate SHA; require complete coordinator-gate CI before promotion")
+    parser.add_argument("--branch", default=None, help="the branch whose runs are read (default main)")
     parser.add_argument("--workflow", action="append", dest="workflows",
                         help="a workflow file in .github/workflows/ (repeatable; default: .conclave/ci.json, else all)")
     args = parser.parse_args(argv)
+    args.branch = args.branch or ("coordinator-gate" if args.sha else "main")
+    if args.sha:
+        if not re.fullmatch(r"[0-9a-f]{40}", args.sha) or args.branch != "coordinator-gate" or args.workflows not in (None, ["ci.yml"]):
+            parser.error("--sha requires a full lowercase SHA, coordinator-gate and ci.yml")
+        try:
+            result, code = gate_report(runner, args.sha)
+        except Unavailable as exc:
+            result, code = {"mode":"exact-gate", "sha":args.sha, "verdict":"unknown", "error":str(exc), "exit":3}, 3
+        print(json.dumps(result) if args.json else f"CI {args.sha}: {result['verdict']} ({result.get('reason', result.get('error', 'all required jobs passed'))})")
+        return code
     directory = Path(root) / ".github" / "workflows"
     try:
         workflows = args.workflows or watched(root)

@@ -1,4 +1,4 @@
-# The Worker and TODO gates on every push and pull request. CI never deploys: deploys run from the build session with
+# Full gates on reviewed coordinator batches, pull requests and explicit dispatch. CI never deploys: deploys run from the build session with
 # the local Wrangler login after the same gates pass (tech stack spec, "CI"). Separate jobs, so `gh run rerun --failed`
 # repeats only the group that failed; the Worker suite runs in four shards (worker-tests) and the Chromium tests in three, one file at a time (browser-tests). Timeouts stop a hung install
 # or Chromium long before the six-hour default; first measured on run 40432358282 (Worker gates 29 s, TODO graph 4 s,
@@ -7,7 +7,9 @@ name: CI
 
 on:
   push:
+    branches: [coordinator-gate]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -216,9 +218,13 @@ jobs:
         run: python3 scripts/todo-graph.py plan --check
 
   project-scripts:
-    name: Project script tests
+    name: Project script tests (${{ matrix.shard }} of 4)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -230,7 +236,7 @@ jobs:
       - name: Design tool requirements
         run: pip install -r design/tools/requirements.txt
       - name: Project script tests
-        run: python3 -m unittest discover -s tests/scripts
+        run: python3 scripts/ci_unittest_shard.py --shard ${{ matrix.shard }} --shards 4
         env:
           # The font checks need fonttools; here they must run, not skip.
           REQUIRE_FONT_TOOLS: "1"
