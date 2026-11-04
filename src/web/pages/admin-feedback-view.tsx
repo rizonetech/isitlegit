@@ -98,25 +98,37 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
     );
   }
   return (
-    <section class="card overflow-hidden" aria-label="Feedback reports">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Case</th>
-            <th>Organisation</th>
-            <th>Our verdict</th>
-            <th>They say</th>
-            <th>Decided by</th>
-            <th>When</th>
+    <section
+      class="card overflow-x-auto min-w-0 scroll-pl-evidence-figure md:scroll-pl-sidebar"
+      tabindex={0}
+      aria-label="Feedback reports"
+    >
+      <table class="table bg-surface min-w-[640px] w-full">
+        <thead class="bg-surface">
+          <tr class="bg-surface">
+            <th class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+              Case
+            </th>
+            <th class="bg-surface">Organisation</th>
+            <th class="bg-surface">Our verdict</th>
+            <th class="bg-surface">They say</th>
+            <th class="bg-surface">Decided by</th>
+            <th class="bg-surface">When</th>
           </tr>
         </thead>
         <tbody>
           {props.items.map((item) => (
-            <tr class={item.id === props.selected ? "bg-subtle" : undefined}>
-              <td>
+            <tr class={item.id === props.selected ? "bg-subtle" : "bg-surface"}>
+              <td
+                class={cx(
+                  "sticky left-0 w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                  item.id === props.selected ? "bg-subtle" : "bg-surface",
+                )}
+              >
                 <a
                   href={`/admin/feedback?triage=${props.tab}&page=${props.page}&selected=${item.id}`}
-                  class="weight-text-strong"
+                  title={item.caseTitle}
+                  class="block max-w-evidence-figure md:max-w-sidebar truncate weight-text-strong"
                 >
                   {item.caseTitle}
                 </a>

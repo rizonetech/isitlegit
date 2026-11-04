@@ -115,7 +115,7 @@ type ParsedSummary = {
 
 // The stored parsed summary, read once for the brand stage; null when the case holds none or it
 // cannot be read (an upload), never guessed from the picture.
-async function parsedSummaryOf(store: Store, caseId: string): Promise<ParsedSummary | null> {
+export async function parsedSummaryOf(store: Store, caseId: string): Promise<ParsedSummary | null> {
   try {
     const read = await readArtefact(store, caseId, parsedKey(caseId));
     if (!read || !("body" in read)) return null;
@@ -127,7 +127,7 @@ async function parsedSummaryOf(store: Store, caseId: string): Promise<ParsedSumm
 
 // The case's authoritative sender domain, from its parsed From header; null when the case holds
 // no readable one (an upload, a repeated From), never guessed from the picture.
-function senderDomainOf(parsed: ParsedSummary | null): string | null {
+export function senderDomainOf(parsed: ParsedSummary | null): string | null {
   if (!parsed || !Array.isArray(parsed.headers)) return null;
   try {
     const address = originalHeaderOf(parsed.headers).fromAddress;
@@ -142,7 +142,7 @@ function senderDomainOf(parsed: ParsedSummary | null): string | null {
 // a direct link that produced no finding is still a destination this case holds (round 1): the
 // evidence's destination fields name where followed links ended, and this names where the
 // message's links point, followed or not.
-async function messageLinkHostsOf(store: Store, parsed: ParsedSummary | null): Promise<string[]> {
+export async function messageLinkHostsOf(store: Store, parsed: ParsedSummary | null): Promise<string[]> {
   if (!parsed || (parsed.html == null && parsed.text == null)) return [];
   try {
     const links = await linksOf(store.bucket, {

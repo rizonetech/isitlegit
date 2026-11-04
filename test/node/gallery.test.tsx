@@ -36,6 +36,11 @@ const EXPECTED_STATES = [
   "partial/one",
   "partial/two",
   "copy-group",
+  "polish/signin-autofill",
+  "polish/cases-stats",
+  "polish/wide-table",
+  "polish/long-names",
+  "polish/loading-sequence",
 ];
 const EXPECTED_FRAMES = [
   ...["cases", "suppliers", "protect", "monitor", "team", "domains", "account", "plan"].map((p) => `member-${p}`),
@@ -101,6 +106,11 @@ const MARK: [RegExp, RegExp][] = [
   [/^partial\/two$/, /Two checks did not run/],
   [/^partial\/one$/, /One check did not run/],
   [/^copy-group$/, /data-copy="check@isitlegit\.co\.za"/],
+  [/^polish\/signin-autofill$/, /data-autofilled="true"/],
+  [/^polish\/cases-stats$/, /id="g-stat-111"[^>]*class="[^"]*tabular-nums/],
+  [/^polish\/wide-table$/, /class="[^"]*overflow-x-auto[\s\S]*sticky left-0/],
+  [/^polish\/long-names$/, /id="g-long-title"[^>]*title="URGENT-REMITTANCE-ADVICE-[^"]*"[^>]*class="[^"]*truncate/],
+  [/^polish\/loading-sequence$/, /Loading cases[\s\S]*We are investigating this message\./],
 ];
 
 const DESTINATION: Record<string, string> = {

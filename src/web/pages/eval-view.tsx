@@ -21,7 +21,7 @@ const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden 
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 const TH = "px-16 py-12 text-left text-13 weight-text-strong text-muted bg-subtle border-b border-line";
 const TD = "px-16 py-12 text-14 border-b border-line";
-const NUM = "text-right whitespace-nowrap";
+const NUM = "text-right whitespace-nowrap tabular-nums";
 // Words (a target sentence), not a figure: they wrap, so no column outgrows a phone-width panel.
 const WORDS = "text-right";
 
@@ -84,7 +84,7 @@ function Tile(props: { label: string; value: string; pill?: { words: string; var
   return (
     <div class={CARD}>
       <p class="text-14 text-muted">{props.label}</p>
-      <p class="type-h1 wrap-anywhere">{props.value}</p>
+      <p class="type-h1 font-text tabular-nums wrap-anywhere">{props.value}</p>
       {props.pill ? (
         <Pill variant={props.pill.variant} class="self-start">
           {props.pill.words}
@@ -322,7 +322,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
         ) : null}
         <div class={PANEL}>
           <section
-            class="overflow-x-auto"
+            class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
             aria-label="Ablation table, scrolls sideways on a narrow screen"
             tabindex={0}
           >
@@ -330,7 +330,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
               <caption class="sr-only">Each model switched off against the full pipeline</caption>
               <thead>
                 <tr>
-                  <th scope="col" class={TH}>
+                  <th
+                    scope="col"
+                    class={cx(
+                      TH,
+                      "sticky left-0 bg-subtle w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                    )}
+                  >
                     Switched off
                   </th>
                   <th scope="col" class={TH}>
@@ -352,7 +358,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row" class={cx(TD, "text-left weight-text-strong")}>
+                  <th
+                    scope="row"
+                    class={cx(
+                      TD,
+                      "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
+                    )}
+                  >
                     Nothing (full pipeline)
                   </th>
                   <td class={TD}>None</td>
@@ -365,7 +377,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                   const words = MODES[row.mode] ?? { off: row.mode, replacedBy: "Not described" };
                   return row.comparable ? (
                     <tr>
-                      <th scope="row" class={cx(TD, "text-left weight-text-strong")}>
+                      <th
+                        scope="row"
+                        class={cx(
+                          TD,
+                          "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
+                        )}
+                      >
                         {words.off}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
@@ -384,7 +402,13 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                     </tr>
                   ) : (
                     <tr>
-                      <th scope="row" class={cx(TD, "text-left weight-text-strong")}>
+                      <th
+                        scope="row"
+                        class={cx(
+                          TD,
+                          "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
+                        )}
+                      >
                         {words.off}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
@@ -422,7 +446,7 @@ function History(props: { rows: HistoryRow[] }) {
       </p>
       <div class={PANEL}>
         <section
-          class="overflow-x-auto"
+          class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
           aria-label="Run history table, scrolls sideways on a narrow screen"
           tabindex={0}
         >
@@ -430,7 +454,13 @@ function History(props: { rows: HistoryRow[] }) {
             <caption class="sr-only">Every published full eval run, newest first</caption>
             <thead>
               <tr>
-                <th scope="col" class={TH}>
+                <th
+                  scope="col"
+                  class={cx(
+                    TH,
+                    "sticky left-0 bg-subtle w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                  )}
+                >
                   Date
                 </th>
                 <th scope="col" class={TH}>
@@ -458,10 +488,20 @@ function History(props: { rows: HistoryRow[] }) {
                 const r = row.report;
                 return (
                   <tr>
-                    <td class={TD}>
+                    <td
+                      class={cx(
+                        TD,
+                        "sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
+                      )}
+                    >
                       {stamp.format(new Date(row.publishedAt))} SAST
                       <br />
-                      <span class="text-13 text-muted">{r.run.id}</span>
+                      <span
+                        title={r.run.id}
+                        class="text-13 text-muted block max-w-evidence-figure md:max-w-sidebar truncate"
+                      >
+                        {r.run.id}
+                      </span>
                     </td>
                     <td class={cx(TD, "font-mono text-13")}>{r.run.commit.slice(0, 7)}</td>
                     <td class={TD}>
