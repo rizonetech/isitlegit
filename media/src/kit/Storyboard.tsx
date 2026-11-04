@@ -1,6 +1,7 @@
 import type React from "react";
-import { Series } from "remotion";
-import { Backdrop, CloseScene, MetaBadge } from "../brand";
+import { AbsoluteFill, Loop, OffthreadVideo, Series } from "remotion";
+import { Backdrop, CloseScene, MetaAttributionStrip, MetaBadge } from "../brand";
+import { GENERATED } from "../data/demo-capture";
 import { ColdOpen, coldOpenFrames, hookFor } from "./coldopen";
 import { CREDITS, Credits } from "./credits";
 import { BrandReveal, revealFrames } from "./reveal";
@@ -77,6 +78,13 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
   return (
     <>
       <Backdrop />
+      {video === "02" && GENERATED.loop ? (
+        <AbsoluteFill>
+          <Loop durationInFrames={240}>
+            <OffthreadVideo src={GENERATED.loop} muted style={{ width: 1920, height: 1080, objectFit: "cover", opacity: 0.32 }} />
+          </Loop>
+        </AbsoluteFill>
+      ) : null}
       <Series>
         {hook ? (
           <Series.Sequence durationInFrames={cold}>
@@ -97,6 +105,7 @@ export const Storyboard: React.FC<{ board: StoryboardSpec; video: string }> = ({
         ))}
         <Series.Sequence durationInFrames={frames[last]}>
           <CloseScene lines={board.close.map(fill)} />
+          {video === "02" ? <MetaAttributionStrip style={{ position: "absolute", left: 0, right: 0, bottom: 56 }} /> : null}
           <Voice clip={clips?.[last]} />
         </Series.Sequence>
         <Series.Sequence durationInFrames={CREDITS}>

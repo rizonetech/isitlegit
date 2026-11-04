@@ -396,8 +396,8 @@ Sections: 110 | Checklist items: 695
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
-| [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
-| [ ]    | D10 T01 §2  | Remotion licence basis                       | operator              | 3     |
+| [x]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
+| [x]    | D10 T01 §2  | Remotion licence basis                       | none                  | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
 | [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive      | none                  | 10    |
@@ -407,7 +407,7 @@ Sections: 110 | Checklist items: 695
 
 ### Phase 7: After the event
 
-Sections: 223 | Checklist items: 998
+Sections: 225 | Checklist items: 1006
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -435,7 +435,7 @@ Sections: 223 | Checklist items: 998
 | [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation              | none                 | 5     |
 | [x]    | D01 T01 §23 | Auth outcomes stored before slower checks                   | none                 | 2     |
 | [x]    | D01 T01 §24 | Pipeline writes fenced across a case removal                | none                 | 3     |
-| [ ]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
+| [x]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                                    | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution                      | none                 | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                            | operator             | 6     |
@@ -452,12 +452,12 @@ Sections: 223 | Checklist items: 998
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
-| [ ]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
+| [x]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured                       | none                 | 3     |
 | [ ]    | D02 T04 §10 | Attachment content                                          | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
-| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
+| [x]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
 | [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                                      | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports                 | none                 | 3     |
@@ -522,7 +522,7 @@ Sections: 223 | Checklist items: 998
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
-| [ ]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
+| [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
@@ -564,7 +564,7 @@ Sections: 223 | Checklist items: 998
 | [x]    | D07 T04 §10 | A Checked by filter in the                                  | none                 | 7     |
 | [x]    | D07 T04 §11 | DNS help per provider                                       | none                 | 7     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                            | third-party          | 4     |
-| [ ]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
+| [x]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
 | [x]    | D07 T04 §14 | Multi-word search in the Cases list                         | none                 | 6     |
 | [x]    | D07 T04 §15 | Slash shortcut to the                                       | none                 | 4     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                          | attended             | 3     |
@@ -629,10 +629,12 @@ Sections: 223 | Checklist items: 998
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
 | [ ]    | D07 T09 §18 | Playback failure, retry and follow-along for the voice note | none                 | 3     |
-| [ ]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
+| [x]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
 | [ ]    | D08 T02 §19 | Machine-crash durability for generated corpora              | none                 | 4     |
+| [ ]    | D10 T01 §11 | Videos re-cut as the live gaps close                        | none                 | 6     |
+| [ ]    | D10 T01 §12 | P3 review leftovers from the media stamps                   | none                 | 2     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -677,6 +679,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 414/601 verified sections, 116 ready to run now.
+Progress: 422/603 verified sections, 117 ready to run now.
 
-Checklist: 3057/3714 items completed (includes Commit items).
+Checklist: 3103/3722 items completed (includes Commit items).

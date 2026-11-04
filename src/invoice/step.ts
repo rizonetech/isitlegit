@@ -7,13 +7,21 @@
 // down, a retryable transport fault) also throws, for the Workflow's own retry: a second attempt pays for
 // the call again, recorded like the first. A replay replaces the producer's items and each document's
 // account row, never accumulating either.
-import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
+import { addEvidence, type EvidenceDraft, evidenceProducers, readEvidence } from "../checks/evidence";
 import { pdfText } from "../checks/pdf-text";
 import { artefactsOf, readArtefact, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import { type BankKeys, claimKeys, sealNumber } from "../trust/bank";
 import { BankKeysMissing } from "../trust/errors";
 import { caseInvoiceAccountStatement, readCaseInvoiceAccount } from "./case-accounts";
+import {
+  documentStep,
+  isForensicsIncomplete,
+  isStandaloneCase,
+  limitItem,
+  notCheckedForensics,
+  saveDocumentEvidence,
+} from "./document-step";
 import {
   detectedItem,
   extractInvoiceFields,
@@ -22,6 +30,8 @@ import {
   payeeAccount,
   selectDocuments,
 } from "./extract";
+import { analysePdf, forensicsEvidence } from "./forensics";
+import { notCheckedDocument } from "./payment-doc";
 import { readPdf } from "./pdf";
 import { pageList } from "./pdf-content";
 import { invoiceRules, visibleTextOf } from "./rules";
@@ -51,7 +61,14 @@ const toBase64 = (bytes: Uint8Array) => {
 };
 
 export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: string): Promise<InvoiceResult> {
-  const pdfs = (await artefactsOf(deps.store, caseId, "attachment")).filter((a) => a.mediaType === "application/pdf");
+  const attachments = await artefactsOf(deps.store, caseId, "attachment");
+  if (await isStandaloneCase(deps.store, caseId, attachments)) {
+    const doc = await documentStep(deps, caseId, orgId);
+    if (doc.outcome === "refused") return { outcome: "not_checked", reason: "plan-required" };
+    if (doc.outcome === "none") return { outcome: "none" };
+    return { outcome: "read", invoices: doc.documents };
+  }
+  const pdfs = attachments.filter((a) => a.mediaType === "application/pdf");
   if (pdfs.length === 0) return { outcome: "none" };
   // Each document is read once, here: its page count (the page tree of src/invoice/pdf-content.ts) feeds
   // the bounds, and its bytes feed the call, so nothing is fetched twice. A document that cannot be read
@@ -119,8 +136,36 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
   // can never read a stale account). Evidence first: an interruption leaves an invoice stated with no
   // account rather than an account a verdict never saw.
   const allKeys = pdfs.map((a) => a.key);
+  const existingProducers = await evidenceProducers(deps.db, caseId).catch(() => []);
+  const hadDocumentRows = existingProducers.some((p) => p.producer === "document");
+  const otherProducerIds = new Set(existingProducers.filter((p) => p.producer !== "document").map((p) => p.id));
+  const checksForensics = new Set(
+    (await readEvidence(deps.db, caseId).catch(() => []))
+      .filter((e) => otherProducerIds.has(e.id) && e.check.startsWith("document.forensics."))
+      .flatMap((e) => e.artefacts.map((k) => `${k}:${e.check}`)),
+  );
+  const forensicItems: EvidenceDraft[] = [];
+  for (const doc of call) {
+    const body = bodyOf.get(doc.artefactKey) as Uint8Array;
+    const report = await analysePdf(body).catch(() => null);
+    if (report) {
+      forensicItems.push(
+        ...forensicsEvidence(report, { key: doc.artefactKey, filename: doc.filename }).filter(
+          (d) => !checksForensics.has(`${doc.artefactKey}:${d.check}`),
+        ),
+      );
+      if (isForensicsIncomplete(report, null)) {
+        forensicItems.push(notCheckedForensics(report, doc.artefactKey));
+      }
+    } else {
+      forensicItems.push(notCheckedDocument("forensics-failed", doc.artefactKey));
+    }
+  }
   const writeAll = async () => {
     await addEvidence(deps.db, caseId, "invoice", items, deps.now);
+    if (forensicItems.length > 0 || hadDocumentRows) {
+      await saveDocumentEvidence(deps.db, caseId, forensicItems, deps.now);
+    }
     const keep = new Set(pending.map((p) => p.artefactKey));
     const stale = allKeys.filter((k) => !keep.has(k));
     const statements: D1PreparedStatement[] = [];
@@ -273,8 +318,29 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
 // statement with a readable account. Its own failure propagates: the caller ends the case partial rather
 // than proceed without the statement.
 export async function recordInvoiceNotRun(store: Store, caseId: string, reason: string): Promise<void> {
-  const pdfs = await artefactsOf(store, caseId, "attachment");
-  const items = pdfs.filter((a) => a.mediaType === "application/pdf").map((a) => notCheckedItem(reason, a.key));
+  const attachments = await artefactsOf(store, caseId, "attachment");
+  if (await isStandaloneCase(store, caseId, attachments)) {
+    const producers = await evidenceProducers(store.db, caseId).catch(() => []);
+    const docIds = new Set(producers.filter((p) => p.producer === "document").map((p) => p.id));
+    const existing = (await readEvidence(store.db, caseId).catch(() => []))
+      .filter(
+        (e) =>
+          docIds.has(e.id) &&
+          (e.check.startsWith("document.forensics.") ||
+            e.check === "document.type" ||
+            e.check === "document.layout_mismatch" ||
+            e.check === "document.proof_of_payment"),
+      )
+      .map(({ id: _id, ...draft }) => draft);
+    const docAtts = attachments.filter((a) => a.mediaType === "application/pdf" || a.mediaType.startsWith("image/"));
+    const docItems =
+      docAtts.length > 0
+        ? docAtts.flatMap((a) => [notCheckedDocument(reason, a.key), limitItem(a.key)])
+        : [notCheckedDocument(reason, "case"), limitItem("case")];
+    await saveDocumentEvidence(store.db, caseId, [...existing, ...docItems]);
+    return;
+  }
+  const items = attachments.filter((a) => a.mediaType === "application/pdf").map((a) => notCheckedItem(reason, a.key));
   await addEvidence(store.db, caseId, "invoice", items.length > 0 ? items : [notCheckedItem(reason, "case")]);
   await store.db.prepare("DELETE FROM case_invoice_accounts WHERE case_id = ?").bind(caseId).run();
 }

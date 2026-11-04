@@ -1,0 +1,29 @@
+{
+  "video": "04",
+  "composition": "JudgeGuide",
+  "model_id": "eleven_multilingual_v2",
+  "segments": [
+    {
+      "scene": "intro",
+      "text": "Here is how to see Is It Legit working in about a minute, on the live service, with the Fynbos Freight demo organisation."
+    },
+    {
+      "scene": "check a message",
+      "text": "Sign in at app.isitlegit.co.za. Forward a suspicious email as an attachment to check@isitlegit.co.za, or drop a file on the Check a file page. The report fills in live: every finding with its evidence, and a verdict from Muse Spark that cites each one, with the first thing to do."
+    },
+    {
+      "scene": "protect, monitor, results",
+      "text": "Open Protect to see who Fynbos Freight really is, its domains and its logo for SAM 3.1. Open Monitor to see the lookalike sites it has caught. And the public results page shows how often Is It Legit is right, published whether the numbers are good or not."
+    },
+    {
+      "scene": "close",
+      "text": "Everything you just saw is live at app.isitlegit.co.za. The code is on GitHub, at rizonetech slash isitlegit."
+    }
+  ],
+  "voice_settings": {
+    "stability": 0.7,
+    "similarity_boost": 0.85,
+    "style": 0.0,
+    "use_speaker_boost": true
+  }
+}

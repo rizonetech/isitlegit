@@ -1822,6 +1822,10 @@ const paymentDocument = (item: CardItem, _file: FileLink): { title: string; body
     // summary and the reference or reading reasons, its beneficiary failures the account-comparison ones, so
     // the title names the operation that failed and never blames the account comparison for a layout failure.
     const reason = text(d.reason);
+    const recovery = text(d.recovery);
+    const forensicsIncomplete =
+      item.check === "document.not_checked" && (reason === "forensics-unavailable" || reason === "forensics-failed");
+    const planRequired = item.check === "document.not_checked" && reason === "plan-required";
     const layout =
       item.check === "document.comparison_unavailable" &&
       (d.comparison === "layout" ||
@@ -1838,14 +1842,25 @@ const paymentDocument = (item: CardItem, _file: FileLink): { title: string; body
     return {
       title:
         item.check === "document.not_checked"
-          ? "A payment document that could not be read"
+          ? forensicsIncomplete
+            ? "PDF forensic checks that could not finish"
+            : planRequired
+              ? "A payment document check that requires the Protect plan"
+              : "A payment document that could not be read"
           : layout
             ? "A layout comparison that could not run"
             : "A beneficiary comparison that could not run",
       body: (
         <>
           <Facts rows={[["Why", COMPARE_REASON(reason)]]} />
-          <p class="text-14 text-muted">No match and no mismatch: the comparison did not run.</p>
+          {recovery && <p class="text-14">{recovery}</p>}
+          <p class="text-14 text-muted">
+            {forensicsIncomplete
+              ? "The PDF forensic checks were incomplete, so a clean forensic result is not assumed."
+              : planRequired
+                ? "The document was not checked until the organisation's plan includes payment-document checks."
+                : "No match and no mismatch: the comparison did not run."}
+          </p>
         </>
       ),
     };
@@ -1936,6 +1951,9 @@ const COMPARE_REASON = (reason: string | null): string => {
   if (reason === "reference-unavailable") return "The bank's genuine sample could not be read";
   if (reason === "budget" || reason === "budget-unavailable") return "The reading service had no capacity left";
   if (reason === "timeout") return "It ran out of time";
+  if (reason === "plan-required") return "Payment document checks require the Protect plan";
+  if (reason === "forensics-unavailable" || reason === "forensics-failed")
+    return "One or more PDF forensic checks could not run completely";
   if (reason.startsWith("output-")) return "The reading returned an answer that could not be used";
   if (reason.startsWith("model-")) return "The reading service could not finish";
   if (reason === "error") return "The reading did not finish";

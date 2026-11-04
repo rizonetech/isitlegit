@@ -93,10 +93,8 @@ describe("the forwarding check (D01 T02 §6)", () => {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM forward_scan"),
       env.DB.prepare("DELETE FROM forward_incidents"),
-      // An incident already resolved and waiting for its alert: the cron sends it to both of the Worker's mailboxes.
-      env.DB.prepare(
-        "INSERT INTO forward_incidents (key, kind, alias, occurred_at, detected_at, state, alert) VALUES (?, 'refused', 'hello@isitlegit.co.za', ?, ?, 'open', 'pending')",
-      ).bind("c".repeat(64), new Date().toISOString(), new Date().toISOString()),
+      env.DB.prepare("DELETE FROM forward_notices"),
+      env.DB.prepare("DELETE FROM mail_sends"),
     ]);
     const calls: string[] = [];
     const to: string[] = [];

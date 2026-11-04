@@ -76,6 +76,9 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
   // verified, as `h` is, so the mail's dispute link verifies on its three signed parameters alone.
   const dispute = url.searchParams.get("dispute") === "1";
   url.searchParams.delete("dispute");
+  // The demo clock overlay (D09 T02 §3) is likewise a page parameter, stripped before signed-link verification.
+  const clock = url.searchParams.get("clock") === "1";
+  url.searchParams.delete("clock");
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
@@ -121,6 +124,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           ignoredDates(url.searchParams)
             .map((name) => `The ${name} date was not a real date, so it was left out of this run.`)
             .join(" "),
+          clock,
         );
         if (out) return answer(out);
       }
@@ -145,6 +149,9 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           false,
           null,
           dispute,
+          null,
+          "",
+          clock,
         );
         return answer(out ?? (mode !== "page" ? elsewhere() : errorPage(404, id)));
       }
@@ -200,6 +207,8 @@ async function render(
   navFilters: CaseFilters | null = null,
   // A date bound the address named but did not give as a real date, in words (D07 T04 §9).
   navNotice = "",
+  // The `?clock=1` demo clock overlay (D09 T02 §3), showing elapsed time since the case was received.
+  clock = false,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -353,6 +362,7 @@ async function render(
         confirming={confirming}
         trace={trace}
         traceOpen={traceOpen}
+        {...(clock ? { clock: true } : {})}
         {...(dispute ? { dispute: true } : {})}
         {...(steps ? { steps } : {})}
         {...(view === "member" && navFilters ? { navQuery: navQuery(navFilters, id) } : {})}

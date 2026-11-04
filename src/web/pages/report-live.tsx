@@ -157,26 +157,191 @@ const clockSeconds = new Intl.DateTimeFormat("en-GB", {
 // have run; each item's own `detail.state` says what was recorded, so a pass and a failure never read alike. A
 // method whose check failed, or whose results no trusted receiver stands behind, says so and invents no result.
 const AUTH_METHODS = [
-  { check: "auth.spf", name: "Sending server (SPF)" },
-  { check: "auth.dkim", name: "Signature (DKIM)" },
-  { check: "auth.dmarc", name: "Domain policy (DMARC)" },
+  { check: "auth.spf", method: "spf", name: "Sending server (SPF)" },
+  { check: "auth.dkim", method: "dkim", name: "Signature (DKIM)" },
+  { check: "auth.dmarc", method: "dmarc", name: "Domain policy (DMARC)" },
 ] as const;
-type EarlyRow = { name: string; variant: PillVariant; word: string; sentence: string };
-type EarlyAuthData = { kind: "results"; rows: EarlyRow[] } | { kind: "none"; sentence: string };
+type EarlyRow = { name: string; variant: PillVariant; word: string; sentence: string; details: string[] };
+type EarlyAuthData =
+  | { kind: "results"; rows: EarlyRow[]; composite: string | null }
+  | { kind: "none"; sentence: string };
+
+const cleanStr = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+const propRecord = (v: unknown): Record<string, string> => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v)) {
+    const s = cleanStr(val);
+    if (s) out[k.toLowerCase()] = s;
+  }
+  return out;
+};
+const COMPAUTH_REASONS: Record<string, string> = {
+  "000": "explicit authentication failed",
+  "001": "implicit authentication failed",
+  "002": "spoofed mail blocked by organisation policy",
+  "010": "DMARC failed with reject or quarantine policy for an organisation accepted domain",
+  "100": "explicit authentication passed",
+  "101": "DKIM signed by the From domain",
+  "102": "MAIL FROM and From domains aligned and SPF passed",
+  "103": "From domain aligned with the source IP PTR record",
+  "104": "source IP PTR record aligned with the From domain",
+  "108": "DKIM failed due to message body modification at an earlier legitimate hop",
+  "109": "authentication would pass despite no DMARC record",
+  "111": "SPF or DKIM aligned with the From domain despite a DMARC error",
+  "112": "DNS timeout prevented retrieving the DMARC record",
+  "115": "sent from a Microsoft 365 organisation where the From domain is an accepted domain",
+  "116": "From domain MX record aligned with the connecting IP PTR record",
+  "130": "trusted ARC seal overrode a DMARC failure",
+  "201": "From domain PTR record aligned with the connecting IP PTR subnet",
+  "202": "From domain aligned with the connecting IP PTR domain",
+  "501": "DMARC not enforced for a valid non-delivery report with established contact",
+  "502": "DMARC not enforced for a valid non-delivery report of a message sent from this organisation",
+  "601": "implicit authentication failed for an organisation accepted domain",
+  "701": "DMARC not enforced due to sender infrastructure history",
+  "702": "DMARC not enforced due to sender infrastructure history",
+  "703": "DMARC not enforced due to sender infrastructure history",
+  "704": "DMARC not enforced due to sender infrastructure history",
+  "905": "DMARC not enforced due to complex routing",
+};
+const spfPropDomain = (value: string | undefined): string => {
+  const v = (value ?? "").trim().toLowerCase().replace(/^<|>$/g, "");
+  return v.includes("@") ? v.slice(v.lastIndexOf("@") + 1) : v;
+};
+function joinWhy(comment: string | null, reason: string | null, needsReason: boolean): string | null {
+  const parts: string[] = [];
+  if (reason) parts.push(comment && comment !== reason ? `reason ${reason}` : reason);
+  if (comment && comment !== reason) parts.push(comment);
+  if (parts.length > 0) return parts.join(" · ");
+  return needsReason ? "reason not recorded" : null;
+}
+function methodDiagnosticLines(
+  method: "spf" | "dkim" | "dmarc",
+  state: string,
+  detail: Record<string, unknown>,
+  rawForMethod: readonly Record<string, unknown>[],
+): string[] {
+  const results = Array.isArray(detail.results)
+    ? detail.results.filter((r): r is Record<string, unknown> => !!r && typeof r === "object" && !Array.isArray(r))
+    : [];
+  const lines: string[] = [];
+  if (method === "spf") {
+    const singleHelo = detail.helo === true && results.length === 1;
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i] as Record<string, unknown>;
+      const res = cleanStr(r.result) ?? "unknown";
+      const id = cleanStr(r.identifier);
+      const comment = cleanStr(r.comment);
+      const props = propRecord(rawForMethod[i]?.props);
+      const mailfrom = props["smtp.mailfrom"];
+      const helo = props["smtp.helo"];
+      const ip = props["client-ip"];
+      const reason = props.reason ?? null;
+      const mailfromDomain = spfPropDomain(mailfrom);
+      const heloDomain = spfPropDomain(helo);
+      const isHelo = mailfromDomain ? false : heloDomain ? true : singleHelo;
+      if (res === "none" && !id && !mailfrom && !helo && !ip && !comment && !reason) continue;
+      const who = [
+        id ? (isHelo ? `${id} (HELO)` : id) : "no domain named",
+        mailfrom && mailfrom !== id ? `smtp.mailfrom=${mailfrom}` : null,
+        helo ? `smtp.helo=${helo}` : null,
+        ip ? `IP ${ip}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      const why = joinWhy(comment, reason, res !== "pass" && res !== "none");
+      lines.push([`${who}: ${res}`, why].filter(Boolean).join(" · "));
+    }
+    return lines;
+  }
+  if (method === "dkim") {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i] as Record<string, unknown>;
+      const res = cleanStr(r.result) ?? "unknown";
+      const id = cleanStr(r.identifier);
+      const comment = cleanStr(r.comment);
+      const props = propRecord(rawForMethod[i]?.props);
+      const hd = props["header.d"];
+      const hi = props["header.i"];
+      const hs = props["header.s"];
+      const reason = props.reason ?? null;
+      if (res === "none" && !id && !hd && !hi && !hs && !comment && !reason) continue;
+      const signer = id ?? hd ?? hi ?? "no signer named";
+      const who = [signer, hi && hi !== signer ? `header.i=${hi}` : null, hs ? `selector ${hs}` : null]
+        .filter(Boolean)
+        .join(", ");
+      const why = joinWhy(comment, reason, res !== "pass" && res !== "none");
+      lines.push([`${who}: ${res}`, why].filter(Boolean).join(" · "));
+    }
+    return lines;
+  }
+  const firstProps = propRecord(rawForMethod[0]?.props);
+  const from = cleanStr(detail.from) ?? firstProps["header.from"] ?? null;
+  const policy = detail.policy as { certain?: unknown; either?: unknown } | null | undefined;
+  const either =
+    Array.isArray(policy?.either) &&
+    policy.either.length === 2 &&
+    cleanStr(policy.either[0]) &&
+    cleanStr(policy.either[1])
+      ? `${cleanStr(policy.either[0])} or ${cleanStr(policy.either[1])}`
+      : null;
+  const policyWords = cleanStr(policy?.certain) ?? either ?? firstProps["policy.dmarc"] ?? null;
+  if (from) lines.push(`From domain: ${from}`);
+  if (policyWords) lines.push(`Policy: ${policyWords}`);
+  else if (state === "failed" || state === "inconclusive") lines.push("Policy: not recorded");
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i] as Record<string, unknown>;
+    const res = cleanStr(r.result) ?? "unknown";
+    const comment = cleanStr(r.comment);
+    const props = propRecord(rawForMethod[i]?.props);
+    const action = props.action;
+    const reason = props.reason ?? null;
+    if (res === "none" && !comment && !action && !reason) continue;
+    const why = joinWhy(comment, reason, res !== "pass" && res !== "none" && res !== "bestguesspass");
+    lines.push([`Result: ${res}`, action ? `action ${action}` : null, why].filter(Boolean).join(" · "));
+  }
+  return lines;
+}
+function compositeDiagnostic(authResultsItem: CardItem | undefined): string | null {
+  if (!authResultsItem || authResultsItem.detail.trusted === false) return null;
+  const raw = Array.isArray(authResultsItem.detail.results)
+    ? authResultsItem.detail.results.filter(
+        (r): r is Record<string, unknown> => !!r && typeof r === "object" && !Array.isArray(r),
+      )
+    : [];
+  const entries: string[] = [];
+  for (const r of raw) {
+    if (cleanStr(r.method)?.toLowerCase() !== "compauth") continue;
+    const res = cleanStr(r.result);
+    if (!res) continue;
+    const props = propRecord(r.props);
+    const code = props.reason;
+    const explained = code ? (COMPAUTH_REASONS[code] ?? "reason code not documented") : null;
+    const reason = code ? `reason ${code} (${explained})` : null;
+    entries.push([res, reason].filter(Boolean).join(" · "));
+  }
+  return entries.length ? `Composite authentication (compauth): ${entries.join("; ")}` : null;
+}
 function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAuthData | null {
   if (!coverage) return null;
   const outcomes = AUTH_METHODS.map((m) => ({ ...m, outcome: coverage.find((o) => o.check === m.check) })).filter(
     (m) => m.outcome,
   );
   if (outcomes.length === 0) return null;
+  const authResults = evidence.find((e) => e.check === "auth.results");
   if (outcomes.every((m) => m.outcome?.outcome === "skipped")) {
-    const explained = evidence.find((e) => e.check === "auth.results");
     return {
       kind: "none",
       sentence:
-        explained?.summary ?? "No authentication results from a receiving system this service trusts were stored.",
+        authResults?.summary ?? "No authentication results from a receiving system this service trusts were stored.",
     };
   }
+  const rawResults =
+    authResults && authResults.detail.trusted !== false && Array.isArray(authResults.detail.results)
+      ? authResults.detail.results.filter(
+          (r): r is Record<string, unknown> => !!r && typeof r === "object" && !Array.isArray(r),
+        )
+      : [];
   const rows: EarlyRow[] = [];
   for (const m of outcomes) {
     if (m.outcome?.outcome === "failed") {
@@ -185,6 +350,7 @@ function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAu
         variant: "partial",
         word: "Could not be checked",
         sentence: "This check did not finish, so there is no result for it yet.",
+        details: [],
       });
       continue;
     }
@@ -205,9 +371,11 @@ function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAu
             : state === "unavailable"
               ? { variant: "partial", word: "Not reported" }
               : { variant: "partial", word: "Could not be checked" };
-    rows.push({ name: m.name, ...pill, sentence: item.summary });
+    const rawForMethod = rawResults.filter((r) => cleanStr(r.method)?.toLowerCase() === m.method);
+    const details = methodDiagnosticLines(m.method, state, item.detail, rawForMethod);
+    rows.push({ name: m.name, ...pill, sentence: item.summary, details });
   }
-  return rows.length ? { kind: "results", rows } : null;
+  return rows.length ? { kind: "results", rows, composite: compositeDiagnostic(authResults) } : null;
 }
 function EarlyAuth(props: { data: EarlyAuthData; now: Date }) {
   return (
@@ -226,19 +394,29 @@ function EarlyAuth(props: { data: EarlyAuthData; now: Date }) {
       </div>
       <div class="flex flex-col gap-16 p-24">
         {props.data.kind === "none" ? (
-          <p class="text-14">{props.data.sentence}</p>
+          <p class="text-14 wrap-anywhere">{props.data.sentence}</p>
         ) : (
-          <ul class="grid gap-16 md:grid-cols-3">
-            {props.data.rows.map((row) => (
-              <li class="flex flex-col gap-6 p-16 bg-subtle rounded-card">
-                <Pill variant={row.variant} class="self-start">
-                  {row.word}
-                </Pill>
-                <strong class="text-14">{row.name}</strong>
-                <span class="type-small text-muted">{row.sentence}</span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul class="grid gap-16 md:grid-cols-3">
+              {props.data.rows.map((row) => (
+                <li class="flex flex-col gap-6 p-16 bg-subtle rounded-card min-w-0">
+                  <Pill variant={row.variant} class="self-start">
+                    {row.word}
+                  </Pill>
+                  <strong class="text-14 wrap-anywhere">{row.name}</strong>
+                  <span class="type-small text-muted wrap-anywhere">{row.sentence}</span>
+                  {row.details.length > 0 && (
+                    <ul class="flex flex-col gap-4 pt-4 border-t border-line type-small text-muted">
+                      {row.details.map((line) => (
+                        <li class="wrap-anywhere">{line}</li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {props.data.composite && <p class="type-small text-muted wrap-anywhere">{props.data.composite}</p>}
+          </>
         )}
         <p class="type-small text-muted">
           These are what the receiving system recorded when the message arrived. They are not the verdict, and a later

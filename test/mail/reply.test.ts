@@ -471,3 +471,134 @@ describe("replyHeaders", () => {
     expect(none.html).not.toContain("Headers checked");
   });
 });
+
+describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
+  it("points retryable passing failures to the report retry in both text and HTML, while keeping unreadable, unmendable and capacity-limit advice", () => {
+    // 1. Retryable passing failures (checks, verdict, parse StoreError, Timeout).
+    for (const [failedStep, errorClass] of [
+      ["checks", "Error"],
+      ["verdict", "Timeout"],
+      ["parse", "StoreError"],
+    ] as const) {
+      const reply = buildReply({ ...base, report: { status: "partial", failedStep, errorClass } });
+      for (const body of [reply.text, reply.html]) {
+        expect(body).toContain(
+          "Open the report, sign in if asked, and select Retry the check there, or forward the message again in a few minutes. Until it is checked, do not pay, click or reply.",
+        );
+      }
+      expect(reply.text).toContain(URL_);
+      expect(reply.html).toContain(`href="${URL_.replace(/&/g, "&amp;")}"`);
+    }
+
+    // 2. Unreadable message keeps its .eml attachment advice and never says to retry on the report.
+    const unreadable = buildReply({
+      ...base,
+      report: { status: "partial", failedStep: "parse", errorClass: "ParseError" },
+    });
+    for (const body of [unreadable.text, unreadable.html]) {
+      expect(body).toContain("save it as .eml first");
+      expect(body).not.toContain("Retry the check there");
+    }
+
+    // 3. Unmendable failures (UNMENDABLE on the report: RawMissing, CorruptAudio, AudioTooLong, UnsupportedAudio)
+    // never point to the report's retry control, which the report hides for them.
+    for (const errorClass of ["RawMissing", "CorruptAudio", "AudioTooLong", "UnsupportedAudio"] as const) {
+      const unmendable = buildReply({
+        ...base,
+        report: { status: "partial", failedStep: "transcribe", errorClass },
+      });
+      for (const body of [unmendable.text, unmendable.html]) {
+        expect(body, errorClass).not.toContain("Retry the check there");
+        expect(body, errorClass).toContain("forward the message again");
+      }
+    }
+
+    // 4. Spent daily allowance and capacity pause keep their own advice.
+    const dayCap = buildReply({
+      ...base,
+      report: { status: "partial", failedStep: "verdict", errorClass: "budget:day:muse-spark-1.3" },
+    });
+    for (const body of [dayCap.text, dayCap.html]) {
+      expect(body).toContain("Forward the message again tomorrow.");
+      expect(body).not.toContain("Retry the check there");
+    }
+    const totalCap = buildReply({
+      ...base,
+      report: { status: "partial", failedStep: "verdict", errorClass: "budget:total:muse-spark-1.3" },
+    });
+    for (const body of [totalCap.text, totalCap.html]) {
+      expect(body).toContain("Checking is paused while we top up our capacity.");
+      expect(body).not.toContain("Retry the check there");
+    }
+  });
+
+  it("leads from the signed report link while signed out through sign-in to the member's Retry the check control", async () => {
+    const { ReportDocument } = await import("../../src/web/pages/report-view");
+    const { progressOf } = await import("../../src/web/pages/report-progress");
+    const caseId = "01JD0000000000000000000000";
+    const signedPath = await signReportLink(env.REPORT_LINK_SECRET, caseId, "org-retry-journey");
+    const signedUrl = `https://isitlegit.test${signedPath}`;
+    const reply = buildReply({
+      ...base,
+      reportUrl: signedUrl,
+      report: { status: "partial", failedStep: "checks", errorClass: "Error" },
+    });
+    for (const body of [reply.text, reply.html]) {
+      expect(body).toContain("Open the report, sign in if asked, and select Retry the check there");
+    }
+    expect(reply.text).toContain(signedUrl);
+
+    const stored = {
+      id: caseId,
+      status: "partial" as const,
+      verdict: null,
+      sourceKind: "mail" as const,
+      channel: "email" as const,
+      createdAt: "2026-10-31T10:00:00Z",
+    };
+    const progress = progressOf([
+      { step: "admit", status: "done", startedAt: "2026-10-31T10:00:00Z", ms: 5, error: null },
+      {
+        step: "checks",
+        status: "failed",
+        startedAt: "2026-10-31T10:00:01Z",
+        ms: 10,
+        error: "Error",
+      },
+    ]);
+
+    // Opening the signed link while signed out renders the public report with a Sign in link returning to /r/<caseId>.
+    const publicHtml = String(
+      ReportDocument({
+        stored,
+        verdict: null,
+        evidence: [],
+        shell: null,
+        link: signedPath.slice(`/r/${caseId}`.length),
+        progress,
+      }),
+    );
+    expect(publicHtml).toContain(`href="/signin?next=${encodeURIComponent(`/r/${caseId}`)}"`);
+
+    // Following that return path as a signed-in member renders the Retry the check form on /r/<caseId>/retry.
+    const memberHtml = String(
+      ReportDocument({
+        stored,
+        verdict: null,
+        evidence: [],
+        shell: {
+          variant: "member",
+          active: "cases",
+          organization: { id: "org-retry-journey", name: "Retry Co" },
+          otherOrganizations: [],
+          monitorNew: 0,
+          plan: { name: "Business" },
+          user: { name: "Thabo", role: "member" },
+        },
+        progress,
+      }),
+    );
+    expect(memberHtml).toContain(`action="/r/${caseId}/retry"`);
+    expect(memberHtml).toContain("Retry the check");
+  });
+});

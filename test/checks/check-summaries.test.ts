@@ -176,13 +176,17 @@ describe("the domain summaries", () => {
   });
 
   it("counts lookalikes", () => {
-    expect(say("domain.lookalike", view())).toBe("no lookalike of a known name");
+    expect(say("domain.lookalike", view())).toBe("no lookalike among 1 domain, from fynbosfreight.example");
+    expect(say("domain.lookalike", view({ headers: [] }))).toBe("no lookalike of a known name");
     expect(say("domain.lookalike", view(), [finding("domain.lookalike"), finding("domain.lookalike")])).toBe(
       "2 lookalike domains",
     );
     // A note that a domain was not compared is no lookalike; an overflow card counts what it stands for (round 1).
     const notCompared = finding("domain.lookalike", "info", { compared: false });
     expect(say("domain.lookalike", view(), [notCompared])).toBe(
+      "no lookalike among 1 domain compared, from fynbosfreight.example, some not compared",
+    );
+    expect(say("domain.lookalike", view({ headers: [] }), [notCompared])).toBe(
       "no lookalike among the domains compared, some not compared",
     );
     const kept = Array.from({ length: 20 }, () => finding("domain.lookalike", "high", { domain: "x.example" }));

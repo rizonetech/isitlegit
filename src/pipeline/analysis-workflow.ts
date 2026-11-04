@@ -71,6 +71,7 @@ import {
   type Store,
   StoreError,
 } from "../intake/store";
+import { isStandaloneDocumentCase } from "../invoice/document-step";
 import { invoiceStep, recordInvoiceNotRun } from "../invoice/step";
 import {
   buildGroupedReply,
@@ -438,6 +439,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "walkthrough";
       try {
         await timed("walkthrough", async () => {
+          if (await isStandaloneDocumentParsed(store, caseId, key, sourceKind)) {
+            return { outcome: "skipped" as const, reason: "standalone-document" as const };
+          }
           const { table } = await brandTableRead(this.env);
           return walkthroughStep(
             {
@@ -470,8 +474,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       // stated on the case and the verdict goes on with what it has.
       current = "vision";
       try {
-        await timed("vision", () =>
-          visionStep(
+        await timed("vision", async () => {
+          if (await isStandaloneDocumentParsed(store, caseId, key, sourceKind)) {
+            return { outcome: "skipped" as const, reason: "standalone-document" as const };
+          }
+          return visionStep(
             {
               db,
               store,
@@ -483,8 +490,8 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
             },
             caseId,
-          ),
-        );
+          );
+        });
       } catch {
         // The failure statement is itself retried; a case it cannot land on ends partial below rather
         // than reach its verdict with the missing coverage concealed.
@@ -495,8 +502,8 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       // stated on the case and the verdict goes on with what it has.
       current = "invoice";
       try {
-        await timed("invoice", () =>
-          invoiceStep(
+        await timed("invoice", async () => {
+          const res = await invoiceStep(
             {
               db,
               store,
@@ -506,8 +513,52 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
             },
             caseId,
             orgId,
-          ),
-        );
+          );
+          // If a standalone-packaged attachment is classified as `type: "other"` (not an invoice, POP or
+          // bank confirmation letter), restore full mail checks and visual threat analysis (`visionStep`)
+          // so attacker-controlled packaging cannot suppress phishing/impersonation detection (round 3).
+          if (
+            (await isStandaloneDocumentParsed(store, caseId, key, sourceKind)) &&
+            (await isNonPaymentStandaloneDocument(db, caseId))
+          ) {
+            if (sourceKind === "mail") {
+              const { table, source, id } = await brandTableRead(this.env);
+              await checks(
+                store,
+                caseId,
+                key,
+                { orgId, channel },
+                lookupMx,
+                table,
+                rdapDeps(this.env),
+                { read: (links) => followLinks(this.env.BROWSER, links, { policy: livePolicy() }) },
+                this.env.CF_VERSION_METADATA?.id ?? null,
+                undefined,
+                { revision: table.revision, id, source },
+                reputationDeps(this.env, caseId, orgId),
+                false,
+              );
+            }
+            try {
+              await visionStep(
+                {
+                  db,
+                  store,
+                  launch: () => puppeteer.launch(this.env.BROWSER),
+                  meta: { env: this.env, budget: d1Budget(db, { caller: "vision", caseId }) },
+                  kv: this.env.CACHE,
+                  waitUntil: (p) => void p.catch(() => {}),
+                  policy: (raw) => allowedUrl(raw, dohResolve()),
+                  ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
+                },
+                caseId,
+              );
+            } catch {
+              await recordVisionNotRun(db, caseId, "error");
+            }
+          }
+          return res;
+        });
       } catch {
         await step.do("invoice:unchecked", RETRIES, () => safely(() => recordInvoiceNotRun(store, caseId, "error")));
       }
@@ -587,6 +638,52 @@ export async function admit(
 
 // What the case came from, as the parse step needs it: a forward, an uploaded message or an uploaded file.
 export type Source = { channel: "email" | "upload"; sourceKind: SourceKind; headersAvailable: boolean };
+
+async function isStandaloneDocumentParsed(
+  store: Store,
+  caseId: string,
+  key: string,
+  sourceKind: SourceKind,
+): Promise<boolean> {
+  if (sourceKind === "document" || sourceKind === "image") return true;
+  if (sourceKind !== "mail") return false;
+  const summary = await readArtefact(store, caseId, key);
+  if (!summary || !("body" in summary)) return false;
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(summary.body)) as {
+      text?: string | null;
+      html?: string | null;
+      attachments?: { key: string; filename: string; mediaType: string }[];
+      truncated?: unknown[];
+      omitted?: number;
+    };
+    return (
+      (!Array.isArray(parsed.truncated) || parsed.truncated.length === 0) &&
+      (parsed.omitted ?? 0) === 0 &&
+      isStandaloneDocumentCase({
+        sourceKind: "mail",
+        textBody: parsed.text ?? null,
+        htmlBody: parsed.html ?? null,
+        attachments: parsed.attachments ?? [],
+      })
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function isNonPaymentStandaloneDocument(db: D1Database, caseId: string): Promise<boolean> {
+  const items = await readEvidence(db, caseId);
+  if (
+    items.some(
+      (e) => e.check === "document.not_checked" && (e.detail as { reason?: unknown }).reason === "plan-required",
+    )
+  ) {
+    return false;
+  }
+  const docTypes = items.filter((e) => e.check === "document.type").map((e) => (e.detail as { type?: unknown }).type);
+  return docTypes.some((t) => t === "other");
+}
 
 // A step's failure after its last attempt: an event naming the step and its error class, and the case `partial`
 // (moved through `running` if admission failed before it got there). A case already `done` stays so: its `finish`
@@ -814,6 +911,7 @@ export async function checks(
   // How the case's link and sender-domain reputation is asked (D02 T06 §5): none by default, so a caller that gives
   // none reads no reputation (null on the view).
   reputation: ReputationDeps | null = null,
+  allowStandaloneSkip = true,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -845,11 +943,39 @@ export async function checks(
     rawKey(caseId),
     brands,
   );
+  // A standalone document case (D06 T02 §3: an uploaded document or image, or mail whose body is empty and which
+  // carries only a PDF or image) skips the mail checks (authentication, sender, header-domain and body checks).
+  const standaloneDoc =
+    allowStandaloneSkip &&
+    ((read.source.kind === "upload" && (read.source.fileKind === "document" || read.source.fileKind === "image")) ||
+      (read.source.kind === "message" &&
+        read.truncated.length === 0 &&
+        read.omitted === 0 &&
+        isStandaloneDocumentCase({
+          sourceKind: "mail",
+          textBody: read.text,
+          htmlBody: read.html,
+          attachments: read.attachments,
+        })));
+  if (standaloneDoc && read.source.kind === "message") {
+    read.tenant.headersAvailable = false;
+    read.headers = [];
+    read.text = null;
+    read.html = null;
+  }
+  const activeRegistry = standaloneDoc
+    ? (() => {
+        const reg = new CheckRegistry();
+        for (const check of fullRegistry.all())
+          if (!check.name.startsWith("auth.") && !check.name.startsWith("sender.")) reg.register(check);
+        return reg;
+      })()
+    : fullRegistry;
   // The intake and authentication prefix, stored before any enrichment (D01 T01 §23): a slow or failed
   // enrichment (Browser Run, RDAP, reputation) then leaves the fast header outcomes already readable, and
   // because the subset is the registry's own prefix in order, its Evidence IDs are the full run's first IDs.
   const prefix = new CheckRegistry();
-  for (const check of fullRegistry.all())
+  for (const check of activeRegistry.all())
     if (check.name.startsWith("intake.") || check.name.startsWith("auth.")) prefix.register(check);
   const early = await runChecksWithOutcomes(read, prefix);
   // The run's reputation results go with its evidence (D02 T06 §9, round 3): a retried step's prefix write
@@ -973,14 +1099,14 @@ export async function checks(
     protectedCandidates: boundProtectedCandidates(await protectedIdentities(store.db)),
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
-  const { items, outcomes } = await runChecksWithOutcomes(view);
+  const { items, outcomes } = await runChecksWithOutcomes(view, activeRegistry);
   // Each provider's own answer beside the evidence it weighed into (D02 T06 §9), in the same batch, so a
   // failed write leaves the previous evidence and results together and the step retries from them.
   const saved = await saveEvidence(
     store.db,
     caseId,
     items,
-    undefined,
+    activeRegistry,
     undefined,
     outcomes,
     revision,
@@ -1285,6 +1411,21 @@ export async function verdict(
     .bind(caseId)
     .first<{ headers_available: number; org_id: string }>();
   const headersAvailable = row?.headers_available === 1;
+  // An unentitled standalone payment-document case (D06 T02 §3) makes zero model calls across the Workflow:
+  // when `document.not_checked` carries `reason: "plan-required"`, the rule verdict decides directly.
+  if (
+    evidence.some(
+      (e) => e.check === "document.not_checked" && (e.detail as { reason?: unknown }).reason === "plan-required",
+    )
+  ) {
+    const rules = ruleVerdict(evidence, { headersAvailable });
+    const fixed = fixedActionsFor(evidence);
+    const view: VerdictView = {
+      ...rules,
+      actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
+    };
+    return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  }
   // An ablated arm (D04 T01 §14): the verdict agent is never called, and none of its preparation is read
   // either; the rule verdict decides alone with the deterministic actions, and the verdict names the flag.
   if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {

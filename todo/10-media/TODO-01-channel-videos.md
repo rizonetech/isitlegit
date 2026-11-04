@@ -38,8 +38,8 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Media package and stats collector | -- | [ ] |
-| 2 | §2 | Remotion licence basis | -- | [ ] |
+| 1 | §1 | Media package and stats collector | -- | [x] |
+| 2 | §2 | Remotion licence basis | -- | [x] |
 | 3 | §3 | Video 01: development process, long form | §1, §2 | [ ] |
 | 4 | §4 | Video 02: technical deep dive, long form | §1, §2 | [ ] |
 | 5 | §5 | Uploads and links recorded | §3, §4 | [ ] |
@@ -48,6 +48,8 @@ track: day-6
 | 8 | §8 | Video 04: judge getting-started guide | §1, §2 | [ ] |
 | 9 | §9 | X 45-second viral teaser clip | §1, §2 | [ ] |
 | 10 | §10 | YouTube channel banner (@DerickPayneDev) | §1, §2 | [ ] |
+| 11 | §11 | Videos re-cut as the live gaps close | §8, §9 | [ ] |
+| 12 | §12 | P3 review leftovers from the media stamps | -- | [ ] |
 
 ## 1. Media package and stats collector
 
@@ -70,14 +72,17 @@ The self-contained Remotion package every video renders from: its own pnpm root 
 - [x] Let `collect-stats.py` take the repository root as an optional argument for the test. Done when: the test runs without touching the real tree. Cheaper substitute: a test that reads the live repository fails as soon as a section ships. (`8f7df4f3`)
 - [x] Commit: `media: test the stats collector` (`8f7df4f3`)
 
-**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm exec tsc -p .` exits 0.
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm run stats && pnpm run voice && pnpm run capture:index && pnpm exec tsc -p . && pnpm test:kit && pnpm preflight` exits 0 on a clean checkout (the compositions import three generated, git-ignored modules, `src/data/stats.json`, `src/data/voice.ts` and `src/data/demo-capture.ts`, so the three generators run before the type check, as they do before every render and the studio).
+
+> **Verified:** 2026-11-04 | §1 | 35be5447b7a8bd3fed66bc39937f3bfd01d85873
+> **Review:** `docs/reviews/d10-t01-s1.json`
 
 ## 2. Remotion licence basis
 
 Remotion is free for individuals and for companies of up to three people; a larger company needs a paid company licence (coordinator caution, 2026-10-30). The hackathon requires rights to everything used (`docs/hackathon-criteria.md`). Rizonetech's headcount decides which applies, and only the operator knows it. Phase 6, not 99, because the renders in §3 and §4 wait on it.
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -86,11 +91,14 @@ Remotion is free for individuals and for companies of up to three people; a larg
 
 - [x] Operator: check Rizonetech's headcount against the Remotion licence terms at `https://www.remotion.dev/license` and buy a company licence if over three people. Done when: the operator states which licence applies.
 - [x] Record the line `Remotion licence: <free (up to 3 people) | company licence, <reference>>, confirmed YYYY-MM-DD` under this section. Done when: the line is written. Cheaper substitute: assuming the free tier from the hackathon team size fails, since the licence counts the company.
-- [ ] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
+- [x] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
 
-**Test checkpoint:** `grep -cE '^Remotion licence: ' todo/10-media/TODO-01-channel-videos.md` prints `1`.
+**Test checkpoint:** `grep -cE '^Remotion licence: (free \(up to 3 people\)|company licence, [A-Z0-9][A-Z0-9-]{5,}), .*confirmed 20[0-9]{2}-[0-9]{2}-[0-9]{2}$' todo/10-media/TODO-01-channel-videos.md` prints `1` (a placeholder, an undated line, or a company licence whose reference is not an order number of six or more capitals and digits, such as `<reference>` or `pending`, prints `0`), and `grep -c 'Remotion 4.0.539' media/README.md` prints `1` (the licence basis carried into the media folder's Licences list).
 
 Remotion licence: free (up to 3 people), Rizonetech has 3 people, confirmed 2026-10-30
+
+> **Verified:** 2026-11-04 | §2 | 158ee45694c372196945b741366c201758bda593
+> **Review:** `docs/reviews/d10-t01-s2.json`
 
 ## 3. Video 01: development process, long form
 
@@ -109,9 +117,9 @@ The development process in about 11 and a half minutes, for learning and for the
 - [x] Add commits and stamps per day, commits per hour of day across every lane, merges, per-domain stamps and lines of code to `media/tools/collect-stats.py`, leaving out the template rows, with tests. Done when: its sections total equals `scripts/todo-graph.py validate`'s count.
 - [x] Write the storyboard and register it in `media/src/Root.tsx` as `DevProcess`. Done when: stills of all 33 content scenes show the label, Exo fonts and nothing cut off.
 - [x] Operator: answer the script's open questions (voiceover or text only; reviewer names). Done when: the answers are written into `media/scripts/01-how-isitlegit-is-built.md`.
-- [ ] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
-- [ ] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
-- [ ] Commit: `media: video 01 approved and rendered (D10 T01 §3)`
+- [x] Record `Script approved: 01, YYYY-MM-DD` in `media/scripts/01-how-isitlegit-is-built.md`. Done when: the line is written.
+- [x] Re-pin `media/data/dev-facts.json` to the commit of the final render and re-render with `pnpm render:01` on a committed tree. Done when: the closing frame names a commit that `git cat-file -e` accepts. Cheaper substitute: rendering at an old pin shows stale counts.
+- [x] Commit: `media: video 01 approved and rendered (D10 T01 §3)`
 
 **Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/01-how-isitlegit-is-built.mp4` prints `1920,1080`, and `grep -c '^Script approved: 01, ' media/scripts/01-how-isitlegit-is-built.md` prints `1`.
 
@@ -130,11 +138,11 @@ The product's technical specification in about 11 minutes: intake, uploads and v
 
 - [x] Pin the product facts in `media/data/tech-facts.json` (92 facts, status `shipped` only for code in `src/` at the pin, `planned` for the design spec), with no client data, keys or account IDs. Done when: `python3 media/tools/check-facts.py` passes. Cheaper substitute: calling a designed feature shipped fails the no-mocks rule.
 - [x] Write the storyboard and register it in `media/src/Root.tsx` as `TechDeepDive`. Done when: stills of all 25 content scenes show the label and nothing cut off, including the wrapped code lines.
-- [ ] Operator: answer the script's open questions (voiceover; a re-render once the verdict agent ships). Done when: the answers are written into `media/scripts/02-isitlegit-technical-deep-dive.md`.
-- [ ] Record `Script approved: 02, YYYY-MM-DD` in `media/scripts/02-isitlegit-technical-deep-dive.md`. Done when: the line is written.
-- [ ] Re-check every chapter's shipped, partly built or planned mark against `src/` and the stamped rows at the final render's commit, and upgrade the composition to the Demo standard: embed the Meta infinity SVG mark in `MetaBadge` (`media/src/brand.tsx`), the two-row Runtime Meta AI + `Built with Meta Muse Code (Wonder 1.0)` & full-stack badge strip, the live Playwright product captures, the abstract animated background (`GENERATED.loop` / plates), the live `/eval` ablation chart, and the 5 Remotion Meta Model "How It's Done" X-Ray overlays (`muse-spark-1.3` untrusted fence and floor, `sam-3.1` segmentation mask crop, `muse-wonder-1.0` containment HUD and canary, `Loupe 1.1 -> Muse Spark` cascade, and `WASM Opus -> muse-voice-transcribe-1.0` pipeline). Done when: each mark matches and the upgraded scenes render. Cheaper substitute: keeping the 30 Oct static slides and `planned` marks fails once the product ships.
-- [ ] Re-pin and re-render with `pnpm render:02` on a committed tree. Done when: the file exists at 1920 x 1080.
-- [ ] Commit: `media: video 02 approved and rendered (D10 T01 §4)`
+- [x] Operator: answer the script's open questions (voiceover; a re-render once the verdict agent ships). Done when: the answers are written into `media/scripts/02-isitlegit-technical-deep-dive.md`.
+- [x] Record `Script approved: 02, YYYY-MM-DD` in `media/scripts/02-isitlegit-technical-deep-dive.md`. Done when: the line is written.
+- [x] Re-check every chapter's shipped, partly built or planned mark against `src/` and the stamped rows at the final render's commit, and upgrade the composition to the Demo standard: embed the Meta infinity SVG mark in `MetaBadge` (`media/src/brand.tsx`), the two-row Runtime Meta AI + `Built with Meta Muse Code (Wonder 1.0)` & full-stack badge strip, the live Playwright product captures, the abstract animated background (`GENERATED.loop` / plates), the live `/eval` ablation chart, and the 5 Remotion Meta Model "How It's Done" X-Ray overlays (`muse-spark-1.3` untrusted fence and floor, `sam-3.1` segmentation mask crop, `muse-wonder-1.0` containment HUD and canary, `Loupe 1.1 -> Muse Spark` cascade, and `WASM Opus -> muse-voice-transcribe-1.0` pipeline). Done when: each mark matches and the upgraded scenes render. Cheaper substitute: keeping the 30 Oct static slides and `planned` marks fails once the product ships.
+- [x] Re-pin and re-render with `pnpm render:02` on a committed tree. Done when: the file exists at 1920 x 1080.
+- [x] Commit: `media: video 02 approved and rendered (D10 T01 §4)`
 
 **Test checkpoint:** `python3 media/tools/check-facts.py` exits 0, `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/02-isitlegit-technical-deep-dive.mp4` prints `1920,1080`, and `grep -c '^Script approved: 02, ' media/scripts/02-isitlegit-technical-deep-dive.md` prints `1`.
 
@@ -176,13 +184,13 @@ A 132-second technical video on Loupe, the page screener of D03 T04: the job beh
 - [x] Write `media/scripts/03-loupe-1-0.md` with 13 scenes, the "not shown, on purpose" list and the open questions. Done when: the script names every scene's figures and their source file.
 - [x] Build `media/src/videos/LoupeV1.tsx` and register `LoupeV1` in `media/src/Root.tsx`, with the status label on every scene and a `planned` tag on the recipe, gate, serving and `screenPage` lines. Done when: `pnpm exec tsc -p .` exits 0 and stills of all 13 scenes show the label.
 - [x] Add `render:03` (after `check:facts`) to `media/package.json`. Done when: `pnpm render:03` writes `media/out/03-loupe-1-0.mp4` at 1920 x 1080, 132 s.
-- [ ] Operator: answer the script's open questions (teacher spend, the 61 percent bar, voiceover, a results re-render). Done when: the answers are written into `media/scripts/03-loupe-1-0.md`.
-- [ ] Record `Script approved: 03, YYYY-MM-DD` in `media/scripts/03-loupe-1-0.md`. Done when: the line is written.
-- [ ] Re-pin `commit` and refresh `media/data/loupe-facts.json` and `media/src/videos/LoupeV1.tsx` to the Demo standard across the three-stage Loupe 1.1 schedule (D03 T04 §47 / §50) while keeping the 3-minute Demo Video (`Demo.tsx`) completely decoupled from late-night metric decimals so `Demo.tsx` is locked by `18:00 SAST` and never re-rendered at night: (a) after the `08:00 SAST` / `14:00 SAST` Wed 4 Nov Checkpoint #1/#2 promotions, pin the verified metrics so all daytime renders and the `18:00 SAST` submission complete with zero blocking; (b) write `Video 03`'s narration in `media/scripts/03-loupe-1-0.md` so the spoken voiceover states the structural 1.1 story while the on-screen cards display the exact pinned numbers from `media/data/loupe-facts.json` (requiring zero ElevenLabs voiceover regeneration when numbers update); and (c) immediately after the 100%-completed Loupe 1.1 training finishes and promotes (`~21:00 to 23:30 SAST` Wed 4 Nov, completed before `00:00 SAST`), run the fast ~10-minute final stats update in `media/data/loupe-facts.json` (`python3 media/tools/check-facts.py`) and re-render only `LoupeV1.tsx` (`pnpm render:03`): replace the Oct 30 `planned` tags with the measured Loupe 1.0 training results (`52,019` lines, `14 h 29 min`, `0.980` recall, `0.057` false alarms, `3.9 s` median latency), the honest weak-spot diagnosis (`0.635` lure-type accuracy), the final 100%-trained Loupe 1.1 results (`172,987` frozen pages, `Loupe -> Muse Spark` confidence escalation from D03 T04 §48, prompt-injection robustness, and the open-weight LoRA adapter at `huggingface.co/rizonetech/isitlegit-loupe`), plus live captures of `#model-trace` and `/eval`, the Meta-logo `MetaBadge` and `Built with Meta Muse Code (Wonder 1.0)` & full-stack badge strip, the Remotion X-Ray cascade overlay, and the abstract animated background (`GENERATED.loop`). Done when: `pnpm check:facts` and `pnpm render:03` pass at the final 100%-trained commit before `00:00 SAST`. Cheaper substitute: rendering at the old Oct 30 pin or requiring a `Demo.tsx` or voiceover re-render after `18:00 SAST`.
-- [ ] Render the final cut with `pnpm render:03` on a committed tree. Done when: the file exists at 1920 x 1080.
-- [ ] Commit: `media: video 03 approved and rendered (D10 T01 §6)`
+- [x] Operator: answer the script's open questions (teacher spend, the 61 percent bar, voiceover, a results re-render). Done when: the answers are written into `media/scripts/03-loupe-1-0.md`.
+- [x] Record `Script approved: 03, YYYY-MM-DD` in `media/scripts/03-loupe-1-0.md`. Done when: the line is written.
+- [x] Re-pin `commit` and refresh `media/data/loupe-facts.json` and `media/src/videos/LoupeV1.tsx` to the Demo standard across the three-stage Loupe 1.1 schedule (D03 T04 §47 / §50) while keeping the 3-minute Demo Video (`Demo.tsx`) completely decoupled from late-night metric decimals so `Demo.tsx` is locked by `18:00 SAST` and never re-rendered at night: (a) after the `08:00 SAST` / `14:00 SAST` Wed 4 Nov Checkpoint #1/#2 promotions, pin the verified metrics so all daytime renders and the `18:00 SAST` submission complete with zero blocking; (b) write `Video 03`'s narration in `media/scripts/03-loupe-1-0.md` so the spoken voiceover states the structural 1.1 story while the on-screen cards display the exact pinned numbers from `media/data/loupe-facts.json` (requiring zero ElevenLabs voiceover regeneration when numbers update); and (c) immediately after the 100%-completed Loupe 1.1 training finishes and promotes (`~21:00 to 23:30 SAST` Wed 4 Nov, completed before `00:00 SAST`), run the fast ~10-minute final stats update in `media/data/loupe-facts.json` (`python3 media/tools/check-facts.py`) and re-render only `LoupeV1.tsx` (`pnpm render:03`): replace the Oct 30 `planned` tags with the measured Loupe 1.0 training results (`52,019` lines, `14 h 29 min`, `0.980` recall, `0.057` false alarms, `3.9 s` median latency), the honest weak-spot diagnosis (`0.635` lure-type accuracy), the final 100%-trained Loupe 1.1 results (`172,987` frozen pages, `Loupe -> Muse Spark` confidence escalation from D03 T04 §48, prompt-injection robustness, and the open-weight LoRA adapter at `huggingface.co/rizonetech/isitlegit-loupe`), plus live captures of `#model-trace` and `/eval`, the Meta-logo `MetaBadge` and `Built with Meta Muse Code (Wonder 1.0)` & full-stack badge strip, the Remotion X-Ray cascade overlay, and the abstract animated background (`GENERATED.loop`). Done when: `pnpm check:facts` and `pnpm render:03` pass at the final 100%-trained commit before `00:00 SAST`. Cheaper substitute: rendering at the old Oct 30 pin or requiring a `Demo.tsx` or voiceover re-render after `18:00 SAST`.
+- [x] Render the final cut with `pnpm render:03` on a committed tree. Done when: the file exists at 1920 x 1080.
+- [x] Commit: `media: video 03 approved and rendered (D10 T01 §6)`
 
-**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, `python3 media/tools/check-facts.py` exits 0, and `ffprobe -v error -show_entries stream=width,height:format=duration -of csv=p=0 media/out/03-loupe-1-0.mp4` prints `1920,1080` and `132.000000`.
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, `python3 media/tools/check-facts.py` exits 0, and `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/03-loupe-1-0.mp4` prints `1920,1080`, and `grep -c '^Script approved: 03, ' media/scripts/03-loupe-1-0.md` prints `1`.
 
 ## 7. Video 03 upload and link recorded
 
@@ -205,6 +213,8 @@ The operator uploads the approved video 03 to @DerickPayneDev as public, in the 
 
 ## 8. Video 04: judge getting-started guide
 
+**Corrected 2026-11-04 (operator review):** the guide covers the live web path only. `pnpm judge:demo` is not on main (D09 T02 §13 is open), so the video no longer shows or names it, and the Hugging Face link is dropped while the repository answers 401. The X-ray overlays are removed from every video: they covered the product and showed figures the service cannot back. Renders now go to `media/out2/` (git-ignored).
+
 A 60 to 90 second Judge Getting-Started walkthrough video rendered in Remotion (`media/out/04-judge-getting-started.mp4`) and embedded at the top of `README.md` and #2 in the `IsItLegit` YouTube playlist, walking judges through both zero-friction paths: (1) the 60-second live web path (`isitlegit.co.za` / `app.isitlegit.co.za` with the pre-populated Fynbos Freight demo org, forwarding/uploading an email, invoice or voice note, opening `?trace=1` `#model-trace` to inspect `muse-spark-1.3`, `muse-wonder-1.0`, `sam-3.1`, `Loupe`, and `muse-voice-transcribe-1.0`, and checking `/eval` and `huggingface.co/rizonetech/isitlegit-loupe`), and (2) the zero-account local replay path (`pnpm judge:demo`, answering Yash Khare's 2026-11-03 guidance with recorded pairs and clear provenance labels).
 
 **Phase:** 6
@@ -215,8 +225,8 @@ A 60 to 90 second Judge Getting-Started walkthrough video rendered in Remotion (
 
 1. Build and render `media/out/04-judge-getting-started.mp4` at 1920 x 1080 (60 to 90 s). Done when: the MP4 renders and covers both the live web quickstart and `pnpm judge:demo`.
 
-- [ ] Build the Judge Getting-Started Remotion composition in `media/src/videos/` combining live Playwright captures of `isitlegit.co.za` (`?trace=1`, `/eval`, Hugging Face) and the `pnpm judge:demo` local replay terminal and browser view, with Brian's voiceover and the abstract animated background. Done when: `cd media && pnpm render:04` writes `media/out/04-judge-getting-started.mp4`.
-- [ ] Commit: `media: judge getting-started video (D10 T01 §8)`
+- [x] Build the Judge Getting-Started Remotion composition in `media/src/videos/` combining live Playwright captures of `isitlegit.co.za` (`?trace=1`, `/eval`, Hugging Face) and the `pnpm judge:demo` local replay terminal and browser view, with Brian's voiceover and the abstract animated background. Done when: `cd media && pnpm render:04` writes `media/out/04-judge-getting-started.mp4`.
+- [x] Commit: `media: judge getting-started video (D10 T01 §8)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/04-judge-getting-started.mp4` prints `1920,1080`.
 
@@ -232,8 +242,8 @@ A punchy 45-second native video teaser (`media/out/x-teaser-45s.mp4`, 1920 x 108
 
 1. Render the 45-second native X teaser clip. Done when: `media/out/x-teaser-45s.mp4` exists at 1920 x 1080 and is 45 seconds or shorter.
 
-- [ ] Add an `XTeaser` Remotion composition (`45 s`) highlighting the forward-to-verdict flow and all 5 Meta Model X-Ray overlays, and render to `media/out/x-teaser-45s.mp4`. Done when: the file renders cleanly.
-- [ ] Commit: `media: 45-second X viral teaser clip (D10 T01 §9)`
+- [x] Add an `XTeaser` Remotion composition (`45 s`) highlighting the forward-to-verdict flow and all 5 Meta Model X-Ray overlays, and render to `media/out/x-teaser-45s.mp4`. Done when: the file renders cleanly.
+- [x] Commit: `media: 45-second X viral teaser clip (D10 T01 §9)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/x-teaser-45s.mp4` prints `1920,1080`.
 
@@ -249,10 +259,49 @@ A personal developer YouTube channel banner (`2560 x 1440` PNG with all key typo
 
 1. Render `media/out/youtube-banner-derickpaynedev.png` at 2560 x 1440. Done when: the PNG exists and passes the safe-zone dimensions check.
 
-- [ ] Build a `ChannelBanner` still composition in `media/src/videos/` at `2560 x 1440` (`1546 x 423` safe area) for `@DerickPayneDev` (unrelated to IsItLegit) and render to `media/out/youtube-banner-derickpaynedev.png`. Done when: the file exists at `2560 x 1440`.
-- [ ] Commit: `media: @DerickPayneDev YouTube channel banner (D10 T01 §10)`
+- [x] Build a `ChannelBanner` still composition in `media/src/videos/` at `2560 x 1440` (`1546 x 423` safe area) for `@DerickPayneDev` (unrelated to IsItLegit) and render to `media/out/youtube-banner-derickpaynedev.png`. Done when: the file exists at `2560 x 1440`.
+- [x] Commit: `media: @DerickPayneDev YouTube channel banner (D10 T01 §10)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/youtube-banner-derickpaynedev.png` prints `2560,1440`.
+
+## 11. Videos re-cut as the live gaps close
+
+The 2026-11-04 rebuild left four things out of the demo, the judge guide and the teaser because the live service could not back them (operator review): the public verify page renders with no styling, the website seal page answers 404, the report's model-trace panel (`?trace=1`) does not show in the capture, and the Loupe adapter on Hugging Face is not public. Each joins the videos the day it works, through a capture beat and a scene, never a board or a mock. The fixes themselves belong to other lanes and are asked for through the coordinator (outbox, 2026-11-04).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Re-check each gap against the live service before every re-render. Done when: each item below records `live` or `still missing` with the date.
+2. Capture and cut in each gap that is live. Done when: the re-rendered files in `media/out2/` show it, and `docs/demo-script.md` names it.
+
+- [ ] Verify page: when `https://isitlegit.co.za/v/fynbos-freight` renders with its stylesheet, add it to the trust scene of `media/src/videos/Demo.tsx` from the `verify` beat in `media/capture/beats.ts` (already captured). Done when: a still of the scene shows the styled page. Cheaper substitute: showing the board `design/mockups/png/Verify-Protected.png` fails the no-mocks rule.
+- [ ] Website seal: when `https://app.isitlegit.co.za/s/fynbos-freight` answers 200, add a `seal` beat to `media/capture/beats.ts` and its shot to the trust scene. Done when: the capture manifest lists `seal` and the scene shows it.
+- [ ] Model trace: when `#model-trace` shows on `/r/:id?trace=1`, cut the trace view (`traceShown` to `traceDone` in the `upload-and-report` beat) into the report scene with the models it lists named in the window's title bar. Done when: a still shows the panel with real model calls.
+- [ ] Loupe on Hugging Face: when `https://huggingface.co/rizonetech/isitlegit-loupe` answers 200 logged out, add it to the proof scene and the close card of `Demo.tsx` and to `media/src/videos/JudgeGuide.tsx`. Done when: `curl -s -o /dev/null -w '%{http_code}' https://huggingface.co/rizonetech/isitlegit-loupe` prints `200` and the stills show the link.
+- [ ] Re-render `pnpm render:demo`, `pnpm render:04` and `pnpm render:teaser`, and update `docs/demo-script.md`. Done when: the three files in `media/out2/` are newer than the last gap closed.
+- [ ] Commit: `media: re-cut the videos as the live gaps close (D10 T01 §11)`
+
+**Test checkpoint:** `for u in https://isitlegit.co.za/v/fynbos-freight https://app.isitlegit.co.za/s/fynbos-freight https://huggingface.co/rizonetech/isitlegit-loupe; do curl -s -o /dev/null -w "%{http_code} $u\n" $u; done` prints `200` for each URL cut into the videos.
+
+## 12. P3 review leftovers from the media stamps
+
+The independent review rounds of the media sections stop at the first round with no P1 or P2 finding (`.conclave/reviewers.toml`, `severity_stop_after = 0`), and each such round's P3 findings are filed here as leftovers (`.claude/skills/review-todo-section/SKILL.md` step 4), one item per finding, naming the section and round it came from. None blocks a render or an upload.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Fix each leftover in the file it names, or record why it stays. Done when: every item below is ticked with its commit or its reason.
+
+- [ ] D10 T01 §2 round 1 (P3): the licence checkpoint in §2 accepts an all-capitals placeholder such as `company licence, PENDING`; add a negative case and refuse `PENDING`, `TBD` and `TODO` explicitly in the pattern of a new check. Done when: `printf 'Remotion licence: company licence, PENDING, confirmed 2026-10-30\n' | grep -cE '<the new pattern>'` prints `0` and the recorded line still prints `1`. Cheaper substitute: relying on review of the operator's line fails as soon as an agent writes it.
+- [ ] Commit: `media: clear the P3 review leftovers (D10 T01 §12)`
+
+**Test checkpoint:** `grep -c '^- \[ \] D10 T01\|^- \[ \] D09 T02' todo/10-media/TODO-01-channel-videos.md` prints `0` once every leftover is ticked.
 
 ## Verification
 

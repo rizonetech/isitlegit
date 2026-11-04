@@ -1,0 +1,111 @@
+{
+  "ref": "D01 T02 \u00a710",
+  "title": "A failed check's reply points to its retry",
+  "implementation_sha": "55ae27be71fd4a021f0f32d9c29391c3465ffc27",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T02-s10.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm typecheck:pass",
+    "pnpm lint:pass",
+    "vitest test/mail/reply.test.ts:pass"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T02-s10.md",
+    "verdict": "completed",
+    "candidate": "b6f283e6cbfe9da10c3aecd2bdea468b141233de",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 3,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T02-s10.md",
+    "candidate": "3b1f8e213d7ef3430896ffa10dab3e363a2765a7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
