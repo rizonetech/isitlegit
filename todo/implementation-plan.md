@@ -539,7 +539,7 @@ Sections: 229 | Checklist items: 1041
 | [ ]    | D07 T02 §27 | Close account control on the Account board                  | operator             | 4     |
 | [x]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
-| [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
+| [x]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
 | [x]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [x]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
@@ -681,6 +681,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 425/605 verified sections, 114 ready to run now.
+Progress: 426/605 verified sections, 113 ready to run now.
 
-Checklist: 3111/3742 items completed (includes Commit items).
+Checklist: 3115/3742 items completed (includes Commit items).

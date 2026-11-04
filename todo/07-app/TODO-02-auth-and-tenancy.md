@@ -64,7 +64,7 @@ track: day-1
 | 27 | §27 | Close account control on the Account board | §9 | [ ] |
 | 28 | §28 | Passkey troubleshooting on the sign-in page | §19 | [x] |
 | 29 | §29 | Undo window after closing an organisation | §9, §26 | [ ] |
-| 30 | §30 | Passkey compatibility and second-line causes | §28 | [ ] |
+| 30 | §30 | Passkey compatibility and second-line causes | §28 | [x] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -1036,7 +1036,7 @@ The passkey prompt names the cross-device steps but offers no help when they fai
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the troubleshooting named.
 
-> **Deferred:** verified compatibility guidance and the second-line causes (a passkey store not set up, a private-browsing window) -> XREF: D07 T02 §30. Deferred 2026-11-03 from §28's completion review.
+> **Resolved:** verified compatibility guidance and the second-line causes (a passkey store not set up, a private-browsing window) -> XREF: D07 T02 §30. Deferred 2026-11-03 from §28's completion review. Resolved 2026-11-04 by D07 T02 §30 in `aec18fa1839ae193b1932126a3afefa6fada704b`, with the approved A1 treatment and verified browser coverage.
 
 > **Verified:** 2026-11-03 | §28 | 51121f93725b2098065538fa101e79a58aa51158
 > **Review:** `docs/reviews/d07-t02-s28.json`
@@ -1086,12 +1086,15 @@ The troubleshooting note (§28) names the three usual causes, but a member whose
 1. Name the compatibility guidance and the two causes in `design/SPEC.md` A1. Done when: A1 names each and `python3 design/tools/check-design.py` passes.
 2. Draw them in the note and prove them. Done when: the browser test below passes.
 
-- [ ] Verify the supported device and browser combinations for cross-device passkeys from the platform vendors' own documentation and record them in the scoped companion for coordinator approval and incorporation into `design/SPEC.md` A1. Done when: A1 names the combinations and where each was verified. Cheaper substitute: "update your browser", which says nothing to a member already on the latest their device allows.
-- [ ] Add the approved compatibility paragraph and two conditional second-line causes with their actions (check the provider holding the existing passkey and enable missing iCloud sync where relevant; retry a private-window failure in a normal window or use email recovery) to the `PasskeyHelp` note (`src/web/pages/signin.tsx`), in the panel and after a failure. Done when: the rendered note names each at phone width in both themes. Cheaper substitute: leaving the member to search the web mid-sign-in.
-- [ ] Prove it in `test/node/passkey-signin-browser.test.tsx`: each second-line cause and the compatibility paragraph are visible at 360 px in both themes in the panel, after a cancelled ceremony and after a server refusal, with exact original three causes retained and keyboard email recovery still working. Hold the prompt deterministically with the existing harness rather than a short timing delay; assert no horizontal overflow and run the existing passkey accessibility gate. Done when: the test passes and fails with any of them removed.
-- [ ] Commit: `web: passkey compatibility and second-line causes`
+- [x] Verify the supported device and browser combinations for cross-device passkeys from the platform vendors' own documentation and record them in the scoped companion for coordinator approval and incorporation into `design/SPEC.md` A1. Done when: A1 names the combinations and where each was verified. Cheaper substitute: "update your browser", which says nothing to a member already on the latest their device allows.
+- [x] Add the approved compatibility paragraph and two conditional second-line causes with their actions (check the provider holding the existing passkey and enable missing iCloud sync where relevant; retry a private-window failure in a normal window or use email recovery) to the `PasskeyHelp` note (`src/web/pages/signin.tsx`), in the panel and after a failure. Done when: the rendered note names each at phone width in both themes. Cheaper substitute: leaving the member to search the web mid-sign-in.
+- [x] Prove it in `test/node/passkey-signin-browser.test.tsx`: each second-line cause and the compatibility paragraph are visible at 360 px in both themes in the panel, after a cancelled ceremony and after a server refusal, with exact original three causes retained and keyboard email recovery still working. Hold the prompt deterministically with the existing harness rather than a short timing delay; assert no horizontal overflow and run the existing passkey accessibility gate. Done when: the test passes and fails with any of them removed.
+- [x] Commit: `web: passkey compatibility and second-line causes`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the second-line causes named.
+
+> **Verified:** 2026-11-04 | §30 | aec18fa1839ae193b1932126a3afefa6fada704b
+> **Review:** `docs/reviews/d07-t02-s30.json`
 
 ## Verification
 
