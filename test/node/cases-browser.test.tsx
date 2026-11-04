@@ -129,7 +129,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
   const htmx = req.headers["hx-request"] === "true";
   if (url.pathname === "/cases") {
     state.seen.push({ path: `${url.pathname}${url.search}`, htmx });
-    const filters = filtersFrom(url.searchParams);
+    let filters = filtersFrom(url.searchParams);
     await new Promise((done) => setTimeout(done, state.delay({ ...filters, pageAsked: url.searchParams.has("page") })));
     state.answered.push(`${url.pathname}${url.search}`);
     // As src/auth/gate.ts answers: a browser page to sign in, anything else 401.
@@ -142,7 +142,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
         : Response.json({ error: "sign in first" }, { status: 401 });
     if (state.fail === "removed" || state.removed) return errorPage(403, "", { email: "thandi@karoo.example" });
     // As the route answers a results request once the organisation has no cases left.
-    if (htmx && ORGS[state.org].cases.length === 0)
+    if (htmx && ORGS[state.org].cases.length === 0 && !url.searchParams.has("calendar"))
       return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     // As the route answers a results request drawn for another organisation than the active one.
     const drawnFor = req.headers["x-cases-org"];
@@ -151,14 +151,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
     if (state.fail === "outage") return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
     const calendar = calendarRequest(url.searchParams);
     if (calendar?.range) {
-      const href = casesHref({ ...filters, ...calendar.range, page: 1 });
-      return new Response(null, {
-        status: htmx ? 204 : 303,
-        headers: htmx ? { "hx-redirect": href } : { location: href },
-      });
+      filters = { ...filters, ...calendar.range, page: 1 };
+      if (!htmx) return new Response(null, { status: 303, headers: { location: casesHref(filters) } });
     }
-    if (calendar && htmx)
-      return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     const org = ORGS[state.org];
     // The no-verdict panel for the accessibility scans.
     const asked = url.searchParams.get("stats");
@@ -193,8 +188,12 @@ async function answer(req: IncomingMessage): Promise<Response> {
         />,
       ),
       {
-        status: calendar ? 400 : 200,
-        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" },
+        status: calendar?.draft.invalid && !htmx ? 400 : 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "private, no-store",
+          ...(calendar && htmx ? { "hx-push-url": calendar.range ? casesHref(filters) : "false" } : {}),
+        },
       },
     );
   }
@@ -1228,6 +1227,113 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("calendar ranges in Chromium
         expect(query.has("calendar")).toBe(false);
         await context.close();
       }
+  });
+
+  it("updates one complete calendar panel without a second results request", async () => {
+    const { p, context } = await open("/cases?period=90");
+    await p.evaluate(() => {
+      (window as unknown as { calendarDocument: boolean }).calendarDocument = true;
+    });
+    const before = state.seen.length;
+    state.stats = { ...STATS, thisWeek: { ...STATS.thisWeek, checked: 321 } };
+    await p.getByRole("button", { name: "Show quarter", exact: true }).click();
+    await expect.poll(() => p.locator("#case-to").inputValue()).toBe("2026-12-31");
+    expect(await p.locator("#case-stats").textContent()).toContain("321");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-01", to: "2026-12-31", period: "90" }));
+    expect(state.seen.slice(before)).toHaveLength(1);
+    expect(state.seen[before]?.htmx).toBe(true);
+    expect(await p.evaluate(() => (window as unknown as { calendarDocument: boolean }).calendarDocument)).toBe(true);
+    await context.close();
+  });
+
+  it("keeps invalid and zero-total calendar panels through outages and retries without navigation", async () => {
+    for (const invalid of [false, true]) {
+      const { p, context } = await open("/cases?from=2026-10-29&to=2026-10-30&period=90");
+      const saved = ORGS.A.cases;
+      const address = p.url();
+      const original = await ids(p);
+      try {
+        ORGS.A.cases = [];
+        await p.getByLabel("Year", { exact: true }).fill(invalid ? "bad" : "2026");
+        state.fail = "outage";
+        await p.getByRole("button", { name: "Show month", exact: true }).click();
+        await expect.poll(() => p.locator("#case-filter-error").count()).toBe(1);
+        expect(await ids(p)).toEqual(original);
+        expect(p.url()).toBe(address);
+        expect(await p.getByLabel("Year", { exact: true }).inputValue()).toBe(invalid ? "bad" : "2026");
+        state.fail = null;
+        const before = state.seen.length;
+        await p.getByRole("link", { name: "Try again", exact: true }).click();
+        await expect.poll(() => p.locator("#case-filter-error").count()).toBe(0);
+        expect(state.seen.slice(before)).toHaveLength(1);
+        expect(await ids(p)).toEqual([]);
+        expect(await p.locator("#case-filters").count()).toBe(1);
+        expect(await p.locator("#case-stats").count()).toBe(1);
+        expect(await p.locator("#case-from").inputValue()).toBe(invalid ? "2026-10-29" : "2026-10-01");
+        if (invalid) {
+          expect(p.url()).toBe(address);
+          expect(await p.getByRole("alert").textContent()).toContain("Choose a valid year");
+          await p.getByLabel("Year", { exact: true }).fill("2026");
+          await p.getByRole("button", { name: "Show quarter", exact: true }).click();
+          await expect.poll(() => p.locator("#case-to").inputValue()).toBe("2026-12-31");
+        } else expect(p.url()).toContain("from=2026-10-01");
+      } finally {
+        ORGS.A.cases = saved;
+        state.fail = null;
+        await context.close();
+      }
+    }
+  });
+
+  it("automatically recovers calendar transport loss and keeps Back history and later filtering", async () => {
+    for (const action of ["month", "quarter"]) {
+      const { p, context } = await open("/cases?from=2026-10-29&to=2026-10-30&period=90");
+      let attempts = 0;
+      await p.route("**/cases?**", async (route) => {
+        if (new URL(route.request().url()).searchParams.get("calendar") !== action) return route.continue();
+        attempts++;
+        if (attempts === 1) return route.abort("failed");
+        expect(route.request().headers()["x-cases-org"]).toBe("A");
+        expect(route.request().headers()["hx-request"]).toBe("true");
+        return route.continue();
+      });
+      await p.getByRole("button", { name: `Show ${action}`, exact: true }).click();
+      await expect.poll(() => p.locator("#case-from").inputValue()).toBe("2026-10-01");
+      expect(attempts).toBe(2);
+      expect(new URL(p.url()).searchParams.get("to")).toBe(action === "month" ? "2026-10-31" : "2026-12-31");
+      expect(await p.locator("#case-filter-error").count()).toBe(0);
+      await p.goBack();
+      await expect.poll(() => p.locator("#case-from").inputValue()).toBe("2026-10-29");
+      await p.locator("#case-search").fill("Remittance");
+      await expect
+        .poll(() => ids(p))
+        .toEqual(expected("A", { q: "Remittance", from: "2026-10-29", to: "2026-10-30", period: "90" }));
+      await context.close();
+    }
+  });
+
+  it("does not apply a slow calendar recovery over a newer ordinary filter request", async () => {
+    const { p, context } = await open();
+    let attempts = 0;
+    let recoveryFinished = false;
+    await p.route("**/cases?**", async (route) => {
+      if (!new URL(route.request().url()).searchParams.has("calendar")) return route.continue();
+      attempts++;
+      if (attempts === 1) return route.abort("failed");
+      const response = await route.fetch();
+      await new Promise((done) => setTimeout(done, 750));
+      await route.fulfill({ response }).catch(() => {});
+      recoveryFinished = true;
+    });
+    await p.getByRole("button", { name: "Show month", exact: true }).click();
+    await expect.poll(() => attempts).toBe(2);
+    await p.locator("#case-search").fill("Statement");
+    await expect.poll(() => new URL(p.url()).searchParams.get("q")).toBe("Statement");
+    await expect.poll(() => recoveryFinished).toBe(true);
+    expect(new URL(p.url()).searchParams.get("from") ?? "").toBe("");
+    expect(await p.locator("#case-from").inputValue()).toBe("");
+    expect(await ids(p)).toEqual(expected("A", { q: "Statement" }));
+    await context.close();
   });
 
   it("submits custom From and To on Enter without applying differing calendar drafts", async () => {

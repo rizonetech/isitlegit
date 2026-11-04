@@ -176,6 +176,17 @@ const RESULTS = {
   "hx-indicator": "#case-loading",
 } as const;
 
+// Calendar actions replace one owned panel, including editable dates, only after every read succeeds.
+const CALENDAR_PANEL = {
+  ...RESULTS,
+  "hx-get": "/cases",
+  "hx-include": "#case-filters",
+  "hx-trigger": "click",
+  "hx-target": "#case-panel",
+  "hx-select": "#case-panel",
+  "hx-select-oob": "unset",
+} as const;
+
 function Pill(props: { item: ListedCase }) {
   const shown = shownState(props.item);
   return (
@@ -629,7 +640,7 @@ function Filters(props: {
             </option>
           ))}
         </Select>
-        <Button type="submit" name="calendar" value="month">
+        <Button type="submit" name="calendar" value="month" {...CALENDAR_PANEL}>
           Show month
         </Button>
         <label for="case-calendar-quarter" class="type-small weight-text-strong">
@@ -649,7 +660,7 @@ function Filters(props: {
             ),
           )}
         </Select>
-        <Button type="submit" name="calendar" value="quarter">
+        <Button type="submit" name="calendar" value="quarter" {...CALENDAR_PANEL}>
           Show quarter
         </Button>
         <p id="case-calendar-hint" class="type-small text-muted basis-full">
@@ -960,24 +971,30 @@ export function CasesPage(props: {
               )}
             </p>
           )}
-          {list.total === 0 && !props.calendar?.invalid ? (
-            <FirstRun {...senders} />
-          ) : (
-            <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
-              <StatsPanel stats={stats} orgId={shell.organization.id} />
-              <Filters filters={filters} members={props.members ?? []} now={now} calendar={props.calendar} />
-              <p id="case-count" role="status" class="sr-only">
-                {countStatus(list, filters, notices, checkerName)}
-              </p>
-              <Results
-                list={list}
-                filters={filters}
-                now={now}
-                notices={notices}
-                {...(checkerName ? { checkerName } : {})}
-              />
-            </div>
-          )}
+          <div
+            id="case-panel"
+            class="flex flex-col gap-24"
+            hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}
+          >
+            {list.total === 0 && !props.calendar ? (
+              <FirstRun {...senders} />
+            ) : (
+              <div class="flex flex-col gap-24">
+                <StatsPanel stats={stats} orgId={shell.organization.id} />
+                <Filters filters={filters} members={props.members ?? []} now={now} calendar={props.calendar} />
+                <p id="case-count" role="status" class="sr-only">
+                  {countStatus(list, filters, notices, checkerName)}
+                </p>
+                <Results
+                  list={list}
+                  filters={filters}
+                  now={now}
+                  notices={notices}
+                  {...(checkerName ? { checkerName } : {})}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </AppShell>
     </Document>

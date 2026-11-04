@@ -1166,7 +1166,46 @@ describe("calendar ranges (D07 T04 §30)", () => {
     expect((await get("/cases?calendar=month&calendar_year=2026&calendar_month=10", cookie)).status).toBe(403);
   });
 
-  it("preserves current filters with canonical htmx navigation and Q4 bounds", async () => {
+  it("performs actual calendar reads before success, including invalid and zero-total requests", async () => {
+    for (const empty of [false, true]) {
+      const a = await org("Calendar Read Failure");
+      const { cookie } = await member(a);
+      if (!empty) await made(a);
+      for (const action of ["month", "quarter"])
+        for (const year of ["2026", "bad"])
+          for (const read of [
+            /COUNT\(\*\) AS n FROM cases/,
+            /v.created_at AS decided_at/,
+            /SELECT u.id AS id, u.name AS name/,
+            /AS organizationId, o.name AS name/,
+            ...(empty ? [/SELECT domain AS value FROM org_domains/] : []),
+          ]) {
+            const prepare = db.prepare.bind(db);
+            let failed = false;
+            const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+              if (read.test(sql)) {
+                failed = true;
+                throw new Error("Calendar read unavailable");
+              }
+              return prepare(sql);
+            });
+            const response = await call(
+              `/cases?calendar=${action}&calendar_year=${year}&calendar_month=10&calendar_quarter=4`,
+              {
+                headers: { cookie, "hx-request": "true", "x-cases-org": a },
+              },
+            );
+            spy.mockRestore();
+            expect(failed, String(read)).toBe(true);
+            expect(response.status, `${empty} ${action} ${year} ${read}`).toBe(503);
+            expect(response.headers.get("hx-redirect")).toBeNull();
+            expect(response.headers.get("hx-push-url")).toBeNull();
+            expect(await response.text()).toContain("Sorry, something broke on our side.");
+          }
+    }
+  });
+
+  it("preserves current filters in one canonical htmx panel with Q4 bounds", async () => {
     const a = await org("Calendar Filters");
     const { cookie } = await member(a);
     const response = await call(
@@ -1175,8 +1214,15 @@ describe("calendar ranges (D07 T04 §30)", () => {
         headers: { cookie, "hx-request": "true", "x-cases-org": a },
       },
     );
-    expect(response.status).toBe(204);
-    const url = new URL(response.headers.get("hx-redirect") ?? "", "https://example.invalid");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("hx-redirect")).toBeNull();
+    const html = await response.text();
+    expect(html).toContain('id="case-panel"');
+    expect(html).toContain('id="case-filters"');
+    expect(html).toContain('id="case-stats"');
+    expect(html).toContain('id="case-results"');
+    expect(html).toContain('value="2026-10-01"');
+    const url = new URL(response.headers.get("hx-push-url") ?? "", "https://example.invalid");
     expect(Object.fromEntries(url.searchParams)).toEqual({
       q: "invoice",
       verdict: "safe",
@@ -1212,7 +1258,12 @@ describe("calendar ranges (D07 T04 §30)", () => {
     const bad = await call("/cases?calendar=month&calendar_year=bad&calendar_month=1&from=2026-10-05", {
       headers: { cookie, "hx-request": "true" },
     });
-    expect(bad.status).toBe(204);
-    expect(bad.headers.get("hx-redirect")).toContain("calendar_year=bad");
+    expect(bad.status).toBe(200);
+    expect(bad.headers.get("hx-redirect")).toBeNull();
+    expect(bad.headers.get("hx-push-url")).toBe("false");
+    const html = await bad.text();
+    expect(html).toContain('id="case-panel"');
+    expect(html).toContain("Choose a valid year and month or quarter.");
+    expect(html).toContain('value="2026-10-05"');
   });
 });

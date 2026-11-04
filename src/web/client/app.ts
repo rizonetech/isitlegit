@@ -359,14 +359,16 @@ const casesFailure = (name: string, event: Event) => {
   const request = new URL(asked(detail), location.href);
   const actions = request.searchParams.getAll("calendar");
   // Explicit calendar requests retain their draft on server outages; auth refusals and ordinary filters still navigate.
-  const calendarOutage =
-    name === "htmx:responseError" &&
-    (detail.xhr?.status ?? 0) >= 500 &&
-    (detail.xhr?.status ?? 0) <= 599 &&
+  const calendarAction =
     request.origin === location.origin &&
     request.pathname === "/cases" &&
     actions.length === 1 &&
     (actions[0] === "month" || actions[0] === "quarter");
+  const calendarOutage =
+    calendarAction &&
+    name === "htmx:responseError" &&
+    (detail.xhr?.status ?? 0) >= 500 &&
+    (detail.xhr?.status ?? 0) <= 599;
   if (name !== "htmx:timeout" && name !== "htmx:sendError" && !calendarOutage) return false;
   document.getElementById("case-loading")?.classList.remove("htmx-request");
   const form = document.getElementById("case-filters");
@@ -390,6 +392,33 @@ const casesFailure = (name: string, event: Event) => {
   casesRecoveryAbort?.abort();
   casesRecoveryAbort = null;
   const seq = ++casesRecoverySeq;
+  if (calendarAction) {
+    // Use the same request queue, panel swap and history owner as the explicit buttons. The exact failed URL
+    // carries the original filters; no current form values are appended to this retry.
+    for (const [key, value] of Object.entries({
+      "data-case-calendar-retry": "",
+      "hx-get": href,
+      "hx-params": "none",
+      "hx-trigger": "click",
+      "hx-sync": "#case-filters:replace",
+      "hx-target": "#case-panel",
+      "hx-select": "#case-panel",
+      "hx-select-oob": "unset",
+      "hx-swap": "outerHTML",
+      "hx-push-url": "true",
+      "hx-request": '{"timeout":10000}',
+      "hx-indicator": "#case-loading",
+    }))
+      retry.setAttribute(key, value);
+    const htmx = (window as unknown as { htmx?: { process?: (el: Element) => void } }).htmx;
+    htmx?.process?.(retry);
+    // At most one automatic retry. Another failed retry leaves its explicit link and retained panel in place.
+    if (name === "htmx:sendError" && navigator.onLine !== false && !el?.hasAttribute("data-case-calendar-retry"))
+      queueMicrotask(() => {
+        if (seq === casesRecoverySeq && retry.isConnected) retry.click();
+      });
+    return true;
+  }
   if (name === "htmx:sendError" && navigator.onLine !== false) {
     const ctrl = new AbortController();
     casesRecoveryAbort = ctrl;
@@ -458,7 +487,7 @@ document.addEventListener("htmx:beforeRequest", (event) => {
     casesRecoverySeq++;
     casesRecoveryAbort?.abort();
     casesRecoveryAbort = null;
-    document.getElementById("case-filter-error")?.remove();
+    if (!el?.hasAttribute("data-case-calendar-retry")) document.getElementById("case-filter-error")?.remove();
   }
 });
 const toggleOrgReveal = (el: HTMLElement) => {
