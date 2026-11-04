@@ -3728,6 +3728,24 @@ class PinnedFetch(unittest.TestCase):
         with mock.patch.object(fetch, '_connect', side_effect=connect):
             return fetch.fetch(self.url, 'src/data.bin', ('pin', self.pin), **{**ROOMY, 'timeout': 2, 'sleep': lambda _: None, 'log': lambda _: None, **kwargs})
 
+    def test_huggingface_cache_redirect_fetches_and_reuses_first_digest(self):
+        pin = 'huggingface: fictional/corpus, ' + self.commit
+        url = 'https://huggingface.co/datasets/fictional/corpus/resolve/' + self.commit + '/data.bin'
+        cache = 'https://huggingface.co/api/resolve-cache/datasets/fictional/corpus/' + self.commit + '/data.bin'
+        original_connect, original_redirect = fetch._connect, Handler.redirect
+        def connect(target, timeout, allow_loopback, watch=None, ca_file=None):
+            connection = original_connect(self.base + '/file', timeout, True, watch)
+            request = connection.request
+            connection.request = lambda method, path, **kw: request(method, '/hop' if target == url else '/file', **kw)
+            return connection
+        with mock.patch.object(fetch, '_connect', side_effect=connect), mock.patch.object(Handler, 'redirect', lambda handler, target: original_redirect(handler, cache)):
+            args = {**ROOMY, 'segments': 1, 'timeout': 2, 'log': lambda _: None}
+            first = fetch.fetch(url, 'src/data.bin', ('pin', pin), **args)
+            self.assertEqual(first['sha256'], SHA)
+            self.assertEqual(fetch.fetch(url, 'src/data.bin', ('pin', pin), **args)['status'], 'present')
+        receipt = fetch._pin_helpers().read_pin_receipt(Path('src'), 'data.bin', pin)
+        self.assertEqual(receipt['sha256'], SHA)
+
     def test_first_pin_fetch_and_rerun_bind_original_digest(self):
         result = self.pinned()
         self.assertEqual(result['sha256'], SHA)

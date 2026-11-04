@@ -148,6 +148,8 @@ def pin_artifact(pinned, url):
     kind, file_path, actual_repo, actual_revision = None, None, None, None
     if hf and parsed.hostname == "huggingface.co" and len(parts) >= 6 and parts[0] == "datasets" and parts[3] == "resolve":
         actual_repo, actual_revision, kind, file_path = "/".join(parts[1:3]), parts[4], "file", "/".join(parts[5:])
+    elif hf and parsed.hostname == "huggingface.co" and len(parts) >= 7 and parts[:3] == ["api", "resolve-cache", "datasets"]:
+        actual_repo, actual_revision, kind, file_path = "/".join(parts[3:5]), parts[5], "file", "/".join(parts[6:])
     elif gh:
         host = parsed.hostname
         if host == "raw.githubusercontent.com" and len(parts) >= 4:

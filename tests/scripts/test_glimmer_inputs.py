@@ -441,6 +441,16 @@ class DownloadPins(unittest.TestCase):
         inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
         inputs.verify(self.folder, ['data.zip'])
 
+    def test_huggingface_cache_redirect_retains_exact_identity(self):
+        pin = 'huggingface: fictional/corpus, ' + self.commit
+        url = 'https://huggingface.co/datasets/fictional/corpus/resolve/' + self.commit + '/data.csv'
+        cache = 'https://huggingface.co/api/resolve-cache/datasets/fictional/corpus/' + self.commit + '/data.csv'
+        artifact = inputs.pin_artifact(pin, url)
+        inputs.pin_redirect(artifact, pin, url, cache)
+        for mismatch in (cache.replace('fictional/corpus', 'fictional/other'), cache.replace(self.commit, 'b' * 40), cache.replace('data.csv', 'other.csv')):
+            with self.subTest(mismatch=mismatch), self.assertRaises(inputs.Refused):
+                inputs.pin_redirect(artifact, pin, url, mismatch)
+
     def test_provider_redirects_stay_bound_to_artifact(self):
         archive = 'https://github.com/fictional/corpus/archive/' + self.commit + '.zip'
         artifact = inputs.pin_artifact(self.pin, archive)
