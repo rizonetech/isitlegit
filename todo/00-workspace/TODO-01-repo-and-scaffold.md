@@ -1014,6 +1014,8 @@ Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan r
 
 ## 29. Stamp recovery after a killed process
 
+> **Started:** 2026-11-04T11:05Z (plan preparation only; implementation follows genuine plan review)
+
 Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there). `stamp` writes three files (the receipt, the TODO file, the regenerated plan), each temp-then-replace, and rolls back on an exception or interrupt (`scripts/lib/todo_graph.py` `stamp`, the `except BaseException` block). A process killed outright (SIGKILL, a closed terminal, a crashed session) runs no rollback: the receipt can exist while the TODO file is unstamped, and a second `stamp` refuses with `receipt already exists`, so the writer has to find and delete the receipt by hand. The fix lets the stamp recover its own half-written state without weakening any check.
 
 **Phase:** 7
@@ -1025,7 +1027,8 @@ Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there).
 1. Recover a half-written stamp on the next run. Done when: after a stamp killed between its receipt write and its TODO write, the same `stamp` command completes, and a different stamp for that section still refuses.
 
 - [ ] In `stamp` (`scripts/lib/todo_graph.py`), when the receipt already exists and the section is still unstamped in its TODO file, compare the existing receipt with the one this call builds (every field but none rewritten) and, when they are equal, carry on to the TODO and plan writes; refuse as now when they differ, naming the receipt and the first differing field. Done when: `tests/scripts/test_todo_graph.py` kills a stamp after its receipt write (a child process with a hook that exits hard) and the rerun stamps, while a rerun with another `--check` refuses.
-- [ ] Make `validate` name the state: an orphan receipt (a receipt whose section is unstamped) refuses with the recovery command (`stamp` again with the same arguments, or delete the receipt). Done when: the test reads that refusal text.
+- [ ] Make `validate` name the state: an orphan receipt (a receipt whose section is unstamped) refuses with the recovery command (`stamp` again with the same original arguments; preserve the existing receipt). Done when: the test reads that refusal text.
+- [ ] Preserve pre-existing receipt bytes during recovery and every subsequent failure; rerun all original review and safety validation before equality permits continuation. Keep orphan diagnostics in the explicit validate command so recovery itself can enter. Done when: regression tests cover recovery write failure, mismatched checks/date/SHA, invalid evidence and normal rollback, with no pre-existing receipt overwritten or removed.
 - [ ] Commit: `tools: a stamp killed mid-write recovers on the next run`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including the killed-stamp rerun and the differing-rerun refusal.
