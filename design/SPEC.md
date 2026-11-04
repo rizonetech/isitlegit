@@ -31,6 +31,10 @@ A builder who must depart from a "must match" item for a real reason (the plan, 
 
 Side by side, the built page at the board's width with fixture data and the board's PNG, read for the "must match" list above, plus the coverage entry and the token test. There is no pixel-difference or screenshot-threshold gate; design/tools/export-mockups.py and its future comparison step (D07 T01 §4) inform a review, they do not fail a build.
 
+## Approved companion surface contracts
+
+Coordinator decision, 4 November 2026: [Gateway relay settings and review surfaces](../docs/specs/2026-11-04-gateway-relay-surfaces-design.md) governs the scoped member Domains extension (D07 T04 §37) and platform review surface (D07 T05 §6), approved at 09:36 SAST. Console owns those surfaces; checks owns the lifecycle and trust semantics in D02 T02 §10 and §11. The companion contract defines controls, stored-state read-back, conflicts, permissions and accessible phone/both-theme states using the existing shells and tokens. This records treatment approval, not new board approval, implementation, verification or deployment. Dependency and review gates remain required.
+
 ## 0. Page inventory
 
 Every page and message IsItLegit shows. Each row names its owning TODO section; a page without an owner is a planning defect. States are the ones every page must design: loading, empty, error, and any listed.
@@ -665,6 +669,7 @@ Controls:
 
 - stats panel: Four tiles with Export counts as CSV. (Cases)
 - counts export period: Beside the one-press 12-week Export counts as CSV, From and To date fields with an Export period button, and This month and This quarter links carrying the current calendar month's and quarter's SAST dates. A chosen period exports one row per week for the weeks overlapping it; a reversed range, a range over 2 years or an unreadable date is refused with the 400 page. (Cases) (D07 T04 §19, operator decision 2026-11-02)
+- exact daily counts export (D07 T04 §34, coordinator approval 2026-11-04; [approved companion contract](../docs/specs/2026-11-04-exact-counts-export-design.md)): Add a second submit button named Daily counts CSV with `name="exact" value="1"` to the existing From/To GET form. Preserve its organisation binding, existing Export period whole-week action and month/quarter presets. Explain that the daily export contains one row per selected SAST day, including zero-count days; its filename identifies both dates and daily units. Native required date inputs and server validation handle invalid, reversed or oversized periods through the existing recovery behavior. Daily rows cover only the inclusive selected dates, with totals reconciling to those rows. Use the current tokens, accessible names and keyboard operation at 360px and desktop in both themes; no new JavaScript date-selection state or download attribute masking refusals. This is scoped treatment approval, not implementation or new board approval.
 - threat kinds: The muted line under Malicious or suspicious, "5 phishing, 3 invoice, 1 impersonation": the week's flagged cases by kind, descending, ties in that board order, nothing drawn when no kind is present. A kind is a reporting bucket from positive evidence on the case's current run (invoice classification; a lookalike or confirmed brand mismatch for impersonation; a lure or credential form for phishing), one kind per case in that order, so the kinds need not sum to the tile. (Cases) (D07 T04 §18, operator decision 2026-11-02)
 - this week: Checked this week tile. (Cases)
 - money at risk caught: Rand tile. (Cases)
