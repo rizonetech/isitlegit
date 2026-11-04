@@ -313,7 +313,7 @@ Sections: 114 | Checklist items: 718
 | [x]    | D04 T01 §17 | Immutable per-case model ablation consumers      | none                  | 7     |
 | [ ]    | D04 T01 §18 | Labelled screening experiment binding            | third-party           | 5     |
 | [ ]    | D04 T01 §19 | Queued verification and guarded delivery refresh | none                  | 6     |
-| [ ]    | D04 T01 §20 | Bounded verdict validation diagnostics           | none                  | 7     |
+| [x]    | D04 T01 §20 | Bounded verdict validation diagnostics           | none                  | 7     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                 | none                  | 2     |
 | [x]    | D04 T02 §10 | Multi-step evaluation fixture routes             | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                    | none                  | 4     |
@@ -685,6 +685,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 427/609 verified sections, 118 ready to run now.
+Progress: 428/609 verified sections, 117 ready to run now.
 
-Checklist: 3119/3760 items completed (includes Commit items).
+Checklist: 3126/3760 items completed (includes Commit items).
