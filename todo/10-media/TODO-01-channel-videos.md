@@ -39,7 +39,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Media package and stats collector | -- | [ ] |
-| 2 | §2 | Remotion licence basis | -- | [ ] |
+| 2 | §2 | Remotion licence basis | -- | [x] |
 | 3 | §3 | Video 01: development process, long form | §1, §2 | [ ] |
 | 4 | §4 | Video 02: technical deep dive, long form | §1, §2 | [ ] |
 | 5 | §5 | Uploads and links recorded | §3, §4 | [ ] |
@@ -49,6 +49,7 @@ track: day-6
 | 9 | §9 | X 45-second viral teaser clip | §1, §2 | [ ] |
 | 10 | §10 | YouTube channel banner (@DerickPayneDev) | §1, §2 | [ ] |
 | 11 | §11 | Videos re-cut as the live gaps close | §8, §9 | [ ] |
+| 12 | §12 | P3 review leftovers from the media stamps | -- | [ ] |
 
 ## 1. Media package and stats collector
 
@@ -92,6 +93,9 @@ Remotion is free for individuals and for companies of up to three people; a larg
 **Test checkpoint:** `grep -cE '^Remotion licence: (free \(up to 3 people\)|company licence, [A-Z0-9][A-Z0-9-]{5,}), .*confirmed 20[0-9]{2}-[0-9]{2}-[0-9]{2}$' todo/10-media/TODO-01-channel-videos.md` prints `1` (a placeholder, an undated line, or a company licence whose reference is not an order number of six or more capitals and digits, such as `<reference>` or `pending`, prints `0`), and `grep -c 'Remotion 4.0.539' media/README.md` prints `1` (the licence basis carried into the media folder's Licences list).
 
 Remotion licence: free (up to 3 people), Rizonetech has 3 people, confirmed 2026-10-30
+
+> **Verified:** 2026-11-04 | §2 | 158ee45694c372196945b741366c201758bda593
+> **Review:** `docs/reviews/d10-t01-s2.json`
 
 ## 3. Video 01: development process, long form
 
@@ -278,6 +282,23 @@ The 2026-11-04 rebuild left four things out of the demo, the judge guide and the
 - [ ] Commit: `media: re-cut the videos as the live gaps close (D10 T01 §11)`
 
 **Test checkpoint:** `for u in https://isitlegit.co.za/v/fynbos-freight https://app.isitlegit.co.za/s/fynbos-freight https://huggingface.co/rizonetech/isitlegit-loupe; do curl -s -o /dev/null -w "%{http_code} $u\n" $u; done` prints `200` for each URL cut into the videos.
+
+## 12. P3 review leftovers from the media stamps
+
+The independent review rounds of the media sections stop at the first round with no P1 or P2 finding (`.conclave/reviewers.toml`, `severity_stop_after = 0`), and each such round's P3 findings are filed here as leftovers (`.claude/skills/review-todo-section/SKILL.md` step 4), one item per finding, naming the section and round it came from. None blocks a render or an upload.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Fix each leftover in the file it names, or record why it stays. Done when: every item below is ticked with its commit or its reason.
+
+- [ ] D10 T01 §2 round 1 (P3): the licence checkpoint in §2 accepts an all-capitals placeholder such as `company licence, PENDING`; add a negative case and refuse `PENDING`, `TBD` and `TODO` explicitly in the pattern of a new check. Done when: `printf 'Remotion licence: company licence, PENDING, confirmed 2026-10-30\n' | grep -cE '<the new pattern>'` prints `0` and the recorded line still prints `1`. Cheaper substitute: relying on review of the operator's line fails as soon as an agent writes it.
+- [ ] Commit: `media: clear the P3 review leftovers (D10 T01 §12)`
+
+**Test checkpoint:** `grep -c '^- \[ \] D10 T01\|^- \[ \] D09 T02' todo/10-media/TODO-01-channel-videos.md` prints `0` once every leftover is ticked.
 
 ## Verification
 
