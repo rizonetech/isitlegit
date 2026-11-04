@@ -56,7 +56,26 @@ const VERB = `(?:classify|mark|label|flag|treat|rate|consider|ignore|approve|whi
 // 1: removal missed "AI\tassistants"), so every space in a pattern's source reads as `\s+`.
 const phrase = (source: string) => new RegExp(source.replace(/ /g, String.raw`\s+`), "gi");
 
+// D02 T05 §12: prior-instruction override shapes, not isolated translated business words.
+// Marks and meaningful joiners belong to words; ASCII \b would split Hindi and Persian.
+const TRANSLATED_OVERRIDES = [
+  ["af", "ignoreer vorige instruksies"],
+  ["zu", "ungayinaki imiyalelo yangaphambilini"],
+  ["fr", "ignorez les instructions précédentes"],
+  ["es", "ignora las instrucciones anteriores"],
+  ["de", "ignoriere vorherige anweisungen"],
+  ["hi", "पिछले निर्देशों को अनदेखा करें"],
+  // The existing invisible-run reader can remove a joiner inside an obfuscating run.
+  // Match either spelling at this morpheme boundary; never rewrite the stored source.
+  ["fa", "دستورالعمل‌?های قبلی را نادیده بگیرید"],
+] as const;
+const WORD_CHARACTER = String.raw`[\p{L}\p{M}\p{N}\p{Cf}_]`;
+
 export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
+  ...TRANSLATED_OVERRIDES.map(([language, source]) => ({
+    name: `ignore-instructions-${language}`,
+    pattern: new RegExp(`(?<!${WORD_CHARACTER})${source.replace(/ /g, String.raw`\s+`)}(?!${WORD_CHARACTER})`, "giu"),
+  })),
   {
     name: "ignore-instructions",
     pattern:
@@ -397,7 +416,9 @@ export class PhraseStream {
       // The unfinished word, read backwards from the end, never past the carry: a suffix search tried from every
       // position was quadratic on a long word before punctuation (round 2).
       cut = joined.length;
-      while (cut > this.carry.length && /\w/.test(joined[cut - 1] as string)) cut--;
+      // Hold Unicode letters, marks and meaningful joiners too. Surrogate halves wait
+      // together so a UTF-16 split cannot manufacture a word boundary.
+      while (cut > this.carry.length && /[\p{L}\p{M}\p{N}\p{Cf}_\uD800-\uDFFF]/u.test(joined[cut - 1] as string)) cut--;
       if (joined.length - cut > MAX_PENDING) cut = joined.length - 64;
     }
     const region = joined.slice(0, cut);

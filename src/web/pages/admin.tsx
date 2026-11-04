@@ -182,16 +182,20 @@ async function spendBars(db: D1Database, today: string): Promise<SpendBar[]> {
 
 async function overviewRows(db: D1Database, now: Date, query: string): Promise<{ rows: OrgRow[]; total: number }> {
   const week = weekStart(now);
-  // A search matches the name literally: its wildcards are escaped, so an organisation named "100%" is found.
+  // Search all three fields literally. EXISTS keeps one row per organisation when several domains match.
   const escaped = query.replace(/[\\%_]/g, (m) => `\\${m}`);
   const orgs = (
     await db
       .prepare(
         query
-          ? `SELECT id, name, "createdAt" AS createdAt FROM "organization" WHERE name LIKE ? ESCAPE '\\' ORDER BY name`
+          ? `SELECT o.id, o.name, o."createdAt" AS createdAt FROM "organization" o
+             WHERE o.name LIKE ? ESCAPE '\\' OR o.id LIKE ? ESCAPE '\\'
+               OR EXISTS (SELECT 1 FROM org_domains d WHERE d.org_id = o.id
+                          AND d.state = 'verified' AND d.domain LIKE ? ESCAPE '\\')
+             ORDER BY o.name`
           : `SELECT id, name, "createdAt" AS createdAt FROM "organization" ORDER BY name`,
       )
-      .bind(...(query ? [`%${escaped}%`] : []))
+      .bind(...(query ? Array(3).fill(`%${escaped}%`) : []))
       .all<Org>()
   ).results;
   const total = (await db.prepare('SELECT COUNT(*) AS n FROM "organization"').first<{ n: number }>())?.n ?? 0;
