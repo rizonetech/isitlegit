@@ -79,6 +79,7 @@ track: day-0
 | 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 | 40 | §41 | Accurate continuation stop reasons for completed owners | §19 | [ ] |
+| 41 | §45 | Batched CI with complete project test shards | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1337,6 +1338,31 @@ Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owne
 - [ ] Commit: `fix: report actual stopped continuation owner state`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes; removing the state-specific reason branch fails completed and stalled output regressions while stop enforcement remains unchanged.
+
+## 45. Batched CI with complete project test shards
+
+> **Started:** 2026-11-04T16:04:07.365695+00:00 (plan preparation only; implementation follows genuine plan review)
+
+Operator CI-BATCHING-OPERATOR-DECISION authorizes batching independent ready reviewed deliveries before one full exact-candidate gate, rather than full CI on every lane commit and again on main promotion. Measured run41851983274 on de606 had a 885-second project job (866.516 seconds for 1,387 tests), while the slowest browser job took558 seconds. All12 jobs started within five seconds; no queue bottleneck is inferred. Main run41860041096 repeats that same SHA. Read-only discovery reproduced1,387 tests across52 module suites with no failed imports. This section owns workflow scheduling, complete project-test partitioning and exact-candidate CI observation, not test removal or relaxed promotion.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Preserved inputs:** Every existing gate, action pin, read-only token, dependency/environment requirement, job timeout and failure behavior remains. Worker/browser/kit suites retain their existing commands. No deployment, cancellation, branch protection mutation or paid operation. Actual branch protection API returned unprotected and rulesets empty; do not claim platform enforcement. Full CI must pass on the exact batch SHA before main moves to it.
+
+**Build order:**
+
+1. Prove the collection and scheduling contract before changing workflow behavior. Done when: offline tests reject missing/duplicate shard coverage, broken fixtures, failed imports, ignored failures and unauthorized triggers, and exact-SHA status tests reject incomplete or mismatched evidence.
+2. Implement isolated project shards and batched triggers at their owning layers. Done when: four runner jobs execute the complete discovery multiset once, full CI starts for coordinator-gate pushes, PRs and explicit dispatch, and ordinary lane/main pushes do not repeat it.
+3. Verify source and collection equivalence and document rollout. Done when: targeted regressions pass, real discovery on the baseline and composed candidate is accounted for including new tests, exact-source local gates pass, and runtime improvement remains unclaimed until observed CI.
+
+- [ ] Add a stdlib `scripts/ci_unittest_shard.py` runner and focused tests. Done when: deterministic whole-module-suite partitioning retains original module/class fixture semantics and the exact discovery multiset; all four shards are required, invalid arguments and discovery/import failures refuse, skips stay skips and test/fixture failures return nonzero. Provide offline collection listing plus useful shard count/duration output, with no subprocess test execution during collection. Cheaper substitute: shell filename lists silently miss new files and can change collection semantics.
+- [ ] Change `.github/workflows/ci.yml` to four project shards with fail-fast false and existing environment/setup/15-minute job limit; retain all other gate commands/timeouts and noncancellable gate-run concurrency. Trigger full CI only on coordinator-gate pushes, pull requests and workflow_dispatch without path filters. Extend `tests/scripts/test_ci_workflow.py` to reject dropped/extra shards, excludes, ignored failures, wrong commands and trigger broadening/narrowing. Cheaper substitute: increase the timeout or skip slow tests, rejected because it does not improve throughput safely.
+- [ ] Add explicit exact-SHA gate observation to `scripts/ci_status.py` with fake-gh regressions. Done when: a full40-character requested SHA is checked against coordinator-gate CI runs and every required job including all shards; only a latest matching completed successful run with exactly the required successful job set is green. Wrong SHA, missing/duplicate/skipped/cancelled/failed/in-progress jobs, newer pending/failed run, missing run or unreadable API cannot pass; no fallback to older green or unrelated main history. Preserve existing history-reporting mode as history, not promotion proof. Cheaper substitute: a successful workflow label or latest main run can describe a different candidate.
+- [ ] Document batched ready-reviewed integration and exact-SHA verification in `docs/codex-lanes.md`, including safe-boundary workflow rollout to older lanes, no hard10/20 minimum delay, no duplicate main full run, and no promotion before the exact gate passes. Preserve review/stamp authority and all historical receipts. Run targeted shard/workflow/status regressions, offline actual discovery multiset audit and publication; use full CI later for actual throughput measurement, never run the whole suite locally just to estimate speed.
+- [ ] Commit: `ci: batch reviewed gates and shard complete project tests`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_ci_unittest_shard tests.scripts.test_ci_workflow tests.scripts.test_ci_status` passes; four offline collection lists equal the unsharded discovery multiset exactly, and mutation tests reject a dropped shard or false exact-SHA green without running the whole project suite locally.
 
 ## Verification
 
