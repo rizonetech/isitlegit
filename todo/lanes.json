@@ -88,6 +88,27 @@
         "D02 T05 §7",
         "D08 T02 §3"
       ]
+    },
+    "link-quality": {
+      "branch": "link-quality-lane",
+      "worktree": "../isitlegit-link-quality",
+      "sections": [
+        "D02 T07 §6"
+      ]
+    },
+    "lookalikes": {
+      "branch": "lookalikes-lane",
+      "worktree": "../isitlegit-lookalikes",
+      "sections": [
+        "D02 T03 §5"
+      ]
+    },
+    "corpus-durability": {
+      "branch": "corpus-durability-lane",
+      "worktree": "../isitlegit-corpus-durability",
+      "sections": [
+        "D08 T02 §19"
+      ]
     }
   }
 }
