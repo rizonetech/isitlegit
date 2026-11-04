@@ -45,7 +45,7 @@ track: day-6
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
 | 13 | §13 | Source-versus-replay comparison | §12 | [x] |
 | 14 | §14 | Paired-evidence investigation | §13 | [x] |
-| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
+| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [x] |
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [x] |
 | 18 | §18 | Recoverable PDF corpus publication | §2 | [ ] |
@@ -510,6 +510,9 @@ Filed 2026-11-03 from §14 completion review G4: comparing reports manually hide
 **Implementation evidence 2026-11-04:** Local checkpoint49tests passed. Removing the in-query membership guard fails the real SQLite denial/revocation test; removing stale timestamp/duration guards fails stale-side redaction. Both mutations restored before49tests passed again. Full typecheck, lint, dry-run build and publication checks passed; lint retains21existing warnings and2infos outside changed files, and build retains the existing asset-route warning. No live paired comparison, model call or deployment claimed. Public CLI instructions are in `eval/PAIRED-EVIDENCE.md`.
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-paired-evidence.test.ts test/node/eval-metrics.test.ts` passes, including real command dispatch, SQL read-back and denied-side redaction; typecheck, lint and build pass. No live comparative claim is made from stubbed cases.
+
+> **Verified:** 2026-11-04 | §15 | 6e930b6db82693a888baf2aed84cf7f5535a27e7
+> **Review:** `docs/reviews/d08-t02-s15.json`
 
 ## 16. Blinded comprehension comparison
 
