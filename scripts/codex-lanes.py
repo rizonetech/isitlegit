@@ -179,6 +179,8 @@ def main(argv: list[str] | None = None) -> int:
                      f"python3 scripts/codex_continuation.py activate --lane {args.lane} "
                      f"--session YOUR_ACTUAL_CODEX_SESSION_ID --claim {claim}. If native hook trust is absent, "
                      "record the runtime blocker and preserve this claim; do not invent activation proof.")
+        # Native hook discovery uses the process cwd before applying the CLI -C override.
+        os.chdir(status["worktree"])
         os.execvp(argv[0], argv)
         return 0
     except (LaneError, OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
