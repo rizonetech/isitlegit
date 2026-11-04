@@ -113,7 +113,7 @@ export type AblationArmMetrics = {
   genuineRows: number;
   falsePositives: number;
   medianMs: number;
-  costUsd: number;
+  costUsd: number; // Mean model cost per measured check, not the population total.
   measured: boolean;
 };
 
@@ -206,7 +206,7 @@ const signed = (v: number, unit: string): string => `${v > 0 ? "+" : ""}${v.toFi
 // `not measured` in every change cell, never zero.
 export function renderAblationResultsTable(arms: AblationArmReport[]): string {
   const header =
-    "| Model removed | set | Detection change | False-positive change | Time change | Cost change | run id |\n| --- | --- | --- | --- | --- | --- | --- |\n";
+    "| Model removed | set | Detection change | False-positive change | Time change | Cost per check change | run id |\n| --- | --- | --- | --- | --- | --- | --- |\n";
   const baselines = new Map(arms.filter((a) => a.arm === "full").map((a) => [a.set, a]));
   const rows = arms.map((report) => {
     const removed = report.arm === "full" ? "none (full baseline)" : skippedModels(report.arm).join(", ");

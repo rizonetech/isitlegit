@@ -31,3 +31,5 @@ Offline verification:
 ```
 
 The SQL adapter tests use all available migrations, plus an explicitly labelled contract fixture if checks' migration 0095 has not yet merged. That fallback verifies query semantics only, not deployed migration or consumer readiness. No test makes a paid model call.
+
+Report publication uses one kernel lock for the shared results path, covering merge, atomic replacement and exact read-back for component and ablation writers alike. Cost is the mean model-ledger cost per measured check; the full row gives that mean and removed-model rows give its difference from the full baseline.

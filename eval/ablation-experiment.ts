@@ -180,7 +180,7 @@ function reports(
         genuineRows: genuine.length,
         falsePositives: genuine.filter((r) => r.verdict === "suspicious" || r.verdict === "malicious").length,
         medianMs: median(selectedRows.flatMap((r) => (r.ms === null ? [] : [r.ms]))),
-        costUsd: selectedRows.reduce((sum, r) => sum + r.costUsd, 0),
+        costUsd: selectedRows.length ? selectedRows.reduce((sum, r) => sum + r.costUsd, 0) / selectedRows.length : 0,
         measured,
       },
     };

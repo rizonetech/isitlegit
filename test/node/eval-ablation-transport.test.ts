@@ -295,10 +295,25 @@ describe("real ablation command recovery", () => {
     const report = readFileSync(join(t.root, "RESULTS.md"), "utf8");
     expect(report).toContain("keep this");
     expect(report).toContain("sam-3.1 | synthetic-sa | -100.0%");
+    expect(report).toContain("Cost per check change");
+    expect(report).toContain("100 ms | US$0.0100 |");
     expect(await t.resume()).toBe(0);
     expect(t.admissions()).toBe(10);
     expect(t.manifest()).toEqual(first);
     expect(readFileSync(join(t.root, "RESULTS.md"), "utf8")).toBe(report);
+  });
+  it("reports mean cost per check and its paired difference rather than population totals", async () => {
+    const t = harness();
+    const read = t.deps.db.caseState;
+    t.deps.db.caseState = async (id) => {
+      const state = await read(id);
+      return state ? { ...state, costUsd: t.bindings.get(id)?.context.arm === "full" ? 0.05 : 0.04 } : null;
+    };
+    expect(await t.run(["--flags", "no-sam"])).toBe(0);
+    const report = readFileSync(join(t.root, "RESULTS.md"), "utf8");
+    expect(report).toContain("100 ms | US$0.0500 |");
+    expect(report).toContain("0 ms | US$-0.0100 |");
+    expect(report).not.toContain("US$0.1000");
   });
   it("refuses unsupported arms and missing capabilities before even the baseline", async () => {
     const t = harness();
