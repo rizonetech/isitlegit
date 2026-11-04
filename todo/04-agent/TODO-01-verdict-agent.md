@@ -2,7 +2,7 @@
 schema_version: 1
 id: verdict-agent
 domain: 04-agent
-status: active
+status: done
 title: "TODO-01 -- Verdict Agent, Citations, Deterministic Floor and Injection Defence"
 frozen: true
 track: day-6
@@ -44,15 +44,15 @@ track: day-6
 | 5 | §5 | Citation validator with fallback | §4 | [x] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [x] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [x] |
-| 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
+| 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [x] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
-| 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
+| 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [x] |
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [x] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
-| 16 | §16 | Message-specific consequence sentences | §2 | [ ] |
+| 16 | §16 | Message-specific consequence sentences | §2 | [x] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -298,6 +298,9 @@ Filed 2026-10-31 from D02 T04 §8's completion review (Part 1 item 9, out of sco
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/floor-partial.test.ts` passes.
 
+> **Verified:** 2026-11-04 | §8 | 560a867b8a368ede3b31f517e7f45d882a658045
+> **Review:** `docs/reviews/d04-t01-s8.json`
+
 ## 9. Impersonation family in rule verdict
 
 > **Started:** 2026-11-01T10:30:27Z
@@ -352,6 +355,9 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 - [x] Commit: `agent: logo tools for the verdict agent`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
+
+> **Verified:** 2026-11-04 | §10 | 560a867b8a368ede3b31f517e7f45d882a658045
+> **Review:** `docs/reviews/d04-t01-s10.json`
 
 ## 11. Floor outcome persisted with the verdict
 
@@ -520,6 +526,9 @@ Filed 2026-11-03 from the coordinator's filing request (app lane, D07 T03 §10's
 - [x] Commit: `agent: message-specific consequence sentences`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/loop.test.ts` passes, and fails if a credential-floored and a bank-floored case store the same consequence sentence.
+
+> **Verified:** 2026-11-04 | §16 | 560a867b8a368ede3b31f517e7f45d882a658045
+> **Review:** `docs/reviews/d04-t01-s16.json`
 
 ## Verification
 
