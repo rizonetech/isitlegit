@@ -26,14 +26,6 @@
         "D00 T01 §41"
       ]
     },
-    "detection-eval": {
-      "branch": "detection-eval-lane",
-      "worktree": "../isitlegit-detection-eval",
-      "sections": [
-        "D02 T05 §7",
-        "D08 T02 §3"
-      ]
-    },
     "link-quality": {
       "branch": "link-quality-lane",
       "worktree": "../isitlegit-link-quality",

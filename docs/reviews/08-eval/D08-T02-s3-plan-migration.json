@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "kind": "muse-plan-only-v1",
+  "report": "docs/reviews/08-eval/D08-T02-s3.md",
+  "writer": "muse",
+  "policy": null,
+  "plan_candidate": "46f30018c9b502c91f9793448d0b83912655d23d",
+  "plan_pin": "ce29c18a398871b473c634630dbf588c04ec5ef2",
+  "plan_digest": "eacaec74ce2afc03",
+  "prefix_bytes": 4666,
+  "prefix_sha256": "ab7bfe94b91172c881094c0f2d1e48cb008ff30aefad46ba192ae10f9c42dabe",
+  "original_contract_sha256": "0e4bb2aac0684df989756e864ac5e1e7eb279bfa256619202f03754e60e932ce",
+  "accepted_contract_sha256": "0316a3737b3b48de310986ee2d08c0b7882bda2e58d83a6f7a3417769a3b3271",
+  "accepted_base_candidate": "47aa151333885e5b0524374d06c65e6e726d96d9",
+  "disposition_path": "docs/reviews/08-eval/D08-T02-s3-plan-migration-disposition.md",
+  "disposition_commit": "47aa151333885e5b0524374d06c65e6e726d96d9",
+  "disposition_blob": "9be1664bd3769399fd1e238e20b9aa9def11fe6a"
+}

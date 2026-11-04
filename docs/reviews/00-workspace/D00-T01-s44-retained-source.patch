@@ -1,0 +1,669 @@
+diff --git a/.agents/skills/codex-lane-workflow/SKILL.md b/.agents/skills/codex-lane-workflow/SKILL.md
+index 90ec7ffc0..e9c6d08ee 100644
+--- a/.agents/skills/codex-lane-workflow/SKILL.md
++++ b/.agents/skills/codex-lane-workflow/SKILL.md
+@@ -80,3 +80,13 @@ Work one section at a time. At boundaries check the inbox and CI, then pick the
+ D00 T01 §38 adds dormant version 3 capability only for the two report/kind pairs in `docs/todo-workflow.md`. It is not a larger review cap. Never create a live authorization from the existence of this capability: obtain the coordinator's separate exact case decision, preserve the original chain and every failed reconciliation, and commit the strict authorization document before its pin reference. Eval requires zero returned predecessors and its exact approved contract amendment; voice requires two ordered returned gaps and unchanged original contract. Every candidate descends from the original completion, all predecessors and repair base.
+ 
+ Use the existing `--kind reconciliation --writer codex` command and committed disposition. The dispatcher verifies authorization and preserves its identity through invocation, outage retry, durable response recovery and receipt replay. Only a genuinely returned `RECONCILIATION: complete` can stamp, retaining original completion gaps and separate version 3 binding evidence. An unresolved call blocks invocation, a known non-returned outage retains its exact binding, and a returned version 3 gaps verdict remains blocked with no successor. Removing authorization blocks new calls, not recovery of the same persisted response or historical receipt validation. Do not rewrite findings, alter the frozen product contract or fabricate review evidence.
++
++## Exact historical Muse plan migration (D00 T01 §44)
++
++The dormant `muse-plan-only-v1` capability applies only to `docs/reviews/08-eval/D08-T02-s3.md`, preserving its original Muse writer, null historical policy, candidate `46f30018c9b502c91f9793448d0b83912655d23d`, pin `ce29c18a398871b473c634630dbf588c04ec5ef2` and digest `eacaec74ce2afc03`. It grants no product acceptance or live authorization. Only the coordinator may separately activate a committed `plan_migrations` entry after auditing a committed disposition of every original finding and obligation, including the monitor experiment. A disposition cannot waive a real gap.
++
++The entry maps that exact report to a canonical `-plan-migration.json` document by `path`, full `commit` and Git `blob`. The strict document binds the original plan/prefix/contracts, accepted-contract base candidate and committed `-plan-migration-disposition.md` identity. The dispatcher verifies the original Muse route, cross-family reviewer and original schedule, rather than applying the current Codex route to historical evidence. New dispatch requires the pin committed at HEAD, unchanged working authorization/disposition bytes and a reachable descendant candidate with the exact authorized accepted contract.
++
++After separate authorization, use the existing completion command with `--writer codex --kind completion --transition-plan --candidate <exact-candidate> --record docs/reviews/08-eval/D08-T02-s3.md --prompt <prompt>`. Its version 2 policy transition retains all original plan bytes and authorization provenance; existing version 1 Codex transitions remain unchanged. Any prior or removed implementation-review attempt, malformed history, changed identity or unresolved call refuses. The single combined review must verify all original findings and obligations; only genuine complete can stamp. Gaps require the existing bounded reconciliation path and remain unstamped until genuine complete. Existing durable recovery commands recover the same persisted result without another reviewer call.
++
++Revocation removes only the entry from a newly committed pin and prevents new migration calls. Preserve original pins, authorization/disposition blobs, findings and receipts: historical completion and reconciliation receipts remain verifiable under their recorded authorization. No generic writer migration, new normal review, altered product safety rule or approval of D08 T02 §3 follows from this tooling.
+diff --git a/AGENTS.md b/AGENTS.md
+index b202eba4c..c7758e5c5 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -219,3 +219,13 @@ pnpm build                                          # bundles the Worker (dry-ru
+ ```
+ 
+ Worker commands are added here by the scaffold section that creates them (Biome and Vitest came with D00 T01 §3; `wrangler deploy` comes with D00 T01 §5); `tests/scripts/test_worker_gates.py` fails while a `package.json` gate script is missing here or from `CONTRIBUTING.md`. After changing `wrangler.jsonc`, run `pnpm types` and commit the regenerated `worker-configuration.d.ts`. Report only commands actually run, and distinguish static evidence, test output and review proof.
++
++## Exact historical Muse plan migration (D00 T01 §44)
++
++The dormant `muse-plan-only-v1` capability applies only to `docs/reviews/08-eval/D08-T02-s3.md`, preserving its original Muse writer, null historical policy, candidate `46f30018c9b502c91f9793448d0b83912655d23d`, pin `ce29c18a398871b473c634630dbf588c04ec5ef2` and digest `eacaec74ce2afc03`. It grants no product acceptance or live authorization. Only the coordinator may separately activate a committed `plan_migrations` entry after auditing a committed disposition of every original finding and obligation, including the monitor experiment. A disposition cannot waive a real gap.
++
++The entry maps that exact report to a canonical `-plan-migration.json` document by `path`, full `commit` and Git `blob`. The strict document binds the original plan/prefix/contracts, accepted-contract base candidate and committed `-plan-migration-disposition.md` identity. The dispatcher verifies the original Muse route, cross-family reviewer and original schedule, rather than applying the current Codex route to historical evidence. New dispatch requires the pin committed at HEAD, unchanged working authorization/disposition bytes and a reachable descendant candidate with the exact authorized accepted contract.
++
++After separate authorization, use the existing completion command with `--writer codex --kind completion --transition-plan --candidate <exact-candidate> --record docs/reviews/08-eval/D08-T02-s3.md --prompt <prompt>`. Its version 2 policy transition retains all original plan bytes and authorization provenance; existing version 1 Codex transitions remain unchanged. Any prior or removed implementation-review attempt, malformed history, changed identity or unresolved call refuses. The single combined review must verify all original findings and obligations; only genuine complete can stamp. Gaps require the existing bounded reconciliation path and remain unstamped until genuine complete. Existing durable recovery commands recover the same persisted result without another reviewer call.
++
++Revocation removes only the entry from a newly committed pin and prevents new migration calls. Preserve original pins, authorization/disposition blobs, findings and receipts: historical completion and reconciliation receipts remain verifiable under their recorded authorization. No generic writer migration, new normal review, altered product safety rule or approval of D08 T02 §3 follows from this tooling.
+diff --git a/docs/todo-workflow.md b/docs/todo-workflow.md
+index f39108ab6..b5b5175d9 100644
+--- a/docs/todo-workflow.md
++++ b/docs/todo-workflow.md
+@@ -116,3 +116,15 @@ Commit that document first. The separately committed pin map `reconciliation_exc
+ The existing reconciliation command constructs a version 3 binding containing the authorization identity and accepted hash in addition to the original evidence. It verifies unchanged original identities, exact predecessor sequence, full prefix and candidate descent from the original completion, every predecessor and repair base. The reviewer must examine all original obligations and failures, not only the latest repair examples. Existing stamp arguments remain unchanged, including the actual legacy round where applicable; only a genuinely returned complete exception supports the exact candidate. The receipt preserves the original failed completion and the separate exception evidence.
+ 
+ Known non-returned outages may retry only with the identical version 3 binding. An unresolved journal refuses another invocation; supported `--recover-reconciliation` records the same durable response without a new call. A returned version 3 result exhausts the exception, including a gaps result, and no version 3 successor is authorized. Reversal removes the current pin entry, preventing new exception calls while preserving the documents, findings, journals and historical pin needed to recover persisted results and validate existing receipts. No ordinary review count or product safety rule changes.
++
++## Exact historical Muse plan migration (D00 T01 §44)
++
++The dormant `muse-plan-only-v1` capability applies only to `docs/reviews/08-eval/D08-T02-s3.md`, preserving its original Muse writer, null historical policy, candidate `46f30018c9b502c91f9793448d0b83912655d23d`, pin `ce29c18a398871b473c634630dbf588c04ec5ef2` and digest `eacaec74ce2afc03`. It grants no product acceptance or live authorization. Only the coordinator may separately activate a committed `plan_migrations` entry after auditing a committed disposition of every original finding and obligation, including the monitor experiment. A disposition cannot waive a real gap.
++
++The entry maps that exact report to a canonical `-plan-migration.json` document by `path`, full `commit` and Git `blob`. The strict document binds the original plan/prefix/contracts, accepted-contract base candidate and committed `-plan-migration-disposition.md` identity. The dispatcher verifies the original Muse route, cross-family reviewer and original schedule, rather than applying the current Codex route to historical evidence. New dispatch requires the pin committed at HEAD, unchanged working authorization/disposition bytes and a reachable descendant candidate with the exact authorized accepted contract.
++
++After separate authorization, use the existing completion command with `--writer codex --kind completion --transition-plan --candidate <exact-candidate> --record docs/reviews/08-eval/D08-T02-s3.md --prompt <prompt>`. Its version 2 policy transition retains all original plan bytes and authorization provenance; existing version 1 Codex transitions remain unchanged. Any prior or removed implementation-review attempt, malformed history, changed identity or unresolved call refuses. The single combined review must verify all original findings and obligations; only genuine complete can stamp. Gaps require the existing bounded reconciliation path and remain unstamped until genuine complete. Existing durable recovery commands recover the same persisted result without another reviewer call.
++
++Revocation removes only the entry from a newly committed pin and prevents new migration calls. Preserve original pins, authorization/disposition blobs, findings and receipts: historical completion and reconciliation receipts remain verifiable under their recorded authorization. No generic writer migration, new normal review, altered product safety rule or approval of D08 T02 §3 follows from this tooling.
++
++The authorization JSON has exactly these keys: `version` (integer 1), `kind` (`muse-plan-only-v1`), `report`, `writer` (`muse`), `policy` (null), `plan_candidate`, `plan_pin`, `plan_digest`, `prefix_bytes`, `prefix_sha256`, `original_contract_sha256`, `accepted_contract_sha256`, `accepted_base_candidate`, `disposition_path`, `disposition_commit`, `disposition_blob`. Digests, Git identities and the complete byte prefix must be measured from committed evidence; do not invent them. The accepted base and completion candidate must descend from the original plan, and their normalized section contracts must both match the accepted contract hash. Authorization must be committed before the pin names its document blob.
+diff --git a/scripts/review-dispatch.py b/scripts/review-dispatch.py
+index 9e21c3f04..aa2229698 100644
+--- a/scripts/review-dispatch.py
++++ b/scripts/review-dispatch.py
+@@ -133,7 +133,7 @@ def load_pin(path=PIN, data=None):
+     # `type(...) is int`: TOML true is Python True (an int subclass) and 1.0 == 1, so `!= 1` alone let both load.
+     # The optional [schedule] is checked below; the refusal text stays the one the VS Code extension matches.
+     if not {"schema_version", "reviewers", "routes"} <= set(pin) <= {"schema_version", "reviewers", "routes",
+-                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition", "reconciliation_extensions", "reconciliation_exceptions"} \
++                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition", "reconciliation_extensions", "reconciliation_exceptions", "plan_migrations"} \
+             or type(pin["schema_version"]) is not int or pin["schema_version"] != 1:
+         raise Refused("the reviewer pin needs exactly schema_version = 1, [reviewers.*] and [routes]")
+     if pin.get("self_review", []) not in ([], ["codex"]):
+@@ -153,6 +153,13 @@ def load_pin(path=PIN, data=None):
+         raise Refused("reconciliation_exceptions must be an exact report map")
+     for report, identity in exceptions.items():
+         _exception_identity_shape(identity, report)
++    migrations = pin.get("plan_migrations", {})
++    if not isinstance(migrations, dict):
++        raise Refused("plan_migrations must be an exact report map")
++    for report, identity in migrations.items():
++        _migration_identity_shape(identity, report)
++    if migrations and pin.get("self_review_policy") != "codex-two-pass-v1":
++        raise Refused("plan migration needs explicit two-pass policy")
+     if pin.get("plan_transition", []) not in ([], ["codex-self-review"]) or (pin.get("plan_transition") and not pin.get("self_review_policy")):
+         raise Refused("plan_transition needs the explicit two-pass policy")
+     combined = (pin.get("schedule") or {}).get("combined")
+@@ -952,7 +959,7 @@ def _read_findings(text):
+             end = next((j for j in range(i, len(lines)) if lines[j].startswith(RESERVED)), len(lines))
+             entry["review"] = "\n".join(lines[i:end])
+             i = end
+-        if entry.get("policy") in SELF_REVIEW_POLICIES:
++        if entry.get("policy") in SELF_REVIEW_POLICIES or kind == "plan" and entry.get("writer") == "muse":
+             entry["offset"] = head
+         if kind == "reconciliation" or kind == "completion" and entry.get("policy") == "codex-two-pass-v1":
+             entry["digest"] = sealed
+@@ -1289,6 +1296,8 @@ def _reconcile_pin(root, blob):
+ 
+ 
+ def _reconcile_identity(root, entry, reconciliation=False):
++    if entry.get("writer") == "muse" and entry.get("policy") is None and not reconciliation:
++        return _muse_plan_identity(root, entry)
+     pin = _reconcile_pin(root, entry.get("pin"))
+     _reconcile_require(review_policy(pin, entry.get("writer")) == entry.get("policy"), "pin does not authorize recorded policy")
+     if reconciliation:
+@@ -1688,6 +1697,120 @@ def _completion_plan(prefix):
+     return plans[0], found["plans"]
+ 
+ 
++# Dormant coordinator capability: no other historical writer or section is eligible.
++MUSE_PLAN_REPORT = "docs/reviews/08-eval/D08-T02-s3.md"
++MUSE_PLAN_IDENTITY = {"candidate": "46f30018c9b502c91f9793448d0b83912655d23d",
++                      "pin": "ce29c18a398871b473c634630dbf588c04ec5ef2",
++                      "digest": "eacaec74ce2afc03"}
++
++
++def _migration_identity_shape(identity, report):
++    _reconcile_require(isinstance(identity, dict) and set(identity) == {"path", "commit", "blob"}
++                       and all(isinstance(v, str) for v in identity.values()), "malformed plan migration identity")
++    _reconcile_require(report == MUSE_PLAN_REPORT and identity["path"] == report[:-3] + "-plan-migration.json"
++                       and CANDIDATE.fullmatch(identity["commit"]) and PIN_ID.fullmatch(identity["blob"]),
++                       "plan migration is not the exact authorized report")
++
++
++def _muse_plan_identity(root, entry):
++    _reconcile_require(entry.get("writer") == "muse" and entry.get("policy") is None
++                       and entry.get("candidate") == MUSE_PLAN_IDENTITY["candidate"]
++                       and entry.get("pin") == MUSE_PLAN_IDENTITY["pin"]
++                       and digest(raw_lines(entry.get("review") or "")) == MUSE_PLAN_IDENTITY["digest"]
++                       and returned_pass(entry, "plan"), "not the original eligible Muse plan")
++    pin = _reconcile_pin(root, entry["pin"])
++    name = pin["routes"]["muse"][0]
++    reviewer = pin["reviewers"][name]
++    _reconcile_require((entry.get("reviewer"), entry.get("model"), entry.get("cli")) ==
++                       (name, reviewer["model"], reviewer["cli"]) and reviewer_allowed(entry),
++                       "historical Muse reviewer differs from its original route")
++    plan = scheduled(pin["schedule"], "plan", [], False, policy="legacy")
++    _reconcile_require(entry.get("effort") == plan["effort"] and entry.get("lenses") == plan["lenses"],
++                       "historical Muse plan schedule changed")
++    _reconcile_reachable(root, entry["candidate"])
++    return pin
++
++
++def _migration_authorization(root, pin_id, report, expected=None):
++    pin = _reconcile_pin(root, pin_id)
++    _reconcile_require(review_policy(pin, "codex") == "codex-two-pass-v1", "migration needs current Codex policy")
++    identity = pin.get("plan_migrations", {}).get(report)
++    _migration_identity_shape(identity, report)
++    _reconcile_require(expected is None or expected == identity, "plan migration authorization changed")
++    _reconcile_reachable(root, identity["commit"])
++    raw = _reconcile_git(root, "show", f"{identity['commit']}:{identity['path']}")
++    _reconcile_require(pin_blob(raw) == identity["blob"], "plan migration document blob mismatch")
++    auth = _exception_json(raw)
++    keys = {"version", "kind", "report", "writer", "policy", "plan_candidate", "plan_pin", "plan_digest",
++            "prefix_bytes", "prefix_sha256", "original_contract_sha256", "accepted_contract_sha256",
++            "accepted_base_candidate", "disposition_path", "disposition_commit", "disposition_blob"}
++    _reconcile_require(isinstance(auth, dict) and set(auth) == keys and type(auth.get("version")) is int
++                       and auth["version"] == 1 and type(auth.get("prefix_bytes")) is int and auth["prefix_bytes"] > 0,
++                       "malformed plan migration authorization")
++    _reconcile_require(all(isinstance(auth[k], str) and auth[k] for k in keys - {"version", "prefix_bytes", "policy"})
++                       and auth["policy"] is None and auth["writer"] == "muse" and auth["report"] == report
++                       and auth["kind"] == "muse-plan-only-v1", "invalid plan migration fields")
++    _reconcile_require(all(auth['plan_'+k] == v for k,v in MUSE_PLAN_IDENTITY.items()), "wrong original Muse plan identity")
++    _reconcile_require(all(re.fullmatch(r"[0-9a-f]{64}", auth[k]) for k in
++                           ("prefix_sha256", "original_contract_sha256", "accepted_contract_sha256"))
++                       and all(CANDIDATE.fullmatch(auth[k]) for k in ("accepted_base_candidate", "disposition_commit"))
++                       and PIN_ID.fullmatch(auth["disposition_blob"]), "invalid plan migration digests")
++    _reconcile_require(auth["disposition_path"] == report[:-3] + "-plan-migration-disposition.md", "wrong plan migration disposition path")
++    _reconcile_reachable(root, auth["disposition_commit"])
++    disposition = _reconcile_git(root, "show", f"{auth['disposition_commit']}:{auth['disposition_path']}")
++    _reconcile_require(disposition.strip() and pin_blob(disposition) == auth["disposition_blob"], "invalid committed migration disposition")
++    return identity, auth
++
++
++def _muse_transition(root, report, plan, prefix, candidate, pin_id, text, expected=None, working=False):
++    identity, auth = _migration_authorization(root, pin_id, report, expected)
++    _muse_plan_identity(root, plan)
++    _reconcile_require(len(prefix) == auth["prefix_bytes"] and hashlib.sha256(prefix).hexdigest() == auth["prefix_sha256"],
++                       "migration does not preserve complete original findings")
++    _reconcile_reachable(root, candidate)
++    _reconcile_reachable(root, auth["accepted_base_candidate"])
++    _reconcile_git(root, "merge-base", "--is-ancestor", plan["candidate"], auth["accepted_base_candidate"])
++    _reconcile_git(root, "merge-base", "--is-ancestor", auth["accepted_base_candidate"], candidate)
++    _, path, number = _completion_location(root, report)
++    def contract(sha):
++        return _reconcile_contract(_reconcile_git(root, "show", f"{sha}:{path}").decode(), number)
++    _reconcile_require(hashlib.sha256(contract(plan["candidate"]).encode()).hexdigest() == auth["original_contract_sha256"],
++                       "original Muse contract identity changed")
++    _reconcile_require(all(hashlib.sha256(contract(sha).encode()).hexdigest() == auth["accepted_contract_sha256"]
++                           for sha in (candidate, auth["accepted_base_candidate"])), "accepted migration obligations changed")
++    if working:
++        _reconcile_require(_reconcile_git(root, "rev-parse", "HEAD:.conclave/reviewers.toml").decode().strip() == pin_id,
++                           "new migration calls require the pin committed at HEAD")
++        for relative, blob in ((identity["path"], identity["blob"]), (auth["disposition_path"], auth["disposition_blob"])):
++            current = Path(root)
++            for part in Path(relative).parts:
++                current /= part
++                _reconcile_require(not current.is_symlink(), "symlink migration evidence")
++            _reconcile_require(current.is_file() and pin_blob(current.read_bytes()) == blob,
++                               "working migration evidence differs from committed bytes")
++    transition = {"version": 2, "from_writer": "muse", "from_policy": None, "to_policy": "codex-two-pass-v1",
++                  "plan_candidate": plan["candidate"], "plan_pin": plan["pin"], "plan_digest": MUSE_PLAN_IDENTITY["digest"],
++                  "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest(),
++                  "authorization_path": identity["path"], "authorization_commit": identity["commit"],
++                  "authorization_blob": identity["blob"], "accepted_contract_sha256": auth["accepted_contract_sha256"]}
++    validate_plan_transition_history(root, report, plan, prefix, text, transition=transition)
++    return transition
++
++
++def _migration_prompt_evidence(root, binding, pin_id):
++    transition = binding["transition"]
++    _, auth = _migration_authorization(root, pin_id, binding["report"],
++        {"path": transition["authorization_path"], "commit": transition["authorization_commit"], "blob": transition["authorization_blob"]})
++    path = binding["contract_path"]
++    return ("Original Muse plan and every original finding (unchanged):\n" +
++            (Path(root) / binding["report"]).read_bytes()[:binding["prefix_bytes"]].decode() +
++            "\nOriginal contract:\n" + _reconcile_git(root, "show", f"{binding['plan_candidate']}:{path}").decode() +
++            "\nAccepted candidate contract:\n" + _reconcile_git(root, "show", f"{binding['candidate']}:{path}").decode() +
++            "\nCommitted disposition, no waiver of unresolved obligations:\n" +
++            _reconcile_git(root, "show", f"{auth['disposition_commit']}:{auth['disposition_path']}").decode() +
++            "\nVerify all nine original findings and original requirements including monitor; unresolved obligations block completion.\n")
++
++
+ def _completion_transition(plan, prefix):
+     return {"version": 1, "from_policy": "codex-self-review", "to_policy": "codex-two-pass-v1",
+             "plan_candidate": plan["candidate"], "plan_pin": plan["pin"], "plan_digest": digest(raw_lines(plan["review"])),
+@@ -1734,11 +1857,11 @@ def _transition_history(root, report):
+     return _COMPLETION_HISTORY[key]
+ 
+ 
+-def validate_plan_transition_history(root, report, plan, prefix, current_text):
++def validate_plan_transition_history(root, report, plan, prefix, current_text, transition=None):
+     """A restored file cannot erase an implementation-review attempt from the same original plan chain."""
+     report = _reconcile_path(root, report)
+     expected_plan = _transition_plan_identity(plan)
+-    expected_transition = _completion_transition(plan, prefix)
++    expected_transition = transition if transition is not None else _completion_transition(plan, prefix)
+     current = read_findings(current_text)
+     _reconcile_require(current is not None, "cannot verify transition against unreadable findings")
+     retained = {key: {_transition_record_identity(entry) for entry in current[key]}
+@@ -1788,8 +1911,13 @@ def make_completion_binding(root, record_path, candidate, transition_plan=False)
+     for attempt in attempts:
+         _reconcile_identity(root, attempt)
+     old = plan.get("policy") == "codex-self-review"
+-    _reconcile_require(plan.get("policy") in SELF_REVIEW_POLICIES, "unsupported plan policy")
+-    if old:
++    muse = plan.get("writer") == "muse" and plan.get("policy") is None
++    _reconcile_require(muse or plan.get("policy") in SELF_REVIEW_POLICIES, "unsupported plan policy")
++    transition = None
++    if muse:
++        _reconcile_require(transition_plan, "Muse plan migration must be explicit")
++        transition = _muse_transition(root, report, plan, prefix, candidate, pin_id, text, working=True)
++    elif old:
+         _reconcile_require(transition_plan and pin.get("plan_transition") == ["codex-self-review"], "legacy plan transition must be explicit and authorized")
+         validate_plan_transition_history(root, report, plan, prefix, text)
+     else:
+@@ -1801,10 +1929,14 @@ def make_completion_binding(root, record_path, candidate, transition_plan=False)
+     for attempt in found["completions"]:
+         validate_completion_binding(root, text, attempt)
+         _reconcile_require(attempt["pin"] == pin_id, "completion retry cannot switch pins")
+-    return {"version": 1, "report": report, "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest(),
++    binding = {"version": 1, "report": report, "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest(),
+             "plan_candidate": plan["candidate"], "plan_pin": plan["pin"], "plan_digest": digest(raw_lines(plan["review"])),
+             "plan_contract_sha256": hashlib.sha256(original_contract.encode()).hexdigest(), "contract_path": contract_path,
+-            "candidate": candidate, "transition": _completion_transition(plan, prefix) if old else None}
++            "candidate": candidate, "transition": _completion_transition(plan, prefix) if old else transition}
++    if muse:
++        _reconcile_require(all(attempt["binding"] == binding for attempt in found["completions"]),
++                           "Muse completion outage retry must preserve the entire binding")
++    return binding
+ 
+ 
+ def _completion_binding_shape(binding):
+@@ -1816,10 +1948,17 @@ def _completion_binding_shape(binding):
+                        and DIGEST.fullmatch(binding["plan_digest"]) and all(re.fullmatch(r"[0-9a-f]{64}", binding[k]) for k in ("prefix_sha256", "plan_contract_sha256")), "invalid completion binding digest")
+     transition = binding["transition"]
+     transition_keys = {"version", "from_policy", "to_policy", "plan_candidate", "plan_pin", "plan_digest", "prefix_bytes", "prefix_sha256"}
+-    _reconcile_require(transition is None or isinstance(transition, dict) and set(transition) == transition_keys
+-                       and type(transition.get("version")) is int and transition["version"] == 1
+-                       and type(transition.get("prefix_bytes")) is int and transition["prefix_bytes"] > 0
+-                       and all(isinstance(transition[k], str) and transition[k] for k in transition_keys - {"version", "prefix_bytes"}), "invalid transition binding")
++    if isinstance(transition, dict) and type(transition.get("version")) is int and transition["version"] == 2:
++        extra = {"from_writer", "authorization_path", "authorization_commit", "authorization_blob", "accepted_contract_sha256"}
++        _reconcile_require(set(transition) == transition_keys | extra and transition.get("from_policy") is None
++                           and transition.get("from_writer") == "muse" and type(transition.get("prefix_bytes")) is int
++                           and transition["prefix_bytes"] > 0 and all(isinstance(transition[k], str) and transition[k]
++                           for k in (transition_keys | extra) - {"version", "prefix_bytes", "from_policy"}), "invalid Muse transition binding")
++    else:
++        _reconcile_require(transition is None or isinstance(transition, dict) and set(transition) == transition_keys
++                           and type(transition.get("version")) is int and transition["version"] == 1
++                           and type(transition.get("prefix_bytes")) is int and transition["prefix_bytes"] > 0
++                           and all(isinstance(transition[k], str) and transition[k] for k in transition_keys - {"version", "prefix_bytes"}), "invalid transition binding")
+ 
+ 
+ def validate_completion_binding(root, text, entry):
+@@ -1836,6 +1975,9 @@ def validate_completion_binding(root, text, entry):
+         raise Refused("completion plan prefix is not UTF-8") from None
+     found = read_findings(text)
+     _reconcile_require(found is not None and found["completions"], "combined completion missing")
++    if isinstance(binding["transition"], dict) and binding["transition"].get("version") == 2:
++        _reconcile_require(all(attempt.get("binding") == binding for attempt in found["completions"]),
++                           "Muse completion attempts changed the bound candidate or evidence")
+     before = "\n".join(raw_lines(text)[:found["completions"][0]["offset"]]).encode()
+     _reconcile_require(before.startswith(raw[:size]) and not before[size:].strip(), "prefix omits original findings")
+     for attempt in attempts:
+@@ -1843,7 +1985,12 @@ def validate_completion_binding(root, text, entry):
+     _reconcile_require(len({e.get("pin") for e in attempts}) == 1 and len({e.get("policy") for e in attempts}) == 1, "plan attempts changed policy or pin")
+     _reconcile_require(plan["candidate"] == binding["plan_candidate"] and plan["pin"] == binding["plan_pin"]
+                        and digest(raw_lines(plan["review"])) == binding["plan_digest"], "plan identity changed")
+-    if plan["policy"] == "codex-self-review":
++    if plan.get("writer") == "muse" and plan.get("policy") is None:
++        transition = binding["transition"]
++        _reconcile_require(isinstance(transition, dict) and transition.get("version") == 2, "missing Muse migration binding")
++        expected = {"path": transition["authorization_path"], "commit": transition["authorization_commit"], "blob": transition["authorization_blob"]}
++        _reconcile_require(transition == _muse_transition(root, binding["report"], plan, raw[:size], binding["candidate"], entry["pin"], text, expected), "Muse migration binding changed")
++    elif plan["policy"] == "codex-self-review":
+         _reconcile_require(pin.get("plan_transition") == ["codex-self-review"] and binding["transition"] == _completion_transition(plan, raw[:size]), "missing or tampered explicit plan transition")
+         validate_plan_transition_history(root, binding["report"], plan, raw[:size], text)
+     else:
+@@ -2049,6 +2196,13 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
+     if binding.get("version") == 3:
+         prompt += "\n\nRead-only exact exception evidence:\n" + _exception_prompt_evidence(ROOT, binding)
+         instructions += " This exact exception authorizes one evidence-bound verification only. Read its committed authorization document, every original obligation and all preceding failed findings. Verify the complete approved contract, not only recent examples. No weakened safety, population, target, coverage or recovery requirement is authorized. Returned gaps remain blocked; this is not another ordinary review round."
++    migration_binding, migration_pin = binding, pin_id
++    if kind == "reconciliation":
++        completed = [entry for entry in read_completions((ROOT / report).read_text()) if returned_pass(entry, "completion")]
++        if len(completed) == 1:
++            migration_binding, migration_pin = completed[0].get("binding") or {}, completed[0].get("pin")
++    if isinstance(migration_binding.get("transition"), dict) and migration_binding["transition"].get("version") == 2:
++        prompt += "\n\nExact historical Muse plan evidence:\n" + _migration_prompt_evidence(ROOT, migration_binding, migration_pin)
+     verdict = kind.upper()
+     prompt += ("\n\nBinding verified by dispatcher:\n" + json.dumps(binding, sort_keys=True) + "\n" + instructions +
+                f"\nEnd with {verdict}: complete or {verdict}: gaps. Unreadable evidence is {verdict}: blocked.\n")
+diff --git a/scripts/tests/test_review_dispatch.py b/scripts/tests/test_review_dispatch.py
+index fe83f7bbc..3c780c3a4 100644
+--- a/scripts/tests/test_review_dispatch.py
++++ b/scripts/tests/test_review_dispatch.py
+@@ -1766,7 +1766,7 @@ class Reconciliation(unittest.TestCase):
+         (self.root / '.conclave').mkdir()
+         pin = REPO_PIN.read_text()
+         # External authorization commits belong to the real repository, never this synthetic Git history.
+-        pin = re.sub(r'\n\[reconciliation_(?:extensions|exceptions)(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)',
++        pin = re.sub(r'\n\[(?:reconciliation_(?:extensions|exceptions)|plan_migrations)(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)',
+                      '', pin, flags=re.S)
+         pin = re.sub(r'^self_review_policy = .*\n|^plan_transition = .*\n', "", pin, flags=re.M)
+         pin = re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)', "", pin, flags=re.S)
+@@ -2689,7 +2689,7 @@ class ExactExceptions(Reconciliation):
+         original = REPO_PIN.read_bytes()
+         with tempfile.TemporaryDirectory() as directory:
+             seed = Path(directory) / 'reviewers.toml'
+-            base = re.sub(r'\n\[reconciliation_(?:extensions|exceptions)(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)',
++            base = re.sub(r'\n\[(?:reconciliation_(?:extensions|exceptions)|plan_migrations)(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)',
+                           '', original.decode(), flags=re.S)
+             seed.write_text(base + '\n[reconciliation_extensions]\n'
+                             '"docs/reviews/01-intake/D01-T03-s15.md" = "0123456789abcdef"\n'
+@@ -2904,3 +2904,232 @@ for _name in [n for n in vars(Reconciliation) if n.startswith('test_') and n not
+ 
+ if __name__ == "__main__":
+     unittest.main()
++
++
++class MusePlanTransition(TwoPass):
++    REPORT = 'docs/reviews/08-eval/D08-T02-s3.md'
++
++    def contract_template(self):
++        return '# Test\n\n## 3. Example\n\n**Surface:** no\n\n- [ ] Preserve all nine obligations including monitor.\n'
++
++    def setUp(self):
++        TwoPass.setUp(self)
++        self.report = self.root / self.REPORT
++        self.report.parent.mkdir(parents=True, exist_ok=True)
++        self.todo = self.root / 'todo/08-eval/TODO-02-example.md'
++        self.todo.parent.mkdir(parents=True, exist_ok=True)
++        self.todo.write_text(self.contract_template())
++        self.disposition = self.report.with_name('D08-T02-s3-plan-migration-disposition.md')
++        self.disposition.write_text('All nine original findings remain mandatory, including monitor; no waiver.\n')
++        legacy = re.sub(r'^self_review(?:_policy)? = .*\n|^plan_transition = .*\n', '', self.new_pin_text, flags=re.M)
++        legacy = re.sub(r'^reconciliation = .*\n', '', legacy, flags=re.M)
++        legacy = re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)', '', legacy, flags=re.S)
++        legacy = legacy.replace('codex = ["astra"]', 'codex = ["argon"]')
++        legacy = legacy.replace('[schedule.plan]\neffort = "low"', '[schedule.plan]\neffort = "medium"')
++        (self.root / '.conclave/reviewers.toml').write_text(legacy)
++        self.original_sha = self.commit()
++        self.original_pin = self.module.pin_blob(legacy.encode())
++        self.original_entry = {**self.entry, 'writer':'muse', 'policy':None, 'pin':self.original_pin,
++                               'effort':'medium', 'lenses':['plan']}
++        self.module.record_completion(self.report, {**self.original_entry, 'review':'Nine original gaps including monitor.\nPLAN: gaps\nOVERALL: needs-attention'},
++                                      '2026-11-04T01:00:00Z', self.original_sha, 'plan')
++        self.commit()
++        original = self.module.read_findings(self.report.read_text())['plans'][0]
++        self.module.MUSE_PLAN_IDENTITY = {'candidate':self.original_sha, 'pin':self.original_pin,
++                                          'digest':self.module.digest(self.module.raw_lines(original['review']))}
++        (self.root / '.conclave/reviewers.toml').write_text(self.new_pin_text)
++        self.sha = self.commit()
++        self.pin = self.module.pin_blob(self.new_pin_text.encode())
++        self.entry.update(pin=self.pin)
++        self.authorize()
++
++    def authorize(self):
++        d = self.module
++        raw = self.report.read_bytes()
++        contract = d._reconcile_contract(self.todo.read_text(), '3')
++        self.authorization = {'version':1, 'kind':'muse-plan-only-v1', 'report':self.REPORT,
++            'writer':'muse', 'policy':None, 'plan_candidate':self.original_sha, 'plan_pin':self.original_pin,
++            'plan_digest':d.MUSE_PLAN_IDENTITY['digest'], 'prefix_bytes':len(raw),
++            'prefix_sha256':hashlib.sha256(raw).hexdigest(),
++            'original_contract_sha256':hashlib.sha256(contract.encode()).hexdigest(),
++            'accepted_contract_sha256':hashlib.sha256(contract.encode()).hexdigest(),
++            'accepted_base_candidate':self.sha, 'disposition_path':self.disposition.relative_to(self.root).as_posix(),
++            'disposition_commit':self.sha, 'disposition_blob':d.pin_blob(self.disposition.read_bytes())}
++        self.publish_authorization()
++
++    def publish_authorization(self):
++        self.auth_path = self.report.with_name('D08-T02-s3-plan-migration.json')
++        self.auth_path.write_text(json.dumps(self.authorization, sort_keys=True)+'\n')
++        sha = self.commit()
++        self.auth_identity = {'path':self.auth_path.relative_to(self.root).as_posix(), 'commit':sha,
++                              'blob':self.module.pin_blob(self.auth_path.read_bytes())}
++        pin = self.new_pin_text + '\n[plan_migrations.'+json.dumps(self.REPORT)+']\n'
++        pin += ''.join(k+' = '+json.dumps(v)+'\n' for k,v in self.auth_identity.items())
++        (self.root/'.conclave/reviewers.toml').write_text(pin)
++        self.commit(); self.pin=self.module.pin_blob(pin.encode());self.entry['pin']=self.pin
++
++    def test_exact_muse_plan_completion_and_revoked_historical_replay(self):
++        original = self.report.read_bytes()
++        chain = self.complete(transition=True)
++        self.assertEqual(chain['transition']['version'],2)
++        self.assertEqual(chain['transition']['from_writer'],'muse')
++        self.assertIsNone(chain['transition']['from_policy'])
++        self.assertEqual(chain['plan']['writer'],'muse')
++        self.assertTrue(self.report.read_bytes().startswith(original))
++        self.commit()
++        (self.root/'.conclave/reviewers.toml').write_text(self.new_pin_text)
++        self.commit()
++        self.module.validate_codex_chain(self.root,self.report.read_text())
++
++
++    def test_missing_explicit_flag_authorization_and_changed_working_document_refuse(self):
++        with self.assertRaises(self.module.Refused): self.complete()
++        original=self.auth_path.read_bytes();self.auth_path.write_bytes(original+b' ')
++        with self.assertRaises(self.module.Refused): self.complete(transition=True)
++        self.auth_path.write_bytes(original)
++        (self.root/'.conclave/reviewers.toml').write_text(self.new_pin_text);self.commit()
++        with self.assertRaises(self.module.Refused): self.complete(transition=True)
++
++    def test_authorization_identity_and_schema_mutations_refuse(self):
++        saved=dict(self.authorization)
++        for key,value in [('writer','codex'),('policy','codex-self-review'),('plan_digest','0'*16),
++                          ('plan_pin','0'*40),('plan_candidate','0'*40),('prefix_bytes',True),
++                          ('prefix_sha256','0'*64),('accepted_contract_sha256','0'*64),
++                          ('disposition_blob','0'*40),('unknown','ignored')]:
++            with self.subTest(key=key):
++                self.authorization={**saved,key:value};self.publish_authorization()
++                with self.assertRaises(self.module.Refused): self.complete(transition=True)
++        self.authorization=saved
++
++    def test_legacy_route_schedule_and_prefix_tampering_refuse(self):
++        raw=self.report.read_text()
++        for changed in (raw.replace('- Effort: medium','- Effort: low'),
++                        raw.replace('- Lenses: plan','- Lenses: adversarial'), raw+'unbound note\n'):
++            self.report.write_text(changed)
++            with self.assertRaises(self.module.Refused): self.complete(transition=True)
++        self.report.write_text(raw)
++        self.todo.write_text(self.todo.read_text().replace('all nine','only eight'))
++        self.sha=self.commit()
++        with self.assertRaises(self.module.Refused): self.complete(transition=True)
++
++    def test_removed_legacy_attempt_in_reachable_history_refuses_before_invocation(self):
++        original=self.report.read_bytes()
++        self.module.record(self.report,{**self.original_entry,'review':'HIGHEST: none\nOVERALL: approve'},'2026-11-04T01:01:00Z')
++        self.commit();self.report.write_bytes(original);self.commit()
++        args,pin,result=self.runner(transition=True)
++        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
++            with self.assertRaises(self.module.Refused):self.module.run_completion(args,pin,self.pin)
++            reviewer.assert_not_called()
++
++    def test_muse_completion_prompt_same_result_recovery_and_repeat_refusal(self):
++        args,pin,result=self.runner(transition=True)
++        prompts=[]
++        def review(*values):
++            prompts.append(Path(values[2]).read_text());return result
++        with unittest.mock.patch.object(self.module,'review',side_effect=review) as reviewer:
++            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('write failure')):
++                with self.assertRaises(self.module.Refused):self.module.run_completion(args,pin,self.pin)
++            self.assertTrue(self.module.recover_completion(self.root,self.report)['recorded'])
++            with self.assertRaises(self.module.Refused):self.module.run_completion(args,pin,self.pin)
++            self.assertEqual(reviewer.call_count,1)
++        self.assertIn('Nine original gaps including monitor.',prompts[0])
++        self.assertIn('All nine original findings remain mandatory',prompts[0])
++        self.module.validate_codex_chain(self.root,self.report.read_text())
++
++    def test_muse_completion_outage_keeps_binding_and_unresolved_call_refuses(self):
++        args,pin,result=self.runner(transition=True)
++        outage={**result,'reviewer':None,'model':None,'cli':None,'review':None,'failover':[{'reviewer':'astra','reason':'unavailable'}]}
++        with unittest.mock.patch.object(self.module,'review',return_value=outage):
++            self.module.run_completion(args,pin,self.pin)
++        with unittest.mock.patch.object(self.module,'review',return_value=result):
++            self.module.run_completion(args,pin,self.pin)
++        entries=self.module.read_completions(self.report.read_text())
++        self.assertEqual(entries[0]['binding'],entries[1]['binding'])
++        self.module.validate_codex_chain(self.root,self.report.read_text())
++
++    def test_outage_retry_cannot_switch_candidate_before_invocation_or_replay(self):
++        args,pin,result=self.runner(transition=True)
++        outage={**result,'reviewer':None,'model':None,'cli':None,'review':None,'failover':[{'reviewer':'astra','reason':'unavailable'}]}
++        with unittest.mock.patch.object(self.module,'review',return_value=outage):
++            self.module.run_completion(args,pin,self.pin)
++        original_candidate=args.candidate
++        first=self.module.read_completions(self.report.read_text())[0]['binding']
++        (self.root/'ordinary-code.txt').write_text('candidate changed, contract unchanged\n')
++        descendant=self.commit();args.candidate=descendant
++        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
++            with self.assertRaises(self.module.Refused):self.module.run_completion(args,pin,self.pin)
++            reviewer.assert_not_called()
++        original=self.report.read_bytes()
++        changed={**first,'candidate':descendant}
++        self.module.record_completion(self.report,{**result,'binding':changed,'pin':self.pin},
++                                      '2026-11-04T23:59:00Z',descendant,'completion')
++        with self.assertRaises(self.module.Refused):self.module.validate_codex_chain(self.root,self.report.read_text())
++        self.report.write_bytes(original);args.candidate=original_candidate
++        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
++            self.module.run_completion(args,pin,self.pin)
++            self.assertEqual(reviewer.call_count,1)
++        entries=self.module.read_completions(self.report.read_text())
++        self.assertEqual(first,entries[-1]['binding'])
++        self.module.validate_codex_chain(self.root,self.report.read_text())
++
++    def test_muse_gaps_reconciliation_same_result_recovery(self):
++        self.complete(transition=True,verdict='gaps');self.commit()
++        args,pin,result=self.runner()
++        args.disposition=str(self.disposition)
++        result.update(review='RECONCILIATION: complete',lenses=pin['schedule']['reconciliation']['lenses'])
++        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
++            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('write failure')):
++                with self.assertRaises(self.module.Refused):self.module.run_reconciliation(args,pin,self.pin)
++            self.assertTrue(self.module.recover_reconciliation(self.root,self.report)['recorded'])
++            self.assertEqual(reviewer.call_count,1)
++        self.commit()
++        self.module.validate_reconciliation_series(self.root,self.report.read_text())
++
++
++    def test_prior_and_removed_completion_final_and_reconciliation_attempts_refuse(self):
++        for kind in ('completion','final','reconciliation'):
++            with self.subTest(kind=kind):
++                # Each case has a distinct original plan identity, so history cannot contaminate the next fixture.
++                f=MusePlanTransition('test_exact_muse_plan_completion_and_revoked_historical_replay')
++                f.setUp();self.addCleanup(f.doCleanups)
++                original=f.report.read_bytes()
++                if kind=='reconciliation':
++                    text=original.decode()+'\n## Reconciliation review: malformed\n'
++                    f.report.write_text(text)
++                else:
++                    f.module.record_completion(f.report,{**f.original_entry,'reviewer':None,'model':None,'cli':None,'review':None},
++                                               '2026-11-04T01:01:00Z',f.sha,kind)
++                f.commit();f.report.write_bytes(original);f.commit()
++                with self.assertRaises(f.module.Refused):f.complete(transition=True)
++
++    def test_unrelated_candidate_and_malformed_transition_refuse(self):
++        current=self.git('rev-parse','HEAD')
++        self.git('checkout','--orphan','unrelated')
++        (self.root/'unrelated.txt').write_text('not descended from plan\n')
++        orphan=self.commit();self.git('checkout',current)
++        with self.assertRaises(self.module.Refused):
++            self.module.make_completion_binding(self.root,self.report,orphan,transition_plan=True)
++        self.complete(transition=True)
++        original=self.report.read_text()
++        entry=self.module.read_completions(original)[0]
++        for key,value in [('from_writer','codex'),('from_policy','codex-self-review'),('authorization_blob','0'*40),('version',True)]:
++            changed={**entry,'binding':{**entry['binding'],'transition':{**entry['binding']['transition'],key:value}}}
++            with self.subTest(key=key),self.assertRaises(self.module.Refused):
++                self.module.validate_completion_binding(self.root,original,changed)
++
++    def test_uncertain_muse_call_preserves_marker_and_does_not_repeat(self):
++        args,pin,result=self.runner(transition=True)
++        with unittest.mock.patch.object(self.module,'review',side_effect=OSError('uncertain call')) as reviewer:
++            with self.assertRaises(OSError):self.module.run_completion(args,pin,self.pin)
++            with self.assertRaises(self.module.Refused):self.module.run_completion(args,pin,self.pin)
++            self.assertEqual(reviewer.call_count,1)
++        with self.assertRaises(self.module.Refused):self.module.recover_completion(self.root,self.report)
++
++
++    def test_revoked_authorization_cannot_be_reintroduced_by_uncommitted_pin(self):
++        path=self.root/'.conclave/reviewers.toml';authorized=path.read_bytes()
++        path.write_text(self.new_pin_text);self.commit();path.write_bytes(authorized)
++        with self.assertRaises(self.module.Refused):self.complete(transition=True)
++
++for _name in [n for n in vars(TwoPass) if n.startswith('test_') and n not in vars(MusePlanTransition)]:
++    setattr(MusePlanTransition, _name, None)
+diff --git a/tests/scripts/test_todo_graph.py b/tests/scripts/test_todo_graph.py
+index 2aff513a0..7b25a45c1 100644
+--- a/tests/scripts/test_todo_graph.py
++++ b/tests/scripts/test_todo_graph.py
+@@ -3600,3 +3600,62 @@ class ExactExceptionStamp(unittest.TestCase):
+ 
+ if __name__ == "__main__":
+     unittest.main()
++
++
++class MusePlanTransitionStamp(unittest.TestCase):
++    def fixture(self):
++        from scripts.tests.test_review_dispatch import MusePlanTransition
++        class Fixture(MusePlanTransition):
++            def contract_template(self):
++                return todo_file([(3,'Historical plan migration',0,'none','--')],domain='08-eval',ident='muse-transition').replace(
++                    '**Test checkpoint:**', STARTED+'**Test checkpoint:**',1).replace('- [ ] Work.','- [x] Work.')
++        f=Fixture();f.setUp();self.addCleanup(f.doCleanups)
++        (f.root/'todo/00-workspace/TODO-01-test.md').write_text(todo_file([(1,'Unrelated',0,'none','--')]))
++        paths=list((f.root/'todo').glob('*/*.md'))
++        (f.root/'todo/TODO-00-INDEX.md').write_text('# Index\n'+''.join('- '+p.relative_to(f.root/'todo').as_posix()+'\n' for p in paths))
++        for domain in {p.parent for p in paths}:
++            (domain/'INDEX.md').write_text('# Index\n'+''.join('- '+p.name+'\n' for p in paths if p.parent==domain))
++        f.commit()
++        return f
++
++    def stamp(self,f,completion='complete',reconciliation=None):
++        return tg.stamp(f.root,'D08 T02 §3',f.sha,[],['gates -> pass'],'2026-11-04',
++                        plan=f.REPORT,completion={'report':f.REPORT,'verdict':completion},
++                        reconciliation={'report':f.REPORT,'verdict':'complete'} if reconciliation else None)
++
++    def test_exact_muse_completion_dispatch_stamp_and_historical_replay(self):
++        f=self.fixture();args,pin,result=f.runner(transition=True)
++        with mock.patch.object(f.module,'review',return_value=result), mock.patch.object(tg,'review_dispatch',return_value=f.module):
++            f.module.run_completion(args,pin,f.pin)
++            receipt=self.stamp(f)
++            f.commit()
++            (f.root/'.conclave/reviewers.toml').write_text(f.new_pin_text);f.auth_path.unlink();f.commit()
++            self.assertTrue(tg.graph(f.root)['D08 T02 §3'].done)
++            data=json.loads((f.root/receipt).read_text())
++            self.assertEqual(data['policy_transition']['from_writer'],'muse')
++            self.assertIsNone(data['policy_transition']['from_policy'])
++            data['policy_transition']['authorization_blob']='0'*40
++            (f.root/receipt).write_text(json.dumps(data))
++            with self.assertRaises(tg.Refused):tg.graph(f.root)
++
++    def test_muse_gaps_reconciliation_recovery_stamp_and_replay_after_revocation(self):
++        for verdict in ('gaps','complete'):
++            with self.subTest(verdict=verdict):
++                f=self.fixture();args,pin,result=f.runner(reply='COMPLETION: gaps',transition=True)
++                with mock.patch.object(tg,'review_dispatch',return_value=f.module):
++                    with mock.patch.object(f.module,'review',return_value=result):f.module.run_completion(args,pin,f.pin)
++                    f.commit()
++                    with self.assertRaises(tg.Refused):self.stamp(f,completion='gaps')
++                    args.disposition=str(f.disposition)
++                    result.update(review='RECONCILIATION: '+verdict,lenses=pin['schedule']['reconciliation']['lenses'])
++                    with mock.patch.object(f.module,'review',return_value=result) as reviewer:
++                        with mock.patch.object(f.module,'record_completion',side_effect=f.module.Unrecorded('write failure')):
++                            with self.assertRaises(f.module.Refused):f.module.run_reconciliation(args,pin,f.pin)
++                        f.module.recover_reconciliation(f.root,f.report)
++                        self.assertEqual(reviewer.call_count,1)
++                    if verdict=='gaps':
++                        with self.assertRaises(tg.Refused):self.stamp(f,completion='gaps',reconciliation=True)
++                    else:
++                        self.stamp(f,completion='gaps',reconciliation=True);f.commit()
++                        (f.root/'.conclave/reviewers.toml').write_text(f.new_pin_text);f.auth_path.unlink();f.commit()
++                        self.assertTrue(tg.graph(f.root)['D08 T02 §3'].done)
+diff --git a/todo/README.md b/todo/README.md
+index 0ccf0e241..4edcfedf3 100644
+--- a/todo/README.md
++++ b/todo/README.md
+@@ -175,3 +175,13 @@ python -m unittest tests.scripts.test_todo_graph   # the tooling's own tests
+ Version 3 is an explicit exception binding inside the separate `reconciliation` receipt record, beside the unchanged original completion gaps. It adds the authorization document path, commit and Git blob, exact exception kind and accepted contract hash while retaining all original candidate, contract, prefix and disposition fields. It is permitted only for the two report/kind pairs documented in `docs/todo-workflow.md`, following a separate coordinator decision and committed pin entry. No live authorization is installed by the capability itself.
+ 
+ Receipt replay verifies the original chain, every preceding failed reconciliation, exact full prefix, committed authorization and disposition, candidate ancestry, contract hashes, recorded reviewer pin, schedule and chronology. A successful predecessor, missing/reordered/extra evidence, changed obligation, returned exception gaps or repeated exception cannot stamp. Historical versions 1 and 2 retain their existing rules and receipts. Revocation removes new-call authorization only and preserves all historical documents and pins.
++
++## Exact historical Muse plan migration (D00 T01 §44)
++
++The dormant `muse-plan-only-v1` capability applies only to `docs/reviews/08-eval/D08-T02-s3.md`, preserving its original Muse writer, null historical policy, candidate `46f30018c9b502c91f9793448d0b83912655d23d`, pin `ce29c18a398871b473c634630dbf588c04ec5ef2` and digest `eacaec74ce2afc03`. It grants no product acceptance or live authorization. Only the coordinator may separately activate a committed `plan_migrations` entry after auditing a committed disposition of every original finding and obligation, including the monitor experiment. A disposition cannot waive a real gap.
++
++The entry maps that exact report to a canonical `-plan-migration.json` document by `path`, full `commit` and Git `blob`. The strict document binds the original plan/prefix/contracts, accepted-contract base candidate and committed `-plan-migration-disposition.md` identity. The dispatcher verifies the original Muse route, cross-family reviewer and original schedule, rather than applying the current Codex route to historical evidence. New dispatch requires the pin committed at HEAD, unchanged working authorization/disposition bytes and a reachable descendant candidate with the exact authorized accepted contract.
++
++After separate authorization, use the existing completion command with `--writer codex --kind completion --transition-plan --candidate <exact-candidate> --record docs/reviews/08-eval/D08-T02-s3.md --prompt <prompt>`. Its version 2 policy transition retains all original plan bytes and authorization provenance; existing version 1 Codex transitions remain unchanged. Any prior or removed implementation-review attempt, malformed history, changed identity or unresolved call refuses. The single combined review must verify all original findings and obligations; only genuine complete can stamp. Gaps require the existing bounded reconciliation path and remain unstamped until genuine complete. Existing durable recovery commands recover the same persisted result without another reviewer call.
++
++Revocation removes only the entry from a newly committed pin and prevents new migration calls. Preserve original pins, authorization/disposition blobs, findings and receipts: historical completion and reconciliation receipts remain verifiable under their recorded authorization. No generic writer migration, new normal review, altered product safety rule or approval of D08 T02 §3 follows from this tooling.
