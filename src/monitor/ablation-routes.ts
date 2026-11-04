@@ -164,6 +164,33 @@ export function monitorAblationRoutes(workflow: (env: Env) => ExperimentWorkflow
     const request = await parsedBody(c.req.raw, Trigger);
     if (request.deployment !== c.env.COMMIT_SHA) throw new Refused(409);
     await schemaReady(c.env.DB);
+    const existing = await c.env.DB.prepare(
+      "SELECT monitor_run_id FROM monitor_experiment_arms WHERE org_id=? AND experiment_id=? AND arm=?",
+    )
+      .bind(org, request.experimentId, request.arm)
+      .first<{ monitor_run_id: string }>();
+    if (existing) {
+      const prior = await readExperiment(c.env.DB, org, existing.monitor_run_id);
+      if (
+        !prior ||
+        prior.manifestDigest !== request.manifestDigest ||
+        prior.deployment !== request.deployment ||
+        prior.replayRunId !== request.replayRunId
+      )
+        throw new MonitorIdentityConflict();
+      // Returning an existing non-pending identity neither admits nor resumes work. It needs no new spending headroom.
+      if (prior.status !== "pending") return c.json(identity(prior), 202);
+      let instanceStatus: string | null = null;
+      try {
+        instanceStatus = (await (await workflow(c.env).get(prior.monitorRunId)).status()).status;
+      } catch {
+        // A pending admission without a readable instance still needs all gates before idempotent creation below.
+      }
+      if (instanceStatus !== null) {
+        if (instanceStatus === "unknown") throw new Refused(503);
+        return c.json(identity(prior), 202);
+      }
+    }
     const manifest = await loadManifest(c.env.ARTEFACTS, request.manifestDigest, request.deployment);
     await preflightCaptures(c.env.ARTEFACTS, manifest);
     await headroom(c.env.DB);

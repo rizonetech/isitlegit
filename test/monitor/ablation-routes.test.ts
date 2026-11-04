@@ -1,9 +1,13 @@
 import { env } from "cloudflare:test";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { monitorAblationRoutes } from "../../src/monitor/ablation-routes";
 import { call, signIn, stubSmtp2go } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
 import { monitorFixture } from "./ablation-fixture";
+
+afterEach(async () => {
+  await env.DB.prepare("DELETE FROM model_spend WHERE id IN ('headroom-route','repeat-headroom')").run();
+});
 
 async function world() {
   const email = `monitor-${crypto.randomUUID()}@demo.isitlegit.co.za`,
@@ -176,4 +180,29 @@ it("refuses zero shared headroom before starting a Workflow", async () => {
     .run();
   expect((await w.fetch("/ablation-runs", w.request)).status).toBe(503);
   expect(w.starts).toHaveLength(0);
+});
+it("returns an already completed immutable arm at zero remaining headroom without starting work", async () => {
+  const w = await world();
+  const first = await w.fetch("/ablation-runs", w.request);
+  expect(first.status).toBe(202);
+  const run = (await first.json()) as { monitorRunId: string };
+  await env.DB.prepare("UPDATE monitor_experiment_arms SET status='complete' WHERE monitor_run_id=?")
+    .bind(run.monitorRunId)
+    .run();
+  const day = new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 10);
+  await env.DB.prepare(
+    "INSERT INTO model_spend(id,at,day,source,caller,model,estimate_usd,state) VALUES('repeat-headroom',?,?,'worker','test','model',15,'uncertain')",
+  )
+    .bind(new Date().toISOString(), day)
+    .run();
+  const repeated = await w.fetch("/ablation-runs", w.request);
+  expect(repeated.status).toBe(202);
+  expect(await repeated.json()).toMatchObject({ monitorRunId: run.monitorRunId, status: "complete" });
+  expect(w.starts).toEqual([run.monitorRunId]);
+  await env.DB.prepare("UPDATE monitor_experiment_arms SET status='pending' WHERE monitor_run_id=?")
+    .bind(run.monitorRunId)
+    .run();
+  expect((await w.fetch("/ablation-runs", w.request)).status).toBe(202);
+  expect(w.starts).toEqual([run.monitorRunId]);
+  expect((await w.fetch("/ablation-runs", { ...w.request, replayRunId: "replacement" })).status).toBe(409);
 });
