@@ -22,6 +22,7 @@ export const DriverDiagnostic = z.strictObject({
     "interception.body",
     "interception.fulfill",
     "containment.target",
+    "containment.popup-close",
     "containment.session",
     "containment.terminate",
     "containment.detach",
@@ -50,6 +51,7 @@ export const DriverDiagnostic = z.strictObject({
 });
 export type DriverDiagnostic = z.infer<typeof DriverDiagnostic>;
 export type DriverOperation = DriverDiagnostic["operation"];
+export const HandledDriverDiagnostics = z.array(DriverDiagnostic).max(2);
 
 const categories = new Map<string, DriverDiagnostic["category"]>([
   ["Error", "error"],

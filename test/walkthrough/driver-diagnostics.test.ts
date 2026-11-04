@@ -15,6 +15,7 @@ const failure = () =>
     arbitrary: secret,
   });
 function rig(fault?: string, thrown: unknown = failure(), navigate?: () => Promise<void>) {
+  const commands: string[] = [];
   const listeners = new Map<string, (event: never) => void>();
   const hit = async (name: string) => {
     if (name === fault) throw thrown;
@@ -22,6 +23,7 @@ function rig(fault?: string, thrown: unknown = failure(), navigate?: () => Promi
   const cdp = {
     on: (name: string, callback: (event: never) => void) => listeners.set(name, callback),
     send: async (name: string) => {
+      commands.push(name);
       await hit(name);
       if (name === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
       if (name === "Page.createIsolatedWorld") return { executionContextId: 1 };
@@ -55,6 +57,10 @@ function rig(fault?: string, thrown: unknown = failure(), navigate?: () => Promi
     close: vi.fn(async () => {}),
   };
   return {
+    commands,
+    setFault: (name: string) => {
+      fault = name;
+    },
     browser: browser as unknown as Browser,
     emit: (name: string, event: unknown) => listeners.get(name)?.(event as never),
   };
@@ -356,6 +362,57 @@ describe("bounded driver failure diagnostics", () => {
       category: "protocol",
       networkCode: "ECONNRESET",
     });
+  });
+  it("keeps a handled interception frame refresh failure in the existing refusal row", async () => {
+    const o = await options();
+    const r = rig();
+    const driver = await Driver.open(r.browser, o);
+    r.setFault("Page.getFrameTree");
+    r.emit("Fetch.requestPaused", {
+      requestId: "r",
+      frameId: "unknown",
+      resourceType: "Image",
+      request: { url: o.startUrl, method: "GET", headers: {} },
+    });
+    try {
+      await vi.waitFor(async () => {
+        const row = await env.DB.prepare(
+          "SELECT action_json FROM walkthrough_actions WHERE case_id = ? AND kind = 'request'",
+        )
+          .bind(o.caseId)
+          .first<{ action_json: string }>();
+        expect(JSON.parse(row?.action_json ?? "null")?.handledDiagnostics).toEqual([
+          { operation: "frames.read", category: "protocol", networkCode: "ECONNRESET" },
+        ]);
+      });
+      expect(driver.ended).toBeUndefined();
+      expect(o.fetch).not.toHaveBeenCalled();
+    } finally {
+      await driver.end("done", "finished");
+    }
+  });
+  it("keeps handled popup close failure in the existing end record without changing terminal outcome", async () => {
+    const o = await options();
+    const r = rig("Target.closeTarget");
+    const driver = await Driver.open(r.browser, o);
+    r.emit("Target.targetCreated", { targetInfo: { targetId: "popup", type: "page", openerId: "main" } });
+    r.emit("Fetch.requestPaused", {
+      requestId: "r",
+      frameId: "popup",
+      resourceType: "Document",
+      request: { url: o.startUrl, method: "GET", headers: {} },
+    });
+    await vi.waitFor(() => expect(r.commands).toContain("Target.closeTarget"));
+    // Flush the rejected command's callback before ending; no network or elapsed-time assumption.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(driver.ended).toBeUndefined();
+    await driver.end("done", "finished");
+    const row = await persisted(o);
+    expect(JSON.parse(row?.action_json ?? "null").handledDiagnostics).toEqual([
+      { operation: "containment.popup-close", category: "protocol", networkCode: "ECONNRESET" },
+    ]);
+    expect(driver.ended).toEqual({ outcome: "done", reason: "finished" });
+    expect(JSON.stringify(row)).not.toContain(secret);
   });
   it("preserves refusal and timer outcomes against late callback failures", async () => {
     for (const timed of [false, true]) {

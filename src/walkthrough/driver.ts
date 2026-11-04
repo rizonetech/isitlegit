@@ -21,7 +21,14 @@ import { z } from "zod";
 import { registrable } from "../checks/brand-schema";
 import { hasInstruction } from "../checks/instruction-words";
 import { putArtefact, type Store } from "../intake/store";
-import { atOperation, DriverDiagnostic, DriverFailure, type DriverOperation, driverDiagnostic } from "./diagnostics";
+import {
+  atOperation,
+  DriverDiagnostic,
+  DriverFailure,
+  type DriverOperation,
+  driverDiagnostic,
+  HandledDriverDiagnostics,
+} from "./diagnostics";
 import { MAX_VIEW_TEXT } from "./limits";
 import { allowedUrl, type Resolve } from "./url-policy";
 
@@ -282,7 +289,11 @@ type Paused = {
   request: { url: string; method: string; headers: Record<string, string>; postData?: string };
 };
 
+type HandledOperation = "frames.read" | "containment.popup-close";
+
 export class Driver {
+  // First failure of each handled operation, at most two; carried by existing later rows, never a new write.
+  private readonly handled = new Map<HandledOperation, DriverDiagnostic>();
   private attempts = 0;
   private seq = 0;
   private views = 0;
@@ -428,7 +439,7 @@ export class Driver {
     // A request with no frame is a worker's: refused, so a worker can reach nothing.
     if (!event.frameId) return fail("a worker's request");
     if (!this.walkFrames.has(event.frameId)) {
-      await this.refreshFrames().catch(() => undefined);
+      await this.refreshFrames().catch((error) => this.rememberHandled("frames.read", error));
       if (!this.walkFrames.has(event.frameId)) {
         // A popup's or new tab's first navigation: the popup never loads and is closed; its address is followed in the
         // walk's own page when the policy allows it.
@@ -509,7 +520,9 @@ export class Driver {
 
   private async closePopup(targetId: string) {
     if (!this.popups.delete(targetId)) return;
-    await this.browserCdp?.send("Target.closeTarget", { targetId }).catch(() => undefined);
+    await this.browserCdp
+      ?.send("Target.closeTarget", { targetId })
+      .catch((error) => this.rememberHandled("containment.popup-close", error));
   }
 
   // A popup that never navigated (an `about:blank` one a page writes into) is closed before the next action runs; one
@@ -1036,15 +1049,25 @@ export class Driver {
     return structuredClone(this.walkRecord);
   }
 
+  private rememberHandled(operation: HandledOperation, error: unknown) {
+    if (this.ended || this.handled.has(operation)) return;
+    const diagnostic = error instanceof DriverFailure ? error.diagnostic : driverDiagnostic(operation, error);
+    this.handled.set(operation, DriverDiagnostic.parse({ ...diagnostic, operation }));
+  }
+
   private async record(
     kind: "action" | "request" | "popup" | "end",
-    action: unknown,
+    action: Record<string, unknown>,
     outcome: Outcome,
     reason?: string,
     screenshotKey?: string,
     ms = 0,
   ) {
     this.seq++;
+    // Cumulative handled failures occurred before this row. Each keeps its lexical operation, not this row's kind.
+    const kept = this.handled.size
+      ? { ...action, handledDiagnostics: HandledDriverDiagnostics.parse([...this.handled.values()]) }
+      : action;
     await this.o.store.db
       .prepare(
         `INSERT INTO walkthrough_actions (case_id, walk_id, seq, kind, action_json, outcome, reason, screenshot_key, ms, at)
@@ -1055,7 +1078,7 @@ export class Driver {
         this.o.walkId,
         this.seq,
         kind,
-        this.redact(JSON.stringify(action)).slice(0, 2000),
+        this.redact(JSON.stringify(kept)).slice(0, 2000),
         outcome,
         reason === undefined ? null : this.redact(reason).slice(0, 500),
         screenshotKey ?? null,
@@ -1291,7 +1314,7 @@ export class Driver {
 }
 
 // What the audit row keeps of an action: never typed text. A canary is named by its field; anything else by length.
-function summary(input: unknown, canary: Canary): unknown {
+function summary(input: unknown, canary: Canary): Record<string, unknown> {
   if (typeof input !== "object" || input === null) return { invalid: typeof input };
   const record = input as Record<string, unknown>;
   if (record.tool === "type") {
