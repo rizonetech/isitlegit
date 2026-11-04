@@ -55,7 +55,7 @@ track: day-2
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
 | 18 | §18 | Playback failure, retry and follow-along | §6 | [ ] |
-| 19 | §19 | Diagnostic detail on the early card | §1 | [ ] |
+| 19 | §19 | Diagnostic detail on the early card | §1 | [x] |
 | 20 | §20 | Masked bank-block preview on invoice cards | D07 T03 §15 | [ ] |
 | 21 | §21 | Baseline provenance on bank comparisons | D07 T03 §15 | [ ] |
 
@@ -563,6 +563,8 @@ Filed 2026-11-02 from D07 T09 §6's completion review: the shipped player delega
 
 ## 19. Diagnostic detail on the early authentication card
 
+> **Started:** 2026-11-04T00:26:00Z
+
 Filed 2026-11-03 from D07 T09 §1's completion review: Microsoft Defender's authentication view shows the supporting detail beside each result (the SPF addresses, the DKIM failure reason, the composite authentication), where the early card shows a status and a summary only, so a member checking why a result happened must leave the compact view.
 
 **Phase:** 7
@@ -577,10 +579,15 @@ Filed 2026-11-03 from D07 T09 §1's completion review: Microsoft Defender's auth
 
 1. Show the stored detail. Done when: each method's result carries its recorded reason on the card.
 
-- [ ] Draw the stored supporting detail in `src/web/pages/report-live.tsx` (the addresses and identifiers the auth items already store, and the composite result when one is stored), each as text. Done when: `test/web/report-status.test.ts` draws a failed result with its recorded reason and a passed one without inventing one. Cheaper substitute: the summary alone, which is what ships today.
-- [ ] Commit: `web: diagnostic detail on the early card`
+- [x] Draw the stored supporting detail in `src/web/pages/report-live.tsx` (for `auth.spf`: each result's `identifier`, `result`, `comment`, `detail.helo`, and `auth.results` `smtp.mailfrom`/`smtp.helo`/`client-ip`; for `auth.dkim`: each signature's `identifier`, `result`, `comment`, and `auth.results` `header.d`/`header.i`/`header.s`/`reason`; for `auth.dmarc`: `detail.from`, `detail.policy`, each result's `result` and `comment`, and `auth.results` `header.from`/`action`; and for `auth.results` `compauth`: `Composite authentication (compauth): <result>` with `reason` when stored and omitted when absent; with each result's identifier, outcome and reason kept associated on its own line and explicit `"reason not recorded"` / `"Policy: not recorded"` when a failed or inconclusive result stores none, and no invented reason on a passed result), each as text (`wrap-anywhere`). Done when: `test/web/report-status.test.ts` proves storage-to-report rendering for SPF, DKIM (including mixed passing and failing signatures and hostile text), DMARC, missing reasons, and `compauth` present/absent, and `test/node/report-status-browser.test.tsx` proves full diagnostic visibility, wrapping, zero horizontal overflow and axe accessibility at 360 px and 1280 px in light and dark themes. Cheaper substitute: the summary alone, which is what ships today.
+- [x] Commit: `web: diagnostic detail on the early card`
 
-**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the recorded detail drawn.
+**Corrected 2026-11-04 (plan review):** specifies the exact fields read from `auth.spf`, `auth.dkim`, `auth.dmarc` and `auth.results` (`compauth` and per-method props), keeps each result's identifier, outcome and reason paired on its own line for multi-result items, names `"reason not recorded"` / `"Policy: not recorded"` when a failed or inconclusive result stores none, and adds browser layout/overflow/accessibility verification in `test/node/report-status-browser.test.tsx`.
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with the recorded detail drawn.
+
+> **Verified:** 2026-11-04 | §19 | e9bd6e4142585cab5844b3b2c955de28e1bcc8fa
+> **Review:** `docs/reviews/d07-t09-s19.json`
 
 ## 20. Masked bank-block preview on invoice cards
 

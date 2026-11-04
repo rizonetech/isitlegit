@@ -45,7 +45,7 @@ track: day-2
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [x] |
 | 11 | §11 | Demo domains kept apart in the checks | §2 | [x] |
-| 12 | §12 | Lookalike clean summary names the domains compared | §7, D02 T01 §7 | [ ] |
+| 12 | §12 | Lookalike clean summary names the domains compared | §7, D02 T01 §7 | [x] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -338,6 +338,10 @@ It builds on D07 T02 §20's `registrable()` and `claimable()`, which reach `main
 
 ## 12. Lookalike clean summary names the domains compared
 
+> **Started:** 2026-11-04T00:40Z
+
+**Corrected 2026-11-04 (plan review):** (1) `lookalikeSummary` takes the registrable domains actually compared inside the candidate loop (`comparedDomains`, after exempt domains, unsupported labels, and the `MAX_COMPARED` cap), never `examined`'s full candidate list, and reports `"trusted or reserved domains only, none compared"` when all candidate domains were exempt (`exemptSkipped > 0` and none compared); tests cover an exempt domain before a compared domain, candidates beyond `MAX_COMPARED`, and an all-exempt run; (2) truncation reserves space for `, some not compared` before clipping the first domain so both ordinary and partial summaries stay within the 120-character outcome bound, proven with a valid multi-label registrable domain exceeding the available room and read back from stored `case_check_outcomes` rows.
+
 Filed 2026-11-03 from D07 T03 §44's completion review (`docs/reviews/07-app/D07-T03-s44.md`, gaps 1 and 4, and round 1's P3 on `design/SPEC.md` M3): when `domain.lookalike` runs clean, `lookalikeSummary` in `src/checks/domain-lookalike.ts` stores "no lookalike of a known name", so the report's Checks that found nothing cannot say what the check looked at, where the board (`Report-Safe`) shows the domains seen. This section makes the clean summary name how many domains were compared and the first of them, inside D02 T01 §7's 120-character bound; the report already draws the stored summary (D07 T03 §44).
 
 **Phase:** 7
@@ -348,12 +352,15 @@ Filed 2026-11-03 from D07 T03 §44's completion review (`docs/reviews/07-app/D07
 
 1. Say what a clean lookalike check compared. Done when: a clean lookalike outcome's stored summary names the count of domains compared and the first registrable domain, and a check that compared none says so.
 
-- [ ] Give `lookalikeSummary` in `src/checks/domain-lookalike.ts` the domains the check compared (the header and link registrable domains its `examined` hook already lists, D02 T01 §8), and write a clean summary of the form "no lookalike among 3 domains, from fynbosfreight.example", the first domain cut so the whole stays inside D02 T01 §7's 120-character bound. Done when: `test/checks/domain-lookalike.test.ts` reads back that summary for a clean three-domain case, a one-domain case in the singular, and a 63-character hostname cut inside the bound.
-- [ ] Keep the uncompared wording: a clean run with some domains not compared still says so, after the count. Done when: a test with one compared and one uncompared domain reads "no lookalike among 1 domain compared, from <domain>, some not compared".
-- [ ] Record the board's lookalike words as met in `design/SPEC.md` M3 (round 1's P3 at `design/SPEC.md:740`). Done when: M3 names the lookalike summary's form and `python3 design/tools/check-design.py` passes.
-- [ ] Commit: `checks: lookalike clean summary names the domains compared`
+- [x] Give `lookalikeSummary` in `src/checks/domain-lookalike.ts` the domains the check compared (the header and link registrable domains its `examined` hook already lists, D02 T01 §8), and write a clean summary of the form "no lookalike among 3 domains, from fynbosfreight.example", the first domain cut so the whole stays inside D02 T01 §7's 120-character bound. Done when: `test/checks/domain-lookalike.test.ts` reads back that summary for a clean three-domain case, a one-domain case in the singular, and a 63-character hostname cut inside the bound.
+- [x] Keep the uncompared wording: a clean run with some domains not compared still says so, after the count. Done when: a test with one compared and one uncompared domain reads "no lookalike among 1 domain compared, from <domain>, some not compared".
+- [x] Record the board's lookalike words as met in `design/SPEC.md` M3 (round 1's P3 at `design/SPEC.md:740`). Done when: M3 names the lookalike summary's form and `python3 design/tools/check-design.py` passes.
+- [x] Commit: `checks: lookalike clean summary names the domains compared`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes, and fails if a clean summary names no domain when one was compared.
+
+> **Verified:** 2026-11-04 | §12 | 55ae27be71fd4a021f0f32d9c29391c3465ffc27
+> **Review:** `docs/reviews/d02-t03-s12.json`
 
 ## Verification
 

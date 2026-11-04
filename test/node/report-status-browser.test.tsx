@@ -121,31 +121,86 @@ const NO_AUTH: Live = {
     },
   ],
 };
-// The early authentication card's stored facts (D07 T03 §37): the outcomes have run and each method's item is stored.
+// The early authentication card's stored facts (D07 T03 §37, D07 T09 §19): the outcomes have run and each method's
+// item is stored with supporting diagnostic detail (including long addresses/identifiers, mixed DKIM signatures, DMARC
+// policy and compauth).
+const LONG_HOST = `mail-${"x".repeat(48)}.sender-verification.example`;
 const EARLY: Live = {
   status: "running",
   verdict: null,
   progress: RUNNING_3,
   coverage: [
+    { check: "auth.results", outcome: "ran", reason: null, findings: 1 },
     { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
     { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
     { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
   ],
   evidence: [
     {
+      id: "E1",
+      check: "auth.results",
+      severity: "info",
+      summary: "Microsoft 365, your receiving system, recorded spf fail, dkim pass, dkim fail, dmarc pass.",
+      detail: {
+        trusted: true,
+        receiver: "microsoft",
+        authservId: "mx.outlook.com",
+        results: [
+          {
+            method: "spf",
+            result: "fail",
+            props: { "smtp.mailfrom": `bounce@${LONG_HOST}`, "client-ip": "198.51.100.42" },
+          },
+          {
+            method: "dkim",
+            result: "pass",
+            props: { "header.d": LONG_HOST, "header.i": `@${LONG_HOST}`, "header.s": "sel1" },
+          },
+          {
+            method: "dkim",
+            result: "fail",
+            props: {
+              "header.d": `bad.${LONG_HOST}`,
+              "header.i": `billing@bad.${LONG_HOST}`,
+              "header.s": "sel2",
+              reason: "bad signature",
+            },
+          },
+          { method: "dmarc", result: "pass", props: { "header.from": "sender.example", action: "none" } },
+          { method: "compauth", result: "fail", props: { reason: "000" } },
+        ],
+      },
+      artefacts: [],
+    },
+    {
       id: "E2",
       check: "auth.spf",
       severity: "medium",
       summary: "SPF failed for sender.example, as your receiving system recorded.",
-      detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+      detail: {
+        state: "failed",
+        results: [
+          {
+            result: "fail",
+            identifier: "sender.example",
+            comment: `domain of ${LONG_HOST} does not designate 198.51.100.42 as permitted sender`,
+          },
+        ],
+      },
       artefacts: [],
     },
     {
       id: "E3",
       check: "auth.dkim",
       severity: "info",
-      summary: "DKIM was not available, as your receiving system recorded.",
-      detail: { state: "unavailable", results: [{ result: "none", identifier: null }] },
+      summary: `DKIM passed for ${LONG_HOST} and failed for bad.${LONG_HOST}, as your receiving system recorded.`,
+      detail: {
+        state: "passed",
+        results: [
+          { result: "pass", identifier: LONG_HOST, comment: null },
+          { result: "fail", identifier: `bad.${LONG_HOST}`, comment: "body hash did not verify" },
+        ],
+      },
       artefacts: [],
     },
     {
@@ -153,10 +208,30 @@ const EARLY: Live = {
       check: "auth.dmarc",
       severity: "info",
       summary: "DMARC passed for sender.example, as your receiving system recorded.",
-      detail: { state: "passed", results: [{ result: "pass", identifier: null }] },
+      detail: {
+        state: "passed",
+        from: "sender.example",
+        policy: { certain: "reject" },
+        results: [{ result: "pass", identifier: null, comment: "p=REJECT" }],
+      },
       artefacts: [],
     },
   ],
+};
+const EARLY_UNSIGNED: Live = {
+  ...EARLY,
+  evidence: EARLY.evidence.map((e) =>
+    e.check === "auth.dkim"
+      ? {
+          id: "E3",
+          check: "auth.dkim",
+          severity: "info",
+          summary: "DKIM was not available, as your receiving system recorded.",
+          detail: { state: "unavailable", results: [{ result: "none", identifier: null }] },
+          artefacts: [],
+        }
+      : e,
+  ),
 };
 const DONE: Live = {
   status: "done",
@@ -399,7 +474,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
       await expect
         .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
         .toBe(1);
-      expect(await p.getByText("Not signed").isVisible()).toBe(true);
+      expect(await p.getByText(`smtp.mailfrom=bounce@${LONG_HOST}`, { exact: false }).isVisible()).toBe(true);
+      expect(await p.getByText(`${LONG_HOST}, header.i=@${LONG_HOST}, selector sel1: pass`).isVisible()).toBe(true);
+      expect(
+        await p
+          .getByText(
+            `bad.${LONG_HOST}, header.i=billing@bad.${LONG_HOST}, selector sel2: fail · reason bad signature · body hash did not verify`,
+          )
+          .isVisible(),
+      ).toBe(true);
+      expect(await p.getByText("From domain: sender.example").isVisible()).toBe(true);
+      expect(await p.getByText("Policy: reject").isVisible()).toBe(true);
+      expect(
+        await p
+          .getByText("Composite authentication (compauth): fail · reason 000 (explicit authentication failed)")
+          .isVisible(),
+      ).toBe(true);
+      const cardOverflow = await p.evaluate(() => {
+        const sec = document.querySelector("section[aria-labelledby='early-auth-title']");
+        if (!sec) return true;
+        return [...sec.querySelectorAll("li, p, span, strong")].some(
+          (el) => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth + 1,
+        );
+      });
+      expect(cardOverflow, `${width} ${theme}`).toBe(false);
       expect(await announced(p)).toContain("Early authentication results are in.");
       // The next step is announced too, without the early words a second time.
       await expect.poll(() => announced(p), { timeout: 10_000 }).toContain("Step 4 of 7");
@@ -422,11 +520,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
 
   // D07 T09 §1: the card lands on the first poll after the auth outcomes are stored, not a poll later.
   it("shows the early card on the first poll after the auth outcomes land", async () => {
-    const { p, context } = await open(running(RUNNING_3), [EARLY], 360, "light");
+    const { p, context } = await open(running(RUNNING_3), [EARLY_UNSIGNED], 360, "light");
     expect(await p.getByText("What the receiving mail system recorded").count()).toBe(0);
     await expect
       .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
       .toBe(1);
+    expect(await p.getByText("Not signed").isVisible()).toBe(true);
     expect(state.polls).toHaveLength(1);
     await context.close();
   });

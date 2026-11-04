@@ -118,8 +118,65 @@ export async function uploadAndReport(ctx: BrowserContext, outDir: string, fixtu
   await page.waitForTimeout(600);
   const full = join(outDir, "report-full.png");
   await page.screenshot({ path: full, fullPage: true });
+  // The same report with its model trace open (`?trace=1`, D07 T03 §5): every model call the case made, as the pipeline
+  // stored it. A report whose case made no model call shows no panel, and the scene then shows none.
+  await page.goto(`${APP}/r/${caseId}?trace=1`, { waitUntil: "networkidle" });
+  marks.traceOpened = at();
+  const trace = page.locator("#model-trace");
+  if (await trace.count()) {
+    const tb = await trace.first().boundingBox();
+    if (tb) await smoothScroll(page, Math.max(0, tb.y - 160));
+    marks.traceShown = at();
+    boxes.trace = await box(page, "#model-trace");
+    const rows = trace.locator("tr, li");
+    for (let i = 0; i < Math.min(await rows.count(), 6); i++) await hoverOn(rows.nth(i), 700);
+  }
+  marks.traceDone = at();
+  await page.waitForTimeout(800);
   return finish(page, "upload-and-report", outDir, { stills: [still, full], caseId, marks, boxes });
 }
+
+/** A page read top to bottom with the pointer resting on its headings: the public pages and the monitor. */
+async function tour(ctx: BrowserContext, outDir: string, beat: string, url: string, maxScroll = 1600): Promise<BeatResult> {
+  const page = await ctx.newPage();
+  const t0 = Date.now();
+  const at = () => Math.round((Date.now() - t0) / 100) / 10;
+  const marks: Record<string, number> = {};
+  const res = await page.goto(url, { waitUntil: "networkidle" });
+  if (page.url().includes("/signin")) throw new Error("not signed in");
+  if (!res || res.status() >= 400) throw new Error(`${url} answered ${res?.status() ?? "nothing"}`);
+  marks.loaded = at();
+  const still = join(outDir, `${beat}.png`);
+  await page.screenshot({ path: still });
+  await glide(page, 900, 300);
+  await hoverOn(page.locator("h1").first(), 1200);
+  marks.title = at();
+  const height = await page.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+  const total = Math.min(Math.max(0, height), maxScroll);
+  for (let done = 0; done < total; done += 400) {
+    await smoothScroll(page, Math.min(400, total - done));
+    const h = page.locator("h2").filter({ hasNot: page.locator("[hidden]") });
+    const n = await h.count();
+    for (let i = 0; i < n; i++) {
+      const b = await h.nth(i).boundingBox();
+      if (b && b.y > 200 && b.y < 700) {
+        await glide(page, b.x + Math.min(b.width / 2, 200), b.y + b.height / 2);
+        break;
+      }
+    }
+    await page.waitForTimeout(900);
+  }
+  marks.scrolled = at();
+  await page.waitForTimeout(600);
+  return finish(page, beat, outDir, { stills: [still], caseId: null, marks, boxes: {} });
+}
+
+/** The public verify page customers use to check Fynbos Freight's real addresses (D05 T02 §9). */
+export const verifyPage = (ctx: BrowserContext, outDir: string) => tour(ctx, outDir, "verify", "https://isitlegit.co.za/v/fynbos-freight", 900);
+/** The public results page: the latest eval run, published whether good or not (D08). */
+export const evalPage = (ctx: BrowserContext, outDir: string) => tour(ctx, outDir, "eval", `${APP}/eval`, 1800);
+/** The impersonation monitor's page for the demo organisation (D05 T04). */
+export const monitorPage = (ctx: BrowserContext, outDir: string) => tour(ctx, outDir, "monitor", `${APP}/monitor`, 900);
 
 /** The protected identity page (/protect) with Fynbos Freight's registered name, trading name and logo. */
 export async function protectIdentity(ctx: BrowserContext, outDir: string): Promise<BeatResult> {
@@ -199,11 +256,12 @@ export async function casesList(ctx: BrowserContext, outDir: string): Promise<Be
   const still = join(outDir, "cases.png");
   await page.screenshot({ path: still });
   const boxes = { list: await box(page, "main table, main ul, main [role='list']") };
-  const rows = page.locator('main a[href^="/r/"]');
+  // A row's link goes to the report (/r/:id) or the case page (/cases/:id), whichever the list renders today.
+  const rows = page.locator('a[href^="/r/"]');
   await glide(page, 1100, 300);
   for (let i = 0; i < Math.min(await rows.count(), 3); i++) await hoverOn(rows.nth(i), 450);
   const search = page.locator("#case-search");
-  await typeInto(search, "SARS", 140);
+  await typeInto(search, "Waybill", 140);
   await page.waitForTimeout(1600);
   marks.searched = at();
   await hoverOn(rows.first(), 700);
@@ -216,7 +274,10 @@ export async function casesList(ctx: BrowserContext, outDir: string): Promise<Be
   marks.filtered = at();
   await clickOn(page.locator("#case-filters label").filter({ hasText: /^All$/ }));
   await page.waitForTimeout(1300);
-  await Promise.all([page.waitForURL(/\/r\/[^/]+/, { timeout: 30_000 }), clickOn(rows.first())]);
+  // The list is opened fresh before a case is picked, so the filters' swaps never leave the rows out of view.
+  await page.goto(`${APP}/cases`, { waitUntil: "networkidle" });
+  await glide(page, 1100, 700);
+  await Promise.all([page.waitForURL(/\/(r|cases)\/[^/]+/, { timeout: 30_000 }), clickOn(rows.first())]);
   await page.waitForLoadState("networkidle").catch(() => {});
   marks.opened = at();
   await hoverOn(page.locator("main h1, main h2").first(), 1500);
