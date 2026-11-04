@@ -160,8 +160,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.dry_run:
             print(json.dumps(argv, indent=2))
             return 0
-        if not shutil.which("codex"):
+        # WSL terminals can inherit Windows npm ahead of the native installation.
+        if os.name == "posix":
+            local_bin = str(Path.home() / ".local/bin")
+            os.environ["PATH"] = local_bin + os.pathsep + os.environ.get("PATH", "")
+        executable = shutil.which("codex")
+        if not executable:
             raise LaneError("codex is not installed on PATH")
+        argv[0] = executable
         # Lane identity comes from the checked branch, never an inherited coordinator override.
         os.environ.pop("TODO_LANE", None)
         from codex_continuation import Registry

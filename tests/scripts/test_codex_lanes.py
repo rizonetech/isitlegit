@@ -152,6 +152,25 @@ class CodexLanes(unittest.TestCase):
             self.assertNotIn("TODO_LANE", self.module.os.environ)
             launch.assert_called_once()
 
+    def test_launch_prefers_linux_install_over_inherited_windows_npm(self):
+        home = Path(self.temp.name) / "home"
+        native = home / ".local/bin/codex"
+        windows = Path(self.temp.name) / "windows-npm/codex"
+        for executable in [native, windows]:
+            executable.parent.mkdir(parents=True)
+            executable.write_text("#!/bin/sh\nexit 0\n")
+            executable.chmod(0o755)
+        with mock.patch.object(sys, "path", [str(ROOT / "scripts"), *sys.path]), \
+                mock.patch.object(self.module, "git", side_effect=self.git), \
+                mock.patch.object(self.module.Path, "home", return_value=home), \
+                mock.patch.dict(self.module.os.environ, {"PATH": str(windows.parent),
+                    "ISITLEGIT_CONTINUATION_DIR": str(Path(self.temp.name) / "continuation")}), \
+                mock.patch.object(self.module.os, "chdir"), \
+                mock.patch.object(self.module.os, "execvp") as launch:
+            self.module.main(["--root", str(self.root), "launch", "checks"])
+            self.assertEqual(launch.call_args.args[0], str(native))
+            self.assertEqual(self.module.shutil.which("codex"), str(native))
+
 
 if __name__ == "__main__":
     unittest.main()
