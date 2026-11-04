@@ -276,15 +276,18 @@ Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6
 **Needs:** none
 **Surface:** no
 
+**Plan review corrections 2026-11-04:** `docs/reviews/02-checks/D02-T02-s9.md` identified missing lifecycle ownership and a non-falsifiable design coverage gate. The design must map every requirement to a resolving section and a concrete acceptance test, including admin entry/edit/removal, validation and verification failure, persistence/read-back, `chainsForOrg` consumption, SPF precedence and immediate invalidation of cached configured trust on edit or revocation. Cross-lane surface ownership is assigned by the coordinator before completion.
+
 **Build order:**
 
 1. Decide where a gateway's relay ranges come from when its SPF does not name them. Done when: a dated design in `docs/specs/` names the source (ranges an organisation admin enters, read from the provider's connector settings, or neither), how they are verified and revoked, and the sections that build it, approved by the operator.
 
 - [ ] Write the design in `docs/specs/YYYY-MM-DD-gateway-relay-ranges-design.md` from `docs/specs/2026-10-31-receiving-chains-design.md` and §6's `org_receiving_chains`. Done when: the operator's approval is recorded in it, with a synthetic gateway whose ingress and egress differ and whose relays no SPF names.
-- [ ] File the sections it names through `add-todo`. Done when: they are in the plan, depending on this one.
+- [ ] File the complete lifecycle sections through `add-todo`. Done when: admin entry/edit/removal, validation and verification failures, persisted read-back and `chainsForOrg` consumption each have a resolving owner dependent on this section; cross-lane assignments come from the coordinator. Cheaper substitute: a broad implementation placeholder leaves required behavior unowned.
+- [ ] Map each design requirement in `docs/specs/2026-11-04-gateway-relay-ranges-design.md` to its implementation section and falsifiable acceptance test. Done when: the review checks the mapping against the filed contracts, including a no-SPF relay accepted only after verification, explicit SPF precedence, and edit/revocation removing cached configured trust. Cheaper substitute: graph validation alone cannot prove coverage.
 - [ ] Commit: `docs: gateway relay ranges from configuration decided`
 
-**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` and `python3 scripts/todo-graph.py plan --check` pass with the filed sections; final completion self-review verifies every design requirement maps to a resolving implementation section and a falsifiable test, including verified no-SPF success and cached-trust removal after edit/revocation.
 
 ## Verification
 
