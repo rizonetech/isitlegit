@@ -1,5 +1,27 @@
+import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { z } from "zod";
 import { COMPONENTS_HEADING, writeResultsSection } from "./results-file.ts";
+
+// Writes JSON to a temporary sibling file and atomically renames it into place so a failed write
+// never truncates or corrupts previously persisted observations (D08 T02 §8 correction 6).
+export function atomicWriteJson(
+  outPath: string,
+  data: unknown,
+  writer: (path: string, content: string) => void = writeFileSync,
+): void {
+  const tmpPath = `${outPath}.${process.pid}.tmp`;
+  try {
+    writer(tmpPath, `${JSON.stringify(data, null, 1)}\n`);
+    renameSync(tmpPath, outPath);
+  } catch (err) {
+    try {
+      rmSync(tmpPath, { force: true });
+    } catch {
+      // ignore cleanup error
+    }
+    throw err;
+  }
+}
 
 // Component measurements (D08 T02 section 8): exact arithmetic over persisted measurement records.
 // A record set with no eligible rows reads `not measured` (null), never zero. Records are JSON files under

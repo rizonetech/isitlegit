@@ -3,10 +3,9 @@
 // across the `RETRY_SETTLE_MS` = 300,000 ms lease window (injected clock), pre-populating records so an
 // interrupted collector leaves unrun slots marked `completed: false` and never shrinks denominators.
 // End-to-end member-request-to-result `retry` latency requires a live Workflow run and stays unmeasured locally.
-import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { RetryRecord } from "./components.ts";
+import { atomicWriteJson, type RetryRecord } from "./components.ts";
 import { createSqliteD1, ensureTsResolve } from "./intake-time.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,7 +35,7 @@ export async function scoreRetrySettle(
 
   const persist = () => {
     if (opts?.outPath) {
-      writeFileSync(opts.outPath, `${JSON.stringify(records, null, 1)}\n`);
+      atomicWriteJson(opts.outPath, records);
     }
   };
 

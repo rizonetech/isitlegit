@@ -1,12 +1,11 @@
 // The ai_instructions measurement (D08 T02 section 8, D02 T05 section 2): precision and recall of the phrase
 // scanner over a reproducible corpus of steering texts and genuine business texts, scored through the real
 // PhraseStream and attachmentPhrases + aiInstructionEvidence in src/checks/ai-instructions.ts.
-import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CaseView } from "../src/checks/case-view.ts";
 import { PhraseLog, PhraseStream } from "../src/checks/instruction-phrases.ts";
-import type { AiObservation, AiSummary } from "./components.ts";
+import { type AiObservation, type AiSummary, atomicWriteJson } from "./components.ts";
 import { ensureTsResolve } from "./intake-time.ts";
 
 export const MAX_TEXT_ATTACHMENTS = 10;
@@ -139,7 +138,7 @@ export async function measureAiInstructionsCheck(opts?: {
 
   const persist = () => {
     if (opts?.outPath) {
-      writeFileSync(opts.outPath, `${JSON.stringify(computeSummary(), null, 1)}\n`);
+      atomicWriteJson(opts.outPath, computeSummary());
     }
   };
 

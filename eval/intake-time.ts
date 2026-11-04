@@ -1,12 +1,12 @@
 // Intake time measurement (D08 T02 section 8, D01 T01 section 3): measures `handleEmail` from delivery
 // to the Workflow's start (`ANALYSIS.create`) for small forwards (~4 KiB) and near-25 MiB forwards (24 MiB,
 // under MAX_MESSAGE_BYTES = 25 MiB), on the real schema in `node:sqlite`.
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { register } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
-import type { IntakeRecord } from "./components.ts";
+import { atomicWriteJson, type IntakeRecord } from "./components.ts";
 
 const NODE_LOADER = `data:text/javascript,${encodeURIComponent(`
 import { readFileSync } from "node:fs";
@@ -225,7 +225,7 @@ export async function scoreIntakeTime(opts?: {
   );
   const persist = () => {
     if (opts?.outPath) {
-      writeFileSync(opts.outPath, `${JSON.stringify(records, null, 1)}\n`);
+      atomicWriteJson(opts.outPath, records);
     }
   };
   persist();

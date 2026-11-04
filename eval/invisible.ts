@@ -3,14 +3,13 @@
 // including tag payloads, malformed flag runs, chunk-boundary splits (including a supplementary surrogate pair
 // split across chunks), and multilingual/emoji/flag controls, plus 8 repetitions of a 1 MiB message streamed
 // in 16 KiB chunks for p50/p95 time and live-retained peak heap memory.
-import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CaseView } from "../src/checks/case-view.ts";
 import { hiddenTextEvidence } from "../src/checks/hidden-content.ts";
 import { invisibleOf, PhraseLog, PhraseStream } from "../src/checks/instruction-phrases.ts";
 import { type InvisibleRun, invisibleRuns, RunReader } from "../src/checks/invisible-unicode.ts";
-import type { InvisibleObservation, InvisibleSummary } from "./components.ts";
+import { atomicWriteJson, type InvisibleObservation, type InvisibleSummary } from "./components.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const tag = (ascii: string) => [...ascii].map((c) => String.fromCodePoint(0xe0000 + (c.codePointAt(0) ?? 0))).join("");
@@ -113,7 +112,7 @@ export function scoreInvisible(opts?: {
   const persist = () => {
     if (opts?.outPath) {
       const { missed: _m, flagged: _f, timesMs: _t, ...summary } = computeSummary();
-      writeFileSync(opts.outPath, `${JSON.stringify(summary, null, 1)}\n`);
+      atomicWriteJson(opts.outPath, summary);
     }
   };
 

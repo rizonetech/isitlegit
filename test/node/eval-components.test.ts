@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { measureAiInstructionsCheck } from "../../eval/ai-instructions.ts";
 import { measureAttachmentChecks } from "../../eval/attachments.ts";
 import {
+  atomicWriteJson,
   cacheFigures,
   checkComponentRows,
   comparatorFigures,
@@ -237,6 +238,16 @@ describe("component measurements", () => {
 
       writeFileSync(join(dir, "bad.json"), "{ invalid");
       expect(parseComponentFile("cache", "not-an-array").ok).toBe(false);
+
+      // Failed checkpoint write preserves previously saved observations via temp-file-then-rename.
+      const safeTarget = join(dir, "safe-checkpoint.json");
+      atomicWriteJson(safeTarget, { saved: 1 });
+      expect(() =>
+        atomicWriteJson(safeTarget, { saved: 2 }, () => {
+          throw new Error("ENOSPC: no space left on device");
+        }),
+      ).toThrow(/ENOSPC/);
+      expect(JSON.parse(readFileSync(safeTarget, "utf8"))).toEqual({ saved: 1 });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

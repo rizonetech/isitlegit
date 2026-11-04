@@ -2,7 +2,6 @@
 // the sniffed type and check-level findings (`typeMismatchEvidence`, `macroEvidence`, `encryptedArchiveEvidence`,
 // `executableEvidence`) over every valid synthetic sample, disguised bytes, risky archives (macros, encrypted ZIP,
 // executable in ZIP), and damaged packages (truncated bytes), plus 8 batch runs of MAX_SNIFFED = 20 attachments.
-import { writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeDecoyCompoundFile } from "../scripts/fixtures/msg-builder.ts";
@@ -10,7 +9,7 @@ import type { CaseView } from "../src/checks/case-view.ts";
 import { MAX_SNIFFED, type SniffedType, sniff } from "../src/checks/sniff.ts";
 import { zip } from "../test/fixtures/attachments/archives.ts";
 import { samples } from "../test/fixtures/attachments/samples.ts";
-import type { AttachmentObservation, AttachmentsSummary } from "./components.ts";
+import { type AttachmentObservation, type AttachmentsSummary, atomicWriteJson } from "./components.ts";
 import { ensureTsResolve } from "./intake-time.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -317,7 +316,7 @@ export async function measureAttachmentChecks(opts?: {
 
   const persist = () => {
     if (opts?.outPath) {
-      writeFileSync(opts.outPath, `${JSON.stringify(computeSummary(), null, 1)}\n`);
+      atomicWriteJson(opts.outPath, computeSummary());
     }
   };
 
