@@ -6,6 +6,7 @@ import { ModelError } from "../meta/client.ts";
 import { BudgetExceeded, BudgetUnavailable } from "../meta/guard.ts";
 import { ModelOutputError, type StructuredContext, structured } from "../meta/structured.ts";
 import { untrusted, untrustedInstructions } from "../meta/untrusted.ts";
+import { figuresWithinQuote } from "./figures";
 import { type VerifiedClaim, VoiceClaim } from "./schema.ts";
 
 export const VOICE_MODEL = "muse-spark-1.3";
@@ -65,8 +66,9 @@ export function verified(claim: VoiceClaim, transcript: string): { claim: Verifi
       ? { value: "low" as const, quote: supported(claim.urgency_quote, transcript) ? claim.urgency_quote : null }
       : keep(claim.urgency, claim.urgency_quote, "low" as const, false);
   // The payment sentence is the speaker's own words or nothing: it is a quote like the others, and the figures in it are
-  // for the member to read, never read out and restated here.
+  // retained unchanged. Only deterministic whole-transcript parsing supplies optional numeric readings.
   const payment = keep(claim.payment_quote, claim.payment_quote, null, claim.payment_quote === null);
+  const paymentFigures = payment.quote ? figuresWithinQuote(transcript, payment.quote) : null;
   return {
     claim: {
       request: request.value,
@@ -76,6 +78,7 @@ export function verified(claim: VoiceClaim, transcript: string): { claim: Verifi
       urgency: urgency.value,
       urgencyQuote: urgency.quote,
       paymentQuote: payment.quote,
+      ...(paymentFigures ? { paymentFigures } : {}),
     },
     dropped,
   };
