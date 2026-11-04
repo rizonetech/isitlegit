@@ -262,7 +262,7 @@ export function createToolExecutor(
       }
       if (now() >= deadline) return { status: "refused", tool, reason: "time_cap" };
       work = async () => {
-        const ablated = await Promise.resolve(ctx.ablateFlag?.()).catch(() => null);
+        const ablated = await ctx.ablateFlag?.();
         if (ablated === "no-sam") {
           return [
             {
@@ -297,7 +297,7 @@ export function createToolExecutor(
       }
       if (now() >= deadline) return { status: "refused", tool, reason: "time_cap" };
       work = async () => {
-        const ablated = await Promise.resolve(ctx.ablateFlag?.()).catch(() => null);
+        const ablated = await ctx.ablateFlag?.();
         if (ablated === "no-sam") {
           return [
             {

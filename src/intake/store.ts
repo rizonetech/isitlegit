@@ -9,7 +9,8 @@ import { isUlid } from "../db/ulid";
 // only when its SHA-256 matches, so a retried step finds its own earlier work and answers it, two overlapping writes of
 // the same content both succeed, and different content for a fixed key is refused as a conflict. A failure at either
 // step is a `StoreError` naming it, and a retry completes what is missing; an object whose row never followed is swept
-// with its case by the account purge (D07 T02 §9), which lists by prefix.
+// with its case by the account purge (D07 T02 §9), which lists by prefix. Intake recovery can first finish
+// that missing row through recoverIntakeObject without changing the retained case identity.
 
 export type StoreErrorCode = "invalid" | "conflict" | "storage" | "database";
 export class StoreError extends Error {
@@ -274,6 +275,39 @@ export async function putParsed(store: Store, caseId: string, summary: Record<st
 
 export const putAttachment = (store: Store, caseId: string, name: string, body: Uint8Array, mediaType: string) =>
   put(store, caseId, "attachment", (sha) => attachmentKey(caseId, sha, name), body, mediaType);
+
+// Admission can stop between the R2 write and its D1 row. Reconcile that object through this store's
+// normal checksum, create-only and removal fences. An unreadable or ambiguous prefix is not absence.
+export async function recoverIntakeObject(store: Store, caseId: string): Promise<boolean> {
+  checkCase(caseId);
+  const listed = await store.bucket.list({ prefix: `raw/${caseId}/`, limit: 2 });
+  if (listed.objects.length === 0 && !listed.truncated) return false;
+  if (listed.truncated || listed.objects.length !== 1)
+    throw new StoreError("storage", "the intake prefix cannot be reconciled unambiguously");
+  const row = await store.db
+    .prepare("SELECT source_kind,upload_name,status FROM cases WHERE id=?")
+    .bind(caseId)
+    .first<{ source_kind: string; upload_name: string | null; status: string }>();
+  if (row?.status !== "received") throw new StoreError("storage", "the intake case is no longer awaiting storage");
+  const candidate = listed.objects[0];
+  if (!candidate) throw new StoreError("storage", "the intake object was not listed");
+  const object = await store.bucket.get(candidate.key);
+  if (!object) throw new StoreError("storage", "the intake object changed while being recovered");
+  if (object.size > 25 * 1024 * 1024) throw new StoreError("storage", "the intake object exceeds the upload limit");
+  const mediaType = object.httpMetadata?.contentType;
+  if (!mediaType) throw new StoreError("storage", "the intake object's media type is unavailable");
+  const body = new Uint8Array(await object.arrayBuffer());
+  if (row.source_kind === "mail") {
+    if (object.key !== rawKey(caseId)) throw new StoreError("storage", "the intake mail key does not match");
+    await putRaw(store, caseId, body, mediaType);
+  } else {
+    const name = row.upload_name || `upload.${mediaType.split("/")[1]}`;
+    if (object.key !== attachmentKey(caseId, await sha256Hex(body), name))
+      throw new StoreError("storage", "the intake attachment key does not match");
+    await putAttachment(store, caseId, name, body, mediaType);
+  }
+  return true;
+}
 
 export async function putArtefact(
   store: Store,

@@ -290,13 +290,14 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 113 | Checklist items: 705
+Sections: 116 | Checklist items: 724
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
 | [x]    | D00 T01 §35 | Bounded completion reconciliation with preserved evidence | none                  | 6     |
 | [x]    | D00 T01 §36 | Two-pass Codex review with a combined final gate          | none                  | 6     |
 | [x]    | D00 T01 §37 | Durable ancestry for review journals                      | none                  | 4     |
+| [x]    | D01 T03 §17 | Immutable per-case ablation admission                     | none                  | 8     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover                          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst                     | none                  | 3     |
@@ -312,6 +313,8 @@ Sections: 113 | Checklist items: 705
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step                         | none                  | 5     |
 | [x]    | D03 T02 §6  | Ablation flag in page screening                           | none                  | 2     |
 | [x]    | D03 T03 §6  | Ablation flag in segmentation                             | none                  | 2     |
+| [x]    | D04 T01 §17 | Immutable per-case model ablation consumers               | none                  | 7     |
+| [ ]    | D00 T01 §40 | Email recovery fixtures on reviewed ablation integration  | none                  | 4     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                          | none                  | 2     |
 | [x]    | D04 T02 §10 | Multi-step evaluation fixture routes                      | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                             | none                  | 4     |
@@ -684,6 +687,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 434/608 verified sections, 110 ready to run now.
+Progress: 436/611 verified sections, 111 ready to run now.
 
-Checklist: 3141/3749 items completed (includes Commit items).
+Checklist: 3156/3768 items completed (includes Commit items).

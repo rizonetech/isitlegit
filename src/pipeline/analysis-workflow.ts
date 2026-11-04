@@ -99,7 +99,7 @@ import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigg
 import { allowedUrl, dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
-import { ablateFlagFor } from "./ablate";
+import { caseAblateFlagFor, readCaseExperiment } from "./case-experiments";
 import { recordEvent } from "./events";
 
 // The analysis pipeline for one case (D01 T01 §7): durable steps, so a failure resumes without repeating finished work
@@ -109,7 +109,7 @@ import { recordEvent } from "./events";
 // last attempt goes to `fail`, which ends the case `partial` naming it, and `reply` still runs.
 //
 // Workflows replay `run` from the start with each finished step's result cached, so every decision here is made from
-// step results, never from state read outside a step.
+// step results. Immutable experiment identity is validated outside cached steps on every entry.
 export type AnalysisParams = { caseId: string };
 
 export type StepName =
@@ -345,8 +345,10 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     const { orgId, channel, sourceKind, headersAvailable } = admitted;
 
     let state: ReportState;
-    let current: StepName = "parse";
+    let current: StepName = "admit";
     try {
+      const ablateFlag = await caseAblateFlagFor(this.env, caseId);
+      current = "parse";
       const key = await timed("parse", () =>
         parse(
           store,
@@ -372,7 +374,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
         ),
       );
       // A voice note's transcript, for the voice evidence that reads it (D01 T03 §3, §4).
-      if (sourceKind === "audio") {
+      if (sourceKind === "audio" && ablateFlag !== "no-transcribe") {
         current = "transcribe";
         await timed("transcribe", () => transcribe(this.env, store, caseId, key));
         // What the speaker asks, in its own step with its own budget (D01 T03 §4). A step that fails after its last
@@ -395,7 +397,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       // step (no event of its own), so a mail case with no audio attachment records no transcribe step, as before.
       if (sourceKind === "mail") {
         const gate = await step.do("transcribe:gate", RETRIES, () => safely(() => mailAudioCount(store, caseId, key)));
-        if (gate) {
+        if (gate && ablateFlag !== "no-transcribe") {
           current = "transcribe";
           await timed("transcribe", () => transcribeAttachments(this.env, store, caseId, key));
           current = "voice";
@@ -455,7 +457,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               table,
               revision: this.env.CF_VERSION_METADATA?.id ?? null,
               walkId: () => ulid(),
-              ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
+              ablateFlag: async () => ablateFlag,
             },
             caseId,
           );
@@ -487,7 +489,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               kv: this.env.CACHE,
               waitUntil: (p) => void p.catch(() => {}),
               policy: (raw) => allowedUrl(raw, dohResolve()),
-              ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
+              ablateFlag: async () => ablateFlag,
             },
             caseId,
           );
@@ -549,7 +551,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
                   kv: this.env.CACHE,
                   waitUntil: (p) => void p.catch(() => {}),
                   policy: (raw) => allowedUrl(raw, dohResolve()),
-                  ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
+                  ablateFlag: async () => ablateFlag,
                 },
                 caseId,
               );
@@ -913,6 +915,7 @@ export async function checks(
   reputation: ReputationDeps | null = null,
   allowStandaloneSkip = true,
 ): Promise<{ evidence: number }> {
+  const noTranscribe = (await readCaseExperiment(store.db, caseId))?.arm === "no-transcribe";
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
   // A counterparty case (D05 T02 §1) is an outsider's check about a protected business, answered to that outsider: it
@@ -1085,14 +1088,15 @@ export async function checks(
     // A voice note read for what it asks (D01 T03 §4), from the `voice` step's stored result: an uploaded voice
     // note, or a mail case whose voicemail attachments were transcribed (D01 T03 §5); a mail case with none reads
     // no claim and the voice checks skip as before.
-    voice:
-      read.source.kind === "upload" && read.source.fileKind === "audio"
+    voice: noTranscribe
+      ? { state: "not_checked" as const, reason: "no-transcribe" }
+      : read.source.kind === "upload" && read.source.fileKind === "audio"
         ? ((await readVoice(store, caseId)) ?? { state: "not_checked" as const, reason: "the voice step did not run" })
         : read.source.kind === "message"
           ? await readVoice(store, caseId)
           : null,
     // Each stored transcript, for the transcript evidence (D01 T03 §16).
-    transcripts: await storedTranscripts(store, caseId, key, read),
+    transcripts: noTranscribe ? [] : await storedTranscripts(store, caseId, key, read),
     // Every effectively protected identity as a candidate for the trust claim match (D02 T01 §9): discovered
     // across organisations, since a member's case can claim another protected business; a failed read fails
     // the step like its other awaited store reads, never reads as no candidate.
@@ -1404,6 +1408,7 @@ export async function verdict(
   store: Store,
   caseId: string,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
+  const ablateFlag = await caseAblateFlagFor(env, caseId);
   const outcomes = await readCheckOutcomes(db, caseId);
   const evidence = await ensurePartialAttachmentEvidence(db, caseId, await readEvidence(db, caseId), outcomes);
   const row = await db
@@ -1428,7 +1433,7 @@ export async function verdict(
   }
   // An ablated arm (D04 T01 §14): the verdict agent is never called, and none of its preparation is read
   // either; the rule verdict decides alone with the deterministic actions, and the verdict names the flag.
-  if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {
+  if (ablateFlag === "no-agent-reasoning") {
     const rules = ruleVerdict(evidence, { headersAvailable, outcomes });
     const fixed = fixedActionsFor(evidence);
     const view: VerdictView = {
@@ -1467,10 +1472,7 @@ export async function verdict(
   const found: string[] = [];
   for (const e of evidence) collect(e.detail, found);
   const urls = [...new Set(found)];
-  const executor = createToolExecutor(
-    { db, caseId, urls, brands: table, ablateFlag: () => ablateFlagFor(env.CACHE, orgId) },
-    deps,
-  );
+  const executor = createToolExecutor({ db, caseId, urls, brands: table, ablateFlag: async () => ablateFlag }, deps);
   const view = await runAgent(
     {
       db,

@@ -53,6 +53,7 @@ track: day-6
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
 | 16 | §16 | Message-specific consequence sentences | §2 | [x] |
+| 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [x] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -529,6 +530,40 @@ Filed 2026-11-03 from the coordinator's filing request (app lane, D07 T03 §10's
 
 > **Verified:** 2026-11-04 | §16 | 560a867b8a368ede3b31f517e7f45d882a658045
 > **Review:** `docs/reviews/d04-t01-s16.json`
+
+## 17. Immutable per-case model ablation consumers
+
+Coordinator critical-path assignment 2026-11-04. Replace organisation KV flags with D01 T03 §17's immutable case identity in the analysis Workflow, vision and agent tooling. Resolves D08 T02 §3's case hooks; eval owns orchestration in D08 T02 §17. Screening is separately exercised by §18. Source: `docs/specs/2026-11-04-per-case-ablation-design.md`.
+
+> **Started:** 2026-11-04T08:29:35+00:00
+
+**Implementation boundary 2026-11-04:** D01 T03 §17 is stamped at implementation3937ea1a, stamp034398c6. Main integration5ff038ea adds a standalone non-payment-document vision fallback; both primary and fallback vision calls, verdict tool calls and cached voice read paths must use the same immutable arm. Resolve context outside cached Workflow step results on every entry/resume, before model-dependent work; unknown context is never caught as a normal arm. Durable helpers may live in src/pipeline/case-experiments.ts. Update historical KV-driven case tests to seed immutable case bindings while retaining their floor/action/call-count assertions; ordinary cases must ignore KV. Monitor KV migration stays in §18.
+
+**Coordinator disposition 2026-11-04 10:53 SAST:** `standalone-image-fallback-authority` approves narrow `src/vision/step.ts` input selection after the failing-first real Workflow regression found image uploads classified `other` produce `render-input-missing` and zero retained reading. Feed only the case-owned standalone image into existing reading/SAM paths, with supported MIME validated against bytes, size/decode/pixel/count/deadline guards and explicit invalid/missing/oversized coverage. Keep email/PDF paths, floor/citations, tenant/run isolation, accounting and late-write fences. Prove full versus no-sam and negative ownership/MIME/bounds. Include this expanded source diff in the pending single round and final completion. Reversal is isolated source revert without data rewrite.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Read durable context in `src/pipeline/analysis-workflow.ts` and `src/agent/loop.ts`. Done when: flags survive resume and KV edits cannot change ordinary or experimental cases.
+2. Wire four case skip paths and attribution. Done when: reasoning, walkthrough, SAM and transcription hooks skip exactly their owned contributions, preserve ordinary behavior and record the actual arm.
+3. Prove calls and persisted outcomes in `test/pipeline/ablation-consumers.test.ts`. Done when: every arm's applicable skipped and retained calls, resume behavior and safety gates are asserted with stubbed model transports.
+
+- [x] Resolve immutable context before model-dependent work in `src/pipeline/analysis-workflow.ts`. Done when: missing ordinary metadata means normal behavior, but metadata read failure or experimental deployment mismatch propagates as failure/partial rather than executing an unflagged arm. Cheaper substitute: catch-to-null silently changes the experiment. Source: design, Consumers.
+- [x] Replace org KV reads for verdict reasoning and walkthrough in `src/pipeline/analysis-workflow.ts`. Done when: no-agent-reasoning uses rules with unchanged floor/citations/actions, no-walkthrough reuses no cached walk, and other arms leave those calls eligible. Cheaper substitute: a label on an unchanged model call is not ablation. Source: design, Consumers.
+- [x] Replace org KV reads for all SAM paths in `src/agent/loop.ts`, `src/agent/tools.ts` and `src/vision/step.ts`. Done when: no-sam prevents segmentation and comparison, retained vision reading runs, and stored coverage names the skipped contribution. Cheaper substitute: suppressing only the UI or one tool leaves SAM active. Source: design, Consumers.
+- [x] Add the no-transcribe gate in `src/pipeline/analysis-workflow.ts`. Done when: uploaded audio and mail audio attachments call neither transcription nor dependent voice extraction and reuse no cached transcript/claim; explicit not-checked evidence survives read-back while other checks continue, including stale transcript/claim artefacts present before the step. Cheaper substitute: skipping extraction after paying for transcription does not measure removal. Source: design, Consumers.
+- [x] Publish the four installed upload consumers through `UPLOAD_EXPERIMENT_ARMS` in `src/pipeline/ablate.ts`. Done when: authenticated capability advertises exactly full, no-agent-reasoning, no-walkthrough, no-sam and no-transcribe after their tested wiring; no-screening remains absent. Cheaper substitute: caller assertions cannot prove installed hooks. Source: design, Capability preflight.
+- [x] Test all case arms in `test/pipeline/ablation-consumers.test.ts`. Done when: stub call counts prove both removals and retained work, ordinary/full neighbors remain unchanged, concurrent arms stay isolated, resume and malformed/read-failed metadata never change arm, floor/citations and ledger attribution stay intact. Cheaper substitute: testing only flag lookup proves no model removal.
+- [x] Commit: `pipeline: apply immutable case ablation across model consumers`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/ablation-consumers.test.ts test/pipeline/ablate.test.ts test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes and fails if any removed model still runs or an ordinary case inherits another case's arm; `pnpm typecheck` passes.
+
+> **Verified:** 2026-11-04 | §17 | a6a30c332d034d413e95df437b71321d5c3571e4
+> **Review:** `docs/reviews/d04-t01-s17.json`
 
 ## Verification
 
