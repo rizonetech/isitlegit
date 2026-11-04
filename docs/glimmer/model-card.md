@@ -2,6 +2,20 @@
 
 One part per version, made from the run's own records by `scripts/glimmer/model_card.py`.
 
+## Loupe 1.1 release addendum
+
+Updated 4 November 2026. This maintained release addendum is separate from the generated historical 1.0 card below. The [release evidence record](release-status.md) provides the source identities, measured diagnostics and unresolved limits. It is not a completed independent evaluation card.
+
+Loupe 1.1 is a LoRA fine-tune of Meta Muse Glimmer 30B, trained through Fireworks AI on 72,375 supervised examples in one epoch and 4,524 optimizer steps, with seven examples in the last batch. These are page-specific training conversations sharing a canonical instruction, not 72,375 unique instructions or independent websites. Final artifact: `accounts/rizonetech/models/isitlegit-loupe-1-1`, checkpoint `step-4524`, training session `ts-db85d8de82174aa6824b775ca6e40075`. The answer contract is brand-free: form presence, lure, lure type and confidence, validated strictly before use.
+
+On the preregistered 40-page synthetic v2 diagnostic, both 1.0 and 1.1 returned 40 valid responses and no errors. Both produced TP20, FP20, TN0 and FN0: accuracy 20/40 (50%), lure recall 20/20 (100%) and false alarms 20/20 (100%). This is a poor result and shows no classification improvement. The baseline received the common brand-free prompt, so it is not a benchmark of its native contract. Ten related layout families and one generator family do not establish independence.
+
+Candidate median latency was 2,067 ms and p95 4,388 ms, against baseline median 2,088 ms and p95 4,224 ms on this diagnostic. Candidate lure-type accuracy was 50%, baseline 85%. Six additional candidate calls using text-only and image-only inputs returned six valid responses naming the exact model; both benign cases remained false positives in both modalities. Prompt or dataset mismatch remains a hypothesis, not a proven cause. These observations do not establish a general accuracy rate or production latency guarantee.
+
+The operator authorized operational rollout with these limitations disclosed. Deployment is in progress, not yet verified live in this snapshot. Independent qualification remains unmet, including incomplete source/template lineage and exclusion against both training exports, 17 recorded provenance issues and 257 baseline-training overlaps. The small synthetic diagnostic does not satisfy D03 T04 §50. Loupe supplies screening evidence, never authority to override the deterministic safety floor or invent evidence.
+
+Training and inference use Fireworks AI; the Cloudflare Worker orchestrates calls through AI Gateway rather than executing weights locally. No Hugging Face publication is claimed or planned for this release. Dataset source licences and restrictions remain in [sources](sources.md); this addendum does not grant new redistribution rights. Keep the historical 1.0 card's licence, provenance and version-specific measurements separate.
+
 ## Loupe 1.0
 
 `isitlegit-loupe-1-0`, a LoRA (rank 8) of Muse Glimmer 30B (accounts/fireworks/models/muse-glimmer-30b), trained by LoRA supervised fine-tuning on Fireworks' Serverless Training API (the Fireworks cookbook's SFT loop), 2026-10-30T22:20:28+00:00 to 2026-10-31T12:49:52+00:00.
