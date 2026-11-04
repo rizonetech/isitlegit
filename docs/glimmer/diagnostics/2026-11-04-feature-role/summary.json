@@ -1,0 +1,103 @@
+{
+  "run": "original-three-arm-v1",
+  "observedAt": "2026-11-04T22:31:54.573618+00:00",
+  "diagnosticOnly": true,
+  "arms": {
+    "candidate": {
+      "planned": 6,
+      "paidPOSTs": 5,
+      "valid": 0,
+      "schemaErrors": 5,
+      "admissionErrors": 1,
+      "transportErrors": 0,
+      "wholeRecordMatches": 0,
+      "fieldMatchesAmongValidated": {
+        "has_login_form": 0,
+        "has_payment_form": 0,
+        "organisation_text": 0,
+        "form_button_text": 0
+      },
+      "fieldDenominator": 0,
+      "plannedRecordDenominator": 6,
+      "transportLatencyMs": {
+        "min": 2283,
+        "median": 33966,
+        "max": 36708
+      },
+      "latencyIncludingAdmissionMs": {
+        "min": 4406,
+        "median": 21139.5,
+        "max": 39183
+      },
+      "measuredTokenCostUsd": null
+    },
+    "base": {
+      "planned": 6,
+      "paidPOSTs": 6,
+      "valid": 6,
+      "schemaErrors": 0,
+      "admissionErrors": 0,
+      "transportErrors": 0,
+      "wholeRecordMatches": 6,
+      "fieldMatchesAmongValidated": {
+        "has_login_form": 6,
+        "has_payment_form": 6,
+        "organisation_text": 6,
+        "form_button_text": 6
+      },
+      "fieldDenominator": 6,
+      "plannedRecordDenominator": 6,
+      "transportLatencyMs": {
+        "min": 2459,
+        "median": 2712.5,
+        "max": 4803
+      },
+      "latencyIncludingAdmissionMs": {
+        "min": 5071,
+        "median": 5359.0,
+        "max": 7364
+      },
+      "measuredTokenCostUsd": null
+    },
+    "spark": {
+      "planned": 6,
+      "paidPOSTs": 6,
+      "valid": 6,
+      "schemaErrors": 0,
+      "admissionErrors": 0,
+      "transportErrors": 0,
+      "wholeRecordMatches": 6,
+      "fieldMatchesAmongValidated": {
+        "has_login_form": 6,
+        "has_payment_form": 6,
+        "organisation_text": 6,
+        "form_button_text": 6
+      },
+      "fieldDenominator": 6,
+      "plannedRecordDenominator": 6,
+      "transportLatencyMs": {
+        "min": 3143,
+        "median": 4754.5,
+        "max": 7340
+      },
+      "latencyIncludingAdmissionMs": {
+        "min": 6276,
+        "median": 8066.5,
+        "max": 10720
+      },
+      "measuredTokenCostUsd": 0.027814
+    }
+  },
+  "plannedRows": 18,
+  "providerPosts": 17,
+  "limitations": [
+    "Six reused synthetic pages with related layouts, not independent held-out evidence or general accuracy.",
+    "Candidate zero valid records is schema failure plus one admission refusal, not six incorrect classifications. Do not count its unvalidated fields as accuracy.",
+    "No production prompt, schema, role, threshold or selector changed.",
+    "Observable control groups are inert, not proof of submission capability.",
+    "No learned-behavior versus adapter-merge root cause proven."
+  ],
+  "sparkMeasuredTokenCostUsd": 0.027814,
+  "gpuPerExperimentCostUsd": null,
+  "gpuCostNote": "Shared warm-window reservations are not measured per-experiment cost."
+}

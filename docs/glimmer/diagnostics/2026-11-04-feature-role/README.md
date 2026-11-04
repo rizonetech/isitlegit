@@ -1,0 +1,9 @@
+# Observable-feature diagnostic: original three-arm run
+
+This bundle preserves the first six-page comparison, before the separate constrained-output candidate experiment. It does not combine runs or establish general accuracy, superiority or production-role qualification.
+
+Read `summary.json` for denominators and costs, `groundtruth.json` for the strict task and comparison rules, `answers.jsonl` for all 18 planned rows and exact returned text, and `errors.json` for failure categories. Candidate: five sent requests, zero valid answers and one admission failure before sending. Base and Spark: six valid exact records each, 24 matched fields each. The candidate has no validated-field denominator.
+
+`pages/` contains original synthetic HTML, text and JPEG assets. `requests/` preserves exact system/user text and references the image files through explicit `image_asset` objects. Reconstruct each image part as documented in `provenance.json`; the public representation is not itself a provider request body. The controls are inert; these are neither working submissions nor verified business identities. Expected answers were frozen before inference. `provenance.json` binds source commits, prompt, rights and public-file hashes. Private source hashes establish origin, not public access to private records.
+
+To check the result offline, validate each complete returned answer against the schema in `groundtruth.json`, then compare the four fields using only its documented whitespace normalization. Incomplete outputs remain failures even if a partial object could be extracted. Count admission failures separately and retain all six planned pages per arm. Re-running inference requires provider access and cost admission; this bundle does not authorize paid calls. No training exports, client pages, provider headers, credentials or private ledger records are included.

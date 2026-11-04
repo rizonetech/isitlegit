@@ -1,0 +1,203 @@
+{
+  "bundleVersion": 1,
+  "run": "original-three-arm-v1",
+  "sourceCommits": {
+    "candidateAndSpark": "868926100c104ff2185f9099a002b9755a445888",
+    "base": "69b430c34d7fe98d6645be50b7912b0ea8a96d76"
+  },
+  "sourcePaths": [
+    "scripts/glimmer/feature-role.ts",
+    "scripts/glimmer/cause-matrix.ts",
+    "scripts/glimmer/postrollout-scenarios.ts"
+  ],
+  "originalPrivateResultSha256": "4baf11b118e7d7a7fa12d2d40aa992bf11170955b24b8f99cf1a708662352caa",
+  "originalPrivateGroundtruthSha256": "02bf5a34ade34898b3a600d688f117b189483887e46b38072eaba066d316641b",
+  "promptSha256": "ea91272bd13730467b72864df4553ea4515e0c00bdc67c138b75a20753e4fa0e",
+  "rights": {
+    "author": "Rizonetech project",
+    "licence": "FSL-1.1-ALv2; repository LICENSE",
+    "basis": "Original local synthetic HTML/CSS and locally rendered screenshots. No external page content or bundled font files.",
+    "sourceDatasets": [
+      "loupe-ordinary-four-20261104-v1",
+      "loupe-postrollout-scenarios-20261104-v1"
+    ]
+  },
+  "requestRepresentation": "Public input-message representation retains exact system/user text. Each image_url data URI is replaced by an image_asset reference to the byte-identical JPEG. To reconstruct the provider input, replace that object with {type:\"image_url\",image_url:{url:\"data:image/jpeg;base64,\"+base64(JPEG bytes)}}. Original stored message-file hashes are listed separately. This avoids duplicate binary-in-text payloads and is not a new request or changed experiment. Original result verified semantic input equality across arms; provider envelopes differ by API.",
+  "transportSettings": {
+    "candidateAndBase": {
+      "max_tokens": 2000,
+      "reasoning_effort": "low",
+      "temperature": "omitted",
+      "response_format": "omitted"
+    },
+    "spark": {
+      "max_output_tokens": 2000,
+      "reasoning": {
+        "effort": "low"
+      },
+      "store": false,
+      "temperature": "omitted"
+    }
+  },
+  "publicProjection": "Provider IDs, headers, local paths, raw admission error strings and accounting identifiers excluded. Exact raw answer strings retained, including invalid/truncated answers. Relative asset paths replace private paths. No expected or returned feature values changed.",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "079dc2276cff39f6fc700c4f7116a7b12688bc6fa79e4a04f7279f8ea3d1b4d1",
+      "bytes": 1877
+    },
+    {
+      "path": "answers.jsonl",
+      "sha256": "67fd7232a5401665c36c756f3f91fc0bfdb13f2fdd0503860d376c585d7d821c",
+      "bytes": 47609
+    },
+    {
+      "path": "errors.json",
+      "sha256": "6412e6ef3a2c92ebb5651c2649061e358b08a2f96251611011fb23196d449008",
+      "bytes": 750
+    },
+    {
+      "path": "groundtruth.json",
+      "sha256": "07c1d1cd15b10fc63559e3ad09397e9cc9b89cb1b0ee9ec281316de4eba0d36e",
+      "bytes": 12679
+    },
+    {
+      "path": "pages/article/screenshot.jpg",
+      "sha256": "4b141abfffaf1f4afb2ecf9844b2d389d3d755e04982b83ffddcb2bc47accc37",
+      "bytes": 65219
+    },
+    {
+      "path": "pages/article/source.html",
+      "sha256": "3e93977a7c68146ce1fc5686e429a8dea5de3cf4849834b6f68a06758a2d8958",
+      "bytes": 913
+    },
+    {
+      "path": "pages/article/text.txt",
+      "sha256": "b9c230ed11d13825851002b2b10fd9e816317ebb0fffd4af45d7f2376b54b7f5",
+      "bytes": 346
+    },
+    {
+      "path": "pages/benign-invoice/screenshot.jpg",
+      "sha256": "9ef2dbfab8829540d4a911a1b90fd2982cd168e898eefc7cf9079fd0f54692c7",
+      "bytes": 43508
+    },
+    {
+      "path": "pages/benign-invoice/source.html",
+      "sha256": "452574cad49cd3a28e28bfdbdcee34ddc40d4b740243777a79acc5bf4462cbb4",
+      "bytes": 908
+    },
+    {
+      "path": "pages/benign-invoice/text.txt",
+      "sha256": "09eb52e0eff41340eb8b8bfb58748423d9d7ff3d1d328d061f3337e06947304e",
+      "bytes": 212
+    },
+    {
+      "path": "pages/benign-login/screenshot.jpg",
+      "sha256": "b5c290a6401806c44727d1d9b15b27718964ed90792fe64ddb213deebb876cd8",
+      "bytes": 49393
+    },
+    {
+      "path": "pages/benign-login/source.html",
+      "sha256": "b3a542ab4c3e818148a719334bc2cce9f368fad5b3c7e8ec9776f767ae6925cf",
+      "bytes": 1020
+    },
+    {
+      "path": "pages/benign-login/text.txt",
+      "sha256": "92f144eb472d57dfe088905dd1b3bf4158b79bdfc5a75a5c167c09b849e88b62",
+      "bytes": 212
+    },
+    {
+      "path": "pages/catalogue/screenshot.jpg",
+      "sha256": "2eccb7273d28090ef88fc19e063a8b8544d2de49ce4495dd13e3242c2dd07400",
+      "bytes": 72841
+    },
+    {
+      "path": "pages/catalogue/source.html",
+      "sha256": "ea102e831ae15716a94709bb31a45288893dfaecbf2d6720ae5458ab13add078",
+      "bytes": 1337
+    },
+    {
+      "path": "pages/catalogue/text.txt",
+      "sha256": "c896a5270931bad11e9e63690fbdd9699199db3a72ed23686169864e0e1c5e29",
+      "bytes": 394
+    },
+    {
+      "path": "pages/credential-lure/screenshot.jpg",
+      "sha256": "94664aca46ae01aa1a5cef9a290db73ed6f29ef150efb8b31c598b7a5d202239",
+      "bytes": 55736
+    },
+    {
+      "path": "pages/credential-lure/source.html",
+      "sha256": "8faae3323899366d47747c82addc65ef97bc9624a99691c7e7f5644ede9aec37",
+      "bytes": 1077
+    },
+    {
+      "path": "pages/credential-lure/text.txt",
+      "sha256": "de50e990d9bfd4d00e96d10d541a4f6b01f17898fa585202fcb69ebaee1b70d9",
+      "bytes": 263
+    },
+    {
+      "path": "pages/payment-lure/screenshot.jpg",
+      "sha256": "73b943202a0b80a21125feaa915500a9aaacc691d8ec7940189ac81d62da50b6",
+      "bytes": 58351
+    },
+    {
+      "path": "pages/payment-lure/source.html",
+      "sha256": "1539e2c441cf11f2e1ad4e53ce63ab154706bab1c73ddd5d60cc800e45a4cab5",
+      "bytes": 1081
+    },
+    {
+      "path": "pages/payment-lure/text.txt",
+      "sha256": "d1ffa08a1246409963bbf8576da64d1b93758387affd2b8ee850fcf26af01f7c",
+      "bytes": 265
+    },
+    {
+      "path": "prompt.txt",
+      "sha256": "ea91272bd13730467b72864df4553ea4515e0c00bdc67c138b75a20753e4fa0e",
+      "bytes": 1245
+    },
+    {
+      "path": "requests/article.json",
+      "sha256": "6e9b5420a9404ff78547d49fc6ebd1073f6c72cc2a31a3e2b2353fced19fe558",
+      "bytes": 2169
+    },
+    {
+      "path": "requests/benign-invoice.json",
+      "sha256": "12f1626a944a665382911504507121f2b7d1184ca53cb15beb7b133745c9944e",
+      "bytes": 2039
+    },
+    {
+      "path": "requests/benign-login.json",
+      "sha256": "152f99a4a254e995c7fac0ea3bf3c6473a0f4a500ca75bcf2065c443fca0150d",
+      "bytes": 2040
+    },
+    {
+      "path": "requests/catalogue.json",
+      "sha256": "3f2846ea81aad7f90eb92904c25c12d4229db6fe24e11ad6c19d28d5674de944",
+      "bytes": 2226
+    },
+    {
+      "path": "requests/credential-lure.json",
+      "sha256": "eae52c1117b2ffa7aaf5b435f179dc07a664f28d51c4265c87c86dbe4fc35544",
+      "bytes": 2103
+    },
+    {
+      "path": "requests/payment-lure.json",
+      "sha256": "4de62330dae1860996de542043c461214cb9f86586528a49eb69897d819d3c2a",
+      "bytes": 2103
+    },
+    {
+      "path": "summary.json",
+      "sha256": "c6ed1db74c07d6b6ebe9e8177a0adb92222874e78556c9e6fa67336e2e28cfab",
+      "bytes": 2927
+    }
+  ],
+  "originalRequestMessageHashes": {
+    "benign-invoice": "08f2ae40a7ff45cf3744a93ce1584e0fe3ef0b4cccc6ffb7d8015e18e308cf8b",
+    "benign-login": "8dd45803968d06df6002e91fb3d7d543e111157ff9f7180be3fb24134d17b84f",
+    "article": "8d1802147a6e081b8fe04333f30400445aaf12b38f35e2d08a1866e2eb935f94",
+    "credential-lure": "15f407b89a6ff8999625336c02e776dac6dda3d0ed38b15dfd5e43b8c4f19722",
+    "payment-lure": "8fc8b05f8e8bc419f28abc39ae24aa532917105ed544fb648c5f05ea966d119e",
+    "catalogue": "e903c7e04c7dacdea4c1ed25c74a2810a54935d2212953f44c768cb04cbaf8af"
+  }
+}

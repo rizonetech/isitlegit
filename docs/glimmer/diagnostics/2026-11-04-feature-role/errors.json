@@ -1,0 +1,38 @@
+[
+  {
+    "arm": "candidate",
+    "id": "article",
+    "category": "admission-before-send",
+    "providerPostSent": false
+  },
+  {
+    "arm": "candidate",
+    "id": "catalogue",
+    "category": "output-schema",
+    "providerPostSent": true
+  },
+  {
+    "arm": "candidate",
+    "id": "benign-login",
+    "category": "output-token-limit",
+    "providerPostSent": true
+  },
+  {
+    "arm": "candidate",
+    "id": "benign-invoice",
+    "category": "output-token-limit",
+    "providerPostSent": true
+  },
+  {
+    "arm": "candidate",
+    "id": "credential-lure",
+    "category": "output-schema",
+    "providerPostSent": true
+  },
+  {
+    "arm": "candidate",
+    "id": "payment-lure",
+    "category": "output-token-limit",
+    "providerPostSent": true
+  }
+]
