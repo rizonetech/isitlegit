@@ -1003,6 +1003,22 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
       .run();
   };
 
+  const desktopTypeOf = (html: string, id: string): string | null => {
+    const tbody = html.split("<tbody>")[1]?.split("</tbody>")[0] ?? "";
+    const row = tbody.split("<tr ").find((r) => r.includes(`/r/${id}`));
+    if (!row) return null;
+    const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
+    return cells[2] ?? null;
+  };
+
+  const phoneTypeOf = (html: string, id: string): string | null => {
+    const list = html.split('<ol class="md:hidden flex flex-col">')[1]?.split("</ol>")[0] ?? "";
+    const card = list.split("<li ").find((item) => item.includes(`/r/${id}`));
+    if (!card) return null;
+    const match = card.match(/<p class="type-small text-muted">([\s\S]*?), checked by /);
+    return match?.[1] ?? null;
+  };
+
   it("reads the words from the stored classification, in the table and the card", async () => {
     const a = await org("Karoo Couriers");
     const { cookie } = await member(a);
@@ -1016,13 +1032,16 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
     await classify(letterUpload, "document.type", JSON.stringify({ type: "bank_letter" }));
     await classify(invoiceUpload, "document.type", JSON.stringify({ type: "invoice" }));
     const html = await page("/cases?period=all", cookie);
-    expect(html.split(">Email, invoice</td>")).toHaveLength(2);
-    expect(html.split(">Payment document</td>")).toHaveLength(3);
-    expect(html.split("Email, invoice, checked by")).toHaveLength(2);
-    expect(html.split("Payment document, checked by")).toHaveLength(3);
-    expect(html).toContain(">Payment document</td>");
-    expect(html).toContain("Email, invoice, checked by");
-    expect(html).toContain("Payment document, checked by");
+    expect(desktopTypeOf(html, invoiceMail)).toBe("Email, invoice");
+    expect(phoneTypeOf(html, invoiceMail)).toBe("Email, invoice");
+    expect(desktopTypeOf(html, popUpload)).toBe("Payment document");
+    expect(phoneTypeOf(html, popUpload)).toBe("Payment document");
+    expect(desktopTypeOf(html, letterUpload)).toBe("Payment document");
+    expect(phoneTypeOf(html, letterUpload)).toBe("Payment document");
+    expect(desktopTypeOf(html, invoiceUpload)).toBe("Document");
+    expect(phoneTypeOf(html, invoiceUpload)).toBe("Document");
+    expect(desktopTypeOf(html, plain)).toBe("Document");
+    expect(phoneTypeOf(html, plain)).toBe("Document");
     // An invoice-only upload and an unclassified upload keep Document, and the case count is untouched.
     expect(listed(html).sort()).toEqual([invoiceMail, popUpload, letterUpload, invoiceUpload, plain].sort());
     const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
@@ -1055,8 +1074,10 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
     }
     const { cookie } = await member(a);
     const html = await page("/cases?period=all", cookie);
-    expect(html.split(">Payment document</td>")).toHaveLength(2);
-    expect(html.split(">Document</td>")).toHaveLength(2);
+    expect(desktopTypeOf(html, stale)).toBe("Document");
+    expect(phoneTypeOf(html, stale)).toBe("Document");
+    expect(desktopTypeOf(html, both)).toBe("Payment document");
+    expect(phoneTypeOf(html, both)).toBe("Payment document");
   });
 
   it("never reads another organisation's classification", async () => {
@@ -1071,5 +1092,9 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
       expect(read.value.cases.map((c) => c.id)).toEqual([local]);
       expect(read.value.cases[0]).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
     }
+    const { cookie } = await member(a);
+    const html = await page("/cases?period=all", cookie);
+    expect(desktopTypeOf(html, local)).toBe("Email");
+    expect(phoneTypeOf(html, local)).toBe("Email");
   });
 });
