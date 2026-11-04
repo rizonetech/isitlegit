@@ -329,10 +329,12 @@ class Registry:
                                                    "permissionDecisionReason": "Unattended ownership changed before this event."}}
                 return {"continue": False, "stopReason": "Unattended ownership changed."}
             if self.paused(state):
+                description = {"complete": "has completed its authorized work",
+                               "stalled": "is stalled"}.get(state["phase"], "is paused")
                 if event == "PreToolUse":
                     return {"hookSpecificOutput": {"hookEventName": event, "permissionDecision": "deny",
-                                                   "permissionDecisionReason": "This unattended owner is paused; explicit activation is required."}}
-                return {"continue": False, "stopReason": "Unattended owner is paused."}
+                                                   "permissionDecisionReason": f"This unattended owner {description}; explicit activation is required."}}
+                return {"continue": False, "stopReason": f"Unattended owner {description}."}
             state["observed"][event] = self.now()
             turn = payload.get("turn_id")
             if event in {"UserPromptSubmit", "PreToolUse", "Stop"} and not isinstance(turn, str):
