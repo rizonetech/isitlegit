@@ -75,7 +75,7 @@ track: day-0
 | 34 | §34 | Codex unattended continuation and session ownership | §19 | [ ] |
 | 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
 | 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
-| 37 | §37 | Durable ancestry for review journals | §35, §36 | [ ] |
+| 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1239,12 +1239,15 @@ Filed 2026-11-04 from LOUPE-JOURNAL-ANCESTRY. The shared `scripts/review-dispatc
 1. Persist every parent directory link before a successful journal publication returns. Done when: POSIX publication synchronizes the file and each ancestor directory through the filesystem root, including directories created earlier by the section lock, before invoking a reviewer.
 2. Fail closed and retain evidence across every publication failure. Done when: ancestor open/fsync failure prevents invocation, existing calling/returned/recorded state is preserved, uncertain calls cannot silently retry, and returned-response recovery invokes no new reviewer.
 
-- [ ] Repair `_durable_json` in `scripts/review-dispatch.py` for initial calling, returned, recorded and archived retry publications. Keep exclusive marker creation, file fsync, atomic replacement and descriptor cleanup. Done when: tests observe leaf-to-root directory synchronization before mocked completion and reconciliation reviewer invocation, including initially absent and lock-created parent directories. Cheaper substitute: assume an existing directory is durable, rejected because the lock may have just created it.
-- [ ] Add failing-first regressions in `scripts/tests/test_review_dispatch.py` for ancestor open/fsync failure, retained calling markers, returned-response persistence/recovery and archived retry evidence. Done when: failures propagate, the reviewer is not invoked before durability succeeds, no response or uncertain marker is deleted, and supported recovery does not duplicate a returned review.
-- [ ] Document the POSIX durability guarantee and existing Windows directory-sync exception in `docs/todo-workflow.md`. Done when: the instructions distinguish tested POSIX behavior from unproven Windows crash durability, with no new native heartbeat or review-acceptance claim.
-- [ ] Commit: `tools: persist review journal ancestor directories`
+- [x] Repair `_durable_json` in `scripts/review-dispatch.py` for initial calling, returned, recorded and archived retry publications. Keep exclusive marker creation, file fsync, atomic replacement and descriptor cleanup. Done when: tests observe leaf-to-root directory synchronization before mocked completion and reconciliation reviewer invocation, including initially absent and lock-created parent directories. Cheaper substitute: assume an existing directory is durable, rejected because the lock may have just created it.
+- [x] Add failing-first regressions in `scripts/tests/test_review_dispatch.py` for ancestor open/fsync failure, retained calling markers, returned-response persistence/recovery and archived retry evidence. Done when: failures propagate, the reviewer is not invoked before durability succeeds, no response or uncertain marker is deleted, and supported recovery does not duplicate a returned review.
+- [x] Document the POSIX durability guarantee and existing Windows directory-sync exception in `docs/todo-workflow.md`. Done when: the instructions distinguish tested POSIX behavior from unproven Windows crash durability, with no new native heartbeat or review-acceptance claim.
+- [x] Commit: `tools: persist review journal ancestor directories`
 
 **Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch` passes, including fresh completion/reconciliation ancestry, failure refusal, preserved evidence and no duplicate invocation during recovery.
+
+> **Verified:** 2026-11-04 | §37 | 794d8a9e8a185d47819aa58e02e8d7a2c75f29f4
+> **Review:** `docs/reviews/d00-t01-s37.json`
 
 ## Verification
 
