@@ -71,6 +71,8 @@ it("retains unknown charges and opaque attempt linkage without exposing stored a
     },
   ]);
   expect(result?.accounting.meta).toHaveLength(1);
+  await env.DB.prepare("UPDATE model_spend SET actual_usd=0 WHERE id='attempt-r'").run();
+  expect((await readExperimentReport(env.DB, org, run.monitorRunId))?.accounting.meta[0]?.countedUsd).toBe(0.25);
   expect(JSON.stringify(result)).not.toContain("must-not-leak");
   expect(JSON.stringify(result)).not.toContain("screen_nonce");
 });
@@ -89,4 +91,26 @@ it("reports the arm burst once with its daily parts and preserves unknown minute
   expect(result?.accounting.loupe.every((p) => p.reservationId === run.monitorRunId && p.usedMinutes === null)).toBe(
     true,
   );
+});
+it("returns validated stored results and refuses corrupt persisted fields", async () => {
+  const { org, run, operation } = await fixture();
+  const checkpoint = {
+    version: 1,
+    startedAt: 1,
+    screenedAt: 2,
+    parked: { reason: "empty" },
+    screen: null,
+    secondLook: null,
+    finishedAt: 2,
+  };
+  await env.DB.prepare(
+    "UPDATE monitor_experiment_results SET result_json=?,status='complete' WHERE page_operation_id=?",
+  )
+    .bind(JSON.stringify(checkpoint), operation)
+    .run();
+  expect((await readExperimentReport(env.DB, org, run.monitorRunId))?.pages[0]).toMatchObject({ checkpoint });
+  await env.DB.prepare("UPDATE monitor_experiment_results SET result_json=? WHERE page_operation_id=?")
+    .bind(JSON.stringify({ ...checkpoint, privateText: "must-not-leak" }), operation)
+    .run();
+  await expect(readExperimentReport(env.DB, org, run.monitorRunId)).rejects.toThrow();
 });

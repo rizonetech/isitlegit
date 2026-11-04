@@ -19,6 +19,12 @@ const Identity = z.strictObject({
   status: Status,
   manifestDigest: z.string(),
   deployment: z.string(),
+  createdAt: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER - 86400000),
+  sparkDeadline: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
 });
 const PageIdentity = z.strictObject({
   experimentCaseId: z.string(),
@@ -37,12 +43,13 @@ export async function readExperiment(
 ): Promise<StoredExperiment | null> {
   const row = await db
     .prepare(
-      `SELECT a.org_id AS orgId,a.experiment_id AS experimentId,a.arm,a.replay_run_id AS replayRunId,a.monitor_run_id AS monitorRunId,a.status,e.manifest_digest AS manifestDigest,e.deployment FROM monitor_experiment_arms a JOIN monitor_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id WHERE a.org_id=? AND a.monitor_run_id=?`,
+      `SELECT a.org_id AS orgId,a.experiment_id AS experimentId,a.arm,a.replay_run_id AS replayRunId,a.monitor_run_id AS monitorRunId,a.status,e.manifest_digest AS manifestDigest,e.deployment,a.created_at AS createdAt,a.spark_deadline AS sparkDeadline FROM monitor_experiment_arms a JOIN monitor_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id WHERE a.org_id=? AND a.monitor_run_id=?`,
     )
     .bind(orgId, monitorRunId)
     .first();
   if (!row) return null;
   const identity = Identity.parse(row);
+  if (identity.sparkDeadline !== identity.createdAt + 86400000) throw new MonitorIdentityConflict();
   const result = await db
     .prepare(
       `SELECT r.experiment_case_id AS experimentCaseId,p.page_id AS pageId,p.capture_digest AS captureDigest,p.label_digest AS labelDigest,r.page_operation_id AS pageOperationId,r.status FROM monitor_experiment_results r JOIN monitor_experiment_pages p ON p.org_id=r.org_id AND p.experiment_id=r.experiment_id AND p.experiment_case_id=r.experiment_case_id WHERE r.org_id=? AND r.monitor_run_id=? ORDER BY p.rowid`,
@@ -65,6 +72,12 @@ export async function admitExperiment(
   if (manifest.deployment !== request.deployment || (await manifestDigest(manifest)) !== request.manifestDigest)
     throw new MonitorIdentityConflict();
   const runId = ulid();
+  const createdAt = z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER - 86400000)
+    .parse(Date.now());
   const batch = [
     db
       .prepare(
@@ -83,9 +96,9 @@ export async function admitExperiment(
   batch.push(
     db
       .prepare(
-        `INSERT INTO monitor_experiment_arms(org_id,experiment_id,arm,replay_run_id,monitor_run_id,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(org_id,experiment_id,arm) DO UPDATE SET replay_run_id=excluded.replay_run_id WHERE replay_run_id!=excluded.replay_run_id`,
+        `INSERT INTO monitor_experiment_arms(org_id,experiment_id,arm,replay_run_id,monitor_run_id,created_at,spark_deadline) VALUES(?,?,?,?,?,?,?) ON CONFLICT(org_id,experiment_id,arm) DO UPDATE SET replay_run_id=excluded.replay_run_id WHERE replay_run_id!=excluded.replay_run_id`,
       )
-      .bind(orgId, request.experimentId, request.arm, request.replayRunId, runId, Date.now()),
+      .bind(orgId, request.experimentId, request.arm, request.replayRunId, runId, createdAt, createdAt + 86400000),
   );
   for (const page of manifest.pages)
     batch.push(

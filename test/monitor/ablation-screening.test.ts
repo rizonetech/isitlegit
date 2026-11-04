@@ -87,7 +87,7 @@ async function context(phase: "screen" | "second-look", fetcher: typeof fetch) {
         operationId,
         phase,
         deployment,
-        deadline: Date.now() + 3600000,
+        deadline: run.sparkDeadline,
       }),
     },
   };

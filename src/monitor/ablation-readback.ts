@@ -1,5 +1,6 @@
 // Historical reads use persisted tenant ownership, independently of the admission gate. No read starts work.
 import { z } from "zod";
+import { PageCheckpoint } from "./ablation-results";
 import { readExperiment } from "./ablation-store";
 
 const Id = z.string().min(1).max(256);
@@ -56,7 +57,7 @@ export async function readExperimentReport(db: D1Database, orgId: string, monito
       .bind(orgId, monitorRunId),
     db
       .prepare(
-        `SELECT s.id AS reservationId,s.call_id AS callId,r.page_operation_id AS pageOperationId,s.step,s.model,s.state,s.estimate_usd AS estimateUsd,s.actual_usd AS actualUsd,coalesce(s.actual_usd,s.estimate_usd) AS countedUsd,s.ms AS elapsedMs,s.outcome,s.cost_certainty AS costCertainty,s.settled_at AS settledAt FROM monitor_experiment_results r JOIN model_spend s ON s.owner='monitor' AND s.monitor_run=r.page_operation_id AND s.step IN ('screen','second-look') WHERE r.org_id=? AND r.monitor_run_id=? ORDER BY s.at,s.id`,
+        `SELECT s.id AS reservationId,s.call_id AS callId,r.page_operation_id AS pageOperationId,s.step,s.model,s.state,s.estimate_usd AS estimateUsd,s.actual_usd AS actualUsd,CASE WHEN s.state='settled' THEN s.actual_usd ELSE s.estimate_usd END AS countedUsd,s.ms AS elapsedMs,s.outcome,s.cost_certainty AS costCertainty,s.settled_at AS settledAt FROM monitor_experiment_results r JOIN model_spend s ON s.owner='monitor' AND s.monitor_run=r.page_operation_id AND s.step IN ('screen','second-look') WHERE r.org_id=? AND r.monitor_run_id=? ORDER BY s.at,s.id`,
       )
       .bind(orgId, monitorRunId),
     db
@@ -64,10 +65,41 @@ export async function readExperimentReport(db: D1Database, orgId: string, monito
         `SELECT g.id AS partId,g.reservation_id AS reservationId,g.day,g.deployment,g.reserved_minutes AS reservedMinutes,g.used_minutes AS usedMinutes,coalesce(g.used_minutes,g.reserved_minutes) AS countedMinutes,g.wake_at AS wakeAt,g.settled_at AS settledAt,g.reconciled FROM glimmer_runtime g JOIN monitor_experiment_arms a ON a.monitor_run_id=g.reservation_id WHERE a.org_id=? AND a.monitor_run_id=? ORDER BY g.day,g.id`,
       )
       .bind(orgId, monitorRunId),
+    db
+      .prepare(
+        "SELECT page_operation_id AS operationId,result_json AS checkpoint FROM monitor_experiment_results WHERE org_id=? AND monitor_run_id=?",
+      )
+      .bind(orgId, monitorRunId),
   ]);
-  if (rows.length !== 3 || rows.some((row) => !row.success)) throw new Error("monitor readback unavailable");
+  if (rows.length !== 4 || rows.some((row) => !row.success)) throw new Error("monitor readback unavailable");
+  const checkpoints = new Map(
+    (rows[3]?.results ?? []).map((row) => {
+      const parsed = z.strictObject({ operationId: Id, checkpoint: z.string().nullable() }).parse(row);
+      return [
+        parsed.operationId,
+        parsed.checkpoint === null ? null : PageCheckpoint.parse(JSON.parse(parsed.checkpoint)),
+      ];
+    }),
+  );
+  if (checkpoints.size !== identity.pages.length) throw new Error("monitor readback unavailable");
   return {
     ...identity,
+    pages: identity.pages.map((page) => {
+      if (!checkpoints.has(page.pageOperationId)) throw new Error("monitor readback unavailable");
+      const checkpoint = checkpoints.get(page.pageOperationId) ?? null;
+      const exercised =
+        identity.arm === "full" && checkpoint?.screen?.ok === true && checkpoint.screen.tier === "glimmer";
+      const reason = exercised
+        ? "loupe-screen"
+        : checkpoint?.parked
+          ? "parked"
+          : identity.arm === "no-screening"
+            ? "ablated"
+            : checkpoint?.screen
+              ? "fallback-only"
+              : "no-result";
+      return { ...page, checkpoint, screeningContribution: { exercised, reason } };
+    }),
     attempts: (rows[0]?.results ?? []).map((row) => Attempt.parse(row)),
     accounting: {
       meta: (rows[1]?.results ?? []).map((row) => Meta.parse(row)),

@@ -24,11 +24,19 @@ export function structuredContinuation(input: StructuredBinding): StructuredCont
         throw new PendingAttempt("conflict");
       const row = await db
         .prepare(
-          `SELECT e.deployment FROM monitor_experiment_results r JOIN monitor_experiment_arms a ON a.monitor_run_id=r.monitor_run_id JOIN monitor_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id WHERE r.monitor_run_id=? AND r.page_operation_id=?`,
+          `SELECT e.deployment,a.created_at,a.spark_deadline FROM monitor_experiment_results r JOIN monitor_experiment_arms a ON a.monitor_run_id=r.monitor_run_id JOIN monitor_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id WHERE r.monitor_run_id=? AND r.page_operation_id=?`,
         )
         .bind(c.monitorRunId, c.operationId)
-        .first<{ deployment: string }>();
-      if (row?.deployment !== c.deployment) throw new PendingAttempt("conflict");
+        .first<{ deployment: string; created_at: number; spark_deadline: number }>();
+      if (
+        row?.deployment !== c.deployment ||
+        !Number.isSafeInteger(row.created_at) ||
+        row.created_at < 0 ||
+        !Number.isSafeInteger(row.spark_deadline) ||
+        row.spark_deadline !== row.created_at + 86400000 ||
+        c.deadline !== row.spark_deadline
+      )
+        throw new PendingAttempt("conflict");
     },
     execute: (ordinal, digest, schema, send) =>
       attempt(

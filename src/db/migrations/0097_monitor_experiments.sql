@@ -24,7 +24,8 @@ CREATE TABLE monitor_experiment_arms (
  replay_run_id TEXT NOT NULL,
  monitor_run_id TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','waiting','unknown','complete','failed')),
- created_at INTEGER NOT NULL,
+ created_at INTEGER NOT NULL CHECK(typeof(created_at)='integer' AND created_at>=0 AND created_at<=9007199168340991),
+ spark_deadline INTEGER NOT NULL CHECK(typeof(spark_deadline)='integer' AND spark_deadline=created_at+86400000),
  PRIMARY KEY(org_id,experiment_id,arm),
  UNIQUE(org_id,replay_run_id),
  UNIQUE(org_id,experiment_id,arm,monitor_run_id),
@@ -70,7 +71,7 @@ CREATE TRIGGER monitor_experiment_pages_immutable BEFORE UPDATE ON monitor_exper
 BEGIN SELECT RAISE(ABORT,'immutable monitor page'); END;
 CREATE TRIGGER monitor_experiment_arms_immutable BEFORE UPDATE ON monitor_experiment_arms
 WHEN NEW.org_id!=OLD.org_id OR NEW.experiment_id!=OLD.experiment_id OR NEW.arm!=OLD.arm
- OR NEW.replay_run_id!=OLD.replay_run_id OR NEW.monitor_run_id!=OLD.monitor_run_id OR NEW.created_at!=OLD.created_at
+ OR NEW.replay_run_id!=OLD.replay_run_id OR NEW.monitor_run_id!=OLD.monitor_run_id OR NEW.created_at!=OLD.created_at OR NEW.spark_deadline!=OLD.spark_deadline
 BEGIN SELECT RAISE(ABORT,'immutable monitor arm'); END;
 CREATE TRIGGER monitor_experiment_results_immutable BEFORE UPDATE ON monitor_experiment_results
 WHEN NEW.org_id!=OLD.org_id OR NEW.experiment_id!=OLD.experiment_id OR NEW.arm!=OLD.arm

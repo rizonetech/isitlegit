@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { d1Budget } from "../../src/meta/budget";
 import { structured } from "../../src/meta/structured";
@@ -8,6 +8,7 @@ import { admitExperiment } from "../../src/monitor/ablation-store";
 import { structuredContinuation } from "../../src/monitor/ablation-structured";
 import { makeOrg } from "../trust/helpers";
 
+afterEach(() => vi.restoreAllMocks());
 const Schema = z.strictObject({ ok: z.boolean() });
 const request = { name: "test", model: "muse-spark-1.3", input: "Fictional page", max_output_tokens: 64 };
 const good = () =>
@@ -70,7 +71,7 @@ async function context(fetcher: typeof fetch) {
     operationId,
     phase: "second-look" as const,
     deployment,
-    deadline: Date.now() + 3600000,
+    deadline: run.sparkDeadline,
   };
   return {
     env: { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" },
@@ -206,4 +207,66 @@ it("does not accept a continuation adapter substituting a schema-valid answer", 
     return { ...(actual as Record<string, unknown>), value: { ok: false } };
   }) as typeof real;
   await expect(structured(Schema, request, ctx)).rejects.toThrow();
+});
+it("enforces the persisted exact expiry at the boundary and rejects a caller reset", async () => {
+  let sends = 0;
+  const ctx = await context((async () => {
+    sends++;
+    return good();
+  }) as typeof fetch);
+  vi.spyOn(Date, "now").mockReturnValue(ctx.binding.deadline);
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  ctx.continuation = structuredContinuation({ ...ctx.binding, deadline: ctx.binding.deadline + 1 });
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  expect(sends).toBe(0);
+});
+it("retains an unknown liability after expiry without sending again", async () => {
+  let sends = 0;
+  const ctx = await context((async () => {
+    sends++;
+    throw new Error("lost");
+  }) as typeof fetch);
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  vi.spyOn(Date, "now").mockReturnValue(ctx.binding.deadline + 1);
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  expect(sends).toBe(1);
+  expect(
+    await env.DB.prepare("SELECT state FROM model_spend WHERE monitor_run=?").bind(ctx.binding.operationId).first(),
+  ).toEqual({ state: "uncertain" });
+});
+it("does not issue a repair when the first paid answer arrives after arm expiry", async () => {
+  let sends = 0;
+  let expiry = 0;
+  const clock = vi.spyOn(Date, "now");
+  const ctx = await context((async () => {
+    sends++;
+    clock.mockReturnValue(expiry + 1);
+    return bad();
+  }) as typeof fetch);
+  expiry = ctx.binding.deadline;
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  expect(sends).toBe(1);
+  expect(
+    (
+      await env.DB.prepare("SELECT count(*) AS n FROM model_spend WHERE monitor_run=?")
+        .bind(ctx.binding.operationId)
+        .first<{ n: number }>()
+    )?.n,
+  ).toBe(1);
+});
+it("honors a long Retry-After past the absolute deadline across restart", async () => {
+  let sends = 0;
+  const ctx = await context((async () => {
+    sends++;
+    return new Response("capacity", { status: 429, headers: { "Retry-After": "90000" } });
+  }) as typeof fetch);
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  await expect(structured(Schema, request, ctx)).rejects.toThrow();
+  expect(sends).toBe(1);
+  const row = await env.DB.prepare(
+    "SELECT next_eligible_at,deadline FROM monitor_experiment_attempts WHERE monitor_run_id=?",
+  )
+    .bind(ctx.binding.monitorRunId)
+    .first<{ next_eligible_at: number; deadline: number }>();
+  expect(row?.next_eligible_at).toBeGreaterThan(row?.deadline ?? 0);
 });

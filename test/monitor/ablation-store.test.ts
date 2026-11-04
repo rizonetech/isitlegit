@@ -113,3 +113,32 @@ it("persists separate immutable128-bit request nonces without exposing them in o
   ).rejects.toThrow();
   expect(JSON.stringify(a)).not.toContain(row?.screen_nonce);
 });
+it("persists one 24-hour absolute Spark expiry and rejects mutation or invalid admission clocks", async () => {
+  const org = await makeOrg();
+  const { manifest, request } = await inputs();
+  const first = await admitExperiment(env.DB, org, request, manifest);
+  const row = await env.DB.prepare(
+    "SELECT created_at,spark_deadline FROM monitor_experiment_arms WHERE monitor_run_id=?",
+  )
+    .bind(first.monitorRunId)
+    .first<{ created_at: number; spark_deadline: number }>();
+  expect(row?.spark_deadline).toBe((row?.created_at ?? 0) + 86400000);
+  await admitExperiment(env.DB, org, request, manifest);
+  expect(
+    await env.DB.prepare("SELECT created_at,spark_deadline FROM monitor_experiment_arms WHERE monitor_run_id=?")
+      .bind(first.monitorRunId)
+      .first(),
+  ).toEqual(row);
+  await expect(
+    env.DB.prepare("UPDATE monitor_experiment_arms SET spark_deadline=spark_deadline+1 WHERE monitor_run_id=?")
+      .bind(first.monitorRunId)
+      .run(),
+  ).rejects.toThrow();
+  await expect(
+    env.DB.prepare(
+      "INSERT INTO monitor_experiment_arms(org_id,experiment_id,arm,replay_run_id,monitor_run_id,created_at,spark_deadline) VALUES(?,?,'no-screening','bad-clock','bad-clock',-1,86399999)",
+    )
+      .bind(org, request.experimentId)
+      .run(),
+  ).rejects.toThrow();
+});
