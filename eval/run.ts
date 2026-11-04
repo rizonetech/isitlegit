@@ -20,7 +20,7 @@ import { MEMBER_CASES_TODAY, sastDayStart } from "../src/db/cap-rule.ts";
 import { inlineLong, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
-import { isAblateFlag } from "./ablate.ts";
+import { CaseExperiment, ExperimentInput, isAblateFlag, requireCapabilities, sameExperiment } from "./ablate.ts";
 
 import {
   EXIT,
@@ -63,7 +63,15 @@ export type CaseState = {
   createdAt: string;
   updatedAt: string;
 };
-export type UploadAnswer = { status: number; caseId?: string; repeat?: boolean };
+export type Attribution = { context: CaseExperiment; uploadKey: string; active: boolean; rawMissing: boolean };
+export type ModelUse = {
+  model: string;
+  step: string | null;
+  outcome: string | null;
+  state: string;
+  cache: string | null;
+};
+export type UploadAnswer = { status: number; caseId?: string; repeat?: boolean; experiment?: unknown };
 export type Api = {
   commit(): Promise<string>;
   // The replay identity is the replay run's own id (D08 T02 section 12): never the source run's, so a second
@@ -71,10 +79,11 @@ export type Api = {
   upload(
     sample: RunSample,
     bytes: Uint8Array,
-    opts: { mode: string; replayRunId: string | null },
+    opts: { mode: string; replayRunId: string | null; experiment?: ExperimentInput },
   ): Promise<UploadAnswer>;
   // The signed-in user the session belongs to, null when it is not signed in.
   whoami(): Promise<string | null>;
+  capabilities?(): Promise<unknown>;
 };
 export type RunRow = {
   id: string;
@@ -113,6 +122,8 @@ export type Db = {
   spent(day: string): Promise<{ daySpentUsd: number; totalSpentUsd: number }>;
   lastCostPerCase(): Promise<number | null>;
   caseState(caseId: string): Promise<CaseState | null>;
+  caseExperiment?(caseId: string): Promise<Attribution | null>;
+  modelUse?(caseId: string): Promise<ModelUse[]>;
   insertRun(run: RunRow): Promise<void>;
   putResult(row: ResultRow): Promise<void>;
   finishRun(id: string, status: RunStatus, costUsd: number, finishedAt: string): Promise<void>;
@@ -215,6 +226,7 @@ export async function runEval(args: {
   // restored and verified the source population. A replay mode named through `mode` is refused: it would
   // carry replay provenance with no validated source behind it.
   replayOf?: string;
+  experiment?: CaseExperiment;
 }): Promise<RunResult> {
   const { samples, setVersion, options, api, db, env } = args;
   const refused = (problems: string[]): RunResult => ({
@@ -236,7 +248,8 @@ export async function runEval(args: {
 
   // A resumed run keeps its row, its settled results and its journal, and continues on the deployment it began on.
   let existing: ResultRow[] = [];
-  let runId = env.id();
+  const experiment = args.experiment ? CaseExperiment.parse(args.experiment) : undefined;
+  let runId = experiment?.replayRunId ?? env.id();
   let startedAt = new Date(env.now()).toISOString();
   let journal: Journal = { runId, startedAt, caseIds: {} };
   const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
@@ -249,10 +262,24 @@ export async function runEval(args: {
     ]);
   if (
     mode !== "full" &&
-    !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))) &&
+    !(
+      mode.startsWith("ablate:") &&
+      (isAblateFlag(mode.slice("ablate:".length)) || (mode === "ablate:full" && experiment))
+    ) &&
     !(mode.startsWith("replay:") && mode.length > "replay:".length)
   )
     return refused([`unknown run mode ${JSON.stringify(mode)}: "full", "ablate:<flag>" or "replay:<run id>"`]);
+  if (experiment) {
+    if (args.replayOf || (args.resume && args.resume !== experiment.replayRunId) || mode !== `ablate:${experiment.arm}`)
+      return refused(["experiment arm/run/mode conflict"]);
+    if (commitNow !== experiment.deployment || !api.capabilities || !db.caseExperiment)
+      return refused(["experiment deployment or durable capability reader missing"]);
+    try {
+      requireCapabilities(await api.capabilities(), experiment.deployment, ["full", experiment.arm]);
+    } catch (error) {
+      return refused([`experiment capability refusal: ${String(error)}`]);
+    }
+  } else if (mode.startsWith("ablate:")) return refused(["ablation requires immutable experiment metadata"]);
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
@@ -263,6 +290,8 @@ export async function runEval(args: {
         `run ${args.resume} was started with mode ${stored.run.mode}, not ${args.mode}; a resume keeps the switch it began with (drop --mode or repeat that figure)`,
       ]);
     mode = stored.run.mode;
+    if (mode.startsWith("ablate:") && !experiment)
+      return refused(["ablation resume requires immutable experiment metadata"]);
     if (stored.run.setVersion !== setVersion) return refused(["the selected samples are not those of the run"]);
     if (stored.run.commitSha !== commitNow)
       return refused([
@@ -292,6 +321,36 @@ export async function runEval(args: {
       return refused(["the session does not belong to the eval organisation alone; nothing was sent"]);
   }
 
+  async function attribution(sample: RunSample, caseId: string): Promise<Attribution> {
+    const value = await db.caseExperiment?.(caseId);
+    if (
+      !experiment ||
+      !value ||
+      !sameExperiment(value.context, experiment) ||
+      value.uploadKey !== sampleUploadKey(sample)
+    )
+      throw new SessionRefused(`experiment attribution mismatch for ${sample.id}`);
+    if (!value.active && !value.rawMissing)
+      throw new SessionRefused(`unknown inactive experiment binding for ${sample.id}`);
+    return value;
+  }
+  if (experiment) {
+    try {
+      for (const sample of samples) {
+        const caseId = journal.caseIds[sample.id];
+        if (!caseId) continue;
+        const bound = await attribution(sample, caseId);
+        if (!bound.active) {
+          // Only the server's definitive RawMissing settlement allows replacement under this same replay identity.
+          delete journal.caseIds[sample.id];
+          existing = existing.filter((row) => row.sample !== sample.id);
+        }
+      }
+      if (args.resume) saveJournal(env.journalDir, journal);
+    } catch (error) {
+      return refused([`cannot reconcile experiment: ${String(error)}`]);
+    }
+  }
   const finished = new Map(existing.filter((r) => kept(r.outcome)).map((r) => [r.sample, r]));
   const todo = samples.filter((s) => !finished.has(s.id));
 
@@ -424,6 +483,15 @@ export async function runEval(args: {
             detail: "its case could not be read",
           };
       }
+      if (state && experiment) {
+        const bound = await attribution(s, caseId);
+        if (!bound.active)
+          return {
+            ...base(s, null),
+            outcome: "lost",
+            detail: "definitive RawMissing; resume replaces under the same arm identity",
+          };
+      }
       if (state && (state.status === "done" || state.status === "partial")) {
         return {
           ...base(s, caseId),
@@ -494,11 +562,25 @@ export async function runEval(args: {
           await store({ ...base(s, null), outcome: "lost", detail: "its file could not be read here" });
           return;
         }
+        if (experiment && sha256(bytes) !== s.sha256) throw new SessionRefused(`selected sample changed: ${s.id}`);
         let answer: UploadAnswer | null = null;
         for (let attempt = 0; attempt <= UPLOAD_RETRIES; attempt++) {
           try {
             answer = await env.timeout(UPLOAD_TIMEOUT_MS, () =>
-              api.upload(s, bytes, { mode, replayRunId: mode.startsWith("replay:") ? runId : null }),
+              api.upload(s, bytes, {
+                mode,
+                replayRunId: experiment?.replayRunId ?? (mode.startsWith("replay:") ? runId : null),
+                ...(experiment
+                  ? {
+                      experiment: {
+                        experimentId: experiment.experimentId,
+                        arm: experiment.arm,
+                        manifestDigest: experiment.manifestDigest,
+                        deployment: experiment.deployment,
+                      },
+                    }
+                  : {}),
+              }),
             );
           } catch {
             answer = { status: 503 };
@@ -528,9 +610,22 @@ export async function runEval(args: {
           return;
         }
         caseId = a.caseId;
+        if (experiment) {
+          if (!sameExperiment(a.experiment, experiment))
+            throw new SessionRefused(`upload experiment attribution mismatch for ${s.id}`);
+          const bound = await attribution(s, caseId);
+          if (!bound.active) {
+            await store({
+              ...base(s, null),
+              outcome: "lost",
+              detail: "definitive RawMissing; resume with the same arm identity",
+            });
+            return;
+          }
+        }
         // A repeat is judged before its case is journaled: a case from before this run must never reach a poll, so a
         // crash or a failed store here is found again, as a repeat, when the run is resumed.
-        if (a.repeat) {
+        if (a.repeat && !experiment) {
           let earlier: CaseState | null | "unreadable" = "unreadable";
           try {
             earlier = await env.timeout(DB_TIMEOUT_MS, () => db.caseState(caseId as string));
@@ -559,6 +654,7 @@ export async function runEval(args: {
         journal.caseIds[s.id] = caseId;
         saveJournal(env.journalDir, journal);
       }
+      if (experiment) await attribution(s, caseId);
       const row = await poll(s, caseId, priorBySample.get(s.id)?.costUsd ?? 0);
       await store(row);
       spentUsd += row.costUsd;
@@ -689,9 +785,21 @@ export async function verifyRun(db: Db, id: string): Promise<{ ok: boolean; prob
 // ---- the live clients ----------------------------------------------------------------------------------------------------
 
 const MEDIA: Record<string, string> = { ".eml": "message/rfc822", ".pdf": "application/pdf", ".png": "image/png" };
+export function sampleUploadKey(sample: RunSample): string {
+  const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
+  return `sha256:${sha256(`${sample.sha256}\0${sample.path}\0${MEDIA[ext] ?? "application/octet-stream"}`)}`;
+}
 
 export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = fetch): Api {
   return {
+    async capabilities() {
+      const res = await fetchImpl(new URL("/api/upload/ablation-capabilities", base), {
+        headers: { cookie },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) throw new Error(`ablation capability unavailable (${res.status})`);
+      return res.json();
+    },
     async commit() {
       const body = (await (
         await fetchImpl(new URL("/health", base), { signal: AbortSignal.timeout(30_000) })
@@ -716,8 +824,13 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
       // A replay (D08 T02 section 12, D01 T01 section 22): the upload door admits at most one replayRunId field,
       // honoured only for the eval organisation, scoping the claim so the replay admits its own case. The id is
-      // the replay run's own, never the source run's. Ablation arm modes stay held at this boundary until the
-      // D01 flag admit lands (D08 T02 section 3).
+      // the replay run's own, never the source run's. Experimental arms carry explicit immutable context;
+      // their capability and durable-attribution gates run before a case can enter measurements.
+      if (opts.experiment) {
+        const value = ExperimentInput.parse(opts.experiment);
+        CaseExperiment.parse({ ...value, replayRunId: opts.replayRunId });
+        form.set("ablate", JSON.stringify(value));
+      }
       if (opts.replayRunId) form.set("replayRunId", opts.replayRunId);
       const res = await fetchImpl(new URL("/api/upload", base), {
         method: "POST",
@@ -725,11 +838,17 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
         body: form,
         signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
       });
-      const json = (await res.json().catch(() => ({}))) as { caseId?: string; repeat?: boolean };
+      const json = (await res.json().catch(() => ({}))) as { caseId?: string; repeat?: boolean; experiment?: unknown };
+      if (opts.experiment && (res.status === 200 || res.status === 201)) {
+        if (typeof json.caseId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(json.caseId))
+          throw new Error("invalid experimental case ID");
+        CaseExperiment.parse(json.experiment);
+      }
       return {
         status: res.status,
         ...(json.caseId ? { caseId: json.caseId } : {}),
         ...(json.repeat ? { repeat: true } : {}),
+        ...(json.experiment !== undefined ? { experiment: json.experiment } : {}),
       };
     },
   };
@@ -834,6 +953,50 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
       };
+    },
+    async caseExperiment(caseId) {
+      const row = (
+        await execute({
+          sql: `SELECT e.experiment_id AS experimentId,a.arm,e.manifest_digest AS manifestDigest,
+        e.deployment,a.replay_run_id AS replayRunId,x.upload_key,x.active_upload_key,
+        EXISTS(SELECT 1 FROM case_events v WHERE v.case_id=c.id AND v.step='admit' AND v.status='failed' AND v.error='RawMissing' AND c.status='partial') AS raw_missing
+        FROM case_experiments x JOIN eval_experiment_arms a ON a.org_id=x.org_id AND a.experiment_id=x.experiment_id AND a.arm=x.arm AND a.replay_run_id=x.replay_run_id
+        JOIN eval_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id
+        JOIN cases c ON c.id=x.case_id AND c.org_id=x.org_id WHERE x.case_id=?1 AND x.org_id=?2`,
+          params: [caseId, await orgId()],
+        })
+      ).results?.[0];
+      if (!row) return null;
+      const context = CaseExperiment.parse({
+        experimentId: row.experimentId,
+        arm: row.arm,
+        manifestDigest: row.manifestDigest,
+        deployment: row.deployment,
+        replayRunId: row.replayRunId,
+      });
+      return {
+        context,
+        uploadKey: String(row.upload_key),
+        active: row.active_upload_key === row.upload_key,
+        rawMissing: row.active_upload_key === null && num(row.raw_missing) === 1,
+      };
+    },
+    async modelUse(caseId) {
+      const rows =
+        (
+          await execute({
+            sql: `SELECT m.model,m.step,m.outcome,m.state,m.cache FROM model_spend m
+        JOIN cases c ON c.id=m.case_id WHERE c.id=?1 AND c.org_id=?2 AND m.owner='case'`,
+            params: [caseId, await orgId()],
+          })
+        ).results ?? [];
+      return rows.map((row) => ({
+        model: String(row.model),
+        step: row.step === null ? null : String(row.step),
+        outcome: row.outcome === null ? null : String(row.outcome),
+        state: String(row.state),
+        cache: row.cache === null ? null : String(row.cache),
+      }));
     },
     async insertRun(r) {
       await execute({
@@ -1001,8 +1164,10 @@ export async function main(
     );
     return EXIT.refused;
   }
-  if (options.replay && (options.mode || options.resume))
-    return (console.error("eval:run: --replay stands alone (no --mode or --resume)"), EXIT.refused) as never;
+  if (options.replay && (options.mode || options.resume)) {
+    console.error("eval:run: --replay stands alone (no --mode or --resume)");
+    return EXIT.refused;
+  }
   const picked = await resolveSelection(db, options);
   if ("error" in picked) {
     console.error(`eval:run: ${picked.error}`);
