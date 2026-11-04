@@ -80,6 +80,41 @@ class Audit(unittest.TestCase):
         (ref / "eval.meta.jsonl").write_bytes(b"")
         write_json(ref / "summary.json", {"version": "1.1", "pages": 0, "membership": digest(b""), "sha256": {"evaluation": digest(b"")}})
 
+        membership_file = self.store / "raw/dataset/reference.json"
+        write_json(membership_file, {"pages": []})
+        membership_sha = digest(membership_file.read_bytes())
+        self.summary["reference"]["sha256"] = membership_sha
+        write_json(self.dataset / "summary.json", self.summary)
+        write_json(ref / "summary.json", {"version": "1.1", "pages": 0, "membership": membership_sha, "sha256": {"evaluation": digest(b"")}})
+
+    def test_missing_reference_membership_blocks(self):
+        (self.store / "raw/dataset/reference.json").unlink()
+        report = self.run_audit()
+        self.assertTrue(any(i["artifact"] == "1.1/reference-membership" and i["kind"] == "incomplete" for i in report["issues"]))
+
+    def test_changed_reference_membership_blocks(self):
+        write_json(self.store / "raw/dataset/reference.json", {"pages": [self.rows["eval"]["id"]]})
+        self.assertIn("reference_membership_digest_mismatch", self.codes())
+
+    def test_reference_export_outside_membership_blocks(self):
+        ref = self.dataset / "reference"
+        for suffix in ("jsonl", "meta.jsonl"):
+            (ref / ("eval." + suffix)).write_bytes((self.dataset / ("eval." + suffix)).read_bytes())
+        summary = json.loads((ref / "summary.json").read_text())
+        summary["pages"] = 1
+        summary["sha256"]["evaluation"] = digest((ref / "eval.jsonl").read_bytes())
+        write_json(ref / "summary.json", summary)
+        self.assertIn("reference_export_membership_mismatch", self.codes())
+
+    def test_huge_balance_integer_produces_failure_receipt(self):
+        self.summary["splitBalance"]["tolerance"] = 10 ** 400
+        write_json(self.dataset / "summary.json", self.summary)
+        target = self.store / "runs/audits/huge.json"
+        with mock.patch("builtins.print"):
+            result = audit.main(["--store", str(self.store), "--version", "1.1", "--receipt", str(target)])
+        self.assertEqual(result, 1)
+        self.assertIn("invalid_balance_tolerance", {i["code"] for i in json.loads(target.read_text())["issues"]})
+
     def run_audit(self):
         return audit.audit(self.store, "1.1", trainer_input=self.input, run=self.run)
 

@@ -56,7 +56,10 @@ def obj(value):
 
 
 def finite(value):
-    return type(value) in (int, float) and math.isfinite(value)
+    try:
+        return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def page_block(text, nonce):
@@ -349,6 +352,16 @@ def provenance(reader, store, version, summary, ids, counts):
         membership = obj(summary.get("reference")).get("sha256")
         if not isinstance(membership, str) or reference.get("membership") != membership:
             reader.issue("reference_membership_mismatch", role)
+        membership_role = version + "/reference-membership"
+        saved_membership = reader.object(store / "raw/dataset/reference.json", membership_role)
+        if saved_membership is not None:
+            pages = saved_membership.get("pages")
+            if not isinstance(pages, list) or not all(isinstance(p, str) for p in pages) or len(pages) != len(set(pages)):
+                reader.issue("invalid_reference_membership", role)
+            elif not ref_ids <= set(pages):
+                reader.issue("reference_export_membership_mismatch", role)
+            if reader.files.get(membership_role, {}).get("sha256") != membership:
+                reader.issue("reference_membership_digest_mismatch", role)
     floors = summary.get("floors")
     if not isinstance(floors, dict) or not floors:
         reader.issue("missing_floors", role, "incomplete")
