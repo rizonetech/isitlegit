@@ -210,3 +210,11 @@ it.each([
 ])("round-one regression: no partial signed/composite evidence for %s", async (transcript) => {
   expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
 });
+
+it.each([
+  "Please pay R100 & 50 thousand & 20 thousand today",
+  "Please pay R100 & 50 thousand & 20 thousand & R30 today",
+  "Please pay negative R100 and 50 thousand & 20 thousand today",
+])("completion regression: repeated compound joins retain only the quote for %s", async (transcript) => {
+  expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
+});

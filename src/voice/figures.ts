@@ -36,7 +36,7 @@ function compositeEnd(transcript: string, end: number): number | null {
   let at = end + join[0].length;
   while (at < transcript.length) {
     const tail = transcript.slice(at);
-    const token = /^[\s\d.,/%:$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? /^R(?=\s|\d)/i.exec(tail);
+    const token = /^[\s\d.,/%:&$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? /^R(?=\s|\d)/i.exec(tail);
     if (!token) break;
     at += token[0].length;
   }
