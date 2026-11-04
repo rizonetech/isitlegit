@@ -356,3 +356,103 @@ Diagnostics:
 ```
 
 Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.
+
+## Wonder multi-step experiment
+
+Source 4eabf3e6764d9a76198bd13b803ae65f671eb69c; deployed fe3a0d7943e3e9148b6d6ab888cbc751b61011e4; experiment bf8e1eff-53cd-4c59-83c8-350b734fd3f8.
+
+Credential page reached: 0/5. Unknown outcomes: 0. Counted cost: US$0.000000 (0 estimated ordinals). Credential arrival steps: [null,null,null,null,null]. Arrival time ms: [null,null,null,null,null]. Final steps: [0,0,0,0,0]. Final time ms: [150,143,391,146,415].
+
+No model call was attempted; model navigation capability was not measured. Reaching the credential page is distinct from successful form submission. All five observations are accounted for.
+
+## Wonder configuration and diagnostics: bf8e1eff-53cd-4c59-83c8-350b734fd3f8
+
+Configured from immutable source 4eabf3e6764d9a76198bd13b803ae65f671eb69c; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.
+
+Configuration:
+
+```json
+{
+  "model": "muse-wonder-1.0",
+  "promptReference": "src/walkthrough/wonder.ts#GOAL",
+  "promptSha256": "42e81eba1408c0680d3b1857517a7d35d6625b61b34075e1a83e524b9c94ace7",
+  "untrustedReference": "src/meta/untrusted.ts#UNTRUSTED_WARNING",
+  "untrustedSha256": "7c17054faee0e5b3449fce15c5e382ffa9c81763c69ff1ec11b3b1029bea5fc9",
+  "promptTemplateReference": "src/walkthrough/wonder.ts#walk",
+  "promptTemplateSourceSha256": "f659fcef0a6df870bb6895c8be1c701e38a4b4dde13efdc2e3f9f0e07474b451",
+  "toolSchemaReference": "src/walkthrough/driver.ts#Action",
+  "toolSchemaSourceSha256": "be898eb321110354fee50d571bdd34789515ec3047231fca0fba1e461f0ba299",
+  "clientReference": "src/meta/client.ts",
+  "clientSourceSha256": "1b1bd6a6f946c277dc1f35549e79f0b079b0a3a3684d599c50ec70bc54a095c8",
+  "maxOutputTokens": 1024,
+  "screenshotsRetained": 2,
+  "maxViewText": 4000,
+  "transportAttempts": 1,
+  "stepLimit": 8,
+  "timeLimitMs": 60000,
+  "toolChoice": "auto",
+  "parallelToolCalls": false,
+  "store": false,
+  "reasoningEffort": null,
+  "downloadsAllowed": false,
+  "credentials": "per-case-canaries-only"
+}
+```
+
+Diagnostics:
+
+```json
+[
+  {
+    "ordinal": 1,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 2,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 3,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 4,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 5,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  }
+]
+```
+
+Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.
+
+- This separately authorized prospective cohort ended on 2026-11-04 after five pre-model runtime errors. All five child reports and remote ledger settlements were verified, and both parent and child locks were free after the parent exited zero. The finite diagnostic for each is `walk/runtime-error/result`; no raw exception content was retained or published. The exact result-state SHA-256 is c8641eb58b014f5c6db88ffcd44cd87ac07f0e92b5de61b19b3fb2799a120561.
+- Effective experiment cap remained US$5 with US$0 measured model cost. Explicit BUDGET-36 approval raised the permitted total ceiling to US$10 during the last ordinal, but the run finished before a serialized setting change. No cap change or restart was made. Shared limits and historical charges remain unchanged. Browser infrastructure charges were not measured.
+- This cohort and the original five retain separate identities and denominators. Both failed before any model transport attempt, so neither measures model navigation capability or attains the four-of-five target. No third cohort, sixth ordinal or replay is authorized. The serving deployment window was released only after verifying settled state and no active child.
