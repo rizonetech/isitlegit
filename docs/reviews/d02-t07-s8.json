@@ -1,0 +1,152 @@
+{
+  "ref": "D02 T07 \u00a78",
+  "title": "One URL policy with the walkthrough",
+  "implementation_sha": "62b6da48b855af82b4e5ba4d61f5ec3e6b019117",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "pnpm exec vitest run test/node/expand-browser.test.ts passes, and fails if a URL the walkthrough policy refuses is followed by the expansion. -> taskset -c 6,7: 33/33 real Chromium tests pass; policy bypass mutation 2 failures; saturation regression 2 failures and 1 passing control before repair. Shared policy 11/11, typecheck, dry build, Biome and publication pass."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "reconciliation": {
+    "report": "docs/reviews/02-checks/D02-T07-s8.md",
+    "verdict": "complete",
+    "candidate": "62b6da48b855af82b4e5ba4d61f5ec3e6b019117",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "5aecf2ae1b3c3607b1db0e9784366e398a6c0bd9",
+    "binding": {
+      "candidate": "62b6da48b855af82b4e5ba4d61f5ec3e6b019117",
+      "completion_candidate": "ac4dc6fd9ccf8af594962aa0618d64f462f3728f",
+      "completion_digest": "12a80dbcfeaba7cc",
+      "contract_path": "todo/02-checks/TODO-07-links.md",
+      "contract_sha256": "893d47c0d5d8665045ef0ce02e9c89be94e99fbe5e4c2070250159784479b8f8",
+      "disposition_blob": "648a4f49a1a1e75836efd0e618e0e6f73b7dc6d2",
+      "disposition_commit": "62b6da48b855af82b4e5ba4d61f5ec3e6b019117",
+      "disposition_path": "docs/reviews/02-checks/D02-T07-s8-disposition.md",
+      "plan_candidate": "40b407d0c82d1c09a3588e9ea7d08e8e30c9bd83",
+      "plan_contract_sha256": "2db829e8803c3bc0a219aa9896a743701943240b3f1291a356b987d740132b7a",
+      "prefix_bytes": 9534,
+      "prefix_sha256": "2fe63ca4dd7da41202044ab23c1ef6276043e35506e7e7505d6a0790a870e3bf",
+      "report": "docs/reviews/02-checks/D02-T07-s8.md",
+      "version": 1
+    },
+    "digest": "1816c1147e4606bd"
+  },
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T07-s8.md",
+    "verdict": "gaps",
+    "candidate": "ac4dc6fd9ccf8af594962aa0618d64f462f3728f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T07-s8.md",
+    "candidate": "40b407d0c82d1c09a3588e9ea7d08e8e30c9bd83",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

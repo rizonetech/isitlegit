@@ -99,6 +99,20 @@ describe("support in the transcript", () => {
         urgency: "high",
         urgencyQuote: "It must be done today",
         paymentQuote: "into account 1234 5678 90 at Kestrel Bank",
+        paymentFigures: {
+          quoteStart: TRANSCRIPT.indexOf(CLAIM.payment_quote),
+          quoteEnd: TRANSCRIPT.indexOf(CLAIM.payment_quote) + CLAIM.payment_quote.length,
+          items: [
+            {
+              kind: "account",
+              raw: "1234 5678 90",
+              start: TRANSCRIPT.indexOf("1234"),
+              end: TRANSCRIPT.indexOf("1234") + 12,
+              value: "1234567890",
+              currency: null,
+            },
+          ],
+        },
       });
   });
 
@@ -129,7 +143,7 @@ describe("support in the transcript", () => {
     expect(details.dropped).toBe(1);
   });
 
-  it("keeps a payment sentence only as the speaker said it, and never restates its figures", () => {
+  it("keeps the supported payment sentence unchanged and derives figures only through code", () => {
     const base = VoiceClaim.parse(CLAIM);
     // The sentence is in the transcript: kept, as copied.
     const kept = verified(base, TRANSCRIPT);
@@ -150,9 +164,18 @@ describe("support in the transcript", () => {
     const none = verified({ ...base, payment_quote: null }, TRANSCRIPT);
     expect(none.claim.paymentQuote).toBeNull();
     expect(none.dropped).toBe(0);
-    // The claim carries no figure of its own to be wrong: only quotes of the transcript.
+    // The model still supplies only quotes; code-derived figures are a separate stored field.
     expect(Object.keys(kept.claim).sort()).toEqual(
-      ["claimedIdentity", "identityQuote", "paymentQuote", "request", "requestQuote", "urgency", "urgencyQuote"].sort(),
+      [
+        "claimedIdentity",
+        "identityQuote",
+        "paymentQuote",
+        "paymentFigures",
+        "request",
+        "requestQuote",
+        "urgency",
+        "urgencyQuote",
+      ].sort(),
     );
   });
 

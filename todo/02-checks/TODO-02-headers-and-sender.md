@@ -39,7 +39,8 @@ track: day-2
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [x] |
 | 7 | §7 | First-time sender per recipient | §5 | [ ] |
 | 8 | §8 | Familiarity from consented mail | §5 | [ ] |
-| 9 | §9 | Gateway relay ranges, decided | §6 | [ ] |
+| 9 | §9 | Gateway relay ranges, decided | §6 | [x] |
+| 10 | §10 | Configured relay revision lifecycle | §9 | [x] |
 
 ## 1. Trusted Authentication-Results parsing
 
@@ -266,6 +267,8 @@ Filed 2026-10-30 from §5's completion review (out of scope): IsItLegit sees onl
 
 ## 9. Gateway relay ranges, decided
 
+> **Started:** 2026-11-04T07:14:39+00:00
+
 Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6 proves a gateway's relays from the addresses its sending domain publishes in SPF, so a gateway whose relay addresses are not in that SPF cannot be proven, where Microsoft 365's enhanced filtering and Google's inbound-gateway setting take the gateway's ranges as configured. Taking ranges from the organisation, or reading its provider's connector settings, changes who states the trust and what the product reads, so it is a design decision first.
 
 **Phase:** 7
@@ -274,15 +277,51 @@ Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6
 **Needs:** none
 **Surface:** no
 
+**Plan review corrections 2026-11-04:** `docs/reviews/02-checks/D02-T02-s9.md` identified missing lifecycle ownership and a non-falsifiable design coverage gate. The design must map every requirement to a resolving section and a concrete acceptance test, including admin entry/edit/removal, validation and verification failure, persistence/read-back, `chainsForOrg` consumption, SPF precedence and immediate invalidation of cached configured trust on edit or revocation. Cross-lane surface ownership is assigned by the coordinator before completion.
+
+**Coordinator disposition 2026-11-04:** coordinator-delivery-decisions approved the independent-source/revision design and allocated migration0094; budget-and-ownership-correction approved console D07 T04 §37 and D07 T05 §6 and their scoped treatment, filed at20f4747f. The design maps both pinned contracts and local lifecycle/consumer sections to falsifiable tests. This is design coverage only; backend, surfaces and consumer remain unstamped implementation work.
+
 **Build order:**
 
 1. Decide where a gateway's relay ranges come from when its SPF does not name them. Done when: a dated design in `docs/specs/` names the source (ranges an organisation admin enters, read from the provider's connector settings, or neither), how they are verified and revoked, and the sections that build it, approved by the operator.
 
-- [ ] Write the design in `docs/specs/YYYY-MM-DD-gateway-relay-ranges-design.md` from `docs/specs/2026-10-31-receiving-chains-design.md` and §6's `org_receiving_chains`. Done when: the operator's approval is recorded in it, with a synthetic gateway whose ingress and egress differ and whose relays no SPF names.
-- [ ] File the sections it names through `add-todo`. Done when: they are in the plan, depending on this one.
-- [ ] Commit: `docs: gateway relay ranges from configuration decided`
+- [x] Write the design in `docs/specs/YYYY-MM-DD-gateway-relay-ranges-design.md` from `docs/specs/2026-10-31-receiving-chains-design.md` and §6's `org_receiving_chains`. Done when: the operator's approval is recorded in it, with a synthetic gateway whose ingress and egress differ and whose relays no SPF names.
+- [x] File the complete lifecycle sections through `add-todo`. Done when: admin entry/edit/removal, validation and verification failures, persisted read-back and `chainsForOrg` consumption each have a resolving owner dependent on this section; cross-lane assignments come from the coordinator. Cheaper substitute: a broad implementation placeholder leaves required behavior unowned.
+- [x] Map each design requirement in `docs/specs/2026-11-04-gateway-relay-ranges-design.md` to its implementation section and falsifiable acceptance test. Done when: the review checks the mapping against the filed contracts, including a no-SPF relay accepted only after verification, explicit SPF precedence, and edit/revocation removing cached configured trust. Cheaper substitute: graph validation alone cannot prove coverage.
+- [x] Commit: `docs: gateway relay ranges from configuration decided`
 
-**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` and `python3 scripts/todo-graph.py plan --check` pass with the filed sections; final completion self-review verifies every design requirement maps to a resolving implementation section and a falsifiable test, including verified no-SPF success and cached-trust removal after edit/revocation.
+
+> **Verified:** 2026-11-04 | §9 | d817e025a1cb7f7ed2f7d329715ea6286353f89a
+> **Review:** `docs/reviews/d02-t02-s9.json`
+
+## 10. Configured relay revision lifecycle
+
+> **Started:** 2026-11-04T10:00:55.651123+00:00
+
+Implement the configuration service designed in `docs/specs/2026-11-04-gateway-relay-ranges-design.md`. This section owns storage and service authorization. Migration 0094 is allocated by coordinator-delivery-decisions (4 November 09:25:56 SAST); console owns member D07 T04 §37 and review D07 T05 §6 at `20f4747f`. Do not modify console routes owned by another lane. The service contract must distinguish server-authenticated member and Access reviewer principals, recheck current database membership/closure and verified claim at mutations, and refuse a reviewer belonging to the target tenant even through another membership. Console constructs principals only from its authenticated request context, never from submitted JSON. Strict operation schemas accept no actor or verified flag. Binding discovery must confirm the current gateway and DNS-named provider, not merely an old cached row. Transactions must condition every mutation, audit and cache invalidation on the same current revision and claim, including state changes between preflight and batch. Return typed validation, forbidden, unavailable and conflict outcomes with persisted read-back. Idempotency stores the action/payload and original outcome so a later revision cannot be overwritten by a replay.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Define immutable proposals and current revisions in `src/auth/relay-ranges.ts` and a coordinator-numbered migration in `src/db/migrations/`. Done when: schema validation, tenancy and verified-claim binding are exercised by `test/auth/relay-ranges.test.ts`.
+2. Implement the lifecycle service in `src/auth/relay-ranges.ts`. Done when: proposal, exact-revision review, edit, revoke, restore automatic discovery and read-back are authorized, atomic, idempotent and audited.
+3. Prove refusals and races in `test/auth/relay-ranges.test.ts`. Done when: stale writes and late verification after claim removal cannot restore trust or lose another revision.
+
+- [x] Define strict CIDR proposal validation in `src/auth/relay-ranges.ts`. Done when: canonical public IPv4/IPv6 networks round-trip, malformed networks, host bits, zero prefixes, reserved-space overlap and more than 64 CIDRs fail; exact duplicates are deduplicated. Cheaper substitute: syntactic parsing alone accepts dangerously broad ranges. Source: §9's configured-range design, Configuration lifecycle.
+- [x] Add revision persistence in a coordinator-numbered migration under `src/db/migrations/`. Done when: configured records are separate from `org_receiving_chains`, tenant/claim scoped, cascade on claim deletion and cannot reference an unverified claim through the service. Cheaper substitute: writing configuration into the discovery cache loses source ownership. Source: §9's design, Owning layer and Configuration lifecycle.
+- [x] Implement proposal/read-back and exact-revision platform review in `src/auth/relay-ranges.ts`. Done when: an organisation admin can propose only for its verified binding, only the independent platform role can approve/reject, and the stored source URL/digest/retrieval date and actors are required for approval; arbitrary submitted evidence never auto-verifies. Cheaper substitute: a client-supplied verified flag creates trust without proof. Source: §9's design, Trust source.
+- [x] Implement transactional edit/revoke/restore in `src/auth/relay-ranges.ts`. Done when: edit retires the old verified revision immediately, revoke is idempotent, restore invalidates discovery before fresh lookup, and each accepted operation returns stored state and one audit event; conflicting retries fail. Cheaper substitute: deleting a UI row leaves cached trust active. Source: §9's design, Consumption and revocation.
+- [x] Add conflict, failure and deletion tests in `test/auth/relay-ranges.test.ts`. Done when: cross-tenant access, tenant self-approval, stale editor/reviewer, DB failure, claim deletion/unverification, tenant closure and late approval are all refused without partial state; a valid lifecycle and duplicate retry are proven against D1. Cheaper substitute: mocked return values do not prove persistence or atomicity. Source: §9's design, Configuration lifecycle.
+- [x] Commit: `feat: store and govern configured relay revisions`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/relay-ranges.test.ts` passes, including the invalid-range, cross-tenant, exact-review, idempotency, rollback and claim-removal cases above; `pnpm typecheck` passes.
+
+> **Verified:** 2026-11-04 | §10 | 6253d6fb832d6f6866d78645bd0bbd81f3111734
+> **Review:** `docs/reviews/d02-t02-s10.json`
 
 ## Verification
 

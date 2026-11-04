@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 129 | Checklist items: 803
+Sections: 130 | Checklist items: 810
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -325,6 +325,7 @@ Sections: 129 | Checklist items: 803
 | [x]    | D00 T01 §40 | Email recovery fixtures on reviewed ablation integration  | none                  | 4     |
 | [x]    | D04 T01 §18 | Labelled screening experiment binding                     | none                  | 8     |
 | [x]    | D04 T01 §19 | Queued verification and guarded delivery refresh          | none                  | 6     |
+| [x]    | D04 T01 §20 | Bounded verdict validation diagnostics                    | none                  | 7     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                          | none                  | 2     |
 | [x]    | D04 T02 §10 | Multi-step evaluation fixture routes                      | none                  | 5     |
 | [x]    | D04 T02 §11 | Bounded driver failure diagnostics                        | none                  | 5     |
@@ -426,7 +427,7 @@ Sections: 129 | Checklist items: 803
 
 ### Phase 7: After the event
 
-Sections: 232 | Checklist items: 1070
+Sections: 233 | Checklist items: 1077
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -467,7 +468,8 @@ Sections: 232 | Checklist items: 1070
 | [ ]    | D02 T01 §11 | Relation of each examined target to the message             | none                 | 4     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                             | none                 | 3     |
-| [ ]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 3     |
+| [x]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 4     |
+| [x]    | D02 T02 §10 | Configured relay revision lifecycle                         | none                 | 6     |
 | [x]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
@@ -488,7 +490,7 @@ Sections: 232 | Checklist items: 1070
 | [ ]    | D02 T07 §5  | Automatic and click-time                                    | none                 | 3     |
 | [x]    | D02 T07 §6  | Link extraction measured on a corpus                        | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                               | cloudflare           | 3     |
-| [ ]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
+| [x]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                                     | attended             | 4     |
 | [x]    | D03 T03 §4  | Logo recall check and detector choice                       | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                                    | cloudflare           | 5     |
@@ -711,8 +713,8 @@ Withdrawn D99 T01 §11: 2026-11-04 | operator | Accept existing checks as is; ad
 
 Withdrawn D99 T02 §3: 2026-11-04 | operator | Separate operator recording checklist is redundant; recording remains media-owned.
 
-Progress: 465/626 verified sections, 101 ready to run now.
+Progress: 469/628 verified sections, 99 ready to run now.
 
-Checklist: 3320/3891 items completed (includes Commit items).
+Checklist: 3340/3905 items completed (includes Commit items).
 
 Withdrawn: 3 sections (not verified or delivered).

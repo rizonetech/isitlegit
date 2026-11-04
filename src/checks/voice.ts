@@ -6,7 +6,7 @@
 import type { Request, VerifiedClaim } from "../voice/schema";
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
-import type { EvidenceDraft } from "./evidence";
+import { type EvidenceDraft, MAX_DETAIL_BYTES } from "./evidence";
 import type { CheckRegistry } from "./registry";
 
 const NOT_VOICE = "not a voice note";
@@ -99,6 +99,24 @@ function shortfalls(view: Readonly<CaseView>): Shortfall[] {
   return out;
 }
 
+// Numeric source records cannot use generic display clipping: keep each exact raw span or
+// omit the whole record with a count, within the shared evidence byte limit.
+function requestDetail(claim: VerifiedClaim, base: Record<string, unknown>): EvidenceDraft["detail"] {
+  const detail = fittedDetail(base);
+  if (!claim.paymentFigures) return detail as EvidenceDraft["detail"];
+  const { items, ...span } = claim.paymentFigures;
+  const figures = { ...span, items: [] as typeof items, omitted: 0 };
+  detail.paymentFigures = figures;
+  for (const item of items) {
+    figures.items.push(item);
+    if (new TextEncoder().encode(JSON.stringify(detail)).byteLength > MAX_DETAIL_BYTES - 1024) {
+      figures.items.pop();
+      figures.omitted++;
+    }
+  }
+  return detail as EvidenceDraft["detail"];
+}
+
 export function voiceRequestEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   if (!view.voice) return [];
   const items: EvidenceDraft[] = [];
@@ -109,11 +127,11 @@ export function voiceRequestEvidence(view: Readonly<CaseView>): EvidenceDraft[] 
       check: "voice.request",
       severity,
       summary: bounded(`The voice note asks for ${WHAT[read.claim.request]}: "${plain(read.claim.requestQuote, 120)}"`),
-      detail: fittedDetail({
+      detail: requestDetail(read.claim, {
         request: read.claim.request,
         quote: read.claim.requestQuote,
         ...(read.claim.paymentQuote ? { paymentQuote: read.claim.paymentQuote } : {}),
-      }) as EvidenceDraft["detail"],
+      }),
       artefacts: [view.raw],
     });
   // A payment sentence the speaker says without asking for anything is kept as they said it, never as a request.
@@ -124,7 +142,7 @@ export function voiceRequestEvidence(view: Readonly<CaseView>): EvidenceDraft[] 
       summary: bounded(
         `The speaker gives payment details without asking for a payment: "${plain(read.claim.paymentQuote, 120)}"`,
       ),
-      detail: fittedDetail({ paymentQuote: read.claim.paymentQuote }) as EvidenceDraft["detail"],
+      detail: requestDetail(read.claim, { paymentQuote: read.claim.paymentQuote }),
       artefacts: [view.raw],
     });
   for (const miss of shortfalls(view))

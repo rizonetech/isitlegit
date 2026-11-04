@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "kind": "exhausted-chain-successor",
+  "report": "docs/reviews/01-intake/D01-T03-s15.md",
+  "plan_candidate": "5541268f0beac32735d9903f41e32e7681650bbe",
+  "completion_candidate": "13dc5731ab8cc1d36fb4c29494fa49ab00ad4484",
+  "completion_digest": "015d51de86b2da2c",
+  "original_contract_sha256": "0ccdd7640fff05c58953aa7025a5dcebb131859b9cd9ce228d5db3a65a6a49ee",
+  "accepted_contract_sha256": "0ccdd7640fff05c58953aa7025a5dcebb131859b9cd9ce228d5db3a65a6a49ee",
+  "prefix_bytes": 22074,
+  "prefix_sha256": "fdcf920f14d14d28a6418fba460a733c93f4270c3eebfb681fc29ce097ee3ca8",
+  "predecessors": [
+    {
+      "candidate": "7c3b367e387b347addf164db800f4ea62949eb1d",
+      "digest": "281af4d55783cda5",
+      "binding_version": 1
+    },
+    {
+      "candidate": "a3360204f28c46f48fb774482486961e53b41c73",
+      "digest": "e20dca3cfcb30a4e",
+      "binding_version": 2
+    }
+  ],
+  "repair_base_candidate": "972b649d403c048fa3c7587860e3dc5dfa137f47",
+  "disposition_path": "docs/reviews/01-intake/D01-T03-s15-disposition.md",
+  "disposition_blob": "6868e73c4fd75bbeb85ad063e5d1b10af4b0a94c",
+  "disposition_commit": "6b9f764399534c34aca8b1e09a74a4634d58b7fe"
+}

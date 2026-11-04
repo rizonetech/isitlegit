@@ -1,0 +1,109 @@
+{
+  "ref": "D02 T02 \u00a710",
+  "title": "Configured relay revision lifecycle",
+  "implementation_sha": "6253d6fb832d6f6866d78645bd0bbd81f3111734",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T02-s10.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "`pnpm exec vitest run test/auth/relay-ranges.test.ts` passes, including the invalid-range, cross-tenant, exact-review, idempotency, rollback and claim-removal cases above; `pnpm typecheck` passes. -> pnpm exec vitest run test/auth/relay-ranges.test.ts: 38/38 pass; pnpm typecheck pass. Existing receiving-chains17/17 pass; Biome, dry build and publication pass. Guard mutation3race failures and timestamp failing-first regression restored/passing."
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T02-s10.md",
+    "verdict": "complete",
+    "candidate": "6253d6fb832d6f6866d78645bd0bbd81f3111734",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T02-s10.md",
+    "candidate": "de9a1554f599582c6058894b3c6f1d8faac6b018",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

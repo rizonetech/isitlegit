@@ -559,21 +559,27 @@ Filed 2026-11-01 from §4's completion review (Part 2, item 2): the extraction i
 
 ## 15. Figures read out of a transcript by code
 
+> **Started:** 2026-11-04T07:23:53+00:00
+
 Filed 2026-11-01 from §4's review rounds: the model does not restate the amounts and accounts a speaker gives (four rounds found a way to read a figure out of the middle of another, however it was matched), so §4 keeps the speaker's sentence. A reader that needs the figures themselves, such as matching a spoken account number against the organisation's supplier accounts (D05 T02), needs them read by code from the transcript, which is deterministic and checkable.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
 
+**Implementation clarification 2026-11-04:** Parse the complete original transcript in `src/voice/extract.ts` at verification time, then keep only whole figures wholly contained in the matched payment-quote source span. Parsing the model-selected substring alone could turn part of a longer figure into a new amount/account. Preserve exact source text, UTF-16 source offsets and decimal strings (never floating-point monetary rounding), distinguish amount currency from account digits, and reject malformed or ambiguous numeric runs as a whole. Persist the deterministically derived optional figures through `src/voice/schema.ts`; historical claims without them must not manufacture figures from a quote alone. Prove stored evidence with D1 read-back as well as pure parser tests.
+
+**Plan review corrections 2026-11-04:** Resolve P1 by requiring accepted outputs rather than permitting an empty parser. Each figure is `{kind, raw, start, end, value, currency}`, with UTF-16 offsets into the original input, `raw === input.slice(start, end)`, decimal or account strings for `value`, and the literal currency marker (or `null`); account figures always have `currency: null`. Exact amount examples: `100.50` gives `100.50`/null; `R1,50` gives `1.50`/R; `R1,500` gives `1500`/R; `R48 000` gives `48000`/R; `R100 million` gives `100000000`/R; `100 rand` and `200 dollars` give separate `100`/rand and `200`/dollars. `0012 3456 78` gives one account `0012345678`, retaining zeros. Amounts never also become accounts. Explicit rejection cases include malformed grouping, alphanumeric embeddings, numeric fragments cut by a quote and unsupported ambiguous forms. Resolve P2 with integration tests through `verified`, `StoredVoice`, `voiceRequestEvidence`, `saveEvidence` and `readEvidence`, covering case/whitespace quote matching, figures outside its span, partial longer figures and historical claims without derived figures.
+
 **Build order:**
 
 1. Read amounts and account numbers out of a transcript by code. Done when: a corpus of spoken forms gives each figure whole, with no figure read out of another.
 
-- [ ] Write `figuresOf(transcript)` in `src/voice/figures.ts` returning each amount (a number with its currency marker, a decimal point or comma understood, thousands grouping, magnitude words such as thousand and million) and each account-like run of digits as a whole token with its position, never a part of another. Done when: `test/voice/figures.test.ts` covers 100.50, R1,50, R1,500, R48 000, R100 million, 100 rand beside 200 dollars, account numbers in groups and a figure inside a longer one, each read whole or not at all.
+- [ ] Write `figuresOf(transcript)` in `src/voice/figures.ts` returning each amount (a number with its currency marker, a decimal point or comma understood, thousands grouping, magnitude words such as thousand and million) and each account-like run of digits as a whole token with its position, never a part of another. Done when: `test/voice/figures.test.ts` covers 100.50, R1,50, R1,500, R48 000, R100 million, 100 rand beside 200 dollars, account numbers in groups and a figure inside a longer one, with the exact accepted outputs above, source offsets, leading-zero preservation and separate explicit rejection cases.
 - [ ] Offer the figures beside the payment sentence in the evidence detail (`voice.request`), each only when it lies inside the verified sentence. Done when: a stored case's `voice.request` item lists the figures of its payment sentence, and none of any other sentence.
 - [ ] Commit: `voice: figures read from the transcript by code`
 
-**Test checkpoint:** `pnpm exec vitest run test/voice/figures.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/voice/figures.test.ts test/voice/figures-evidence.test.ts test/voice/extract.test.ts test/checks/voice.test.ts test/voice/schema.test.ts` passes, proving nonempty exact parser outputs, quote containment, stored-claim validation and D1 evidence read-back; `pnpm typecheck` passes.
 
 ## 16. Transcript stored as its own evidence item
 

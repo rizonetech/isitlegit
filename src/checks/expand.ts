@@ -438,6 +438,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   let unfinished = false;
   let overflowed = false;
   let failedNavigation: string | null = null;
+  let blockedNavigation: string | null = null;
   // A main-frame document request begun and not yet answered or failed: a navigation still in flight.
   let pending = 0;
   const whole = (text: string) => {
@@ -493,6 +494,11 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
         };
         const fail = (reason: string, quiet = false) => {
           if (!quiet) refuse(event.request.url, reason);
+          // Classify at the refusing interception, using the same CDP frame identity as
+          // Puppeteer's frame capture above. Child documents cannot consume main-frame state.
+          const mainFrameId = (page?.mainFrame() as unknown as { _id?: string } | undefined)?._id;
+          if (event.resourceType === "Document" && event.frameId && event.frameId === mainFrameId)
+            blockedNavigation ??= reason;
           return answer(() =>
             session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }),
           );
@@ -644,9 +650,9 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       ended = true;
     }
   } catch (error) {
-    if (result.refused.length > 0 && result.hops.length === 0) {
+    if (blockedNavigation !== null || (result.refused.length > 0 && result.hops.length === 0)) {
       result.outcome = "blocked";
-      result.reason = result.refused[0]?.reason ?? null;
+      result.reason = blockedNavigation ?? result.refused[0]?.reason ?? null;
     } else {
       result.outcome = "error";
       result.reason = errorName(error);
@@ -671,6 +677,11 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       result.outcome = "error";
       result.reason = `the chain was longer than ${MAX_HOPS} hops`;
     }
+    // A policy refusal is already known even if the browser has not delivered requestfailed yet.
+    if (result.outcome === "done" && blockedNavigation !== null) {
+      result.outcome = "blocked";
+      result.reason = blockedNavigation;
+    }
     if (result.outcome === "done" && unfinished) {
       result.outcome = "timeout";
       result.reason = "the page was still moving on when the time was up";
@@ -680,8 +691,8 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     const failed = seen !== null && /ERR_ABORTED/.test(seen) && result.downloads.length > 0 ? null : seen;
     if (result.outcome === "done" && failed) {
       // The page's next navigation was refused or failed: the end is not confirmed. A refused destination is a refusal.
-      result.outcome = result.refused.length > 0 ? "blocked" : "error";
-      result.reason = result.refused[0]?.reason ?? `a navigation failed (${failed.replace(/^net::/, "")})`;
+      result.outcome = blockedNavigation !== null ? "blocked" : "error";
+      result.reason = blockedNavigation ?? `a navigation failed (${failed.replace(/^net::/, "")})`;
     }
     if (result.outcome === "done" && cut) {
       result.outcome = "error";

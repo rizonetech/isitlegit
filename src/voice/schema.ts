@@ -2,6 +2,7 @@
 // how urgently, and any payment details, each with the words of the transcript it rests on. Written as `structured()`
 // needs it (every property required, an absence a null), so Meta's strict schema subset takes it.
 import { z } from "zod";
+import { figuresOf, type PaymentFigures } from "./figures";
 
 export const REQUESTS = ["pay", "change_bank_details", "share_code", "click_link", "other", "none"] as const;
 export type Request = (typeof REQUESTS)[number];
@@ -31,6 +32,7 @@ export type VerifiedClaim = {
   urgency: (typeof URGENCIES)[number];
   urgencyQuote: string | null;
   paymentQuote: string | null;
+  paymentFigures?: PaymentFigures | undefined;
 };
 
 // What the checks step stores as `voice-claim.json` and the case view carries.
@@ -53,16 +55,69 @@ export type VoiceRead =
       recordings?: { filename: string; outcome: string }[] | undefined;
     };
 
+// Derived fields never enter VoiceClaim's model-output schema. Validate their exact numeric
+// reading again on storage read-back, including offsets, ordering and quote containment.
+const FigureSchema = z
+  .strictObject({
+    kind: z.enum(["amount", "account"]),
+    raw: z.string().min(1).max(2048),
+    start: z.number().int().nonnegative(),
+    end: z.number().int().nonnegative(),
+    value: z.string().min(1).max(160),
+    currency: z.string().max(10).nullable(),
+  })
+  .superRefine((f, ctx) => {
+    const parsed = figuresOf(f.raw);
+    if (
+      f.end - f.start !== f.raw.length ||
+      parsed.length !== 1 ||
+      parsed[0]?.start !== 0 ||
+      parsed[0]?.end !== f.raw.length ||
+      parsed[0]?.kind !== f.kind ||
+      parsed[0]?.value !== f.value ||
+      parsed[0]?.currency !== f.currency
+    )
+      ctx.addIssue({ code: "custom", message: "An exact whole-source figure" });
+  });
+const PaymentFiguresSchema = z
+  .strictObject({
+    quoteStart: z.number().int().nonnegative(),
+    quoteEnd: z.number().int().nonnegative(),
+    items: z.array(FigureSchema).max(100),
+  })
+  .superRefine((p, ctx) => {
+    let end = p.quoteStart;
+    if (p.quoteEnd <= p.quoteStart) ctx.addIssue({ code: "custom", message: "A nonempty quote span" });
+    for (const f of p.items) {
+      if (f.start < end || f.end > p.quoteEnd)
+        ctx.addIssue({ code: "custom", message: "Ordered whole figures inside the quote span" });
+      end = f.end;
+    }
+  });
+const normalizedQuote = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+
 // The stored form, checked when it is read back: a file that is not this is no result (the step reads the case again).
-const Verified = z.strictObject({
-  request: z.enum(REQUESTS),
-  requestQuote: z.string().nullable(),
-  claimedIdentity: z.string().nullable(),
-  identityQuote: z.string().nullable(),
-  urgency: z.enum(URGENCIES),
-  urgencyQuote: z.string().nullable(),
-  paymentQuote: z.string().nullable(),
-});
+const Verified = z
+  .strictObject({
+    request: z.enum(REQUESTS),
+    requestQuote: z.string().nullable(),
+    claimedIdentity: z.string().nullable(),
+    identityQuote: z.string().nullable(),
+    urgency: z.enum(URGENCIES),
+    urgencyQuote: z.string().nullable(),
+    paymentQuote: z.string().nullable(),
+    paymentFigures: PaymentFiguresSchema.optional(),
+  })
+  .superRefine((claim, ctx) => {
+    if (
+      claim.paymentFigures &&
+      (!claim.paymentQuote ||
+        claim.paymentFigures.items.some(
+          (f) => !normalizedQuote(claim.paymentQuote ?? "").includes(normalizedQuote(f.raw)),
+        ))
+    )
+      ctx.addIssue({ code: "custom", message: "Derived figures require their supported payment quote" });
+  });
 export const StoredVoice = z.discriminatedUnion("state", [
   z.strictObject({
     state: z.literal("read"),
