@@ -1,19 +1,5 @@
 {
   "lanes": {
-    "checks": {
-      "branch": "checks-lane",
-      "worktree": "../isitlegit-checks",
-      "domains": [
-        "D01",
-        "D02",
-        "D04"
-      ],
-      "files": [
-        "todo/03-vision/TODO-01-meta-client.md",
-        "todo/03-vision/TODO-02-vision-pipeline.md",
-        "todo/03-vision/TODO-03-sam-logos.md"
-      ]
-    },
     "loupe": {
       "branch": "loupe-1.1",
       "worktree": "../isitlegit-loupe",
