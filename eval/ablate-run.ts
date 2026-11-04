@@ -1,145 +1,82 @@
-// The ablation command (D08 T02 section 3): one budgeted arm per switch plus the full baseline arm, in order,
-// stopping on a failed arm, writing the Model removed table to eval/RESULTS.md from stored arm reports.
-// Live arms upload through the runner only once the intake admit transports the flags (checks lane D01);
-// until then a live run is refused by name, never silently run as the full pipeline.
+// Durable upload ablation command (D08 T02 section 17). The original in-memory prototype is replaced
+// by the tested command path in ablation-experiment.ts; missing server capabilities refuse before spending.
 import { join } from "node:path";
-import {
-  type AblateFlag,
-  type AblationArmReport,
-  type AblationRunManifest,
-  checkAblationArmResults,
-  checkAblationManifest,
-  isAblateFlag,
-  nextAblationArm,
-  recordAblationArm,
-  startAblationRun,
-  writeAblationResults,
-} from "./ablate.ts";
-
-export type AblateArmOutcome = {
-  runId: string;
-  status: "complete" | "incomplete" | "failed";
-  outcomes: string[];
-  report: AblationArmReport | null;
-};
-
-export type AblateClients = {
-  manifest: AblationRunManifest;
-  caps: Record<string, number>;
-  runArm: (flag: AblateFlag | "full", capUsd: number) => Promise<AblateArmOutcome>;
-  resultsDir: string;
-  actual: { setVersions: Record<string, string>; deployment: string };
-};
-
-export type AblateResult = {
-  status: "complete" | "incomplete" | "refused";
-  arms: { flag: string; runId: string | null; status: string }[];
-  resultsPath: string | null;
-  problems: string[];
-};
-
-export async function runAblation(clients: AblateClients): Promise<AblateResult> {
-  const problems: string[] = [];
-  try {
-    checkAblationManifest(clients.manifest, clients.actual);
-  } catch (e) {
-    return {
-      status: "refused",
-      arms: clients.manifest.arms.map((a) => ({ flag: a.flag, runId: a.runId, status: a.status })),
-      resultsPath: null,
-      problems: [e instanceof Error ? e.message : String(e)],
-    };
-  }
-  let manifest = clients.manifest;
-  const reports: AblationArmReport[] = [];
-  for (;;) {
-    let next: ReturnType<typeof nextAblationArm>;
-    try {
-      next = nextAblationArm(manifest);
-    } catch (e) {
-      problems.push(e instanceof Error ? e.message : String(e));
-      break;
-    }
-    if (!next) break;
-    const cap = clients.caps[next.flag];
-    if (cap === undefined || !(cap > 0)) {
-      problems.push(`no stated cap for the ${next.flag} arm: state one before it spends`);
-      manifest = recordAblationArm(manifest, next.flag, "", "failed");
-      break;
-    }
-    const outcome = await clients.runArm(next.flag, cap);
-    try {
-      checkAblationArmResults(next.flag, outcome.outcomes);
-    } catch (e) {
-      problems.push(e instanceof Error ? e.message : String(e));
-      manifest = recordAblationArm(manifest, next.flag, outcome.runId, "incomplete");
-      break;
-    }
-    manifest = recordAblationArm(manifest, next.flag, outcome.runId, outcome.status);
-    if (outcome.report) reports.push(outcome.report);
-    if (outcome.status === "failed") {
-      problems.push(`the ${next.flag} arm failed (${outcome.runId}): later arms not started`);
-      break;
-    }
-    if (outcome.status === "incomplete") {
-      problems.push(`the ${next.flag} arm is incomplete (${outcome.runId}): it never enters the table as measured`);
-      break;
-    }
-  }
-  const measured = reports.filter((r) => r.metrics.measured);
-  const resultsPath = measured.length > 0 ? writeAblationResults(clients.resultsDir, reports) : null;
-  const complete = problems.length === 0 && manifest.arms.every((a) => a.status === "complete");
-  return {
-    status: complete ? "complete" : "incomplete",
-    arms: manifest.arms.map((a) => ({ flag: a.flag, runId: a.runId, status: a.status })),
-    resultsPath,
-    problems,
-  };
-}
+import { type AblateFlag, ExperimentId, isAblateFlag, startAblationRun, UPLOAD_FLAGS } from "./ablate.ts";
 
 export const ABLATE_USAGE = [
-  "usage: pnpm eval:ablate --cap-usd <usd> [--flags <a,b>] [--seed <seed>]",
-  "flags: no-agent-reasoning, no-walkthrough, no-sam, no-transcribe, no-screening (all by default, after the full arm).",
-  "Exit 0 complete, 2 incomplete, 3 refused. Live arms need the intake flag admit (checks lane D01, D08 T02 section 3).",
+  "usage: node eval/ablate-run.ts --cap-usd <per-arm-usd> [--flags <a,b>] [--seed <seed>] [--set <a,b>]",
+  "       node eval/ablate-run.ts --resume <experiment-id>",
+  "Defaults: four upload arms after full; Loupe screening is not measured by uploads.",
+  "State: build/eval-ablation/<experiment-id>/manifest.json. Resume keeps caps, IDs and deployment.",
+  "Exit 0 complete, 2 incomplete, 3 refused. No live arm before exact deployed capabilities pass.",
 ].join("\n");
-
-export function parseAblateArgs(
-  argv: string[],
-): { capUsd: number; flags: AblateFlag[]; seed: string } | { error: string } {
-  let capUsd: number | null = null;
-  let flags: AblateFlag[] = ["no-agent-reasoning", "no-walkthrough", "no-sam", "no-transcribe", "no-screening"];
-  let seed = "ablation-v1";
+export type AblateOptions = {
+  capUsd: number | null;
+  flags: AblateFlag[];
+  seed: string;
+  sets: string[];
+  resume: string | null;
+};
+export function parseAblateArgs(argv: string[]): AblateOptions | { error: string } {
+  const out: AblateOptions = {
+    capUsd: null,
+    flags: [...UPLOAD_FLAGS],
+    seed: "ablation-v1",
+    sets: ["nazario-2025", "synthetic-sa", "synthetic-challenge"],
+    resume: null,
+  };
+  const seen = new Set<string>();
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--cap-usd") {
-      const v = Number(argv[++i]);
-      if (!Number.isFinite(v) || v <= 0) return { error: "--cap-usd needs a positive number" };
-      capUsd = v;
-    } else if (a === "--flags") {
-      const parts = (argv[++i] ?? "").split(",").filter(Boolean);
-      if (parts.length === 0 || !parts.every(isAblateFlag))
-        return { error: `--flags names unknown flags: ${parts.join(",")}` };
-      flags = parts as AblateFlag[];
-    } else if (a === "--seed") {
-      seed = argv[++i] ?? "";
-      if (!seed) return { error: "--seed needs a value" };
-    } else return { error: `unknown option ${a}` };
+    const name = argv[i];
+    const value = argv[++i];
+    if (!name || seen.has(name) || !value) return { error: "duplicate option or missing value" };
+    seen.add(name);
+    if (name === "--cap-usd") {
+      if (!/^[0-9]+(?:\.[0-9]+)?$/.test(value) || !Number.isFinite(Number(value)) || Number(value) <= 0)
+        return { error: "--cap-usd needs a positive per-arm cap" };
+      out.capUsd = Number(value);
+    } else if (name === "--flags") {
+      const flags = value.split(",");
+      if (!flags.every(isAblateFlag) || new Set(flags).size !== flags.length)
+        return { error: "unknown or duplicate arm" };
+      out.flags = flags as AblateFlag[];
+    } else if (name === "--seed") {
+      if (value.length > 200) return { error: "seed exceeds 200 characters" };
+      out.seed = value;
+    } else if (name === "--set") {
+      const sets = value.split(",");
+      if (
+        !sets.every((s) => ["nazario-2025", "synthetic-sa", "synthetic-challenge"].includes(s)) ||
+        new Set(sets).size !== sets.length
+      )
+        return { error: "unknown or duplicate set" };
+      out.sets = sets;
+    } else if (name === "--resume") {
+      if (!ExperimentId.safeParse(value).success) return { error: "invalid experiment ID" };
+      out.resume = value;
+    } else return { error: `unknown option ${name}` };
   }
-  if (capUsd === null) return { error: "--cap-usd is required (a stated cap per arm, never raised)" };
-  return { capUsd, flags, seed };
+  if (out.resume && seen.size !== 1)
+    return { error: "--resume stands alone; stored caps, flags, seed and population remain immutable" };
+  if (!out.resume && out.capUsd === null) return { error: "--cap-usd is required" };
+  return out;
 }
-
-export async function main(argv: string[]): Promise<number> {
+export async function main(
+  argv: string[],
+  environment: NodeJS.ProcessEnv = process.env,
+  deps?: import("./ablation-experiment.ts").ExperimentDeps,
+): Promise<number> {
+  if (argv.length === 1 && argv[0] === "--help") {
+    console.log(ABLATE_USAGE);
+    return 0;
+  }
   const parsed = parseAblateArgs(argv);
   if ("error" in parsed) {
     console.error(`eval:ablate: ${parsed.error}\n${ABLATE_USAGE}`);
     return 3;
   }
-  // The flags reach a case only through the intake admit; without it every arm would measure the full pipeline.
-  console.error(
-    "eval:ablate: live arms refused: /api/upload does not admit ablate flags yet (checks lane D01 intake, D08 T02 section 3 hooks). No upload sent, no spend.",
-  );
-  return 3;
+  const { runExperimentCommand } = await import("./ablation-experiment.ts");
+  return runExperimentCommand(parsed, environment, deps);
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1])

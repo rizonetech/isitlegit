@@ -649,7 +649,7 @@ describe("the live database adapter (every migration applied to an in-memory dat
       costUsd: 0.05,
       critical: true,
       providers: [],
-      walkthrough: false,
+      walkthrough: null, // No walkthrough record is unknown coverage, not a measured negative.
       createdAt: "2026-11-01T10:00:00.000Z",
       updatedAt: "2026-11-01T10:00:04.321Z",
     });
@@ -1269,7 +1269,7 @@ describe("what the completion review found (E3)", () => {
 });
 
 describe("the ablation arm mode", () => {
-  it("stores the arm mode on the run row and refuses an unknown mode", async () => {
+  it("refuses unbound and unknown ablation modes before a run is created", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     const out = await runEval({
       samples: t.samples.slice(0, 2),
@@ -1282,8 +1282,10 @@ describe("the ablation arm mode", () => {
       env: t.env,
       mode: "ablate:no-sam",
     });
-    expect(out.exit).toBe(0);
-    expect(t.runs.get("run-00000001")?.mode).toBe("ablate:no-sam");
+    expect(out.exit).toBe(3);
+    expect(out.problems.join()).toContain("immutable experiment metadata");
+    expect(t.runs.size).toBe(0);
+    expect(t.uploads).toHaveLength(0);
     const refused = await runEval({
       samples: t.samples.slice(0, 2),
       setVersion: "v".repeat(64),
@@ -1312,7 +1314,7 @@ describe("the replay identity", () => {
     const replayIds: (string | null)[] = [];
     const api: Api = {
       ...t.api,
-      upload: async (sample, bytes, opts) => {
+      upload: async (sample, _bytes, opts) => {
         replayIds.push(opts.replayRunId);
         return opts.replayRunId
           ? { status: 201, caseId: `case-${t.samples.findIndex((s) => s.id === sample.id)}` }
@@ -1355,75 +1357,54 @@ describe("the replay identity", () => {
   });
 });
 
-describe("the ablation flag transport", () => {
-  it("passes the arm mode to the upload transport on every upload (wire serialization waits on the D01 admit)", async () => {
+describe("unbound historical ablation transport", () => {
+  it("never sends an unsupported unbound screening arm as an ordinary upload", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
-    const modes: string[] = [];
-    const api: Api = {
-      ...t.api,
-      upload: async (sample, bytes, opts) => {
-        modes.push(opts.mode);
-        return t.api.upload(sample, bytes, opts);
-      },
-    };
     const out = await runEval({
-      samples: t.samples.slice(0, 2),
+      samples: t.samples,
       setVersion: "v".repeat(64),
       sets: ["synthetic-sa"],
       sampleLimit: null,
       options: opts(),
-      api,
+      api: t.api,
       db: t.db,
       env: t.env,
       mode: "ablate:no-screening",
     });
-    expect(out.exit).toBe(0);
-    expect(modes).toEqual(["ablate:no-screening", "ablate:no-screening"]);
+    expect(out.exit).toBe(3);
+    expect(t.uploads).toHaveLength(0);
+    expect(t.runs.size).toBe(0);
   });
-  it("a resume recovers the stored arm mode and refuses a conflicting one", async () => {
-    let firstPass = true;
-    const t = setup(4, {
-      cases: { ...caseFor(0), ...caseFor(1), ...caseFor(2), ...caseFor(3) },
-      upload: (i) => {
-        if (i === 1 && firstPass) {
-          firstPass = false;
-          return { status: 401 };
-        }
-        return { status: 201, caseId: `case-${i}` };
-      },
+  it("refuses a legacy arm resume that has no immutable experiment context", async () => {
+    const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
+    t.runs.set("run-00000001", {
+      id: "run-00000001",
+      commitSha: t.identity.commit,
+      setVersion: "v".repeat(64),
+      mode: "ablate:no-sam",
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      status: "incomplete",
+      selected: 2,
+      capUsd: 1,
+      startedAt: "2026-11-01T10:00:00Z",
+      finishedAt: null,
+      costUsd: 0,
     });
-    const modes: string[] = [];
-    const api: Api = {
-      ...t.api,
-      upload: async (sample, bytes, opts) => {
-        modes.push(opts.mode);
-        return t.api.upload(sample, bytes, opts);
-      },
-    };
-    const goMode = (extra: { api?: Api; resume?: string; mode?: string } = {}) =>
-      runEval({
-        samples: t.samples,
-        setVersion: "v".repeat(64),
-        sets: ["synthetic-sa"],
-        sampleLimit: null,
-        options: opts(),
-        api: extra.api ?? api,
-        db: t.db,
-        env: t.env,
-        resume: extra.resume ?? null,
-        ...(extra.mode ? { mode: extra.mode } : {}),
-      });
-    const first = await goMode({ mode: "ablate:no-screening" });
-    expect(first.exit).toBe(1);
-    expect(modes.length).toBeGreaterThan(0);
-    expect(modes.every((m) => m === "ablate:no-screening")).toBe(true);
-    const conflict = await goMode({ resume: "run-00000001", mode: "ablate:no-sam" });
-    expect(conflict.exit).toBe(3);
-    expect(conflict.problems).toMatchObject([expect.stringMatching(/ablate:no-screening/)]);
-    modes.length = 0;
-    const resumed = await goMode({ resume: "run-00000001" });
-    expect(resumed.exit).toBe(0);
-    expect(modes.length).toBeGreaterThan(0);
-    expect(modes.every((m) => m === "ablate:no-screening")).toBe(true);
+    const out = await runEval({
+      samples: t.samples,
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      resume: "run-00000001",
+    });
+    expect(out.exit).toBe(3);
+    expect(out.problems.join()).toContain("immutable experiment metadata");
+    expect(t.uploads).toHaveLength(0);
+    expect(t.runs.get("run-00000001")?.mode).toBe("ablate:no-sam");
   });
 });

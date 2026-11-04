@@ -2,8 +2,20 @@
 // eval-organisation case skips. The pipeline steps honour these flags (owning lanes, requested through the
 // coordinator); the runner only sets, transports and reports them.
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import { ABLATION_HEADING, writeResultsSection } from "./results-file.ts";
 
 export const ABLATE_FLAGS = {
@@ -108,7 +120,7 @@ export type AblationArmMetrics = {
 export type AblationArmReport = {
   arm: AblateFlag | "full";
   set: string;
-  runId: string;
+  runId: string | null;
   metrics: AblationArmMetrics;
 };
 
@@ -160,14 +172,14 @@ export function recordAblationArm(
   runId: string,
   status: AblationArmState["status"],
 ): AblationRunManifest {
-  return { ...manifest, arms: manifest.arms.map((arm) => (arm.flag === flag ? { flag, runId, status } : arm)) };
+  return { ...manifest, arms: manifest.arms.map((arm) => (arm.flag === flag ? { ...arm, flag, runId, status } : arm)) };
 }
 
-// Resume keeps the selection and the switch: the arm's ids and flag are untouched, only its run restarts.
+// Resume keeps the selection and the switch: the arm's ids and flag are untouched, its known run identity survives retries.
 export function resumeAblationArm(manifest: AblationRunManifest, flag: AblateFlag | "full"): AblationRunManifest {
   return {
     ...manifest,
-    arms: manifest.arms.map((arm) => (arm.flag === flag ? { flag, runId: null, status: "pending" } : arm)),
+    arms: manifest.arms.map((arm) => (arm.flag === flag ? { ...arm, status: "pending" } : arm)),
   };
 }
 
@@ -204,7 +216,7 @@ export function renderAblationResultsTable(arms: AblationArmReport[]): string {
         report.arm === "full" && report.metrics.measured
           ? `${rate(report.metrics.detected, report.metrics.verdictRows)} | ${rate(report.metrics.falsePositives, report.metrics.genuineRows)} | ${report.metrics.medianMs} ms | US$${report.metrics.costUsd.toFixed(4)} |`
           : "not measured | not measured | not measured | not measured |";
-      return `| ${removed} | ${report.set} | ${own} ${report.runId} |`;
+      return `| ${removed} | ${report.set} | ${own} ${report.runId ?? "not run"} |`;
     }
     const det =
       report.metrics.verdictRows > 0 && base.metrics.verdictRows > 0
@@ -224,14 +236,20 @@ export function renderAblationResultsTable(arms: AblationArmReport[]): string {
         : "not measured";
     const time = signed(report.metrics.medianMs - base.metrics.medianMs, " ms");
     const cost = `US$${(report.metrics.costUsd - base.metrics.costUsd).toFixed(4)}`;
-    return `| ${removed} | ${report.set} | ${det} | ${fp} | ${time} | ${cost.startsWith("US$-") ? cost : `+${cost}`} | ${report.runId} |`;
+    return `| ${removed} | ${report.set} | ${det} | ${fp} | ${time} | ${cost.startsWith("US$-") ? cost : `+${cost}`} | ${report.runId ?? "not run"} |`;
   });
   return `${header}${rows.join("\n")}\n`;
 }
 
 // Merged under its own heading, never replacing another section's rows (the RESULTS.md merge contract).
-export function writeAblationResults(dir: string, arms: AblationArmReport[]): string {
-  return writeResultsSection(dir, ABLATION_HEADING, renderAblationResultsTable(arms));
+export function writeAblationResults(dir: string, arms: AblationArmReport[], experiment?: ExperimentManifest): string {
+  const provenance = experiment
+    ? `Experiment: ${experiment.experimentId}. Deployment: ${experiment.deployment}. Population manifest SHA-256: ${experiment.manifestDigest}. Selected samples: ${experiment.ids.length}.\n\n`
+    : "";
+  const screening = experiment
+    ? "\nLoupe screening: not measured by upload experiments; it requires the separate labelled monitor experiment. Arms whose full baseline did not exercise the removed model are not measured.\n"
+    : "";
+  return writeResultsSection(dir, ABLATION_HEADING, `${provenance}${renderAblationResultsTable(arms)}${screening}`);
 }
 
 // Persist the manifest with an atomic replace, so an interrupted write never leaves a half manifest behind.
@@ -261,4 +279,182 @@ export function checkAblationManifest(
     throw new Error(
       `the deployment is ${actual.deployment}, not ${manifest.deployment} of the manifest: reselect, do not reuse its ids`,
     );
+}
+
+// Current durable experiment protocol (D08 T02 section 17). Historical population-only manifests remain distinct.
+export const ExperimentId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+const Arm = z.enum(["full", "no-agent-reasoning", "no-walkthrough", "no-sam", "no-transcribe", "no-screening"]);
+const Digest = z.string().regex(/^[a-f0-9]{64}$/);
+export const ExperimentInput = z
+  .object({
+    experimentId: ExperimentId,
+    arm: Arm,
+    manifestDigest: Digest,
+    deployment: z.string().regex(/^[a-f0-9]{40}$/),
+  })
+  .strict();
+export const CaseExperiment = ExperimentInput.extend({ replayRunId: ExperimentId }).strict();
+export type ExperimentInput = z.infer<typeof ExperimentInput>;
+export type CaseExperiment = z.infer<typeof CaseExperiment>;
+export const UPLOAD_FLAGS: AblateFlag[] = ["no-agent-reasoning", "no-walkthrough", "no-sam", "no-transcribe"];
+export const Capabilities = z
+  .object({
+    version: z.literal(1),
+    commit: z.string().regex(/^[a-f0-9]{40}$/),
+    durableContext: z.literal(true),
+    uploadArms: z.array(Arm).min(1).max(5),
+    screening: z.literal(false),
+  })
+  .strict();
+export function requireCapabilities(raw: unknown, deployment: string, arms: string[]): void {
+  const value = Capabilities.parse(raw);
+  if (
+    value.commit !== deployment ||
+    !value.uploadArms.includes("full") ||
+    new Set(value.uploadArms).size !== value.uploadArms.length ||
+    value.uploadArms.includes("no-screening") ||
+    arms.some((arm) => !value.uploadArms.includes(arm as z.infer<typeof Arm>))
+  )
+    throw new Error("missing or mismatched upload ablation capabilities; no upload authorized");
+}
+export function experimentDigest(value: AblationManifest): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        seed: value.seed,
+        sets: value.sets,
+        setVersions: Object.fromEntries(
+          Object.keys(value.setVersions)
+            .sort()
+            .map((key) => [key, value.setVersions[key]]),
+        ),
+        deployment: value.deployment,
+        ids: value.ids,
+      }),
+    )
+    .digest("hex");
+}
+const ExperimentSchema = z
+  .object({
+    version: z.literal(1),
+    experimentId: ExperimentId,
+    seed: z.string().min(1).max(200),
+    sets: z
+      .array(z.string().regex(/^[a-z0-9-]{1,64}$/))
+      .min(1)
+      .max(20),
+    setVersions: z.record(z.string(), Digest),
+    deployment: z.string().regex(/^[a-f0-9]{40}$/),
+    ids: z.array(z.string().min(3).max(512)).min(1).max(10000),
+    manifestDigest: Digest,
+    arms: z
+      .array(
+        z
+          .object({
+            flag: Arm,
+            replayRunId: ExperimentId,
+            runId: ExperimentId.nullable(),
+            status: z.enum(["pending", "complete", "incomplete", "failed", "not-measured"]),
+            capUsd: z.number().finite().positive(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(6),
+  })
+  .strict()
+  .superRefine((m, ctx) => {
+    const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+    if (new Set(m.sets).size !== m.sets.length || new Set(m.ids).size !== m.ids.length) fail("duplicate population");
+    if (Object.keys(m.setVersions).sort().join() !== [...m.sets].sort().join())
+      fail("set versions do not match selected sets");
+    if (m.ids.some((id) => id.includes("..") || !m.sets.some((set) => id.startsWith(`${set}/`))))
+      fail("invalid selected sample identity");
+    if (m.manifestDigest !== experimentDigest(m)) fail("manifest digest mismatch");
+    if (m.arms[0]?.flag !== "full" || new Set(m.arms.map((a) => a.flag)).size !== m.arms.length)
+      fail("invalid arm order or duplicate arm");
+    if (new Set(m.arms.map((a) => a.replayRunId)).size !== m.arms.length) fail("duplicate replay identity");
+    if (m.arms.some((a) => a.runId !== null && a.runId !== a.replayRunId)) fail("run/replay identity mismatch");
+    if (m.arms.some((a) => a.status === "complete" && a.runId === null)) fail("completed arm lacks run identity");
+    if (m.arms.some((a) => a.status === "not-measured" && (a.runId !== null || a.flag === "full")))
+      fail("invalid unmeasured arm state");
+  });
+export type ExperimentManifest = z.infer<typeof ExperimentSchema>;
+export function parseExperiment(raw: unknown): ExperimentManifest {
+  return ExperimentSchema.parse(raw);
+}
+export function sameExperiment(actual: unknown, expected: CaseExperiment): boolean {
+  const parsed = CaseExperiment.safeParse(actual);
+  return (
+    parsed.success &&
+    Object.entries(expected).every(([key, value]) => parsed.data[key as keyof CaseExperiment] === value)
+  );
+}
+export function armContext(manifest: ExperimentManifest, arm: ExperimentManifest["arms"][number]): CaseExperiment {
+  return {
+    experimentId: manifest.experimentId,
+    arm: arm.flag,
+    manifestDigest: manifest.manifestDigest,
+    deployment: manifest.deployment,
+    replayRunId: arm.replayRunId,
+  };
+}
+export function createExperiment(
+  selection: AblationManifest,
+  flags: AblateFlag[],
+  capUsd: number,
+  id: () => string,
+): ExperimentManifest {
+  return parseExperiment({
+    ...selection,
+    version: 1,
+    experimentId: id(),
+    manifestDigest: experimentDigest(selection),
+    arms: ["full", ...flags].map((flag) => ({ flag, replayRunId: id(), runId: null, status: "pending", capUsd })),
+  });
+}
+export function loadExperiment(file: string): ExperimentManifest {
+  if (statSync(file).size > 5_000_000) throw new Error("experiment manifest exceeds 5 MB");
+  const text = readFileSync(file, "utf8");
+  const raw: unknown = JSON.parse(text);
+  // Generated manifests are canonical, so duplicate JSON keys cannot hide behind JSON.parse's last-key behavior.
+  if (text !== `${JSON.stringify(raw, null, 2)}\n`) throw new Error("experiment manifest is not canonical JSON");
+  return parseExperiment(raw);
+}
+export function saveExperiment(dir: string, value: ExperimentManifest): string {
+  const manifest = parseExperiment(value);
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, "manifest.json");
+  if (existsSync(file)) {
+    const previous = loadExperiment(file);
+    const identity = (m: ExperimentManifest) =>
+      JSON.stringify({
+        id: m.experimentId,
+        digest: m.manifestDigest,
+        arms: m.arms.map((a) => ({ flag: a.flag, replayRunId: a.replayRunId, capUsd: a.capUsd })),
+      });
+    if (identity(previous) !== identity(manifest)) throw new Error("refusing immutable experiment change");
+  }
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    const fd = openSync(tmp, "wx");
+    try {
+      writeFileSync(fd, `${JSON.stringify(manifest, null, 2)}\n`);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    loadExperiment(tmp);
+    renameSync(tmp, file);
+    const fdDir = openSync(dir, "r");
+    try {
+      fsyncSync(fdDir);
+    } finally {
+      closeSync(fdDir);
+    }
+    loadExperiment(file);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+  return file;
 }
