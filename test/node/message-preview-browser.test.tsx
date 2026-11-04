@@ -850,3 +850,360 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         });
   },
 );
+
+// D07 T03 §53: actual clipboard readback, not a stub that merely records writeText arguments.
+const COPY_HEADERS = `${HEADERS}${`\nX-Trace: ${"é漢😀".repeat(20)}`.repeat(1200)}`;
+describe.skipIf(!chromiumPath())("complete header copy", () => {
+  for (const width of [360, 1280])
+    for (const theme of ["light", "dark"] as const)
+      it(`copies every stored header by keyboard at ${width}px in ${theme}`, async () => {
+        reset();
+        mode = "paged";
+        headerText = COPY_HEADERS;
+        headerSliceSize = 100000;
+        expect(Buffer.byteLength(headerText)).toBeGreaterThan(204800);
+        const { p, context } = await open(width, theme);
+        try {
+          await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP });
+          await headersLink(p).click();
+          const copy = dialog(p).getByRole("button", { name: "Copy headers", exact: true });
+          await expect.poll(() => copy.count()).toBe(1);
+          await expect.poll(() => copy.isEnabled()).toBe(true);
+          await copy.focus();
+          await p.keyboard.press("Enter");
+          await expect
+            .poll(
+              async () => ({
+                live: await live(p).textContent(),
+                length: await dialog(p)
+                  .locator("pre")
+                  .evaluate((el) => el.textContent?.length),
+                requests: requests.length,
+              }),
+              { timeout: 20000 },
+            )
+            .toMatchObject({ live: "Headers copied" });
+          expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(COPY_HEADERS);
+          expect(await dialog(p).locator("pre").textContent()).toBe(COPY_HEADERS);
+          expect(requests.filter((r) => r.part === "headers").length).toBeGreaterThan(2);
+          expect(await dialog(p).getByRole("button", { name: "Show the next part", exact: true }).isHidden()).toBe(
+            true,
+          );
+          expect(await copy.evaluate((el) => document.activeElement === el)).toBe(true);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          await p.addScriptTag({ path: AXE });
+          expect(await originalAccessibility(p)).toEqual([]);
+        } finally {
+          await context.close();
+        }
+      });
+});
+
+describe.skipIf(!chromiumPath())("header copy failure and ownership", () => {
+  for (const kind of ["denied", "other", "selection", "partial-selection"] as const)
+    it(`reports ${kind} only with a verified complete selection`, async () => {
+      reset();
+      mode = "paged";
+      headerText = COPY_HEADERS;
+      headerSliceSize = 100000;
+      expect(Buffer.byteLength(headerText)).toBeGreaterThan(204800);
+      const { p, context } = await open(360);
+      try {
+        await p.evaluate((failure) => {
+          navigator.clipboard.writeText = async () => {
+            if (failure === "denied") throw new DOMException("Test denial", "NotAllowedError");
+            throw new Error("Test clipboard transport failure");
+          };
+          if (failure === "selection") window.getSelection = () => null;
+          if (failure === "partial-selection") {
+            const selection = window.getSelection();
+            if (!selection) throw new Error("Selection unavailable in test");
+            selection.addRange = () => {};
+          }
+        }, kind);
+        await headersLink(p).click();
+        const copy = dialog(p).getByRole("button", { name: "Copy headers", exact: true });
+        await expect.poll(() => copy.isEnabled()).toBe(true);
+        await copy.click();
+        const expected =
+          kind === "denied"
+            ? "Clipboard access was refused. The complete headers are selected; copy the selected text."
+            : kind === "other"
+              ? "The headers could not be copied. The complete headers are selected; copy the selected text."
+              : "The headers could not be copied. Select the text to copy it.";
+        await expect.poll(() => live(p).textContent(), { timeout: 20000 }).toBe(expected);
+        expect(await dialog(p).locator("pre").textContent()).toBe(headerText);
+        if (kind === "denied" || kind === "other") {
+          expect(await p.evaluate(() => window.getSelection()?.toString())).toBe(headerText);
+          expect(
+            await dialog(p)
+              .getByRole("region")
+              .evaluate((el) => document.activeElement === el),
+          ).toBe(true);
+        }
+      } finally {
+        await context.close();
+      }
+    });
+
+  it("disables copying for loading, missing, empty, failed reload and restores it after recovery", async () => {
+    reset();
+    const { p, context } = await open(1280);
+    const stalled = gate();
+    try {
+      await headersLink(p).click();
+      const d = dialog(p);
+      const copy = d.getByRole("button", { name: "Copy headers", exact: true });
+      await expect.poll(() => copy.isEnabled()).toBe(true);
+      hold = stalled.g;
+      holdPart = "headers";
+      await d.getByRole("tab", { name: "Complete headers", exact: true }).click();
+      await expect.poll(() => copy.isDisabled()).toBe(true);
+      hold = null;
+      stalled.go();
+      await expect.poll(() => copy.isEnabled()).toBe(true);
+      for (const state of ["never", "empty", "unavailable"] as const) {
+        mode = state;
+        await d.getByRole("tab", { name: "Complete headers", exact: true }).click();
+        await expect.poll(() => d.locator("pre").isHidden()).toBe(true);
+        await expect
+          .poll(() =>
+            d
+              .getByRole("tabpanel")
+              .getByText(
+                state === "never"
+                  ? "The headers text was not stored."
+                  : state === "empty"
+                    ? "The message has no headers."
+                    : "The original message could not be loaded.",
+                { exact: true },
+              )
+              .isVisible(),
+          )
+          .toBe(true);
+        expect(await copy.isDisabled()).toBe(true);
+      }
+      mode = "ok";
+      await d.getByRole("button", { name: "Try again", exact: true }).click();
+      await expect.poll(() => copy.isEnabled()).toBe(true);
+      await d.getByRole("tab", { name: "Message", exact: true }).click();
+      expect(await copy.isHidden()).toBe(true);
+    } finally {
+      stalled.go();
+      await context.close();
+    }
+  });
+
+  for (const fault of ["network", "changed", "denied", "malformed"] as const)
+    it(`never writes a partial clipboard on ${fault} retrieval failure`, async () => {
+      reset();
+      mode = "paged";
+      headerText = HEADERS.repeat(4);
+      headerSliceSize = 100;
+      const { p, context } = await open(1280);
+      try {
+        await p.evaluate(() => {
+          (window as unknown as { writes: number }).writes = 0;
+          navigator.clipboard.writeText = async () => {
+            (window as unknown as { writes: number }).writes++;
+          };
+        });
+        await headersLink(p).click();
+        const d = dialog(p);
+        const copy = d.getByRole("button", { name: "Copy headers", exact: true });
+        await expect.poll(() => copy.isEnabled()).toBe(true);
+        pageFault = fault;
+        await copy.click();
+        const words =
+          fault === "changed"
+            ? "The stored headers changed. Load them again to read one version."
+            : fault === "denied"
+              ? "The original message could not be loaded."
+              : "The next part could not be loaded.";
+        await expect.poll(() => live(p).textContent()).toBe(words);
+        expect(await p.evaluate(() => (window as unknown as { writes: number }).writes)).toBe(0);
+        expect(await copy.isDisabled()).toBe(true);
+        if (fault !== "denied") {
+          pageFault = "none";
+          await d
+            .getByRole("button", { name: fault === "changed" ? "Load headers again" : "Try again", exact: true })
+            .click();
+          await expect.poll(() => copy.isEnabled()).toBe(true);
+          await copy.click();
+          await expect.poll(() => live(p).textContent()).toBe("Headers copied");
+          expect(await d.locator("pre").textContent()).toBe(headerText);
+          expect(await p.evaluate(() => (window as unknown as { writes: number }).writes)).toBe(1);
+        }
+      } finally {
+        await context.close();
+      }
+    });
+
+  for (const transition of ["tab", "reload", "close", "native-close"] as const)
+    for (const outcome of ["success", "denied"] as const)
+      it(`drops late clipboard ${outcome} after ${transition}`, async () => {
+        reset();
+        const { p, context } = await open(360, "dark");
+        try {
+          await p.evaluate((result) => {
+            const w = window as unknown as { releaseCopy: () => void; writes: number };
+            w.writes = 0;
+            navigator.clipboard.writeText = () =>
+              new Promise<void>((resolve, reject) => {
+                w.writes++;
+                w.releaseCopy = () =>
+                  result === "success" ? resolve() : reject(new DOMException("Test denial", "NotAllowedError"));
+              });
+          }, outcome);
+          await headersLink(p).click();
+          let d = dialog(p);
+          const copy = d.getByRole("button", { name: "Copy headers", exact: true });
+          await expect.poll(() => copy.isEnabled()).toBe(true);
+          await copy.evaluate((el) => {
+            (el as HTMLButtonElement).click();
+            (el as HTMLButtonElement).click();
+          });
+          await expect.poll(() => p.evaluate(() => (window as unknown as { writes: number }).writes)).toBe(1);
+          if (transition === "native-close") {
+            // Keep the closed node until cleanup to prove copy ownership checks native open state too.
+            await d.evaluate((el) => {
+              el.addEventListener("close", (event) => event.stopImmediatePropagation(), { capture: true });
+              (el as HTMLDialogElement).close();
+            });
+          } else if (transition === "close") {
+            await d.getByRole("button", { name: "Close", exact: true }).click();
+            await headersLink(p).click();
+            d = dialog(p);
+          } else
+            await d
+              .getByRole("tab", { name: transition === "tab" ? "Message" : "Complete headers", exact: true })
+              .click();
+          await expect.poll(() => d.locator("pre").textContent()).toBe(transition === "tab" ? MESSAGE : HEADERS);
+          await p.waitForTimeout(60);
+          const before = await live(p).textContent();
+          await p.evaluate(() => (window as unknown as { releaseCopy: () => void }).releaseCopy());
+          await p.waitForTimeout(80);
+          expect(await live(p).textContent()).toBe(before);
+          expect(await p.evaluate(() => window.getSelection()?.toString())).toBe("");
+        } finally {
+          await context.close();
+        }
+      });
+
+  it("cancels automatic retrieval on tab changes and rejects its delayed JSON after returning", async () => {
+    reset();
+    mode = "paged";
+    headerText = HEADERS.repeat(4);
+    headerSliceSize = 100;
+    const { p, context } = await open(360);
+    try {
+      await p.evaluate(() => {
+        const fetchOriginal = window.fetch;
+        const w = window as unknown as { releaseJson: () => void; held: boolean; writes: number };
+        w.writes = 0;
+        navigator.clipboard.writeText = async () => {
+          w.writes++;
+        };
+        const held = new Promise<void>((resolve) => {
+          w.releaseJson = resolve;
+        });
+        window.fetch = async (...args) => {
+          const response = await fetchOriginal(...args);
+          if (String(args[0]).includes("offset=")) {
+            const json = response.json.bind(response);
+            response.json = async () => {
+              const data = await json();
+              w.held = true;
+              await held;
+              return data;
+            };
+          }
+          return response;
+        };
+      });
+      await headersLink(p).click();
+      const d = dialog(p);
+      const copy = d.getByRole("button", { name: "Copy headers", exact: true });
+      await expect.poll(() => copy.isEnabled()).toBe(true);
+      const first = await d.locator("pre").textContent();
+      await copy.click();
+      await expect.poll(() => p.evaluate(() => (window as unknown as { held: boolean }).held)).toBe(true);
+      expect(await copy.isDisabled()).toBe(true);
+      await d.getByRole("tab", { name: "Message", exact: true }).click();
+      await d.getByRole("tab", { name: "Complete headers", exact: true }).click();
+      await expect.poll(() => copy.isEnabled()).toBe(true);
+      await p.evaluate(() => (window as unknown as { releaseJson: () => void }).releaseJson());
+      await p.waitForTimeout(80);
+      expect(await d.locator("pre").textContent()).toBe(first);
+      expect(await p.evaluate(() => (window as unknown as { writes: number }).writes)).toBe(0);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+describe.skipIf(!chromiumPath())("visible header copy outcomes", () => {
+  for (const width of [360, 1280])
+    for (const theme of ["light", "dark"] as const)
+      it(`renders every approved outcome at ${width}px in ${theme}`, async () => {
+        reset();
+        const { p, context } = await open(width, theme);
+        try {
+          await headersLink(p).click();
+          const d = dialog(p);
+          const copy = d.getByRole("button", { name: "Copy headers", exact: true });
+          for (const result of ["success", "denied", "other", "selection"] as const) {
+            await d.getByRole("tab", { name: "Complete headers", exact: true }).click();
+            await expect.poll(() => copy.isEnabled()).toBe(true);
+            await p.evaluate((kind) => {
+              navigator.clipboard.writeText = async () => {
+                if (kind === "success") return;
+                if (kind === "denied") throw new DOMException("Test denial", "NotAllowedError");
+                throw new Error("Test write failure");
+              };
+              if (kind === "selection") window.getSelection = () => null;
+            }, result);
+            await copy.click();
+            const expected =
+              result === "success"
+                ? "Headers copied"
+                : result === "denied"
+                  ? "Clipboard access was refused. The complete headers are selected; copy the selected text."
+                  : result === "other"
+                    ? "The headers could not be copied. The complete headers are selected; copy the selected text."
+                    : "The headers could not be copied. Select the text to copy it.";
+            await expect.poll(() => live(p).textContent()).toBe(expected);
+            const outcome = d.locator("[data-original-copy-outcome]");
+            expect(await outcome.count()).toBe(1);
+            expect(await outcome.textContent()).toBe(expected);
+            expect(await outcome.isVisible()).toBe(true);
+            expect(
+              await outcome.evaluate((el) => {
+                const box = el.getBoundingClientRect();
+                const style = getComputedStyle(el);
+                const hit = document.elementFromPoint(box.x + 8, box.y + 8);
+                return (
+                  box.width > 100 &&
+                  box.height >= 14 &&
+                  box.x >= 0 &&
+                  box.right <= innerWidth &&
+                  box.y >= 0 &&
+                  box.bottom <= innerHeight &&
+                  style.clip === "auto" &&
+                  style.clipPath === "none" &&
+                  style.opacity === "1" &&
+                  (hit === el || el.contains(hit))
+                );
+              }),
+            ).toBe(true);
+            await p.addScriptTag({ path: AXE });
+            expect(await originalAccessibility(p)).toEqual([]);
+            await d.getByRole("tab", { name: "Message", exact: true }).click();
+            expect(await outcome.isHidden()).toBe(true);
+            expect(await outcome.textContent()).toBe("");
+          }
+        } finally {
+          await context.close();
+        }
+      });
+});
