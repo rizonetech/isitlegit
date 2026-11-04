@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 223 | Checklist items: 995
+Sections: 224 | Checklist items: 1004
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -420,6 +420,7 @@ Sections: 223 | Checklist items: 995
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                            | operator             | 2     |
 | [x]    | D00 T01 §32 | Wake dispatched after each                                  | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
+| [ ]    | D00 T01 §34 | Codex unattended continuation and session ownership         | none                 | 7     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                            | attended             | 6     |
 | [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward                    | none                 | 4     |
 | [x]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
@@ -630,7 +631,7 @@ Sections: 223 | Checklist items: 995
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
 | [ ]    | D10 T01 §11 | Videos re-cut as the live gaps close                        | none                 | 6     |
-| [ ]    | D10 T01 §12 | P3 review leftovers from the media stamps                   | none                 | 2     |
+| [ ]    | D10 T01 §12 | P3 review leftovers from the media stamps                   | none                 | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -675,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 408/599 verified sections, 126 ready to run now.
+Progress: 408/600 verified sections, 127 ready to run now.
 
-Checklist: 3045/3695 items completed (includes Commit items).
+Checklist: 3045/3704 items completed (includes Commit items).

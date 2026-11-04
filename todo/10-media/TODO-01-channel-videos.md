@@ -288,7 +288,9 @@ The 2026-11-04 rebuild left four things out of the demo, the judge guide and the
 
 ## 12. P3 review leftovers from the media stamps
 
-The independent review rounds of the media sections stop at the first round with no P1 or P2 finding (`.conclave/reviewers.toml`, `severity_stop_after = 0`), and each such round's P3 findings are filed here as leftovers (`.claude/skills/review-todo-section/SKILL.md` step 4), one item per finding, naming the section and round it came from. None blocks a render or an upload.
+The D10 T01 section 2 review found that its historical licence checkpoint accepts an all-capitals placeholder such as `PENDING`. Preserve that stamped contract and add an executable media licence validator for subsequent verification. This checks the recorded evidence format, not whether a provider issued a licence.
+
+> **Started:** 2026-11-04T07:26:43.942156+00:00
 
 **Phase:** 7
 **Needs:** none
@@ -296,12 +298,15 @@ The independent review rounds of the media sections stop at the first round with
 
 **Build order:**
 
-1. Fix each leftover in the file it names, or record why it stays. Done when: every item below is ticked with its commit or its reason.
+1. Add `media/tools/check-license.py` to validate the recorded licence line. Done when: exactly one free-tier or company-licence record with a real calendar date passes, while missing, duplicate, malformed and placeholder records fail.
+2. Exercise the CLI with synthetic records in `media/tools/test_check_license.py` and invoke it from `media/package.json` preflight. Done when: invalid records exit nonzero before rendering and the current recorded free-tier basis passes.
 
-- [ ] D10 T01 §2 round 1 (P3): the licence checkpoint in §2 accepts an all-capitals placeholder such as `company licence, PENDING`; add a negative case and refuse `PENDING`, `TBD` and `TODO` explicitly in the pattern of a new check. Done when: `printf 'Remotion licence: company licence, PENDING, confirmed 2026-10-30\n' | grep -cE '<the new pattern>'` prints `0` and the recorded line still prints `1`. Cheaper substitute: relying on review of the operator's line fails as soon as an agent writes it.
-- [ ] Commit: `media: clear the P3 review leftovers (D10 T01 §12)`
+- [ ] D10 T01 §2 round 1 (P3): implement `media/tools/check-license.py`, accepting the existing free-tier record or a company reference of at least six uppercase letters, digits or hyphens starting with a letter or digit; reject `PENDING`, `TBD`, `TODO` and placeholders made by padding those words with hyphens. Done when: the current record passes and placeholder references fail. Cheaper substitute: manually inspecting a line does not prevent a subsequent render from accepting a placeholder.
+- [ ] Add CLI regression coverage in `media/tools/test_check_license.py` for free-tier and company records, placeholder references, missing or duplicate records, malformed references and invalid dates. Done when: tests fail against the old checkpoint accepting `PENDING`, then pass with the validator.
+- [ ] Run the validator from `media/package.json` preflight and document its evidence limit in `media/README.md`. Done when: the preflight command fails on an invalid recorded basis before any render starts. Cheaper substitute: a standalone check never invoked by render commands leaves the original failure possible.
+- [ ] Commit: `media: reject placeholder licence evidence (D10 T01 §12)`
 
-**Test checkpoint:** `grep -c '^- \[ \] D10 T01\|^- \[ \] D09 T02' todo/10-media/TODO-01-channel-videos.md` prints `0` once every leftover is ticked.
+**Test checkpoint:** `python3 -m unittest discover -s media/tools -p 'test_check_license.py' && python3 media/tools/check-license.py && cd media && pnpm preflight` exits 0, and the regression tests prove missing, duplicate, malformed, placeholder and invalid-date records exit nonzero.
 
 ## Verification
 
