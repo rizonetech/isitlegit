@@ -2,7 +2,7 @@
 schema_version: 1
 id: walkthrough
 domain: 04-agent
-status: done
+status: active
 title: "TODO-02 -- Muse Wonder Phishing-Site Walkthrough"
 frozen: true
 track: day-4
@@ -46,6 +46,7 @@ track: day-4
 | 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [x] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
 | 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [x] |
+| 10 | §10 | Multi-step evaluation fixture routes | §1 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -352,6 +353,29 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 
 > **Verified:** 2026-11-03 | §9 | 30ea8cb0f0b0daa458083245d194f55695e76bac
 > **Review:** `docs/reviews/d04-t02-s9.json`
+
+## 10. Multi-step evaluation fixture routes
+
+Eval's D08 T03 §3 owns the synthetic multi-step assets and five-walk measurement. Its exact asset candidate `68d67b96e9030a79935e92a0ca9dc698030dc0dd` supplies four pages but cannot serve them without checks-owned dispatcher wiring. Eval authorized byte-exact use at the safe boundary on 4 November 2026. This section owns only that routing integration and its refusal tests; it does not author fixture content, change the contained driver, run paid walks or claim deployment. Existing §1 is stamped, so this extension has its own contract.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** Existing `test/walkthrough/fixtures.test.ts`, `test/walkthrough/canary.test.ts` and `test/walkthrough/url-policy.test.ts` pass unchanged. Host/prefix restrictions, collector canary rules and driver limits stay intact.
+
+**Build order:**
+
+1. Import only the four authorized files under `fixtures/nimbusmail-multistep/` from the exact eval candidate. Done when: each file hash matches its source commit and no unrelated eval history is imported.
+2. Add routes in `src/fixtures/redirects.ts`. Done when: index, lure, login and submitted pages answer under the existing host/prefix and slash normalization keeps relative navigation inside that prefix.
+3. Verify route bodies, headers, methods and refusal behavior in `test/walkthrough/multistep-fixtures.test.ts`. Done when: every route is tested against its exact asset bytes and the existing fixture gates pass without network or model calls.
+
+- [ ] Import `fixtures/nimbusmail-multistep/{index,lure,login,submitted}.html` byte-for-byte from `68d67b96e9030a79935e92a0ca9dc698030dc0dd`, as authorized by eval's durable contract `eval/frontier/MULTISTEP.md` at that candidate. Done when: all four SHA-256 values match and eval remains their content owner. Cheaper substitute: copying only the initial page or rewriting the fixture's credential-discard behavior locally.
+- [ ] Bind `nimbusmail-multistep/`, `nimbusmail-multistep/lure`, `nimbusmail-multistep/login` and `nimbusmail-multistep/submitted` in `fixturesResponse` through text imports, including a 301 from the slash-less index. Done when: GET returns each exact HTML body and content type, HEAD has the same status/headers with no body, and relative transitions resolve to the intended four routes. Cheaper substitute: serving a local copy only in the test harness.
+- [ ] Exercise restrictions in `test/walkthrough/multistep-fixtures.test.ts`. Done when: missing/wrong/short prefixes and unknown routes are 404, another host returns null, mutation methods are 405 with no collector invocation, and successful, redirect and refused answers retain noindex/nofollow/no-store. Cheaper substitute: checking only the happy-path index.
+- [ ] Record source hashes and the exact reviewed route candidate in `docs/reviews/04-agent/D04-T02-s10.md` for coordinator and eval. Done when: handover explicitly distinguishes local route proof from CI/deployment and the later exact deployed SHA/body/hash/header preflight required before any paid walk. Reversal removes the route bindings through a source revert while leaving eval's observations intact. Cheaper substitute: claiming a local test is deployment proof.
+- [ ] Commit: `fixtures: serve the owned multi-step evaluation pages`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/multistep-fixtures.test.ts test/walkthrough/fixtures.test.ts test/walkthrough/canary.test.ts test/walkthrough/url-policy.test.ts` passes and fails if any route serves the wrong bytes or bypasses its host, prefix or method boundary.
 
 ## Verification
 

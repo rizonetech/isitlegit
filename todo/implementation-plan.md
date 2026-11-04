@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 706
+Sections: 113 | Checklist items: 711
 
 | Status | Reference   | Deliverable                                      | Needs                 | Items |
 | ------ | ----------- | ------------------------------------------------ | --------------------- | ----- |
@@ -314,6 +314,7 @@ Sections: 112 | Checklist items: 706
 | [ ]    | D04 T01 §18 | Labelled screening experiment binding            | third-party           | 5     |
 | [ ]    | D04 T01 §19 | Queued verification and guarded delivery refresh | none                  | 6     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                 | none                  | 2     |
+| [ ]    | D04 T02 §10 | Multi-step evaluation fixture routes             | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                    | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks               | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs               | meta-api              | 2     |
@@ -409,7 +410,7 @@ Sections: 112 | Checklist items: 706
 
 ### Phase 7: After the event
 
-Sections: 226 | Checklist items: 1015
+Sections: 227 | Checklist items: 1021
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -463,6 +464,7 @@ Sections: 226 | Checklist items: 1015
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
 | [x]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
 | [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
+| [ ]    | D02 T05 §12 | Translated instruction phrases                              | none                 | 6     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                                      | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports                 | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated                | none                 | 4     |
@@ -682,6 +684,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 425/606 verified sections, 117 ready to run now.
+Progress: 425/608 verified sections, 119 ready to run now.
 
-Checklist: 3108/3742 items completed (includes Commit items).
+Checklist: 3108/3753 items completed (includes Commit items).
