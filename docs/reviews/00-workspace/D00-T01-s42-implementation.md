@@ -1,0 +1,13 @@
+# D00 T01 §42 implementation evidence
+
+2026-11-04. Genuine LOW plan complete on 3a3394e9, receipt committed 4762588c before implementation. The owning test fixture now removes inherited reconciliation exception tables alongside inherited extensions before committing its synthetic base pin. Reviewer routes, models, efforts and schedules remain unchanged by this isolation; existing fixture-specific legacy policy adaptation remains.
+
+Original failure retained: exact `3bcbc096:.conclave/reviewers.toml` bytes supplied through a temporary REPO_PIN, never replacing the production pin. Original ExactExceptions class: 12 tests, two errors, 5.386 seconds. Log `/tmp/review-fixture-isolation-red.log` records unreachable external voice authorization commit efaf2a704eefbe34c67f56a131b9ef3db4279b85.
+
+Deterministic regression: `taskset -c 0,1 python3 -m unittest scripts.tests.test_review_dispatch.ExactExceptions.test_external_authorizations_do_not_enter_synthetic_chain`. Before the fixture correction, it fails because reconciliation_exceptions leaked into committed synthetic history (`/tmp/review-fixture-isolation-regression-red.log`). After correction it passes in 1.704 seconds (`/tmp/review-fixture-isolation-regression-green.log`). The test seeds root and dotted exception tables plus an extension with external identities, checks their absence before fixture authorization, compares unrelated parsed configuration, then genuinely commits and validates both local exception chains. Temporary seed and repository pin bytes remain unchanged; fixture repositories use registered cleanup.
+
+Original 12 ExactExceptions tests rerun with temporary exact live pin bytes: all passed in 9.469 seconds (`/tmp/review-fixture-isolation-live-pin-green.log`). The new regression is excluded from this historical 12-test comparison and included in the full suite.
+
+Full checkpoint: `taskset -c 0,1 python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph`: 422 tests, OK with one skipped, 175.098 seconds (`/tmp/review-fixture-isolation-full.log`). Publication scan clean (`/tmp/review-fixture-isolation-publication.log`); TODO validation passed, 610 sections (`/tmp/review-fixture-isolation-validate.log`). Existing negative validation and recovery tests remain unchanged.
+
+Production `.conclave/reviewers.toml`, dispatcher, graph and CLI remain byte-identical to base4ff060815. No production authorization, original review history or acceptance guard changed. Only test fixture source and this section evidence changed after the approved plan. Completion review and integration remain separate gates.
