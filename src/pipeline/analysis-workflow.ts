@@ -438,6 +438,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "walkthrough";
       try {
         await timed("walkthrough", async () => {
+          if (await isStandaloneDocumentParsed(store, caseId, key, sourceKind)) {
+            return { outcome: "skipped" as const, reason: "standalone-document" as const };
+          }
           const { table } = await brandTableRead(this.env);
           return walkthroughStep(
             {
@@ -470,8 +473,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       // stated on the case and the verdict goes on with what it has.
       current = "vision";
       try {
-        await timed("vision", () =>
-          visionStep(
+        await timed("vision", async () => {
+          if (await isStandaloneDocumentParsed(store, caseId, key, sourceKind)) {
+            return { outcome: "skipped" as const, reason: "standalone-document" as const };
+          }
+          return visionStep(
             {
               db,
               store,
@@ -483,8 +489,8 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
             },
             caseId,
-          ),
-        );
+          );
+        });
       } catch {
         // The failure statement is itself retried; a case it cannot land on ends partial below rather
         // than reach its verdict with the missing coverage concealed.
@@ -587,6 +593,39 @@ export async function admit(
 
 // What the case came from, as the parse step needs it: a forward, an uploaded message or an uploaded file.
 export type Source = { channel: "email" | "upload"; sourceKind: SourceKind; headersAvailable: boolean };
+
+async function isStandaloneDocumentParsed(
+  store: Store,
+  caseId: string,
+  key: string,
+  sourceKind: SourceKind,
+): Promise<boolean> {
+  if (sourceKind === "document" || sourceKind === "image") return true;
+  if (sourceKind !== "mail") return false;
+  const summary = await readArtefact(store, caseId, key);
+  if (!summary || !("body" in summary)) return false;
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(summary.body)) as {
+      text?: string | null;
+      html?: string | null;
+      attachments?: { key: string; filename: string; mediaType: string }[];
+      truncated?: unknown[];
+      omitted?: number;
+    };
+    return (
+      (!Array.isArray(parsed.truncated) || parsed.truncated.length === 0) &&
+      (parsed.omitted ?? 0) === 0 &&
+      isStandaloneDocumentCase({
+        sourceKind: "mail",
+        textBody: parsed.text ?? null,
+        htmlBody: parsed.html ?? null,
+        attachments: parsed.attachments ?? [],
+      })
+    );
+  } catch {
+    return false;
+  }
+}
 
 // A step's failure after its last attempt: an event naming the step and its error class, and the case `partial`
 // (moved through `running` if admission failed before it got there). A case already `done` stays so: its `finish`
@@ -1311,6 +1350,21 @@ export async function verdict(
     .bind(caseId)
     .first<{ headers_available: number; org_id: string }>();
   const headersAvailable = row?.headers_available === 1;
+  // An unentitled standalone payment-document case (D06 T02 §3) makes zero model calls across the Workflow:
+  // when `document.not_checked` carries `reason: "plan-required"`, the rule verdict decides directly.
+  if (
+    evidence.some(
+      (e) => e.check === "document.not_checked" && (e.detail as { reason?: unknown }).reason === "plan-required",
+    )
+  ) {
+    const rules = ruleVerdict(evidence, { headersAvailable });
+    const fixed = fixedActionsFor(evidence);
+    const view: VerdictView = {
+      ...rules,
+      actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
+    };
+    return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  }
   // An ablated arm (D04 T01 §14): the verdict agent is never called, and none of its preparation is read
   // either; the rule verdict decides alone with the deterministic actions, and the verdict names the flag.
   if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {

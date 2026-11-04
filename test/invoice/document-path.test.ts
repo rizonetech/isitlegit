@@ -4,9 +4,9 @@
 // coexists with `saveEvidence` (`FORENSIC_CHECKS`), replaces stale items on retry, states every
 // failure and plan refusal as a partial report (`checked: false`), and renders `POP_ACTION` and
 // `DOCUMENT_LIMIT` on the report.
-import { env } from "cloudflare:test";
+import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { jsx } from "hono/jsx";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { floorFor } from "../../src/agent/floor";
 import { createToolExecutor, runAgent } from "../../src/agent/loop";
 import { PARTIAL_HEADLINE, PARTIAL_MEANING } from "../../src/agent/rule-verdict";
@@ -27,7 +27,7 @@ import { analysePdf, FORENSIC_CHECKS, forensicsEvidence } from "../../src/invoic
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import { invoiceStep, recordInvoiceNotRun } from "../../src/invoice/step";
 import { d1Budget } from "../../src/meta/budget";
-import { checks, parse } from "../../src/pipeline/analysis-workflow";
+import { checks } from "../../src/pipeline/analysis-workflow";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import { EvidenceCards } from "../../src/web/components/evidence/cards";
@@ -585,7 +585,11 @@ describe("the standalone document step (D06 T02 §3)", () => {
         failedEval.evidence,
         failedEval.verdict.reasons.flatMap((r) => r.evidenceIds),
       );
-      expect(failedHtml).toContain("A payment document that could not be read");
+      expect(failedHtml).toContain(
+        scenario.name === "unavailable PDF forensic coverage"
+          ? "PDF forensic checks that could not finish"
+          : "A payment document that could not be read",
+      );
       expect(failedHtml).toContain(DOCUMENT_LIMIT);
 
       // A successful retry on the same case replaces the stale failure evidence and produces a non-partial report.
@@ -624,11 +628,81 @@ describe("the standalone document step (D06 T02 §3)", () => {
       required_plan: "protect",
       recovery: "Upgrade to Protect in your organisation settings and retry this case.",
     });
-    expect(renderCards(refused.evidence)).toContain(DOCUMENT_LIMIT);
+    const refusedHtml = renderCards(refused.evidence);
+    expect(refusedHtml).toContain(DOCUMENT_LIMIT);
+    expect(refusedHtml).toContain("A payment document check that requires the Protect plan");
+    expect(refusedHtml).toContain("Payment document checks require the Protect plan");
+    expect(refusedHtml).toContain("Upgrade to Protect in your organisation settings and retry this case.");
     const storedVerdict = await storedVerdictOf(caseId);
     expect(storedVerdict?.headline).toBe(PARTIAL_HEADLINE);
     expect(storedVerdict?.reasons[0]?.text).toContain("Payment document checks require the Protect plan");
     expect(storedVerdict?.reasons[0]?.text).toContain("Upgrade in your organisation settings and retry this case");
+
+    // Full AnalysisWorkflow execution on an emailed empty-body PDF POP from a free organisation makes zero model calls across vision, invoice, and verdict:
+    const wfFreeMail = await caseWithDocument(org, {
+      channel: "email",
+      sourceKind: "mail",
+      bytes: generated["gs-genuine-pop.pdf"],
+      filename: "free-emailed-pop.pdf",
+    });
+    await putParsed(store, wfFreeMail.caseId, {
+      headers: [{ name: "Subject", value: "POP" }],
+      text: "",
+      html: null,
+      attachments: [
+        {
+          key: wfFreeMail.artefactKey,
+          filename: "free-emailed-pop.pdf",
+          mediaType: "application/pdf",
+          contentId: null,
+          disposition: "attachment",
+          bytes: generated["gs-genuine-pop.pdf"].length,
+        },
+      ],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    let wfFreeModelCalls = 0;
+    const realFetch = globalThis.fetch;
+    const spyFree = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("gateway")) {
+        wfFreeModelCalls += 1;
+        throw new Error("no model call allowed on unentitled payment-document case");
+      }
+      return realFetch(input as never, init as never);
+    });
+    const freeInstance = await introspectWorkflowInstance(env.ANALYSIS, wfFreeMail.caseId);
+    try {
+      await freeInstance.modify(async (m) => {
+        await m.disableRetryDelays();
+        await m.disableSleeps();
+        await m.mockStepResult({ name: "parse" }, parsedKey(wfFreeMail.caseId));
+        await m.mockStepResult({ name: "reply" }, { mail: "skipped" });
+      });
+      await env.ANALYSIS.create({ id: wfFreeMail.caseId, params: { caseId: wfFreeMail.caseId } });
+      await freeInstance.waitForStatus("complete");
+      expect(await freeInstance.waitForStepResult({ name: "walkthrough" })).toEqual({
+        outcome: "skipped",
+        reason: "standalone-document",
+      });
+      expect(await freeInstance.waitForStepResult({ name: "vision" })).toEqual({
+        outcome: "skipped",
+        reason: "standalone-document",
+      });
+    } finally {
+      await freeInstance.dispose();
+      spyFree.mockRestore();
+    }
+    expect(wfFreeModelCalls).toBe(0);
+    const wfFreeEv = await readEvidence(db, wfFreeMail.caseId);
+    expect(wfFreeEv.some((e) => e.check.startsWith("vision.") || e.check.startsWith("walkthrough."))).toBe(false);
+    expect(wfFreeEv.find((e) => e.check === "document.not_checked")?.detail).toMatchObject({
+      checked: false,
+      reason: "plan-required",
+      required_plan: "protect",
+    });
 
     // Once the organisation is entitled and retries the case, the refusal item is replaced by the full document check.
     const freshNow = new Date().toISOString();
@@ -683,18 +757,62 @@ describe("the standalone document step (D06 T02 §3)", () => {
     await seedSupplier(org);
     await env.ARTEFACTS.put("ref/pop/kestrel-bank.pdf", generated["gs-genuine-pop.pdf"]);
 
-    // 1. Uploaded PDF POP through production `parse` -> `invoiceStep` -> `runAgent`:
+    // 1. Uploaded PDF POP through the full production `AnalysisWorkflow` (`parse` -> `checks` -> `walkthrough` skipped -> `vision` skipped -> `invoice` -> `verdict`):
     const uploadedPdf = await caseWithDocument(org, {
       channel: "upload",
       sourceKind: "document",
       bytes: generated["gs-edited-pop.pdf"],
       filename: "uploaded-pop.pdf",
     });
-    await parse(store, uploadedPdf.caseId, { channel: "upload", sourceKind: "document", headersAvailable: false });
-    const hUpload = harness([() => answer(POP), () => answer({ layout_differences: ["amounts"] })]);
-    const stepRes1 = await invoiceStep({ ...hUpload.deps, waitUntil: () => {} }, uploadedPdf.caseId, org);
-    expect(stepRes1).toEqual({ outcome: "read", invoices: 1 });
+    const realFetch = globalThis.fetch;
+    const wfReplies = [() => answer(POP), () => answer({ layout_differences: ["amounts"] })];
+    const spyWf = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("gateway")) {
+        const next = wfReplies.shift();
+        if (next) return next();
+        return answer({
+          verdict: "suspicious",
+          confidence: 0.85,
+          headline: "This proof of payment shows layout differences and post-save edits.",
+          meaning: "Confirm the payment has cleared in your own banking app before releasing goods.",
+          reasons: [
+            { text: "The PDF was saved again after its first version.", evidence_ids: ["E2"] },
+            { text: "The POP layout differs from the bank's genuine sample.", evidence_ids: ["E4"] },
+          ],
+          cited_evidence_ids: ["E2", "E4"],
+          recommended_actions: [POP_ACTION],
+        });
+      }
+      return realFetch(input as never, init as never);
+    });
+    const wfInstance = await introspectWorkflowInstance(env.ANALYSIS, uploadedPdf.caseId);
+    try {
+      await wfInstance.modify(async (m) => {
+        await m.disableRetryDelays();
+        await m.disableSleeps();
+        await m.mockStepResult({ name: "reply" }, { mail: "skipped" });
+      });
+      await env.ANALYSIS.create({ id: uploadedPdf.caseId, params: { caseId: uploadedPdf.caseId } });
+      await wfInstance.waitForStatus("complete");
+      expect(await wfInstance.waitForStepResult({ name: "walkthrough" })).toEqual({
+        outcome: "skipped",
+        reason: "standalone-document",
+      });
+      expect(await wfInstance.waitForStepResult({ name: "vision" })).toEqual({
+        outcome: "skipped",
+        reason: "standalone-document",
+      });
+      expect(await wfInstance.waitForStepResult({ name: "invoice" })).toEqual({
+        outcome: "read",
+        invoices: 1,
+      });
+    } finally {
+      await wfInstance.dispose();
+      spyWf.mockRestore();
+    }
     const ev1 = await readEvidence(db, uploadedPdf.caseId);
+    expect(ev1.some((e) => e.check.startsWith("vision.") || e.check.startsWith("walkthrough."))).toBe(false);
     expect(ev1.map((e) => e.check)).toContain("document.forensics.revisions");
     expect(ev1.map((e) => e.check)).toContain("document.type");
     expect(ev1.map((e) => e.check)).toContain("document.layout_mismatch");
@@ -860,6 +978,12 @@ describe("the standalone document step (D06 T02 §3)", () => {
       checked: false,
       reason: "forensics-unavailable",
     });
+    const incompleteHtml = renderCards(evIncomplete);
+    expect(incompleteHtml).toContain("PDF forensic checks that could not finish");
+    expect(incompleteHtml).toContain("One or more PDF forensic checks could not run completely");
+    expect(incompleteHtml).toContain(
+      "The PDF forensic checks were incomplete, so a clean forensic result is not assumed.",
+    );
     // Replace the attachment in R2 with a complete PDF and re-run on a fresh case or replace the object:
     await env.ARTEFACTS.put(incompleteMail.artefactKey, generated["gs-genuine-pop.pdf"], {
       httpMetadata: { contentType: "application/pdf" },
