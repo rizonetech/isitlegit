@@ -40,7 +40,7 @@ track: day-2
 | 7 | §7 | First-time sender per recipient | §5 | [ ] |
 | 8 | §8 | Familiarity from consented mail | §5 | [ ] |
 | 9 | §9 | Gateway relay ranges, decided | §6 | [x] |
-| 10 | §10 | Configured relay revision lifecycle | §9 | [ ] |
+| 10 | §10 | Configured relay revision lifecycle | §9 | [x] |
 | 11 | §11 | Configured relay trust consumption | §10 | [ ] |
 
 ## 1. Trusted Authentication-Results parsing
@@ -312,14 +312,17 @@ Implement the configuration service designed in `docs/specs/2026-11-04-gateway-r
 2. Implement the lifecycle service in `src/auth/relay-ranges.ts`. Done when: proposal, exact-revision review, edit, revoke, restore automatic discovery and read-back are authorized, atomic, idempotent and audited.
 3. Prove refusals and races in `test/auth/relay-ranges.test.ts`. Done when: stale writes and late verification after claim removal cannot restore trust or lose another revision.
 
-- [ ] Define strict CIDR proposal validation in `src/auth/relay-ranges.ts`. Done when: canonical public IPv4/IPv6 networks round-trip, malformed networks, host bits, zero prefixes, reserved-space overlap and more than 64 CIDRs fail; exact duplicates are deduplicated. Cheaper substitute: syntactic parsing alone accepts dangerously broad ranges. Source: §9's configured-range design, Configuration lifecycle.
-- [ ] Add revision persistence in a coordinator-numbered migration under `src/db/migrations/`. Done when: configured records are separate from `org_receiving_chains`, tenant/claim scoped, cascade on claim deletion and cannot reference an unverified claim through the service. Cheaper substitute: writing configuration into the discovery cache loses source ownership. Source: §9's design, Owning layer and Configuration lifecycle.
-- [ ] Implement proposal/read-back and exact-revision platform review in `src/auth/relay-ranges.ts`. Done when: an organisation admin can propose only for its verified binding, only the independent platform role can approve/reject, and the stored source URL/digest/retrieval date and actors are required for approval; arbitrary submitted evidence never auto-verifies. Cheaper substitute: a client-supplied verified flag creates trust without proof. Source: §9's design, Trust source.
-- [ ] Implement transactional edit/revoke/restore in `src/auth/relay-ranges.ts`. Done when: edit retires the old verified revision immediately, revoke is idempotent, restore invalidates discovery before fresh lookup, and each accepted operation returns stored state and one audit event; conflicting retries fail. Cheaper substitute: deleting a UI row leaves cached trust active. Source: §9's design, Consumption and revocation.
-- [ ] Add conflict, failure and deletion tests in `test/auth/relay-ranges.test.ts`. Done when: cross-tenant access, tenant self-approval, stale editor/reviewer, DB failure, claim deletion/unverification, tenant closure and late approval are all refused without partial state; a valid lifecycle and duplicate retry are proven against D1. Cheaper substitute: mocked return values do not prove persistence or atomicity. Source: §9's design, Configuration lifecycle.
-- [ ] Commit: `feat: store and govern configured relay revisions`
+- [x] Define strict CIDR proposal validation in `src/auth/relay-ranges.ts`. Done when: canonical public IPv4/IPv6 networks round-trip, malformed networks, host bits, zero prefixes, reserved-space overlap and more than 64 CIDRs fail; exact duplicates are deduplicated. Cheaper substitute: syntactic parsing alone accepts dangerously broad ranges. Source: §9's configured-range design, Configuration lifecycle.
+- [x] Add revision persistence in a coordinator-numbered migration under `src/db/migrations/`. Done when: configured records are separate from `org_receiving_chains`, tenant/claim scoped, cascade on claim deletion and cannot reference an unverified claim through the service. Cheaper substitute: writing configuration into the discovery cache loses source ownership. Source: §9's design, Owning layer and Configuration lifecycle.
+- [x] Implement proposal/read-back and exact-revision platform review in `src/auth/relay-ranges.ts`. Done when: an organisation admin can propose only for its verified binding, only the independent platform role can approve/reject, and the stored source URL/digest/retrieval date and actors are required for approval; arbitrary submitted evidence never auto-verifies. Cheaper substitute: a client-supplied verified flag creates trust without proof. Source: §9's design, Trust source.
+- [x] Implement transactional edit/revoke/restore in `src/auth/relay-ranges.ts`. Done when: edit retires the old verified revision immediately, revoke is idempotent, restore invalidates discovery before fresh lookup, and each accepted operation returns stored state and one audit event; conflicting retries fail. Cheaper substitute: deleting a UI row leaves cached trust active. Source: §9's design, Consumption and revocation.
+- [x] Add conflict, failure and deletion tests in `test/auth/relay-ranges.test.ts`. Done when: cross-tenant access, tenant self-approval, stale editor/reviewer, DB failure, claim deletion/unverification, tenant closure and late approval are all refused without partial state; a valid lifecycle and duplicate retry are proven against D1. Cheaper substitute: mocked return values do not prove persistence or atomicity. Source: §9's design, Configuration lifecycle.
+- [x] Commit: `feat: store and govern configured relay revisions`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/relay-ranges.test.ts` passes, including the invalid-range, cross-tenant, exact-review, idempotency, rollback and claim-removal cases above; `pnpm typecheck` passes.
+
+> **Verified:** 2026-11-04 | §10 | 6253d6fb832d6f6866d78645bd0bbd81f3111734
+> **Review:** `docs/reviews/d02-t02-s10.json`
 
 ## 11. Configured relay trust consumption
 
