@@ -38,7 +38,7 @@ track: day-6
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
 | 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 | 7 | §7 | Live eval runs | §1 | [x] |
-| 8 | §8 | Component measurements | §2, §7 | [ ] |
+| 8 | §8 | Component measurements | §2, §7 | [x] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
 | 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
@@ -289,6 +289,9 @@ Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data
 - [x] Commit: `eval: component measurements`
 
 **Test checkpoint:** the results file holds a row for each measurement above, and `node eval/metrics.ts --check eval/RESULTS.md` exits 0.
+
+> **Verified:** 2026-11-04 | §8 | e153021d3be5432a184feed2c3472e30e55430ff
+> **Review:** `docs/reviews/d08-t02-s8.json`
 
 ## 9. Admin eval runs page
 
