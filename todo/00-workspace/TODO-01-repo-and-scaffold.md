@@ -80,7 +80,7 @@ track: day-0
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 | 40 | §40 | Email recovery fixtures on reviewed ablation integration | D01 T03 §17, D04 T01 §17 | [x] |
 | 41 | §41 | Accurate continuation stop reasons for completed owners | §19 | [ ] |
-| 42 | §43 | Upload refusal matches reviewed admission | D01 T03 §17 | [ ] |
+| 42 | §43 | Upload refusal matches reviewed admission | D01 T03 §17 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1392,6 +1392,9 @@ Filed 2026-11-04 by coordinator authorization after exact candidate `6c3f582a4a2
 - [x] Commit: `test: align upload-page refusal with reviewed ablation fields`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project worker test/web/upload-page.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts` passes; the unchanged old expected message fails the original upload-page assertion while HTTP400 and all malformed/unauthorized admission checks remain enforced.
+
+> **Verified:** 2026-11-04 | §43 | 9a8f7bd2d4a17b9323c625e05fed4d7730221e2b
+> **Review:** `docs/reviews/d00-t01-s43.json`
 
 ## Verification
 

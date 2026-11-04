@@ -300,7 +300,7 @@ Sections: 121 | Checklist items: 755
 | [x]    | D00 T01 §38 | Exact evidence-bound reconciliation exceptions            | none                  | 8     |
 | [ ]    | D00 T01 §41 | Accurate continuation stop reasons for completed owners   | none                  | 4     |
 | [x]    | D01 T03 §17 | Immutable per-case ablation admission                     | none                  | 8     |
-| [ ]    | D00 T01 §43 | Upload refusal matches reviewed admission                 | none                  | 4     |
+| [x]    | D00 T01 §43 | Upload refusal matches reviewed admission                 | none                  | 4     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover                          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst                     | none                  | 3     |
@@ -692,6 +692,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 444/616 verified sections, 109 ready to run now.
+Progress: 445/616 verified sections, 108 ready to run now.
 
 Checklist: 3210/3809 items completed (includes Commit items).
