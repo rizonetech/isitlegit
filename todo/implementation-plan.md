@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 122 | Checklist items: 759
+Sections: 123 | Checklist items: 767
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -391,6 +391,7 @@ Sections: 122 | Checklist items: 759
 | [x]    | D08 T02 §14 | Paired-evidence investigation                             | cloudflare            | 3     |
 | [ ]    | D08 T02 §15 | Paired evidence view                                      | cloudflare            | 3     |
 | [ ]    | D08 T02 §16 | Blinded comprehension comparison                          | cloudflare            | 4     |
+| [x]    | D08 T02 §17 | Per-case ablation orchestration repair                    | none                  | 8     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video                         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost                     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls                        | meta-api, cloudflare  | 5     |
@@ -419,7 +420,7 @@ Sections: 122 | Checklist items: 759
 
 ### Phase 7: After the event
 
-Sections: 227 | Checklist items: 1033
+Sections: 227 | Checklist items: 1035
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -598,8 +599,8 @@ Sections: 227 | Checklist items: 1033
 | [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
-| [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 3     |
-| [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
+| [x]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 5     |
+| [x]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
 | [x]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
@@ -693,6 +694,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 447/617 verified sections, 107 ready to run now.
+Progress: 450/618 verified sections, 105 ready to run now.
 
-Checklist: 3218/3813 items completed (includes Commit items).
+Checklist: 3235/3823 items completed (includes Commit items).

@@ -194,7 +194,7 @@ describe("the ablation orchestration", () => {
     expect(() => nextAblationArm(failed)).toThrow(/stopped on the failed full arm/);
     const resumed = resumeAblationArm(failed, "full");
     expect(resumed.ids).toEqual(["a", "b"]);
-    expect(resumed.arms[0]).toEqual({ flag: "full", runId: null, status: "pending" });
+    expect(resumed.arms[0]).toEqual({ flag: "full", runId: "run-full", status: "pending" });
     expect(nextAblationArm(resumed)?.flag).toBe("full");
   });
   it("refuses an arm whose results are all stale-repeat", () => {
@@ -207,87 +207,8 @@ describe("the ablation orchestration", () => {
   });
 });
 
-describe("the ablation command orchestration", () => {
-  const manifest = () =>
-    startAblationRun(
-      { seed: "s", sets: ["synthetic-sa"], setVersions: { "synthetic-sa": "v1" }, deployment: "d1", ids: ["a"] },
-      ["no-screening"],
-    );
-  const actual = { setVersions: { "synthetic-sa": "v1" }, deployment: "d1" };
-  const report = (arm: AblateFlag | "full", runId: string) => ({
-    arm,
-    set: "synthetic-sa",
-    runId,
-    metrics: {
-      verdictRows: 2,
-      detected: 1,
-      genuineRows: 2,
-      falsePositives: 0,
-      medianMs: 10,
-      costUsd: 0.1,
-      measured: true,
-    },
-  });
-
-  it("runs the full arm then each switch under its stated cap and writes the table", async () => {
-    const { mkdtempSync, readFileSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const dir = mkdtempSync(join(tmpdir(), "eval-ablate-run-"));
-    const { runAblation } = await import("../../eval/ablate-run.ts");
-    const caps: Record<string, number> = {};
-    const out = await runAblation({
-      manifest: manifest(),
-      caps: { full: 5, "no-screening": 5 },
-      actual,
-      resultsDir: dir,
-      runArm: async (flag, cap) => {
-        caps[flag] = cap;
-        return { runId: `run-${flag}`, status: "complete", outcomes: ["done"], report: report(flag, `run-${flag}`) };
-      },
-    });
-    expect(out.status).toBe("complete");
-    expect(caps).toEqual({ full: 5, "no-screening": 5 });
-    expect(readFileSync(out.resultsPath ?? "", "utf8")).toContain("Model removed");
-  });
-
-  it("stops on a failed arm, refuses a mismatched deployment, and excludes an all-stale arm", async () => {
-    const { runAblation, parseAblateArgs } = await import("../../eval/ablate-run.ts");
-    const failed = await runAblation({
-      manifest: manifest(),
-      caps: { full: 5, "no-screening": 5 },
-      actual,
-      resultsDir: "/tmp",
-      runArm: async () => ({ runId: "r1", status: "failed", outcomes: ["done"], report: null }),
-    });
-    expect(failed.status).toBe("incomplete");
-    expect(failed.arms).toHaveLength(2);
-    const stale = await runAblation({
-      manifest: manifest(),
-      caps: { full: 5, "no-screening": 5 },
-      actual,
-      resultsDir: "/tmp",
-      runArm: async (flag) => ({
-        runId: "r2",
-        status: "complete",
-        outcomes: ["stale-repeat"],
-        report: report(flag, "r2"),
-      }),
-    });
-    expect(stale.resultsPath).toBeNull();
-    const drift = await runAblation({
-      manifest: manifest(),
-      caps: { full: 5 },
-      actual: { setVersions: { "synthetic-sa": "v1" }, deployment: "d2" },
-      resultsDir: "/tmp",
-      runArm: async () => ({ runId: "r3", status: "complete", outcomes: ["done"], report: null }),
-    });
-    expect(drift.status).toBe("refused");
-    expect(parseAblateArgs([])).toHaveProperty("error");
-    expect(parseAblateArgs(["--cap-usd", "5", "--flags", "nope"])).toHaveProperty("error");
-    expect(parseAblateArgs(["--cap-usd", "5"])).toMatchObject({ capUsd: 5 });
-  });
-});
+// Durable command orchestration, including failed/stale arms and restart, is exercised through main
+// in eval-ablation-transport.test.ts instead of the former in-memory-only prototype.
 
 describe("the impersonation finding classes", () => {
   it("separates verdict-changing checks from corroborating ones", () => {

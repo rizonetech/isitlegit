@@ -11,7 +11,15 @@ import { activeMembership } from "../../auth/org";
 import { verifiedSenders } from "../../auth/senders";
 import { ignoredDates, searchTooLong } from "../../db/case-filters";
 import { filtersFrom, listCases } from "../../db/case-list";
-import { CSV_WEEKS, countsCsv, periodWeeks, weeklyCounts, weeklyStats } from "../../db/case-stats";
+import {
+  CSV_WEEKS,
+  countsCsv,
+  dailyCounts,
+  dailyCountsCsv,
+  periodWeeks,
+  weeklyCounts,
+  weeklyStats,
+} from "../../db/case-stats";
 import { calendarRequest } from "./cases-calendar";
 import { CasesPage, casesHref, ORG_HEADER } from "./cases-view";
 import { errorPage, HEADERS, page, reference } from "./errors";
@@ -153,7 +161,8 @@ casesRoutes.get(
     const params = new URL(c.req.url).searchParams;
     const from = params.get("from");
     const to = params.get("to");
-    if (from !== null || to !== null) {
+    const exact = params.get("exact") === "1";
+    if (exact || from !== null || to !== null) {
       const bad = (why: string) =>
         page(
           "Choose a period",
@@ -182,11 +191,13 @@ casesRoutes.get(
       if (span < 0) return bad("The To date is before the From date. Swap them and try again.");
       if (span > 730) return bad("That period is longer than two years. Choose a shorter one and try again.");
       try {
-        const weeks = await periodWeeks(c.env.DB, membership.org.id, from, to);
-        return new Response(countsCsv(weeks), {
+        const csv = exact
+          ? dailyCountsCsv(await dailyCounts(c.env.DB, membership.org.id, from, to))
+          : countsCsv(await periodWeeks(c.env.DB, membership.org.id, from, to));
+        return new Response(csv, {
           headers: {
             "content-type": "text/csv; charset=utf-8",
-            "content-disposition": `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`,
+            "content-disposition": `attachment; filename="isitlegit-${exact ? "daily-counts" : "counts"}-${from}-to-${to}.csv"`,
             "cache-control": "private, no-store",
             "x-content-type-options": "nosniff",
           },

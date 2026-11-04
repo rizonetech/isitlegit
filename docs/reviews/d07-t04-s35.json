@@ -1,0 +1,109 @@
+{
+  "ref": "D07 T04 \u00a735",
+  "title": "Phone forwarding guidance on the Cases page",
+  "implementation_sha": "b537091a5429b5ed4818213e61865d3c05877a8b",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T04-s35.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/cases-browser.test.tsx passes with the phone guidance read at 360 px in both themes. -> taskset -c 9 pnpm exec vitest run test/node/cases-browser.test.tsx: 44 passed; two new tests failed before implementation. Upload baseline 2 passed; typecheck, Biome, dry build, publication and design checks passed."
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T04-s35.md",
+    "verdict": "complete",
+    "candidate": "b537091a5429b5ed4818213e61865d3c05877a8b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T04-s35.md",
+    "candidate": "aba5db0be46a82b0847d564c7f3a440232e9cfdf",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
