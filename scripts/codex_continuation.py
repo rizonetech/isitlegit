@@ -164,9 +164,16 @@ class Registry:
 
     def trusted(self, client, session, worktree):
         result = client.call("hooks/list", {"threadId": session})
-        expected = str(Path(worktree) / ".codex/hooks.json")
+        local = Path(worktree) / ".codex/hooks.json"
+        expected = {str(local)}
+        shared = self.root / ".codex/hooks.json"
+        if local != shared:
+            if local.read_bytes() != shared.read_bytes():
+                raise Refusal("lane hook definitions differ from coordinator definitions")
+            # Linked worktrees can load their native project configuration from main.
+            expected.add(str(shared))
         hooks = [h for entry in result.get("data", []) for h in entry.get("hooks", [])
-                 if h.get("sourcePath") == expected and h.get("enabled")
+                 if h.get("sourcePath") in expected and h.get("enabled")
                  and h.get("trustStatus") in {"trusted", "managed"}]
         required = {"sessionStart", "userPromptSubmit", "preToolUse", "stop", "interrupt"}
         if not required.issubset({h.get("eventName") for h in hooks}):
