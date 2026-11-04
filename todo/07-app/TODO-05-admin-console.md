@@ -36,6 +36,7 @@ track: day-6
 | 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
 | 5 | §5 | Filter the organisations | §2 | [ ] |
 | 6 | §6 | Independent gateway relay revision review | §2 | [ ] |
+| 7 | §7 | Admin typeahead design proposal | §4 | [ ] |
 
 ## 1. Access application and JWT verification
 
@@ -217,6 +218,26 @@ Coordinator assignment 2026-11-04: platform review surface for D02 T02 §10. Req
 - [ ] Commit: `admin: independently review gateway relay revisions`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-gateway-ranges.test.ts test/node/admin-gateway-ranges-browser.test.tsx` passes and fails if a stale revision or tenant self-approval is accepted.
+
+## 7. Admin typeahead design proposal
+
+Filed from D07 T05 §4 final completion's out-of-scope suggestion under coordinator `console-scope-ownership`, 2026-11-04. The approved X1 Search/Enter interaction remains unchanged. A proposed 500 ms p95 from that review is unmeasured and is not an accepted performance claim or implementation target. This section evaluates the proposal; it does not authorize a new control or close §4's original gaps receipt.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Assess the interaction proposal against the existing approved flow. Done when: a scoped proposal records measured costs, access constraints and recovery, and the coordinator records keep, defer or authorize-design.
+2. Record the resulting design boundary. Done when: any authorized future UI implementation has its own resolving section and approved treatment before code changes.
+
+- [ ] Capture the current Search/Enter contract and the original suggestion in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: existing domain/ID/name search, verified-domain privacy, CSV equivalence and neutral empty recovery are retained, and the 500 ms figure is explicitly unmeasured. Cheaper substitute: treating review prose as approved design. Source: `docs/reviews/07-app/D07-T05-s4.md` and coordinator scope decision.
+- [ ] Compare measured local submit-flow cost with a documented typeahead proposal in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: assumptions, request-load tradeoffs, cancellation/stale-response protection, keyboard/screen-reader behaviour, empty/error recovery and explicit-submit fallback are specified with reproducible evidence rather than an invented competitor claim. Cheaper substitute: adopting a latency number without measurement. Source: §4 completion suggestion.
+- [ ] Record coordinator keep/defer/authorize-design disposition and reversal cost in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: the proposal remains separate from X1 until approved, and any new implementation is filed with its design and tests before starting. Cheaper substitute: silently changing the approved surface or rewriting §4's receipt. Source: coordinator scope decision.
+- [ ] Commit: `design: record admin search interaction proposal decision`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes, and the proposal records reproducible measurements or explicit unknowns plus a coordinator disposition; X1 and §4 review receipts remain unchanged unless a later supported policy decision authorizes their owning changes.
 
 ## Verification
 

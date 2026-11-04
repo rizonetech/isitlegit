@@ -39,7 +39,7 @@ track: day-5
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 | 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
-| 8 | §8 | Native PDF forensic detection and coverage repair | §1, §5, §6 | [ ] |
+| 8 | §8 | Native PDF forensic limits diagnosis | §1, §5, §6 | [ ] |
 | 9 | §9 | PNG encoding at the doctored fixture producer | §4 | [x] |
 
 ## 1. PDF forensics
@@ -252,9 +252,11 @@ The §4 set shares one sparse template and confounds document type with edit typ
 
 **Test checkpoint:** `pnpm exec vitest run test/node/make-doctored.test.ts` passes and the labels name all nine combinations.
 
-## 8. Native PDF forensic detection and coverage repair
+## 8. Native PDF forensic limits diagnosis
 
-Coordinator assignment 2026-11-04, from eval D08 T02 §6: reported 3/7 detections, 0/7 false positives and 13/14 complete; proof-of-payment 1/5, Ghostscript 0/4, missing invoice dates. These are coordinator-supplied measurements pending exact artifact verification. This owns detector/parser repairs, not raster encoding or a relaxed evaluation threshold.
+Coordinator scope correction `console-scope-ownership`, 2026-11-04 10:14 SAST: the originally assigned detector repair becomes a narrow diagnosis and semantic regression section after reproduction found intentional single-signal limits, not established parser defects. The source baseline remains 3/7 detections, 0/7 false positives and 13/14 complete; proof-of-payment 1/5 and Ghostscript 0/4. The Chromium invoice has an invoice date but no payment date. Original assignment and review history remain in git; no prior section review has run. Completing this diagnosis is not detection improvement or target attainment.
+
+> **Started:** 2026-11-04T08:32:12.097588+00:00
 
 **Phase:** 7
 **Needs:** none
@@ -262,17 +264,17 @@ Coordinator assignment 2026-11-04, from eval D08 T02 §6: reported 3/7 detection
 
 **Build order:**
 
-1. Reproduce the exact native-PDF misses in `test/invoice/forensics-generated.test.ts`. Done when: source bytes, labels and current outcomes match the eval report.
-2. Repair owning extraction or detector paths in `src/invoice/`. Done when: regressions pass without changing the independent-evidence severity rule.
-3. Return measured results to eval. Done when: denominators, per-file coverage and unresolved targets remain explicit.
+1. Pin and reproduce the native-PDF baseline. Done when: all 14 original hashes/labels and per-file outcomes are recorded from eval's exact corpus with the scorer and detector source identified.
+2. Protect the diagnosed limits with falsifiable tests. Done when: the four Ghostscript edits each retain exactly their intended independent medium signal, genuine controls remain non-detections, and missing payment date remains unavailable.
+3. Return the measured limits to eval. Done when: denominators, missing coverage and unchanged 95 percent detection target and complete-coverage requirement are explicit, with no invented corroboration or sample exclusions.
 
-- [ ] Record the exact labelled native-PDF baseline in `docs/pdf-forensics-repair.md`. Done when: artifact hashes and per-file expected/observed evidence reproduce the reported misses. Cheaper substitute: treating a coordinator summary as new measurement. Source: D08 T02 §6 evaluation and coordinator decision.
-- [ ] Add falsifiable regressions to `test/invoice/forensics-generated.test.ts` for the missed POP/Ghostscript evidence and invoice date coverage. Done when: each fails against the baseline for the named cause.
-- [ ] Repair extraction and evidence production in the owning `src/invoice/pdf*.ts` or `src/invoice/forensics.ts` path identified by reproduction. Done when: genuine files stay non-detections, missing data reports partial coverage and independent evidence groups retain their severity contract. Cheaper substitute: promoting medium evidence alone or excluding missed native PDFs. Source: design spec 4.9 and existing PDF forensic contract.
-- [ ] Record repaired metrics and remaining limits in `docs/pdf-forensics-repair.md`. Done when: eval can rerun the exact candidates with unchanged labels and honest denominators. Cheaper substitute: reporting unit-test success as target attainment.
-- [ ] Commit: `invoice: repair native PDF forensic coverage`
+- [ ] Record the exact labelled native-PDF baseline in `docs/pdf-forensics-repair.md`. Done when: artifact hashes, generator provenance, labels, per-file findings/coverage and reproducible scorer command substantiate 3/7 detections, 0/7 false positives and 13/14 complete. Cheaper substitute: treating a coordinator summary as a new measurement. Source: D08 T02 §6 evaluation and coordinator scope correction.
+- [ ] Extend `test/invoice/forensics-generated.test.ts` using the existing eight unchanged Ghostscript/Chromium fixtures to assert actual evidence severities and coverage, not only finding kinds. Done when: four doctored Ghostscript files remain single medium findings and no genuine fixture reaches high/critical; promoting a single independent group to high makes the tests fail. Cheaper substitute: weakening the detector threshold to improve synthetic detection counts. Source: existing independent-evidence contract and coordinator scope correction.
+- [ ] Assert the missing payment date in `test/invoice/forensics-generated.test.ts` and record its source in `docs/pdf-forensics-repair.md`. Done when: the Chromium invoice's date coverage is unavailable with its concrete reason, the other seven generated fixtures have full coverage, and changing missing-date coverage to ran makes the test fail. Cheaper substitute: treating invoice date as a payment date or calling unavailable coverage complete. Source: `test/node/make-pdf-forensics.ts` and `src/invoice/forensics.ts` date semantics.
+- [ ] Document unresolved targets and supported follow-up opportunities in `docs/pdf-forensics-repair.md` without altering `src/invoice/` production policy or eval-owned data. Done when: diagnosis is clearly distinguished from repair, 95 percent detection target and complete-coverage requirement remain unmet, no unsupported new detector is promised, and eval receives the exact diagnostic commit. Cheaper substitute: equating passing semantic tests with detection improvement. Source: coordinator scope correction.
+- [ ] Commit: `invoice: document native PDF forensic limits with regression proof`
 
-**Test checkpoint:** `pnpm exec vitest run test/invoice/forensics-generated.test.ts test/invoice/pdf-filters.test.ts` passes, the reproduced defects fail before repair, and medium evidence alone never becomes a detection.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/invoice/forensics-generated.test.ts test/invoice/pdf-filters.test.ts` passes; the single-signal promotion and missing-date-as-complete mutations fail, with production source restored afterward. The pinned eval scorer reproduces the unchanged 14-file baseline; local tests do not claim a measured production accuracy improvement.
 
 ## 9. PNG encoding at the doctored fixture producer
 
