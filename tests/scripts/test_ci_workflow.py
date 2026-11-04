@@ -1,4 +1,4 @@
-""".github/workflows/ci.yml runs every gate, on every push and pull request, with pinned actions, a read-only token, a
+""".github/workflows/ci.yml runs every gate on coordinator batches, pull requests and manual dispatch, with pinned actions, a read-only token, a
 time bound on every job, and no deploy or secret.
 
 The gates are the package.json scripts test_worker_gates.py treats as gates, plus the frozen install, the TODO graph checks
@@ -40,14 +40,39 @@ def jobs(text):
     return found
 
 
+TRIGGERS = "on:\n  push:\n    branches: [coordinator-gate]\n  pull_request:\n  workflow_dispatch:\n"
+PROJECT_SHARD = "python3 scripts/ci_unittest_shard.py --shard ${{ matrix.shard }} --shards 4"
+
+
+def trigger_problems(text):
+    match = re.search(r"^on:\n((?:[ \t]+.*\n?)*)", text, re.M)
+    return [] if match and match.group(0) == TRIGGERS else ["not triggered on coordinator-gate push, pull_request and workflow_dispatch only"]
+
+
+def project_shard_problems(all_jobs):
+    lines = all_jobs.get("project-scripts", [])
+    text = "\n".join(lines)
+    requirements = (
+        shard_matrix(lines) == [1, 2, 3, 4],
+        "      fail-fast: false" in lines,
+        not re.search(r"^\s+(?:include|exclude):", text, re.M),
+        "    timeout-minutes: 15" in lines,
+        "    name: Project script tests (${{ matrix.shard }} of 4)" in lines,
+        "        run: " + PROJECT_SHARD in lines,
+        '          REQUIRE_FONT_TOOLS: "1"' in lines,
+        "          MOCKUP_CHROMIUM: /usr/bin/google-chrome" in lines,
+        "          fetch-depth: 0" in lines,
+        "        run: pip install -r design/tools/requirements.txt" in lines,
+    )
+    return [] if all(requirements) else ["project tests require all four isolated complete shards and original setup/limits"]
+
+
 def problems(text, package, site=None):
     """Every way the workflow falls short, as readable strings (empty when it is right). `site` is the marketing site's
     `site/package.json`, when the repository has one."""
     out = []
     top = {line.rstrip() for line in text.splitlines() if re.match(r"^\S", line)}
-    on = re.search(r"^on:\n((?:[ \t]+.*\n?)*)", text, re.M)
-    if "on:" not in top or not on or sorted(l.strip() for l in on.group(1).splitlines() if l.strip()) != ["pull_request:", "push:"]:
-        out.append("not triggered on every push and pull_request")
+    out.extend(trigger_problems(text))
     if re.search(r"^\s+(?:- )?(?:if|continue-on-error):", text, re.M):
         out.append("a step or job can be skipped or have its failure ignored")
     if not re.search(r"^permissions:\n  contents: read\s*$", text, re.M) or re.search(r":\s*write\b", text):
@@ -84,6 +109,11 @@ def problems(text, package, site=None):
             limit = next((int(m.group(1)) for l in step for m in [re.match(r"^        timeout-minutes: (\d+)\s*$", l)] if m), None)
             if limit is None or job_limit is None or not 0 < limit < job_limit:  # 0 sets no step timeout at all
                 out.append(f"job {job}: the pnpm test shard step has no timeout-minutes below the job's")
+    if any(PROJECT_SHARD in line for lines in jobs(text).values() for line in lines):
+        failures = project_shard_problems(jobs(text))
+        out.extend(failures)
+        if not failures:
+            runs.add("python3 -m unittest discover -s tests/scripts")
     for name in REQUIRED:
         if name not in package.get("scripts", {}):
             out.append(f"package.json has no {name} script")
@@ -191,7 +221,9 @@ class Defects(unittest.TestCase):
     GOOD = """name: CI
 on:
   push:
+    branches: [coordinator-gate]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -226,13 +258,13 @@ jobs:
         self.assertEqual(self.check(bad), ["unpinned action: uses: actions/checkout@v7"])
 
     def test_a_missing_trigger_is_caught(self):
-        self.assertEqual(self.check(self.GOOD.replace("  pull_request:\n", "")), ["not triggered on every push and pull_request"])
+        self.assertEqual(self.check(self.GOOD.replace("  pull_request:\n", "")), ["not triggered on coordinator-gate push, pull_request and workflow_dispatch only"])
 
     def test_a_narrowed_trigger_is_caught(self):
         for narrowing in ("    branches: [main]\n", '    paths-ignore: ["src/**"]\n'):
             with self.subTest(narrowing=narrowing):
                 bad = self.GOOD.replace("  push:\n", "  push:\n" + narrowing)
-                self.assertEqual(self.check(bad), ["not triggered on every push and pull_request"])
+                self.assertEqual(self.check(bad), ["not triggered on coordinator-gate push, pull_request and workflow_dispatch only"])
 
     def test_a_skipped_or_ignored_gate_is_caught(self):
         for line in ("        if: false\n", "        continue-on-error: true\n"):
@@ -475,3 +507,43 @@ class Projects(unittest.TestCase):
         text = ("      - run: pnpm test --project worker --project node --shard=${{ matrix.shard }}/4\n"
                 "      - run: pnpm test --project browser --shard=${{ matrix.shard }}/3\n")
         self.assertIn("the browser project runs files in parallel", project_problems(text))
+
+
+class BatchedProjectCI(unittest.TestCase):
+    def test_complete_project_matrix_and_exact_gate_names(self):
+        text=(REPO/WORKFLOW).read_text()
+        self.assertEqual(project_shard_problems(jobs(text)), [])
+        spec=importlib.util.spec_from_file_location('exact_ci_status', REPO/'scripts/ci_status.py')
+        ci=importlib.util.module_from_spec(spec);spec.loader.exec_module(ci)
+        names=[]
+        for lines in jobs(text).values():
+            name=next(re.match(r'^    name: (.+)$',x).group(1) for x in lines if re.match(r'^    name: (.+)$',x))
+            shards=shard_matrix(lines)
+            names.extend(name.replace('${{ matrix.shard }}',str(i)) for i in shards) if shards else names.append(name)
+        self.assertCountEqual(names,ci.GATE_JOBS)
+
+    def test_project_shard_mutations_refuse(self):
+        text=(REPO/WORKFLOW).read_text()
+        start=text.index('  project-scripts:');end=text.index('  kit-scripts:',start)
+        block=text[start:end]
+        for old,new in [('shard: [1, 2, 3, 4]','shard: [1, 2, 4]'),
+                        ('shard: [1, 2, 3, 4]','shard: [1, 2, 3, 4, 5]'),
+                        ('fail-fast: false','fail-fast: true'),
+                        ('--shards 4','--shards 3'),
+                        ('REQUIRE_FONT_TOOLS: "1"','REQUIRE_FONT_TOOLS: "0"'),
+                        ('timeout-minutes: 15','timeout-minutes: 30'),
+                        ('matrix:\n','matrix:\n        exclude: []\n')]:
+            with self.subTest(old=old):
+                self.assertIn(old,block)
+                self.assertTrue(project_shard_problems(jobs(text[:start]+block.replace(old,new)+text[end:])))
+        self.assertTrue(project_shard_problems(jobs(text[:start]+text[end:])))
+
+    def test_batch_trigger_contract(self):
+        text=(REPO/WORKFLOW).read_text()
+        self.assertEqual(trigger_problems(text),[])
+        for old,new in [('branches: [coordinator-gate]','branches: [main]'),
+                        ('branches: [coordinator-gate]','branches: [coordinator-gate, main]'),
+                        ('    branches: [coordinator-gate]\n',''),
+                        ('  workflow_dispatch:\n',''),('  pull_request:\n',''),
+                        ('  pull_request:\n','  pull_request:\n    paths: [src/**]\n')]:
+            with self.subTest(old=old):self.assertTrue(trigger_problems(text.replace(old,new)))

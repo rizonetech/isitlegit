@@ -323,3 +323,92 @@ class RealProcess(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExactGate(unittest.TestCase):
+    def jobs(self):
+        return [{'name': n, 'status':'completed','conclusion':'success'} for n in ci.GATE_JOBS]
+
+    def fake(self, runs=None, jobs=None, **changes):
+        latest={'databaseId':2,'headSha':SHA_NEW,'headBranch':'coordinator-gate','event':'push','status':'completed','conclusion':'success','createdAt':'2026-11-04T12:00:00Z','url':'https://example.test/2'}
+        latest.update(changes)
+        def call(args):
+            if args[:2]==['run','list']:
+                self.assertEqual(args[args.index('--commit')+1],SHA_NEW)
+                self.assertEqual(args[args.index('--branch')+1],'coordinator-gate')
+                self.assertEqual(args[args.index('--workflow')+1],'ci.yml')
+                return 0,json.dumps([latest] if runs is None else runs),''
+            if args[:2]==['run','view']:
+                return 0,json.dumps({**latest,'jobs': self.jobs() if jobs is None else jobs}),''
+            raise AssertionError(args)
+        return call
+
+    def test_exact_complete_job_set_only_is_green(self):
+        doc,code=ci.gate_report(self.fake(),SHA_NEW)
+        self.assertEqual(code,0)
+        self.assertEqual(doc['verdict'],'green')
+
+    def test_wrong_identity_state_event_and_newer_failure_never_fall_back(self):
+        for patch in ({'headSha':SHA_OLD},{'headBranch':'main'},{'event':'pull_request'},
+                      {'status':'in_progress'},{'conclusion':'skipped'},{'conclusion':'cancelled'},
+                      {'conclusion':'failure'}):
+            with self.subTest(patch=patch):
+                _,code=ci.gate_report(self.fake(**patch),SHA_NEW)
+                self.assertNotEqual(code,0)
+        _,code=ci.gate_report(self.fake(runs=[]),SHA_NEW)
+        self.assertNotEqual(code,0)
+        old={'databaseId':1,'headSha':SHA_NEW,'headBranch':'coordinator-gate','event':'push','status':'completed','conclusion':'success','createdAt':'2026-11-04T11:00:00Z'}
+        newer={**old,'databaseId':2,'createdAt':'2026-11-04T12:00:00Z','status':'queued','conclusion':None}
+        self.assertNotEqual(ci.gate_report(self.fake(runs=[old,newer]),SHA_NEW)[1],0)
+
+    def test_every_job_required_once_and_successful(self):
+        jobs=self.jobs()
+        for bad in (jobs[:-1],jobs+[jobs[0]],jobs+[{'name':'extra','status':'completed','conclusion':'success'}]):
+            self.assertNotEqual(ci.gate_report(self.fake(jobs=bad),SHA_NEW)[1],0)
+        for status,conclusion in [('completed','skipped'),('completed','cancelled'),('completed','failure'),('queued',None),('in_progress',None)]:
+            for i in range(len(jobs)):
+                bad=[dict(j) for j in jobs];bad[i].update(status=status,conclusion=conclusion)
+                self.assertNotEqual(ci.gate_report(self.fake(jobs=bad),SHA_NEW)[1],0)
+
+    def test_unreadable_api_and_mismatched_view_fail_closed(self):
+        with self.assertRaises(ci.Unavailable): ci.gate_report(lambda args:(1,'','offline'),SHA_NEW)
+        good=self.fake()
+        def altered(args):
+            code,out,err=good(args)
+            if args[:2]==['run','view']:
+                d=json.loads(out);d['headSha']=SHA_OLD;out=json.dumps(d)
+            return code,out,err
+        self.assertNotEqual(ci.gate_report(altered,SHA_NEW)[1],0)
+
+    def test_cli_explicit_mode_rejects_invalid_scope_and_reports_unknown(self):
+        for argv in (['--sha','abc'],['--sha',SHA_NEW,'--branch','main'],['--sha',SHA_NEW,'--workflow','other.yml']):
+            with self.assertRaises(SystemExit) as raised, unittest.mock.patch('sys.stderr',io.StringIO()):
+                ci.main(argv,runner=self.fake())
+            self.assertEqual(raised.exception.code,2)
+        output=io.StringIO()
+        with redirect_stdout(output):
+            code=ci.main(['--sha',SHA_NEW,'--json'],runner=self.fake())
+        self.assertEqual(code,0)
+        self.assertEqual(json.loads(output.getvalue())['mode'],'exact-gate')
+        output=io.StringIO()
+        with redirect_stdout(output):
+            code=ci.main(['--sha',SHA_NEW,'--json'],runner=lambda args:(1,'','offline'))
+        self.assertEqual(code,3)
+        self.assertEqual(json.loads(output.getvalue())['verdict'],'unknown')
+
+    def test_malformed_remote_records_and_successful_old_run_do_not_pass(self):
+        for payload in ({},[None],[{'databaseId':'2','createdAt':None}], [{'databaseId':2,'createdAt':'bad'}], [{'databaseId':True,'createdAt':'2026-11-04T12:00:00Z'}]):
+            with self.assertRaises(ci.Unavailable):
+                ci.gate_report(self.fake(runs=payload),SHA_NEW)
+        good=self.fake()
+        for jobs in (None,{},[None],[{'name':None}]):
+            def malformed(args):
+                code,out,err=good(args)
+                if args[:2]==['run','view']:
+                    d=json.loads(out);d['jobs']=jobs;out=json.dumps(d)
+                return code,out,err
+            with self.assertRaises(ci.Unavailable):ci.gate_report(malformed,SHA_NEW)
+        old={'databaseId':1,'headSha':SHA_NEW,'headBranch':'coordinator-gate','event':'push','status':'completed','conclusion':'success','createdAt':'2026-11-04T11:00:00Z'}
+        for conclusion in ('failure','cancelled'):
+            newer={**old,'databaseId':2,'createdAt':'2026-11-04T12:00:00Z','conclusion':conclusion}
+            self.assertNotEqual(ci.gate_report(self.fake(runs=[old,newer]),SHA_NEW)[1],0)
