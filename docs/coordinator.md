@@ -273,5 +273,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0093 | console | D05 T03 §1 (verifications) | 2026-11-04 09:26 SAST, Codex coordinator allocation |
 | 0094 | checks | D02 T02 §10 (configured gateway relay revisions) | 2026-11-04 09:26 SAST, Codex coordinator allocation |
 | 0095 | checks | Per-case ablation transport and pipeline consumers | Reserved by coordinator on 2026-11-04; additive storage only, no cases table rebuild. Reservation does not imply migration applied. |
+| 0096 | checks | D04 T01 §20 bounded validation diagnostics | Reserved by coordinator on 2026-11-04; additive diagnostics table only, no parent-table rebuild; not applied. |
 
-The next free number is 0096. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0097. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
