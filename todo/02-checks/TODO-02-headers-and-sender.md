@@ -280,6 +280,8 @@ Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6
 
 **Plan review corrections 2026-11-04:** `docs/reviews/02-checks/D02-T02-s9.md` identified missing lifecycle ownership and a non-falsifiable design coverage gate. The design must map every requirement to a resolving section and a concrete acceptance test, including admin entry/edit/removal, validation and verification failure, persistence/read-back, `chainsForOrg` consumption, SPF precedence and immediate invalidation of cached configured trust on edit or revocation. Cross-lane surface ownership is assigned by the coordinator before completion.
 
+**Coordinator disposition 2026-11-04:** coordinator-delivery-decisions approved the independent-source/revision design and allocated migration0094; budget-and-ownership-correction approved console D07 T04 §37 and D07 T05 §6 and their scoped treatment, filed at20f4747f. The design maps both pinned contracts and local lifecycle/consumer sections to falsifiable tests. This is design coverage only; backend, surfaces and consumer remain unstamped implementation work.
+
 **Build order:**
 
 1. Decide where a gateway's relay ranges come from when its SPF does not name them. Done when: a dated design in `docs/specs/` names the source (ranges an organisation admin enters, read from the provider's connector settings, or neither), how they are verified and revoked, and the sections that build it, approved by the operator.
