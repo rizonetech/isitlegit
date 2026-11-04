@@ -1,0 +1,109 @@
+{
+  "ref": "D07 T04 \u00a713",
+  "title": "Invoice and payment-document words in Type",
+  "implementation_sha": "c661d4d185a99c874a33947505703f8811eed767",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T04-s13.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 9 pnpm exec vitest run test/web/cases-page.test.ts -> 44 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T04-s13.md",
+    "verdict": "completed",
+    "candidate": "0bcc63c03efad6d681edede418fcec75ab6602be",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 2,
+  "round_cap": 3,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T04-s13.md",
+    "candidate": "79e71a53f77307078d830a033ca0f68f5935efe8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
