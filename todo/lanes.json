@@ -77,14 +77,16 @@
       "branch": "access-lane",
       "worktree": "../isitlegit-access",
       "sections": [
-        "D07 T02 §30"
+        "D07 T02 §30",
+        "D00 T01 §41"
       ]
     },
     "detection-eval": {
       "branch": "detection-eval-lane",
       "worktree": "../isitlegit-detection-eval",
       "sections": [
-        "D02 T05 §7"
+        "D02 T05 §7",
+        "D08 T02 §3"
       ]
     }
   }

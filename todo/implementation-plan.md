@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 119 | Checklist items: 747
+Sections: 120 | Checklist items: 751
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -298,6 +298,7 @@ Sections: 119 | Checklist items: 747
 | [x]    | D00 T01 §36 | Two-pass Codex review with a combined final gate          | none                  | 6     |
 | [x]    | D00 T01 §37 | Durable ancestry for review journals                      | none                  | 4     |
 | [x]    | D00 T01 §38 | Exact evidence-bound reconciliation exceptions            | none                  | 8     |
+| [ ]    | D00 T01 §41 | Accurate continuation stop reasons for completed owners   | none                  | 4     |
 | [x]    | D01 T03 §17 | Immutable per-case ablation admission                     | none                  | 8     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover                          | meta-api              | 7     |
@@ -690,6 +691,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 444/614 verified sections, 107 ready to run now.
+Progress: 444/615 verified sections, 108 ready to run now.
 
-Checklist: 3206/3801 items completed (includes Commit items).
+Checklist: 3206/3805 items completed (includes Commit items).

@@ -79,6 +79,7 @@ track: day-0
 | 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 | 40 | §40 | Email recovery fixtures on reviewed ablation integration | D01 T03 §17, D04 T01 §17 | [x] |
+| 41 | §41 | Accurate continuation stop reasons for completed owners | §19 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1345,6 +1346,27 @@ Filed 2026-11-04 by coordinator authorization. The isolated integration composes
 
 > **Verified:** 2026-11-04 | §40 | 2ce00d58b6cf1e3d6dd45ffa875959070e1048d8
 > **Review:** `docs/reviews/d00-t01-s40.json`
+
+## 41. Accurate continuation stop reasons for completed owners
+
+Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owners correctly refuse further work, but the hook describes them as paused. Fix the reason emitted by the ownership controller; do not bypass its stop or reactivate a completed assignment automatically.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add failing regression tests for hook output from complete, paused and stalled owner states and an explicit pause marker. Done when: the old generic reason fails the complete/stalled assertions while existing refusal checks still pass.
+2. Correct only the controller's stop/deny reason selection, retaining exact ownership, generation, trust and explicit-activation guards. Done when: each stopped state reports its real cause without allowing tools or changing ownership.
+3. Verify every hook still refuses stopped owners, reports the actual reason and leaves ownership unchanged; document explicit new-assignment activation separately from resuming completed work. Done when: lifecycle and launcher tests pass and the documented activation command matches the existing CLI.
+
+- [ ] `scripts/codex_continuation.py` distinguishes completed work, operator pause and stalled ownership in Stop/UserPromptSubmit refusal and PreToolUse denial. Done when: `tests/scripts/test_codex_continuation.py` fails against the old generic paused message and passes with the correct state-specific text. Cheaper substitute: rewrite terminal output after the hook, rejected because the controller owns the reason.
+- [ ] Preserve every stop and exclusive-owner guard, including pause markers, generation mismatch, trust checks and completed-owner restart refusal. Done when: regression tests assert unchanged denial/continue=false behavior, no automatic activation, no queued wake or changed owner/generation; existing lifecycle tests pass. Cheaper substitute: allow tools after completion, rejected because it would restart completed tasks.
+- [ ] Update `docs/codex-lanes.md` to explain truthful complete/paused/stalled status and the existing explicit activation path for a newly assigned scope. Done when: documentation names the actual supported command and does not claim a native heartbeat or automatic reassignment.
+- [ ] Commit: `fix: report actual stopped continuation owner state`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes; removing the state-specific reason branch fails completed and stalled output regressions while stop enforcement remains unchanged.
 
 ## Verification
 
