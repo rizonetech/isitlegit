@@ -346,6 +346,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 
 ## 12. Translated instruction phrases
 
+> **Started:** 2026-11-04T11:46:31.818439+00:00
+
 Coordinator REVIEW-ROLLOUT-36 assigns the production correction exposed by detection-eval candidate `505de4b7`: 28 of 205 attacks missed against the unchanged maximum miss rate of 5%, with zero false flags. Checks independently reproduced all 28 misses using the exact immutable corpus and runtime bridge against its current production source. All misses carry translated prior-instruction override directives in Afrikaans, isiZulu, French, Spanish, German, Hindi or Persian through sparse invisible text, encoded subjects or DOCX. The corpus and its original observations remain detection-eval's, and §7 remains exclusively assigned to that lane. This section owns detection and regression proof, not measured corpus publication or a claim of universal language support.
 
 **Phase:** 7
