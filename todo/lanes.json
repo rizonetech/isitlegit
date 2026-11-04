@@ -72,6 +72,20 @@
         "D09 T02 §3",
         "D09 T02 §4"
       ]
+    },
+    "access": {
+      "branch": "access-lane",
+      "worktree": "../isitlegit-access",
+      "sections": [
+        "D07 T02 §30"
+      ]
+    },
+    "detection-eval": {
+      "branch": "detection-eval-lane",
+      "worktree": "../isitlegit-detection-eval",
+      "sections": [
+        "D02 T05 §7"
+      ]
     }
   }
 }

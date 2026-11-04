@@ -9,7 +9,8 @@
 
 `--writer` is the agent whose work is under review (claude, codex, gemini or muse); its route in the pin names exactly one
 reviewer, of a different model family by default, with no fallback. The explicit `self_review = ["codex"]`
-policy permits Codex self-review: plan, one implementation round, then completion. Each pass records its policy
+policy permits Codex self-review. The versioned codex-two-pass-v1 route uses plan then combined completion;
+older pins retain plan, one implementation round, then completion. Each pass records its policy
 and pin; the stamp validates that committed policy and its exact candidate. A reviewer that is not installed, exits non-zero, times out,
 returns nothing, or ends its reply `OVERALL: blocked` (it could not reach the candidate, for example a sandbox that
 cannot read the repository) returned no review, and the reason is recorded under `failover`: exit 1, which never
@@ -132,11 +133,28 @@ def load_pin(path=PIN, data=None):
     # `type(...) is int`: TOML true is Python True (an int subclass) and 1.0 == 1, so `!= 1` alone let both load.
     # The optional [schedule] is checked below; the refusal text stays the one the VS Code extension matches.
     if not {"schema_version", "reviewers", "routes"} <= set(pin) <= {"schema_version", "reviewers", "routes",
-                                                                     "schedule", "self_review"} \
+                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition", "reconciliation_extensions"} \
             or type(pin["schema_version"]) is not int or pin["schema_version"] != 1:
         raise Refused("the reviewer pin needs exactly schema_version = 1, [reviewers.*] and [routes]")
     if pin.get("self_review", []) not in ([], ["codex"]):
         raise Refused("self_review must be [] or [\"codex\"]")
+    if pin.get("reconciliation", []) not in ([], ["codex"]) or (pin.get("reconciliation") and not self_review_enabled(pin, "codex")):
+        raise Refused("reconciliation must be [] or [\"codex\"] with Codex self-review enabled")
+    if pin.get("self_review_policy") not in (None, "codex-two-pass-v1"):
+        raise Refused("unknown self_review_policy")
+    if pin.get("self_review_policy") and not self_review_enabled(pin, "codex"):
+        raise Refused("two-pass policy needs Codex self-review")
+    extensions = pin.get("reconciliation_extensions", {})
+    if not isinstance(extensions, dict) or any(not isinstance(k, str) or not re.fullmatch(r"docs/reviews/\d{2}-[A-Za-z0-9_-]+/D\d{2}-T\d{2}-s[1-9]\d*\.md", k)
+                                               or not isinstance(v, str) or not DIGEST.fullmatch(v) for k, v in extensions.items()):
+        raise Refused("invalid scoped reconciliation extensions")
+    if pin.get("plan_transition", []) not in ([], ["codex-self-review"]) or (pin.get("plan_transition") and not pin.get("self_review_policy")):
+        raise Refused("plan_transition needs the explicit two-pass policy")
+    combined = (pin.get("schedule") or {}).get("combined")
+    if bool(combined) != (pin.get("self_review_policy") == "codex-two-pass-v1"):
+        raise Refused("two-pass policy and schedule.combined are required together")
+    if combined is not None and (not isinstance(combined, dict) or combined.get("lenses") != COMBINED_LENSES):
+        raise Refused("combined schedule must contain every required lens in order")
     reviewers = pin["reviewers"]
     if not isinstance(reviewers, dict) or not reviewers:
         raise Refused("the reviewer pin defines no reviewers")
@@ -235,7 +253,7 @@ def check_schedule(schedule, clis, reviewers=None, families=()):
     its own reviewer, which must be of a family no writer and no round reviewer belongs to."""
     efforts = [e for e in EFFORTS["claude"] if all(e in EFFORTS[cli] for cli in clis if cli in EFFORTS)]
     keys = {"plan", "completion", "rounds", "rotation", "escalation", "severity_stop_after"}
-    if not isinstance(schedule, dict) or not keys <= set(schedule) <= keys | {"final", "light"}:
+    if not isinstance(schedule, dict) or not keys <= set(schedule) <= keys | {"final", "light", "reconciliation", "combined"}:
         raise Refused(f"[schedule] needs exactly {', '.join(sorted(keys))}, and may add final and light")
     if "light" in schedule:
         light = schedule["light"]
@@ -258,6 +276,10 @@ def check_schedule(schedule, clis, reviewers=None, families=()):
         if FAMILY[cli] in families:
             raise Refused(f"[schedule.final] names {name}, of a family a writer or round reviewer belongs to")
         check_step("final", {"effort": final["effort"], "lenses": final["lenses"]}, EFFORTS.get(cli, ()))
+    if "combined" in schedule:
+        check_step("combined", schedule["combined"], efforts)
+    if "reconciliation" in schedule:
+        check_step("reconciliation", schedule["reconciliation"], efforts)
     check_step("plan", schedule["plan"], efforts)
     check_step("completion", schedule["completion"], efforts, lenses=False)
     check_step("escalation", schedule["escalation"], efforts)
@@ -316,6 +338,14 @@ def final_reply_ok(review):
         and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
 
 
+COMBINED_LENSES = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]
+SELF_REVIEW_POLICIES = ("codex-self-review", "codex-two-pass-v1")
+
+
+def review_policy(pin, writer):
+    return pin.get("self_review_policy", "codex-self-review") if self_review_enabled(pin, writer) else None
+
+
 def self_review_enabled(pin, writer):
     """The operator's explicit Codex self-review policy, never inferred from a route."""
     return writer == "codex" and pin.get("self_review") == ["codex"]
@@ -328,7 +358,7 @@ def reviewer_allowed(entry):
     family = FAMILY.get(entry.get("cli"))
     if family is None:
         return False
-    if entry.get("policy") == "codex-self-review":
+    if entry.get("policy") in SELF_REVIEW_POLICIES:
         return entry["writer"] == "codex" and entry.get("cli") == "codex" and bool(entry.get("pin"))
     return family != WRITER_FAMILY[entry["writer"]]
 
@@ -379,7 +409,7 @@ def section_risk(record, root=ROOT):
     return "full"
 
 
-def scheduled(schedule, kind, rounds, surface, risk="full", returned=None):
+def scheduled(schedule, kind, rounds, surface, risk="full", returned=None, policy=None):
     """The effort and lenses for the next pass, from the pin's schedule and the rounds already recorded.
 
     The position counts returned reviews only (`returned_review`): an outage, a self-review and a reply without the
@@ -387,9 +417,13 @@ def scheduled(schedule, kind, rounds, surface, risk="full", returned=None):
     skipping `design` when the section has no surface. After a low-effort round that declared `HIGHEST: P1`, the next
     round is the `escalation` step instead. scripts/lib/todo_graph.py `stamp` replays this to check every recorded
     pass, so it is the one copy of the schedule rule."""
-    if kind in ("plan", "completion", "final"):
-        step = schedule[kind]
-        return {"position": None, "effort": step["effort"], "lenses": list(step.get("lenses", [])),
+    if kind in ("plan", "completion", "final", "reconciliation"):
+        combined = kind == "completion" and "combined" in schedule and policy in (None, "codex-two-pass-v1")
+        step = schedule["combined"] if combined else schedule[kind]
+        lenses = list(step.get("lenses", []))
+        if combined and not surface:
+            lenses.remove("design")
+        return {"position": None, "effort": step["effort"], "lenses": lenses,
                 "escalated": False}
     if risk not in SCHEDULES:
         raise Refused(f"a section's risk is one of {', '.join(SCHEDULES)}, not {risk!r}")
@@ -755,11 +789,13 @@ ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Schedule|Policy|Pin|Lines
 COMPLETION_HEADING = re.compile(r"^## Completion review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 PLAN_HEADING = re.compile(r"^## Plan review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 FINAL_HEADING = re.compile(r"^## Final review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
-COMPLETION_LINE = re.compile(r"^- (Writer|Run|Candidate|Effort|Lenses|Policy|Pin|Lines|Digest|Skipped): (\S.*)$")
+COMPLETION_LINE = re.compile(r"^- (Writer|Run|Candidate|Effort|Lenses|Policy|Pin|Lines|Digest|Skipped|Binding): (\S.*)$")
+RECONCILIATION_HEADING = re.compile(r"^## Reconciliation review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 # The one-pass reviews, by --kind: the heading each is recorded under and the key read_findings lists them under.
 PASSES = {"completion": ("## Completion review", COMPLETION_HEADING, "completions"),
           "plan": ("## Plan review", PLAN_HEADING, "plans"),
-          "final": ("## Final review", FINAL_HEADING, "finals")}
+          "final": ("## Final review", FINAL_HEADING, "finals"),
+          "reconciliation": ("## Reconciliation review", RECONCILIATION_HEADING, "reconciliations")}
 RESERVED = ("## Round", *(prefix for prefix, _, _ in PASSES.values()))
 RESERVED_NAMES = ("headings starting `## Round`, `## Completion review`, `## Plan review` or `## Final review` are reserved "
                   "for --record")
@@ -824,7 +860,7 @@ def _read_findings(text):
     Writer, Run, Candidate, Lines and Digest required; the lines after it up to the next `## ` line are its `notes`,
     the writer's own record of what was done with each gap. Lenses, when present, is the comma-separated list the
     schedule gave the pass. Anything else makes the file unreadable rather than losing a field."""
-    found = {"rounds": [], "completions": [], "plans": [], "finals": []}
+    found = {"rounds": [], "completions": [], "plans": [], "finals": [], "reconciliations": []}
     raw = raw_lines(text)
     lines = [canonical(line) for line in raw]
     i = 0
@@ -845,6 +881,8 @@ def _read_findings(text):
             entry = {"number": int(heading.group(1)), "reviewer": heading.group(3), "model": heading.group(4),
                      "cli": heading.group(5), "writer": None, "run": None, "effort": None, "lenses": None,
                      "schedule": None, "pin": None, "policy": None, "skipped": []}
+        if kind == "reconciliation":
+            entry["binding"] = None
         count = sealed = None
         i += 2
         while i < len(lines) and lines[i] != "":
@@ -857,6 +895,15 @@ def _read_findings(text):
                 if not skipped:
                     return None, head
                 entry["skipped"].append({"reviewer": skipped.group(1), "reason": skipped.group(2)})
+            elif key == "binding":
+                if not (kind == "reconciliation" or kind == "completion" and entry.get("policy") == "codex-two-pass-v1") or entry.get("binding") is not None:
+                    return None, head
+                try:
+                    entry["binding"] = json.loads(value)
+                except (ValueError, RecursionError):
+                    return None, head
+                if not isinstance(entry["binding"], dict):
+                    return None, head
             elif key == "lines":
                 # ASCII digits only: "²" passes str.isdigit and int() raises on it.
                 if count is not None or not COUNT.fullmatch(value):
@@ -868,7 +915,7 @@ def _read_findings(text):
                 sealed = value
             elif entry[key] is not None or (key == "candidate" and not CANDIDATE.fullmatch(value)):
                 return None, head
-            elif key == "policy" and value != "codex-self-review":
+            elif key == "policy" and value not in SELF_REVIEW_POLICIES:
                 return None, head
             elif key == "schedule" and value not in SCHEDULES:
                 return None, head
@@ -884,6 +931,8 @@ def _read_findings(text):
             i += 1
         if entry["writer"] is None or entry["run"] is None or (sealed is not None and count is None):
             return None, head
+        if (kind == "reconciliation" or kind == "completion" and entry.get("policy") == "codex-two-pass-v1") and entry.get("binding") is None:
+            return None, head
         if completion and (entry["candidate"] is None or sealed is None):
             return None, head
         if count is not None:
@@ -898,8 +947,10 @@ def _read_findings(text):
             end = next((j for j in range(i, len(lines)) if lines[j].startswith(RESERVED)), len(lines))
             entry["review"] = "\n".join(lines[i:end])
             i = end
-        if entry.get("policy") == "codex-self-review":
+        if entry.get("policy") in SELF_REVIEW_POLICIES:
             entry["offset"] = head
+        if kind == "reconciliation" or kind == "completion" and entry.get("policy") == "codex-two-pass-v1":
+            entry["digest"] = sealed
         if completion:
             end = next((j for j in range(i, len(lines)) if lines[j].startswith("## ")), len(lines))
             entry["notes"] = [line for line in lines[i:end] if line.strip()]
@@ -1036,12 +1087,14 @@ def returned_pass(entry, kind):
     if kind == "plan":
         return len(lines) >= 2 and lines[-2] in ("PLAN: complete", "PLAN: gaps") \
             and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
+    if kind == "reconciliation":
+        return bool(lines) and lines[-1] in ("RECONCILIATION: complete", "RECONCILIATION: gaps")
     if kind == "completion":
         return bool(lines) and lines[-1] in ("COMPLETION: complete", "COMPLETION: gaps")
     return True
 
 
-def check_self_review_order(kind, record_path):
+def check_self_review_order(kind, record_path, pin=None):
     """Codex runs one plan pass, one implementation round, then a completion pass."""
     if kind == "final":
         raise Refused("Codex self-review ends with --kind completion, not a separate final review")
@@ -1051,6 +1104,21 @@ def check_self_review_order(kind, record_path):
     found = read_findings(existing)
     if found is None:
         raise Unrecorded("the Codex self-review findings cannot be read back")
+    if pin is not None and review_policy(pin, "codex") == "codex-two-pass-v1":
+        if kind == "round":
+            raise Refused("two-pass Codex policy forbids an ordinary implementation round")
+        if kind == "plan":
+            if any(found[k] for k in ("rounds", "completions", "finals", "reconciliations")) or any(returned_pass(e, "plan") for e in found["plans"]):
+                raise Refused("two-pass plan runs once before implementation review")
+            if any(e.get("policy") != "codex-two-pass-v1" for e in found["plans"]):
+                raise Refused("cannot mix plan policies")
+            return
+        if kind == "completion":
+            if any(found[k] for k in ("rounds", "finals", "reconciliations")):
+                raise Refused("two-pass completion requires no ordinary round or final attempts")
+            if any(returned_pass(e, "completion") for e in found["completions"]):
+                raise Refused("two-pass completion runs once")
+            return
     entries = [entry for group in found.values() for entry in group]
     if any(entry.get("policy") != "codex-self-review" for entry in entries):
         raise Refused("Codex self-review needs its own findings file, with no earlier review policy")
@@ -1064,6 +1132,11 @@ def check_self_review_order(kind, record_path):
         raise Refused("Codex self-review needs exactly one returned plan review before implementation review")
     elif kind == "round" and (rounds or found["completions"]):
         raise Refused("Codex self-review allows exactly one returned implementation round before completion")
+    elif kind == "reconciliation":
+        if len(rounds) != 1 or len(completions) != 1 or verdict_lines(completions[0]["review"])[-1] != "COMPLETION: gaps":
+            raise Refused("reconciliation requires exactly one round and a completion with gaps")
+        if any(returned_pass(e, "reconciliation") for e in found["reconciliations"]):
+            raise Refused("exactly one returned reconciliation is allowed")
     elif kind == "completion" and (len(rounds) != 1 or completions):
         raise Refused("Codex self-review completion runs once, after exactly one returned implementation round")
 
@@ -1079,7 +1152,7 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if found is None:
         raise Unrecorded(f"{path} cannot be read back (a heading or line is not in the format --record writes"
                          f"{unreadable_heading(existing)}; {RESERVED_NAMES}), so the {what} was not recorded")
-    if any(returned_pass(entry, kind) for entry in found[key]):
+    if any(returned_pass(entry, kind) for entry in found[key]) and not (kind == "reconciliation" and result.get("binding", {}).get("version") == 2):
         raise Unrecorded(f"{path} already holds a {what}; it is one pass, so this one was not recorded")
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
     review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval.", path))
@@ -1087,8 +1160,767 @@ def record_completion(path, result, when, candidate, kind="completion"):
         raise Unrecorded(f"the review is past what {path} can be read back with, so it was not recorded")
     lines = [f"{prefix}: {who}", "", f"- Writer: {result['writer']}", f"- Run: {when}", f"- Candidate: {candidate}"]
     lines += metadata(result)
+    if kind == "reconciliation" or kind == "completion" and result.get("policy") == "codex-two-pass-v1":
+        lines.append("- Binding: " + json.dumps(result["binding"], sort_keys=True, separators=(",", ":")))
     lines += [f"- Lines: {len(review)}", f"- Digest: {digest(review)}", "", *review, ""]
+    if kind == "reconciliation" and result["binding"].get("version") == 2:
+        report_parts = Path(result["binding"]["report"]).parts
+        root = Path(path).resolve().parents[len(report_parts) - 1]
+        prospective = existing.rstrip("\n") + "\n\n" + "\n".join(lines) + "\n"
+        validate_reconciliation_series(root, prospective)
     append_findings(path, existing, lines)
+
+
+def reconciliation_enabled(pin, writer):
+    return writer == "codex" and pin.get("reconciliation") == ["codex"] and self_review_enabled(pin, writer)
+
+
+def read_reconciliations(text):
+    found = read_findings(text)
+    return None if found is None else found["reconciliations"]
+
+
+def _reconcile_require(ok, message):
+    if not ok:
+        raise Refused("reconciliation: " + message)
+
+
+def _reconcile_git(root, *args):
+    result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, timeout=60)
+    _reconcile_require(result.returncode == 0, "cannot verify git evidence: " + " ".join(args))
+    return result.stdout
+
+
+def _reconcile_path(root, path):
+    root = Path(root).resolve()
+    path = Path(path)
+    if path.is_absolute():
+        try:
+            path = path.relative_to(root)
+        except ValueError:
+            raise Refused("reconciliation: path outside repository") from None
+    relative = path.as_posix()
+    _reconcile_require(re.fullmatch(r"docs/reviews/[A-Za-z0-9_./-]+\.md", relative) is not None
+                       and ".." not in path.parts, "invalid evidence path")
+    current = root
+    for part in path.parts:
+        current /= part
+        _reconcile_require(not current.is_symlink(), "symlink evidence path")
+    _reconcile_require(current.is_file(), "missing evidence: " + relative)
+    return relative
+
+
+def _reconcile_contract(text, number):
+    # Reuse the source-of-truth contract extractor without loading the graph or validating receipts recursively.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("reconciliation_contract", Path(__file__).parent / "lib/todo_graph.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    _reconcile_require(module.section_text(text, number) is not None, "section is absent from contract")
+    contract = module.contract_text(text, number)
+    contract = re.sub(r"^(- )\[[xX ]\](?= )", r"\1[ ]", contract, flags=re.M)
+    contract = re.sub(r"^(\|[^\n]*\| )\[[xX ]\]( \|)$", r"\1[ ]\2", contract, flags=re.M)
+    contract = re.sub(r"^> \*\*(?:Verified|Review):\*\*[^\n]*(?:\n|$)", "", contract, flags=re.M)
+    return contract
+
+
+def _reconcile_chain(text, require_gaps=True, root=None, current_text=None):
+    found = read_findings(text)
+    _reconcile_require(found is not None, "unreadable original findings")
+    if root is not None and any(e.get("policy") == "codex-two-pass-v1" for e in found["completions"]):
+        # The immutable original prefix excludes later reconciliation records by design.
+        # History preservation must inspect the full current report, where those records remain.
+        context = text if current_text is None else current_text
+        _reconcile_require(context.startswith(text), "current findings do not preserve the original prefix")
+        chain = validate_codex_chain(root, context)
+        _reconcile_require(not require_gaps or verdict_lines(chain["completion"]["review"])[-1] == "COMPLETION: gaps", "original completion did not return gaps")
+        return found, {"plan": chain["plan"], "completion": chain["completion"]}, [*found["plans"], *found["completions"]]
+    chosen = {}
+    entries = []
+    for kind, key in (("plan", "plans"), ("round", "rounds"), ("completion", "completions")):
+        group = found[key]
+        valid = [e for e in group if (returned_review(e) if kind == "round" else returned_pass(e, kind))]
+        _reconcile_require(len(valid) == 1 and group[-1] is valid[0], "needs exactly one resolved " + kind)
+        chosen[kind] = valid[0]
+        entries.extend(group)
+    _reconcile_require(not found["finals"], "a separate final pass is not a Codex chain")
+    _reconcile_require(all(e.get("policy") == "codex-self-review" for e in entries), "original policy is not Codex self-review")
+    _reconcile_require(len({e.get("pin") for e in entries}) == 1, "original chain pins differ")
+    _reconcile_require(not require_gaps or verdict_lines(chosen["completion"]["review"])[-1] == "COMPLETION: gaps", "original completion did not return gaps")
+    offsets = [chosen[k]["offset"] for k in ("plan", "round", "completion")]
+    _reconcile_require(offsets == sorted(offsets), "original review order is invalid")
+    try:
+        times = [datetime.fromisoformat(chosen[k]["run"].replace("Z", "+00:00")) for k in ("plan", "round", "completion")]
+        _reconcile_require(all(t.tzinfo is not None for t in times) and times == sorted(times), "original review chronology is invalid")
+    except (ValueError, TypeError):
+        raise Refused("reconciliation: original review chronology is invalid") from None
+    return found, chosen, entries
+
+
+def _reconcile_tips(root):
+    """Only parents of the next commit count, including the incoming parent of an open merge."""
+    merging = subprocess.run(["git", "-C", str(root), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+                             capture_output=True, timeout=30)
+    return ["HEAD", "MERGE_HEAD"] if merging.returncode == 0 else ["HEAD"]
+
+
+def _reconcile_reachable(root, candidate):
+    _reconcile_require(isinstance(candidate, str) and CANDIDATE.fullmatch(candidate), "invalid evidence commit")
+    reachable = any(subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", candidate, tip],
+                                  capture_output=True, timeout=30).returncode == 0 for tip in _reconcile_tips(root))
+    _reconcile_require(reachable, "evidence commit is not reachable from HEAD or the active merge parent: " + candidate)
+
+
+def _reconcile_pin(root, blob):
+    _reconcile_require(isinstance(blob, str) and PIN_ID.fullmatch(blob), "invalid pin identity")
+    raw = _reconcile_git(root, "show", blob)
+    log = _reconcile_git(root, "log", "--format=", "--raw", "--no-abbrev", "--no-renames", "--full-history", "-m", *_reconcile_tips(root), "--", ".conclave/reviewers.toml").decode()
+    _reconcile_require(any(line.startswith(":") and blob in line.split()[2:4] for line in log.splitlines()), "pin was not committed in current history")
+    return load_pin(data=raw)
+
+
+def _reconcile_identity(root, entry, reconciliation=False):
+    pin = _reconcile_pin(root, entry.get("pin"))
+    _reconcile_require(review_policy(pin, entry.get("writer")) == entry.get("policy"), "pin does not authorize recorded policy")
+    if reconciliation:
+        _reconcile_require(reconciliation_enabled(pin, "codex") and "reconciliation" in pin.get("schedule", {}), "pin does not authorize reconciliation")
+    if entry.get("reviewer"):
+        name = pin["routes"]["codex"][0]
+        reviewer = pin["reviewers"][name]
+        _reconcile_require((entry["reviewer"], entry["model"], entry["cli"]) == (name, reviewer["model"], reviewer["cli"]), "reviewer identity differs from pin")
+    return pin
+
+
+def make_reconciliation_binding(root, record_path, candidate, disposition_path):
+    root = Path(root).resolve()
+    report = _reconcile_path(root, record_path)
+    match = re.fullmatch(r"docs/reviews/(\d{2}-[A-Za-z0-9_-]+)/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md", report)
+    _reconcile_require(match is not None and match[1].startswith(match[2] + "-"), "findings path is not canonical")
+    text = (root / report).read_bytes().decode("utf-8")
+    found, chosen, entries = _reconcile_chain(text, root=root)
+    for entry in entries:
+        _reconcile_identity(root, entry)
+    _reconcile_require(isinstance(candidate, str) and CANDIDATE.fullmatch(candidate), "candidate needs a full SHA")
+    completion, plan = chosen["completion"], chosen["plan"]
+    _reconcile_git(root, "merge-base", "--is-ancestor", completion["candidate"], candidate)
+    _reconcile_reachable(root, candidate)
+    paths = list((root / "todo" / match[1]).glob(f"TODO-{match[3]}-*.md"))
+    _reconcile_require(len(paths) == 1, "cannot identify one owning TODO file")
+    contract_path = paths[0].relative_to(root).as_posix()
+    def contract(sha):
+        return _reconcile_contract(_reconcile_git(root, "show", f"{sha}:{contract_path}").decode("utf-8"), match[4])
+    original_contract = contract(completion["candidate"])
+    _reconcile_require(original_contract == contract(candidate), "original completion contract changed or narrowed")
+    disposition = _reconcile_path(root, disposition_path)
+    _reconcile_require(disposition != report, "disposition must be separate from findings")
+    disposition_commit = _reconcile_git(root, "rev-parse", "HEAD").decode().strip()
+    disposition_bytes = _reconcile_git(root, "show", f"{disposition_commit}:{disposition}")
+    _reconcile_require(disposition_bytes.strip() and disposition_bytes == (root / disposition).read_bytes(), "disposition is empty or not committed unchanged")
+    _reconciliation_history_preserved(root, report, text)
+    returned = validate_reconciliation_series(root, text)
+    version, extra = 1, {}
+    if returned:
+        _reconcile_require(len(returned) == 1, "no third returned reconciliation is allowed")
+        predecessor = returned[0]
+        pin_id = _reconcile_git(root, "rev-parse", "HEAD:.conclave/reviewers.toml").decode().strip()
+        _extension_authorized(root, pin_id, report, predecessor)
+        _reconcile_git(root, "merge-base", "--is-ancestor", predecessor["candidate"], candidate)
+        version = 2
+        extra = {"predecessor_digest": predecessor["digest"], "predecessor_candidate": predecessor["candidate"]}
+    attempts = [e for e in found["reconciliations"] if e["binding"].get("version") == version]
+    if attempts:
+        prefix_size = attempts[0]["binding"]["prefix_bytes"]
+        prefix = text.encode()[:prefix_size]
+    else:
+        prefix = text.encode()
+    return {"version": version, **extra, "report": report, "prefix_sha256": hashlib.sha256(prefix).hexdigest(), "prefix_bytes": len(prefix),
+            "completion_digest": digest(raw_lines(completion["review"])), "completion_candidate": completion["candidate"],
+            "plan_candidate": plan["candidate"], "contract_path": contract_path,
+            "contract_sha256": hashlib.sha256(original_contract.encode()).hexdigest(),
+            "plan_contract_sha256": hashlib.sha256(contract(plan["candidate"]).encode()).hexdigest(),
+            "candidate": candidate, "disposition_path": disposition, "disposition_blob": pin_blob(disposition_bytes),
+            "disposition_commit": disposition_commit}
+
+
+def _reconciliation_binding_shape(binding):
+    keys = {"version", "report", "prefix_sha256", "prefix_bytes", "completion_digest", "completion_candidate", "plan_candidate",
+            "contract_path", "contract_sha256", "plan_contract_sha256", "candidate", "disposition_path", "disposition_blob", "disposition_commit"}
+    if isinstance(binding, dict) and binding.get("version") == 2:
+        keys |= {"predecessor_digest", "predecessor_candidate"}
+    _reconcile_require(isinstance(binding, dict) and set(binding) == keys and type(binding.get("version")) is int and binding.get("version") in (1, 2), "malformed binding")
+    _reconcile_require(all(isinstance(binding[k], str) and bool(binding[k]) for k in keys - {"version", "prefix_bytes"}), "binding fields must be nonempty strings")
+    _reconcile_require(all(CANDIDATE.fullmatch(binding[k]) for k in ("candidate", "completion_candidate", "plan_candidate", "disposition_commit")), "invalid bound commit")
+    _reconcile_require(all(re.fullmatch(r"[0-9a-f]{64}", binding[k]) for k in ("prefix_sha256", "contract_sha256", "plan_contract_sha256"))
+                       and DIGEST.fullmatch(binding["completion_digest"]) and PIN_ID.fullmatch(binding["disposition_blob"]), "invalid bound digest")
+
+
+def _validate_reconciliation_v1(root, text, entry):
+    binding = entry.get("binding")
+    _reconciliation_binding_shape(binding)
+    size = binding["prefix_bytes"]
+    _reconcile_require(type(size) is int and 0 < size <= len(text.encode()), "invalid original prefix size")
+    prefix = text.encode()[:size]
+    _reconcile_require(hashlib.sha256(prefix).hexdigest() == binding["prefix_sha256"], "original findings prefix changed")
+    try:
+        found, chosen, entries = _reconcile_chain(prefix.decode("utf-8"), root=root, current_text=text)
+    except UnicodeDecodeError:
+        raise Refused("reconciliation: prefix is not UTF-8") from None
+    _reconcile_require(not found["reconciliations"], "original prefix contains reconciliation")
+    all_found = read_findings(text)
+    _reconcile_require(all_found is not None and all_found["reconciliations"], "reconciliation record missing")
+    first_offset = all_found["reconciliations"][0]["offset"]
+    before_heading = "\n".join(raw_lines(text)[:first_offset]).encode()
+    _reconcile_require(before_heading.startswith(prefix) and not before_heading[size:].strip(), "prefix does not cover all original findings")
+    completion, plan = chosen["completion"], chosen["plan"]
+    _reconcile_require(binding["completion_candidate"] == completion["candidate"] and binding["plan_candidate"] == plan["candidate"]
+                       and binding["completion_digest"] == digest(raw_lines(completion["review"])), "original review identity mismatch")
+    _reconcile_require(entry.get("candidate") == binding["candidate"], "candidate binding mismatch")
+    for original in entries:
+        _reconcile_identity(root, original)
+    _reconcile_identity(root, entry, reconciliation=True)
+    _reconcile_git(root, "merge-base", "--is-ancestor", completion["candidate"], binding["candidate"])
+    _reconcile_reachable(root, binding["candidate"])
+    report = _reconcile_path(root, binding["report"])
+    match = re.fullmatch(r"docs/reviews/(\d{2}-[A-Za-z0-9_-]+)/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md", report)
+    _reconcile_require(match is not None and match[1].startswith(match[2] + "-"), "noncanonical findings")
+    paths = list((Path(root) / "todo" / match[1]).glob(f"TODO-{match[3]}-*.md"))
+    _reconcile_require(len(paths) == 1 and paths[0].relative_to(root).as_posix() == binding["contract_path"], "wrong contract path")
+    def contract(sha):
+        return _reconcile_contract(_reconcile_git(root, "show", f"{sha}:{binding['contract_path']}").decode(), match[4])
+    original = contract(completion["candidate"])
+    _reconcile_require(original == contract(binding["candidate"]) and hashlib.sha256(original.encode()).hexdigest() == binding["contract_sha256"], "contract changed or narrowed")
+    _reconcile_require(hashlib.sha256(contract(plan["candidate"]).encode()).hexdigest() == binding["plan_contract_sha256"], "original plan contract mismatch")
+    disposition = _reconcile_path(root, binding["disposition_path"])
+    _reconcile_require(disposition != report and CANDIDATE.fullmatch(binding["disposition_commit"]), "invalid disposition identity")
+    _reconcile_reachable(root, binding["disposition_commit"])
+    contents = _reconcile_git(root, "show", f"{binding['disposition_commit']}:{disposition}")
+    _reconcile_require(contents.strip() and pin_blob(contents) == binding["disposition_blob"], "committed disposition mismatch")
+    return binding
+
+
+def _extension_authorized(root, pin_id, report, predecessor):
+    _reconcile_require(returned_pass(predecessor, "reconciliation") and verdict_lines(predecessor["review"])[-1] == "RECONCILIATION: gaps", "extension requires a returned gaps predecessor")
+    pin = _reconcile_pin(root, pin_id)
+    _reconcile_require(pin.get("reconciliation_extensions", {}).get(report) == predecessor["digest"], "no exact scoped predecessor authorization")
+
+
+def validate_reconciliation_binding(root, text, entry):
+    binding = entry.get("binding")
+    _reconciliation_binding_shape(binding)
+    if binding["version"] == 1:
+        return _validate_reconciliation_v1(root, text, entry)
+    size = binding["prefix_bytes"]
+    _reconcile_require(type(size) is int and 0 < size <= len(text.encode()), "invalid preceding prefix size")
+    prefix = text.encode()[:size]
+    _reconcile_require(hashlib.sha256(prefix).hexdigest() == binding["prefix_sha256"], "preceding findings prefix changed")
+    try:
+        previous = read_reconciliations(prefix.decode())
+    except UnicodeDecodeError:
+        raise Refused("reconciliation: invalid preceding prefix") from None
+    _reconcile_require(previous is not None, "unreadable preceding findings")
+    returned = [e for e in previous if returned_pass(e, "reconciliation")]
+    _reconcile_require(len(returned) == 1 and returned[0]["binding"]["version"] == 1, "extension requires exactly one original returned reconciliation")
+    predecessor = returned[0]
+    for attempt in previous:
+        _reconcile_require(attempt["binding"]["version"] == 1, "preceding prefix includes another extension")
+        _validate_reconciliation_v1(root, text, attempt)
+    _reconcile_require(binding["predecessor_digest"] == predecessor["digest"] and binding["predecessor_candidate"] == predecessor["candidate"], "predecessor identity mismatch")
+    _extension_authorized(root, entry.get("pin"), binding["report"], predecessor)
+    _reconcile_git(root, "merge-base", "--is-ancestor", predecessor["candidate"], binding["candidate"])
+    attempts = read_reconciliations(text)
+    _reconcile_require(attempts is not None, "unreadable current findings")
+    extensions = [e for e in attempts if e["binding"].get("version") == 2]
+    _reconcile_require(bool(extensions), "extension record missing")
+    before = "\n".join(raw_lines(text)[:extensions[0]["offset"]]).encode()
+    _reconcile_require(before.startswith(prefix) and not before[size:].strip(), "prefix does not cover every preceding attempt")
+    original = predecessor["binding"]
+    virtual = {k: v for k, v in binding.items() if k not in ("predecessor_digest", "predecessor_candidate")}
+    virtual.update(version=1, prefix_bytes=original["prefix_bytes"], prefix_sha256=original["prefix_sha256"])
+    _validate_reconciliation_v1(root, text, {**entry, "binding": virtual})
+    return binding
+
+
+def _reconciliation_history_preserved(root, report, text):
+    current = read_findings(text)
+    _reconcile_require(current is not None, "unreadable findings history")
+    plans = [e for e in current["plans"] if returned_pass(e, "plan")]
+    if len(plans) != 1:
+        return
+    identity = _transition_plan_identity(plans[0])
+    retained = {_transition_record_identity(e) for e in current["reconciliations"]}
+    for _, old in _transition_history(root, report):
+        historical = read_findings(old)
+        if historical is None:
+            continue
+        matching = [e for e in historical["plans"] if returned_pass(e, "plan") and _transition_plan_identity(e) == identity]
+        if matching:
+            _reconcile_require(all(_transition_record_identity(e) in retained for e in historical["reconciliations"]), "committed reconciliation attempt was removed")
+
+
+def validate_reconciliation_series(root, text):
+    attempts = read_reconciliations(text)
+    _reconcile_require(attempts is not None, "unreadable reconciliation series")
+    if attempts:
+        _reconciliation_history_preserved(root, attempts[0]["binding"]["report"], text)
+    returned = []
+    for entry in attempts:
+        version = entry.get("binding", {}).get("version")
+        _reconcile_require(len(returned) < 2 and version == (2 if returned else 1), "reconciliation attempt exceeds authorized series")
+        validate_reconciliation_binding(root, text, entry)
+        if returned_pass(entry, "reconciliation"):
+            returned.append(entry)
+    return returned
+
+
+def _completion_location(root, report):
+    report = _reconcile_path(root, report)
+    match = re.fullmatch(r"docs/reviews/(\d{2}-[A-Za-z0-9_-]+)/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md", report)
+    _reconcile_require(match is not None and match[1].startswith(match[2] + "-"), "noncanonical completion findings")
+    paths = list((Path(root) / "todo" / match[1]).glob(f"TODO-{match[3]}-*.md"))
+    _reconcile_require(len(paths) == 1, "cannot identify completion TODO file")
+    return report, paths[0].relative_to(root).as_posix(), match[4]
+
+
+def _completion_plan(prefix):
+    found = read_findings(prefix)
+    _reconcile_require(found is not None and not any(found[k] for k in ("rounds", "completions", "finals", "reconciliations")), "plan prefix includes an implementation-review attempt")
+    plans = [e for e in found["plans"] if returned_pass(e, "plan")]
+    _reconcile_require(len(plans) == 1 and found["plans"][-1] is plans[0], "combined completion needs one resolved plan")
+    return plans[0], found["plans"]
+
+
+def _completion_transition(plan, prefix):
+    return {"version": 1, "from_policy": "codex-self-review", "to_policy": "codex-two-pass-v1",
+            "plan_candidate": plan["candidate"], "plan_pin": plan["pin"], "plan_digest": digest(raw_lines(plan["review"])),
+            "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest()}
+
+
+_COMPLETION_HISTORY = {}
+
+
+def _transition_record_identity(entry):
+    """Identify a sealed attempt independently of its position and subsequent writer notes."""
+    return json.dumps({key: value for key, value in entry.items() if key not in ("offset", "notes")},
+                      sort_keys=True, separators=(",", ":"))
+
+
+def _transition_plan_identity(entry):
+    return (entry.get("writer"), entry.get("policy"), entry.get("candidate"), entry.get("pin"),
+            entry.get("run"), entry.get("reviewer"), entry.get("model"), entry.get("cli"),
+            digest(raw_lines(entry.get("review") or "")))
+
+
+def _transition_history(root, report):
+    tips = _reconcile_git(root, "rev-parse", *_reconcile_tips(root)).decode().split()
+    key = (str(Path(root).resolve()), tuple(tips), report)
+    if key not in _COMPLETION_HISTORY:
+        commits = _reconcile_git(root, "log", "--format=%H", "--full-history", "-m", *tips, "--", report).decode().split()
+        versions, seen = [], set()
+        for commit in dict.fromkeys(commits):
+            listed = _reconcile_git(root, "ls-tree", commit, "--", report).decode().strip()
+            if not listed:
+                continue  # A deletion has no findings bytes; the prior versions are still examined.
+            header = listed.split("\t", 1)[0].split()
+            _reconcile_require(len(header) == 3 and header[1] == "blob", "historical findings are not a blob")
+            blob = header[2]
+            if blob in seen:
+                continue
+            seen.add(blob)
+            raw = _reconcile_git(root, "cat-file", "blob", blob)
+            try:
+                versions.append((commit, raw.decode("utf-8")))
+            except UnicodeDecodeError:
+                raise Refused("cannot verify non-UTF-8 findings history: " + commit) from None
+        _COMPLETION_HISTORY[key] = versions
+    return _COMPLETION_HISTORY[key]
+
+
+def validate_plan_transition_history(root, report, plan, prefix, current_text):
+    """A restored file cannot erase an implementation-review attempt from the same original plan chain."""
+    report = _reconcile_path(root, report)
+    expected_plan = _transition_plan_identity(plan)
+    expected_transition = _completion_transition(plan, prefix)
+    current = read_findings(current_text)
+    _reconcile_require(current is not None, "cannot verify transition against unreadable findings")
+    retained = {key: {_transition_record_identity(entry) for entry in current[key]}
+                for key in ("completions", "reconciliations")}
+    for commit, historical_text in _transition_history(root, report):
+        historical, bad_heading = _read_findings(historical_text)
+        if historical is None:
+            # Preserve fail-closed behavior when a same-chain version is truncated or malformed after its plan.
+            prior = read_findings("\n".join(raw_lines(historical_text)[:bad_heading])) if bad_heading is not None else None
+            same_plan = prior is not None and any(_transition_plan_identity(e) == expected_plan for e in prior["plans"])
+            _reconcile_require(not same_plan, "same-chain findings history is unreadable at " + commit)
+            continue
+        if not any(_transition_plan_identity(entry) == expected_plan for entry in historical["plans"]):
+            continue
+        _reconcile_require(not historical["rounds"] and not historical["finals"],
+                           "legacy plan has a committed implementation-review attempt at " + commit)
+        for entry in historical["completions"]:
+            _reconcile_require(entry.get("policy") == "codex-two-pass-v1" and isinstance(entry.get("binding"), dict)
+                               and entry["binding"].get("transition") == expected_transition,
+                               "legacy plan has a committed completion attempt at " + commit)
+            _reconcile_require(_transition_record_identity(entry) in retained["completions"],
+                               "a committed combined completion attempt was removed at " + commit)
+        for entry in historical["reconciliations"]:
+            _reconcile_require(bool(historical["completions"]) and _transition_record_identity(entry) in retained["reconciliations"],
+                               "a committed reconciliation attempt was removed at " + commit)
+
+
+def make_completion_binding(root, record_path, candidate, transition_plan=False):
+    root = Path(root).resolve()
+    report, contract_path, number = _completion_location(root, record_path)
+    text = (root / report).read_bytes().decode("utf-8")
+    found = read_findings(text)
+    _reconcile_require(found is not None and not any(found[k] for k in ("rounds", "finals", "reconciliations")), "combined completion cannot follow other implementation reviews")
+    if found["completions"]:
+        _reconcile_require(all(e.get("policy") == "codex-two-pass-v1" for e in found["completions"]), "cannot transition after a legacy completion attempt")
+        first = found["completions"][0].get("binding")
+        _completion_binding_shape(first)
+        prefix = text.encode()[:first["prefix_bytes"]]
+        _reconcile_require(hashlib.sha256(prefix).hexdigest() == first["prefix_sha256"], "original plan prefix changed")
+    else:
+        prefix = text.encode()
+    plan, attempts = _completion_plan(prefix.decode())
+    pin = load_pin(Path(root) / ".conclave/reviewers.toml")
+    pin_id = pin_blob((root / ".conclave/reviewers.toml").read_bytes())
+    _reconcile_pin(root, pin_id)
+    _reconcile_require(review_policy(pin, "codex") == "codex-two-pass-v1", "combined completion needs explicit two-pass policy")
+    for attempt in attempts:
+        _reconcile_identity(root, attempt)
+    old = plan.get("policy") == "codex-self-review"
+    _reconcile_require(plan.get("policy") in SELF_REVIEW_POLICIES, "unsupported plan policy")
+    if old:
+        _reconcile_require(transition_plan and pin.get("plan_transition") == ["codex-self-review"], "legacy plan transition must be explicit and authorized")
+        validate_plan_transition_history(root, report, plan, prefix, text)
+    else:
+        _reconcile_require(not transition_plan and plan["pin"] == pin_id, "new-policy plan and completion must share one pin")
+    _reconcile_require(len({e.get("pin") for e in attempts}) == 1 and len({e.get("policy") for e in attempts}) == 1, "plan attempts changed policy or pin")
+    _reconcile_reachable(root, candidate)
+    _reconcile_git(root, "merge-base", "--is-ancestor", plan["candidate"], candidate)
+    original_contract = _reconcile_contract(_reconcile_git(root, "show", f"{plan['candidate']}:{contract_path}").decode(), number)
+    for attempt in found["completions"]:
+        validate_completion_binding(root, text, attempt)
+        _reconcile_require(attempt["pin"] == pin_id, "completion retry cannot switch pins")
+    return {"version": 1, "report": report, "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest(),
+            "plan_candidate": plan["candidate"], "plan_pin": plan["pin"], "plan_digest": digest(raw_lines(plan["review"])),
+            "plan_contract_sha256": hashlib.sha256(original_contract.encode()).hexdigest(), "contract_path": contract_path,
+            "candidate": candidate, "transition": _completion_transition(plan, prefix) if old else None}
+
+
+def _completion_binding_shape(binding):
+    keys = {"version", "report", "prefix_bytes", "prefix_sha256", "plan_candidate", "plan_pin", "plan_digest", "plan_contract_sha256", "contract_path", "candidate", "transition"}
+    _reconcile_require(isinstance(binding, dict) and set(binding) == keys and type(binding.get("version")) is int and binding["version"] == 1, "malformed completion binding")
+    _reconcile_require(all(isinstance(binding[k], str) and binding[k] for k in keys - {"version", "prefix_bytes", "transition"}), "malformed completion binding fields")
+    _reconcile_require(type(binding["prefix_bytes"]) is int and binding["prefix_bytes"] > 0, "invalid plan prefix size")
+    _reconcile_require(all(CANDIDATE.fullmatch(binding[k]) for k in ("plan_candidate", "candidate")) and PIN_ID.fullmatch(binding["plan_pin"])
+                       and DIGEST.fullmatch(binding["plan_digest"]) and all(re.fullmatch(r"[0-9a-f]{64}", binding[k]) for k in ("prefix_sha256", "plan_contract_sha256")), "invalid completion binding digest")
+    transition = binding["transition"]
+    transition_keys = {"version", "from_policy", "to_policy", "plan_candidate", "plan_pin", "plan_digest", "prefix_bytes", "prefix_sha256"}
+    _reconcile_require(transition is None or isinstance(transition, dict) and set(transition) == transition_keys
+                       and type(transition.get("version")) is int and transition["version"] == 1
+                       and type(transition.get("prefix_bytes")) is int and transition["prefix_bytes"] > 0
+                       and all(isinstance(transition[k], str) and transition[k] for k in transition_keys - {"version", "prefix_bytes"}), "invalid transition binding")
+
+
+def validate_completion_binding(root, text, entry):
+    binding = entry.get("binding")
+    _completion_binding_shape(binding)
+    _reconcile_require(entry.get("policy") == "codex-two-pass-v1" and entry.get("candidate") == binding["candidate"], "completion candidate or policy mismatch")
+    pin = _reconcile_identity(root, entry)
+    raw = text.encode()
+    size = binding["prefix_bytes"]
+    _reconcile_require(size <= len(raw) and hashlib.sha256(raw[:size]).hexdigest() == binding["prefix_sha256"], "original plan prefix changed")
+    try:
+        plan, attempts = _completion_plan(raw[:size].decode())
+    except UnicodeDecodeError:
+        raise Refused("completion plan prefix is not UTF-8") from None
+    found = read_findings(text)
+    _reconcile_require(found is not None and found["completions"], "combined completion missing")
+    before = "\n".join(raw_lines(text)[:found["completions"][0]["offset"]]).encode()
+    _reconcile_require(before.startswith(raw[:size]) and not before[size:].strip(), "prefix omits original findings")
+    for attempt in attempts:
+        _reconcile_identity(root, attempt)
+    _reconcile_require(len({e.get("pin") for e in attempts}) == 1 and len({e.get("policy") for e in attempts}) == 1, "plan attempts changed policy or pin")
+    _reconcile_require(plan["candidate"] == binding["plan_candidate"] and plan["pin"] == binding["plan_pin"]
+                       and digest(raw_lines(plan["review"])) == binding["plan_digest"], "plan identity changed")
+    if plan["policy"] == "codex-self-review":
+        _reconcile_require(pin.get("plan_transition") == ["codex-self-review"] and binding["transition"] == _completion_transition(plan, raw[:size]), "missing or tampered explicit plan transition")
+        validate_plan_transition_history(root, binding["report"], plan, raw[:size], text)
+    else:
+        _reconcile_require(plan["policy"] == "codex-two-pass-v1" and plan["pin"] == entry["pin"] and binding["transition"] is None, "two-pass pin mismatch")
+    _, contract_path, number = _completion_location(root, binding["report"])
+    _reconcile_require(contract_path == binding["contract_path"], "wrong plan contract path")
+    original = _reconcile_contract(_reconcile_git(root, "show", f"{plan['candidate']}:{contract_path}").decode(), number)
+    _reconcile_require(hashlib.sha256(original.encode()).hexdigest() == binding["plan_contract_sha256"], "original plan contract changed")
+    _reconcile_git(root, "merge-base", "--is-ancestor", plan["candidate"], binding["candidate"])
+    _reconcile_reachable(root, binding["candidate"])
+    return binding
+
+
+def validate_codex_chain(root, text):
+    found = read_findings(text)
+    _reconcile_require(found is not None, "unreadable Codex chain")
+    completions = [e for e in found["completions"] if returned_pass(e, "completion")]
+    _reconcile_require(len(completions) == 1 and found["completions"][-1] is completions[0], "needs one resolved completion")
+    completion = completions[0]
+    if completion.get("policy") == "codex-self-review":
+        _, chosen, entries = _reconcile_chain(text, require_gaps=False)
+        for entry in entries:
+            _reconcile_identity(root, entry)
+        return {"policy": "codex-self-review", "plan": chosen["plan"], "round": chosen["round"], "completion": completion, "transition": None}
+    _reconcile_require(completion.get("policy") == "codex-two-pass-v1" and not found["rounds"] and not found["finals"], "invalid two-pass sequence")
+    plans = [e for e in found["plans"] if returned_pass(e, "plan")]
+    _reconcile_require(len(plans) == 1 and found["plans"][-1] is plans[0], "needs one resolved plan")
+    for entry in found["completions"]:
+        validate_completion_binding(root, text, entry)
+    _reconcile_require(len({e["pin"] for e in found["completions"]}) == 1, "completion attempts changed pin")
+    transitions = [e["binding"]["transition"] for e in found["completions"]]
+    _reconcile_require(all(t == transitions[0] for t in transitions), "completion attempts changed transition")
+    entries = [*found["plans"], *found["completions"]]
+    try:
+        times = [datetime.fromisoformat(e["run"].replace("Z", "+00:00")) for e in entries]
+        _reconcile_require(all(t.tzinfo is not None for t in times) and times == sorted(times), "two-pass chronology is invalid")
+    except (ValueError, TypeError):
+        raise Refused("two-pass chronology is invalid") from None
+    offsets = [e["offset"] for e in entries]
+    _reconcile_require(offsets == sorted(offsets), "two-pass order is invalid")
+    return {"policy": "codex-two-pass-v1", "plan": plans[0], "round": None, "completion": completion, "transition": transitions[0]}
+
+
+def combined_surface(root, report, candidate):
+    _, contract_path, number = _completion_location(root, report)
+    contract = _reconcile_contract(_reconcile_git(root, "show", f"{candidate}:{contract_path}").decode(), number)
+    declarations = re.findall(r"^\*\*Surface:\*\* (yes|no)\s*$", contract, re.M)
+    _reconcile_require(len(declarations) == 1, "candidate section needs one explicit Surface declaration")
+    return declarations[0] == "yes"
+
+
+def reconciliation_pending_path(root, report, kind="reconciliation"):
+    _reconcile_require(kind in ("reconciliation", "completion"), "invalid durable pass kind")
+    return Path(root) / ("build/review-" + kind) / (hashlib.sha256(report.encode()).hexdigest() + ".json")
+
+
+def _durable_json(path, data, exclusive=False):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(data, sort_keys=True, indent=2) + "\n"
+    if exclusive:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+    else:
+        fd, temporary = tempfile.mkstemp(dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    if os.name != "nt":
+        fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
+def reconciliation_pending(root, report, kind="reconciliation"):
+    path = reconciliation_pending_path(root, report, kind)
+    if not path.exists():
+        return None
+    try:
+        state = json.loads(path.read_bytes().decode("utf-8"))
+        if not isinstance(state, dict) or state.get("phase") not in ("calling", "returned", "recorded") or state.get("report") != report:
+            raise ValueError("invalid pending state")
+        return state
+    except (OSError, ValueError, UnicodeDecodeError):
+        return {"report": report, "phase": "blocked", "error": "unreadable reconciliation state; no reviewer may run"}
+
+
+def _result_hash(result):
+    return hashlib.sha256(json.dumps(result, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _recover_reconciliation(root, record_path, kind="reconciliation"):
+    root = Path(root).resolve()
+    report = _reconcile_path(root, record_path)
+    state = reconciliation_pending(root, report, kind)
+    _reconcile_require(state is not None and state.get("phase") in ("returned", "recorded"),
+                       "no durable returned response; unresolved call remains blocked, do not invoke another reviewer")
+    _reconcile_require(type(state.get("version")) is int and state["version"] == 1, "invalid pending state version")
+    (_reconciliation_binding_shape if kind == "reconciliation" else _completion_binding_shape)(state.get("binding"))
+    _reconcile_require(state["binding"]["report"] == report, "pending report binding mismatch")
+    _reconcile_require(isinstance(state.get("findings_sha256"), str)
+                       and re.fullmatch(r"[0-9a-f]{64}", state["findings_sha256"]), "invalid pending findings digest")
+    _reconcile_require(isinstance(state.get("run"), str), "invalid pending response timestamp")
+    try:
+        at = datetime.fromisoformat(state["run"].replace("Z", "+00:00"))
+        _reconcile_require(at.tzinfo is not None, "pending timestamp has no timezone")
+    except ValueError:
+        raise Refused("reconciliation: invalid pending response timestamp") from None
+    result = state.get("result")
+    _reconcile_require(isinstance(result, dict) and _result_hash(result) == state.get("result_sha256"), "pending response digest mismatch")
+    _reconcile_require(result.get("kind") == kind and result.get("writer") == "codex"
+                       and result.get("policy") in SELF_REVIEW_POLICIES, "invalid pending response policy")
+    _reconcile_require(isinstance(result.get("candidate"), str) and CANDIDATE.fullmatch(result["candidate"]), "invalid pending response candidate")
+    _reconcile_require(result.get("review") is None or isinstance(result["review"], str), "invalid pending review text")
+    _reconcile_require(result.get("reviewer") is None or isinstance(result["reviewer"], str) and NAME.fullmatch(result["reviewer"]), "invalid pending reviewer")
+    _reconcile_require(isinstance(result.get("failover"), list) and all(isinstance(f, dict)
+                       and set(f) == {"reviewer", "reason"} and all(isinstance(f[k], str) and "\n" not in f[k] for k in f)
+                       for f in result["failover"]), "invalid pending failure metadata")
+    _reconcile_require(isinstance(result.get("lenses"), list) and all(isinstance(lens, str) and lens in LENSES for lens in result["lenses"])
+                       and len(result["lenses"]) == len(set(result["lenses"])), "invalid pending lenses")
+    _reconcile_require(result.get("effort") is None or isinstance(result["effort"], str) and result["effort"] in EFFORTS["codex"], "invalid pending effort")
+    _reconcile_identity(root, result, reconciliation=kind == "reconciliation")
+    _reconcile_require(not result.get("reviewer") or returned_pass(result, kind), "pending response has no terminal verdict")
+    _reconcile_require(result.get("binding") == state.get("binding") and result.get("candidate") == state["binding"]["candidate"], "pending response binding mismatch")
+    path = root / report
+    text = path.read_bytes().decode("utf-8")
+    reader = read_reconciliations if kind == "reconciliation" else read_completions
+    found = reader(text)
+    _reconcile_require(found is not None, "unreadable findings during recovery")
+    rendered = repository_relative(result.get("review") or f"No reviewer returned a {kind} review. This pass is not an approval.", path)
+    expected_digest = digest(raw_lines(rendered))
+    matches = [entry for entry in found if entry.get("binding") == state["binding"]
+               and entry.get("run") == state["run"] and entry.get("digest") == expected_digest]
+    if not matches:
+        _reconcile_require(hashlib.sha256(text.encode()).hexdigest() == state["findings_sha256"], "findings changed while reconciliation was pending")
+        record_completion(path, result, state["run"], result["candidate"], kind)
+        text = path.read_bytes().decode("utf-8")
+        matches = reader(text)[-1:]
+    _reconcile_require(len(matches) == 1, "recovered response is ambiguous")
+    (validate_reconciliation_binding if kind == "reconciliation" else validate_completion_binding)(root, text, matches[0])
+    if kind == "reconciliation":
+        validate_reconciliation_series(root, text)
+    state["phase"] = "recorded"
+    _durable_json(reconciliation_pending_path(root, report, kind), state)
+    return {**result, "run": state["run"], "recorded": True, "recovered": True}
+
+
+def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
+    _reconcile_require(reconciliation_enabled(pin, args.writer) if kind == "reconciliation" else review_policy(pin, args.writer) == "codex-two-pass-v1", "current pin does not authorize this bounded pass")
+    _reconcile_require(args.record and args.candidate and (kind != "reconciliation" or args.disposition), "needs --record, --candidate and --disposition")
+    report = _reconcile_path(ROOT, args.record)
+    pending = reconciliation_pending(ROOT, report, kind)
+    if pending and pending.get("phase") != "recorded":
+        raise Refused(f"{kind}: existing pending call; use --recover-{kind}, never call the reviewer again")
+    if pending:
+        prior = pending.get("result")
+        _reconcile_require(isinstance(prior, dict) and _result_hash(prior) == pending.get("result_sha256"), "recorded response journal is malformed")
+        if returned_pass(prior, kind):
+            _reconcile_require(kind == "reconciliation", "a returned response already exists in the durable journal")
+            current = (ROOT / report).read_bytes().decode()
+            series = validate_reconciliation_series(ROOT, current)
+            _reconcile_require(len(series) == 1 and series[0]["digest"] == digest(raw_lines(repository_relative(prior["review"], ROOT / report))) and series[0]["binding"] == prior.get("binding"), "returned journal does not match retained predecessor")
+            _extension_authorized(ROOT, pin_id, report, series[0])
+    if kind == "reconciliation":
+        original = (ROOT / report).read_bytes().decode()
+        chain = validate_codex_chain(ROOT, original)
+        _reconcile_require(verdict_lines(chain["completion"]["review"])[-1] == "COMPLETION: gaps", "reconciliation needs a failed completion")
+        binding = make_reconciliation_binding(ROOT, args.record, args.candidate, args.disposition)
+        if binding["version"] == 2:
+            _extension_authorized(ROOT, pin_id, report, validate_reconciliation_series(ROOT, original)[0])
+        surface = args.surface
+    else:
+        check_self_review_order("completion", args.record, pin)
+        binding = make_completion_binding(ROOT, args.record, args.candidate, transition_plan=getattr(args, "transition_plan", False))
+        surface = combined_surface(ROOT, args.record, args.candidate)
+    _reconcile_pin(ROOT, pin_id)
+    plan = scheduled(pin["schedule"], kind, [], surface, policy=review_policy(pin, args.writer) or "legacy")
+    prompt = Path(args.prompt).read_text(encoding="utf-8")
+    _reconcile_require(bool(prompt.strip()) and "\0" not in prompt, "invalid prompt")
+    instructions = ("Read original plan and failed completion, committed disposition and full repair diff; reject narrowed obligations, safety exceptions, unresolved gaps and regressions."
+                    if kind == "reconciliation" else
+                    "This is the combined final review after implementation and tests. Verify every agreed requirement, every Done when, the original plan and its dispositions, all frozen safety obligations, correct implementation, quality and completion. Inspect the full candidate and integration callers, adversarial failure paths, consistency, regressions and actual test evidence. Optional new scope is separate; missing proof or real defects block completion. Read governing AGENTS.md, manifesto and applicable design/SPEC. Do not invent approval or treat failed tests as passing.")
+    verdict = kind.upper()
+    prompt += ("\n\nBinding verified by dispatcher:\n" + json.dumps(binding, sort_keys=True) + "\n" + instructions +
+               f"\nEnd with {verdict}: complete or {verdict}: gaps. Unreadable evidence is {verdict}: blocked.\n")
+    state_path = reconciliation_pending_path(ROOT, report, kind)
+    if pending:
+        # A recorded outage may retry. Archive it before reserving this distinct attempt.
+        archive = state_path.with_name(state_path.stem + "." + hashlib.sha256(json.dumps(pending, sort_keys=True).encode()).hexdigest()[:16] + ".archive")
+        _durable_json(archive, pending)
+    state = {"version": 1, "phase": "calling", "report": report, "binding": binding,
+             "findings_sha256": hashlib.sha256((ROOT / report).read_bytes()).hexdigest(), "pid": os.getpid()}
+    _durable_json(state_path, state, exclusive=not bool(pending))
+    # The marker remains unresolved on any interruption or uncertain persistence failure.
+    with tempfile.TemporaryDirectory() as temporary:
+        prompt_path = Path(temporary) / (kind + ".md")
+        prompt_path.write_text(prompt, encoding="utf-8")
+        result = review(pin, args.writer, prompt_path, args.timeout, plan)
+    when = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    result.update(kind=kind, candidate=args.candidate, binding=binding, pin=pin_id, policy=review_policy(pin, args.writer))
+    raw_result = dict(result)
+    if result.get("reviewer") and not returned_pass(result, kind):
+        result = {**result, "reviewer": None, "review": None,
+                  "failover": [{"reviewer": result["reviewer"], "reason": f"returned no terminal {kind} verdict"}]}
+    state.update(phase="returned", run=when, result=result, result_sha256=_result_hash(result), raw_result=raw_result)
+    try:
+        _durable_json(state_path, state)
+    except OSError as exc:
+        print(json.dumps({**result, "run": when, "recorded": False, "persistence_error": str(exc)}))
+        raise Refused("reconciliation response persistence failed; retained unresolved call marker") from exc
+    try:
+        return _recover_reconciliation(ROOT, args.record, kind)
+    except (OSError, Refused, Unrecorded) as exc:
+        print(json.dumps({**result, "run": when, "recorded": False}))
+        raise Refused("returned reconciliation is unrecorded; recover the durable response without another call: " + str(exc)) from exc
+
+
+class reconciliation_lock:
+    """Serialize reservation and recovery without deleting another process's lock inode."""
+    def __init__(self, root, report):
+        # Both pass kinds share one section lock; their durable journals remain separate.
+        self.path = reconciliation_pending_path(root, report).with_suffix(".lock")
+        self.handle = None
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.handle = self.path.open("a+b")
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self.handle.seek(0)
+                self.handle.write(b"0")
+                self.handle.flush()
+                self.handle.seek(0)
+                msvcrt.locking(self.handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            self.handle.close()
+            raise Refused("reconciliation: another dispatch or recovery owns this section") from exc
+        return self
+
+    def __exit__(self, *exc):
+        self.handle.close()
+
+
+def recover_reconciliation(root, record_path, kind="reconciliation"):
+    report = _reconcile_path(root, record_path)
+    with reconciliation_lock(root, report):
+        return _recover_reconciliation(root, record_path, kind)
+
+
+def run_reconciliation(args, pin, pin_id, kind="reconciliation"):
+    _reconcile_require(bool(args.record), "needs --record")
+    report = _reconcile_path(ROOT, args.record)
+    with reconciliation_lock(ROOT, report):
+        return _run_reconciliation(args, pin, pin_id, kind)
+
+
+def run_completion(args, pin, pin_id):
+    return run_reconciliation(args, pin, pin_id, kind="completion")
+
+
+def recover_completion(root, record_path):
+    return recover_reconciliation(root, record_path, kind="completion")
 
 
 def list_rounds(records_dir):
@@ -1116,11 +1948,18 @@ def list_rounds(records_dir):
             found = None
         if found is None:
             unreadable.append(shown(path))
-        elif found["rounds"] or found["completions"] or found["plans"] or found["finals"]:
+        elif any(found.values()):
             records.append({"path": shown(path), "rounds": found["rounds"],
                             **({"completions": found["completions"]} if found["completions"] else {}),
                             **({"plans": found["plans"]} if found["plans"] else {}),
-                            **({"finals": found["finals"]} if found["finals"] else {})})
+                            **({"finals": found["finals"]} if found["finals"] else {}),
+                            **({"reconciliations": [{**e, "verdict": (verdict_lines(e["review"]) or ["unreturned"])[-1]} for e in found["reconciliations"]]} if found["reconciliations"] else {})})
+            pending = reconciliation_pending(ROOT, shown(path))
+            if pending:
+                records[-1]["reconciliation_status"] = {"phase": pending["phase"], "binding": pending.get("binding"), "error": pending.get("error")}
+            pending = reconciliation_pending(ROOT, shown(path), "completion")
+            if pending:
+                records[-1]["completion_status"] = {"phase": pending["phase"], "binding": pending.get("binding"), "error": pending.get("error")}
     return {"records": records, **({"unreadable": unreadable} if unreadable else {})}
 
 
@@ -1129,11 +1968,15 @@ def main(argv=None):
     parser.add_argument("--writer", choices=WRITERS, help="The agent whose work is under review")
     parser.add_argument("--prompt", help="File holding the review prompt")
     parser.add_argument("--record", help="Findings file to append this round (or completion review) to")
-    parser.add_argument("--kind", choices=("round", "completion", "plan", "final"), default="round",
+    parser.add_argument("--kind", choices=("round", "completion", "plan", "final", "reconciliation"), default="round",
                         help="round (default): one review round; completion: the one-pass completion and excellence "
                              "review, recorded as a ## Completion review section and not counted as a round; plan: "
                              "the one-pass plan review before the build, recorded as a ## Plan review section; final: "
                              "the one-pass final review by [schedule.final]'s reviewer after the rounds have stopped")
+    parser.add_argument("--disposition", help="Committed disposition Markdown for a bounded reconciliation")
+    parser.add_argument("--transition-plan", action="store_true", help="Explicitly bind a legacy plan-only chain to the two-pass policy")
+    parser.add_argument("--recover-completion", action="store_true", help="Replay a durable combined completion response without another reviewer")
+    parser.add_argument("--recover-reconciliation", action="store_true", help="Replay a durable returned response without invoking a reviewer")
     parser.add_argument("--candidate", help="With --kind completion, plan or final: the full 40-character commit under "
                                             "review (for a plan review, the commit holding the section as reviewed)")
     parser.add_argument("--surface", action="store_true",
@@ -1159,7 +2002,7 @@ def main(argv=None):
             return 2
         clis = {cli: find_cli(cli) is not None for cli in CLIS}
         report = {"ok": True, "schema_version": pin["schema_version"], "reviewers": pin["reviewers"],
-                  "routes": pin["routes"], "self_review": pin.get("self_review", []),
+                  "routes": pin["routes"], "self_review": pin.get("self_review", []), "self_review_policy": review_policy(pin, "codex"),
                   **({"schedule": pin["schedule"]} if "schedule" in pin else {}), "clis": clis}
         print(json.dumps(report) if args.json else "ok")
         return 0
@@ -1181,9 +2024,31 @@ def main(argv=None):
                 for f in entry.get("finals", []):
                     who = f"{f['reviewer']} ({f['model']} via {f['cli']})" if f["reviewer"] else "no review"
                     print(f"{entry['path']}  Final review: {who}, candidate {f['candidate']}, {f['run']}")
+                if entry.get("completion_status"):
+                    print(f"{entry['path']}  Combined completion state: {json.dumps(entry['completion_status'], sort_keys=True)}")
+                for r in entry.get("reconciliations", []):
+                    print(f"{entry['path']}  Reconciliation: candidate {r['candidate']}, {r['verdict']}, original {r['binding'].get('completion_candidate')}, digest {r['binding'].get('completion_digest')}")
+                if entry.get("reconciliation_status"):
+                    status = entry["reconciliation_status"]
+                    print(f"{entry['path']}  Reconciliation state: {status['phase']}; binding {json.dumps(status.get('binding'), sort_keys=True)}")
             for path in listing.get("unreadable", []):
                 print(f"{path}  unreadable: a round heading or line is not in the record format")
         return 0
+    if args.recover_reconciliation and args.recover_completion:
+        parser.error("choose one recovery kind")
+    if args.transition_plan and args.kind != "completion":
+        parser.error("--transition-plan requires --kind completion")
+    if args.recover_reconciliation or args.recover_completion:
+        try:
+            _reconcile_require(bool(args.record), "recovery needs --record")
+            result = recover_reconciliation(ROOT, args.record, "completion" if args.recover_completion else "reconciliation")
+            print(json.dumps(result, indent=2))
+            return 0 if result.get("reviewer") else 1
+        except (Refused, Unrecorded, OSError, ValueError) as exc:
+            print("review-dispatch refused: " + str(exc), file=sys.stderr)
+            return 2
+    if args.disposition and args.kind != "reconciliation":
+        parser.error("--disposition is only for --kind reconciliation")
     if not args.writer or not args.prompt:
         parser.error("--writer and --prompt are required unless --check-pin or --list-rounds is given")
     one_pass = args.kind in PASSES
@@ -1205,8 +2070,14 @@ def main(argv=None):
             pin_bytes = None  # load_pin reports a missing or unreadable pin in its own words
         pin = load_pin(args.pin, data=pin_bytes) if pin_bytes is not None else load_pin(args.pin)
         pin_id = pin_blob(pin_bytes)
+        if args.kind == "reconciliation" or args.kind == "completion" and review_policy(pin, args.writer) == "codex-two-pass-v1":
+            result = run_reconciliation(args, pin, pin_id, args.kind)
+            print(json.dumps(result, indent=2))
+            return 0 if result.get("reviewer") else 1
         if self_review_enabled(pin, args.writer):
-            check_self_review_order(args.kind, args.record)
+            if review_policy(pin, args.writer) == "codex-two-pass-v1":
+                _reconcile_pin(ROOT, pin_id)
+            check_self_review_order(args.kind, args.record, pin)
         plan = None
         if "schedule" in pin:
             rounds = []
@@ -1225,7 +2096,7 @@ def main(argv=None):
                                   f"{POST_FINAL_CAP} that may prove its fix; the stamp would refuse another, so none "
                                   f"was run. Work added after the final review is its own section")
             plan = scheduled(pin["schedule"], args.kind, rounds, args.surface,
-                             section_risk(args.record) if args.record else "full") \
+                             section_risk(args.record) if args.record else "full", policy=review_policy(pin, args.writer) or "legacy") \
                 if args.kind != "final" or "final" in pin["schedule"] else None
         reviewer_name = None
         if args.kind == "final":
@@ -1268,7 +2139,7 @@ def main(argv=None):
         result.update(kind=args.kind, candidate=args.candidate)
     result["pin"] = pin_id
     if self_review_enabled(pin, args.writer):
-        result["policy"] = "codex-self-review"
+        result["policy"] = review_policy(pin, args.writer)
     if plan and plan["position"]:
         result.update(position=plan["position"], escalated=plan["escalated"], schedule=plan["schedule"])
         stop_after = pin["schedule"]["severity_stop_after"]
