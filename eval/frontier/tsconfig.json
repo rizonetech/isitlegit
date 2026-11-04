@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.config.json",
+  "include": ["multistep-vitest.config.ts"]
+}
