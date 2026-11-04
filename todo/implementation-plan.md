@@ -298,7 +298,7 @@ Sections: 121 | Checklist items: 755
 | [x]    | D00 T01 §36 | Two-pass Codex review with a combined final gate          | none                  | 6     |
 | [x]    | D00 T01 §37 | Durable ancestry for review journals                      | none                  | 4     |
 | [x]    | D00 T01 §38 | Exact evidence-bound reconciliation exceptions            | none                  | 8     |
-| [ ]    | D00 T01 §41 | Accurate continuation stop reasons for completed owners   | none                  | 4     |
+| [x]    | D00 T01 §41 | Accurate continuation stop reasons for completed owners   | none                  | 4     |
 | [x]    | D01 T03 §17 | Immutable per-case ablation admission                     | none                  | 8     |
 | [x]    | D00 T01 §43 | Upload refusal matches reviewed admission                 | none                  | 4     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
@@ -692,6 +692,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 445/616 verified sections, 108 ready to run now.
+Progress: 446/616 verified sections, 107 ready to run now.
 
-Checklist: 3210/3809 items completed (includes Commit items).
+Checklist: 3214/3809 items completed (includes Commit items).

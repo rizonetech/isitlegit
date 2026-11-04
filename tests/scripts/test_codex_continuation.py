@@ -285,6 +285,85 @@ class Continuation(unittest.TestCase):
         self.assertEqual(fresh.tick("main"), "paused")
         self.assertEqual(fresh.read("main")["phase"], "complete")
 
+    def assert_stopped_hook_reasons(self, description):
+        owner = self.registry.path("main").read_bytes()
+        marker = self.registry.path("main", "pause")
+        marker_bytes = marker.read_bytes() if marker.exists() else None
+        calls = list(self.native.calls)
+        queue = list(self.native.queue)
+        for event in ("SessionStart", "UserPromptSubmit", "PreToolUse", "Stop"):
+            with self.subTest(event=event):
+                result = self.event(event, prompt="continue")
+                if event == "PreToolUse":
+                    self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+                    reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                    expected = f"This unattended owner {description}; explicit activation is required."
+                else:
+                    self.assertIs(result["continue"], False)
+                    reason = result["stopReason"]
+                    expected = f"Unattended owner {description}."
+                self.assertEqual(self.registry.path("main").read_bytes(), owner)
+                self.assertEqual(marker.read_bytes() if marker.exists() else None, marker_bytes)
+                self.assertEqual(self.native.calls, calls)
+                self.assertEqual(self.native.queue, queue)
+                self.assertEqual(reason, expected)
+
+    def test_completed_hooks_report_completion_without_restarting(self):
+        # Completion also leaves a matching pause marker; the completed phase wins.
+        self.registry.pause("main", self.session, complete=True)
+        self.assert_stopped_hook_reasons("has completed its authorized work")
+
+    def test_paused_hooks_report_pause_without_restarting(self):
+        self.registry.pause("main", self.session)
+        self.assert_stopped_hook_reasons("is paused")
+
+    def test_stalled_hooks_report_stall_without_restarting(self):
+        self.event("UserPromptSubmit", prompt="work")
+        for _ in range(4):
+            self.event("Stop")
+        self.assertEqual(self.registry.read("main")["phase"], "stalled")
+        self.assert_stopped_hook_reasons("is stalled")
+
+    def test_matching_pause_marker_reports_pause_before_phase_update(self):
+        self.event("UserPromptSubmit", prompt="work")
+        state = self.registry.read("main")
+        cc.atomic(self.registry.path("main", "pause"),
+                  {"session": self.session, "generation": state["generation"]})
+        self.assertEqual(state["phase"], "active")
+        self.assert_stopped_hook_reasons("is paused")
+
+    def test_foreign_and_old_generation_pause_markers_do_not_deny_owner(self):
+        for foreign in (True, False):
+            with self.subTest(foreign=foreign):
+                state = self.registry.read("main")
+                cc.atomic(self.registry.path("main", "pause"), {
+                    "session": str(uuid.uuid4()) if foreign else self.session,
+                    "generation": state["generation"] if foreign else state["generation"] - 1,
+                })
+                self.assertEqual(self.event("UserPromptSubmit", prompt="work"), {})
+                self.assertEqual(self.event("PreToolUse"), {})
+                after = self.registry.read("main")
+                self.assertEqual(after["phase"], "active")
+                for key in ("session", "generation", "claim", "worktree"):
+                    self.assertEqual(after[key], state[key])
+
+    def test_completed_owner_requires_explicit_trusted_activation(self):
+        self.registry.pause("main", self.session, complete=True)
+        before = self.registry.path("main").read_bytes()
+        self.native.trust = "modified"
+        with self.assertRaisesRegex(cc.Refusal, "trust"):
+            self.registry.activate("main", self.session)
+        self.assertEqual(self.registry.path("main").read_bytes(), before)
+        self.native.trust = "trusted"
+        state = self.registry.read("main")
+        activated = self.registry.activate("main", self.session)
+        self.assertEqual(activated["generation"], state["generation"] + 1)
+        self.assertEqual(activated["session"], state["session"])
+        self.assertEqual(activated["phase"], "unverified")
+        self.assertFalse(self.registry.path("main", "pause").exists())
+        self.assertEqual(self.event("PreToolUse", turn="new-assignment"), {})
+        self.assertEqual(self.native.queue, [])
+
     def test_missing_unknown_blocked_waits_and_exact_stamp(self):
         state = self.registry.read("main")
         for text in ["", "WAITING: operator: access", "WAITING: unknown", "WAITING: time: broken"]:

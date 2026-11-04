@@ -1,0 +1,128 @@
+{
+  "ref": "D00 T01 \u00a741",
+  "title": "Accurate continuation stop reasons for completed owners",
+  "implementation_sha": "67f9d7be2578ad6f556ca039da020fc769c1023f",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes passes; removing the state-specific reason branch fails completed and stalled output regressions while stop enforcement remains unchanged. -> taskset -c 2: 43 tests passed in 0.127s; old controller and in-memory branch removal each failed exactly 8 completed/stalled reason assertions after denial/unchanged-state assertions passed",
+    "git diff --check; python3 scripts/check-publication.py -> passed, publication clean for 3466 tracked files; no native heartbeat, CI or deployment claim"
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s41.md",
+    "verdict": "complete",
+    "candidate": "67f9d7be2578ad6f556ca039da020fc769c1023f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s41.md",
+    "candidate": "89bc68cc798f1cc00045017556a2eeb88a33247c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

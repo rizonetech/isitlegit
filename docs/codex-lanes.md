@@ -80,6 +80,16 @@ python3 scripts/codex_continuation.py complete --lane checks --session SESSION_U
 
 `release --lane checks` removes a reservation only after the owner is paused/completed and the native thread is idle/not loaded (or an unbound launch process is gone). It cancels only the outstanding heartbeat queue item, never user messages. An authorized new activation advances the generation. An outstanding old-generation wake is refused, even if its queue message arrives late.
 
+Stopped-owner hooks report the actual state: completed authorized work, paused ownership or stalled ownership. A matching session/generation pause marker also blocks hooks before the phase update finishes; it reports a pause unless the stored phase already says complete or stalled. SessionStart, UserPromptSubmit and Stop return `continue: false`; PreToolUse denies tools. The reason does not reactivate the owner, change its identity/generation or queue a wake. Interrupt still records an explicit pause. A stall requires inspecting the recorded blocker before any authorized activation.
+
+A completed assignment stays complete on resume and across restarts. For a newly authorized assignment, the coordinator first records its scope in `todo/lanes.json` and the lane inbox, verifies exclusive ownership and a safe boundary, then explicitly activates the same recorded session with the existing command below. This is a new assignment, not automatic resumption of finished work. Activation still verifies native hook trust and the session's worktree, advances the generation and clears its pause marker. The initial reservation needs `--claim`; an already bound owner uses its exact session without a new claim. Do not start a second writer or run activation merely to bypass a refusal.
+
+```bash
+python3 scripts/codex_continuation.py activate --lane checks --session SESSION_UUID
+```
+
+Record the new assignment, session, dated Resume point and `WAITING:` line in the outbox after activation. Neither explicit activation nor these reason messages prove a native heartbeat or the separate host timer's runtime acceptance.
+
 WORKAROUND: the installed Codex runtime has no exposed native recurring scheduler. The coordinator installs one user-systemd host timer for this project. It inspects native thread status and wakes only registered idle owners with observed lifecycle events and a cleared wait. It never fabricates a native cron ID or acquires the Claude campaign guard. The timer's installed identity is `isitlegit-codex-heartbeat.timer`, with a five-minute cadence and a separate `isitlegit-codex-heartbeat.service` invocation. It runs only while this user's systemd manager and WSL host are running; it cannot wake a powered-off computer.
 
 ```bash
