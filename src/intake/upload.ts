@@ -6,6 +6,15 @@
 import { Hono } from "hono";
 import { requireSession } from "../auth/gate";
 import { type OrgEnv, requireOrg } from "../auth/org";
+import type { CaseExperiment } from "../pipeline/ablate";
+import {
+  ExperimentRefused,
+  experimentCapabilities,
+  readCaseExperiment,
+  requireEval,
+  sameExperiment,
+  validateExperiment,
+} from "../pipeline/case-experiments";
 import { admitDelivery, RetryDelivery, sha256Hex } from "./admit";
 import { sniff } from "./sniff";
 import { putAttachment, putRaw, type Store } from "./store";
@@ -28,7 +37,7 @@ function keepAlive(c: { readonly executionCtx: Waiter }, work: Promise<unknown>)
   ctx?.waitUntil(work.catch(() => {}));
 }
 
-const problem = (status: 400 | 413 | 415 | 429 | 503, error: string, retryAfterMs = 5_000) =>
+const problem = (status: 400 | 403 | 409 | 413 | 415 | 429 | 503, error: string, retryAfterMs = 5_000) =>
   Response.json(
     { error },
     {
@@ -42,6 +51,16 @@ const problem = (status: 400 | 413 | 415 | 429 | 503, error: string, retryAfterM
 
 export const uploadRoutes = new Hono<OrgEnv>();
 uploadRoutes.use("*", requireSession, requireOrg);
+
+uploadRoutes.get("/ablation-capabilities", async (c) => {
+  try {
+    return c.json(await experimentCapabilities(c.env, c.get("org").id), 200, { "cache-control": "no-store" });
+  } catch (error) {
+    return error instanceof ExperimentRefused
+      ? problem(error.status, error.message)
+      : problem(503, "Experiment capabilities are unavailable.");
+  }
+});
 
 uploadRoutes.post("/", async (c) => {
   // 1. The body, bounded: a declared length past the limit is refused unread, and one with none is read only so far.
@@ -67,17 +86,19 @@ uploadRoutes.post("/", async (c) => {
   const entries = [...form.entries()];
   const files = entries.filter(([name]) => name === "file");
   const replays = entries.filter(([name]) => name === "replayRunId");
+  const experiments = entries.filter(([name]) => name === "ablate");
   const file = files[0]?.[1];
   if (
     files.length !== 1 ||
     replays.length > 1 ||
-    entries.length !== files.length + replays.length ||
+    experiments.length > 1 ||
+    entries.length !== files.length + replays.length + experiments.length ||
     typeof file === "string" ||
     !file
   )
     return problem(
       400,
-      "Send exactly one file in a field named file, and at most one replayRunId field, and nothing else.",
+      "Send exactly one file in a field named file, and at most one replayRunId and ablate field, and nothing else.",
     );
   // A replay run id (D01 T01 §22): at most one textual field, a bounded identifier; anything else is refused
   // before anything is admitted, so an invalid request creates no claim, case, object or Workflow.
@@ -85,6 +106,19 @@ uploadRoutes.post("/", async (c) => {
   if (replays.length === 1 && (typeof replayValue !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(replayValue)))
     return problem(400, "The replay run id is not valid: use 1 to 64 characters of letters, digits, - and _.");
   const replayRunId = typeof replayValue === "string" ? replayValue : null;
+  let experiment: CaseExperiment | undefined;
+  if (experiments.length) {
+    try {
+      requireEval(c.env, c.get("org").id);
+      const value = experiments[0]?.[1];
+      if (typeof value !== "string") return problem(400, "The ablate field must contain JSON text.");
+      experiment = validateExperiment(c.env, c.get("org").id, JSON.parse(value), replayRunId);
+    } catch (error) {
+      return error instanceof ExperimentRefused
+        ? problem(error.status, error.message)
+        : problem(400, "The ablate field must contain valid experiment JSON.");
+    }
+  }
   if (file.size > MAX_UPLOAD_BYTES) return tooLarge();
   // What the file claims to be is kept for the type-mismatch check (D02 T04 §4), whole: a name cut short could lose the
   // extension being checked, so one past the limit is refused here, before anything is admitted (plan review).
@@ -114,6 +148,7 @@ uploadRoutes.post("/", async (c) => {
       channel: "upload",
       uploadedBy: c.get("signedIn").user.id,
       replayRunId,
+      ...(experiment ? { experiment } : {}),
       // What the file claimed to be, kept apart from what its bytes are (D02 T04 §4), for the type-mismatch check.
       uploadName: file.name || null,
       uploadMediaType: file.type || null,
@@ -137,6 +172,7 @@ uploadRoutes.post("/", async (c) => {
     keepAlive(c, admission);
     admitted = await admission;
   } catch (error) {
+    if (error instanceof ExperimentRefused) return problem(error.status, error.message);
     // A step failed (a case already made stays, ended partial, or is started by the sweep), or the service failed. The same file still
     // being taken by an earlier request is answered with the time until that one's lease runs out.
     if (error instanceof RetryDelivery && error.retryAfterMs > 5_000)
@@ -149,11 +185,22 @@ uploadRoutes.post("/", async (c) => {
   }
   if (admitted.kind === "capped")
     return problem(429, "Today's checks for your organisation are used up. They reset at midnight.");
+  let attribution: { experiment?: CaseExperiment } = {};
+  if (experiment) {
+    try {
+      const persisted = admitted.caseId ? await readCaseExperiment(c.env.DB, admitted.caseId, c.get("org").id) : null;
+      if (!persisted || !sameExperiment(persisted, experiment))
+        return problem(409, "The case attribution does not match this experiment.");
+      attribution = { experiment: persisted };
+    } catch {
+      return problem(503, "The case attribution could not be read.");
+    }
+  }
   if (admitted.kind === "duplicate") {
     if (!admitted.caseId) return problem(503, "The file could not be taken just now. Try again in a moment.");
-    return c.json({ caseId: admitted.caseId, repeat: true }, 200, { "cache-control": "no-store" });
+    return c.json({ caseId: admitted.caseId, repeat: true, ...attribution }, 200, { "cache-control": "no-store" });
   }
-  return c.json({ caseId: admitted.caseId }, 201, { "cache-control": "no-store" });
+  return c.json({ caseId: admitted.caseId, ...attribution }, 201, { "cache-control": "no-store" });
 });
 
 // An upload's identity: its bytes with the name and media type it was sent with, in the shape an email's key has

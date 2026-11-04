@@ -11,6 +11,14 @@
 // or the sweep each minute) starts its Workflow, or settles it by asking the Workflow when its start is unknown.
 import { admitCase, type SourceKind, unstartedPartial } from "../db/cases";
 import { ulid } from "../db/ulid";
+import type { CaseExperiment } from "../pipeline/ablate";
+import {
+  activeExperimentCase,
+  bindCaseExperiment,
+  ExperimentRefused,
+  requireOrdinaryReplay,
+  reserveExperiment,
+} from "../pipeline/case-experiments";
 import { eventStatement } from "../pipeline/events";
 
 // A pending claim younger than this belongs to a delivery still being processed; an older one to a delivery that
@@ -61,6 +69,7 @@ export type Delivery = {
   // A replay run id (D01 T01 §22): honoured only for the eval organisation (the EVAL_ORG_ID variable), where it
   // scopes the claim so each replay run admits its own case; ignored for every other organisation.
   replayRunId?: string | null;
+  experiment?: CaseExperiment;
   // Stores what came under the new case; a failure undoes the case and releases the claim.
   store: (caseId: string) => Promise<void>;
 };
@@ -73,11 +82,40 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
   // only the eval organisation's runs are scoped, and only while EVAL_ORG_ID names it.
   const replay =
     delivery.replayRunId && env.EVAL_ORG_ID && delivery.orgId === env.EVAL_ORG_ID ? delivery.replayRunId : null;
+  let experiment: CaseExperiment | undefined;
+  if (delivery.experiment) {
+    if (delivery.channel !== "upload") throw new ExperimentRefused(400, "Experiments require an upload.");
+    const { replayRunId: _run, ...input } = delivery.experiment;
+    experiment = await reserveExperiment(env, orgId, input, delivery.replayRunId);
+  } else if (replay) await requireOrdinaryReplay(env.DB, orgId, replay);
   const key = replay
     ? `replay:${replay}:${claimKey(delivery.channel, delivery.key)}`
     : claimKey(delivery.channel, delivery.key);
   const claim = await claimDelivery(env, orgId, key, now);
+  if (!experiment && replay) {
+    try {
+      await requireOrdinaryReplay(env.DB, orgId, replay);
+    } catch (error) {
+      if (!("duplicate" in claim)) await releaseClaim(env.DB, claim);
+      throw error;
+    }
+  }
   if ("duplicate" in claim) return { kind: "duplicate", caseId: claim.duplicate };
+
+  // The durable sample binding outlives the temporary delivery claim. Recover under this claim's lease.
+  if (experiment) {
+    const previous = await activeExperimentCase(env.DB, orgId, experiment, delivery.key);
+    if (previous) {
+      await env.DB.prepare(
+        "UPDATE intake_messages SET case_id=? WHERE org_id=? AND message_key=? AND state='pending' AND claimed_at=?",
+      )
+        .bind(previous, orgId, key, claim.claimedAt)
+        .run();
+      const settled = await settleStale(env, claim, previous);
+      if (settled === "done") return { kind: "duplicate", caseId: previous };
+      if (settled === "unknown") throw new RetryDelivery("The experiment case is still being settled.");
+    }
+  }
 
   // The case's id is on the claim before the case exists, so a delivery that stops anywhere after this leaves a claim
   // naming its case (or a case never made), which the takeover or the sweep settles; no case is ever left unowned.
@@ -121,6 +159,7 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
     throw new RetryDelivery(`the case could not be admitted: ${admitted.error.message}`);
   }
   try {
+    if (experiment) await bindCaseExperiment(env.DB, caseId, orgId, experiment, delivery.key);
     await delivery.store(caseId);
   } catch (error) {
     // A store error does not prove nothing was stored: its read after the row's insert can fail with the file and row
@@ -268,6 +307,11 @@ async function endUnstored(env: Env, claim: Claim, caseId: string, claimTo: "kee
       error: "RawMissing",
     };
     writes.unshift(eventStatement(env.DB, event, true), unstartedPartial(env.DB, row.org_id, caseId));
+    writes.push(
+      env.DB.prepare(
+        "UPDATE case_experiments SET active_upload_key=NULL WHERE case_id=? AND active_upload_key IS NOT NULL",
+      ).bind(caseId),
+    );
   }
   await env.DB.batch(writes);
   return true;
