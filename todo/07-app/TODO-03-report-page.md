@@ -1574,7 +1574,7 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 - [x] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
 - [x] Commit: `web: clean checks say what they saw`
 
-> **Deferred:** the lookalike check's clean words naming the domains it compared -> XREF: D02 T03 §12
+> **Resolved:** the lookalike check's clean words naming the domains it compared -> XREF: D02 T03 §12. Resolved 2026-11-04 by D02 T03 §12 in `55ae27be`: `lookalikeSummary` (`src/checks/domain-lookalike.ts`) names the count of compared domains and the first compared domain inside the 120-character summary bound.
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 

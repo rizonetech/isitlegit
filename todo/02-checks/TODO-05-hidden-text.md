@@ -42,7 +42,7 @@ track: day-2
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
-| 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [ ] |
+| 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [x] |
 | 11 | §11 | Whole decoded run kept in the finding | §3 | [x] |
 
 ## 1. Invisible text extraction from HTML
@@ -287,6 +287,10 @@ Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads
 
 ## 10. Role and system-marker shapes the phrases miss
 
+> **Started:** 2026-11-04T00:40Z
+
+**Corrected 2026-11-04 (plan review):** both new shapes (`role-assignment` and `system-marker`) are tested across arbitrary chunk boundaries (whole, character-by-character, every single split index, and after 500 characters of padding past the carry window) producing identical check, severity, location, and pattern findings, and `withoutInstructions` is proven to strip both shapes across newline/tab/repeated-space whitespace variants as well.
+
 Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measurement: through the real `PhraseStream`, `content.ai_instructions` detects 2 of 4 steering texts (recall 0.5, precision 1.0, 0 of 4 genuine flagged); the missed shapes are role-assignment and system-marker variants. Measured, not asserted: the eval lane's RESULTS row carries the figures.
 
 **Phase:** 7
@@ -298,12 +302,15 @@ Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measuremen
 
 1. Catch the missed shapes without flagging genuine mail. Done when: all 4 steering texts are high `content.ai_instructions` items and all 4 genuine controls stay unflagged through the real `PhraseStream`.
 
-- [ ] Reproduce eval D08 T02 §8's 4 steering texts and 4 genuine controls as fixtures in `test/checks/ai-instructions-shapes.test.ts`, read through the real `PhraseStream` (`src/checks/instruction-phrases.ts`). Done when: the test records the current 2 of 4 before the fix and can fail on either a miss or a genuine flag.
-- [ ] Extend `PATTERNS` in `src/checks/instruction-phrases.ts` for the missed role-assignment shape (an AI addressed by a role it is given, in the wording the fixtures carry) and the missed system-marker shape, each an instruction's shape and never a bare everyday word. Done when: both missed texts match with their pattern names recorded in the item's detail.
-- [ ] Prove no genuine regression: the 4 genuine controls and the existing multilingual, antivirus-footer and business fixtures stay unflagged. Done when: `test/checks/ai-instructions-shapes.test.ts` and the freeze check pass, and `withoutInstructions` removes each new match from the model-visible text.
-- [ ] Commit: `checks: role and system-marker instruction shapes`
+- [x] Reproduce eval D08 T02 §8's 4 steering texts and 4 genuine controls as fixtures in `test/checks/ai-instructions-shapes.test.ts`, read through the real `PhraseStream` (`src/checks/instruction-phrases.ts`). Done when: the test records the current 2 of 4 before the fix and can fail on either a miss or a genuine flag.
+- [x] Extend `PATTERNS` in `src/checks/instruction-phrases.ts` for the missed role-assignment shape (an AI addressed by a role it is given, in the wording the fixtures carry) and the missed system-marker shape, each an instruction's shape and never a bare everyday word. Done when: both missed texts match with their pattern names recorded in the item's detail.
+- [x] Prove no genuine regression: the 4 genuine controls and the existing multilingual, antivirus-footer and business fixtures stay unflagged. Done when: `test/checks/ai-instructions-shapes.test.ts` and the freeze check pass, and `withoutInstructions` removes each new match from the model-visible text.
+- [x] Commit: `checks: role and system-marker instruction shapes`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions-shapes.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a steering text is missed or a genuine text is flagged.
+
+> **Verified:** 2026-11-04 | §10 | 55ae27be71fd4a021f0f32d9c29391c3465ffc27
+> **Review:** `docs/reviews/d02-t05-s10.json`
 
 ## 11. Whole decoded run kept in the finding
 
