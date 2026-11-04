@@ -220,6 +220,34 @@ describe("verification publication integration", () => {
     expect(await verificationStep(depsFor(), s.caseId, "foreign-owner")).toEqual({ outcome: "none", evidence: 0 });
   });
 
+  it("rejects a queued mail claim storage failure and recovers the same request exactly once", async () => {
+    const s = await scenario();
+    await db.exec(
+      "CREATE TRIGGER fail_verification_claim BEFORE INSERT ON mail_sends WHEN NEW.kind = 'verify' BEGIN SELECT RAISE(ABORT, 'synthetic claim storage failure'); END",
+    );
+    try {
+      await expect(verificationStep(depsFor(), s.caseId, s.orgId)).rejects.toThrow(
+        "verification mail claim storage failed",
+      );
+      expect(s.calls).toHaveLength(0);
+      expect((await readEvidence(db, s.caseId)).some((e) => e.check.startsWith("verification."))).toBe(false);
+    } finally {
+      await db.exec("DROP TRIGGER fail_verification_claim");
+    }
+    const before = await db.prepare("SELECT * FROM verifications WHERE case_id = ?").bind(s.caseId).first();
+    expect(before).not.toBeNull();
+    expect(await verificationStep(depsFor(), s.caseId, s.orgId)).toEqual({ outcome: "requested", evidence: 1 });
+    expect(await verificationStep(depsFor(), s.caseId, s.orgId)).toEqual({ outcome: "requested", evidence: 1 });
+    const after = await db.prepare("SELECT * FROM verifications WHERE case_id = ?").bind(s.caseId).first();
+    expect(after).toMatchObject({
+      token_hash: before?.token_hash,
+      recipient_hash: before?.recipient_hash,
+      expires_at: before?.expires_at,
+    });
+    expect(s.calls).toHaveLength(1);
+    expect((await readEvidence(db, s.caseId)).filter((e) => e.check === "verification.requested")).toHaveLength(1);
+  });
+
   it("propagates queued publication failure, then retries without sending twice", async () => {
     const s = await scenario();
     const failed = interceptBatch(async () => {}, true);

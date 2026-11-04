@@ -344,7 +344,7 @@ describe("sendMail", () => {
       }),
     };
     const outcome = await sendMail({ ...deps(stub), db: broken as unknown as D1Database }, message());
-    expect(outcome).toMatchObject({ status: "failed", attempts: 0 });
+    expect(outcome).toMatchObject({ status: "failed", attempts: 0, storageFailure: "claim" });
     expect(outcome.status === "failed" && outcome.reason).toMatch(/send log could not be written, so nothing was sent/);
     expect(calls).toHaveLength(0);
   });
@@ -444,7 +444,7 @@ describe("sendMail", () => {
     const { stub, calls } = smtp2go([ok()]);
     const down = { prepare: () => ({ bind: () => ({ first: async () => Promise.reject(new Error("D1 down")) }) }) };
     const outcome = await sendMail({ ...deps(stub), db: down as unknown as D1Database }, message());
-    expect(outcome).toMatchObject({ status: "failed", attempts: 0 });
+    expect(outcome).toMatchObject({ status: "failed", attempts: 0, storageFailure: "allowlist" });
     expect(outcome.status === "failed" && outcome.reason).toMatch(/allowlist could not be checked/);
     expect(calls).toHaveLength(0);
   });
