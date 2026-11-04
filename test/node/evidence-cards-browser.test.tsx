@@ -1420,11 +1420,29 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         await expect.poll(() => loaded(p)).toEqual([true, true]);
         await p.evaluate(() => {
           for (const opener of document.querySelectorAll("#e1 a[data-evidence-open]"))
-            opener.setAttribute("data-deadline-ms", "400");
+            opener.setAttribute("data-deadline-ms", "700");
         });
         const note = p.locator("#e1 [data-evidence-failed]");
         const status = p.locator("#e1 [data-evidence-status]");
-        // 1. Browser-level route isolation for both a 200 PNG and a 404 abandoned response released during a held retry.
+        const assertRetryIntact = async () => {
+          expect(await status.textContent()).toBe("Loading the screenshot again.");
+          expect(await note.count()).toBe(0);
+          expect(
+            await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          ).toBe(false);
+        };
+        const recoverToLoaded = async () => {
+          shotQueue = [];
+          shotMode = "png";
+          await note.getByRole("button", { name: "Try again" }).click();
+          await expect
+            .poll(() =>
+              p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+            )
+            .toBe(true);
+        };
+        // 1. Browser-level route isolation for both a 200 PNG and a 404 abandoned response released during a held retry,
+        // asserting the retry remains loading before its 700 ms deadline and fails right after it.
         for (const abandonedMode of ["png", "404"] as const) {
           const abandoned = stepGate(abandonedMode);
           const retryAttempt = stepGate("png");
@@ -1438,42 +1456,37 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 10_000 }).toBe("temporary");
           expect(retryAttempt.seen()).toBe(false);
           // Start the retry while the abandoned attempt's response has not been delivered yet.
+          const retryStarted = await p.evaluate(() => performance.now());
           await note.getByRole("button", { name: "Try again" }).click();
           await expect.poll(() => status.textContent()).toBe("Loading the screenshot again.");
           expect(await note.count()).toBe(0);
           await expect.poll(() => retryAttempt.seen(), { timeout: 5_000 }).toBe(true);
           // Deliver the abandoned response while the retry is still held in flight.
           abandoned.go();
-          await p.waitForTimeout(120);
-          expect(await status.textContent()).toBe("Loading the screenshot again.");
-          expect(await note.count()).toBe(0);
-          expect(
-            await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
-          ).toBe(false);
-          // The retry is given up only when its own deadline expires.
-          await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 10_000 }).toBe("temporary");
+          const waitBeforeDeadline = Math.max(
+            50,
+            350 - (await p.evaluate((t0) => performance.now() - t0, retryStarted)),
+          );
+          await p.waitForTimeout(waitBeforeDeadline);
+          // Still before the 700 ms deadline: the retry was not shortened by the abandoned response.
+          await assertRetryIntact();
+          // The retry is given up at its own 700 ms deadline (neither shortened nor extended).
+          await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 2_000 }).toBe("temporary");
+          const elapsed = await p.evaluate((t0) => performance.now() - t0, retryStarted);
+          expect(elapsed).toBeGreaterThanOrEqual(600);
+          expect(elapsed).toBeLessThan(1600);
           expect(await status.textContent()).toBe("The screenshot still could not be loaded.");
           retryAttempt.go();
-          // Recover cleanly before the next check.
-          shotQueue = [];
-          shotMode = "png";
-          await note.getByRole("button", { name: "Try again" }).click();
-          await expect
-            .poll(() =>
-              p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
-            )
-            .toBe(true);
+          await recoverToLoaded();
         }
         // 2. Handler-level stale-event and stale-classification proof: an earlier attempt's error classification
-        // resolving ("gone") and abandoned load/error events arriving while the new attempt is held in flight do not
-        // disturb the active attempt; a negative control without isolation does.
+        // resolving ("gone") and abandoned load/error events arriving while the new attempt is held in flight leave
+        // the retry intact before its 700 ms deadline and let it expire on schedule.
         const initialFail = stepGate("404");
         const staleClassify = stepGate("gone");
         const heldRetry = stepGate("png");
         shotQueue = [initialFail.step, staleClassify.step, heldRetry.step];
         await p.evaluate(() => {
-          const opener = document.querySelector("#e1 a[data-evidence-open]") as HTMLElement;
-          opener.setAttribute("data-deadline-ms", "600");
           const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
           img.setAttribute("src", `${img.getAttribute("src")}&stale=${Date.now()}`);
           img.scrollIntoView();
@@ -1481,7 +1494,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         await expect.poll(() => initialFail.seen()).toBe(true);
         initialFail.go();
         await expect.poll(() => staleClassify.seen()).toBe(true);
-        // Before the first attempt's classification finishes, start a fresh attempt whose transfer is held.
+        const staleRetryStarted = await p.evaluate(() => performance.now());
         await p.evaluate(() => {
           const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
           img.dataset.evidenceRetried = "true";
@@ -1492,7 +1505,6 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           img.setAttribute("src", current);
         });
         await expect.poll(() => heldRetry.seen()).toBe(true);
-        // Release the stale "gone" classification and fire abandoned load/error events while the retry is pending.
         staleClassify.go();
         await p.evaluate(() => {
           const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
@@ -1501,22 +1513,85 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           img.dispatchEvent(new Event("error"));
           delete img.dataset.evidenceAbandoned;
         });
-        await p.waitForTimeout(120);
-        expect(await status.textContent()).toBe("Loading the screenshot again.");
-        expect(await note.count()).toBe(0);
-        // Negative control: when isolation is absent (an unisolated error reaches the active attempt while its
-        // transfer is still held), the failure state appears immediately instead of waiting for the retry's deadline.
-        const negativeClassify = stepGate("404");
-        shotQueue = [negativeClassify.step];
-        negativeClassify.go();
+        const waitStaleBeforeDeadline = Math.max(
+          50,
+          350 - (await p.evaluate((t0) => performance.now() - t0, staleRetryStarted)),
+        );
+        await p.waitForTimeout(waitStaleBeforeDeadline);
+        await assertRetryIntact();
+        await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 2_000 }).toBe("temporary");
+        const staleElapsed = await p.evaluate((t0) => performance.now() - t0, staleRetryStarted);
+        expect(staleElapsed).toBeGreaterThanOrEqual(600);
+        expect(staleElapsed).toBeLessThan(1600);
+        heldRetry.go();
+        // 3. Negative controls: mutating away each isolation guard (stale load, stale error, and stale classification)
+        // causes the unchanged `assertRetryIntact` assertion to fail while the retry transfer is still held.
+        // 3a. Stale load without `data-evidence-abandoned` overwrites the retry status.
+        const heldLoadMut = stepGate("png");
+        shotQueue = [heldLoadMut.step];
+        await note.getByRole("button", { name: "Try again" }).click();
+        await expect.poll(() => heldLoadMut.seen()).toBe(true);
+        await assertRetryIntact();
         await p.evaluate(() => {
-          const opener = document.querySelector("#e1 a[data-evidence-open]") as HTMLElement;
-          opener.setAttribute("data-deadline-ms", "5000");
           const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          delete img.dataset.evidenceAbandoned;
+          img.dispatchEvent(new Event("load"));
+        });
+        await expect(assertRetryIntact()).rejects.toThrow();
+        heldLoadMut.go();
+        await expect
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        // 3b. Stale error without `data-evidence-abandoned` triggers classification and shows the failure note early.
+        const failForErrorMut = stepGate("404");
+        const classifyForErrorMut = stepGate("404");
+        const heldErrorMut = stepGate("png");
+        const unisolatedClassify = stepGate("404");
+        shotQueue = [failForErrorMut.step, classifyForErrorMut.step, heldErrorMut.step, unisolatedClassify.step];
+        failForErrorMut.go();
+        classifyForErrorMut.go();
+        await p.evaluate(() => {
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&errmut=${Date.now()}`);
+        });
+        await expect.poll(() => note.getAttribute("data-evidence-failed")).toBe("temporary");
+        await note.getByRole("button", { name: "Try again" }).click();
+        await expect.poll(() => heldErrorMut.seen()).toBe(true);
+        await assertRetryIntact();
+        unisolatedClassify.go();
+        await p.evaluate(() => {
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          delete img.dataset.evidenceAbandoned;
           img.dispatchEvent(new Event("error"));
         });
         await expect.poll(() => note.count()).toBe(1);
-        heldRetry.go();
+        await expect(assertRetryIntact()).rejects.toThrow();
+        heldErrorMut.go();
+        await recoverToLoaded();
+        // 3c. Stale classification without attempt-identity change (same attempt number) overwrites the loading state.
+        const failForClassMut = stepGate("404");
+        const heldClassMut = stepGate("gone");
+        shotQueue = [failForClassMut.step, heldClassMut.step];
+        await p.evaluate(() => {
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&classmut=${Date.now()}`);
+        });
+        await expect.poll(() => failForClassMut.seen()).toBe(true);
+        failForClassMut.go();
+        await expect.poll(() => heldClassMut.seen()).toBe(true);
+        // Simulate a retry UI state that failed to advance the attempt counter (`src` unchanged).
+        await p.evaluate(() => {
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          img.dataset.evidenceRetried = "true";
+          const s = document.querySelector("#e1 [data-evidence-status]") as HTMLElement;
+          s.textContent = "Loading the screenshot again.";
+        });
+        await assertRetryIntact();
+        heldClassMut.go();
+        await expect.poll(() => note.getAttribute("data-evidence-failed")).toBe("gone");
+        await expect(assertRetryIntact()).rejects.toThrow();
       } finally {
         shotQueue = [];
         for (const go of pending) go();
