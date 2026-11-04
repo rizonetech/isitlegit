@@ -20,6 +20,7 @@ import {
   reserveExperiment,
 } from "../pipeline/case-experiments";
 import { eventStatement } from "../pipeline/events";
+import { recoverIntakeObject } from "./store";
 
 // A pending claim younger than this belongs to a delivery still being processed; an older one to a delivery that
 // stopped. Well above a handler's run time.
@@ -324,7 +325,8 @@ async function stored(env: Env, caseId: string): Promise<boolean> {
   )
     .bind(caseId)
     .first<{ r2_key: string }>();
-  return !!row && (await env.ARTEFACTS.head(row.r2_key)) !== null;
+  if (row && (await env.ARTEFACTS.head(row.r2_key)) !== null) return true;
+  return recoverIntakeObject({ db: env.DB, bucket: env.ARTEFACTS }, caseId);
 }
 
 // Whether the case's Workflow instance exists: `instance.not_found` is the binding's answer for none; any other

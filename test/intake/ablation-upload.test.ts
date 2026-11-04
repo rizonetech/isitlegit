@@ -171,6 +171,7 @@ describe("immutable per-case ablation admission", () => {
       .first<{ case_id: string; active_upload_key: null }>();
     if (!failed) throw new Error("missing failed attribution");
     expect(failed.active_upload_key).toBeNull();
+    await sweepIntake(m.workerEnv);
     const retry = await upload(m.cookie, m.workerEnv);
     expect(retry.status).toBe(201);
     expect(((await retry.json()) as { caseId: string }).caseId).not.toBe(failed?.case_id);
@@ -293,5 +294,38 @@ describe("immutable per-case ablation admission", () => {
     expect((await upload(m.cookie, unavailable)).status).toBe(503);
     expect(m.starts).toHaveLength(0);
     expect(await db.prepare("SELECT COUNT(*) AS n FROM cases WHERE org_id=?").bind(m.orgId).first()).toEqual({ n: 0 });
+  });
+  it("recovers an R2 object whose artefact row failed without replacing the experimental case", async () => {
+    const m = await member();
+    const database = new Proxy(db, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (sql.includes("INSERT INTO artefacts")) throw new Error("synthetic artefact insert outage");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    expect((await upload(m.cookie, { ...m.workerEnv, DB: database })).status).toBe(503);
+    const row = await db
+      .prepare("SELECT case_id,active_upload_key FROM case_experiments WHERE org_id=?")
+      .bind(m.orgId)
+      .first<{ case_id: string; active_upload_key: string | null }>();
+    if (!row) throw new Error("missing experiment case");
+    expect(row.active_upload_key).not.toBeNull();
+    const objects = await m.workerEnv.ARTEFACTS.list({ prefix: `raw/${row.case_id}/` });
+    expect(objects.objects).toHaveLength(1);
+    await db
+      .prepare("UPDATE intake_messages SET claimed_at='2020-01-01T00:00:00.000Z' WHERE org_id=?")
+      .bind(m.orgId)
+      .run();
+    expect((await sweepIntake(m.workerEnv)).completed).toBe(1);
+    const retry = await upload(m.cookie, m.workerEnv);
+    expect(retry.status).toBe(200);
+    expect(((await retry.json()) as { caseId: string }).caseId).toBe(row.case_id);
+    expect(m.starts).toEqual([row.case_id]);
+    expect(await readCaseExperiment(db, row.case_id, m.orgId)).toEqual({ ...context(), replayRunId: "arm-full" });
   });
 });
