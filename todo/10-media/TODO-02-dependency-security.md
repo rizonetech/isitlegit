@@ -37,6 +37,8 @@ track: day-6
 
 Coordinator MEDIA-ZOD-SECURITY authorizes this narrow remediation for alerts63/64, one HIGH advisory GHSA-mrhx-c7xc-m3w5. The GitHub advisory reports versions below4.6.6 affected. Use exact4.6.7, already cached in the root workspace, without changing that workspace. This closes the media dependency exposure, not GitHub alert state or an inferred Worker deployment block. Preserve dirty D10 T01§12 evidence separately; do not restamp it or migrate its historical review chain.
 
+> **Started:** 2026-11-04T11:38:23.148720+00:00
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
