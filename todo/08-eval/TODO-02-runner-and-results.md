@@ -49,6 +49,7 @@ track: day-6
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [ ] |
 | 18 | §18 | Recoverable PDF corpus publication | §2 | [ ] |
+| 19 | §19 | Machine-crash durability for generated corpora | §18 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -535,6 +536,8 @@ Coordinator `critical-path-contract` (2026-11-04) assigns eval the remaining run
 **Needs:** none
 **Surface:** no
 
+**Locked integration contract 2026-11-04:** Checks D01 T03 §17 and D04 T01 §17 own the implementation behind migration `0095_case_experiments.sql`, which is not yet merged here. Wire is strict JSON `ablate` with explicit full plus separate replayRunId, never the crossed scalar proposal. Preflight `GET /api/upload/ablation-capabilities` must validate `{version:1,commit,durableContext:true,uploadArms,screening:false}` and every requested upload arm before the baseline spends; absence, disabled eval organisation, schema outage or mismatched deployment refuses. The persisted case binding additionally has immutable `upload_key` and nullable `active_upload_key`; only definitively unstarted RawMissing settlement releases the latter. Unknown dispatch outcome keeps identity; retained successful cases remain idempotent after 24 hours. Resume must reconcile the active binding, never measure failed RawMissing history or silently select a new arm identity. The local experiment manifest persists exact selection, caps and stable IDs before dispatch; an ambiguous insert/upload is reconciled using the same IDs. Missing capabilities or attribution must never fall back to ordinary uploads. No live execution is authorized by this offline section alone.
+
 **Build order:**
 
 1. Validate and persist immutable experiment and arm identities. Done when: restart loads the same selected IDs, digest, deployment and per-arm replay identity, and drift is refused before upload.
@@ -575,6 +578,26 @@ Coordinator `eval-decisions-0950` authorizes this genuine scoped recovery repair
 - [x] Commit: `eval: publish PDF corpora with recoverable generations`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts` and `node eval/forensics/score.ts --check eval/RESULTS.md` pass; failed/truncated writes and process termination preserve a verified generation, restart recovers, and successful regeneration reads back with identical hashes. Typecheck, lint and build pass.
+
+## 19. Machine-crash durability for generated corpora
+
+Filed contract only under coordinator `corpus-durability-scope-decision` (2026-11-04), from §18 final completion at `b1560b73`. No implementation or retrospective approval. §18 covers write failures and process termination; its existing SIGKILL tests leave operating-system caches alive and do not prove power-loss durability. This follow-up does not close or restamp §18 or §6. Priority remains §17.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Define filesystem guarantees and a persistence-boundary fault model. Done when: supported filesystems, file/directory synchronization order, power-loss limits and process-crash guarantees are explicit, without equating SIGKILL with machine failure.
+2. Implement synchronized publication and validated-backup recovery. Done when: a damaged live generation is preserved for diagnosis while a verified prior generation can be restored, and no unverified generation is promoted as success.
+
+- [ ] Record the supported storage contract for `eval/forensics/build.ts`, including file and directory fsync ordering and failure semantics. Done when: each acknowledged durable state maps to a named persistence boundary and every unsupported filesystem/power-loss claim is explicit. Cheaper substitute: process-only tests leave volatile caches intact.
+- [ ] Add fsync-aware publication and recovery that validates both live and saved generations before selecting a usable corpus. Done when: damaged live bytes cannot block restoration of an intact verified backup, both damaged generations fail clearly without deletion, and synchronization errors preserve recoverable evidence. Cheaper substitute: unconditional preference for the live pathname.
+- [ ] Add `test/node/eval-forensics-durability.test.ts` with a falsifiable storage model that discards unsynchronized data and namespace changes at every boundary. Done when: retry always selects a fully verified persisted generation or refuses honestly, removing each necessary synchronization makes the regression fail, and model assumptions are documented separately from actual hardware evidence. Cheaper substitute: SIGKILL alone proves process termination only.
+- [ ] Commit: `eval: synchronize corpus publication and recover verified backups`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts test/node/eval-forensics-durability.test.ts` passes with synchronization-removal mutations failing. No physical power-loss or hardware guarantee is claimed without separately observed evidence.
 
 ## Verification
 
