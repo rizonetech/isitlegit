@@ -1,0 +1,109 @@
+{
+  "ref": "D02 T02 \u00a79",
+  "title": "Gateway relay ranges, decided",
+  "implementation_sha": "d817e025a1cb7f7ed2f7d329715ea6286353f89a",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T02-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "`python3 scripts/todo-graph.py validate` and `python3 scripts/todo-graph.py plan --check` pass with the filed sections; final completion self-review verifies every design requirement maps to a resolving implementation section and a falsifiable test, including verified no-SPF success and cached-trust removal after edit/revocation. -> validate606 sections and plan current; final completion verifies all9design coverage requirements and exact console20f4747fcontracts, emptygaplist. Design-only proof, no gateway runtime or shipped surface claim."
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T02-s9.md",
+    "verdict": "complete",
+    "candidate": "d817e025a1cb7f7ed2f7d329715ea6286353f89a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T02-s9.md",
+    "candidate": "0752a714a4ce9d44a0b39d0ed315354c6e4e57dd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -39,7 +39,7 @@ track: day-2
 | 6 | §6 | Receiving chains behind a filtering gateway | §1 | [x] |
 | 7 | §7 | First-time sender per recipient | §5 | [ ] |
 | 8 | §8 | Familiarity from consented mail | §5 | [ ] |
-| 9 | §9 | Gateway relay ranges, decided | §6 | [ ] |
+| 9 | §9 | Gateway relay ranges, decided | §6 | [x] |
 | 10 | §10 | Configured relay revision lifecycle | §9 | [ ] |
 | 11 | §11 | Configured relay trust consumption | §10 | [ ] |
 
@@ -286,12 +286,15 @@ Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6
 
 1. Decide where a gateway's relay ranges come from when its SPF does not name them. Done when: a dated design in `docs/specs/` names the source (ranges an organisation admin enters, read from the provider's connector settings, or neither), how they are verified and revoked, and the sections that build it, approved by the operator.
 
-- [ ] Write the design in `docs/specs/YYYY-MM-DD-gateway-relay-ranges-design.md` from `docs/specs/2026-10-31-receiving-chains-design.md` and §6's `org_receiving_chains`. Done when: the operator's approval is recorded in it, with a synthetic gateway whose ingress and egress differ and whose relays no SPF names.
-- [ ] File the complete lifecycle sections through `add-todo`. Done when: admin entry/edit/removal, validation and verification failures, persisted read-back and `chainsForOrg` consumption each have a resolving owner dependent on this section; cross-lane assignments come from the coordinator. Cheaper substitute: a broad implementation placeholder leaves required behavior unowned.
-- [ ] Map each design requirement in `docs/specs/2026-11-04-gateway-relay-ranges-design.md` to its implementation section and falsifiable acceptance test. Done when: the review checks the mapping against the filed contracts, including a no-SPF relay accepted only after verification, explicit SPF precedence, and edit/revocation removing cached configured trust. Cheaper substitute: graph validation alone cannot prove coverage.
-- [ ] Commit: `docs: gateway relay ranges from configuration decided`
+- [x] Write the design in `docs/specs/YYYY-MM-DD-gateway-relay-ranges-design.md` from `docs/specs/2026-10-31-receiving-chains-design.md` and §6's `org_receiving_chains`. Done when: the operator's approval is recorded in it, with a synthetic gateway whose ingress and egress differ and whose relays no SPF names.
+- [x] File the complete lifecycle sections through `add-todo`. Done when: admin entry/edit/removal, validation and verification failures, persisted read-back and `chainsForOrg` consumption each have a resolving owner dependent on this section; cross-lane assignments come from the coordinator. Cheaper substitute: a broad implementation placeholder leaves required behavior unowned.
+- [x] Map each design requirement in `docs/specs/2026-11-04-gateway-relay-ranges-design.md` to its implementation section and falsifiable acceptance test. Done when: the review checks the mapping against the filed contracts, including a no-SPF relay accepted only after verification, explicit SPF precedence, and edit/revocation removing cached configured trust. Cheaper substitute: graph validation alone cannot prove coverage.
+- [x] Commit: `docs: gateway relay ranges from configuration decided`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` and `python3 scripts/todo-graph.py plan --check` pass with the filed sections; final completion self-review verifies every design requirement maps to a resolving implementation section and a falsifiable test, including verified no-SPF success and cached-trust removal after edit/revocation.
+
+> **Verified:** 2026-11-04 | §9 | d817e025a1cb7f7ed2f7d329715ea6286353f89a
+> **Review:** `docs/reviews/d02-t02-s9.json`
 
 ## 10. Configured relay revision lifecycle
 
