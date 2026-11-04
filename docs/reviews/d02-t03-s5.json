@@ -1,0 +1,127 @@
+{
+  "ref": "D02 T03 \u00a75",
+  "title": "Accent-insensitive lookalikes, measured",
+  "implementation_sha": "19237f4aa0e0e9c08c8588a0b2bfe553105b589f",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: pnpm exec vitest run test/checks/lookalike.test.ts test/checks/domain-lookalike.test.ts test/node/lookalikes.test.ts -> 66 passed; node scripts/fixtures/make-lookalikes.ts --check -> 29 targets, 203 positives, 60 benign; node scripts/measure-lookalikes.ts -> existing 174/203, extended 203/203, false flags 0/60. Additional monitor/reputation/claim tests -> 64 passed, full pnpm typecheck and dry-run build passed, pnpm lint exit0 with unrelated warnings, publication clean. Failing-first domain and monitor regression evidence recorded in section."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T03-s5.md",
+    "verdict": "complete",
+    "candidate": "19237f4aa0e0e9c08c8588a0b2bfe553105b589f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T03-s5.md",
+    "candidate": "dc836bbd0aad7b84266d9a2085ca73a79a76755c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

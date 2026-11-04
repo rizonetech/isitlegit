@@ -38,7 +38,7 @@ track: day-2
 | 2 | §2 | Lookalike check against own, supplier and brand names | §1, §3 | [x] |
 | 3 | §3 | Curated brand domain table in KV | D02 T01 §1 | [x] |
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [x] |
-| 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
+| 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [x] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [x] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
@@ -197,6 +197,9 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 **Implementation evidence 2026-11-04:** Fixed corpus: 29 targets, 203 positives (29 per family), 60 independently named benign labels, seed 20261104; no detector-based filtering. Existing combined detections 174/203, with exact accent-fold equality 203/203; both flag 0/60 benign labels. Source-digest-pinned reference and limitations recorded in `docs/evals/lookalikes.md`. Section tests: 66 passed. Failing-first domain regression returned empty evidence before the fix; stored read-back now verifies technique, severity, target and provenance. Monitor caller contract regression failed ordering before its one-entry map fix; root typecheck also failed on the missing exhaustive key. Caller verification: 63 existing monitor/reputation/claim tests pass, plus the isolated Worker monitor contract test (failed without rank 4, passed with it) and four tooling tests. Full typecheck, targeted formatting, fixture check and dry-run Worker build pass. These are local results, not CI or deployment evidence.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts test/checks/domain-lookalike.test.ts test/node/lookalikes.test.ts`, `node scripts/fixtures/make-lookalikes.ts --check` and `node scripts/measure-lookalikes.ts` pass. The accent-only integration regression fails before the fix; stored evidence read-back proves technique, target, severity and provenance. Eligibility, trusted-domain exclusions and right-to-left refusals remain tested. Comparator digest mismatch fails explicitly. `docs/evals/lookalikes.md` records measured tables and reproducible commands.
+
+> **Verified:** 2026-11-04 | §5 | 19237f4aa0e0e9c08c8588a0b2bfe553105b589f
+> **Review:** `docs/reviews/d02-t03-s5.json`
 
 ## 6. Right-to-left lookalike labels
 
