@@ -8,7 +8,6 @@ import { CREDITS as END_CREDITS, Credits as EndCredits } from "../kit/credits";
 import { revealFrames } from "../kit/reveal";
 import { MusicBed, Sfx } from "../kit/sound";
 import { Voice, voicedFrames, voiceFor, voiceSpans } from "../kit/voice";
-import { LoupeCascadeXRay } from "../kit/xray";
 import { LOUPE_REVEAL_MIN, LOUPE_VOICE_AT, LoupeReveal } from "./LoupeMark";
 
 // Script: media/scripts/03-loupe-1-0.md. Every figure: media/data/loupe-facts.json, proven by media/tools/check-facts.py.
@@ -71,7 +70,6 @@ const Job: React.FC = () => {
           <Box title="Muse Spark" sub="failover" dashed />
         </div>
       </div>
-      <LoupeCascadeXRay style={{ marginTop: 24 }} />
     </Scene>
   );
 };
@@ -462,7 +460,7 @@ export const LoupeV1: React.FC = () => {
           <Series.Sequence key={part.key} durationInFrames={frames[i]}>
             {part}
             {META[i] ? <MetaBadge text={META[i]} /> : null}
-            {i === last ? <MetaAttributionStrip style={{ position: "absolute", left: 120, right: 120, bottom: 48 }} /> : null}
+            {i === last ? <MetaAttributionStrip style={{ position: "absolute", left: 0, right: 0, bottom: 56 }} /> : null}
             {i === 0 ? <Sfx name="swell" /> : i < last ? <Sfx name="whoosh" /> : null}
             {i > 0 ? <Voice clip={clips?.[i]} /> : null}
           </Series.Sequence>

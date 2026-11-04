@@ -2,7 +2,7 @@
   "id": "TechDeepDive",
   "title": "IsItLegit: how it works",
   "sub": "A technical deep dive: intake, the pipeline, the checks, Meta's models, the verdict, the trust network, storage and the app.",
-  "label": "Technical deep dive: built state as of {stats.date}, commit {stats.commit}",
+  "label": "Technical deep dive: as built on 31 Oct 2026, commit {stats.commit}",
   "close": [
     "github.com/rizonetech/isitlegit",
     "Every figure is quoted from the repository at commit {stats.commit}"
@@ -94,7 +94,7 @@
       "type": "chapter",
       "number": 3,
       "title": "Uploads, parsing and voice",
-      "sub": "Status: shipped. Upload, MIME parsing, WASM Opus voice decoding and muse-voice-transcribe-1.0 transcription are shipped in src/."
+      "sub": "Status: partly built. Upload and parsing are shipped; voice decoding is built but not yet wired in; transcription is planned."
     },
     {
       "type": "table",
@@ -138,7 +138,7 @@
       "type": "chapter",
       "number": 4,
       "title": "The investigation pipeline",
-      "sub": "Status: shipped. All seven workflow steps including the Muse Spark verdict agent run in src/workflow/."
+      "sub": "Status: shipped, with the verdict step still a stub until the agent lands."
     },
     {
       "type": "flow",
@@ -247,7 +247,7 @@
       "type": "chapter",
       "number": 6,
       "title": "Reputation and the hard floor",
-      "sub": "Status: shipped. Web Risk, 1.1.1.2 DoH reputation and the deterministic floor are shipped in src/checks/."
+      "sub": "Status: planned."
     },
     {
       "type": "bullets",
@@ -269,7 +269,7 @@
       "type": "chapter",
       "number": 7,
       "title": "Following the link",
-      "sub": "Status: shipped. Per-case canary credentials, the contained Browser Run driver and the Muse Wonder walkthrough agent are shipped in src/agent/."
+      "sub": "Status: started. The per-case canary credentials are built; the driver and the Muse Wonder walk are next."
     },
     {
       "type": "flow",
@@ -312,7 +312,7 @@
       "type": "chapter",
       "number": 8,
       "title": "Vision",
-      "sub": "Status: shipped. Muse Spark visual read, SAM 3.1 logo segmentation and comparison, and the Loupe page screener with Spark failover are shipped in src/vision/."
+      "sub": "Status: partly built. The page-screen contract is shipped and Loupe 1.0 is trained; logo comparison and the screener's deployment and measurement are open."
     },
     {
       "type": "bullets",
@@ -330,7 +330,7 @@
       "type": "chapter",
       "number": 9,
       "title": "The Meta model client",
-      "sub": "Status: shipped. AI Gateway client, budget reservation, zod validation and KV caching are shipped in src/models/."
+      "sub": "Status: built and live-checked; the pipeline calls it once the verdict agent lands."
     },
     {
       "type": "table",
@@ -384,7 +384,7 @@
       "type": "chapter",
       "number": 10,
       "title": "The verdict agent",
-      "sub": "Status: shipped. Muse Spark verdict agent, read-only tools, citation validator and untrusted content fences are shipped in src/agent/."
+      "sub": "Status: planned. The next big piece of the build."
     },
     {
       "type": "code",
@@ -414,7 +414,7 @@
       "type": "chapter",
       "number": 11,
       "title": "Invoices and payments",
-      "sub": "Status: shipped. Structured invoice extraction, supplier ledger comparison, bank-change floor and PDF forensics are shipped in src/invoice/."
+      "sub": "Status: started. PDF forensics and the fixed payment actions are built; extraction and the supplier ledger are planned."
     },
     {
       "type": "bullets",
@@ -431,7 +431,7 @@
       "type": "chapter",
       "number": 12,
       "title": "The trust network",
-      "sub": "Status: shipped. Protected identities, bank-detail privacy, closed-loop verification, signature badge, website seal and impersonation monitor are shipped in src/trust/."
+      "sub": "Status: started. The protected-identity data model is built; registration, the monitor and the badge are planned."
     },
     {
       "type": "bullets",
@@ -473,7 +473,7 @@
       "type": "chapter",
       "number": 13,
       "title": "Storage, retention and privacy",
-      "sub": "Status: shipped. D1, R2 lifecycle rules, KV caching, account closure retention and redacted logging are shipped."
+      "sub": "Status: partly built."
     },
     {
       "type": "table",
@@ -513,7 +513,7 @@
       "type": "chapter",
       "number": 14,
       "title": "The app",
-      "sub": "Status: shipped. Auth, tenancy, report links, cases list, member console, admin console and Astro marketing site are shipped."
+      "sub": "Status: partly built. Auth, tenancy, report links, the cases list and domain proof are shipped; the admin console and the site are planned."
     },
     {
       "type": "bullets",
@@ -549,7 +549,7 @@
     },
     {
       "type": "bullets",
-      "title": "Evaluation (shipped)",
+      "title": "Evaluation (partly built)",
       "items": [
         "Built: the labelled corpora and their loader. Next: the runner, the metrics and the ablation.",
         "Targets: {fact.evalTargets}.",

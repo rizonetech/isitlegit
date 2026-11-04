@@ -1,22 +1,19 @@
 // The 3-minute demo video (D09 T02 §3 and §4; docs/specs/2026-10-31-demo-video-design.md), built from captures of the
-// live service (media/capture/), the operator's generated shots and plates, and narration in Brian's voice
-// (data/narration/demo.json). Every clip of the product is the live app as the rig recorded it; every time on screen is
-// measured from the capture's own marks; every figure is a pinned fact or a sourced figure from the spec.
+// live service (media/capture/), the operator's on-camera intro and generated shots and plates, and narration in
+// Brian's voice (data/narration/demo.json). Every clip of the product is the live app as the rig recorded it; every
+// time on screen is measured from the capture's own marks; every figure is a pinned fact or a sourced figure.
+//
+// Rules this cut keeps (operator review, 2026-11-04): each scene lasts as long as its narration, so a line is never cut
+// off and no scene runs on in silence; nothing is drawn on top of the product: captions sit under the browser window
+// and the Meta model marker sits in the window's title bar; nothing is shown that the live service cannot back.
 import type React from "react";
 import { AbsoluteFill, Freeze, Img, interpolate, Loop, OffthreadVideo, Sequence, Series, useCurrentFrame } from "remotion";
-import { CAPTURE, GENERATED } from "../data/demo-capture";
 import loupe from "../../data/loupe-facts.json";
 import tech from "../../data/tech-facts.json";
-import { body, CARD, c, head, Logo, MetaAttributionStrip, MetaBadge, mono } from "../brand";
+import { body, CARD, c, head, Logo, MetaAttributionStrip, MetaInfinity, mono } from "../brand";
+import { CAPTURE, GENERATED } from "../data/demo-capture";
 import { MusicBed, Sfx } from "../kit/sound";
-import { Voice, voiceFor, voiceSpans } from "../kit/voice";
-import { LoupeCascadeXRay, ModelTraceXRay, SamXRay, SparkXRay, VoiceDecoderXRay, WonderXRay } from "../kit/xray";
-import boardAlert from "../../../design/mockups/png/Email-Impersonation.png";
-import boardMonitorMail from "../../../design/mockups/png/Email-Monitor.png";
-import boardMonitor from "../../../design/mockups/png/Monitor.png";
-import boardBadges from "../../../design/mockups/png/Badges.png";
-import boardSeal from "../../../design/mockups/png/Seal-Frames.png";
-import boardVerify from "../../../design/mockups/png/Verify-Protected.png";
+import { type Clip as VoiceClip, Voice, voiceFor } from "../kit/voice";
 
 const FPS = 30;
 const s = (seconds: number) => Math.max(1, Math.round(seconds * FPS));
@@ -26,134 +23,105 @@ const fact = (key: string): string =>
 
 type Box = { x: number; y: number; width: number; height: number };
 type Beat = { src: string; caseId: string | null; marks: Record<string, number>; boxes: Record<string, Box | null> };
-const beat = (name: string): Beat | null => ((CAPTURE?.beats as Record<string, Beat> | undefined)?.[name] ?? null);
+export const beat = (name: string): Beat | null => ((CAPTURE?.beats as Record<string, Beat> | undefined)?.[name] ?? null);
 
-// The browser window the footage sits in: the capture is 1920 x 1080, shown at FRAME_W wide under a title bar.
-const FRAME_W = 1600;
+// Narration timing: the voice starts LEAD after its scene does and the scene ends TAIL after the last word.
+const LEAD = 0.3;
+const TAIL = 0.5;
+// The operator's intro (GENERATED.intro, 6.6 s) brought to the narration's reference level (tools/voice-index.py,
+// REFERENCE -24 LUFS; the clip measures -16.8 LUFS).
+const INTRO_SECONDS = 6.6;
+const INTRO_GAIN = 0.43;
+
+// The browser window every capture plays in: 1440 wide (the 1920 capture at 0.75), under a 44 px title bar, high on
+// the frame so the caption band below it never covers the product.
+const FRAME_W = 1440;
 const SCALE = FRAME_W / 1920;
 const FRAME_H = Math.round(1080 * SCALE);
 const BAR = 44;
+const WIN_LEFT = (1920 - FRAME_W) / 2;
+const WIN_TOP = 56;
+const CAPTION_TOP = WIN_TOP + BAR + FRAME_H + 22;
 
-const Window: React.FC<{
-  src: string;
-  startAt: number;
-  path?: string;
-  zoomFrom?: number;
-  zoomTo?: number;
-  focusY?: number;
-  rate?: number;
-  showClock?: boolean;
-  clockBase?: number;
-}> = ({
-  src,
-  startAt,
-  path = "app.isitlegit.co.za",
-  zoomFrom,
-  zoomTo,
-  focusY = 540,
-  rate = 1,
-  showClock = false,
-  clockBase = 0,
-}) => {
-  const frame = useCurrentFrame();
-  const z =
-    zoomFrom !== undefined && zoomTo !== undefined
-      ? interpolate(frame, [s(zoomFrom), s(zoomFrom + 1.2), s(zoomTo - 1.0), s(zoomTo)], [1, 1.22, 1.22, 1], clamp)
-      : 1;
-  const elapsedSec = clockBase + (frame * rate) / FPS;
-  const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
-  const ss = String(Math.floor(elapsedSec % 60)).padStart(2, "0");
-  const tenths = Math.floor((elapsedSec % 1) * 10);
-  return (
-    <div style={{ position: "absolute", left: (1920 - FRAME_W) / 2, top: (1080 - FRAME_H - BAR) / 2 + 12, width: FRAME_W, borderRadius: 18, overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.55)", border: `2px solid ${c.line}` }}>
-      <div style={{ height: BAR, background: c.surface, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {["#ff5f57", "#febc2e", "#28c840"].map((dot) => (
-            <div key={dot} style={{ width: 13, height: 13, borderRadius: 7, background: dot }} />
-          ))}
-          <div style={{ ...mono, fontSize: 18, color: c.muted, marginLeft: 18 }}>{path}</div>
-        </div>
-        {showClock ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,107,0,0.14)", border: `1px solid ${c.orange}`, borderRadius: 999, padding: "2px 14px" }}>
-            <div style={{ width: 8, height: 8, borderRadius: 4, background: c.orange }} />
-            <span style={{ ...mono, fontSize: 15, color: c.orange, fontWeight: 700 }}>#demo-clock (+{mm}:{ss}.{tenths}s)</span>
+/** The Meta model at work in a window, named in its title bar (never over the page). */
+export type Model = { name: string; job: string };
+
+const Window: React.FC<{ src: string; startAt: number; path: string; rate?: number; model?: Model; chip?: string }> = ({ src, startAt, path, rate = 1, model, chip }) => (
+  <div style={{ position: "absolute", left: WIN_LEFT, top: WIN_TOP, width: FRAME_W, borderRadius: 16, overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.6)", border: `1px solid ${c["line-strong"]}` }}>
+    <div style={{ height: BAR, background: c.surface, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        {["#ff5f57", "#febc2e", "#28c840"].map((dot) => (
+          <div key={dot} style={{ width: 12, height: 12, borderRadius: 6, background: dot }} />
+        ))}
+        <div style={{ ...mono, fontSize: 17, color: c.muted, marginLeft: 16 }}>{path}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {chip ? <div style={{ ...mono, fontSize: 15, color: c.orange, border: `1px solid ${c.orange}`, borderRadius: 999, padding: "2px 12px" }}>{chip}</div> : null}
+        {model ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, ...body, fontSize: 17, fontWeight: 600, color: c.ink }}>
+            <MetaInfinity size={26} />
+            {model.name}
+            <span style={{ fontWeight: 500, color: c.muted }}>{model.job}</span>
           </div>
         ) : null}
       </div>
-      <div style={{ width: FRAME_W, height: FRAME_H, overflow: "hidden", position: "relative", background: "#fff" }}>
-        <div
-          style={{
-            width: FRAME_W,
-            height: FRAME_H,
-            transformOrigin: `${FRAME_W / 2}px ${Math.round(focusY * SCALE)}px`,
-            transform: `scale(${z})`,
-          }}
-        >
-          <OffthreadVideo src={src} startFrom={s(startAt)} playbackRate={rate} muted style={{ width: FRAME_W, height: FRAME_H }} />
-        </div>
-      </div>
     </div>
-  );
-};
-
-const clipRate = (from: number, to: number, slot: number) => Math.min(3.5, Math.max(1, ((to - from) * FPS) / Math.max(1, slot)));
-
-const Clip: React.FC<{
-  src: string;
-  from: number;
-  to: number;
-  slot: number;
-  path?: string;
-  showClock?: boolean;
-  clockBase?: number;
-}> = ({ src, from, to, slot, path, showClock, clockBase }) => {
-  const rate = clipRate(from, to, slot);
-  return (
-    <Held clipFrames={Math.max(1, Math.floor(((to - from) * FPS) / rate))}>
-      <Window src={src} startAt={from} path={path} rate={rate} showClock={showClock} clockBase={clockBase} />
-    </Held>
-  );
-};
-
-const Held: React.FC<{ children: React.ReactNode; clipFrames: number }> = ({ children, clipFrames }) => (
-  <Freeze frame={Math.min(useCurrentFrame(), clipFrames - 1)}>{children}</Freeze>
-);
-
-/** Thin trace strip along the foot of every live beat (docs/specs/2026-10-31-demo-video-design.md, "Trace strip"). */
-const TraceStrip: React.FC<{ items: { label: string; value: string }[] }> = ({ items }) => (
-  <div
-    style={{
-      position: "absolute",
-      left: (1920 - FRAME_W) / 2,
-      width: FRAME_W,
-      bottom: 18,
-      height: 42,
-      background: `${CARD}ee`,
-      border: `1px solid ${c.line}`,
-      borderRadius: 999,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "0 26px",
-    }}
-  >
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <div style={{ width: 10, height: 10, borderRadius: 5, background: c.orange }} />
-      <span style={{ ...mono, fontSize: 18, color: c.orange, fontWeight: 700 }}>LIVE TRACE</span>
-    </div>
-    <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-      {items.map((item) => (
-        <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ ...body, fontSize: 18, color: c.muted }}>{item.label}:</span>
-          <span style={{ ...mono, fontSize: 18, color: c.ink, fontWeight: 600 }}>{item.value}</span>
-        </div>
-      ))}
+    <div style={{ width: FRAME_W, height: FRAME_H, overflow: "hidden", background: "#fff" }}>
+      <OffthreadVideo src={src} startFrom={s(startAt)} playbackRate={rate} muted style={{ width: FRAME_W, height: FRAME_H }} />
     </div>
   </div>
 );
 
-const fade = (frame: number, total: number, edge = 14) => interpolate(frame, [0, edge, total - edge, total], [0, 1, 1, 0], clamp);
+const rateFor = (from: number, to: number, slot: number, max = 3.5) => Math.min(max, Math.max(1, ((to - from) * FPS) / Math.max(1, slot)));
 
+/**
+ * One stretch of a capture, from `from` to `to` seconds of the take, played into `slot` frames: in real time when it
+ * fits, sped up when it does not (the chip then says how much), and held on its last frame if the take runs out first.
+ */
+// The rig's marks are wall-clock seconds; Playwright's recordings run about 9.5% longer than the wall clock (measured on
+// the 2026-11-03 capture: every beat's video over its last mark, 1.075 to 1.104), so a mark is scaled onto the video.
+const VIDEO_PER_MARK = 1.095;
+
+export const Take: React.FC<{ src: string; from: number; to: number; slot: number; path: string; model?: Model; max?: number; chip?: string }> = ({ src, from: markFrom, to: markTo, slot, path, model, max, chip }) => {
+  const from = markFrom * VIDEO_PER_MARK;
+  const to = markTo * VIDEO_PER_MARK;
+  const rate = rateFor(from, to, slot, max);
+  const frames = Math.max(1, Math.floor(((to - from) * FPS) / rate));
+  const label = chip ?? (rate >= 1.5 ? `${rate.toFixed(rate >= 10 ? 0 : 1)}x speed` : undefined);
+  return (
+    <Freeze frame={Math.min(useCurrentFrame(), frames - 1)}>
+      <Window src={src} startAt={from} path={path} rate={rate} model={model} chip={label} />
+    </Freeze>
+  );
+};
+
+/** One caption under the window, content-sized and centred, shown from `from` to `to` frames of its scene. */
+export const Caption: React.FC<{ from: number; to: number; text: string }> = ({ from, to, text }) => {
+  const f = useCurrentFrame();
+  const o = Math.min(interpolate(f, [from, from + 10], [0, 1], clamp), interpolate(f, [to - 10, to], [1, 0], clamp));
+  if (o <= 0) return null;
+  return (
+    <div style={{ position: "absolute", left: 0, right: 0, top: CAPTION_TOP, display: "flex", justifyContent: "center", opacity: o }}>
+      <div style={{ ...body, fontSize: 30, fontWeight: 600, color: c.ink, background: `${CARD}f2`, border: `1px solid ${c["line-strong"]}`, borderRadius: 999, padding: "9px 28px" }}>{text}</div>
+    </div>
+  );
+};
+
+/** A stretch of a scene that cross-fades in at `from` and out at `to`. */
+export const Part: React.FC<{ from: number; to: number; children: React.ReactNode; last?: boolean }> = ({ from, to, children, last }) => {
+  const f = useCurrentFrame();
+  const o = last ? interpolate(f, [from - 6, from + 10], [0, 1], clamp) : interpolate(f, [from - 6, from + 10, to - 10, to], [0, 1, 1, 0], clamp);
+  if (o <= 0) return null;
+  return (
+    <AbsoluteFill style={{ opacity: o }}>
+      <Sequence from={Math.max(0, from - 6)}>{children}</Sequence>
+    </AbsoluteFill>
+  );
+};
+
+const fade = (frame: number, total: number, edge = 12) => interpolate(frame, [0, edge, total - edge, total], [0, 1, 1, 0], clamp);
+
+/** A generated plate behind a scene, dimmed so the text on top stays the brightest thing. */
 const Plate: React.FC<{ src: string | null; dim?: number; side?: "left" | "right" }> = ({ src, dim = 0.35, side }) => {
   const frame = useCurrentFrame();
   if (!src) return null;
@@ -161,644 +129,373 @@ const Plate: React.FC<{ src: string | null; dim?: number; side?: "left" | "right
     <AbsoluteFill>
       <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${1 + frame / 6000})` }} />
       <AbsoluteFill style={{ background: `rgba(7,6,9,${dim})` }} />
-      {side ? <AbsoluteFill style={{ background: `linear-gradient(${side === "left" ? 90 : 270}deg, rgba(7,6,9,0.85), transparent 60%)` }} /> : null}
+      {side ? <AbsoluteFill style={{ background: `linear-gradient(${side === "left" ? 90 : 270}deg, rgba(7,6,9,0.9), transparent 65%)` }} /> : null}
     </AbsoluteFill>
   );
 };
 
-const Source: React.FC<{ text: string }> = ({ text }) => (
-  <div style={{ ...body, position: "absolute", left: 110, right: 110, bottom: 38, fontSize: 21, color: c.muted }}>{text}</div>
-);
+const Source: React.FC<{ text: string }> = ({ text }) => <div style={{ ...body, position: "absolute", left: 110, right: 110, bottom: 44, fontSize: 21, color: c.muted }}>{text}</div>;
 
-// Scene 1 (8 s): Cold open on the abstract animated background with the built-from-scratch statement and two-row Meta attribution strip.
-const ColdOpen: React.FC<{ frames: number }> = ({ frames }) => {
+// Intro: the operator on camera, picture in picture, over the moving background, beside the built-from-scratch line.
+const Intro: React.FC<{ frames: number }> = ({ frames }) => {
   const frame = useCurrentFrame();
-  const o = fade(frame, frames, 10);
-  const titleIn = interpolate(frame, [0, 16], [0, 1], clamp);
-  const subIn = interpolate(frame, [12, 28], [0, 1], clamp);
-  const stripIn = interpolate(frame, [22, 40], [0, 1], clamp);
+  const a = interpolate(frame, [0, 14], [0, 1], clamp);
+  const b = interpolate(frame, [10, 26], [0, 1], clamp);
+  const pip = interpolate(frame, [4, 20], [0, 1], clamp);
   return (
-    <AbsoluteFill style={{ opacity: o }}>
-      <Plate src={GENERATED.plateA} dim={0.55} />
-      <AbsoluteFill style={{ padding: "76px 120px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", opacity: titleIn }}>
+    <AbsoluteFill style={{ opacity: fade(frame, frames, 8) }}>
+      <div style={{ position: "absolute", left: 120, top: 150, width: 900 }}>
+        <div style={{ opacity: a }}>
           <Logo width={420} />
-          <div style={{ ...mono, fontSize: 20, color: c.orange, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "8px 22px", background: `${CARD}dd` }}>
-            META GLOBAL AI DEVELOPER HACKATHON · STARTUP TRACK
+        </div>
+        <div style={{ ...head, fontSize: 70, lineHeight: 1.06, marginTop: 56, opacity: b, transform: `translateY(${(1 - b) * 20}px)` }}>
+          From zero to production-ready <span style={{ color: c.orange }}>in 9 days.</span>
+        </div>
+        <div style={{ ...body, fontSize: 28, lineHeight: 1.45, marginTop: 26, color: c["ink-2"], opacity: b }}>
+          Product engineering, brand identity, design system, model fine-tuning, evaluation harness and marketing site, all built from scratch during the hackathon.
+        </div>
+        <div style={{ ...mono, fontSize: 18, color: c.muted, marginTop: 34, opacity: b, letterSpacing: 1 }}>META GLOBAL AI DEVELOPER HACKATHON · STARTUP TRACK</div>
+      </div>
+      {GENERATED.intro ? (
+        <div style={{ position: "absolute", right: 110, top: 190, width: 720, opacity: pip, transform: `scale(${0.96 + 0.04 * pip})`, transformOrigin: "right center" }}>
+          <div style={{ width: 720, height: 405, borderRadius: 22, overflow: "hidden", border: `2px solid ${c["line-strong"]}`, boxShadow: "0 30px 80px rgba(0,0,0,0.6)" }}>
+            <OffthreadVideo src={GENERATED.intro} volume={INTRO_GAIN} style={{ width: 720, height: 405, objectFit: "cover" }} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 5, background: c.orange }} />
+            <span style={{ ...body, fontSize: 24, fontWeight: 600, color: c.ink }}>Derick Payne</span>
+            <span style={{ ...body, fontSize: 22, color: c.muted }}>Founder, Rizonetech</span>
           </div>
         </div>
-        <div style={{ opacity: subIn }}>
-          <div style={{ ...head, fontSize: 66, lineHeight: 1.08, color: c.ink }}>
-            The email is real. The bank details are not theirs.
-          </div>
-          <div style={{ ...body, fontSize: 28, lineHeight: 1.38, color: c["ink-2"], marginTop: 18, maxWidth: 1620, background: "rgba(11,10,13,0.78)", borderLeft: `6px solid ${c.orange}`, padding: "14px 24px", borderRadius: "0 14px 14px 0" }}>
-            From zero to production-ready in 9 days: product engineering, brand identity, UI/UX design system, model fine-tuning, evaluation harness, and marketing site, all built from scratch during the hackathon (only the internal TODO and review runner scripts existed beforehand).
-          </div>
-        </div>
-        <div style={{ opacity: stripIn }}>
-          <MetaAttributionStrip />
-        </div>
-      </AbsoluteFill>
-      <Sequence from={6} layout="none">
+      ) : null}
+      <MetaAttributionStrip style={{ position: "absolute", left: 0, right: 0, bottom: 64, opacity: b }} />
+    </AbsoluteFill>
+  );
+};
+
+// Scene 1: the cold open, two generated shots and the line (kept short so the product gets the time).
+const SHOTS: (keyof typeof GENERATED)[] = ["inbox", "hover"];
+
+const ShotClip: React.FC<{ src: string | null }> = ({ src }) => {
+  const frame = useCurrentFrame();
+  return src ? <OffthreadVideo src={src} muted style={{ width: 1920, height: 1080, objectFit: "cover", opacity: interpolate(frame, [0, 8], [0, 1], clamp) }} /> : null;
+};
+
+const ColdOpen: React.FC<{ frames: number }> = ({ frames }) => {
+  const per = Math.floor(frames / SHOTS.length);
+  const frame = useCurrentFrame();
+  const line = interpolate(frame, [frames - per + 20, frames - per + 40], [0, 1], clamp);
+  return (
+    <AbsoluteFill style={{ background: "#000" }}>
+      <Series>
+        {SHOTS.map((name, i) => (
+          <Series.Sequence key={name} durationInFrames={i === SHOTS.length - 1 ? frames - per * (SHOTS.length - 1) : per}>
+            <ShotClip src={GENERATED[name] as string | null} />
+          </Series.Sequence>
+        ))}
+      </Series>
+      <AbsoluteFill style={{ background: "radial-gradient(ellipse 80% 70% at 50% 50%, transparent 50%, rgba(0,0,0,0.6))" }} />
+      <Sequence from={Math.max(0, frames - per + 20)} layout="none">
         <Sfx name="hit" />
       </Sequence>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 150, display: "flex", justifyContent: "center", opacity: line }}>
+        <div style={{ ...head, fontSize: 64, color: "#fff", textShadow: "0 4px 30px rgba(0,0,0,0.8)" }}>The bank details aren't theirs.</div>
+      </div>
     </AbsoluteFill>
   );
 };
 
-// Scene 2 (18 s): Cohesive stakes beat: SABRIC R2.41 bn -> Hawarden v ENS [2024] ZASCA 90 R5.5m -> 533 caught emails + 10.8% to 18.8% miss rate (~65 to 123/month slipping through).
+// Scene 2: the stakes in one beat: why filters pass it, SABRIC's national losses, then the Hawarden ruling right after
+// (operator, 2026-11-03: the court case follows the South African figures).
 const LOSSES = [
   { year: "2023", rand: 1.09 },
   { year: "2024", rand: 1.86 },
   { year: "2025", rand: 2.41 },
 ];
 
-const FiltersAndClientScene: React.FC<{ frames: number }> = ({ frames }) => {
+const StakesScene: React.FC<{ frames: number }> = ({ frames }) => {
   const frame = useCurrentFrame();
-  const o = fade(frame, frames);
-  const top = 2.41;
-  const t1 = Math.round(frames * 0.36);
-  const t2 = Math.round(frames * 0.68);
-  const p1 = interpolate(frame, [0, 12, t1 - 12, t1], [0, 1, 1, 0], clamp);
-  const p2 = interpolate(frame, [t1 - 8, t1 + 10, t2 - 12, t2], [0, 1, 1, 0], clamp);
-  const p3 = interpolate(frame, [t2 - 8, t2 + 10], [0, 1], clamp);
-  const count = Math.round(interpolate(frame, [t2 + 4, t2 + 45], [0, 533], clamp));
+  const split = Math.round(frames * 0.5);
   return (
-    <AbsoluteFill style={{ opacity: o }}>
-      <Plate src={GENERATED.plateA} dim={0.3} side="left" />
-      <AbsoluteFill style={{ opacity: p1 }}>
-        <div style={{ position: "absolute", left: 110, top: 96, width: 1050 }}>
-          <div style={{ ...head, fontSize: 72, lineHeight: 1.05 }}>The email is real.</div>
-          <div style={{ ...head, fontSize: 72, lineHeight: 1.05, color: c.orange }}>So the filter passes it.</div>
-          <div style={{ ...body, fontSize: 30, marginTop: 18, maxWidth: 860 }}>Sent from your supplier&apos;s own compromised mailbox, so SPF, DKIM and DMARC all pass.</div>
+    <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
+      <Part from={0} to={split}>
+        <Plate src={GENERATED.plateA} dim={0.25} side="left" />
+        <div style={{ position: "absolute", left: 110, top: 110, width: 1000 }}>
+          <div style={{ ...head, fontSize: 76, lineHeight: 1.05 }}>The email is real.</div>
+          <div style={{ ...head, fontSize: 76, lineHeight: 1.05, color: c.orange }}>So the filter passes it.</div>
+          <div style={{ ...body, fontSize: 32, marginTop: 24, maxWidth: 820 }}>Sent from your supplier's own mailbox, so SPF, DKIM and DMARC all pass.</div>
         </div>
-        <div style={{ position: "absolute", left: 110, bottom: 120, display: "flex", alignItems: "flex-end", gap: 36 }}>
+        <div style={{ ...body, position: "absolute", left: 110, bottom: 590, width: 760, fontSize: 28, opacity: interpolate(frame, [s(3.5), s(4.2)], [0, 1], clamp) }}>Digital banking fraud losses in South Africa, every channel.</div>
+        <div style={{ position: "absolute", left: 110, bottom: 140, display: "flex", alignItems: "flex-end", gap: 36 }}>
           {LOSSES.map((l, i) => {
-            const grow = interpolate(frame, [18 + i * 10, 48 + i * 10], [0, 1], clamp);
+            const grow = interpolate(frame, [s(4) + i * 10, s(5) + i * 10], [0, 1], clamp);
             return (
               <div key={l.year} style={{ width: 170, textAlign: "center" }}>
-                <div style={{ ...head, fontSize: 36, color: i === 2 ? c.orange : c.ink, opacity: grow }}>R{l.rand.toFixed(2)} bn</div>
-                <div style={{ height: (l.rand / top) * 300 * grow, background: i === 2 ? c.orange : "rgba(255,255,255,0.28)", borderRadius: "8px 8px 0 0", marginTop: 8 }} />
-                <div style={{ ...body, fontSize: 26, marginTop: 8 }}>{l.year}</div>
+                <div style={{ ...head, fontSize: 38, color: i === 2 ? c.orange : c.ink, opacity: grow }}>R{l.rand.toFixed(2)} bn</div>
+                <div style={{ height: (l.rand / 2.41) * 330 * grow, background: i === 2 ? c.orange : "rgba(255,255,255,0.28)", borderRadius: "8px 8px 0 0", marginTop: 8 }} />
+                <div style={{ ...body, fontSize: 28, marginTop: 8 }}>{l.year}</div>
               </div>
             );
           })}
         </div>
-        <Source text="Source: SABRIC Annual Crime Statistics 2025, p. 7 (R2.41 bn digital banking fraud). IC3 2025 ($2.995B BEC) · INTERPOL 2025 (90% BEC)." />
-      </AbsoluteFill>
-      <AbsoluteFill style={{ opacity: p2 }}>
-        <Plate src={GENERATED.plateB} dim={0.28} side="right" />
-        <div style={{ position: "absolute", right: 110, top: 130, width: 920 }}>
-          <div style={{ ...mono, fontSize: 24, color: c.orange, letterSpacing: 1.5 }}>HAWARDEN V EDWARD NATHAN SONNENBERGS [2024] ZASCA 90</div>
-          <div style={{ ...head, fontSize: 74, lineHeight: 1.05, marginTop: 14 }}>R5.5 million paid to a fraudster.</div>
-          <div style={{ ...body, fontSize: 28, marginTop: 20 }}>
-            A compromised supplier mailbox and a doctored PDF invoice. On 10 June 2024, the Supreme Court of Appeal overturned the High Court and held the buyer bears the loss when they pay without verifying bank details out-of-band.
-          </div>
-          <div style={{ ...head, fontSize: 34, marginTop: 28, borderLeft: `6px solid ${c.orange}`, paddingLeft: 22 }}>
-            The buyer could reasonably have avoided the risk by verifying the account details.
-          </div>
+        <Source text="Source: SABRIC Annual Crime Statistics 2025, p. 7. All digital banking fraud, not phishing alone." />
+      </Part>
+      <Part from={split} to={frames} last>
+        <Plate src={GENERATED.plateB} dim={0.3} side="right" />
+        <div style={{ position: "absolute", right: 110, top: 150, width: 840 }}>
+          <div style={{ ...body, fontSize: 26, color: c.orange, letterSpacing: 2, textTransform: "uppercase" }}>Hawarden v Edward Nathan Sonnenbergs</div>
+          <div style={{ ...head, fontSize: 78, lineHeight: 1.05, marginTop: 14 }}>R5.5 million paid to a fraudster.</div>
+          <div style={{ ...body, fontSize: 30, marginTop: 24 }}>A hacked inbox and a one-letter lookalike address. The High Court ordered the law firm to pay (2023). The Supreme Court of Appeal overturned it (10 June 2024).</div>
+          <div style={{ ...head, fontSize: 38, marginTop: 32, borderLeft: `6px solid ${c.orange}`, paddingLeft: 24 }}>The buyer could reasonably have avoided the risk by verifying the account details.</div>
         </div>
         <Source text="Source: [2024] ZASCA 90, Supreme Court of Appeal of South Africa, 10 June 2024." />
-      </AbsoluteFill>
-      <AbsoluteFill style={{ opacity: p3, alignItems: "center", justifyContent: "center", textAlign: "center", background: "rgba(11,10,13,0.82)", padding: "0 120px" }}>
-        <div style={{ ...head, fontSize: 200, lineHeight: 1, color: c.orange }}>{count}</div>
-        <div style={{ ...head, fontSize: 52, marginTop: 6 }}>caught phishing emails in 30 days (one Rizonetech SME client)</div>
-        <div style={{ ...body, fontSize: 28, marginTop: 18, color: c["ink-2"] }}>
-          At the published 10.8% to 18.8% email gateway miss rate, ~65 to 123 phishing emails per month (2 to 4 every business day) still land in that single business&apos;s inbox.
-        </div>
-        <div style={{ ...head, fontSize: 38, marginTop: 28, color: c.ink }}>
-          The ones no filter can catch come from someone you trust.
-        </div>
-      </AbsoluteFill>
+      </Part>
     </AbsoluteFill>
   );
 };
 
-// Scene 3 (60 s): 8 s forward/reply + 52 s live /r/:id?clock=1&trace=1 investigation with SparkXRay, SamXRay, WonderXRay, and ModelTraceXRay.
+// Scene 3: the forward from Outlook, then the live report filling in and its evidence. The wait while the checks run
+// is shown sped up, with the measured time, never cut silently.
 const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
+  const frame = useCurrentFrame();
   const mail = beat("mail-send");
   const up = beat("upload-and-report");
-  const frame = useCurrentFrame();
-  if (!up) {
-    return (
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-        <div style={{ ...head, fontSize: 60 }}>No capture yet: run pnpm capture:demo</div>
-      </AbsoluteFill>
-    );
-  }
+  if (!up) return <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}><div style={{ ...head, fontSize: 60 }}>No capture yet: run pnpm capture:demo</div></AbsoluteFill>;
   const m = up.marks;
-  const took = (m.finished - m.reportOpened).toFixed(1);
-  const hasMail = !!mail;
-  const hasReply = !!(mail && mail.marks.replied);
-  // 8 s (240 frames) for forward + threaded reply, leaving 52 s (1560 frames) on the live report.
-  const tSend = hasMail ? s(4.5) : 0;
-  const tReply = hasMail ? s(8.0) : 0;
-  const sendAlpha = hasMail ? interpolate(frame, [0, 10, tSend - 8, tSend], [0, 1, 1, 0], clamp) : 0;
-  const replyAlpha = hasReply ? interpolate(frame, [tSend - 6, tSend + 8, tReply - 8, tReply], [0, 1, 1, 0], clamp) : 0;
-  const repAlpha = hasMail ? interpolate(frame, [tReply - 6, tReply + 10], [0, 1], clamp) : 1;
+  const took = (m.finished - m.reportOpened).toFixed(0);
   const mm = mail?.marks ?? {};
+  const tSend = mail ? Math.round(frames * 0.2) : 0;
+  const tWait = tSend + s(3);
+  const tVerdict = Math.round(frames * 0.66);
+  const tEvidence = Math.round(tWait + (tVerdict - tWait) * 0.5);
+  const tAdvice = Math.round(frames * 0.84);
+  const spark: Model = { name: "Muse Spark 1.3", job: "writes the verdict" };
   const aFrom = Math.max(0, (mm.composeOpened ?? mm.inbox ?? 5) - 0.6);
   const aTo = (mm.addressed ?? aFrom + 4) + 0.8;
   const bFrom = Math.max(aTo, (mm.composed ?? mm.sent ?? aTo + 3) - 2.5);
   const bTo = (mm.sent ?? mm.composed ?? bFrom + 3) + 1.2;
   const aSlot = Math.round((tSend * (aTo - aFrom)) / Math.max(0.1, aTo - aFrom + bTo - bFrom));
-  const replyFrom = Math.max(0, (mm.replyArrived ?? mm.replied ?? 0) - 0.5);
-  const replyTo = (mm.link ?? mm.replied ?? replyFrom + 3) + 0.6;
-  const repFrom = hasMail ? Math.max(0, m.reportOpened - 1.2) : Math.max(0, m.uploadPage - 0.5);
-  const repTo = (m.scrolled ?? m.finished + 2) + 0.5;
-  const repFrames = frames - tReply;
-  const xSparkEnd = Math.round(repFrames * 0.28);
-  const xSamEnd = Math.round(repFrames * 0.54);
-  const xWonderEnd = Math.round(repFrames * 0.8);
+  const outlook = "outlook.office.com/mail · demo@rizonetech.com";
+  const report = `app.isitlegit.co.za/r/${up.caseId ?? ""}`;
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
       {mail ? (
-        <AbsoluteFill style={{ opacity: sendAlpha }}>
+        <Part from={0} to={tSend}>
           <Sequence durationInFrames={aSlot}>
-            <Clip src={mail.src} from={aFrom} to={aTo} slot={aSlot} path="outlook.office.com/mail/inbox | demo@rizonetech.com" />
+            <Take src={mail.src} from={aFrom} to={aTo} slot={aSlot} path={outlook} chip="" />
           </Sequence>
           <Sequence from={aSlot}>
-            <Clip src={mail.src} from={bFrom} to={bTo} slot={tSend - aSlot} path="outlook.office.com/mail/inbox | demo@rizonetech.com" />
+            <Take src={mail.src} from={bFrom} to={bTo} slot={tSend - aSlot} path={outlook} chip="" />
           </Sequence>
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-            <div style={{ ...head, fontSize: 30, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-              demo@rizonetech.com forwards the suspicious email to check@isitlegit.co.za in Outlook
-            </div>
-          </div>
-          <TraceStrip
-            items={[
-              { label: "Sender", value: "demo@rizonetech.com" },
-              { label: "Recipient", value: "check@isitlegit.co.za" },
-              { label: "Attachment", value: "tcg-waybill-zz3gghz.eml" },
-              { label: "Worker commit", value: (CAPTURE?.liveCommit ?? "").slice(0, 8) },
-            ]}
-          />
-        </AbsoluteFill>
+        </Part>
       ) : null}
-      {mail && hasReply ? (
-        <Sequence from={tSend}>
-          <AbsoluteFill style={{ opacity: replyAlpha }}>
-            <Clip src={mail.src} from={replyFrom} to={replyTo} slot={tReply - tSend} path="outlook.office.com/mail/inbox | Re: Fwd: Urgent Action: Verify SA Waybill ZZ3GGHZ" />
-            <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-              <div style={{ ...head, fontSize: 30, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-                Threaded reply arrives in demo@rizonetech.com&apos;s inbox with the HMAC-SHA256 signed report link
-              </div>
-            </div>
-            <TraceStrip
-              items={[
-                { label: "Reply From", value: "IsItLegit <check@isitlegit.co.za>" },
-                { label: "Case", value: (mail.caseId ?? up.caseId ?? "").slice(0, 12) },
-                { label: "Report link", value: "HMAC-SHA256 signed URL" },
-              ]}
-            />
-          </AbsoluteFill>
-        </Sequence>
+      <Part from={tSend} to={tWait}>
+        <Take src={up.src} from={Math.max(0, m.reportOpened - 0.5)} to={m.finished} slot={tWait - tSend} path={report} max={40} chip={`checks running · ${took} s, shown sped up`} />
+      </Part>
+      <Part from={tWait} to={m.traceOpened ? tVerdict : frames} last={!m.traceOpened}>
+        <Take src={up.src} from={m.finished - 0.5} to={(m.scrolled ?? m.finished + 12) + 0.5} slot={(m.traceOpened ? tVerdict : frames) - tWait} path={report} />
+      </Part>
+      {m.traceOpened ? (
+        <Part from={tVerdict} to={frames} last>
+          <Take src={up.src} from={m.traceShown ?? m.traceOpened + 2} to={(m.traceDone ?? m.traceOpened + 8) + 0.5} slot={frames - tVerdict} path={report} model={spark} />
+        </Part>
       ) : null}
-      <Sequence from={tReply}>
-        <AbsoluteFill style={{ opacity: repAlpha }}>
-          <Clip
-            src={up.src}
-            from={repFrom}
-            to={repTo}
-            slot={repFrames}
-            path={`app.isitlegit.co.za/r/${up.caseId ?? ""}?clock=1&trace=1`}
-            showClock
-            clockBase={2.1}
-          />
-          <Sequence from={0} durationInFrames={xSparkEnd}>
-            <MetaBadge text="muse-spark-1.3" />
-            <SparkXRay style={{ position: "absolute", left: 190, right: 190, bottom: 70 }} />
-          </Sequence>
-          <Sequence from={xSparkEnd} durationInFrames={xSamEnd - xSparkEnd}>
-            <MetaBadge text="sam-3.1" />
-            <SamXRay style={{ position: "absolute", left: 190, right: 190, bottom: 70 }} />
-          </Sequence>
-          <Sequence from={xSamEnd} durationInFrames={xWonderEnd - xSamEnd}>
-            <MetaBadge text="muse-wonder-1.0" />
-            <WonderXRay style={{ position: "absolute", left: 190, right: 190, bottom: 70 }} />
-          </Sequence>
-          <Sequence from={xWonderEnd} durationInFrames={repFrames - xWonderEnd}>
-            <MetaBadge text="5 Meta Models · #model-trace" />
-            <ModelTraceXRay style={{ position: "absolute", left: 190, right: 190, bottom: 70 }} />
-          </Sequence>
-          <TraceStrip
-            items={[
-              { label: "Case", value: (up.caseId ?? "").slice(0, 12) },
-              { label: "Workflow", value: fact("stepNames") },
-              { label: "Live check time", value: `${took} s` },
-              { label: "Worker commit", value: (CAPTURE?.liveCommit ?? "").slice(0, 8) },
-            ]}
-          />
-        </AbsoluteFill>
-      </Sequence>
+      {mail ? <Caption from={0} to={tSend} text="Forwarded from Outlook to check@isitlegit.co.za" /> : null}
+      <Caption from={tSend} to={tWait} text={`The report fills in live: the checks finished in ${took} seconds`} />
+      <Caption from={tWait} to={tEvidence} text="Text hidden from the reader, written to steer an AI, caught before any model reads the mail" />
+      <Caption from={tEvidence} to={tVerdict} text="A reply address and a link that go somewhere else, each with its evidence" />
+      <Caption from={tVerdict} to={tAdvice} text="Muse Spark writes the verdict, and every reason cites a finding: E4, E5, E3" />
+      <Caption from={tAdvice} to={frames} text="First advice: do not pay until you call the number in your own records" />
     </AbsoluteFill>
   );
 };
 
-// Scene 4 (18 s): Live /settings/domains, /protect, /suppliers, and /cases captures (100% live product UI).
-const ProtectAndCasesScene: React.FC<{ frames: number }> = ({ frames }) => {
+// Scene 4: who the business really is (/settings/domains, /protect), the suppliers it pays (/suppliers), and the
+// cases console (/cases), each the live page.
+const ProtectScene: React.FC<{ frames: number }> = ({ frames }) => {
+  const frame = useCurrentFrame();
   const dom = beat("domains");
   const prot = beat("protect");
-  const cases = beat("cases");
   const sup = beat("suppliers");
-  const frame = useCurrentFrame();
-  const tD = dom ? Math.round(frames * 0.22) : 0;
-  const t0 = Math.round(frames * 0.5);
-  const t1 = sup ? Math.round(frames * 0.76) : t0;
-  const pD = dom ? interpolate(frame, [0, 10, tD - 8, tD], [0, 1, 1, 0], clamp) : 0;
-  const p1 = interpolate(frame, [dom ? tD - 6 : 0, dom ? tD + 10 : 12, t0 - 10, t0], [0, 1, 1, 0], clamp);
-  const pS = sup ? interpolate(frame, [t0 - 6, t0 + 10, t1 - 10, t1], [0, 1, 1, 0], clamp) : 0;
-  const p2 = interpolate(frame, [t1 - 6, t1 + 10], [0, 1], clamp);
+  const cases = beat("cases");
+  const tD = dom ? Math.round(frames * 0.14) : 0;
+  const tP = Math.round(frames * 0.46);
+  const tS = Math.round(frames * 0.72);
+  const pLogo = tD + Math.round((tP - tD) * 0.45);
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
       {dom ? (
-        <AbsoluteFill style={{ opacity: pD }}>
-          <Clip src={dom.src} from={Math.max(0, (dom.marks.loaded ?? 1) - 0.4)} to={(dom.marks.addresses ?? dom.marks.domains ?? 5.5) + 0.6} slot={tD} path="app.isitlegit.co.za/settings/domains" />
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-            <div style={{ ...head, fontSize: 30, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-              Verified domain fynbosfreight.demo.isitlegit.co.za and finance mailbox on /settings/domains
-            </div>
-          </div>
-          <TraceStrip
-            items={[
-              { label: "Verified domain", value: "fynbosfreight.demo.isitlegit.co.za" },
-              { label: "Protected identity", value: "Yes" },
-              { label: "Finance mailbox", value: "accounts@fynbosfreight.demo.isitlegit.co.za" },
-            ]}
-          />
-        </AbsoluteFill>
+        <Part from={0} to={tD}>
+          <Take src={dom.src} from={Math.max(0, (dom.marks.loaded ?? 1) - 0.4)} to={(dom.marks.addresses ?? 5.5) + 0.6} slot={tD} path="app.isitlegit.co.za/settings/domains" />
+        </Part>
       ) : null}
       {prot ? (
-        <AbsoluteFill style={{ opacity: p1 }}>
-          <Sequence from={Math.max(0, tD - 6)}>
-            <Clip src={prot.src} from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)} to={(prot.marks.bank ?? prot.marks.scrolled ?? 5.5) + 0.6} slot={t0 - tD} path="app.isitlegit.co.za/protect" />
-          </Sequence>
-          <MetaBadge text="sam-3.1 reference logo" />
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-            <div style={{ ...head, fontSize: 30, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-              Protected: Fynbos Freight&apos;s names, protea logo (for SAM 3.1), finance contact and bank ledger on /protect
-            </div>
-          </div>
-          <TraceStrip
-            items={[
-              { label: "Organisation", value: "Fynbos Freight (Pty) Ltd" },
-              { label: "Finance contact", value: "accounts@fynbosfreight.demo.isitlegit.co.za" },
-              { label: "Logo check", value: "SAM 3.1 (sam-3.1)" },
-              { label: "Bank privacy", value: "Match or no match only" },
-            ]}
+        <Part from={tD} to={tP}>
+          <Take
+            src={prot.src}
+            from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)}
+            to={(prot.marks.bank ?? 5.5) + 0.6}
+            slot={tP - tD}
+            path="app.isitlegit.co.za/protect"
+            model={frame >= pLogo ? { name: "SAM 3.1", job: "compares this logo with mail" } : undefined}
           />
-        </AbsoluteFill>
+        </Part>
       ) : null}
       {sup ? (
-        <AbsoluteFill style={{ opacity: pS }}>
-          <Sequence from={Math.max(0, t0 - 6)}>
-            <Clip src={sup.src} from={Math.max(0, (sup.marks.loaded ?? 1) - 0.4)} to={(sup.marks.importShown ?? sup.marks.listed ?? 6) + 0.6} slot={t1 - t0} path="app.isitlegit.co.za/suppliers" />
-          </Sequence>
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-            <div style={{ ...head, fontSize: 30, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-              Suppliers&apos; bank accounts kept encrypted on /suppliers, checked match or no match only
-            </div>
-          </div>
-          <TraceStrip
-            items={[
-              { label: "Ledger", value: "/suppliers" },
-              { label: "Account shown as", value: "last 3 digits only" },
-              { label: "Import", value: "CSV template" },
-            ]}
-          />
-        </AbsoluteFill>
+        <Part from={tP} to={tS}>
+          <Take src={sup.src} from={Math.max(0, (sup.marks.loaded ?? 1) - 0.4)} to={(sup.marks.importShown ?? 6) + 0.6} slot={tS - tP} path="app.isitlegit.co.za/suppliers" max={4} />
+        </Part>
       ) : null}
       {cases ? (
-        <AbsoluteFill style={{ opacity: p2 }}>
-          <Sequence from={Math.max(0, t1 - 6)}>
-            <Clip src={cases.src} from={Math.max(0, (cases.marks.loaded ?? 1) - 0.4)} to={(cases.marks.opened ?? cases.marks.loaded ?? 4.5) + 1.2} slot={frames - t1} path="app.isitlegit.co.za/cases" />
-          </Sequence>
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-            <div style={{ ...head, fontSize: 30, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-              Every check indexed and searchable in the member&apos;s Cases console (/cases)
-            </div>
-          </div>
-          <TraceStrip
-            items={[
-              { label: "Console", value: "/cases" },
-              { label: "Tenant isolation", value: fact("orgScope") },
-              { label: "Raw retention", value: `R2 ${fact("r2Retention")}` },
-            ]}
-          />
-        </AbsoluteFill>
+        <Part from={tS} to={frames} last>
+          <Take src={cases.src} from={Math.max(0, (cases.marks.loaded ?? 1) - 0.4)} to={(cases.marks.filtered ?? cases.marks.opened ?? 6) + 0.8} slot={frames - tS} path="app.isitlegit.co.za/cases" max={4} />
+        </Part>
       ) : null}
+      {dom ? <Caption from={0} to={tD} text="Fynbos Freight's verified domain and finance mailbox" /> : null}
+      {prot ? <Caption from={tD} to={tP} text="Who the business really is: its names, its domains and its logo" /> : null}
+      {sup ? <Caption from={tP} to={tS} text="The suppliers it pays, with bank details checked only as match or no match" /> : null}
+      {cases ? <Caption from={tS} to={frames} text="Every check in one cases console, searchable by the whole team" /> : null}
     </AbsoluteFill>
   );
 };
 
-// Scene 5 (20 s): Outward trust network (/monitor, /v/fynbos-freight, /b/fynbos-freight.png, /s/fynbos-freight, impersonation alert) with zero PLACEHOLDER tags.
-type BoardPanel = { src: string; w: number; h: number; path: string; caption: string; trace: { label: string; value: string }[] };
-const TRUST_PANELS: BoardPanel[] = [
-  {
-    src: boardAlert,
-    w: 760,
-    h: 1380,
-    path: "outlook.office.com/mail/inbox | Impersonation Alert: Fynbos Freight",
-    caption: "Fynbos Freight is alerted the moment someone checks a fake that uses its name",
-    trace: [
-      { label: "Trigger", value: "SAM 3.1 + name match on check" },
-      { label: "Recipient", value: "accounts@fynbosfreight.demo.isitlegit.co.za" },
-      { label: "Privacy", value: "Checker identity redacted" },
-    ],
-  },
-  {
-    src: boardMonitorMail,
-    w: 760,
-    h: 1780,
-    path: "outlook.office.com/mail/inbox | Monitor Alert: fynbosfreight-payments.co.za",
-    caption: "Nightly lookalike monitor finds fake login and payment sites with a one-click takedown pack",
-    trace: [
-      { label: "Screener", value: "Loupe 1.1 -> Muse Spark 1.3" },
-      { label: "Lookalike", value: "fynbosfreight-payments.co.za" },
-      { label: "Bundle", value: "Abuse contacts + screenshot" },
-    ],
-  },
-  {
-    src: boardMonitor,
-    w: 1440,
-    h: 1200,
-    path: "app.isitlegit.co.za/monitor",
-    caption: "Every lookalike domain watched nightly on /monitor: live, parked, or taken offline",
-    trace: [
-      { label: "Route", value: "/monitor" },
-      { label: "Stage 1", value: "Loupe 1.1 (Muse Glimmer 30B LoRA)" },
-      { label: "Stage 2", value: "Muse Spark 1.3 failover" },
-    ],
-  },
-  {
-    src: boardBadges,
-    w: 1440,
-    h: 760,
-    path: "app.isitlegit.co.za/b/fynbos-freight.png",
-    caption: "Live signature badge (/b/fynbos-freight.png): copied into a fake email, it triggers an alert",
-    trace: [
-      { label: "Endpoint", value: "/b/fynbos-freight.png" },
-      { label: "Cache", value: "no-store, dynamic SVG/PNG" },
-      { label: "Canary", value: "Referer + token check" },
-    ],
-  },
-  {
-    src: boardSeal,
-    w: 1440,
-    h: 760,
-    path: "app.isitlegit.co.za/s/fynbos-freight",
-    caption: "Website seal (/s/fynbos-freight): refuses to vouch when embedded on an unverified domain",
-    trace: [
-      { label: "Endpoint", value: "/s/fynbos-freight" },
-      { label: "Origin check", value: "fynbosfreight.demo.isitlegit.co.za" },
-      { label: "Mismatch", value: "Draws warning state" },
-    ],
-  },
-  {
-    src: boardVerify,
-    w: 1440,
-    h: 1200,
-    path: "isitlegit.co.za/v/fynbos-freight",
-    caption: "Public directory card (/v/fynbos-freight): customers verify real domains and closed-loop bank digits",
-    trace: [
-      { label: "Public card", value: "/v/fynbos-freight" },
-      { label: "Bank check", value: "Match or no match only (rate-limited)" },
-      { label: "Status", value: "Verified Protected Business" },
-    ],
-  },
-];
-const TRUST_SHARE = [0.18, 0.18, 0.18, 0.15, 0.15, 0.16];
-
-const BoardWindow: React.FC<{ panel: BoardPanel; frames: number }> = ({ panel, frames }) => {
+// Scene 5: the impersonation monitor, live: the lookalikes it watches and the fake portal it found.
+const MonitorScene: React.FC<{ frames: number }> = ({ frames }) => {
   const frame = useCurrentFrame();
-  const scale = FRAME_W / panel.w;
-  const k = panel.w < 1000 ? 1.3 : scale;
-  const shownH = panel.h * k;
-  const travel = Math.max(0, shownH - FRAME_H);
-  const y = interpolate(frame, [s(0.4), Math.max(s(0.5), frames - s(0.4))], [0, travel], { ...clamp, easing: (t) => t * t * (3 - 2 * t) });
-  return (
-    <div style={{ position: "absolute", left: (1920 - FRAME_W) / 2, top: (1080 - FRAME_H - BAR) / 2 + 12, width: FRAME_W, borderRadius: 18, overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.55)", border: `2px solid ${c.line}` }}>
-      <div style={{ height: BAR, background: c.surface, display: "flex", alignItems: "center", gap: 10, padding: "0 18px" }}>
-        {["#ff5f57", "#febc2e", "#28c840"].map((dot) => (
-          <div key={dot} style={{ width: 13, height: 13, borderRadius: 7, background: dot }} />
-        ))}
-        <div style={{ ...mono, fontSize: 18, color: c.muted, marginLeft: 18 }}>{panel.path}</div>
-      </div>
-      <div style={{ width: FRAME_W, height: FRAME_H, overflow: "hidden", position: "relative", background: "#F4F4F4" }}>
-        <Img src={panel.src} style={{ position: "absolute", left: (FRAME_W - panel.w * k) / 2, top: -y, width: panel.w * k, height: shownH }} />
-      </div>
-    </div>
-  );
-};
-
-const TrustNetworkScene: React.FC<{ frames: number }> = ({ frames }) => {
-  const frame = useCurrentFrame();
-  const starts = TRUST_SHARE.reduce<number[]>((a, _, i) => [...a, i === 0 ? 0 : a[i - 1] + Math.round(frames * TRUST_SHARE[i - 1])], []);
+  const mon = beat("monitor");
+  const split = Math.round(frames * 0.42);
+  if (!mon) return null;
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
-      {TRUST_PANELS.map((panel, i) => {
-        const from = starts[i];
-        const len = i === TRUST_PANELS.length - 1 ? frames - from : Math.round(frames * TRUST_SHARE[i]);
-        return (
-          <Sequence key={panel.path} from={from} durationInFrames={len}>
-            <AbsoluteFill style={{ opacity: interpolate(frame - from, [0, 8, len - 8, len], [0, 1, 1, 0], clamp) }}>
-              <BoardWindow panel={panel} frames={len} />
-              <MetaBadge text="Loupe 1.1 · SAM 3.1 · Muse Spark 1.3" />
-              <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
-                <div style={{ ...head, fontSize: 28, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 28px" }}>{panel.caption}</div>
-              </div>
-              <TraceStrip items={panel.trace} />
-            </AbsoluteFill>
-          </Sequence>
-        );
-      })}
+      <Take src={mon.src} from={Math.max(0, (mon.marks.loaded ?? 1) - 0.4)} to={(mon.marks.scrolled ?? 10) + 0.8} slot={frames} path="app.isitlegit.co.za/monitor" />
+      <Caption from={0} to={split} text="Over five hundred lookalikes of the business's domain, checked every morning" />
+      <Caption from={split} to={frames} text="A live fake Fynbos Freight portal, asking for a sign-in and a new bank account" />
     </AbsoluteFill>
   );
 };
 
-// Scene 6 (20 s): 8 s animated 5-Model Architecture & Safety Contract flow diagram + 12 s live /check voice-note intake and in-Worker WASM Opus decoder X-Ray overlay.
-const MODELS = [
-  { name: "Muse Spark 1.3", id: fact("sparkModel"), job: "Verdict reasoning & evidence citation inside delimited <untrusted_*> blocks" },
-  { name: "Loupe 1.1 (LoRA)", id: fact("baseModel"), job: "Stage-1 page screener trained on 172,987 frozen pages with Muse Spark failover" },
-  { name: "Muse Wonder 1.0", id: fact("wonderModel"), job: `Contained browser walkthrough (${fact("wonderLimits")}, ${fact("wonderCanary")})` },
-  { name: "SAM 3.1", id: fact("samModel"), job: "Visual logo and stamp segmentation against registered brand marks" },
-  { name: "Muse Voice 1.0", id: fact("voiceModel"), job: `Voice-note transcription after in-Worker ${fact("voiceWav")} SIMD decode` },
+// Scene 6: how it works: the five Meta models inside one safety contract, then the in-Worker voice decoder bench.
+const PIPE: { name: string; job: string; meta: boolean }[] = [
+  { name: "SAM 3.1", job: "finds and compares logos", meta: true },
+  { name: "Muse Wonder", job: "follows links in a sealed browser", meta: true },
+  { name: "Loupe on Muse Glimmer", job: "screens lookalike pages", meta: true },
+  { name: "Muse Voice", job: "transcribes voice notes", meta: true },
 ];
-
-const BENCH_ROWS = [
+const RULES = ["Untrusted text stays inside sealed blocks", "Critical evidence sets a floor no model can lower", "Every claim cites an evidence ID"];
+const BENCH = [
   { label: "Voice note (3 s, Ogg Opus)", ours: fact("benchNoteOurs"), ffmpeg: fact("benchNoteFfmpeg") },
   { label: "Long recording (25 min, Ogg Opus)", ours: fact("benchLongOurs"), ffmpeg: fact("benchLongFfmpeg") },
   { label: "Upload-sized (25 MiB, WAV 48 kHz)", ours: fact("benchWavOurs"), ffmpeg: fact("benchWavFfmpeg") },
-  { label: "Damaged stream (Ogg Opus)", ours: fact("benchDamagedOurs"), ffmpeg: fact("benchDamagedFfmpeg") },
 ];
 
-const ArchitectureAndVoiceScene: React.FC<{ frames: number }> = ({ frames }) => {
+const Node: React.FC<{ title: string; sub: string; meta?: boolean; on?: boolean; p: number; w?: number }> = ({ title, sub, meta, on, p, w = 340 }) => (
+  <div style={{ width: w, background: CARD, border: `2px solid ${on ? c.orange : c["line-strong"]}`, borderRadius: 18, padding: "18px 22px", opacity: p, transform: `translateY(${(1 - p) * 14}px)` }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {meta ? <MetaInfinity size={30} /> : null}
+      <span style={{ ...head, fontSize: 28 }}>{title}</span>
+    </div>
+    <div style={{ ...body, fontSize: 21, marginTop: 6, color: c.muted }}>{sub}</div>
+  </div>
+);
+
+const Arrow: React.FC<{ p: number }> = ({ p }) => <div style={{ ...head, fontSize: 40, color: c.orange, opacity: p, alignSelf: "center" }}>→</div>;
+
+const ArchitectureScene: React.FC<{ frames: number }> = ({ frames }) => {
   const frame = useCurrentFrame();
-  const up = beat("upload-and-report");
-  const split = s(8); // 8 s architecture diagram, 12 s live voice-note intake + WASM decoder X-Ray
-  const archO = interpolate(frame, [0, 10, split - 10, split], [0, 1, 1, 0], clamp);
-  const benchO = interpolate(frame, [split - 6, split + 10], [0, 1], clamp);
+  const split = Math.round(frames * 0.66);
+  const at = (i: number) => interpolate(frame, [12 + i * 12, 30 + i * 12], [0, 1], clamp);
+  const archO = interpolate(frame, [0, 12, split - 12, split], [0, 1, 1, 0], clamp);
+  const benchO = interpolate(frame, [split - 6, split + 14], [0, 1], clamp);
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
-      <AbsoluteFill style={{ padding: "80px 130px", opacity: archO }}>
-        <MetaBadge text="5 Models · Standard API · store: false" />
-        <div style={{ ...head, fontSize: 66 }}>Five Meta models. One safety contract.</div>
-        <div style={{ ...body, fontSize: 28, marginTop: 8 }}>
-          Every call runs with <span style={{ ...mono, color: c.orange }}>{fact("storeFalse")}</span> and <span style={{ ...mono, color: c.orange }}>{fact("standardOnly")}</span>; critical evidence sets a deterministic floor no model can lower.
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 28 }}>
-          {MODELS.map((m, i) => {
-            const p = interpolate(frame, [10 + i * 8, 24 + i * 8], [0, 1], clamp);
-            return (
-              <div
-                key={m.name}
-                style={{
-                  background: c.surface,
-                  border: `2px solid ${i === 0 ? c.orange : c.line}`,
-                  borderRadius: 16,
-                  padding: "14px 26px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  opacity: p,
-                  transform: `translateX(${(1 - p) * 24}px)`,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 440 }}>
-                  <div style={{ width: 12, height: 12, borderRadius: 6, background: c.orange }} />
-                  <span style={{ ...head, fontSize: 30 }}>{m.name}</span>
-                  <span style={{ ...mono, fontSize: 19, color: c.muted }}>{m.id}</span>
-                </div>
-                <div style={{ ...body, fontSize: 24, color: c["ink-2"] }}>{m.job}</div>
-              </div>
-            );
-          })}
-        </div>
-      </AbsoluteFill>
-      <AbsoluteFill style={{ opacity: benchO }}>
-        {up ? (
-          <Clip
-            src={up.src}
-            from={Math.max(0, (up.marks.uploadPage ?? 0.5) - 0.3)}
-            to={(up.marks.finished ?? 6) + 0.5}
-            slot={frames - split}
-            path="app.isitlegit.co.za/check | Voice-Note Intake (.ogg Opus -> 16 kHz WAV)"
-          />
-        ) : null}
-        <MetaBadge text={fact("voiceModel")} />
-        <div style={{ position: "absolute", left: 210, right: 210, top: 130, background: "rgba(11,10,13,0.92)", border: `2px solid ${c.line}`, borderRadius: 18, padding: "18px 26px" }}>
-          <div style={{ ...head, fontSize: 34, color: c.ink }}>
-            For voice-note intake inside a Worker, our decoder finishes faster than calling FFmpeg on every input we benchmarked, mainly because it decodes Opus straight to 16 kHz and runs in-process.
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginTop: 14 }}>
-            {BENCH_ROWS.map((r) => (
-              <div key={r.label} style={{ background: CARD, border: `1px solid ${c.line}`, borderRadius: 12, padding: "10px 14px" }}>
-                <div style={{ ...body, fontSize: 16, color: c.muted }}>{r.label}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 }}>
-                  <span style={{ ...head, fontSize: 28, color: c.orange }}>{r.ours}</span>
-                  <span style={{ ...mono, fontSize: 16, color: c.muted }}>vs FFmpeg {r.ffmpeg}</span>
-                </div>
-              </div>
+      <AbsoluteFill style={{ padding: "130px 110px", opacity: archO }}>
+        <div style={{ ...head, fontSize: 64 }}>Five Meta models. One safety contract.</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 22, marginTop: 90 }}>
+          <Node title="Email, file or voice note" sub="forwarded or uploaded" p={at(0)} w={300} />
+          <Arrow p={at(1)} />
+          <Node title="Deterministic checks" sub="evidence with IDs, and the floor" p={at(1)} w={300} />
+          <Arrow p={at(2)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {PIPE.map((n, i) => (
+              <Node key={n.name} title={n.name} sub={n.job} meta={n.meta} p={at(2 + i * 0.5)} w={330} />
             ))}
           </div>
+          <Arrow p={at(5)} />
+          <Node title="Muse Spark" sub="writes the verdict, citing evidence" meta on p={at(5)} w={260} />
         </div>
-        <VoiceDecoderXRay
-          noteOurs={fact("benchNoteOurs")}
-          noteFfmpeg={fact("benchNoteFfmpeg")}
-          ciRun="40606229380 at bd81843"
-          ffmpegVer={fact("benchFfmpegVer")}
-          style={{ position: "absolute", left: 190, right: 190, bottom: 68 }}
-        />
-        <TraceStrip
-          items={[
-            { label: "Intake", value: "/check (voice note .ogg)" },
-            { label: "Decoder", value: `In-Worker WASM (${fact("benchStopband")} stopband)` },
-            { label: "Model", value: fact("voiceModel") },
-            { label: "CI bench", value: "Run 40606229380 (bd81843)" },
-          ]}
-        />
+        <div style={{ display: "flex", gap: 18, marginTop: 60 }}>
+          {RULES.map((r, i) => (
+            <div key={r} style={{ ...body, fontSize: 25, fontWeight: 600, color: c.ink, border: `1px solid ${c["line-strong"]}`, borderLeft: `5px solid ${c.orange}`, borderRadius: 12, padding: "14px 22px", background: `${CARD}cc`, opacity: interpolate(frame, [s(4.5) + i * s(2.2), s(4.5) + i * s(2.2) + 14], [0, 1], clamp) }}>
+              {r}
+            </div>
+          ))}
+        </div>
+      </AbsoluteFill>
+      <AbsoluteFill style={{ padding: "100px 150px", opacity: benchO }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <MetaInfinity size={40} />
+          <span style={{ ...body, fontSize: 26, color: c.muted }}>before Muse Voice transcribes it</span>
+        </div>
+        <div style={{ ...head, fontSize: 62, marginTop: 12 }}>Voice notes decoded inside the Worker</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", padding: "0 28px", ...mono, fontSize: 21, color: c.muted, marginTop: 44 }}>
+          <div>INPUT</div>
+          <div style={{ color: c.orange }}>OUR DECODER</div>
+          <div>FFMPEG</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 14 }}>
+          {BENCH.map((r, i) => (
+            <div key={r.label} style={{ background: CARD, border: `1px solid ${c["line-strong"]}`, borderRadius: 16, padding: "18px 28px", display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", alignItems: "center", opacity: interpolate(frame, [split + 14 + i * 10, split + 26 + i * 10], [0, 1], clamp) }}>
+              <div style={{ ...body, fontSize: 26, color: c.ink }}>{r.label}</div>
+              <div style={{ ...head, fontSize: 36, color: c.orange }}>{r.ours}</div>
+              <div style={{ ...mono, fontSize: 26, color: c.muted }}>{r.ffmpeg}</div>
+            </div>
+          ))}
+        </div>
+        <Source text={`Source: CI run ${fact("benchCiRun")}, medians of 3, ${fact("benchFfmpegVer")}. FFmpeg's times include starting its process; output quality is not compared.`} />
       </AbsoluteFill>
     </AbsoluteFill>
   );
 };
 
-// Scene 7 (26 s): /eval per-model ablation chart & Loupe Muse Glimmer 30B LoRA model card + LoupeCascadeXRay overlay.
-const ABLATION_BARS = [
-  { label: "Full 5-Model Chain (Spark + Loupe + Wonder + SAM + Voice)", score: 97.2, delta: "Baseline" },
-  { label: "Without Loupe 1.1 (Muse Glimmer 30B LoRA page screener)", score: 88.4, delta: "-8.8% recall on lookalikes" },
-  { label: "Without Muse Wonder 1.0 (contained browser walkthrough)", score: 89.6, delta: "-7.6% on multi-step lures" },
-  { label: "Without SAM 3.1 (protea & brand stamp segmentation)", score: 91.5, delta: "-5.7% on visual clones" },
-  { label: "Without Muse Voice 1.0 (in-Worker Opus voice notes)", score: 93.8, delta: "-3.4% on voice-note vishing" },
-];
-
+// Scene 7: proof, the Loupe model card from the pinned facts (data/loupe-facts.json).
 const ProofScene: React.FC<{ frames: number }> = ({ frames }) => {
   const frame = useCurrentFrame();
+  const ev = beat("eval");
+  const split = ev ? Math.round(frames * 0.66) : frames;
   const tiles = [
-    { big: fact("lureRecallOf"), small: "caught on held-out pages (96.4%)" },
-    { big: fact("falseAlarmsOf"), small: "false alarms on benign pages (0.9%)" },
-    { big: fact("latency"), small: "median latency per page" },
-    { big: "172,987", small: `frozen pages in corpus (${fact("trainLines")} v1.0 lines)` },
+    { big: fact("lureRecallOf"), small: "caught on held-out pages" },
+    { big: fact("falseAlarmsOf"), small: "false alarms on benign pages" },
+    { big: fact("latency"), small: "median time per page" },
+    { big: fact("trainLines"), small: `training lines, ${fact("trainTime")} of training` },
   ];
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
-      <div style={{ position: "absolute", left: (1920 - FRAME_W) / 2, top: 36, width: FRAME_W, borderRadius: 18, overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.55)", border: `2px solid ${c.line}`, background: c.surface }}>
-        <div style={{ height: BAR, background: CARD, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {["#ff5f57", "#febc2e", "#28c840"].map((dot) => (
-              <div key={dot} style={{ width: 13, height: 13, borderRadius: 7, background: dot }} />
-            ))}
-            <div style={{ ...mono, fontSize: 18, color: c.muted, marginLeft: 18 }}>app.isitlegit.co.za/eval | Per-Model Ablation &amp; Loupe Evaluation</div>
-          </div>
-          <div style={{ ...mono, fontSize: 16, color: c.orange }}>huggingface.co/rizonetech/isitlegit-loupe</div>
+      <AbsoluteFill style={{ padding: "100px 150px", opacity: interpolate(frame, [0, 14, split - 12, split], [0, 1, 1, 0], clamp) }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+          <MetaInfinity size={46} />
+          <span style={{ ...body, fontSize: 28, color: c.muted }}>fine-tuned from {fact("baseModel")}</span>
         </div>
-        <div style={{ padding: "24px 36px", display: "grid", gridTemplateColumns: "1.15fr 1fr", gap: 28 }}>
-          <div>
-            <div style={{ ...head, fontSize: 34, color: c.ink }}>Per-Model Ablation on /eval</div>
-            <div style={{ ...body, fontSize: 20, color: c.muted, marginTop: 4 }}>Every Meta model&apos;s contribution measured by removing it from the pipeline</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 16 }}>
-              {ABLATION_BARS.map((b, i) => {
-                const grow = interpolate(frame, [10 + i * 10, 32 + i * 10], [0, 1], clamp);
-                return (
-                  <div key={b.label} style={{ background: CARD, border: `1px solid ${i === 0 ? c.orange : c.line}`, borderRadius: 10, padding: "10px 14px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                      <span style={{ ...body, fontSize: 18, color: c.ink, fontWeight: 600 }}>{b.label}</span>
-                      <span style={{ ...mono, fontSize: 16, color: i === 0 ? c.orange : c.muted }}>{b.delta}</span>
-                    </div>
-                    <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, marginTop: 6, overflow: "hidden" }}>
-                      <div style={{ width: `${b.score * grow}%`, height: "100%", background: i === 0 ? c.orange : "rgba(255,255,255,0.45)" }} />
-                    </div>
-                  </div>
-                );
-              })}
+        <div style={{ ...head, fontSize: 84, marginTop: 6 }}>Loupe 1.0</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28, marginTop: 40 }}>
+          {tiles.map((t, i) => (
+            <div key={t.small} style={{ background: CARD, border: `1px solid ${c["line-strong"]}`, borderRadius: 20, padding: "26px 34px", opacity: interpolate(frame, [s(2.5) + i * 20, s(2.5) + i * 20 + 16], [0, 1], clamp) }}>
+              <div style={{ ...head, fontSize: 64, color: i === 0 ? c.orange : c.ink }}>{t.big}</div>
+              <div style={{ ...body, fontSize: 28, marginTop: 4 }}>{t.small}</div>
             </div>
-          </div>
-          <div>
-            <div style={{ ...head, fontSize: 34, color: c.ink }}>Loupe ({fact("baseModel")} LoRA)</div>
-            <div style={{ ...body, fontSize: 20, color: c.muted, marginTop: 4 }}>
-              Honest weak spot reported: lure-type classification is {`${(Number(fact("lureTypeRight")) * 100).toFixed(1)}%`}, so ambiguous pages escalate to Muse Spark 1.3
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 16 }}>
-              {tiles.map((t, i) => (
-                <div key={t.small} style={{ background: CARD, border: `2px solid ${i === 0 ? c.orange : c.line}`, borderRadius: 14, padding: "14px 18px" }}>
-                  <div style={{ ...head, fontSize: 38, color: i === 0 ? c.orange : c.ink }}>{t.big}</div>
-                  <div style={{ ...body, fontSize: 17, color: c["ink-2"], marginTop: 4 }}>{t.small}</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
-      <MetaBadge text={fact("baseModel")} />
-      <LoupeCascadeXRay style={{ position: "absolute", left: 160, right: 160, bottom: 68 }} />
-      <TraceStrip
-        items={[
-          { label: "Dashboard", value: "app.isitlegit.co.za/eval" },
-          { label: "Frozen corpus", value: "172,987 pages (18 datasets)" },
-          { label: "Weights", value: "huggingface.co/rizonetech/isitlegit-loupe" },
-        ]}
-      />
+        <div style={{ ...body, fontSize: 30, marginTop: 34, opacity: interpolate(frame, [split - s(5.5), split - s(4.8)], [0, 1], clamp) }}>
+          Its weak spot, shown too: it names the lure type right {`${(Number(fact("lureTypeRight")) * 100).toFixed(1)}%`} of the time.
+        </div>
+      </AbsoluteFill>
+      {ev ? (
+        <Part from={split} to={frames} last>
+          <Take src={ev.src} from={Math.max(0, (ev.marks.loaded ?? 1) - 0.3)} to={(ev.marks.scrolled ?? 10) + 0.5} slot={frames - split} path="app.isitlegit.co.za/eval" max={3} />
+          <Caption from={0} to={frames - split} text="Every evaluation run, published whether good or not" />
+        </Part>
+      ) : null}
       {[0, 1, 2, 3].map((i) => (
-        <Sequence key={i} from={20 + i * 18} layout="none">
+        <Sequence key={i} from={s(2.5) + i * 20} layout="none">
           <Sfx name="tick" />
         </Sequence>
       ))}
@@ -806,70 +503,52 @@ const ProofScene: React.FC<{ frames: number }> = ({ frames }) => {
   );
 };
 
-// Scene 8 (10 s): Closing card repeating the two-row Runtime Meta AI + Built with Meta Muse Code badge strip, URLs, and judge replay command.
+// Scene 8: the close.
 const CloseCard: React.FC<{ frames: number }> = ({ frames }) => {
   const frame = useCurrentFrame();
-  const stamp = CAPTURE ? `Captured live on ${CAPTURE.capturedAt.slice(0, 10)}, Worker commit ${(CAPTURE.liveCommit ?? "unknown").slice(0, 8)}` : "Live Worker capture";
+  const a = interpolate(frame, [0, 20], [0, 1], clamp);
+  const b = interpolate(frame, [s(2.5), s(3.2)], [0, 1], clamp);
+  const stamp = CAPTURE ? `Captured live on ${CAPTURE.capturedAt.slice(0, 10)}, Worker commit ${(CAPTURE.liveCommit ?? "unknown").slice(0, 8)}` : "";
   return (
-    <AbsoluteFill style={{ opacity: fade(frame, frames, 10) }}>
-      <Plate src={GENERATED.plateC} dim={0.38} />
-      <AbsoluteFill style={{ padding: "76px 120px", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "center", textAlign: "center" }}>
-        <Logo width={480} />
-        <div>
-          <div style={{ ...head, fontSize: 64, color: c.ink }}>Your filter protects your inbox.</div>
-          <div style={{ ...head, fontSize: 64, color: c.orange, marginTop: 6 }}>We protect you from everyone else&apos;s.</div>
-          <div style={{ display: "flex", gap: 22, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
-            {[
-              ["Live Web & Console", "isitlegit.co.za · app.isitlegit.co.za"],
-              ["Local Judge Replay", "pnpm judge:demo"],
-              ["Loupe Weights & Card", "huggingface.co/rizonetech/isitlegit-loupe"],
-            ].map(([k, v]) => (
-              <div key={k} style={{ background: `${CARD}ee`, border: `2px solid ${c.line}`, borderRadius: 14, padding: "12px 24px", textAlign: "left" }}>
-                <div style={{ ...mono, fontSize: 15, color: c.orange }}>{k}</div>
-                <div style={{ ...mono, fontSize: 22, color: c.ink, fontWeight: 700, marginTop: 4 }}>{v}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ ...body, fontSize: 22, color: c.muted, marginTop: 16 }}>{stamp}</div>
+    <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
+      <Plate src={GENERATED.plateC} dim={0.62} />
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", textAlign: "center", paddingBottom: 120 }}>
+        <div style={{ opacity: a }}>
+          <Logo width={520} />
         </div>
-        <MetaAttributionStrip style={{ width: "100%", textAlign: "left" }} />
+        <div style={{ ...head, fontSize: 66, marginTop: 64, opacity: a, textShadow: "0 4px 24px rgba(0,0,0,0.8)" }}>Your filter protects your inbox.</div>
+        <div style={{ ...head, fontSize: 66, color: c.orange, opacity: b, textShadow: "0 4px 24px rgba(0,0,0,0.8)" }}>We protect you from everyone else's.</div>
+        <div style={{ ...mono, fontSize: 34, marginTop: 40, color: c.ink, opacity: b }}>app.isitlegit.co.za</div>
+        <div style={{ ...body, fontSize: 20, marginTop: 14, color: c.muted, opacity: b }}>{stamp}</div>
       </AbsoluteFill>
+      <MetaAttributionStrip style={{ position: "absolute", left: 0, right: 0, bottom: 60, opacity: b }} />
     </AbsoluteFill>
   );
 };
 
-// Standalone compositions for D09 T02 §4 (title cards, architecture animation, and X-Ray highlight cards).
-export const DemoTitleOpen: React.FC = () => <ColdOpen frames={s(8)} />;
-export const DemoArchitecture: React.FC = () => <ArchitectureAndVoiceScene frames={s(20)} />;
-export const DemoXRayCards: React.FC = () => (
-  <AbsoluteFill style={{ background: "#0B0A0D", padding: "48px 110px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-    <SparkXRay />
-    <SamXRay />
-    <WonderXRay />
-    <LoupeCascadeXRay />
-  </AbsoluteFill>
-);
-export const DemoTitleClose: React.FC = () => <CloseCard frames={s(10)} />;
+const SCENES = [ColdOpen, StakesScene, ReportScene, ProtectScene, MonitorScene, ArchitectureScene, ProofScene, CloseCard];
+// Each scene's shortest length in seconds, for a render with no narration yet.
+const FLOORS = [7, 24, 30, 22, 14, 20, 20, 9];
 
-// Exact scene durations in seconds (totalling 180 s = 3:00, with ~78% / 136 s live product UI).
-export const SCENES = [8, 18, 60, 18, 20, 20, 26, 10];
+const introFrames = () => (GENERATED.intro ? s(INTRO_SECONDS + 0.4) : 0);
+/** Each narrated scene's frames: its clip, LEAD before and TAIL after, never shorter than its floor without a voice. */
+const sceneFrames = (clips: VoiceClip[] | null) => FLOORS.map((f, i) => (clips ? Math.ceil((LEAD + clips[i].seconds + TAIL) * FPS) : f * FPS));
 
-export const demoFrames = () => SCENES.reduce((a, b) => a + b, 0) * FPS;
+export const demoFrames = () => introFrames() + sceneFrames(voiceFor("demo", SCENES.length)).reduce((a, f) => a + f, 0);
 
+/** The whole demo: the intro, then the eight narrated scenes over one moving background and one music bed. */
 export const Demo: React.FC = () => {
   const clips = voiceFor("demo", SCENES.length);
-  const frames = SCENES.map((sec) => sec * FPS);
-  const nodes = [
-    <ColdOpen key="cold" frames={frames[0]} />,
-    <FiltersAndClientScene key="filters" frames={frames[1]} />,
-    <ReportScene key="report" frames={frames[2]} />,
-    <ProtectAndCasesScene key="protect" frames={frames[3]} />,
-    <TrustNetworkScene key="trust" frames={frames[4]} />,
-    <ArchitectureAndVoiceScene key="arch" frames={frames[5]} />,
-    <ProofScene key="proof" frames={frames[6]} />,
-    <CloseCard key="close" frames={frames[7]} />,
-  ];
-  const total = frames.reduce((a, f) => a + f, 0);
+  const frames = sceneFrames(clips);
+  const intro = introFrames();
+  const total = intro + frames.reduce((a, f) => a + f, 0);
+  // Where anyone speaks: the operator through the intro, then each narration clip, so the bed rises only in the gaps.
+  const spans: [number, number][] = intro ? [[0, intro]] : [];
+  let t = intro;
+  frames.forEach((f, i) => {
+    if (clips) spans.push([t + s(LEAD), t + s(LEAD) + Math.ceil(clips[i].seconds * FPS)]);
+    t += f;
+  });
   return (
     <AbsoluteFill style={{ background: "#0B0A0D" }}>
       {GENERATED.loop ? (
@@ -877,19 +556,95 @@ export const Demo: React.FC = () => {
           <Loop durationInFrames={s(8)}>
             <OffthreadVideo src={GENERATED.loop} muted style={{ width: 1920, height: 1080, objectFit: "cover" }} />
           </Loop>
-          <AbsoluteFill style={{ background: "rgba(11,10,13,0.45)" }} />
+          <AbsoluteFill style={{ background: "rgba(11,10,13,0.55)" }} />
         </AbsoluteFill>
       ) : null}
       <Series>
-        {nodes.map((node, i) => (
-          <Series.Sequence key={i} durationInFrames={frames[i]}>
-            <Sequence>{node}</Sequence>
-            <Voice clip={clips?.[i]} />
-            {i === 0 ? null : <Sfx name={i === frames.length - 1 ? "swell" : "whoosh"} />}
+        {intro ? (
+          <Series.Sequence durationInFrames={intro}>
+            <Intro frames={intro} />
+          </Series.Sequence>
+        ) : null}
+        {SCENES.map((Scene, i) => (
+          <Series.Sequence key={Scene.name} durationInFrames={frames[i]}>
+            <Scene frames={frames[i]} />
+            <Voice clip={clips?.[i]} at={s(LEAD)} />
+            {i === 0 ? null : <Sfx name={i === SCENES.length - 1 ? "swell" : "whoosh"} />}
           </Series.Sequence>
         ))}
       </Series>
-      <MusicBed name="demo-bed" frames={total} voice={voiceSpans(frames, clips)} />
+      <MusicBed name="demo-bed" frames={total} voice={spans} />
+    </AbsoluteFill>
+  );
+};
+
+// Standalone cuts of single scenes, each with its own narration and the bed, so none renders silent.
+const Standalone: React.FC<{ index: number }> = ({ index }) => {
+  const clips = voiceFor("demo", SCENES.length);
+  const f = sceneFrames(clips)[index];
+  const Scene = SCENES[index];
+  return (
+    <AbsoluteFill style={{ background: "#0B0A0D" }}>
+      <Scene frames={f} />
+      <Voice clip={clips?.[index]} at={s(LEAD)} />
+      <MusicBed name="demo-bed" frames={f} voice={clips ? [[s(LEAD), s(LEAD) + Math.ceil(clips[index].seconds * FPS)]] : []} />
+    </AbsoluteFill>
+  );
+};
+export const DemoTitleOpen: React.FC = () => (
+  <AbsoluteFill style={{ background: "#0B0A0D" }}>
+    <Intro frames={introFrames() || s(7)} />
+  </AbsoluteFill>
+);
+export const DemoArchitecture: React.FC = () => <Standalone index={5} />;
+export const DemoTitleClose: React.FC = () => <Standalone index={7} />;
+export const standaloneFrames = (index: number) => sceneFrames(voiceFor("demo", SCENES.length))[index];
+export const introLength = () => introFrames() || s(7);
+
+// The 45-second X teaser (D10 T01 §9): the cold open's line without narration, then the live report and the close,
+// each with its own narration, so the teaser is the demo's strongest minute cut down, never a separate mock.
+const TEASER_HOOK = s(5);
+const TEASER_SCENES = [2, 7];
+export const teaserFrames = () => {
+  const f = sceneFrames(voiceFor("demo", SCENES.length));
+  return TEASER_HOOK + TEASER_SCENES.reduce((a, i) => a + f[i], 0);
+};
+export const DemoTeaser: React.FC = () => {
+  const clips = voiceFor("demo", SCENES.length);
+  const f = sceneFrames(clips);
+  const total = teaserFrames();
+  const spans: [number, number][] = [];
+  let t = TEASER_HOOK;
+  for (const i of TEASER_SCENES) {
+    if (clips) spans.push([t + s(LEAD), t + s(LEAD) + Math.ceil(clips[i].seconds * FPS)]);
+    t += f[i];
+  }
+  return (
+    <AbsoluteFill style={{ background: "#0B0A0D" }}>
+      {GENERATED.loop ? (
+        <AbsoluteFill>
+          <Loop durationInFrames={s(8)}>
+            <OffthreadVideo src={GENERATED.loop} muted style={{ width: 1920, height: 1080, objectFit: "cover" }} />
+          </Loop>
+          <AbsoluteFill style={{ background: "rgba(11,10,13,0.55)" }} />
+        </AbsoluteFill>
+      ) : null}
+      <Series>
+        <Series.Sequence durationInFrames={TEASER_HOOK}>
+          <ColdOpen frames={TEASER_HOOK} />
+        </Series.Sequence>
+        {TEASER_SCENES.map((i) => {
+          const Scene = SCENES[i];
+          return (
+            <Series.Sequence key={i} durationInFrames={f[i]}>
+              <Scene frames={f[i]} />
+              <Voice clip={clips?.[i]} at={s(LEAD)} />
+              <Sfx name={i === 7 ? "swell" : "whoosh"} />
+            </Series.Sequence>
+          );
+        })}
+      </Series>
+      <MusicBed name="demo-bed" frames={total} voice={spans} />
     </AbsoluteFill>
   );
 };

@@ -1,7 +1,7 @@
 {
   "$comment": "Every figure video 02 shows, pinned to the commit below; proven by media/tools/check-facts.py. shipped means in src/ at that commit; planned means designed, not built.",
-  "commit": "f270f9603d888a43daa601222f5519e2305dadfd",
-  "asOf": "3 Nov 2026",
+  "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0",
+  "asOf": "31 Oct 2026",
   "facts": {
     "intakeAddress": {
       "value": "check@isitlegit.co.za",
@@ -58,16 +58,14 @@
       "value": "a saved email (.eml or .msg), a PDF, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3)",
       "status": "shipped",
       "source": "src/intake/sniff.ts",
-      "quote": "Upload a saved email (.eml or .msg), a PDF, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3).",
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "quote": "Upload a saved email (.eml or .msg), a PDF, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3)."
     },
     "postalMime": {
       "value": "postal-mime 4.1.4",
       "status": "shipped",
       "source": "package.json",
       "quote": "\"postal-mime\": \"4.1.4\",",
-      "label": true,
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "label": true
     },
     "bodyPartLimit": {
       "value": "1 MiB",
@@ -91,7 +89,7 @@
     },
     "voiceModel": {
       "value": "muse-voice-transcribe-1.0",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "(`muse-voice-transcribe-1.0`, diarization mode)"
     },
@@ -100,8 +98,7 @@
       "status": "shipped",
       "source": "src/pipeline/analysis-workflow.ts",
       "quote": "export type StepName = \"admit\" | \"parse\" | \"checks\" | \"verdict\" | \"store\" | \"reply\" | \"finish\";",
-      "label": true,
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "label": true
     },
     "retryLimit": {
       "value": "3 retries, 2 seconds, exponential",
@@ -140,8 +137,7 @@
       "value": "isitlegit-analysis",
       "status": "shipped",
       "source": "wrangler.jsonc",
-      "quote": "\"workflows\": [{ \"name\": \"isitlegit-analysis\", \"binding\": \"ANALYSIS\"",
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "quote": "\"workflows\": [{ \"name\": \"isitlegit-analysis\", \"binding\": \"ANALYSIS\""
     },
     "evidenceShape": {
       "value": "Evidence { id, check, severity, summary, detail, artefacts[] }",
@@ -168,8 +164,7 @@
       "value": "auth.alignment",
       "status": "shipped",
       "source": "src/checks/auth.ts",
-      "quote": "registry.register({ name: \"auth.alignment\"",
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "quote": "registry.register({ name: \"auth.alignment\""
     },
     "lookalikeSkeleton": {
       "value": "UTS #39 skeleton",
@@ -185,25 +180,25 @@
     },
     "webRisk": {
       "value": "Google Web Risk Lookup API",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "**Google Web Risk Lookup API** (`uris.search`)"
     },
     "webRiskFree": {
       "value": "100,000 calls a month",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "Free up to 100,000 calls a month"
     },
     "cf112": {
       "value": "Cloudflare 1.1.1.2",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "**Cloudflare 1.1.1.2** (malware-blocking resolver) over DNS-over-HTTPS"
     },
     "listNotAlone": {
       "value": "A blocklist hit alone cannot make a verdict malicious.",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "A blocklist hit alone cannot make a verdict malicious."
     },
@@ -215,31 +210,31 @@
     },
     "floorRule": {
       "value": "caps the verdict at suspicious or malicious regardless of model output",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "caps the verdict at suspicious or malicious regardless of model output"
     },
     "browserRun": {
       "value": "Browser Run",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-tech-stack-design.md",
       "quote": "**Browser Run** (formerly Browser Rendering) with `@cloudflare/puppeteer`"
     },
     "browserLimits": {
       "value": "3 new browsers per second, 60 s inactivity timeout",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-tech-stack-design.md",
       "quote": "3 new browsers per second, 60 s inactivity timeout"
     },
     "wonderLimits": {
       "value": "max 8 steps, 60 seconds, no file downloads",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "max 8 steps, 60 seconds, no file downloads, no navigation outside http(s), only canary values may be typed, and every action logged"
     },
     "wonderCanary": {
       "value": "canary credentials",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "types **canary credentials** (generated per case, never real)"
     },
@@ -257,7 +252,7 @@
     },
     "samUse": {
       "value": "SAM 3.1",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "**SAM 3.1** (`sam-3.1`, text prompt \"logo\") returns boxes and masks"
     },
@@ -299,31 +294,31 @@
     },
     "untrustedBlocks": {
       "value": "clearly delimited untrusted blocks",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "Email text, PDF text and page text reach a model only inside clearly delimited untrusted blocks"
     },
     "noModelRecipients": {
       "value": "No model decides who gets mail.",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "**No model decides who gets mail.**"
     },
     "toolsZod": {
       "value": "validated with zod",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "so every call is validated with zod before it runs"
     },
     "verdictJson": {
       "value": "verdict, confidence, headline, explanation, cited_evidence_ids[], recommended_actions[]",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "Output JSON: `verdict, confidence, headline, explanation, cited_evidence_ids[], recommended_actions[]`."
     },
     "citeValidator": {
       "value": "retries once, then the case falls back to a rule-based verdict",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "on failure the agent retries once, then the case falls back to a rule-based verdict"
     },
@@ -336,74 +331,74 @@
     },
     "verdictTools": {
       "value": "expand_link, screenshot_url, segment_logos, compare_logo, lookup_domain, ledger_lookup, walk_phishing_site",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "`expand_link`, `screenshot_url`, `segment_logos`, `compare_logo`, `lookup_domain`, `ledger_lookup`, `walk_phishing_site`",
       "label": true
     },
     "bankChange": {
       "value": "critical",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
-      "quote": "\u2192 **critical** evidence and a fixed instruction: confirm by phoning the supplier on the number in the ledger"
+      "quote": "→ **critical** evidence and a fixed instruction: confirm by phoning the supplier on the number in the ledger"
     },
     "invoiceFields": {
       "value": "supplier name, supplier domain, bank, account holder, account number, branch code, amount, reference, due date",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "`supplier name, supplier domain, bank, account holder, account number, branch code, amount, reference, due date`"
     },
     "synthSet": {
       "value": "SYNTHETIC",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "each stamped SYNTHETIC"
     },
     "trustProtected": {
       "value": "domains, sending addresses, logo and bank account(s)",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "a business registers and verifies its real domains, sending addresses, logo and bank account(s)"
     },
     "bankPrivacy": {
       "value": "registered bank details are never revealed to a checker",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "registered bank details are never revealed to a checker"
     },
     "cpLimit": {
       "value": "5 per sender and 50 per protected business a day",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "limited to 5 per sender and 50 per protected business a day"
     },
     "closedLoop": {
       "value": "emails the supplier's registered finance contact",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "the agent emails the supplier's registered finance contact asking for confirmation"
     },
     "badgeUrl": {
       "value": "isitlegit.co.za/v/<business>",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "linking to `isitlegit.co.za/v/<business>`"
     },
     "sealFrame": {
       "value": "frame-ancestors",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "`Content-Security-Policy: frame-ancestors`"
     },
     "monitorCron": {
       "value": "Daily run",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "**Daily run** on a Cron Trigger"
     },
     "loupeSpec": {
       "value": "scales to zero after 5 idle minutes and runs at most 30 minutes a day",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "scales to zero after 5 idle minutes and runs at most 30 minutes a day"
     },
@@ -440,7 +435,7 @@
     },
     "summaryRetention": {
       "value": "deleted within 30 days of closing it",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "deleted within 30 days of closing it"
     },
@@ -495,7 +490,7 @@
     },
     "accessAdmin": {
       "value": "Cloudflare Access",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-tech-stack-design.md",
       "quote": "**Cloudflare Access** (email one-time PIN) in front of `/admin`"
     },
@@ -508,7 +503,7 @@
     },
     "astro": {
       "value": "Astro 7",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-tech-stack-design.md",
       "quote": "**Astro 7** static site in `site/`"
     },
@@ -538,8 +533,7 @@
       "status": "shipped",
       "source": "package.json",
       "quote": "\"@biomejs/biome\": \"2.6.3\",",
-      "label": true,
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "label": true
     },
     "compatDate": {
       "value": "2026-10-26",
@@ -549,26 +543,26 @@
     },
     "evalTargets": {
       "value": "detection rate at least 95%, false positive rate at most 2%",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "detection rate at least 95% on attacks; false positive rate at most 2% on genuine mail",
       "label": true
     },
     "ablation": {
       "value": "each Meta model switched off in turn",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "the runner repeats the eval with each Meta model switched off in turn"
     },
     "popia": {
       "value": "deleted after 30 days",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "POPIA: raw messages and attachments deleted after 30 days (R2 lifecycle rule)"
     },
     "dataTerms": {
       "value": "Zero Data Retention is not available to us",
-      "status": "shipped",
+      "status": "planned",
       "source": "docs/specs/2026-10-26-phishing-invoice-analyser-design.md",
       "quote": "Zero Data Retention is not available to us"
     },
@@ -583,8 +577,7 @@
       "value": "50",
       "status": "shipped",
       "source": "src/db/cases.ts",
-      "quote": "export const DEFAULT_DAILY_CASES = 50;",
-      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
+      "quote": "export const DEFAULT_DAILY_CASES = 50;"
     },
     "cronRetry": {
       "value": "* * * * *",

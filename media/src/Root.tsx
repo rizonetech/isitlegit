@@ -4,12 +4,11 @@ import devProcess from "../data/storyboards/01-development-process.json";
 import techDeepDive from "../data/storyboards/02-technical-deep-dive.json";
 import { Storyboard, type StoryboardSpec, storyboardFrames } from "./kit/Storyboard";
 import { BANNER, ChannelBanner } from "./videos/ChannelBanner";
-import { Demo, DemoArchitecture, DemoTitleClose, DemoTitleOpen, DemoXRayCards, demoFrames } from "./videos/Demo";
+import { Demo, DemoArchitecture, DemoTeaser, DemoTitleClose, DemoTitleOpen, demoFrames, introLength, standaloneFrames, teaserFrames } from "./videos/Demo";
 import { JudgeGuide, judgeGuideFrames } from "./videos/JudgeGuide";
 import { LogoReveal, DURATION as LOGO } from "./videos/LogoReveal";
 import { LoupeV1, loupeFrames } from "./videos/LoupeV1";
 import { THUMBS, Thumbnail } from "./videos/Thumbnail";
-import { TEASER_FRAMES, XTeaser } from "./videos/XTeaser";
 
 // Every video is 1920 x 1080 at 30 fps (operator, 2026-10-30); compositions take the size from here, never their own.
 export const VIDEO = { fps: 30, width: 1920, height: 1080 } as const;
@@ -27,12 +26,11 @@ export const Root: React.FC = () => (
       <Composition key={board.id} id={board.id} component={Storyboard} defaultProps={{ board, video }} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: storyboardFrames(board, video) })} {...VIDEO} />
     ))}
     <Composition id="Demo" component={Demo} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: demoFrames() })} {...VIDEO} />
-    <Composition id="DemoTitleOpen" component={DemoTitleOpen} durationInFrames={240} {...VIDEO} />
-    <Composition id="DemoArchitecture" component={DemoArchitecture} durationInFrames={600} {...VIDEO} />
-    <Composition id="DemoXRayCards" component={DemoXRayCards} durationInFrames={180} {...VIDEO} />
-    <Composition id="DemoTitleClose" component={DemoTitleClose} durationInFrames={300} {...VIDEO} />
+    <Composition id="DemoTitleOpen" component={DemoTitleOpen} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: introLength() })} {...VIDEO} />
+    <Composition id="DemoArchitecture" component={DemoArchitecture} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: standaloneFrames(5) })} {...VIDEO} />
+    <Composition id="DemoTitleClose" component={DemoTitleClose} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: standaloneFrames(7) })} {...VIDEO} />
     <Composition id="JudgeGuide" component={JudgeGuide} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: judgeGuideFrames() })} {...VIDEO} />
-    <Composition id="XTeaser" component={XTeaser} durationInFrames={TEASER_FRAMES} {...VIDEO} />
+    <Composition id="XTeaser" component={DemoTeaser} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: teaserFrames() })} {...VIDEO} />
     <Composition id="LoupeV1" component={LoupeV1} durationInFrames={1} calculateMetadata={() => ({ durationInFrames: loupeFrames() })} {...VIDEO} />
     {Object.keys(THUMBS).map((video) => (
       <Composition key={video} id={`Thumbnail${video}`} component={Thumbnail} defaultProps={{ video }} durationInFrames={60} {...VIDEO} />
