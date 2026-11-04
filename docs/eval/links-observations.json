@@ -1,0 +1,498 @@
+{
+  "sourceSha": "00a1ffbbcfb216d4339475d405937b7050b09882",
+  "sourceDirty": false,
+  "node": "v24.18.0",
+  "runtime": "local workerd via @cloudflare/vitest-plugin",
+  "cpu": "2-3",
+  "repeats": 5,
+  "wallMs": 7364.358432,
+  "timing": "Worker performance.now milliseconds; includes HTML/SVG preparation, excludes startup, payload decoding and hashing; workerd clock may quantize synchronous work to zero",
+  "cases": [
+    {
+      "path": "message.txt",
+      "sha256": "083a1194d71563e892e4adb524f3bd1306b7f0279d8f32e9dd24b0eae39d412a",
+      "urls": [
+        "https://invoice.invalid/a",
+        "http://www.support.invalid/help"
+      ],
+      "more": 0,
+      "unread": [],
+      "coverage": "complete",
+      "error": null,
+      "ms": [
+        3,
+        1,
+        12,
+        0,
+        1
+      ],
+      "expected": 2,
+      "expectedCoverage": "complete",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 1,
+      "p95Ms": 12
+    },
+    {
+      "path": "negative.txt",
+      "sha256": "9db746d36b0b3c5d5e26749cbe59087a1e5178b8b1aca631a872d7766d0e5e41",
+      "urls": [],
+      "more": 0,
+      "unread": [],
+      "coverage": "complete",
+      "error": null,
+      "ms": [
+        0,
+        0,
+        0,
+        1,
+        0
+      ],
+      "expected": 0,
+      "expectedCoverage": "complete",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 0,
+      "p95Ms": 1
+    },
+    {
+      "path": "boundary.txt",
+      "sha256": "4070146130970c7e1d70c2bbb625c5b8f81c73da677c6770f8965bbb6bc00a08",
+      "urls": [
+        "https://boundary.invalid/invoice"
+      ],
+      "more": 0,
+      "unread": [],
+      "coverage": "complete",
+      "error": null,
+      "ms": [
+        0,
+        1,
+        1,
+        0,
+        1
+      ],
+      "expected": 1,
+      "expectedCoverage": "complete",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 1,
+      "p95Ms": 1
+    },
+    {
+      "path": "message.html",
+      "sha256": "a370038c23b89f962dc61fe4df6936af4eb6c96ef488144cfa93f9674e8c7f5f",
+      "urls": [
+        "https://forms.invalid/submit",
+        "https://images.invalid/logo.png",
+        "https://supplier.invalid/invoice?a=1&b=2"
+      ],
+      "more": 0,
+      "unread": [],
+      "coverage": "complete",
+      "error": null,
+      "ms": [
+        4,
+        2,
+        1,
+        1,
+        1
+      ],
+      "expected": 3,
+      "expectedCoverage": "complete",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 1,
+      "p95Ms": 4
+    },
+    {
+      "path": "logo.svg",
+      "sha256": "bb3fd1146a7a1e7988b3dd274ab235ca1ee914fc0d14c69385f3fe0a7ef8c08a",
+      "urls": [
+        "https://vector.invalid/details"
+      ],
+      "more": 0,
+      "unread": [],
+      "coverage": "complete",
+      "error": null,
+      "ms": [
+        1,
+        0,
+        0,
+        1,
+        0
+      ],
+      "expected": 1,
+      "expectedCoverage": "complete",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 0,
+      "p95Ms": 1
+    },
+    {
+      "path": "invoice.pdf",
+      "sha256": "0bc0d4ef24adc9900f24df11e39fd4bf5efd319faa569f864f1a0d08d2f062c9",
+      "urls": [
+        "https://pdf.invalid/invoice"
+      ],
+      "more": 0,
+      "unread": [],
+      "coverage": "complete",
+      "error": null,
+      "ms": [
+        1,
+        0,
+        0,
+        2,
+        0
+      ],
+      "expected": 1,
+      "expectedCoverage": "complete",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 0,
+      "p95Ms": 2
+    },
+    {
+      "path": "damaged.pdf",
+      "sha256": "c74cb1f3f842c7005866d83cb010dc038b675a89547123708922c0a5c7af576d",
+      "urls": [],
+      "more": 0,
+      "unread": [
+        {
+          "key": "damaged.pdf",
+          "why": "damaged"
+        }
+      ],
+      "coverage": "unread",
+      "error": null,
+      "ms": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "expected": 0,
+      "expectedCoverage": "unread",
+      "coverageMatches": true,
+      "missing": [],
+      "invented": [],
+      "p50Ms": 0,
+      "p95Ms": 0
+    },
+    {
+      "path": "many.txt",
+      "sha256": "df76ef572416c81b0052d987c97ae49fb8acf2359c2eb414a22db938b40ea708",
+      "urls": [
+        "https://many.invalid/0",
+        "https://many.invalid/1",
+        "https://many.invalid/2",
+        "https://many.invalid/3",
+        "https://many.invalid/4",
+        "https://many.invalid/5",
+        "https://many.invalid/6",
+        "https://many.invalid/7",
+        "https://many.invalid/8",
+        "https://many.invalid/9",
+        "https://many.invalid/10",
+        "https://many.invalid/11",
+        "https://many.invalid/12",
+        "https://many.invalid/13",
+        "https://many.invalid/14",
+        "https://many.invalid/15",
+        "https://many.invalid/16",
+        "https://many.invalid/17",
+        "https://many.invalid/18",
+        "https://many.invalid/19",
+        "https://many.invalid/20",
+        "https://many.invalid/21",
+        "https://many.invalid/22",
+        "https://many.invalid/23",
+        "https://many.invalid/24",
+        "https://many.invalid/25",
+        "https://many.invalid/26",
+        "https://many.invalid/27",
+        "https://many.invalid/28",
+        "https://many.invalid/29",
+        "https://many.invalid/30",
+        "https://many.invalid/31",
+        "https://many.invalid/32",
+        "https://many.invalid/33",
+        "https://many.invalid/34",
+        "https://many.invalid/35",
+        "https://many.invalid/36",
+        "https://many.invalid/37",
+        "https://many.invalid/38",
+        "https://many.invalid/39",
+        "https://many.invalid/40",
+        "https://many.invalid/41",
+        "https://many.invalid/42",
+        "https://many.invalid/43",
+        "https://many.invalid/44",
+        "https://many.invalid/45",
+        "https://many.invalid/46",
+        "https://many.invalid/47",
+        "https://many.invalid/48",
+        "https://many.invalid/49"
+      ],
+      "more": 5,
+      "unread": [],
+      "coverage": "partial",
+      "error": null,
+      "ms": [
+        1,
+        0,
+        0,
+        1,
+        0
+      ],
+      "expected": 55,
+      "expectedCoverage": "partial",
+      "coverageMatches": true,
+      "missing": [
+        "https://many.invalid/50",
+        "https://many.invalid/51",
+        "https://many.invalid/52",
+        "https://many.invalid/53",
+        "https://many.invalid/54"
+      ],
+      "invented": [],
+      "p50Ms": 0,
+      "p95Ms": 1
+    },
+    {
+      "path": "large.html",
+      "sha256": "aea39d1cc1c3593719c91fe5c76b1e88b97f4f4139d2f5091cf3b1671646bd22",
+      "urls": [
+        "https://large.invalid/start"
+      ],
+      "more": 0,
+      "unread": [
+        {
+          "key": "large.html",
+          "why": "damaged"
+        },
+        {
+          "key": "large.html",
+          "why": "too-large"
+        }
+      ],
+      "coverage": "partial",
+      "error": null,
+      "ms": [
+        42,
+        44,
+        64,
+        40,
+        49
+      ],
+      "expected": 2,
+      "expectedCoverage": "partial",
+      "coverageMatches": true,
+      "missing": [
+        "https://large.invalid/end"
+      ],
+      "invented": [],
+      "p50Ms": 44,
+      "p95Ms": 64
+    },
+    {
+      "path": "large.pdf",
+      "sha256": "c1ec462da69c4082cb9eee4f73ba21cc80dd642eda8e93903584b999b20a9692",
+      "urls": [
+        "https://large-pdf.invalid/start"
+      ],
+      "more": 0,
+      "unread": [
+        {
+          "key": "large.pdf",
+          "why": "too-large"
+        }
+      ],
+      "coverage": "partial",
+      "error": null,
+      "ms": [
+        330,
+        300,
+        322,
+        347,
+        311
+      ],
+      "expected": 2,
+      "expectedCoverage": "partial",
+      "coverageMatches": true,
+      "missing": [
+        "https://large-pdf.invalid/end"
+      ],
+      "invented": [],
+      "p50Ms": 322,
+      "p95Ms": 347
+    }
+  ],
+  "totals": {
+    "cases": 10,
+    "expected": 67,
+    "matched": 60,
+    "observed": 60,
+    "falseLinks": 0,
+    "recall": 0.8955223880597015,
+    "falseLinkRate": 0
+  },
+  "findings": [
+    {
+      "path": "many.txt",
+      "sha256": "df76ef572416c81b0052d987c97ae49fb8acf2359c2eb414a22db938b40ea708",
+      "urls": [
+        "https://many.invalid/0",
+        "https://many.invalid/1",
+        "https://many.invalid/2",
+        "https://many.invalid/3",
+        "https://many.invalid/4",
+        "https://many.invalid/5",
+        "https://many.invalid/6",
+        "https://many.invalid/7",
+        "https://many.invalid/8",
+        "https://many.invalid/9",
+        "https://many.invalid/10",
+        "https://many.invalid/11",
+        "https://many.invalid/12",
+        "https://many.invalid/13",
+        "https://many.invalid/14",
+        "https://many.invalid/15",
+        "https://many.invalid/16",
+        "https://many.invalid/17",
+        "https://many.invalid/18",
+        "https://many.invalid/19",
+        "https://many.invalid/20",
+        "https://many.invalid/21",
+        "https://many.invalid/22",
+        "https://many.invalid/23",
+        "https://many.invalid/24",
+        "https://many.invalid/25",
+        "https://many.invalid/26",
+        "https://many.invalid/27",
+        "https://many.invalid/28",
+        "https://many.invalid/29",
+        "https://many.invalid/30",
+        "https://many.invalid/31",
+        "https://many.invalid/32",
+        "https://many.invalid/33",
+        "https://many.invalid/34",
+        "https://many.invalid/35",
+        "https://many.invalid/36",
+        "https://many.invalid/37",
+        "https://many.invalid/38",
+        "https://many.invalid/39",
+        "https://many.invalid/40",
+        "https://many.invalid/41",
+        "https://many.invalid/42",
+        "https://many.invalid/43",
+        "https://many.invalid/44",
+        "https://many.invalid/45",
+        "https://many.invalid/46",
+        "https://many.invalid/47",
+        "https://many.invalid/48",
+        "https://many.invalid/49"
+      ],
+      "more": 5,
+      "unread": [],
+      "coverage": "partial",
+      "error": null,
+      "ms": [
+        1,
+        0,
+        0,
+        1,
+        0
+      ],
+      "expected": 55,
+      "expectedCoverage": "partial",
+      "coverageMatches": true,
+      "missing": [
+        "https://many.invalid/50",
+        "https://many.invalid/51",
+        "https://many.invalid/52",
+        "https://many.invalid/53",
+        "https://many.invalid/54"
+      ],
+      "invented": [],
+      "p50Ms": 0,
+      "p95Ms": 1
+    },
+    {
+      "path": "large.html",
+      "sha256": "aea39d1cc1c3593719c91fe5c76b1e88b97f4f4139d2f5091cf3b1671646bd22",
+      "urls": [
+        "https://large.invalid/start"
+      ],
+      "more": 0,
+      "unread": [
+        {
+          "key": "large.html",
+          "why": "damaged"
+        },
+        {
+          "key": "large.html",
+          "why": "too-large"
+        }
+      ],
+      "coverage": "partial",
+      "error": null,
+      "ms": [
+        42,
+        44,
+        64,
+        40,
+        49
+      ],
+      "expected": 2,
+      "expectedCoverage": "partial",
+      "coverageMatches": true,
+      "missing": [
+        "https://large.invalid/end"
+      ],
+      "invented": [],
+      "p50Ms": 44,
+      "p95Ms": 64
+    },
+    {
+      "path": "large.pdf",
+      "sha256": "c1ec462da69c4082cb9eee4f73ba21cc80dd642eda8e93903584b999b20a9692",
+      "urls": [
+        "https://large-pdf.invalid/start"
+      ],
+      "more": 0,
+      "unread": [
+        {
+          "key": "large.pdf",
+          "why": "too-large"
+        }
+      ],
+      "coverage": "partial",
+      "error": null,
+      "ms": [
+        330,
+        300,
+        322,
+        347,
+        311
+      ],
+      "expected": 2,
+      "expectedCoverage": "partial",
+      "coverageMatches": true,
+      "missing": [
+        "https://large-pdf.invalid/end"
+      ],
+      "invented": [],
+      "p50Ms": 322,
+      "p95Ms": 347
+    }
+  ]
+}

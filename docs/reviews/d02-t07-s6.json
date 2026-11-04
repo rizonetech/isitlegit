@@ -1,0 +1,127 @@
+{
+  "ref": "D02 T07 \u00a76",
+  "title": "Link extraction measured on a corpus",
+  "implementation_sha": "7ccf7c0c68f0ac6ff67cb374235dd501aaa208d5",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: node eval/links.ts prints recall, false links and timings for the set. taskset -c 2,3 node eval/links.ts on clean 00a1ffbbcfb216d4339475d405937b7050b09882 -> 10/10 cases, recall 60/67 (89.5522%), false links 0/60, all expected coverage matched, five repeats and per-case p50/p95 recorded; source-identical reviewed descendant 7ccf7c0c68f0ac6ff67cb374235dd501aaa208d5. Targeted Worker 89 passed; final wording regression 2 passed; Node measurement/dataset 23 passed; dedicated typecheck, scoped lint, build and publication passed."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T07-s6.md",
+    "verdict": "complete",
+    "candidate": "7ccf7c0c68f0ac6ff67cb374235dd501aaa208d5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T07-s6.md",
+    "candidate": "b6f527a3ecfc5aae3b95245a78320cce2dee6a2f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

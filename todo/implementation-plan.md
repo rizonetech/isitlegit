@@ -482,7 +482,7 @@ Sections: 228 | Checklist items: 1039
 | [x]    | D02 T06 §9  | One reputation result stored per provider                   | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                                | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                                    | none                 | 3     |
-| [ ]    | D02 T07 §6  | Link extraction measured on a corpus                        | none                 | 3     |
+| [x]    | D02 T07 §6  | Link extraction measured on a corpus                        | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                               | cloudflare           | 3     |
 | [ ]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                                     | attended             | 4     |
@@ -697,6 +697,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 454/621 verified sections, 104 ready to run now.
+Progress: 455/621 verified sections, 103 ready to run now.
 
-Checklist: 3256/3837 items completed (includes Commit items).
+Checklist: 3259/3837 items completed (includes Commit items).
