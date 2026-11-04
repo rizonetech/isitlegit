@@ -131,6 +131,103 @@ describe("promoting a Loupe version (§32)", () => {
     });
   });
 
+  const operationalAuthorization = {
+    decision: "OPERATOR-LOUPE11-OPERATIONAL-20261104",
+    purpose: "submission-demo",
+    version: "1.1",
+    deployment: "isitlegit-loupe-1-1",
+    previousVersion: "1.0",
+    previousDeployment: "isitlegit-loupe",
+    trainingJob: "ts-db85d8de82174aa6824b775ca6e40075",
+    finalStep: 4524,
+    outputModelSha256: "3a3d2ecf8ee9330cbe3b674bf848803712c7d4240a37053dfa8ae8a3b7f5935c",
+  };
+  const operationalSmoke = () => ({
+    version: "1.1",
+    deployment: "isitlegit-loupe-1-1",
+    model: "accounts/rizonetech/models/isitlegit-loupe-1-1#accounts/rizonetech/deployments/isitlegit-loupe-1-1",
+    outputModelSha256: operationalAuthorization.outputModelSha256,
+    promptSha256: "c0de39473966340136e2ef543ae4c8141b1b612e32cbae3eb23864e6b38e0232",
+    providerRequestId: "fixture-request-1",
+    reservationId: "fixture-reservation-1",
+    observedAt: new Date().toISOString(),
+    answer: { has_login_form: true, has_payment_form: false, lure: true, lure_type: "credential", confidence: 0.9 },
+  });
+  it("records an explicitly authorized operational release separately from a missing statistical gate", async () => {
+    const result = await promote(
+      "1.1",
+      deps({
+        gate: () => ({ verdict: "missing", detail: "independent held-out evidence missing" }),
+        operationalRelease: { authorization: operationalAuthorization, smoke: async () => operationalSmoke() },
+      }),
+    );
+    expect(result).toMatchObject({
+      outcome: "promoted",
+      releaseEvidence: {
+        mode: "operator-authorized-operational",
+        statisticalGate: { verdict: "missing" },
+        statisticalQualification: false,
+      },
+    });
+    expect(state()).toMatchObject({
+      releaseEvidence: { authorization: operationalAuthorization, smoke: { reservationId: "fixture-reservation-1" } },
+    });
+    expect(active().previous).toEqual({ version: "1.0", deployment: "isitlegit-loupe" });
+    expect(calls.some((c) => c.startsWith("probe "))).toBe(false);
+  });
+  it.each([
+    { ...operationalAuthorization, version: "1.2" },
+    { ...operationalAuthorization, finalStep: 1800 },
+    { ...operationalAuthorization, outputModelSha256: "0".repeat(64) },
+    { ...operationalAuthorization, extra: true },
+  ])("refuses a different operational authorization before remote mutation", async (authorization) => {
+    expect(
+      await promote("1.1", deps({ operationalRelease: { authorization, smoke: async () => operationalSmoke() } })),
+    ).toMatchObject({ outcome: "refused" });
+    expect(calls.some((c) => /^(ensure|ready|probe)/.test(c))).toBe(false);
+    expect(active()).toEqual(V10);
+  });
+  it.each([
+    "p",
+    { ...operationalSmoke(), answer: { ...operationalSmoke().answer, brand: null } },
+    { ...operationalSmoke(), providerRequestId: "" },
+    { ...operationalSmoke(), promptSha256: "0".repeat(64) },
+    { ...operationalSmoke(), deployment: "other" },
+    { ...operationalSmoke(), observedAt: "2020-01-01T00:00:00.000Z" },
+  ])("never treats a permission probe or invalid smoke as release evidence", async (smoke) => {
+    expect(
+      await promote(
+        "1.1",
+        deps({ operationalRelease: { authorization: operationalAuthorization, smoke: async () => smoke } }),
+      ),
+    ).toMatchObject({ outcome: "failed" });
+    expect(active()).toEqual(V10);
+    expect(state()).toMatchObject({ status: "failed", releaseEvidence: { statisticalQualification: false } });
+  });
+
+  it("refuses an operational target serving a different model and a lost smoke journal", async () => {
+    const operationalRelease = { authorization: operationalAuthorization, smoke: async () => operationalSmoke() };
+    expect(
+      await promote("1.1", deps({ operationalRelease, client: { shape: { baseModel: "wrong-model" } } })),
+    ).toMatchObject({ outcome: "refused" });
+    expect(active()).toEqual(V10);
+    remote["isitlegit-loupe-1-1"] = ready("1.1");
+    expect(
+      await promote(
+        "1.1",
+        deps({
+          operationalRelease,
+          write: (file, value) => {
+            if (file === stateFile && (value as { releaseEvidence?: { smoke?: unknown } }).releaseEvidence?.smoke)
+              throw new Error("smoke journal write failed");
+            writeJson(file, value);
+          },
+        }),
+      ),
+    ).toMatchObject({ outcome: "failed" });
+    expect(active()).toEqual(V10);
+  });
+
   it("promotes: the gate runs against the verified previous version, the active file is written last and read back", async () => {
     const result = await promote("1.1", deps());
     expect(result).toMatchObject({

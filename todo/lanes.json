@@ -17,20 +17,6 @@
         "D09 T02 §3",
         "D09 T02 §4"
       ]
-    },
-    "lookalikes": {
-      "branch": "lookalikes-lane",
-      "worktree": "../isitlegit-lookalikes",
-      "sections": [
-        "D02 T03 §5"
-      ]
-    },
-    "corpus-durability": {
-      "branch": "corpus-durability-lane",
-      "worktree": "../isitlegit-corpus-durability",
-      "sections": [
-        "D08 T02 §19"
-      ]
     }
   }
 }
