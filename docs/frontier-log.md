@@ -456,3 +456,125 @@ Missing historical diagnostic fields remain unknown; later probes do not reconst
 - This separately authorized prospective cohort ended on 2026-11-04 after five pre-model runtime errors. All five child reports and remote ledger settlements were verified, and both parent and child locks were free after the parent exited zero. The finite diagnostic for each is `walk/runtime-error/result`; no raw exception content was retained or published. The exact result-state SHA-256 is c8641eb58b014f5c6db88ffcd44cd87ac07f0e92b5de61b19b3fb2799a120561.
 - Effective experiment cap remained US$5 with US$0 measured model cost. Explicit BUDGET-36 approval raised the permitted total ceiling to US$10 during the last ordinal, but the run finished before a serialized setting change. No cap change or restart was made. Shared limits and historical charges remain unchanged. Browser infrastructure charges were not measured.
 - This cohort and the original five retain separate identities and denominators. Both failed before any model transport attempt, so neither measures model navigation capability or attains the four-of-five target. No third cohort, sixth ordinal or replay is authorized. The serving deployment window was released only after verifying settled state and no active child.
+
+
+## Wonder multi-step experiment
+
+Source 27eadd73b71842eabb5172e3681b944ffc3ee3b8; deployed df1ad981d544af292de9387ad03d9fd3c5bb7e37; experiment 4c6eabf0-d2d0-4b9c-89cb-8d9cc285e771.
+
+Credential page reached: 0/5. Unknown outcomes: 0. Counted cost: US$0.000000 (0 estimated ordinals). Credential arrival steps: [null,null,null,null,null]. Arrival time ms: [null,null,null,null,null]. Final steps: [0,0,0,0,0]. Final time ms: [269,222,173,152,137].
+
+No model call was attempted; model navigation capability was not measured. Reaching the credential page is distinct from successful form submission. All five observations are accounted for.
+
+## Wonder configuration and diagnostics: 4c6eabf0-d2d0-4b9c-89cb-8d9cc285e771
+
+Configured from immutable source 27eadd73b71842eabb5172e3681b944ffc3ee3b8; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.
+
+Configuration:
+
+```json
+{
+  "model": "muse-wonder-1.0",
+  "promptReference": "src/walkthrough/wonder.ts#GOAL",
+  "promptSha256": "42e81eba1408c0680d3b1857517a7d35d6625b61b34075e1a83e524b9c94ace7",
+  "untrustedReference": "src/meta/untrusted.ts#UNTRUSTED_WARNING",
+  "untrustedSha256": "7c17054faee0e5b3449fce15c5e382ffa9c81763c69ff1ec11b3b1029bea5fc9",
+  "promptTemplateReference": "src/walkthrough/wonder.ts#walk",
+  "promptTemplateSourceSha256": "745615b77d97d533ba7e7d578180f7e1791c994cbab64e8615b03a38773eb57e",
+  "toolSchemaReference": "src/walkthrough/driver.ts#Action",
+  "toolSchemaSourceSha256": "0c0f72afe79d5e61db2f4aa4ba9db5c93f46d5b3522e83203c50d4d03dc16291",
+  "clientReference": "src/meta/client.ts",
+  "clientSourceSha256": "1b1bd6a6f946c277dc1f35549e79f0b079b0a3a3684d599c50ec70bc54a095c8",
+  "maxOutputTokens": 1024,
+  "screenshotsRetained": 2,
+  "maxViewText": 4000,
+  "transportAttempts": 1,
+  "stepLimit": 8,
+  "timeLimitMs": 60000,
+  "toolChoice": "auto",
+  "parallelToolCalls": false,
+  "store": false,
+  "reasoningEffort": null,
+  "downloadsAllowed": false,
+  "credentials": "per-case-canaries-only"
+}
+```
+
+Diagnostics:
+
+```json
+[
+  {
+    "ordinal": 1,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 2,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 3,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 4,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 5,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  }
+]
+```
+
+Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.
+
+
+This separately authorized df1 fixed-five cohort finished on 2026-11-04 with five pre-model navigation failures. Each strict terminal driver diagnostic is `navigation.goto/error`; this identifies the failing operation but does not establish its cause. All five child reports match saved observations and all remote ledger entries settled at US$0. The parent exited zero and both parent and child locks were verified free before the stable deployment window was released. Effective initial and final cap remained US$10 with the exact dated BUDGET-RECOVERY-20 authority and no staged increase. Browser infrastructure cost was not measured.
+
+The state SHA-256 is 4d8e93b19c73141710306399f14da78b2742061113bed3792c5146b87a44ed6b. Original cohorts, diagnostics and review history remain unchanged and separately scored. No model transport was attempted, so this cohort does not measure model navigation or attain the four-of-five target. No sixth ordinal, replay, additional cohort or repeated diagnostic is authorized. Section completion remains unresolved.
