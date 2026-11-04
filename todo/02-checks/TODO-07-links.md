@@ -39,7 +39,7 @@ track: day-3
 | 3 | §3 | Landing screenshot and form detection | §2 | [x] |
 | 4 | §4 | QR code decoding from images | §2 | [ ] |
 | 5 | §5 | Automatic and click-time | §1 | [ ] |
-| 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
+| 6 | §6 | Link extraction measured on a corpus | §1 | [x] |
 | 7 | §7 | Redirect fixtures proven live | §2 | [ ] |
 | 8 | §8 | One URL policy with the walkthrough | §2 | [ ] |
 
@@ -217,6 +217,9 @@ Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove 
 - [x] Commit: `eval: link extraction measured`
 
 **Test checkpoint:** `node eval/links.ts` prints recall, false links and timings for the set.
+
+> **Verified:** 2026-11-04 | §6 | 7ccf7c0c68f0ac6ff67cb374235dd501aaa208d5
+> **Review:** `docs/reviews/d02-t07-s6.json`
 
 ## 7. Redirect fixtures proven live
 
