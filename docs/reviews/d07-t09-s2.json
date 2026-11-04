@@ -1,0 +1,109 @@
+{
+  "ref": "D07 T09 \u00a72",
+  "title": "Kinds of auth error",
+  "implementation_sha": "4cbe15eabe46000c07988c64ad9e5a83a11c339f",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T09-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "`pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with each kind worded apart and readable at phone and desktop widths in both themes. -> core 8: Worker 55 passed; browser 28 passed. Regression failed before fix on missing Configuration error; typecheck, build, design (0 problems) and publication passed; lint no errors, existing unrelated warnings."
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T09-s2.md",
+    "verdict": "complete",
+    "candidate": "4cbe15eabe46000c07988c64ad9e5a83a11c339f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T09-s2.md",
+    "candidate": "f66c430d9a6fe5013970266f83255e5fdaf96273",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

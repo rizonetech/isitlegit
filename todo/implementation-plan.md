@@ -610,7 +610,7 @@ Sections: 224 | Checklist items: 1004
 | [ ]    | D07 T08 §24 | Feedback queue search and step                              | none                 | 8     |
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page                   | operator             | 4     |
 | [x]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
-| [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 4     |
+| [x]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 4     |
 | [x]    | D07 T09 §3  | Dispute from inside the mailbox                             | none                 | 4     |
 | [x]    | D07 T09 §4  | Measured phone attribution                                  | none                 | 4     |
 | [x]    | D07 T09 §5  | Per-provider reputation results                             | none                 | 5     |
@@ -676,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 416/600 verified sections, 114 ready to run now.
+Progress: 417/600 verified sections, 113 ready to run now.
 
 Checklist: 3070/3705 items completed (includes Commit items).

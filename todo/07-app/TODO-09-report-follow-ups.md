@@ -38,7 +38,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Early results first | D07 T03 §37 | [x] |
-| 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
+| 2 | §2 | Kinds of auth error | D07 T03 §37 | [x] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [x] |
@@ -119,6 +119,9 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inc
 **Plan self-review disposition (2026-11-04):** Browser coverage finding accepted and added to the checkpoint. Historical-result wording finding accepted against `src/checks/auth.ts`; coordinator approved the historical-result sentence at 09:36:38 SAST, replacing the earlier retry instruction before rendering implementation.
 
 **Implementation evidence (2026-11-04):** The new inconclusive-state regression failed before the rendering change on missing "Configuration error". After the change, the checkpoint Worker suite passed 55 tests and browser suite passed 28 tests, pinned to core 8. `pnpm typecheck`, `pnpm build`, `python3 design/tools/check-design.py` (0 problems), and `python3 scripts/check-publication.py` passed; `pnpm lint` reported no errors with 23 existing warnings and 2 infos in unrelated files. No live deployment or CI result is claimed.
+
+> **Verified:** 2026-11-04 | §2 | 4cbe15eabe46000c07988c64ad9e5a83a11c339f
+> **Review:** `docs/reviews/d07-t09-s2.json`
 
 ## 3. Dispute from inside the mailbox
 
