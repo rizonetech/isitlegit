@@ -281,6 +281,7 @@ import {
   preflight,
   raiseCap,
   readChildReport,
+  render,
 } from "../../eval/frontier/multistep.ts";
 
 const sha256 = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
@@ -541,4 +542,22 @@ it("binds credential arrival to ordered durable action evidence, refusing ambigu
   expect(() =>
     arrivalEvidence([...rows, { seq: 7, at: "2026-11-04T10:01:02Z", screenshot_key: "login" }], began),
   ).toThrow("duplicate screenshot");
+});
+
+it("reports zero model attempts without claiming model navigation was measured", async () => {
+  const t = experiment();
+  t.d.perform = async (ordinal, reservationId) => ({
+    ordinal,
+    reservationId,
+    outcome: "error",
+    steps: 0,
+    ms: 184,
+    pages: [],
+    attempts: [],
+    capacity: [],
+  });
+  for (let i = 0; i < 5; i++) await runNext(t.state, t.d);
+  expect(render(t.state)).toContain("No model call was attempted; model navigation capability was not measured.");
+  expect(render(t.state)).not.toContain("This measures the contained model navigating");
+  expect(render(t.state)).toContain("Credential page reached: 0/5");
 });

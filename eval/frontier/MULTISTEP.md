@@ -1,6 +1,6 @@
 # Wonder multi-step experiment
 
-D08 T03 §3 measures five contained Wonder walks through a synthetic cookie banner, human checkbox and document lure. The harness uses the existing driver with its unchanged eight-step and sixty-second limits. Reaching the credential page is different from submitting the canary-only form. Offline browser tests prove fixture behavior, not model success. No live measurement is recorded yet.
+D08 T03 §3 measures five contained Wonder walks through a synthetic cookie banner, human checkbox and document lure. The harness uses the existing driver with its unchanged eight-step and sixty-second limits. Reaching the credential page is different from submitting the canary-only form. Offline browser tests prove fixture behavior, not model success. The 2026-11-04 bounded run returned five pre-model errors, zero credential arrivals and zero model calls. Its exact state is in `multistep-results-2026-11-04.json`; model navigation capability remains unmeasured.
 
 ## Release prerequisites
 
