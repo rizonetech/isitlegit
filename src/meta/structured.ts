@@ -291,6 +291,7 @@ export type StructuredContinuation = {
   ): Promise<boolean>;
   failure(value: { kind: "capacity" | "unknown" | "failed"; status?: number; retryAfterMs?: number }): Error;
   blocked(): Error;
+  pending(error: unknown): boolean;
 };
 
 export async function structured<S extends z.ZodType>(

@@ -37,6 +37,8 @@ CREATE TABLE monitor_experiment_results (
  monitor_run_id TEXT NOT NULL,
  experiment_case_id TEXT NOT NULL,
  page_operation_id TEXT NOT NULL UNIQUE,
+ screen_nonce TEXT NOT NULL CHECK(length(screen_nonce)=32 AND screen_nonce NOT GLOB '*[^0-9a-f]*'),
+ second_nonce TEXT NOT NULL CHECK(length(second_nonce)=32 AND second_nonce NOT GLOB '*[^0-9a-f]*'),
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','waiting','unknown','complete','failed')),
  result_json TEXT CHECK(result_json IS NULL OR (json_valid(result_json) AND length(result_json)<=16384)),
  PRIMARY KEY(org_id,experiment_id,arm,experiment_case_id),
@@ -73,7 +75,7 @@ BEGIN SELECT RAISE(ABORT,'immutable monitor arm'); END;
 CREATE TRIGGER monitor_experiment_results_immutable BEFORE UPDATE ON monitor_experiment_results
 WHEN NEW.org_id!=OLD.org_id OR NEW.experiment_id!=OLD.experiment_id OR NEW.arm!=OLD.arm
  OR NEW.monitor_run_id!=OLD.monitor_run_id OR NEW.experiment_case_id!=OLD.experiment_case_id
- OR NEW.page_operation_id!=OLD.page_operation_id
+ OR NEW.page_operation_id!=OLD.page_operation_id OR NEW.screen_nonce!=OLD.screen_nonce OR NEW.second_nonce!=OLD.second_nonce
 BEGIN SELECT RAISE(ABORT,'immutable monitor result identity'); END;
 CREATE TRIGGER monitor_experiment_attempts_owner BEFORE INSERT ON monitor_experiment_attempts
 WHEN NOT ((NEW.phase='wake' AND NEW.operation_id=NEW.monitor_run_id AND NEW.answer_ordinal=1)

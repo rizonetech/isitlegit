@@ -268,6 +268,9 @@ export async function screenPage(
       // One attempt a pass, so the two-pass ceiling is a ceiling on paid calls, schema repairs included (§45).
       const answer = await structured(PageAnswer, sparkRequest(request), {
         ...spark,
+        ...(spark.continuation
+          ? { continuation: { ...spark.continuation, ordinal: (calls.length + 1) as 1 | 2 } }
+          : {}),
         maxAttempts: 1,
         transportAttempts: 1,
         owner: { kind: "monitor", run, host, step: "screen" },
@@ -289,6 +292,7 @@ export async function screenPage(
   try {
     first = await askSpark();
   } catch (error) {
+    if (spark.continuation?.pending(error)) throw error;
     return {
       ok: false,
       glimmer_reason: reason,
@@ -313,6 +317,7 @@ export async function screenPage(
   try {
     second = await askSpark();
   } catch (error) {
+    if (spark.continuation?.pending(error)) throw error;
     return {
       ok: false,
       glimmer_reason: reason,

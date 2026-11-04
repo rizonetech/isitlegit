@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ulid } from "../db/ulid";
+import { randomNonce } from "../meta/untrusted";
 import { Arm, Manifest, manifestDigest, Trigger } from "./ablation-manifest";
 
 export class MonitorIdentityConflict extends Error {
@@ -90,9 +91,9 @@ export async function admitExperiment(
     batch.push(
       db
         .prepare(
-          `INSERT INTO monitor_experiment_results(org_id,experiment_id,arm,monitor_run_id,experiment_case_id,page_operation_id) SELECT org_id,experiment_id,arm,monitor_run_id,?,? FROM monitor_experiment_arms WHERE org_id=? AND experiment_id=? AND arm=? ON CONFLICT(org_id,experiment_id,arm,experiment_case_id) DO NOTHING`,
+          `INSERT INTO monitor_experiment_results(org_id,experiment_id,arm,monitor_run_id,experiment_case_id,page_operation_id,screen_nonce,second_nonce) SELECT org_id,experiment_id,arm,monitor_run_id,?,?,?,? FROM monitor_experiment_arms WHERE org_id=? AND experiment_id=? AND arm=? ON CONFLICT(org_id,experiment_id,arm,experiment_case_id) DO NOTHING`,
         )
-        .bind(page.experimentCaseId, ulid(), orgId, request.experimentId, request.arm),
+        .bind(page.experimentCaseId, ulid(), randomNonce(), randomNonce(), orgId, request.experimentId, request.arm),
     );
   try {
     await db.batch(batch);
@@ -111,4 +112,22 @@ export async function admitExperiment(
   if (!stored || stored.pages.length !== manifest.pages.length)
     throw new Error("monitor experiment admission unavailable");
   return stored;
+}
+
+// Nonces bind one logical call across restart; each phase has independent fresh128-bit entropy and immutable storage.
+export async function requestNonces(
+  db: D1Database,
+  orgId: string,
+  monitorRunId: string,
+  pageOperationId: string,
+): Promise<{ screen: string; second: string }> {
+  const row = await db
+    .prepare(
+      "SELECT screen_nonce AS screen,second_nonce AS second FROM monitor_experiment_results WHERE org_id=? AND monitor_run_id=? AND page_operation_id=?",
+    )
+    .bind(orgId, monitorRunId, pageOperationId)
+    .first();
+  return z
+    .strictObject({ screen: z.string().regex(/^[0-9a-f]{32}$/), second: z.string().regex(/^[0-9a-f]{32}$/) })
+    .parse(row);
 }

@@ -87,3 +87,29 @@ describe("durable monitor experiment identity", () => {
     ).toBe(0);
   });
 });
+
+it("persists separate immutable128-bit request nonces without exposing them in ordinary readback", async () => {
+  const org = await makeOrg();
+  const { manifest, request } = await inputs();
+  const a = await admitExperiment(env.DB, org, request, manifest);
+  const row = await env.DB.prepare(
+    "SELECT screen_nonce,second_nonce FROM monitor_experiment_results WHERE monitor_run_id=?",
+  )
+    .bind(a.monitorRunId)
+    .first<{ screen_nonce: string; second_nonce: string }>();
+  expect(row?.screen_nonce).toMatch(/^[a-f0-9]{32}$/);
+  expect(row?.second_nonce).toMatch(/^[a-f0-9]{32}$/);
+  expect(row?.screen_nonce).not.toBe(row?.second_nonce);
+  await admitExperiment(env.DB, org, request, manifest);
+  expect(
+    await env.DB.prepare("SELECT screen_nonce,second_nonce FROM monitor_experiment_results WHERE monitor_run_id=?")
+      .bind(a.monitorRunId)
+      .first(),
+  ).toEqual(row);
+  await expect(
+    env.DB.prepare("UPDATE monitor_experiment_results SET screen_nonce=? WHERE monitor_run_id=?")
+      .bind("a".repeat(32), a.monitorRunId)
+      .run(),
+  ).rejects.toThrow();
+  expect(JSON.stringify(a)).not.toContain(row?.screen_nonce);
+});

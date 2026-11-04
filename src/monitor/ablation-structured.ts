@@ -72,5 +72,6 @@ export function structuredContinuation(input: StructuredBinding): StructuredCont
     },
     failure: (value) => new AttemptFailure(value),
     blocked: () => new PendingAttempt("unknown"),
+    pending: (error) => error instanceof PendingAttempt,
   };
 }

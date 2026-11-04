@@ -22,6 +22,7 @@ export async function secondLook(page: Page, run: string, spark: SparkContext): 
       host: page.host,
       text: page.text,
       mode: page.mode,
+      ...(page.nonce ? { nonce: page.nonce } : {}),
     });
     const answer = await structured(PageAnswer, sparkRequest(request), {
       ...spark,
@@ -35,6 +36,7 @@ export async function secondLook(page: Page, run: string, spark: SparkContext): 
       logId: answer.logId,
     };
   } catch (error) {
+    if (spark.continuation?.pending(error)) throw error;
     return { verdict: "unavailable", reason: sparkReason(error) };
   }
 }

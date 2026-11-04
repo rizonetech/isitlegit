@@ -54,6 +54,10 @@ export type WakeCtx = {
   waitUntil?: (promise: Promise<unknown>) => void;
   // Eval ablation flag reader (D03 T02 §6): when it returns `"no-screening"`, Loupe is never woken or asked.
   ablateFlag?: () => Promise<AblateFlag | null>;
+  experiment?: {
+    assertOwner(): Promise<void>;
+    probe(burst: Burst, body: string, send: (attemptId: string) => Promise<Answer>): Promise<Answer>;
+  };
 };
 
 export type Burst = { id: string; wakeAt: number; deadline: number };
@@ -88,33 +92,116 @@ export function missingConfig(env: WakeEnv): string[] {
   return (["FIREWORKS_API_KEY", "GLIMMER_GATEWAY_URL", "CF_AIG_TOKEN"] as const).filter((name) => !env[name]);
 }
 
-type Answer =
+export type Answer =
   | { kind: "ready" }
-  | { kind: "retry"; why: string }
+  | { kind: "retry"; why: string; capacity?: boolean; status?: number; retryAfterMs?: number }
   | { kind: "final"; outcome: Extract<Outcome, { outcome: "deployment_missing" | "unauthorized" | "bad_answer" }> };
 
 // One request, cut at `ms`. What it answered decides whether to wait and ask again.
-async function ask(ctx: WakeCtx, ms: number): Promise<Answer> {
+async function ask(ctx: WakeCtx, ms: number, burst: Burst): Promise<Answer> {
+  if (ctx.experiment)
+    return ctx.experiment.probe(burst, String(oneTokenRequest(ctx.env).init.body), (attemptId) =>
+      askOnce(ctx, ms, attemptId),
+    );
+  return askOnce(ctx, ms);
+}
+
+function retryDelay(value: string | null, now: number): number | undefined {
+  if (!value || value.length > 128) return undefined;
+  const seconds = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
+  if (seconds !== null) return Math.min(Number.MAX_SAFE_INTEGER, seconds * 1000);
+  if (
+    !/^(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(
+      value,
+    )
+  )
+    return undefined;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? Math.max(0, time - now) : undefined;
+}
+
+async function probeBody(response: Response): Promise<string> {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      total += chunk.value.length;
+      if (total > 65536) {
+        await reader.cancel();
+        throw new Error("probe response limit");
+      }
+      chunks.push(chunk.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.length;
+  }
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
+}
+
+async function askOnce(ctx: WakeCtx, ms: number, attemptId?: string): Promise<Answer> {
   const { url, init } = oneTokenRequest(ctx.env);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("deadline")), ms);
   try {
-    const response = await (ctx.fetcher ?? fetch)(url, { ...init, signal: controller.signal });
-    const body = await response.text();
+    const response = await (ctx.fetcher ?? fetch)(url, {
+      ...init,
+      ...(attemptId
+        ? {
+            headers: fireworksHeaders(ctx.env, {
+              caller: "glimmer-wake",
+              monitor_run: ctx.burstId,
+              attempt: attemptId,
+            }),
+          }
+        : {}),
+      signal: controller.signal,
+    });
+    const body = ctx.experiment ? await probeBody(response) : await response.text();
     if (response.status === 200)
       return isCompletion(body)
         ? { kind: "ready" }
         : { kind: "final", outcome: { outcome: "bad_answer", status: 200 } };
     if (response.status === 404)
-      return { kind: "final", outcome: { outcome: "deployment_missing", notice: queueNotice(ctx) } };
+      return {
+        kind: "final",
+        outcome: { outcome: "deployment_missing", notice: ctx.experiment ? "not_configured" : queueNotice(ctx) },
+      };
     if (response.status === 401 || response.status === 403)
       return { kind: "final", outcome: { outcome: "unauthorized", status: response.status } };
     // A cold start (503 DEPLOYMENT_SCALING_UP), a rate limit, any other 5xx: wait and ask again within the deadline.
-    if (response.status === 429 || response.status >= 500) return { kind: "retry", why: `HTTP ${response.status}` };
+    if (response.status === 429 || response.status >= 500) {
+      let scaling = false;
+      try {
+        scaling = response.status === 503 && JSON.parse(body)?.error?.code === "DEPLOYMENT_SCALING_UP";
+      } catch {
+        /* No evidence of a known cold-start refusal. */
+      }
+      const retryAfterMs = retryDelay(response.headers.get("retry-after"), clock(ctx)());
+      return {
+        kind: "retry",
+        why: `HTTP ${response.status}`,
+        status: response.status,
+        capacity: response.status === 429 || scaling,
+        ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+      };
+    }
     return { kind: "final", outcome: { outcome: "bad_answer", status: response.status } };
   } catch (error) {
     // A network error or the request's own deadline: the deployment may still be scaling up, so it is asked again.
-    return { kind: "retry", why: error instanceof Error ? error.message : String(error) };
+    return {
+      kind: "retry",
+      why: ctx.experiment ? "unknown outcome" : error instanceof Error ? error.message : String(error),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -164,6 +251,7 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   const missing = missingConfig(ctx.env);
   if (missing.length) return { outcome: "not_configured", missing };
   const now = clock(ctx);
+  await ctx.experiment?.assertOwner();
   let existing: Awaited<ReturnType<typeof findBurst>>;
   try {
     existing = await findBurst(ctx.ledger, ctx.burstId);
@@ -179,6 +267,7 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   if (existing?.settled) return { outcome: "burst_closed", detail: `the burst ${ctx.burstId} is settled` };
   if (existing) {
     const wakeAt = Date.parse(existing.wakeAt);
+    if (ctx.experiment) return finishWake(ctx, { id: ctx.burstId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS }, true);
     return {
       outcome: "woken",
       burst: { id: ctx.burstId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS },
@@ -199,7 +288,15 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   if (!reserved.ok) return { outcome: "refused", detail: reserved.detail };
   const wakeAt = Date.parse(reserved.wakeAt);
   const burst = { id: ctx.burstId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS };
-  const answer = await ask(ctx, REQUEST_MS);
+  return finishWake(ctx, burst, reserved.repeated);
+}
+
+async function finishWake(ctx: WakeCtx, burst: Burst, reused: boolean): Promise<Woken> {
+  const answer = await ask(
+    ctx,
+    ctx.experiment ? Math.max(1, Math.min(REQUEST_MS, burst.deadline - clock(ctx)())) : REQUEST_MS,
+    burst,
+  );
   if (answer.kind === "final") {
     // The answer ends the run's use of Loupe: the burst is settled, and whether that landed is part of the answer.
     const settleUntil = clock(ctx)();
@@ -209,7 +306,7 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   return {
     outcome: "woken",
     burst,
-    reused: reserved.repeated,
+    reused,
     first: answer.kind === "ready" ? { outcome: "ready", attempts: 1 } : null,
   };
 }
@@ -217,6 +314,7 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
 // Waits for the deployment to answer, until the burst's deadline. Each request is cut at its own deadline and never
 // past the burst's; past the deadline the answer is `warming` at once, with no request.
 export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
+  await ctx.experiment?.assertOwner();
   const now = clock(ctx);
   const sleep = pause(ctx);
   // A burst already settled (a replayed step after a final answer) is closed: nothing more is sent under it.
@@ -229,17 +327,20 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
       detail: `the runtime ledger could not be read (${error instanceof Error ? error.message : String(error)})`,
     };
   }
+  // Even after expiry, the journal must refuse an unknown paid probe before anything settles its reservation.
+  if (ctx.experiment && now() >= burst.deadline) await ask(ctx, 1, burst);
   let attempts = 0;
   let backoff = FIRST_BACKOFF_MS;
   while (now() < burst.deadline) {
     attempts += 1;
-    const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()));
+    const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()), burst);
     if (answer.kind === "ready") return { outcome: "ready", attempts };
     if (answer.kind === "final") {
       const settleUntil = Math.min(now(), burst.deadline);
       const settled = await settleGlimmer(ctx, burst, settleUntil);
       return { ...answer.outcome, settled: settled.ok, burst, settleUntil };
     }
+    if (ctx.experiment) break; // Durable capacity waits are scheduled by the owning Workflow, never slept here.
     const left = burst.deadline - now();
     if (left <= 0) break;
     await sleep(Math.min(backoff, left));
