@@ -474,7 +474,7 @@ Sections: 227 | Checklist items: 1021
 | [ ]    | D02 T07 §5  | Automatic and click-time                                    | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus                        | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                               | cloudflare           | 3     |
-| [ ]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
+| [x]    | D02 T07 §8  | One URL policy with the walkthrough                         | none                 | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                                     | attended             | 4     |
 | [x]    | D03 T03 §4  | Logo recall check and detector choice                       | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                                    | cloudflare           | 5     |
@@ -685,6 +685,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 428/609 verified sections, 117 ready to run now.
+Progress: 429/609 verified sections, 116 ready to run now.
 
-Checklist: 3126/3760 items completed (includes Commit items).
+Checklist: 3129/3760 items completed (includes Commit items).

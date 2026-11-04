@@ -41,7 +41,7 @@ track: day-3
 | 5 | §5 | Automatic and click-time | §1 | [ ] |
 | 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
 | 7 | §7 | Redirect fixtures proven live | §2 | [ ] |
-| 8 | §8 | One URL policy with the walkthrough | §2 | [ ] |
+| 8 | §8 | One URL policy with the walkthrough | §2 | [x] |
 
 ## 1. URL extraction from text, HTML and PDF annotations
 
@@ -243,9 +243,9 @@ Filed 2026-11-03 from the coordinator's routing (walkthrough lane, D04 T02 §7):
 
 1. Compare the two policies rule by rule and unify what differs. Done when: one recorded rule set judges every URL both sides open, and each side's suite proves it.
 
-- [ ] Record the comparison in this section when built: every rule of the expansion's interception policy (`src/checks/expand.ts`: scheme, host, port, credentials, address ranges, redirect targets) beside the walkthrough policy's rule for the same question, each pair marked same, stricter, or divergent. Done when: the table names a verdict for every rule either policy holds, with `file:line` for both sides.
-- [ ] Unify the divergent rules at the owning layer: one shared policy module both the expansion and the walkthrough driver consume, or each side tightened to the stricter rule where a shared module crosses a lane boundary the coordinator has not approved. Done when: `test/node/expand-browser.test.ts` proves the expansion refuses every URL in the shared refusal fixtures, and the walkthrough's suite is named for its lane to prove the same set. Cheaper substitute: copying the rules into both files, which diverges again.
-- [ ] Commit: `checks: one URL policy with the walkthrough`
+- [x] Record the comparison in this section when built: every rule of the expansion's interception policy (`src/checks/expand.ts`: scheme, host, port, credentials, address ranges, redirect targets) beside the walkthrough policy's rule for the same question, each pair marked same, stricter, or divergent. Done when: the table names a verdict for every rule either policy holds, with `file:line` for both sides.
+- [x] Unify the divergent rules at the owning layer: one shared policy module both the expansion and the walkthrough driver consume, or each side tightened to the stricter rule where a shared module crosses a lane boundary the coordinator has not approved. Done when: `test/node/expand-browser.test.ts` proves the expansion refuses every URL in the shared refusal fixtures, and the walkthrough's suite is named for its lane to prove the same set. Cheaper substitute: copying the rules into both files, which diverges again.
+- [x] Commit: `checks: one URL policy with the walkthrough`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/expand-browser.test.ts` passes, and fails if a URL the walkthrough policy refuses is followed by the expansion.
 
@@ -268,6 +268,9 @@ Filed 2026-11-03 from the coordinator's routing (walkthrough lane, D04 T02 §7):
 | Refusal outcome | Exact refused document URL is correlated with failed main navigation in `expand.ts`, bounded to 20 URLs of at most 8192 characters; refused redirect becomes blocked, unrelated refused image plus network failure stays error | Driver records per-request refusal in `driver.ts:395` and never performs refused fetch | same refused-target meaning; checks reporting defect repaired locally |
 
 Checks-owned `test/fixtures/url-policy.ts` supplies deterministic synthetic names/answers to both `allowedUrl` and `livePolicy` in `test/node/expand-browser.test.ts`. Real browser tests cover refused starts, redirects and subrequests, including unchanged network/download/cancellation guards. Walkthrough parity remains covered by `test/walkthrough/url-policy.test.ts` and its existing joint adapter suite `test/checks/live-policy.test.ts`; no walkthrough file was edited. Mutation of the per-request policy call must fail the browser cases. No production DNS/network/model call or deployment is part of this proof.
+
+> **Verified:** 2026-11-04 | §8 | 62b6da48b855af82b4e5ba4d61f5ec3e6b019117
+> **Review:** `docs/reviews/d02-t07-s8.json`
 
 ## Verification
 
