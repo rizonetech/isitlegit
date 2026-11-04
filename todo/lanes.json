@@ -18,13 +18,6 @@
         "D09 T02 §4"
       ]
     },
-    "link-quality": {
-      "branch": "link-quality-lane",
-      "worktree": "../isitlegit-link-quality",
-      "sections": [
-        "D02 T07 §6"
-      ]
-    },
     "lookalikes": {
       "branch": "lookalikes-lane",
       "worktree": "../isitlegit-lookalikes",
