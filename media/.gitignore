@@ -1,5 +1,6 @@
 node_modules/
 out/
+out2/
 src/data/stats.json
 src/data/voice.ts
 src/data/demo-capture.ts

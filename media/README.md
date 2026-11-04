@@ -17,6 +17,11 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 - Development tooling (Claude Code, GPT-6 Astra, the Muse Wonder final review) is shown as how we build, never as a product feature, and is declared in `CONTRIBUTIONS.md`.
 - No Meta Model API calls, no client data, nothing we lack the rights to publish. Music only with a licence on file: the channel bed and sound effects are generated with ElevenLabs (Eleven Music, Sound Effects) on the operator's paid plan from the prompts in `data/sound.json`, used under the ElevenLabs terms for that plan (operator, 2026-10-30).
 
+## Licences
+
+- Remotion 4.0.539 (`remotion`, `@remotion/cli`, pinned in `package.json`): used under the Remotion licence (`https://www.remotion.dev/license`), free tier for individuals and companies of up to three people. Rizonetech has three people (operator, 2026-10-30; recorded in D10 T01 §2). Remotion renders the channel and demo videos only: it is a dependency of this folder's own pnpm root only and is never shipped in the product or the Worker. If Rizonetech grows past three people, a company licence is bought before the next render.
+- ElevenLabs music, sound effects and narration: the operator's paid plan, as in the rules above.
+
 ## Videos
 
 | Number | Video | Script | Status |

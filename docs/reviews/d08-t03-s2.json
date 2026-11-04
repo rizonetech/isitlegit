@@ -1,0 +1,123 @@
+{
+  "ref": "D08 T03 \u00a72",
+  "title": "Experiment: SAM and Spark on stamps",
+  "implementation_sha": "2e3478ee80cea9110c466e538af448f1a4b7c846",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 4,
+      "report": "docs/reviews/08-eval/D08-T03-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/08-eval/D08-T03-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/08-eval/D08-T03-s2.md",
+      "verdict": "stopped-at-3"
+    }
+  ],
+  "checks": [
+    "vitest: 4 passed (test/node/eval-frontier-stamps.test.ts)",
+    "score: node eval/frontier/stamps.ts score --check docs/frontier-log.md (exit 0)",
+    "typecheck: tsc --noEmit -p test/node (0 errors)",
+    "biome: clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T03-s2.md",
+    "verdict": "completed",
+    "candidate": "98aa921b36e7a6e59d6bd9054bc8d34cd002091f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 6,
+  "round_cap": 3,
+  "cap_outcome": "fixed P2 .reclaim recovery from dead processes with mutual exclusion and regression test in 2e3478ee",
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T03-s2.md",
+    "candidate": "5e21e8a3965ef6aeba1615f86e817dac028d50dc",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -5,23 +5,23 @@
   "segments": [
     {
       "scene": "cold open",
-      "text": "Tuesday morning. A supplier you trust sends an invoice. Same logo. Same wording. ... It looks exactly like your supplier. The bank details are not theirs."
+      "text": "A supplier you trust sends an invoice. Same logo. Same wording. But the bank details are not theirs."
     },
     {
-      "scene": "why filters miss it and our client",
-      "text": "The email is real. It comes from your supplier's own mailbox, so every check your filter runs, passes. In South Africa, digital banking fraud cost two point four one billion rand in twenty twenty-five. One of our own clients was sent five hundred and thirty-three phishing emails in thirty days. Their filter caught every one. The ones no filter can catch come from someone you trust."
+      "scene": "stakes: filters, SABRIC, Hawarden",
+      "text": "The email is real. It comes from your supplier's own mailbox, so every check your filter runs, passes. In South Africa, digital banking fraud cost two point four one billion rand in twenty twenty-five. And in the Hawarden case, a buyer paid five and a half million rand to a fraudster. The appeal court ruled the loss was theirs: they could have verified the account details."
     },
     {
       "scene": "live report",
-      "text": "Forward it to Is It Legit, and the report fills in live. Before any AI sees the mail, our checks extract text hidden from the reader, written to steer an AI assistant to classify the message as safe. It flags a reply address that goes somewhere else, and a link that shows one address and goes to another. Every finding comes with its evidence."
+      "text": "Forward it to Is It Legit, and the report fills in live. Before any AI sees the mail, our checks pull out text hidden from the reader, written to steer an AI into calling it safe. They flag a reply address that goes somewhere else, and a link that shows one address and goes to another. Then Muse Spark weighs the evidence and writes the verdict, and every reason it gives cites a finding. The first advice never changes: do not pay until you have called the number in your own records."
     },
     {
-      "scene": "protected identity and console",
-      "text": "Businesses register who they really are on the Protect page: their trading names, their domains, their bank accounts, and their logo for SAM 3.1 to compare against mail. Every check is tracked in the organisation's cases console, and the first advice never changes: phone the number in your own records. In the Hawarden case, the appeal court ruled a five and a half million rand loss could have been avoided by verifying the account details."
+      "scene": "protected identity, suppliers and cases",
+      "text": "Businesses register who they really are: their trading names, their verified domains, and their logo, for SAM 3.1 to compare against the mail. They list the suppliers they pay, with bank details checked only as match or no match. And every check lands in the organisation's cases console, searchable by anyone on the team."
     },
     {
-      "scene": "trust network alerts, monitor and badges (draft placeholders)",
-      "text": "It works both ways. When someone checks a fake that uses your name, you are alerted. Every night, the monitor hunts lookalike login and payment sites, and hands you a takedown pack. Your signature badge and website seal are drawn live, and refuse to vouch on a counterfeit domain."
+      "scene": "impersonation monitor",
+      "text": "It works both ways. Every morning, the monitor watches over five hundred lookalikes of your domain. Here it caught a live fake Fynbos Freight portal, asking customers to sign in and confirm a new bank account. You see it the same day, so you can warn your customers before they pay."
     },
     {
       "scene": "architecture and voice engine",
@@ -29,11 +29,11 @@
     },
     {
       "scene": "proof",
-      "text": "We hold our own models to the same standard: verify, don't assume. Loupe, our fine-tune of Muse Glimmer thirty B, trained on {fact.trainLines} lines in {fact.trainTime}. On held-out pages it caught {fact.lureRecallOf}, with {fact.falseAlarmsOf} false alarms, in {fact.latency}. We show its weak spot too: it names the lure type right about sixty-three and a half percent of the time."
+      "text": "We hold our own models to the same standard. Loupe, our fine-tune of Muse Glimmer thirty B, caught {fact.lureRecallOf} on held-out pages, with {fact.falseAlarmsOf} false alarms, in {fact.latency}. It names the lure type right only about sixty-three and a half percent of the time, and we publish every evaluation run, good or bad."
     },
     {
       "scene": "close",
-      "text": "Built in under two weeks by one operator and nine AI lanes. Your filter protects your inbox. We protect you from everyone else's. Is It Legit, at app.isitlegit.co.za."
+      "text": "Your filter protects your inbox. We protect you from everyone else's. Is It Legit, at app.isitlegit.co.za."
     }
   ],
   "voice_settings": {

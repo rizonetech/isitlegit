@@ -6,6 +6,7 @@
 import { Hono } from "hono";
 import { requireSession } from "../auth/gate";
 import { type OrgEnv, requireOrg } from "../auth/org";
+import { requireFeature } from "../auth/plans";
 import { admitDelivery, RetryDelivery, sha256Hex } from "./admit";
 import { sniff } from "./sniff";
 import { putAttachment, putRaw, type Store } from "./store";
@@ -101,6 +102,10 @@ uploadRoutes.post("/", async (c) => {
   // 3. What it is, from its bytes.
   const sniffed = sniff(bytes);
   if ("refused" in sniffed) return problem(415, sniffed.refused);
+  if (sniffed.kind === "document" || sniffed.kind === "image") {
+    const gated = await requireFeature("payment-document")(c, async () => {});
+    if (gated) return gated;
+  }
 
   // 4. Claimed, admitted under the cap, stored, started.
   const store: Store = { bucket: c.env.ARTEFACTS, db: c.env.DB };

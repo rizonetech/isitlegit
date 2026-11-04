@@ -43,7 +43,7 @@ track: day-6
 | 10 | §10 | A Checked by filter in the | §7 | [x] |
 | 11 | §11 | DNS help per provider | D07 T02 §15 | [x] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
-| 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
+| 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [x] |
 | 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
 | 15 | §15 | Slash shortcut to the | §7 | [x] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
@@ -365,7 +365,7 @@ Each row named as the board names it: the original's subject over its sender, th
 - [x] Read the uploader in `listCases`: an upload's `uploaded_by` matched to a member of the organisation by user id, their name, else their email; "Former member" when `uploaded_by` names no member of the organisation now; null (drawn "Not recorded") only when `uploaded_by` is null, an upload from before migration 0039. Source: `checkerName` in `src/db/case-list.ts`, the same member rule. Done when: the page test reads a member's name on an upload, "Former member" for an uploader who left, "Not recorded" for an upload without `uploaded_by`, and never a name of a user outside the organisation. Cheaper substitute: the raw user id, or "Not recorded" for every upload.
 - [x] Commit: `web: subject, sender and search in the cases list`
 
-> **Deferred:** the invoice and payment-document words in Type ("Email, invoice", "Payment document") -> XREF: D07 T04 §13
+> **Resolved:** the invoice and payment-document words in Type ("Email, invoice", "Payment document") -> XREF: D07 T04 §13
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` and `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` pass, and fail if a search returns another organisation's case, a `%` in the search matches every case, "cafe" misses "CAFÉ", or typing in the search box redraws nothing.
 
@@ -607,6 +607,9 @@ The Type column's "Email, invoice" and "Payment document" words, as the board `C
 - [x] Commit: `web: invoice and payment-document words in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if an unclassified document reads "Payment document".
+
+> **Verified:** 2026-11-04 | §13 | c661d4d185a99c874a33947505703f8811eed767
+> **Review:** `docs/reviews/d07-t04-s13.json`
 
 ## 14. Multi-word search in the Cases list
 

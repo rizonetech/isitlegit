@@ -33,7 +33,9 @@ The pilot client's sample mail and anything from it beyond counts, the data stor
 
 ## Operator decisions and open questions
 
-- Show the teacher's spend (US$6.91), or keep costs out?
-- Show the 61% Muse Spark recall bar? It is an aggregate over the pilot client's redacted sample lures; only the count and the rate would appear.
+- Keep the teacher's dollar spend out of the on-screen cards; show only page counts and agreement rates (approved 2026-11-03).
+- Show the 61% Muse Spark recall bar as an aggregate rate over the redacted South African sample lures (approved 2026-11-03).
 - Narration in the operator's ElevenLabs voice, one segment per scene in [data/narration/03.json](../data/narration/03.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
-- Re-render after Loupe 1.0 trains, adding a results scene from the model card?
+- Re-render with the measured Loupe 1.0 results (`52,019` lines, `14 h 29 min`, `0.980` recall, `0.057` false alarms, `3.9 s` median latency, `0.635` lure-type accuracy) and the Loupe 1.1 two-stage cascade (`172,987` frozen pages, `Loupe -> Muse Spark` confidence escalation, `huggingface.co/rizonetech/isitlegit-loupe`) (approved 2026-11-03).
+
+Script approved: 03, 2026-11-03
