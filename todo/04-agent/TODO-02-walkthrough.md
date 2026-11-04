@@ -2,7 +2,7 @@
 schema_version: 1
 id: walkthrough
 domain: 04-agent
-status: active
+status: done
 title: "TODO-02 -- Muse Wonder Phishing-Site Walkthrough"
 frozen: true
 track: day-4
@@ -46,7 +46,7 @@ track: day-4
 | 7 | §7 | One URL policy with the | §3, D02 T07 §2 | [x] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [x] |
 | 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §14 | [x] |
-| 10 | §10 | Multi-step evaluation fixture routes | §1 | [ ] |
+| 10 | §10 | Multi-step evaluation fixture routes | §1 | [x] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -371,13 +371,16 @@ Eval's D08 T03 §3 owns the synthetic multi-step assets and five-walk measuremen
 2. Add routes in `src/fixtures/redirects.ts`. Done when: index, lure, login and submitted pages answer under the existing host/prefix and slash normalization keeps relative navigation inside that prefix.
 3. Verify route bodies, headers, methods and refusal behavior in `test/walkthrough/multistep-fixtures.test.ts`. Done when: every route is tested against its exact asset bytes and the existing fixture gates pass without network or model calls.
 
-- [ ] Import `fixtures/nimbusmail-multistep/{index,lure,login,submitted}.html` byte-for-byte from `68d67b96e9030a79935e92a0ca9dc698030dc0dd`, as authorized by eval's durable contract `eval/frontier/MULTISTEP.md` at that candidate. Done when: all four SHA-256 values match and eval remains their content owner. Cheaper substitute: copying only the initial page or rewriting the fixture's credential-discard behavior locally.
-- [ ] Bind `nimbusmail-multistep/`, `nimbusmail-multistep/lure`, `nimbusmail-multistep/login` and `nimbusmail-multistep/submitted` in `fixturesResponse` through text imports, including a 301 from the slash-less index. Done when: GET returns each exact HTML body and content type, HEAD has the same status/headers with no body, and relative transitions resolve to the intended four routes. Cheaper substitute: serving a local copy only in the test harness.
-- [ ] Exercise restrictions in `test/walkthrough/multistep-fixtures.test.ts`. Done when: missing/wrong/short prefixes and unknown routes are 404, another host returns null, mutation methods are 405 with no collector invocation, and successful, redirect and refused answers retain noindex/nofollow/no-store. Cheaper substitute: checking only the happy-path index.
-- [ ] Record source hashes and the exact reviewed route candidate in `docs/reviews/04-agent/D04-T02-s10.md` for coordinator and eval. Done when: handover explicitly distinguishes local route proof from CI/deployment and the later exact deployed SHA/body/hash/header preflight required before any paid walk. Reversal removes the route bindings through a source revert while leaving eval's observations intact. Cheaper substitute: claiming a local test is deployment proof.
-- [ ] Commit: `fixtures: serve the owned multi-step evaluation pages`
+- [x] Import `fixtures/nimbusmail-multistep/{index,lure,login,submitted}.html` byte-for-byte from `68d67b96e9030a79935e92a0ca9dc698030dc0dd`, as authorized by eval's durable contract `eval/frontier/MULTISTEP.md` at that candidate. Done when: all four SHA-256 values match and eval remains their content owner. Cheaper substitute: copying only the initial page or rewriting the fixture's credential-discard behavior locally.
+- [x] Bind `nimbusmail-multistep/`, `nimbusmail-multistep/lure`, `nimbusmail-multistep/login` and `nimbusmail-multistep/submitted` in `fixturesResponse` through text imports, including a 301 from the slash-less index. Done when: GET returns each exact HTML body and content type, HEAD has the same status/headers with no body, and relative transitions resolve to the intended four routes. Cheaper substitute: serving a local copy only in the test harness.
+- [x] Exercise restrictions in `test/walkthrough/multistep-fixtures.test.ts`. Done when: missing/wrong/short prefixes and unknown routes are 404, another host returns null, mutation methods are 405 with no collector invocation, and successful, redirect and refused answers retain noindex/nofollow/no-store. Cheaper substitute: checking only the happy-path index.
+- [x] Record source hashes and the exact reviewed route candidate in `docs/reviews/04-agent/D04-T02-s10.md` for coordinator and eval. Done when: handover explicitly distinguishes local route proof from CI/deployment and the later exact deployed SHA/body/hash/header preflight required before any paid walk. Reversal removes the route bindings through a source revert while leaving eval's observations intact. Cheaper substitute: claiming a local test is deployment proof.
+- [x] Commit: `fixtures: serve the owned multi-step evaluation pages`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/multistep-fixtures.test.ts test/walkthrough/fixtures.test.ts test/walkthrough/canary.test.ts test/walkthrough/url-policy.test.ts` passes and fails if any route serves the wrong bytes or bypasses its host, prefix or method boundary.
+
+> **Verified:** 2026-11-04 | §10 | b51322786245a8ca522ce99f1692f7fa1d686371
+> **Review:** `docs/reviews/d04-t02-s10.json`
 
 ## Verification
 

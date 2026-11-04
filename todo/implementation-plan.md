@@ -314,7 +314,7 @@ Sections: 113 | Checklist items: 711
 | [ ]    | D04 T01 §18 | Labelled screening experiment binding            | third-party           | 5     |
 | [ ]    | D04 T01 §19 | Queued verification and guarded delivery refresh | none                  | 6     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                 | none                  | 2     |
-| [ ]    | D04 T02 §10 | Multi-step evaluation fixture routes             | none                  | 5     |
+| [x]    | D04 T02 §10 | Multi-step evaluation fixture routes             | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                    | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks               | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs               | meta-api              | 2     |
@@ -684,6 +684,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 425/608 verified sections, 119 ready to run now.
+Progress: 426/608 verified sections, 118 ready to run now.
 
-Checklist: 3108/3753 items completed (includes Commit items).
+Checklist: 3113/3753 items completed (includes Commit items).

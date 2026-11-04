@@ -1,0 +1,127 @@
+{
+  "ref": "D04 T02 \u00a710",
+  "title": "Multi-step evaluation fixture routes",
+  "implementation_sha": "b51322786245a8ca522ce99f1692f7fa1d686371",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "pnpm exec vitest run test/walkthrough/multistep-fixtures.test.ts test/walkthrough/fixtures.test.ts test/walkthrough/canary.test.ts test/walkthrough/url-policy.test.ts passes and fails if any route serves the wrong bytes or bypasses its host, prefix or method boundary. -> 55/55 checkpoint passed, final route file 20/20 after added legacy HEAD regression; initial missing routes 9 failures and original HEAD mutation 5 failures; full typecheck, test typecheck, dry build, scoped Biome and publication pass; retained cleanup warnings, no live calls or deployment."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s10.md",
+    "verdict": "complete",
+    "candidate": "b51322786245a8ca522ce99f1692f7fa1d686371",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s10.md",
+    "candidate": "c0ae791a4de4f096104369736429d7a2a574ad01",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
