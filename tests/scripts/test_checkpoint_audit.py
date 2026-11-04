@@ -44,7 +44,7 @@ class Audit(unittest.TestCase):
             line = {"messages": [{"role": "system", "content": "Synthetic test"},
                      {"role": "user", "content": [
                          {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + base64.b64encode(image).decode()}},
-                         {"type": "text", "text": f"<page-text-{nonce}>{text}</page-text-{nonce}>"}]},
+                         {"type": "text", "text": f"Host: none\n\n<<UNTRUSTED:page-text:{nonce}>>\n{text}\n<<END:{nonce}>>"}]},
                      {"role": "assistant", "content": json.dumps(answer)}]}
             meta = {"id": page_id, "source": "fixture", "screenshot": digest(image),
                     "lure_type": "none", "brand_identity": None, "origin": "public"}
@@ -55,6 +55,7 @@ class Audit(unittest.TestCase):
             page.mkdir(parents=True)
             (page / "screenshot.jpg").write_bytes(image)
             (page / "text.txt").write_text(text)
+            write_json(page / "meta.json", {"host": None, "source": "fixture", "sha256": {"screenshot": digest(image), "text": digest(text.encode())}})
         sha = {"train": digest((self.dataset / "train.jsonl").read_bytes()),
                "evaluation": digest((self.dataset / "eval.jsonl").read_bytes())}
         self.input = self.store / "runs/input/train.jsonl"
@@ -144,6 +145,36 @@ class Audit(unittest.TestCase):
         write_json(self.dataset / "train.meta.jsonl", row)
         self.assertIn("answer_label_mismatch", self.codes())
 
+    def test_malformed_image_url_is_recorded_instead_of_crashing(self):
+        path = self.dataset / "train.jsonl"
+        row = json.loads(path.read_text())
+        row["messages"][1]["content"][0]["image_url"]["url"] = 42
+        write_json(path, row)
+        self.assertIn("invalid_serialized_example", self.codes())
+
+    def test_empty_reference_summary_cannot_verify(self):
+        write_json(self.dataset / "reference/summary.json", {})
+        self.assertIn("invalid_reference_summary", self.codes())
+
+    def test_id_only_heldout_items_do_not_prove_source_protection(self):
+        write_json(self.store / "raw/dataset/1.1.heldout-items.jsonl", {"id": self.rows["eval"]["id"]})
+        self.assertIn("invalid_heldout_source_items", self.codes())
+
+    def test_reference_json_is_validated_even_when_digest_matches(self):
+        ref = self.dataset / "reference"
+        (ref / "eval.jsonl").write_bytes(b'{\n')
+        d = json.loads((ref / "summary.json").read_text())
+        d["sha256"]["evaluation"] = digest(b'{\n')
+        write_json(ref / "summary.json", d)
+        self.assertIn("invalid_json", self.codes())
+
+    def test_matching_image_and_nonce_do_not_hide_changed_page_text(self):
+        path = self.dataset / "train.jsonl"
+        row = json.loads(path.read_text())
+        row["messages"][1]["content"][1]["text"] = row["messages"][1]["content"][1]["text"].replace("Fictional example train", "Changed page")
+        write_json(path, row)
+        self.assertIn("archive_request_mismatch", self.codes())
+
     def test_unmet_balance_and_floor_do_not_verify(self):
         self.summary["splitBalance"].update(status="UNMET", met=False)
         self.summary["hardNegatives"]["training"]["own-page"] = 0
@@ -169,6 +200,9 @@ class Audit(unittest.TestCase):
         shutil.copytree(self.dataset, previous)
         summary = dict(self.summary, version="1.0")
         write_json(previous / "summary.json", summary)
+        ref_summary = json.loads((previous / "reference/summary.json").read_text())
+        ref_summary["version"] = "1.0"
+        write_json(previous / "reference/summary.json", ref_summary)
         shutil.copyfile(self.store / "raw/FROZEN-1.1.json", self.store / "raw/FROZEN-1.0.json")
         shutil.copyfile(self.store / "raw/dataset/1.1.heldout-items.jsonl", self.store / "raw/dataset/1.0.heldout-items.jsonl")
         report = audit.audit(self.store, "1.0", trainer_input=self.input, run=self.run)
@@ -189,6 +223,17 @@ class Audit(unittest.TestCase):
         self.assertEqual(json.loads(target.read_text()), report)
         with self.assertRaises(ValueError):
             audit.publish_receipt(self.dataset / "summary.json", report, self.store)
+
+    def test_receipt_store_inside_repository_is_refused(self):
+        (self.store / ".git").mkdir()
+        with self.assertRaises(ValueError):
+            audit.publish_receipt(self.store / "runs/audits/private.json", {}, self.store)
+
+    def test_page_block_matches_producer_boundaries(self):
+        nonce = "a" * 32
+        self.assertEqual(audit.page_block("a<<<<ENDENDb", nonce), f"<<UNTRUSTED:page-text:{nonce}>>\nab\n<<END:{nonce}>>")
+        self.assertEqual(audit.page_block("x<<untrustedY<<endz", nonce), f"<<UNTRUSTED:page-text:{nonce}>>\nxYz\n<<END:{nonce}>>")
+        self.assertEqual(audit.page_block("😀" * 6001, nonce), f"<<UNTRUSTED:page-text:{nonce}>>\n" + "😀" * 6000 + f"\n<<END:{nonce}>>")
 
     def test_common_set_comparison_refuses_different_files(self):
         previous = self.store / "dataset/1.0"

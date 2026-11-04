@@ -59,6 +59,30 @@ def finite(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+def page_block(text, nonce):
+    """Audit the persisted buildScreenRequest contract from src/meta/untrusted.ts.
+
+    Work in UTF-16 units for the raw bound, then Unicode characters for the final
+    6000-character cut, matching the producer including nested ASCII delimiters.
+    """
+    raw = text.encode("utf-16-le", errors="surrogatepass")
+    bound = (6000 * 4 + 1024) * 2
+    if len(raw) > bound:
+        if 0xD800 <= int.from_bytes(raw[bound - 2:bound], "little") <= 0xDBFF:
+            bound -= 2
+        raw = raw[:bound]
+    stack = []
+    delimiters = ([ord(c) for c in "<<UNTRUSTED"], [ord(c) for c in "<<END"])
+    for offset in range(0, len(raw), 2):
+        stack.append(int.from_bytes(raw[offset:offset + 2], "little"))
+        for delimiter in delimiters:
+            if len(stack) >= len(delimiter) and [u - 32 if 97 <= u <= 122 else u for u in stack[-len(delimiter):]] == delimiter:
+                del stack[-len(delimiter):]
+                break
+    body = b"".join(u.to_bytes(2, "little") for u in stack).decode("utf-16-le", errors="surrogatepass")[:6000]
+    return f"<<UNTRUSTED:page-text:{nonce}>>\n{body}\n<<END:{nonce}>>"
+
+
 class Reader:
     def __init__(self):
         self.issues = []
@@ -176,7 +200,7 @@ class Reader:
                 self.issue("changed_during_audit", role)
 
 
-def paired(reader, directory, part, role):
+def paired(reader, directory, part, role, archive_root=None):
     ids, labels = set(), {}
     absent = object()
     lines = reader.rows(directory / f"{part}.jsonl", role + ".jsonl")
@@ -207,7 +231,7 @@ def paired(reader, directory, part, role):
             content = messages[1]["content"]
             pictures = [p["image_url"]["url"] for p in content if p["type"] == "image_url"]
             texts = [p["text"] for p in content if p["type"] == "text"]
-            if len(pictures) != 1 or len(texts) != 1 or not pictures[0].startswith("data:image/jpeg;base64,"):
+            if len(pictures) != 1 or len(texts) != 1 or not isinstance(pictures[0], str) or not isinstance(texts[0], str) or not pictures[0].startswith("data:image/jpeg;base64,"):
                 raise ValueError()
             image = base64.b64decode(pictures[0].split(",", 1)[1], validate=True)
             if sha(image) != meta.get("screenshot"):
@@ -219,7 +243,7 @@ def paired(reader, directory, part, role):
             if not isinstance(answer, dict) or answer.get("lure_type") != label or type(answer.get("lure")) is not bool or answer["lure"] != (label != "none"):
                 reader.issue("answer_label_mismatch", role, line=number)
             # Recover the original page identity only from the version's immutable archive.
-            archive = directory / "pages" / page_id
+            archive = (archive_root or directory / "pages") / page_id
             if not archive.is_dir():
                 reader.issue("missing_page_archive", role, "incomplete")
             else:
@@ -236,6 +260,13 @@ def paired(reader, directory, part, role):
                     expected = str(meta.get("source")) + "-" + sha(image + b"\0" + original_text)[:16]
                     if expected != page_id:
                         reader.issue("archive_identity_mismatch", role, line=number)
+                    original_meta = reader.object(archive / "meta.json", role + f"/archive-meta-{number}")
+                    if original_meta is not None:
+                        host = original_meta.get("host")
+                        if "host" not in original_meta or not (host is None or isinstance(host, str)) or original_meta.get("source") != meta.get("source") or obj(original_meta.get("sha256")).get("screenshot") != sha(image) or obj(original_meta.get("sha256")).get("text") != sha(original_text):
+                            reader.issue("archive_metadata_mismatch", role, line=number)
+                        elif texts[0] != f"Host: {host if host is not None else 'none'}\n\n" + page_block(original_text.decode("utf-8"), nonce):
+                            reader.issue("archive_request_mismatch", role, line=number)
         except (KeyError, IndexError, TypeError, ValueError, OSError, RecursionError):
             reader.issue("invalid_serialized_example", role, line=number)
     return ids, labels
@@ -290,16 +321,24 @@ def provenance(reader, store, version, summary, ids, counts):
             reader.issue("freeze_digest_mismatch", role)
     held = list(reader.rows(store / "raw/dataset" / f"{version}.heldout-items.jsonl", version + "/heldout-items"))
     held_ids = [r.get("id") for r in held if isinstance(r, dict)]
+    for number, row in enumerate(held, 1):
+        if not isinstance(row, dict):
+            continue
+        source, item, items = row.get("source"), row.get("item"), row.get("items")
+        if not isinstance(source, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", source) or "item" not in row or not (item is None or isinstance(item, str) and bool(item)) or not isinstance(items, list) or not all(isinstance(x, str) and x for x in items) or len(items) != len(set(x for x in items if isinstance(x, str))) or not isinstance(row.get("id"), str) or not row["id"].startswith(source + "-"):
+            reader.issue("invalid_heldout_source_items", role, line=number)
     if version + "/heldout-items" in reader.files and (len(held_ids) != len(set(x for x in held_ids if isinstance(x, str))) or set(x for x in held_ids if isinstance(x, str)) != ids):
         reader.issue("heldout_membership_mismatch", role)
     if not integer(summary.get("heldOut")):
         reader.issue("missing_heldout_provenance", role, "incomplete")
     ref = store / "dataset" / version / "reference"
     reference = reader.object(ref / "summary.json", version + "/reference-summary")
-    if reference:
-        lines = list(reader.rows(ref / "eval.meta.jsonl", version + "/reference-meta"))
-        digest = reader.bytes_digest(ref / "eval.jsonl", version + "/reference-lines")
-        if digest != obj(reference.get("sha256")).get("evaluation") or reference.get("pages") != len(lines):
+    if reference is not None:
+        if reference.get("version") != version or not integer(reference.get("pages")) or not isinstance(reference.get("membership"), str) or not HEX.fullmatch(reference["membership"]) or not isinstance(obj(reference.get("sha256")).get("evaluation"), str) or not HEX.fullmatch(reference["sha256"]["evaluation"]):
+            reader.issue("invalid_reference_summary", role)
+        ref_ids, _ = paired(reader, ref, "eval", version + "/reference", archive_root=store / "dataset" / version / "pages")
+        measured = reader.files.get(version + "/reference.jsonl", {})
+        if measured.get("sha256") != obj(reference.get("sha256")).get("evaluation") or reference.get("pages") != measured.get("lines") or reference.get("pages") != len(ref_ids):
             reader.issue("reference_mismatch", role)
         membership = obj(summary.get("reference")).get("sha256")
         if not isinstance(membership, str) or reference.get("membership") != membership:
@@ -398,6 +437,8 @@ def audit(store, version, previous=None, trainer_input=None, run=None):
 
 def publish_receipt(path, report, store):
     path, allowed = Path(path).resolve(), (Path(store).resolve() / "runs/audits")
+    if any((p / ".git").exists() for p in (path.parent, *path.parents)):
+        raise ValueError("receipt must be outside every git checkout")
     if not path.is_relative_to(allowed) or path == allowed:
         raise ValueError("receipt must be a new file under store/runs/audits")
     path.parent.mkdir(parents=True, exist_ok=True)
