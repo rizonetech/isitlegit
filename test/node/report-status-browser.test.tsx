@@ -121,23 +121,58 @@ const NO_AUTH: Live = {
     },
   ],
 };
-// The early authentication card's stored facts (D07 T03 §37): the outcomes have run and each method's item is stored.
+// The early authentication card's stored facts (D07 T03 §37, D07 T09 §19): the outcomes have run and each method's
+// item is stored with supporting diagnostic detail (including long addresses/identifiers, mixed DKIM signatures, DMARC
+// policy and compauth).
+const LONG_HOST = `mail-${"x".repeat(48)}.sender-verification.example`;
 const EARLY: Live = {
   status: "running",
   verdict: null,
   progress: RUNNING_3,
   coverage: [
+    { check: "auth.results", outcome: "ran", reason: null, findings: 1 },
     { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
     { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
     { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
   ],
   evidence: [
     {
+      id: "E1",
+      check: "auth.results",
+      severity: "info",
+      summary: "Microsoft 365, your receiving system, recorded spf fail, dkim none, dmarc pass.",
+      detail: {
+        trusted: true,
+        receiver: "microsoft",
+        authservId: "mx.outlook.com",
+        results: [
+          {
+            method: "spf",
+            result: "fail",
+            props: { "smtp.mailfrom": `bounce@${LONG_HOST}`, "client-ip": "198.51.100.42" },
+          },
+          { method: "dkim", result: "none", props: {} },
+          { method: "dmarc", result: "pass", props: { "header.from": "sender.example", action: "none" } },
+          { method: "compauth", result: "fail", props: { reason: "000" } },
+        ],
+      },
+      artefacts: [],
+    },
+    {
       id: "E2",
       check: "auth.spf",
       severity: "medium",
       summary: "SPF failed for sender.example, as your receiving system recorded.",
-      detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+      detail: {
+        state: "failed",
+        results: [
+          {
+            result: "fail",
+            identifier: "sender.example",
+            comment: `domain of ${LONG_HOST} does not designate 198.51.100.42 as permitted sender`,
+          },
+        ],
+      },
       artefacts: [],
     },
     {
@@ -153,7 +188,12 @@ const EARLY: Live = {
       check: "auth.dmarc",
       severity: "info",
       summary: "DMARC passed for sender.example, as your receiving system recorded.",
-      detail: { state: "passed", results: [{ result: "pass", identifier: null }] },
+      detail: {
+        state: "passed",
+        from: "sender.example",
+        policy: { certain: "reject" },
+        results: [{ result: "pass", identifier: null, comment: "p=REJECT" }],
+      },
       artefacts: [],
     },
   ],
@@ -400,6 +440,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
         .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
         .toBe(1);
       expect(await p.getByText("Not signed").isVisible()).toBe(true);
+      expect(await p.getByText(`smtp.mailfrom=bounce@${LONG_HOST}`, { exact: false }).isVisible()).toBe(true);
+      expect(await p.getByText("From domain: sender.example").isVisible()).toBe(true);
+      expect(await p.getByText("Composite authentication (compauth): fail · reason 000").isVisible()).toBe(true);
+      const cardOverflow = await p.evaluate(() => {
+        const sec = document.querySelector("section[aria-labelledby='early-auth-title']");
+        if (!sec) return true;
+        return [...sec.querySelectorAll("li, p, span, strong")].some(
+          (el) => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth + 1,
+        );
+      });
+      expect(cardOverflow, `${width} ${theme}`).toBe(false);
       expect(await announced(p)).toContain("Early authentication results are in.");
       // The next step is announced too, without the early words a second time.
       await expect.poll(() => announced(p), { timeout: 10_000 }).toContain("Step 4 of 7");

@@ -463,6 +463,192 @@ describe("delivery apart from coverage", () => {
     const unexplained = live({ ...running, coverage: skipped, evidence: [] });
     expect(unexplained).toContain("No authentication results from a receiving system this service trusts were stored.");
   });
+
+  // D07 T09 §19: diagnostic detail beside each method's result on the early card, from auth.spf, auth.dkim,
+  // auth.dmarc and auth.results (including compauth, mixed pass/fail signatures, missing reasons, and hostile text).
+  it("draws diagnostic detail for SPF, DKIM, DMARC and compauth, pairs mixed results, and renders hostile text inertly (D07 T09 §19)", () => {
+    const running = {
+      status: "running" as const,
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+    };
+    const withAll = live({
+      ...running,
+      coverage: [
+        outcome("auth.results", "ran"),
+        outcome("auth.spf", "ran"),
+        outcome("auth.dkim", "ran"),
+        outcome("auth.dmarc", "ran"),
+      ],
+      evidence: [
+        {
+          id: "E1",
+          check: "auth.results",
+          severity: "info" as const,
+          summary: "Microsoft 365, your receiving system, recorded spf fail, dkim pass, dkim fail, dmarc fail.",
+          detail: {
+            trusted: true,
+            receiver: "microsoft",
+            authservId: "mx.outlook.com",
+            results: [
+              {
+                method: "spf",
+                result: "fail",
+                props: {
+                  "smtp.mailfrom": "spoof@bounce.sender.example",
+                  "smtp.helo": "helo.sender.example",
+                  "client-ip": "198.51.100.42",
+                },
+              },
+              {
+                method: "dkim",
+                result: "pass",
+                props: { "header.d": "good.example", "header.i": "@good.example", "header.s": "sel1" },
+              },
+              {
+                method: "dkim",
+                result: "fail",
+                props: {
+                  "header.d": "bad.example",
+                  "header.i": "billing@bad.example",
+                  "header.s": "sel2",
+                  reason: "body hash did not verify <script>alert(1)</script>",
+                },
+              },
+              {
+                method: "dmarc",
+                result: "fail",
+                props: { "header.from": "sender.example", action: "oreject" },
+              },
+              {
+                method: "compauth",
+                result: "fail",
+                props: { reason: "000" },
+              },
+            ],
+          },
+          artefacts: [],
+        },
+        {
+          id: "E2",
+          check: "auth.spf",
+          severity: "medium" as const,
+          summary: "SPF failed for bounce.sender.example, as your receiving system recorded.",
+          detail: {
+            state: "failed",
+            helo: false,
+            results: [
+              {
+                result: "fail",
+                identifier: "bounce.sender.example",
+                comment: "domain does not designate 198.51.100.42 as permitted sender",
+              },
+            ],
+          },
+          artefacts: [],
+        },
+        {
+          id: "E3",
+          check: "auth.dkim",
+          severity: "info" as const,
+          summary: "DKIM passed for good.example and failed for bad.example, as your receiving system recorded.",
+          detail: {
+            state: "passed",
+            results: [
+              { result: "pass", identifier: "good.example", comment: null },
+              {
+                result: "fail",
+                identifier: "bad.example",
+                comment: "body hash did not verify <script>alert(1)</script>",
+              },
+            ],
+          },
+          artefacts: [],
+        },
+        {
+          id: "E4",
+          check: "auth.dmarc",
+          severity: "high" as const,
+          summary: "DMARC failed for sender.example, as your receiving system recorded. Its policy is reject.",
+          detail: {
+            state: "failed",
+            from: "sender.example",
+            policy: { certain: "reject" },
+            results: [{ result: "fail", comment: "p=REJECT dis=REJECT" }],
+          },
+          artefacts: [],
+        },
+      ],
+    });
+    // SPF diagnostic detail: domain, mailfrom, helo, IP and comment.
+    expect(withAll).toContain(
+      "bounce.sender.example, smtp.mailfrom=spoof@bounce.sender.example, smtp.helo=helo.sender.example, IP 198.51.100.42: fail · domain does not designate 198.51.100.42 as permitted sender",
+    );
+    // DKIM mixed results: passing signer has no invented failure reason; failing signer keeps its own reason, escaped.
+    expect(withAll).toContain(
+      '<li class="wrap-anywhere">good.example, header.i=@good.example, selector sel1: pass</li>',
+    );
+    expect(withAll).toContain(
+      '<li class="wrap-anywhere">bad.example, header.i=billing@bad.example, selector sel2: fail · body hash did not verify &lt;script&gt;alert(1)&lt;/script&gt;</li>',
+    );
+    expect(withAll).not.toContain("<script>alert(1)</script>");
+    // DMARC diagnostic detail: From domain, Policy, and Result with action and comment.
+    expect(withAll).toContain("From domain: sender.example");
+    expect(withAll).toContain("Policy: reject");
+    expect(withAll).toContain("Result: fail · action oreject · p=REJECT dis=REJECT");
+    // Composite authentication from auth.results.
+    expect(withAll).toContain("Composite authentication (compauth): fail · reason 000");
+
+    // Missing diagnostic reasons on failed results explicitly say "reason not recorded" / "Policy: not recorded",
+    // HELO-only SPF says "(HELO)", and absent compauth draws no composite line.
+    const missingReasons = live({
+      ...running,
+      coverage: [outcome("auth.spf", "ran"), outcome("auth.dkim", "ran"), outcome("auth.dmarc", "ran")],
+      evidence: [
+        {
+          id: "E1",
+          check: "auth.spf",
+          severity: "info" as const,
+          summary: "SPF passed for helo.example, as your receiving system recorded.",
+          detail: {
+            state: "passed",
+            helo: true,
+            results: [{ result: "pass", identifier: "helo.example", comment: null }],
+          },
+          artefacts: [],
+        },
+        {
+          id: "E2",
+          check: "auth.dkim",
+          severity: "medium" as const,
+          summary: "DKIM failed for a signature naming no signer, as your receiving system recorded.",
+          detail: {
+            state: "failed",
+            results: [{ result: "fail", identifier: null, comment: null }],
+          },
+          artefacts: [],
+        },
+        {
+          id: "E3",
+          check: "auth.dmarc",
+          severity: "medium" as const,
+          summary: "DMARC failed for sender.example, as your receiving system recorded. Its policy was not recorded.",
+          detail: {
+            state: "failed",
+            from: "sender.example",
+            policy: null,
+            results: [{ result: "fail", comment: null }],
+          },
+          artefacts: [],
+        },
+      ],
+    });
+    expect(missingReasons).toContain('<li class="wrap-anywhere">helo.example (HELO): pass</li>');
+    expect(missingReasons).toContain("no signer named: fail · reason not recorded");
+    expect(missingReasons).toContain("Policy: not recorded");
+    expect(missingReasons).toContain("Result: fail · reason not recorded");
+    expect(missingReasons).not.toContain("Composite authentication");
+  });
 });
 
 describe("the failed state", () => {
@@ -1060,6 +1246,10 @@ describe("the status poll", () => {
     expect(html).toContain("Early authentication results are in.");
     // Still running: the page is still investigating, with no finished verdict drawn.
     expect(html).toContain("We are investigating this message.");
+    // D07 T09 §19: stored supporting details and missing-reason markers read back through the status route.
+    expect(html).toContain("sender.example: fail · reason not recorded");
+    expect(html).toContain('<li class="wrap-anywhere">sender.example: pass</li>');
+    expect(html).toContain("Policy: not recorded");
   });
 
   // D07 T09 §5: the stored per-provider rows read back through the status route, for a member and a link holder.
