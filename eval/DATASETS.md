@@ -143,3 +143,7 @@ Generated offline on 2026-11-04 by `eval/hidden-text/corpus.ts`: 410 project-own
 ## Link extraction (D02 T07 §6)
 
 `eval/components/links/` contains 10 project-owned synthetic component inputs (text, HTML, SVG and PDF), including damaged, boundary and capped cases. All destinations use reserved `.invalid` names and are never fetched. `labels.json` uses the existing strict D08 label schema; `manifest.json` binds exact byte hashes, normalized expected links and coverage. These are offline extraction measurements, not verdict samples or production accuracy claims. Results are recorded in `docs/eval/links.md`.
+
+## Accent-insensitive lookalikes (D02 T03 §5)
+
+`test/fixtures/lookalikes/` contains 29 fictional protected names, 203 synthetic positive labels (seven mutation families per target) and 60 independently named fictional accented benign businesses. Project-owned, generated offline by `scripts/fixtures/make-lookalikes.ts` with seed 20261104, with source digests and deterministic `--check`. Every candidate is scored against every target; no benign case is removed because it flags. This is a component corpus, not genuine mail or a representative business sample. Measurement and limits: `docs/evals/lookalikes.md`. The reference comparator uses the existing vendored Unicode 18.0.0 table under Unicode License v3 (`NOTICE.md`). No client data or paid model output.

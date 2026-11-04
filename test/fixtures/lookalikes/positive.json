@@ -1,0 +1,1055 @@
+{
+  "seed": 20261104,
+  "sources": {
+    "test/vision/fixtures/logo-recall/labels.json": "fd07ea9bf20f24bcb594be9dc2f137bbee0fecb8488a49a4d1f734287bb96120",
+    "test/fixtures/invoices/labels.json": "5180e3782e9e27b928f6e775c6779f1ac720f75bb533210d6f176c6f5ee25077"
+  },
+  "targets": [
+    "baobabbank",
+    "baobabfreight",
+    "baobabinsurance",
+    "capecoldchain",
+    "example",
+    "examplebank",
+    "fynbosbank",
+    "fynboscleaning",
+    "fynbosfoods",
+    "fynbosfreight",
+    "hadedacouriers",
+    "kalaharihotels",
+    "kalaharimail",
+    "karoobank",
+    "karoohealth",
+    "karoomobile",
+    "karoomutual",
+    "karooparts",
+    "karoosolar",
+    "karoostationery",
+    "kestrelbank",
+    "nimbusmail",
+    "proteabank",
+    "proteahealth",
+    "proteapay",
+    "proteasolar",
+    "savannaair",
+    "savannabank",
+    "savannapay"
+  ],
+  "cases": [
+    {
+      "label": "baobabbañk",
+      "target": "baobabbank",
+      "family": "accent-1"
+    },
+    {
+      "label": "báobabbañk",
+      "target": "baobabbank",
+      "family": "accent-2"
+    },
+    {
+      "label": "báobabbáñk",
+      "target": "baobabbank",
+      "family": "accent-3"
+    },
+    {
+      "label": "baoabbbank",
+      "target": "baobabbank",
+      "family": "swapped"
+    },
+    {
+      "label": "baobabbannk",
+      "target": "baobabbank",
+      "family": "doubled"
+    },
+    {
+      "label": "baоbabbank",
+      "target": "baobabbank",
+      "family": "confusable"
+    },
+    {
+      "label": "baobabbank-payments",
+      "target": "baobabbank",
+      "family": "added-word"
+    },
+    {
+      "label": "báobabfreight",
+      "target": "baobabfreight",
+      "family": "accent-1"
+    },
+    {
+      "label": "báobábfreight",
+      "target": "baobabfreight",
+      "family": "accent-2"
+    },
+    {
+      "label": "báóbábfreight",
+      "target": "baobabfreight",
+      "family": "accent-3"
+    },
+    {
+      "label": "baobbafreight",
+      "target": "baobabfreight",
+      "family": "swapped"
+    },
+    {
+      "label": "baaobabfreight",
+      "target": "baobabfreight",
+      "family": "doubled"
+    },
+    {
+      "label": "baobabfrеight",
+      "target": "baobabfreight",
+      "family": "confusable"
+    },
+    {
+      "label": "baobabfreight-payments",
+      "target": "baobabfreight",
+      "family": "added-word"
+    },
+    {
+      "label": "baobabiñsurance",
+      "target": "baobabinsurance",
+      "family": "accent-1"
+    },
+    {
+      "label": "baobabiñśurance",
+      "target": "baobabinsurance",
+      "family": "accent-2"
+    },
+    {
+      "label": "baóbabiñśurance",
+      "target": "baobabinsurance",
+      "family": "accent-3"
+    },
+    {
+      "label": "baobabinsuranec",
+      "target": "baobabinsurance",
+      "family": "swapped"
+    },
+    {
+      "label": "baobabinsurrance",
+      "target": "baobabinsurance",
+      "family": "doubled"
+    },
+    {
+      "label": "baоbabinsurance",
+      "target": "baobabinsurance",
+      "family": "confusable"
+    },
+    {
+      "label": "baobabinsurance-payments",
+      "target": "baobabinsurance",
+      "family": "added-word"
+    },
+    {
+      "label": "çapecoldchain",
+      "target": "capecoldchain",
+      "family": "accent-1"
+    },
+    {
+      "label": "çapécoldchain",
+      "target": "capecoldchain",
+      "family": "accent-2"
+    },
+    {
+      "label": "çapécóldchain",
+      "target": "capecoldchain",
+      "family": "accent-3"
+    },
+    {
+      "label": "capecoldhcain",
+      "target": "capecoldchain",
+      "family": "swapped"
+    },
+    {
+      "label": "capecolddchain",
+      "target": "capecoldchain",
+      "family": "doubled"
+    },
+    {
+      "label": "capеcoldchain",
+      "target": "capecoldchain",
+      "family": "confusable"
+    },
+    {
+      "label": "capecoldchain-payments",
+      "target": "capecoldchain",
+      "family": "added-word"
+    },
+    {
+      "label": "exámple",
+      "target": "example",
+      "family": "accent-1"
+    },
+    {
+      "label": "éxámple",
+      "target": "example",
+      "family": "accent-2"
+    },
+    {
+      "label": "éxámplé",
+      "target": "example",
+      "family": "accent-3"
+    },
+    {
+      "label": "exampel",
+      "target": "example",
+      "family": "swapped"
+    },
+    {
+      "label": "exxample",
+      "target": "example",
+      "family": "doubled"
+    },
+    {
+      "label": "exаmple",
+      "target": "example",
+      "family": "confusable"
+    },
+    {
+      "label": "example-payments",
+      "target": "example",
+      "family": "added-word"
+    },
+    {
+      "label": "éxamplebank",
+      "target": "examplebank",
+      "family": "accent-1"
+    },
+    {
+      "label": "éxámplebank",
+      "target": "examplebank",
+      "family": "accent-2"
+    },
+    {
+      "label": "éxámplébank",
+      "target": "examplebank",
+      "family": "accent-3"
+    },
+    {
+      "label": "xeamplebank",
+      "target": "examplebank",
+      "family": "swapped"
+    },
+    {
+      "label": "eexamplebank",
+      "target": "examplebank",
+      "family": "doubled"
+    },
+    {
+      "label": "exаmplebank",
+      "target": "examplebank",
+      "family": "confusable"
+    },
+    {
+      "label": "examplebank-payments",
+      "target": "examplebank",
+      "family": "added-word"
+    },
+    {
+      "label": "fýnbosbank",
+      "target": "fynbosbank",
+      "family": "accent-1"
+    },
+    {
+      "label": "fýnbósbank",
+      "target": "fynbosbank",
+      "family": "accent-2"
+    },
+    {
+      "label": "fýñbósbank",
+      "target": "fynbosbank",
+      "family": "accent-3"
+    },
+    {
+      "label": "fynbosabnk",
+      "target": "fynbosbank",
+      "family": "swapped"
+    },
+    {
+      "label": "fynbossbank",
+      "target": "fynbosbank",
+      "family": "doubled"
+    },
+    {
+      "label": "fynboѕbank",
+      "target": "fynbosbank",
+      "family": "confusable"
+    },
+    {
+      "label": "fynbosbank-payments",
+      "target": "fynbosbank",
+      "family": "added-word"
+    },
+    {
+      "label": "fýnboscleaning",
+      "target": "fynboscleaning",
+      "family": "accent-1"
+    },
+    {
+      "label": "fýnboscleaníng",
+      "target": "fynboscleaning",
+      "family": "accent-2"
+    },
+    {
+      "label": "fýnboscleáníng",
+      "target": "fynboscleaning",
+      "family": "accent-3"
+    },
+    {
+      "label": "fynboslceaning",
+      "target": "fynboscleaning",
+      "family": "swapped"
+    },
+    {
+      "label": "fynboscleaaning",
+      "target": "fynboscleaning",
+      "family": "doubled"
+    },
+    {
+      "label": "fynboѕcleaning",
+      "target": "fynboscleaning",
+      "family": "confusable"
+    },
+    {
+      "label": "fynboscleaning-payments",
+      "target": "fynboscleaning",
+      "family": "added-word"
+    },
+    {
+      "label": "fynbośfoods",
+      "target": "fynbosfoods",
+      "family": "accent-1"
+    },
+    {
+      "label": "fynbośfoóds",
+      "target": "fynbosfoods",
+      "family": "accent-2"
+    },
+    {
+      "label": "fyñbośfoóds",
+      "target": "fynbosfoods",
+      "family": "accent-3"
+    },
+    {
+      "label": "fynobsfoods",
+      "target": "fynbosfoods",
+      "family": "swapped"
+    },
+    {
+      "label": "fynboosfoods",
+      "target": "fynbosfoods",
+      "family": "doubled"
+    },
+    {
+      "label": "fynbоsfoods",
+      "target": "fynbosfoods",
+      "family": "confusable"
+    },
+    {
+      "label": "fynbosfoods-payments",
+      "target": "fynbosfoods",
+      "family": "added-word"
+    },
+    {
+      "label": "fynbosfréight",
+      "target": "fynbosfreight",
+      "family": "accent-1"
+    },
+    {
+      "label": "fýnbosfréight",
+      "target": "fynbosfreight",
+      "family": "accent-2"
+    },
+    {
+      "label": "fýñbosfréight",
+      "target": "fynbosfreight",
+      "family": "accent-3"
+    },
+    {
+      "label": "fynobsfreight",
+      "target": "fynbosfreight",
+      "family": "swapped"
+    },
+    {
+      "label": "fynbbosfreight",
+      "target": "fynbosfreight",
+      "family": "doubled"
+    },
+    {
+      "label": "fynbosfrеight",
+      "target": "fynbosfreight",
+      "family": "confusable"
+    },
+    {
+      "label": "fynbosfreight-payments",
+      "target": "fynbosfreight",
+      "family": "added-word"
+    },
+    {
+      "label": "hadedácouriers",
+      "target": "hadedacouriers",
+      "family": "accent-1"
+    },
+    {
+      "label": "hadedácourierś",
+      "target": "hadedacouriers",
+      "family": "accent-2"
+    },
+    {
+      "label": "hadedácouríerś",
+      "target": "hadedacouriers",
+      "family": "accent-3"
+    },
+    {
+      "label": "hadedacourires",
+      "target": "hadedacouriers",
+      "family": "swapped"
+    },
+    {
+      "label": "hadeedacouriers",
+      "target": "hadedacouriers",
+      "family": "doubled"
+    },
+    {
+      "label": "hadedаcouriers",
+      "target": "hadedacouriers",
+      "family": "confusable"
+    },
+    {
+      "label": "hadedacouriers-payments",
+      "target": "hadedacouriers",
+      "family": "added-word"
+    },
+    {
+      "label": "kalaharíhotels",
+      "target": "kalaharihotels",
+      "family": "accent-1"
+    },
+    {
+      "label": "kálaharíhotels",
+      "target": "kalaharihotels",
+      "family": "accent-2"
+    },
+    {
+      "label": "káláharíhotels",
+      "target": "kalaharihotels",
+      "family": "accent-3"
+    },
+    {
+      "label": "kalhaarihotels",
+      "target": "kalaharihotels",
+      "family": "swapped"
+    },
+    {
+      "label": "kalaharihotells",
+      "target": "kalaharihotels",
+      "family": "doubled"
+    },
+    {
+      "label": "kalaharіhotels",
+      "target": "kalaharihotels",
+      "family": "confusable"
+    },
+    {
+      "label": "kalaharihotels-payments",
+      "target": "kalaharihotels",
+      "family": "added-word"
+    },
+    {
+      "label": "kalaharímail",
+      "target": "kalaharimail",
+      "family": "accent-1"
+    },
+    {
+      "label": "kálaharímail",
+      "target": "kalaharimail",
+      "family": "accent-2"
+    },
+    {
+      "label": "káláharímail",
+      "target": "kalaharimail",
+      "family": "accent-3"
+    },
+    {
+      "label": "kalahairmail",
+      "target": "kalaharimail",
+      "family": "swapped"
+    },
+    {
+      "label": "kalaharrimail",
+      "target": "kalaharimail",
+      "family": "doubled"
+    },
+    {
+      "label": "kalaharіmail",
+      "target": "kalaharimail",
+      "family": "confusable"
+    },
+    {
+      "label": "kalaharimail-payments",
+      "target": "kalaharimail",
+      "family": "added-word"
+    },
+    {
+      "label": "karoóbank",
+      "target": "karoobank",
+      "family": "accent-1"
+    },
+    {
+      "label": "karóóbank",
+      "target": "karoobank",
+      "family": "accent-2"
+    },
+    {
+      "label": "karóóbañk",
+      "target": "karoobank",
+      "family": "accent-3"
+    },
+    {
+      "label": "kaorobank",
+      "target": "karoobank",
+      "family": "swapped"
+    },
+    {
+      "label": "karroobank",
+      "target": "karoobank",
+      "family": "doubled"
+    },
+    {
+      "label": "karoоbank",
+      "target": "karoobank",
+      "family": "confusable"
+    },
+    {
+      "label": "karoobank-payments",
+      "target": "karoobank",
+      "family": "added-word"
+    },
+    {
+      "label": "karoóhealth",
+      "target": "karoohealth",
+      "family": "accent-1"
+    },
+    {
+      "label": "karoóheálth",
+      "target": "karoohealth",
+      "family": "accent-2"
+    },
+    {
+      "label": "karóóheálth",
+      "target": "karoohealth",
+      "family": "accent-3"
+    },
+    {
+      "label": "karoohelath",
+      "target": "karoohealth",
+      "family": "swapped"
+    },
+    {
+      "label": "karoohhealth",
+      "target": "karoohealth",
+      "family": "doubled"
+    },
+    {
+      "label": "karoohеalth",
+      "target": "karoohealth",
+      "family": "confusable"
+    },
+    {
+      "label": "karoohealth-payments",
+      "target": "karoohealth",
+      "family": "added-word"
+    },
+    {
+      "label": "karóomobile",
+      "target": "karoomobile",
+      "family": "accent-1"
+    },
+    {
+      "label": "karóómobile",
+      "target": "karoomobile",
+      "family": "accent-2"
+    },
+    {
+      "label": "karóómóbile",
+      "target": "karoomobile",
+      "family": "accent-3"
+    },
+    {
+      "label": "kraoomobile",
+      "target": "karoomobile",
+      "family": "swapped"
+    },
+    {
+      "label": "karoomobille",
+      "target": "karoomobile",
+      "family": "doubled"
+    },
+    {
+      "label": "karoomоbile",
+      "target": "karoomobile",
+      "family": "confusable"
+    },
+    {
+      "label": "karoomobile-payments",
+      "target": "karoomobile",
+      "family": "added-word"
+    },
+    {
+      "label": "karóomutual",
+      "target": "karoomutual",
+      "family": "accent-1"
+    },
+    {
+      "label": "karóómutual",
+      "target": "karoomutual",
+      "family": "accent-2"
+    },
+    {
+      "label": "karóómútual",
+      "target": "karoomutual",
+      "family": "accent-3"
+    },
+    {
+      "label": "karoomutula",
+      "target": "karoomutual",
+      "family": "swapped"
+    },
+    {
+      "label": "karooomutual",
+      "target": "karoomutual",
+      "family": "doubled"
+    },
+    {
+      "label": "karoomutuаl",
+      "target": "karoomutual",
+      "family": "confusable"
+    },
+    {
+      "label": "karoomutual-payments",
+      "target": "karoomutual",
+      "family": "added-word"
+    },
+    {
+      "label": "karoóparts",
+      "target": "karooparts",
+      "family": "accent-1"
+    },
+    {
+      "label": "karoópárts",
+      "target": "karooparts",
+      "family": "accent-2"
+    },
+    {
+      "label": "karoópártś",
+      "target": "karooparts",
+      "family": "accent-3"
+    },
+    {
+      "label": "karoopatrs",
+      "target": "karooparts",
+      "family": "swapped"
+    },
+    {
+      "label": "kaarooparts",
+      "target": "karooparts",
+      "family": "doubled"
+    },
+    {
+      "label": "karoоparts",
+      "target": "karooparts",
+      "family": "confusable"
+    },
+    {
+      "label": "karooparts-payments",
+      "target": "karooparts",
+      "family": "added-word"
+    },
+    {
+      "label": "károosolar",
+      "target": "karoosolar",
+      "family": "accent-1"
+    },
+    {
+      "label": "károośolar",
+      "target": "karoosolar",
+      "family": "accent-2"
+    },
+    {
+      "label": "károośólar",
+      "target": "karoosolar",
+      "family": "accent-3"
+    },
+    {
+      "label": "karoosoalr",
+      "target": "karoosolar",
+      "family": "swapped"
+    },
+    {
+      "label": "karoossolar",
+      "target": "karoosolar",
+      "family": "doubled"
+    },
+    {
+      "label": "kаroosolar",
+      "target": "karoosolar",
+      "family": "confusable"
+    },
+    {
+      "label": "karoosolar-payments",
+      "target": "karoosolar",
+      "family": "added-word"
+    },
+    {
+      "label": "karoostationéry",
+      "target": "karoostationery",
+      "family": "accent-1"
+    },
+    {
+      "label": "karoóstationéry",
+      "target": "karoostationery",
+      "family": "accent-2"
+    },
+    {
+      "label": "karoóśtationéry",
+      "target": "karoostationery",
+      "family": "accent-3"
+    },
+    {
+      "label": "karootsationery",
+      "target": "karoostationery",
+      "family": "swapped"
+    },
+    {
+      "label": "karoosttationery",
+      "target": "karoostationery",
+      "family": "doubled"
+    },
+    {
+      "label": "karoostationеry",
+      "target": "karoostationery",
+      "family": "confusable"
+    },
+    {
+      "label": "karoostationery-payments",
+      "target": "karoostationery",
+      "family": "added-word"
+    },
+    {
+      "label": "kestrelbañk",
+      "target": "kestrelbank",
+      "family": "accent-1"
+    },
+    {
+      "label": "késtrelbañk",
+      "target": "kestrelbank",
+      "family": "accent-2"
+    },
+    {
+      "label": "kéśtrelbañk",
+      "target": "kestrelbank",
+      "family": "accent-3"
+    },
+    {
+      "label": "kestrelabnk",
+      "target": "kestrelbank",
+      "family": "swapped"
+    },
+    {
+      "label": "keestrelbank",
+      "target": "kestrelbank",
+      "family": "doubled"
+    },
+    {
+      "label": "keѕtrelbank",
+      "target": "kestrelbank",
+      "family": "confusable"
+    },
+    {
+      "label": "kestrelbank-payments",
+      "target": "kestrelbank",
+      "family": "added-word"
+    },
+    {
+      "label": "nímbusmail",
+      "target": "nimbusmail",
+      "family": "accent-1"
+    },
+    {
+      "label": "nímbusmaíl",
+      "target": "nimbusmail",
+      "family": "accent-2"
+    },
+    {
+      "label": "nímbuśmaíl",
+      "target": "nimbusmail",
+      "family": "accent-3"
+    },
+    {
+      "label": "nimbusmial",
+      "target": "nimbusmail",
+      "family": "swapped"
+    },
+    {
+      "label": "nimbusmaiil",
+      "target": "nimbusmail",
+      "family": "doubled"
+    },
+    {
+      "label": "nimbuѕmail",
+      "target": "nimbusmail",
+      "family": "confusable"
+    },
+    {
+      "label": "nimbusmail-payments",
+      "target": "nimbusmail",
+      "family": "added-word"
+    },
+    {
+      "label": "proteábank",
+      "target": "proteabank",
+      "family": "accent-1"
+    },
+    {
+      "label": "proteábañk",
+      "target": "proteabank",
+      "family": "accent-2"
+    },
+    {
+      "label": "próteábañk",
+      "target": "proteabank",
+      "family": "accent-3"
+    },
+    {
+      "label": "proteabakn",
+      "target": "proteabank",
+      "family": "swapped"
+    },
+    {
+      "label": "prroteabank",
+      "target": "proteabank",
+      "family": "doubled"
+    },
+    {
+      "label": "prоteabank",
+      "target": "proteabank",
+      "family": "confusable"
+    },
+    {
+      "label": "proteabank-payments",
+      "target": "proteabank",
+      "family": "added-word"
+    },
+    {
+      "label": "protéahealth",
+      "target": "proteahealth",
+      "family": "accent-1"
+    },
+    {
+      "label": "protéaheálth",
+      "target": "proteahealth",
+      "family": "accent-2"
+    },
+    {
+      "label": "protéáheálth",
+      "target": "proteahealth",
+      "family": "accent-3"
+    },
+    {
+      "label": "proteahelath",
+      "target": "proteahealth",
+      "family": "swapped"
+    },
+    {
+      "label": "pproteahealth",
+      "target": "proteahealth",
+      "family": "doubled"
+    },
+    {
+      "label": "prоteahealth",
+      "target": "proteahealth",
+      "family": "confusable"
+    },
+    {
+      "label": "proteahealth-payments",
+      "target": "proteahealth",
+      "family": "added-word"
+    },
+    {
+      "label": "próteapay",
+      "target": "proteapay",
+      "family": "accent-1"
+    },
+    {
+      "label": "próteapaý",
+      "target": "proteapay",
+      "family": "accent-2"
+    },
+    {
+      "label": "próteapáý",
+      "target": "proteapay",
+      "family": "accent-3"
+    },
+    {
+      "label": "proteaapy",
+      "target": "proteapay",
+      "family": "swapped"
+    },
+    {
+      "label": "proteappay",
+      "target": "proteapay",
+      "family": "doubled"
+    },
+    {
+      "label": "prоteapay",
+      "target": "proteapay",
+      "family": "confusable"
+    },
+    {
+      "label": "proteapay-payments",
+      "target": "proteapay",
+      "family": "added-word"
+    },
+    {
+      "label": "proteasólar",
+      "target": "proteasolar",
+      "family": "accent-1"
+    },
+    {
+      "label": "proteasólár",
+      "target": "proteasolar",
+      "family": "accent-2"
+    },
+    {
+      "label": "próteasólár",
+      "target": "proteasolar",
+      "family": "accent-3"
+    },
+    {
+      "label": "rpoteasolar",
+      "target": "proteasolar",
+      "family": "swapped"
+    },
+    {
+      "label": "proteeasolar",
+      "target": "proteasolar",
+      "family": "doubled"
+    },
+    {
+      "label": "prоteasolar",
+      "target": "proteasolar",
+      "family": "confusable"
+    },
+    {
+      "label": "proteasolar-payments",
+      "target": "proteasolar",
+      "family": "added-word"
+    },
+    {
+      "label": "savannaáir",
+      "target": "savannaair",
+      "family": "accent-1"
+    },
+    {
+      "label": "savánnaáir",
+      "target": "savannaair",
+      "family": "accent-2"
+    },
+    {
+      "label": "sávánnaáir",
+      "target": "savannaair",
+      "family": "accent-3"
+    },
+    {
+      "label": "savnanaair",
+      "target": "savannaair",
+      "family": "swapped"
+    },
+    {
+      "label": "savaannaair",
+      "target": "savannaair",
+      "family": "doubled"
+    },
+    {
+      "label": "ѕavannaair",
+      "target": "savannaair",
+      "family": "confusable"
+    },
+    {
+      "label": "savannaair-payments",
+      "target": "savannaair",
+      "family": "added-word"
+    },
+    {
+      "label": "śavannabank",
+      "target": "savannabank",
+      "family": "accent-1"
+    },
+    {
+      "label": "śavánnabank",
+      "target": "savannabank",
+      "family": "accent-2"
+    },
+    {
+      "label": "śaváñnabank",
+      "target": "savannabank",
+      "family": "accent-3"
+    },
+    {
+      "label": "asvannabank",
+      "target": "savannabank",
+      "family": "swapped"
+    },
+    {
+      "label": "saavannabank",
+      "target": "savannabank",
+      "family": "doubled"
+    },
+    {
+      "label": "ѕavannabank",
+      "target": "savannabank",
+      "family": "confusable"
+    },
+    {
+      "label": "savannabank-payments",
+      "target": "savannabank",
+      "family": "added-word"
+    },
+    {
+      "label": "savanñapay",
+      "target": "savannapay",
+      "family": "accent-1"
+    },
+    {
+      "label": "sávanñapay",
+      "target": "savannapay",
+      "family": "accent-2"
+    },
+    {
+      "label": "śávanñapay",
+      "target": "savannapay",
+      "family": "accent-3"
+    },
+    {
+      "label": "savananpay",
+      "target": "savannapay",
+      "family": "swapped"
+    },
+    {
+      "label": "savaannapay",
+      "target": "savannapay",
+      "family": "doubled"
+    },
+    {
+      "label": "savannapaу",
+      "target": "savannapay",
+      "family": "confusable"
+    },
+    {
+      "label": "savannapay-payments",
+      "target": "savannapay",
+      "family": "added-word"
+    }
+  ]
+}

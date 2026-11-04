@@ -464,7 +464,7 @@ Sections: 228 | Checklist items: 1039
 | [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                             | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 3     |
-| [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
+| [x]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
 | [x]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
@@ -697,6 +697,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 455/621 verified sections, 103 ready to run now.
+Progress: 456/621 verified sections, 103 ready to run now.
 
-Checklist: 3259/3837 items completed (includes Commit items).
+Checklist: 3264/3837 items completed (includes Commit items).
