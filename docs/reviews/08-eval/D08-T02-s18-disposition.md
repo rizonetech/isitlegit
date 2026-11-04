@@ -102,3 +102,27 @@ c19945b3f6d5c8f41d6f290cfb86477a8b4bce48 todo: prepare paired evidence and separ
 57fc61508811e065a9ae7bdbd5b44c4e8d9ebdc6 todo: define capacity and lost-walk reconciliation
 d7e3d125ba1df127287cd9a0294aa2ae1111d97e eval: keep native PDF corpus outside mail datasets
 ```
+
+## Authorized successor disposition, 4 November 2026
+
+The historical proposal above remains intact. Tooling was subsequently installed at `2cf9730b`. The first genuine medium reconciliation of `d7e3d125ba1df127287cd9a0294aa2ae1111d97e` returned `RECONCILIATION: gaps` at 11:19:00 UTC, digest `d017f3421b44019e`, preserved in `313e6060` in the canonical report. It verified the original machine-crash issue as additional §19 scope but identified a new blocking P2: old backup/staging directories remain inside the mail dataset tree after tracked corpus relocation. This is mandatory reliability work, not optional scope.
+
+Exact repair candidate: `abea9b56546091cac5ddc08d03d7ee1e33ee1232`. Coordinator `EVAL-18-SUCCESSOR`, 2026-11-04T11:26:58.176494+00:00, authorizes exactly one supported medium successor bound to that failed digest. Only the canonical §18 report/digest mapping is added to the existing reconciliation_extensions table; all other pin bytes and entries remain unchanged. Maximum two returned reconciliations; another gaps blocks. Reversal removes future-call authorization only and preserves all history. This is review authorization, not acceptance, stamp or deployment.
+
+Repair: the corpus producer holds current and legacy kernel locks through publication and retains the original lock inode. Only the named legacy live, backup and staging directories move atomically into unique recovery archives outside the mail dataset tree. All bytes and original manifest paths remain intact, including partial staging. Subsequent builds never delete or overwrite these archives. Interrupted moves resume on retry. Ambiguous non-directory entries refuse before relocation. The owned ignore rule excludes archives from publication, and documentation explains their recovery limits. The mail loader is unchanged; there is no filter or physical power-loss guarantee.
+
+Verification: the real-filesystem upgrade regression failed before repair for both successful and failed new generation, reporting missing labels.json on legacy directories. After repair, `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts test/node/eval-datasets-doc.test.ts` passed 36 tests (26 forensic, 10 dataset-documentation), including actual SIGKILL during relocation, old live/backup preservation, legacy-writer lock exclusion and retry, generation failure, and ambiguous-entry preservation. Full `pnpm typecheck`, `pnpm lint`, `pnpm build`, publication scanning and `node eval/forensics/score.ts --check eval/RESULTS.md` passed. Existing 21 lint warnings, 2 infos and the asset-route warning remain disclosed. These are local gates, not CI approval of this repair; CI41811216490 success belongs to d7e3d125 only.
+
+Normalized §18 contract remains `91293be1bc95aed9ea46f09e594f4cfe13b4aa496516c542620c493282f8171c`. Corpus bytes, manifest, labels and measurements are unchanged: 3/7 detections, 0/7 false positives, 13/14 coverage, 40 excluded rasters. §6 remains unstamped with its separate coordinator-owned binding decision. §19 remains an unimplemented machine-crash guarantee. Verify all original obligations and the new repair; this disposition is not a review receipt.
+
+Intervening commits after the first reviewed candidate, including unrelated work disclosed without granting acceptance:
+
+```text
+b7145b3c4b11af4a62707667f8990a6b49bd7292 docs: prepare bounded PDF gap dispositions
+68d67b96e9030a79935e92a0ca9dc698030dc0dd eval: prepare bounded Wonder multi-step experiment
+fac90cc531caa35f81db67c2994fc6da12365348 eval: score credential arrival separately from later walk outcome
+2cf9730bd3765707536e96559ae39f8aafe5a100 chore: integrate verified coordinator review tooling release
+7e452aa7dff91abb84ad235a7e738acb142b952c docs: register hidden instruction corpus provenance
+313e606065df269be21b88b13dc7b7c030af2fef review: preserve PDF publication reconciliation gap
+abea9b56546091cac5ddc08d03d7ee1e33ee1232 eval: preserve legacy PDF recovery artifacts during relocation
+```
