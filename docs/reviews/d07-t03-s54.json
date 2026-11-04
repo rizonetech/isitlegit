@@ -1,0 +1,154 @@
+{
+  "ref": "D07 T03 \u00a754",
+  "title": "All stored headers read in place",
+  "implementation_sha": "365e8ae9661b018df92cce1432e924de7cc29104",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: pnpm exec vitest run --project worker test/web/message-preview.test.ts and pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx pass with long headers read in slices. Observed: Worker 14 passed; browser 23 passed; full typecheck exit 0, lint exit 0 (24 warnings, 2 infos), dry build and design checks passed. Original failed typecheck preserved and corrected by explicit fatal:false repair."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "reconciliation": {
+    "report": "docs/reviews/07-app/D07-T03-s54.md",
+    "verdict": "complete",
+    "candidate": "365e8ae9661b018df92cce1432e924de7cc29104",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "32964f402266d843985f1d518be5c8d08ee081b9",
+    "binding": {
+      "candidate": "365e8ae9661b018df92cce1432e924de7cc29104",
+      "completion_candidate": "9a586114b0070db20646c53b33ada1894702368c",
+      "completion_digest": "f8d466370a574f8a",
+      "contract_path": "todo/07-app/TODO-03-report-page.md",
+      "contract_sha256": "9cc3e6806187b57b72d71ad12455fa1b7c5da0681f02cb04999101c99871cfcb",
+      "disposition_blob": "6d39ddd3aefe2a6a9c0c8e7e3905b9aea6657dae",
+      "disposition_commit": "365e8ae9661b018df92cce1432e924de7cc29104",
+      "disposition_path": "docs/reviews/07-app/D07-T03-s54-disposition.md",
+      "plan_candidate": "12906df965fd9a99bbecb32940e8f1b608fb550c",
+      "plan_contract_sha256": "9cc3e6806187b57b72d71ad12455fa1b7c5da0681f02cb04999101c99871cfcb",
+      "predecessor_candidate": "4c77160476dd643bc5e11c0c84af5d929d143db6",
+      "predecessor_digest": "246a873e34cc3a00",
+      "prefix_bytes": 12108,
+      "prefix_sha256": "2d397f856a139fc07f5ee1a3dcf1c2c3d5c6b5e2a9535404e6b6c4150e9110d1",
+      "report": "docs/reviews/07-app/D07-T03-s54.md",
+      "version": 2
+    },
+    "digest": "032d4c17738f60c0"
+  },
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s54.md",
+    "verdict": "gaps",
+    "candidate": "9a586114b0070db20646c53b33ada1894702368c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s54.md",
+    "candidate": "12906df965fd9a99bbecb32940e8f1b608fb550c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

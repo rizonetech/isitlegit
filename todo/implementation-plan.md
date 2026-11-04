@@ -411,7 +411,7 @@ Sections: 114 | Checklist items: 713
 
 ### Phase 7: After the event
 
-Sections: 227 | Checklist items: 1023
+Sections: 227 | Checklist items: 1029
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -561,7 +561,7 @@ Sections: 227 | Checklist items: 1023
 | [ ]    | D07 T03 §50 | Mail refusal reason in the trace                            | none                 | 3     |
 | [ ]    | D07 T03 §51 | Walkthrough action to its                                   | none                 | 4     |
 | [ ]    | D07 T03 §52 | Report address from a                                       | none                 | 4     |
-| [ ]    | D07 T03 §54 | All stored headers read in place                            | none                 | 3     |
+| [x]    | D07 T03 §54 | All stored headers read in place                            | none                 | 7     |
 | [ ]    | D07 T03 §53 | One-action copy of headers                                  | none                 | 4     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification                      | none                 | 9     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                                | none                 | 6     |
@@ -586,7 +586,7 @@ Sections: 227 | Checklist items: 1023
 | [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page                         | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page                         | none                 | 5     |
-| [ ]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 3     |
+| [x]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 5     |
 | [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
@@ -685,6 +685,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 435/609 verified sections, 110 ready to run now.
+Progress: 437/609 verified sections, 109 ready to run now.
 
-Checklist: 3149/3757 items completed (includes Commit items).
+Checklist: 3161/3763 items completed (includes Commit items).

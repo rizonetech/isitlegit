@@ -355,7 +355,21 @@ const casesFailure = (name: string, event: Event) => {
   const el = event.target as Element | null;
   const inCases = el?.closest?.("#case-filters") ?? (el?.getAttribute?.("hx-target") === "#case-results" ? el : null);
   if (!inCases) return false;
-  if (name !== "htmx:timeout" && name !== "htmx:sendError") return false;
+  const detail = (event as CustomEvent<HtmxDetail>).detail;
+  const request = new URL(asked(detail), location.href);
+  const actions = request.searchParams.getAll("calendar");
+  // Explicit calendar requests retain their draft on server outages; auth refusals and ordinary filters still navigate.
+  const calendarAction =
+    request.origin === location.origin &&
+    request.pathname === "/cases" &&
+    actions.length === 1 &&
+    (actions[0] === "month" || actions[0] === "quarter");
+  const calendarOutage =
+    calendarAction &&
+    name === "htmx:responseError" &&
+    (detail.xhr?.status ?? 0) >= 500 &&
+    (detail.xhr?.status ?? 0) <= 599;
+  if (name !== "htmx:timeout" && name !== "htmx:sendError" && !calendarOutage) return false;
   document.getElementById("case-loading")?.classList.remove("htmx-request");
   const form = document.getElementById("case-filters");
   if (!form) return true;
@@ -378,6 +392,33 @@ const casesFailure = (name: string, event: Event) => {
   casesRecoveryAbort?.abort();
   casesRecoveryAbort = null;
   const seq = ++casesRecoverySeq;
+  if (calendarAction) {
+    // Use the same request queue, panel swap and history owner as the explicit buttons. The exact failed URL
+    // carries the original filters; no current form values are appended to this retry.
+    for (const [key, value] of Object.entries({
+      "data-case-calendar-retry": "",
+      "hx-get": href,
+      "hx-params": "none",
+      "hx-trigger": "click",
+      "hx-sync": "#case-filters:replace",
+      "hx-target": "#case-panel",
+      "hx-select": "#case-panel",
+      "hx-select-oob": "unset",
+      "hx-swap": "outerHTML",
+      "hx-push-url": "true",
+      "hx-request": '{"timeout":10000}',
+      "hx-indicator": "#case-loading",
+    }))
+      retry.setAttribute(key, value);
+    const htmx = (window as unknown as { htmx?: { process?: (el: Element) => void } }).htmx;
+    htmx?.process?.(retry);
+    // At most one automatic retry. Another failed retry leaves its explicit link and retained panel in place.
+    if (name === "htmx:sendError" && navigator.onLine !== false && !el?.hasAttribute("data-case-calendar-retry"))
+      queueMicrotask(() => {
+        if (seq === casesRecoverySeq && retry.isConnected) retry.click();
+      });
+    return true;
+  }
   if (name === "htmx:sendError" && navigator.onLine !== false) {
     const ctrl = new AbortController();
     casesRecoveryAbort = ctrl;
@@ -446,7 +487,7 @@ document.addEventListener("htmx:beforeRequest", (event) => {
     casesRecoverySeq++;
     casesRecoveryAbort?.abort();
     casesRecoveryAbort = null;
-    document.getElementById("case-filter-error")?.remove();
+    if (!el?.hasAttribute("data-case-calendar-retry")) document.getElementById("case-filter-error")?.remove();
   }
 });
 const toggleOrgReveal = (el: HTMLElement) => {
@@ -1370,7 +1411,45 @@ for (const marked of document.querySelectorAll<HTMLElement>("[data-reload-at]"))
 // dropped; Close and a new request abort the one before. Unavailable text, an empty body and an empty header list each say
 // so, the gone, link-expired, signed-out and failed-read states are the viewer's, and every settled outcome is announced once.
 type OriginalPart = "message" | "headers";
-type OriginalView = { text: string | null; truncated: boolean; source: "plain" | "visible" | null };
+type OriginalView = {
+  part: OriginalPart;
+  text: string | null;
+  truncated: boolean;
+  source: "plain" | "visible" | null;
+  offset?: number;
+  nextOffset?: number | null;
+  revision?: string | null;
+};
+function validOriginal(
+  value: unknown,
+  part: OriginalPart,
+  offset: number,
+  revision: string | null,
+): value is OriginalView {
+  if (!value || typeof value !== "object") return false;
+  const d = value as OriginalView;
+  if (
+    d.part !== part ||
+    (d.text !== null && typeof d.text !== "string") ||
+    typeof d.truncated !== "boolean" ||
+    ![null, "plain", "visible"].includes(d.source)
+  )
+    return false;
+  const size = new TextEncoder().encode(d.text ?? "").length;
+  if (size > 204800) return false;
+  if (part === "message") return true;
+  if (
+    d.source !== null ||
+    d.offset !== offset ||
+    (d.text === null ? d.revision !== null : typeof d.revision !== "string" || !/^[a-f0-9]{64}$/.test(d.revision)) ||
+    (revision !== null && d.revision !== revision)
+  )
+    return false;
+  if (d.nextOffset === null) return !d.truncated && (offset === 0 || (d.text !== null && size > 0));
+  return (
+    d.truncated && d.text !== null && size > 0 && Number.isSafeInteger(d.nextOffset) && d.nextOffset === offset + size
+  );
+}
 const ORIGINAL_LINES: Record<OriginalPart, string> = {
   message: "Plain text only: pictures, links and scripts in it were not loaded or run.",
   headers:
@@ -1384,9 +1463,15 @@ function openOriginal(opener: HTMLAnchorElement) {
   const start: OriginalPart = opener.dataset.originalView === "headers" ? "headers" : "message";
   const originalHref = opener.getAttribute("href") ?? "";
   const cardId = opener.closest<HTMLElement>("article")?.id ?? "";
-  const viewHref = (part: OriginalPart) => {
+  const viewHref = (part: OriginalPart, offset = 0, revision: string | null = null) => {
     const address = new URL(originalHref, window.location.href);
     address.searchParams.set("view", part);
+    address.searchParams.delete("offset");
+    address.searchParams.delete("revision");
+    if (offset > 0 && revision !== null) {
+      address.searchParams.set("offset", String(offset));
+      address.searchParams.set("revision", revision);
+    }
     return address.pathname + address.search;
   };
   const dialog = make(
@@ -1446,7 +1531,10 @@ function openOriginal(opener: HTMLAnchorElement) {
   const failure = make("div", "flex flex-col items-start gap-8 p-16 text-14");
   failure.hidden = true;
   region.append(status, pre, failure);
-  panel.append(note, region);
+  const nextPart = make("button", BUTTON, "Show the next part");
+  nextPart.type = "button";
+  nextPart.hidden = true;
+  panel.append(note, region, nextPart);
   const foot = make(
     "div",
     "flex flex-col gap-12 border-t border-line bg-surface p-16 md:flex-row md:items-center md:justify-between",
@@ -1468,10 +1556,16 @@ function openOriginal(opener: HTMLAnchorElement) {
 
   let current: OriginalPart = start;
   let pending: AbortController | null = null;
+  let generation = 0;
+  let nextOffset: number | null = null;
+  let revision: string | null = null;
+  let announcement: ReturnType<typeof setTimeout> | undefined;
   const say = (words: string) => {
+    clearTimeout(announcement);
+    const ownGeneration = generation;
     live.textContent = "";
-    setTimeout(() => {
-      live.textContent = words;
+    announcement = setTimeout(() => {
+      if (dialog.isConnected && generation === ownGeneration) live.textContent = words;
     }, 30);
   };
   const settle = (words: string) => {
@@ -1525,8 +1619,15 @@ function openOriginal(opener: HTMLAnchorElement) {
     settle(second ? `${first} ${second}` : first);
     if (holds) control?.focus();
   };
-  const show = async (part: OriginalPart, again = false) => {
+  const show = async (part: OriginalPart, again = false, append = false) => {
+    if (append && (nextOffset === null || nextPart.disabled || current !== "headers")) return;
+    const offset = append ? (nextOffset ?? 0) : 0;
+    const expectedRevision = append ? revision : null;
+    const heldFocus = append && (document.activeElement === nextPart || failure.contains(document.activeElement));
     pending?.abort();
+    generation++;
+    clearTimeout(announcement);
+    live.textContent = "";
     const mine = new AbortController();
     pending = mine;
     current = part;
@@ -1550,29 +1651,77 @@ function openOriginal(opener: HTMLAnchorElement) {
     footLine.textContent = ORIGINAL_FOOT[part];
     failure.hidden = true;
     failure.replaceChildren();
-    note.hidden = true;
-    pre.hidden = true;
-    pre.textContent = "";
+    if (!append) {
+      nextOffset = null;
+      revision = null;
+      note.hidden = true;
+      pre.hidden = true;
+      pre.textContent = "";
+      nextPart.hidden = true;
+    }
+    nextPart.disabled = true;
     status.hidden = false;
-    status.textContent = again ? "Loading again." : "Loading.";
+    status.textContent = append ? "Loading the next part." : again ? "Loading again." : "Loading.";
     say(status.textContent);
     try {
-      const answer = await fetch(viewHref(part), {
+      const answer = await fetch(viewHref(part, offset, expectedRevision), {
         credentials: "same-origin",
         cache: "no-store",
         redirect: "manual",
         signal: mine.signal,
       });
-      if (mine.signal.aborted || !dialog.isConnected) return;
+      if (mine.signal.aborted || !dialog.isConnected || pending !== mine) return;
       if (!answer.ok) {
         void answer.body?.cancel();
+        if (append && answer.status === 409 && answer.headers.get("x-artefact-state") === "changed") {
+          nextOffset = null;
+          revision = null;
+          pre.textContent = "";
+          pre.hidden = true;
+          note.hidden = true;
+          nextPart.hidden = true;
+          const words = "The stored headers changed. Load them again to read one version.";
+          failure.replaceChildren(make("p", "m-0 wrap-anywhere", words));
+          const restart = make("button", BUTTON, "Load headers again");
+          restart.type = "button";
+          restart.addEventListener("click", () => {
+            region.focus();
+            void show("headers", true);
+          });
+          failure.append(restart);
+          failure.hidden = false;
+          settle(words);
+          if (heldFocus) restart.focus();
+          return;
+        }
+        if ([401, 403, 404].includes(answer.status)) {
+          nextOffset = null;
+          revision = null;
+          nextPart.hidden = true;
+          pre.textContent = "";
+          showFailure(part, "none", again, ["The original message could not be loaded.", null]);
+          if (heldFocus) region.focus();
+          return;
+        }
         const kind = failureOf(answer);
+        if (append && kind === "temporary") throw new Error("Header slice unavailable");
+        nextOffset = null;
+        revision = null;
+        nextPart.hidden = true;
+        pre.textContent = "";
         showFailure(part, kind === "gone" ? "original-gone" : kind, again);
         return;
       }
-      const data = (await answer.json()) as OriginalView;
+      const data: unknown = await answer.json();
       clearTimeout(deadline);
-      if (mine.signal.aborted || !dialog.isConnected || current !== part) return;
+      if (mine.signal.aborted || !dialog.isConnected || current !== part || pending !== mine) return;
+      if (!validOriginal(data, part, offset, expectedRevision)) throw new Error("Invalid original preview");
+      if (part === "headers") {
+        nextOffset = data.nextOffset ?? null;
+        revision = data.revision ?? null;
+        nextPart.hidden = nextOffset === null;
+        nextPart.disabled = false;
+      }
       status.hidden = true;
       status.textContent = "";
       const words = part === "message" ? "message" : "headers";
@@ -1580,7 +1729,7 @@ function openOriginal(opener: HTMLAnchorElement) {
         showFailure(part, "none", false, [`The ${words} text was not stored.`, "Download the original to read it."]);
         return;
       }
-      if (data.text === "") {
+      if (data.text === "" && !append) {
         // An HTML-only message whose visible text came out empty (images only, or all of it taken out) is not an empty
         // original: say what was taken out and leave the download as the way to it.
         showFailure(
@@ -1596,7 +1745,10 @@ function openOriginal(opener: HTMLAnchorElement) {
         );
         return;
       }
-      pre.textContent = data.text;
+      const scrollTop = region.scrollTop;
+      if (append) pre.append(document.createTextNode(data.text));
+      else pre.textContent = data.text;
+      if (append) region.scrollTop = scrollTop;
       pre.hidden = false;
       const notes: string[] = [];
       if (data.source === "visible")
@@ -1605,20 +1757,43 @@ function openOriginal(opener: HTMLAnchorElement) {
         );
       if (data.truncated)
         notes.push(
-          "Showing the first 200 KB as plain text. The message is longer; download the original to read the rest.",
+          part === "headers"
+            ? "More headers are available. Choose Show the next part to read them here."
+            : "Showing the first 200 KB as plain text. The message is longer; download the original to read the rest.",
         );
       note.textContent = notes.join(" ");
       note.hidden = notes.length === 0;
       say(
-        `${part === "message" ? "The message" : "The complete headers"} loaded.${notes.length ? ` ${notes.join(" ")}` : ""}`,
+        part === "headers"
+          ? nextOffset === null
+            ? "All stored headers loaded."
+            : append
+              ? "The next part of the headers loaded."
+              : notes.join(" ")
+          : `The message loaded.${notes.length ? ` ${notes.join(" ")}` : ""}`,
       );
+      if (heldFocus) (nextOffset === null ? region : nextPart).focus();
     } catch {
-      if ((late || !mine.signal.aborted) && dialog.isConnected && pending === mine)
-        showFailure(part, "temporary", again);
+      if ((late || !mine.signal.aborted) && dialog.isConnected && pending === mine) {
+        if (append) {
+          nextPart.disabled = false;
+          nextPart.hidden = true;
+          const words = "The next part could not be loaded.";
+          failure.replaceChildren(make("p", "m-0 wrap-anywhere", words));
+          const retry = make("button", BUTTON, "Try again");
+          retry.type = "button";
+          retry.addEventListener("click", () => void show("headers", true, true));
+          failure.append(retry);
+          failure.hidden = false;
+          settle(words);
+          if (heldFocus) retry.focus();
+        } else showFailure(part, "temporary", again);
+      }
     } finally {
       clearTimeout(deadline);
     }
   };
+  nextPart.addEventListener("click", () => void show("headers", false, true));
   for (const [part, tab] of tabButtons) {
     tab.addEventListener("click", () => void show(part));
     tab.addEventListener("keydown", (event) => {
@@ -1643,6 +1818,8 @@ function openOriginal(opener: HTMLAnchorElement) {
   close.addEventListener("click", () => dialog.close());
   dialog.addEventListener("close", () => {
     pending?.abort();
+    generation++;
+    clearTimeout(announcement);
     dialog.remove();
     document.documentElement.removeAttribute("data-evidence-viewing");
     opener.focus();

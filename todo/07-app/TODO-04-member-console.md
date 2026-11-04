@@ -60,7 +60,7 @@ track: day-6
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
 | 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
-| 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [ ] |
+| 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [x] |
 | 31 | §31 | Saved Cases views | §8 | [ ] |
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
@@ -407,7 +407,7 @@ A member looking for a check from a known week picks its dates instead of paging
 - [x] Drive the date controls in `test/node/cases-browser.test.tsx`: keyboard entry and clearing, automatic application on change, the no-JavaScript Apply, page reset to 1, paging inside a range, Back and reload read-back, a delayed earlier change never overwriting a newer one, and a failed request recovering with the range kept; the added controls join the phone and desktop, both-theme accessibility scans. Done when: each scenario passes in Chromium. Cheaper substitute: requesting the address directly, which never exercises the inputs.
 - [x] Commit: `web: a chosen date range in the cases list`
 
-> **Deferred:** calendar month and quarter shortcuts for the list -> XREF: D07 T04 §30
+> **Resolved:** calendar month and quarter shortcuts for the list (verified a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee on 2026-11-04) -> XREF: D07 T04 §30
 > **Deferred:** saved named Cases views -> XREF: D07 T04 §31
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
@@ -1153,6 +1153,12 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 ## 30. Calendar month and quarter ranges in the Cases list
 
+> **Started:** 2026-11-04T11:10:10.909143+00:00
+
+**Coordinator approval 2026-11-04T11:08:20.176294+00:00 (CONSOLE-CALENDAR-APPROVAL):** Approves the exact companion at355fa403 and its single M1 bullet, including default Apply filters and every recovery state. Console may incorporate only that bullet, retaining other SPEC bytes. This supersedes only the separate board-update prerequisite below; no board update is claimed. The approved companion remains byte-exact, with its earlier proposed/pending wording preserved as historical preparation status. Reviewed tooling63cbcd90 supplies plan LOW and combined completion MEDIUM. Shared-client changes still require concrete escalation.
+
+**Coordinator preparation authority 2026-11-04 (ACTIVITY-27-console):** Prepare the exact M1 companion and section plan now; return controls, states and proposed SPEC hunk before implementation. `docs/specs/2026-11-04-cases-calendar-ranges-design.md` records the proposed Year/Month/Quarter controls, explicit apply actions, canonical SAST dates through `casesHref`, preservation of current filters and custom dates, invalid/pending/empty/no-script states and proof owed. Coordinator retains shared SPEC incorporation and supplies the verified review-policy transition. This preparation neither approves a board change nor changes earlier review history; no new ordinary round or product implementation is authorized at this boundary.
+
 A member looking at one month's checks picks the month instead of typing its first and last days. Filed 2026-11-02 from D07 T04 §8's completion review (out-of-scope G6): the approved treatment is two date inputs, so a named-period choice is a design change first.
 
 **Phase:** 7
@@ -1165,14 +1171,19 @@ A member looking at one month's checks picks the month instead of typing its fir
 
 **Build order:**
 
-1. Record the named periods and control in `design/SPEC.md` M1 with the operator's approval. Done when: the SPEC names them.
+1. Incorporate the coordinator-approved exact named-period bullet in `design/SPEC.md` M1. Done when: the SPEC names the controls and states from the approved companion; no separate board update is required by the dated scoped decision.
 2. Fill §8's range from the chosen period. Done when: `test/web/cases-page.test.ts` reads a month's cases only.
 
-- [ ] Record the Month and Quarter choice in `design/SPEC.md` M1 and on the board with the operator's approval. Done when: M1 names the control and its states. Cheaper substitute: more fixed day counts, which never name a calendar month.
-- [ ] Add the named-period choice to `Filters` in `src/web/pages/cases-view.tsx`: choosing a month or quarter sets `from` and `to` to its SAST calendar bounds through `casesHref`, and the active range of §8 shows it. Done when: the page test reads October 2026's cases only after the choice, with the dates in the address. Cheaper substitute: a second date filter beside §8's, which can disagree with the range it fills.
-- [ ] Commit: `web: calendar month and quarter ranges in the cases list`
+- [x] Record the coordinator-approved Month and Quarter choice in `design/SPEC.md` M1 through the exact companion bullet. Done when: M1 names the control and its states. Cheaper substitute: more fixed day counts, which never name a calendar month.
+- [x] Add the named-period choice to `Filters` in `src/web/pages/cases-view.tsx`: choosing a month or quarter sets `from` and `to` to its SAST calendar bounds through `casesHref`, and the active range of §8 shows it. Done when: the page test reads October 2026's cases only after the choice, with the dates in the address. Cheaper substitute: a second date filter beside §8's, which can disagree with the range it fills.
+- [x] Normalize explicit calendar submissions in the authenticated Cases route, preserving the existing filter contract and rejecting invalid selected values without applying a fallback range. Done when: page tests cover ordinary and htmx canonical addresses, SAST boundary fixtures, leap February, Q4, selected-action validation, pagination reset, current search/verdict/channel/checker/period retention and tenant isolation; an adjacent out-of-range case causes failure.
+- [x] Verify the companion's interaction states in `test/node/cases-browser.test.tsx`. Done when: labelled controls work by keyboard at phone and desktop widths in both themes and with scripts off; draft changes and implicit submit cannot unexpectedly apply a calendar range; pending search preserves current filters; custom dates, Clear dates, invalid correction, empty results and canonical history/reload remain usable. For both Show month and Show quarter, inject network and server failures, assert the displayed list and every filter remain, then use Try again and verify the original calendar action and filters reach the canonical range. Escalate any required shared-client change before editing that path. Source: Codex plan self-review P2, verified shared responseError navigation discrepancy; coordinator source authority requested before implementation.
+- [x] Commit: `web: calendar month and quarter ranges in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the named month is listed.
+
+> **Verified:** 2026-11-04 | §30 | a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee
+> **Review:** `docs/reviews/d07-t04-s30.json`
 
 ## 31. Saved Cases views
 

@@ -1098,3 +1098,172 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
     expect(phoneTypeOf(html, local)).toBe("Email");
   });
 });
+
+describe("calendar ranges (D07 T04 §30)", () => {
+  it("canonicalizes named periods and includes only their SAST boundary cases", async () => {
+    const a = await org("Calendar Couriers");
+    const other = await org("Other Calendar Couriers");
+    const { cookie } = await member(a);
+    for (const [action, value, from, to, first, last, before, after] of [
+      [
+        "month",
+        "10",
+        "2026-10-01",
+        "2026-10-31",
+        "2026-09-30T22:00:00.000Z",
+        "2026-10-31T21:59:59.999Z",
+        "2026-09-30T21:59:59.999Z",
+        "2026-10-31T22:00:00.000Z",
+      ],
+      [
+        "quarter",
+        "1",
+        "2027-01-01",
+        "2027-03-31",
+        "2026-12-31T22:00:00.000Z",
+        "2027-03-31T21:59:59.999Z",
+        "2026-12-31T21:59:59.999Z",
+        "2027-03-31T22:00:00.000Z",
+      ],
+      [
+        "month",
+        "2",
+        "2028-02-01",
+        "2028-02-29",
+        "2028-01-31T22:00:00.000Z",
+        "2028-02-29T21:59:59.999Z",
+        "2028-01-31T21:59:59.999Z",
+        "2028-02-29T22:00:00.000Z",
+      ],
+    ] as const) {
+      const one = await made(a, { at: first, subject: from });
+      const two = await made(a, { at: last, subject: from });
+      await made(a, { at: before, subject: from });
+      await made(a, { at: after, subject: from });
+      await made(other, { at: first, subject: from });
+      const request = `/cases?calendar=${action}&calendar_year=${from?.slice(0, 4)}&calendar_${action}=${value}&q=${from}&period=7&page=3`;
+      const response = await get(request, cookie);
+      expect(response.status).toBe(303);
+      const href = target(response);
+      if (!href) throw new Error("Missing calendar redirect");
+      expect(href).toContain(`from=${from}&to=${to}`);
+      expect(href).not.toContain("calendar");
+      expect(href).not.toContain("page=");
+      expect(listed(await page(href, cookie))).toEqual([two, one]);
+    }
+  });
+
+  it("shows correction even for an empty organisation and rejects missing membership before calendar navigation", async () => {
+    const a = await org("Empty Calendar");
+    const { cookie, email } = await member(a);
+    const bad = await get("/cases?calendar=month&calendar_year=bad&calendar_month=1", cookie);
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain("Choose a valid year and month or quarter.");
+    await db
+      .prepare('DELETE FROM "member" WHERE "userId" = ?')
+      .bind(await userId(email))
+      .run();
+    expect((await get("/cases?calendar=month&calendar_year=2026&calendar_month=10", cookie)).status).toBe(403);
+  });
+
+  it("performs actual calendar reads before success, including invalid and zero-total requests", async () => {
+    for (const empty of [false, true]) {
+      const a = await org("Calendar Read Failure");
+      const { cookie } = await member(a);
+      if (!empty) await made(a);
+      for (const action of ["month", "quarter"])
+        for (const year of ["2026", "bad"])
+          for (const read of [
+            /COUNT\(\*\) AS n FROM cases/,
+            /v.created_at AS decided_at/,
+            /SELECT u.id AS id, u.name AS name/,
+            /AS organizationId, o.name AS name/,
+            ...(empty ? [/SELECT domain AS value FROM org_domains/] : []),
+          ]) {
+            const prepare = db.prepare.bind(db);
+            let failed = false;
+            const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+              if (read.test(sql)) {
+                failed = true;
+                throw new Error("Calendar read unavailable");
+              }
+              return prepare(sql);
+            });
+            const response = await call(
+              `/cases?calendar=${action}&calendar_year=${year}&calendar_month=10&calendar_quarter=4`,
+              {
+                headers: { cookie, "hx-request": "true", "x-cases-org": a },
+              },
+            );
+            spy.mockRestore();
+            expect(failed, String(read)).toBe(true);
+            expect(response.status, `${empty} ${action} ${year} ${read}`).toBe(503);
+            expect(response.headers.get("hx-redirect")).toBeNull();
+            expect(response.headers.get("hx-push-url")).toBeNull();
+            expect(await response.text()).toContain("Sorry, something broke on our side.");
+          }
+    }
+  });
+
+  it("preserves current filters in one canonical htmx panel with Q4 bounds", async () => {
+    const a = await org("Calendar Filters");
+    const { cookie } = await member(a);
+    const response = await call(
+      "/cases?calendar=quarter&calendar_year=2026&calendar_quarter=4&from=2020-01-01&to=2020-01-02&q=invoice&verdict=safe&channel=upload&checker=former&period=90&page=4",
+      {
+        headers: { cookie, "hx-request": "true", "x-cases-org": a },
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("hx-redirect")).toBeNull();
+    const html = await response.text();
+    expect(html).toContain('id="case-panel"');
+    expect(html).toContain('id="case-filters"');
+    expect(html).toContain('id="case-stats"');
+    expect(html).toContain('id="case-results"');
+    expect(html).toContain('value="2026-10-01"');
+    const url = new URL(response.headers.get("hx-push-url") ?? "", "https://example.invalid");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      q: "invoice",
+      verdict: "safe",
+      channel: "upload",
+      checker: "former",
+      period: "90",
+      from: "2026-10-01",
+      to: "2026-12-31",
+    });
+  });
+
+  it("refuses bad explicit selections without replacing custom dates and ignores drafts alone", async () => {
+    const a = await org("Calendar Validation");
+    const { cookie } = await member(a);
+    const id = await made(a, { at: "2026-10-05T10:00:00Z" });
+    for (const extra of [
+      "calendar=month&calendar_year=2026&calendar_month=13",
+      "calendar=quarter&calendar_year=2026&calendar_quarter=0",
+      "calendar=month&calendar_year=0099&calendar_month=2",
+      "calendar=other",
+      "calendar=month&calendar=quarter&calendar_year=2026&calendar_month=2",
+      "calendar=month&calendar_year=2026&calendar_year=2027&calendar_month=2",
+    ]) {
+      const response = await get(`/cases?from=2026-10-05&to=2026-10-05&${extra}`, cookie);
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Choose a valid year and month or quarter.");
+      expect(html).toContain('value="2026-10-05"');
+      expect(listed(html)).toEqual([id]);
+    }
+    const draft = await page("/cases?from=2026-10-05&calendar_year=2028&calendar_month=2", cookie);
+    expect(listed(draft)).toEqual([id]);
+    const bad = await call("/cases?calendar=month&calendar_year=bad&calendar_month=1&from=2026-10-05", {
+      headers: { cookie, "hx-request": "true" },
+    });
+    expect(bad.status).toBe(200);
+    expect(bad.headers.get("hx-redirect")).toBeNull();
+    expect(bad.headers.get("hx-push-url")).toBe("false");
+    const html = await bad.text();
+    expect(html).toContain('id="case-panel"');
+    expect(html).toContain("Choose a valid year and month or quarter.");
+    expect(html).toContain('value="2026-10-05"');
+  });
+});

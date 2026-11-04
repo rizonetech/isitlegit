@@ -12,7 +12,8 @@ import { verifiedSenders } from "../../auth/senders";
 import { ignoredDates, searchTooLong } from "../../db/case-filters";
 import { filtersFrom, listCases } from "../../db/case-list";
 import { CSV_WEEKS, countsCsv, periodWeeks, weeklyCounts, weeklyStats } from "../../db/case-stats";
-import { CasesPage, ORG_HEADER } from "./cases-view";
+import { calendarRequest } from "./cases-calendar";
+import { CasesPage, casesHref, ORG_HEADER } from "./cases-view";
 import { errorPage, HEADERS, page, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { COOKIE, hiddenIn, stepsOf } from "./welcome-steps";
@@ -57,7 +58,8 @@ casesRoutes.get(
   sessionGate((request) => outage(request, "session")),
   async (c) => {
     const signedIn = c.get("signedIn");
-    const filters = filtersFrom(new URL(c.req.url).searchParams);
+    const params = new URL(c.req.url).searchParams;
+    let filters = filtersFrom(params);
     const membership = await activeMembership(c.env, signedIn);
     if (!membership.ok)
       return membership.reason === "unavailable"
@@ -67,6 +69,13 @@ casesRoutes.get(
     const drawnFor = c.req.header(ORG_HEADER);
     if (drawnFor && drawnFor !== membership.org.id)
       return new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": c.req.url } });
+    const calendar = calendarRequest(params);
+    const calendarPanel = calendar !== null && c.req.header("hx-request") === "true";
+    if (calendar?.range) {
+      filters = { ...filters, ...calendar.range, page: 1 };
+      if (!calendarPanel)
+        return new Response(null, { status: 303, headers: { ...HEADERS, location: casesHref(filters) } });
+    }
     const now = new Date();
     try {
       // The weekly stats (D07 T04 §2) are the organisation's whatever the filters, read beside the list so every
@@ -80,7 +89,7 @@ casesRoutes.get(
       if (!list.ok) return outage(c.req.raw, list.error.code);
       // No cases at all now (the last one withdrawn since the page was drawn): the first-run page has no results region
       // for a results request to fill, so the whole page loads again at the address asked for.
-      if (list.value.total === 0 && c.req.header("hx-request") === "true")
+      if (list.value.total === 0 && c.req.header("hx-request") === "true" && !calendarPanel)
         return new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": c.req.url } });
       const senders =
         list.value.total === 0 ? await verifiedSenders(c.env.DB, membership.org.id) : { domains: [], addresses: [] };
@@ -107,9 +116,16 @@ casesRoutes.get(
             searchLong={searchTooLong(new URL(c.req.url).searchParams.get("q"))}
             datesIgnored={ignoredDates(new URL(c.req.url).searchParams)}
             members={members}
+            calendar={calendar?.draft}
           />,
         ),
-        { headers: HEADERS },
+        {
+          status: calendar?.draft.invalid && !calendarPanel ? 400 : 200,
+          headers: {
+            ...HEADERS,
+            ...(calendarPanel ? { "hx-push-url": calendar?.range ? casesHref(filters) : "false" } : {}),
+          },
+        },
       );
     } catch (error) {
       return outage(c.req.raw, (error as Error).name);
