@@ -85,7 +85,8 @@ def main():
     s = sub.add_parser("stamp")
     s.add_argument("ref")
     s.add_argument("--sha", required=True)
-    s.add_argument("--review", action="append", default=[], type=review_round)
+    s.add_argument("--review", action="append", default=[], type=review_round,
+                   help="legacy implementation round; omit only for a validated codex-two-pass-v1 chain")
     s.add_argument("--check", dest="checks", action="append", default=[])
     s.add_argument("--date", default=date.today().isoformat())
     s.add_argument("--cap-outcome", help="with a stopped-at verdict: what was done when the review cap was reached")

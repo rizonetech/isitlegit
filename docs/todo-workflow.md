@@ -36,31 +36,50 @@ python3 scripts/todo-graph.py query plan      # plan title, phase names and ever
 
 Report only commands actually run, and distinguish static evidence, test output and review proof.
 
-## Codex delivery policy (4 November 2026)
+## Codex delivery policy (4 November 2026, REVIEW-18)
 
-Codex follows `.agents/skills/codex-lane-workflow/SKILL.md`: plan self-review, implementation and gates, exactly one implementation self-review round, repairs and gates, final completion self-review, then stamp and continue. The dispatcher and stamp validate the explicit Codex policy in the committed reviewer pin and preserve historical receipts. This overrides the older Claude skill review order for Codex only. The ordinary completion must approve the exact implementation candidate with no unresolved blocking gaps. The bounded reconciliation exception below is the only supported follow-up for a returned Codex completion with gaps. A known outage permits retry; it never permits a stamp. Existing section ownership, prerequisite checks, Test checkpoints, frozen tests, CI and deployment gates continue to apply.
+The current policy is `self_review_policy = "codex-two-pass-v1"` in the committed pin, alongside `self_review = ["codex"]`. Codex follows `.agents/skills/codex-lane-workflow/SKILL.md` with exactly two normal reviews: a sound-plan self-review before implementation, then one combined quality and completion self-review after implementation and tests. The second pass proves every agreed requirement is completed and correctly implemented on the exact candidate. Its combined schedule includes adversarial, integration, source-defect, plan-delivery, consistency, record, quality and optimization, with design when the actual section has `Surface: yes`. There is no normal implementation round, separate final pass or third normal review.
 
+```bash
+python3 scripts/review-dispatch.py --writer codex --kind plan --candidate <plan-sha> --prompt <plan-prompt> --record <findings-path>
+python3 scripts/review-dispatch.py --writer codex --kind completion --candidate <final-sha> --prompt <combined-prompt> --record <findings-path>
+python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <final-sha> --plan <findings-path> --completion '<findings-path>:complete' --check '<quoted checkpoint and command> -> <observed result>'
+```
+
+Use the section's canonical `docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md` findings path and `docs/completion-review-prompt.md`. There is no `--review` argument for a two-pass stamp. The receipt records the actual plan and exact complete combined review, `reviews = []`, `round_cap = 0` and `rounds_spent = 0`. These zero-round values are valid only under the explicit two-pass policy, never as a generic review waiver. Missing, stale, mixed or forged evidence refuses. Keep the worktree quiescent throughout every review. Existing ownership, prerequisites, Test checkpoints, frozen tests, CI and deployment gates still apply.
+
+### Preserve historical chains and transition only a legacy plan
+
+Historical three-pass chains and other writers keep their recorded policy and pins. An existing genuine legacy Codex plan with no round or completion attempts may transition when the new committed pin also enables `plan_transition = ["codex-self-review"]`, by adding `--transition-plan` to its combined `--kind completion` call. The transition binds the original plan prefix, digest, candidate and pin and retains the plan-before-build gate. Known-outage retries preserve this binding. Do not relabel the plan, discard attempts or invent a clean round. A chain that already contains implementation-review attempts keeps its legacy route unless separately authorized; its real rounds remain part of its receipt.
+
+### Recover a returned combined result
+
+The dispatcher writes pending-call identity under `build/review-completion/` before the normal combined call and durably retains the response before findings write. If that write fails, the returned result is unrecorded and cannot support a stamp. Recover the same persisted response without invoking a reviewer again:
+
+```bash
+python3 scripts/review-dispatch.py --recover-completion --record <findings-path>
+```
+
+An unresolved `calling` state or failed result persistence stays blocked for explicit recovery. Preserve the marker; never delete it to permit another call or assume no response returned. A recorded known outage with no returned review may retry through the dispatcher. Text and JSON `--list-rounds` expose pending and recorded state despite the historical command name.
 
 ### One exceptional reconciliation after completion gaps
 
-Operator decision of 4 November 2026, implemented by D00 T01 §35: additional suggestions genuinely outside the approved section, governing design and safety obligations are recorded separately with an owner and disposition. They do not alone turn a complete section into a failed completion. Unmet requirements, safety breaches, real in-scope defects and regressions remain blocking. This classification never rewrites an existing review.
+D00 T01 §35's bounded verification continues under the two-pass policy. Additional suggestions genuinely outside the approved section, governing design and safety obligations are recorded separately with an owner and disposition. They do not alone force a gaps verdict. Unmet requirements, safety breaches, real in-scope defects and regressions still block. This classification never rewrites an existing review.
 
-An existing Codex plan/one-round/completion chain ending `COMPLETION: gaps` may opt into one `--kind reconciliation` pass only under a committed pin enabling `reconciliation = ["codex"]` and a reconciliation schedule. Retain the original records and pins. Commit a disposition document under `docs/reviews/` covering every original finding against the unchanged approved requirements, with exact repair and test evidence or a justified out-of-scope classification, owner and deferral. The reviewer reads that document, the original plan and failed completion, and the full intervening diff for regressions. The candidate is the original completion commit for scope-only reconciliation or a descendant containing the repairs. See `docs/reconciliation-review-prompt.md`.
+A valid Codex chain ending `COMPLETION: gaps`, either two-pass or historical three-pass, may use one `--kind reconciliation` pass under a committed pin enabling `reconciliation = ["codex"]` and its schedule. Retain all original records and pins. Commit a disposition document under `docs/reviews/` covering every original finding against unchanged approved requirements, with exact repair and test evidence or a justified additional-scope classification, owner and deferral. The reviewer reads it, the original plan and failed completion, any historical round, and the full intervening diff for regressions. The candidate is the original completion commit for scope-only reconciliation or a descendant containing the repairs. See `docs/reconciliation-review-prompt.md`.
 
 ```bash
 python3 scripts/review-dispatch.py --writer codex --kind reconciliation --candidate <verified-sha> --disposition docs/reviews/<disposition>.md --prompt <prompt> --record <findings-path>
-python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <verified-sha> --plan <findings-path> --completion '<findings-path>:gaps' --reconciliation '<findings-path>:complete' --review '<original-round>:<findings-path>:fixed' --check '<quoted checkpoint and command> -> <observed result>'
+python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <verified-sha> --plan <findings-path> --completion '<findings-path>:gaps' --reconciliation '<findings-path>:complete' --check '<quoted checkpoint and command> -> <observed result>'
 python3 scripts/review-dispatch.py --list-rounds --json
 ```
 
-Use the section's canonical findings path and actual original round verdict (`clean` if it had no findings, otherwise `fixed` only when repairs are verified). Only `RECONCILIATION: complete` permits the exact reviewed candidate to stamp. The receipt retains the original completion's `gaps` verdict and separately records the reconciliation and its binding. Stamp and later validation replay the original findings digest, candidate ancestry, unchanged contract, disposition identity, pin, schedule and review order. Existing valid historical receipts remain under their recorded policy; existing gaps do not become approved by adopting the new policy. No writer switch, second ordinary completion, extra ordinary round or second returned reconciliation is authorized. Returned reconciliation gaps remain blocked pending a new explicit coordinator decision.
+The stamp above is for a two-pass chain. A preserved legacy three-pass chain additionally supplies its actual original `--review` argument, using `clean` if the round had no findings or `fixed` only when repairs are verified. Never invent a round for the new route. Only `RECONCILIATION: complete` permits the exact candidate to stamp. Its receipt retains the original completion's `gaps` verdict and separately records reconciliation and its binding. Stamp and later validation replay the original findings digest, candidate ancestry, unchanged contract, disposition identity, pin, schedule and order. Existing gaps do not become approved automatically. A returned reconciliation with gaps remains blocked pending a new explicit coordinator decision; no repeated returned reconciliation or extra normal review is authorized.
 
-The dispatcher keeps pending-call/result state under `build/review-reconciliation/`. A response that could not be written to the findings is unrecorded and cannot support a stamp. Recover the same persisted response, without invoking a reviewer again:
+Reconciliation retains its separate pending-call/result state under `build/review-reconciliation/`. Recover an unrecorded persisted result without another reviewer invocation:
 
 ```bash
 python3 scripts/review-dispatch.py --recover-reconciliation --record <findings-path>
 ```
 
-An unresolved call marker or failed result persistence stays blocked for explicit recovery; never delete it to permit another call or assume no response returned. A known outage with no returned review can retry through the dispatcher. Text and JSON `--list-rounds` expose original completion and reconciliation identity, verdict and pending or blocked status.
-
-To reverse this policy for new work, commit a pin with reconciliation authorization disabled and stop new reconciliation calls. Preserve historical pins, original findings, dispositions, pending state and receipts so existing evidence remains verifiable. Do not remove or rewrite evidence as rollback. All normal ownership, prerequisites, frozen tests, CI and deployment gates still apply.
+The same unresolved-call refusal and known-outage retry rules apply. To reverse authorization for new work, commit the intended pin policy and stop new calls under the disabled route. Preserve historical pins, original findings, transition bindings, dispositions, pending state and receipts so existing evidence remains verifiable. Reverting policy never removes a returned review or creates permission to retry it.

@@ -1,6 +1,6 @@
 ---
 name: codex-lane-workflow
-description: Run IsItLegit's Codex coordinator or an assigned development lane, including plan self-review, one implementation self-review round, final completion review and verified TODO stamping.
+description: Run IsItLegit's Codex coordinator or an assigned development lane, including plan self-review, combined quality and completion self-review, bounded reconciliation and verified TODO stamping.
 ---
 
 # Codex lane workflow
@@ -17,39 +17,53 @@ The main session coordinates, merges at stamp boundaries, owns shared tooling an
 
 ## Deliver one section
 
+Operator correction REVIEW-18 uses `self_review_policy = "codex-two-pass-v1"`: exactly two normal reviews, a sound-plan review and a combined quality/completion review after implementation and tests. There is no normal implementation round or separate final pass. Existing three-pass history stays under its recorded policy; the explicit plan-only transition below is the narrow exception.
+
 1. Resolve the ref with `python3 scripts/todo-graph.py resolve 'DNN TNN §N'`. Respect prerequisites, Needs and lane ownership. Validate the tree and generated plan. Read the section, its governing specs, Freeze check and Test checkpoint. Use the existing TODO authoring rules for any plan corrections.
-2. Commit the plan before code. Prepare a prompt from `docs/plan-review-prompt.md`, replacing its independent-review role with Codex plan self-review and filling the real ref and full candidate SHA. Run the plan command below. Fix every in-scope plan gap before recording Started and implementing. Preserve the plan-before-build evidence the graph validates.
-3. Record Started, implement at the owning layer, and prove regression tests fail before a fix and pass after it. Run the section's targeted tests on its assigned CPU cores after checking free memory. Run owed build, type, lint, publication and frozen gates. Commit the implementation, without amending a reviewed candidate.
-4. Prepare `docs/review-round-prompt.md` for the actual diff and run the single round below. Inspect the actual diff, callers, failure paths and Test checkpoint. Verify findings, fix every real in-scope problem, add regression coverage, rerun affected gates and commit repairs. Record dispositions beneath an ordinary heading, not a reserved review heading. There is exactly one returned regular round; an outage can be retried.
-5. Prepare the completion prompt from `docs/completion-review-prompt.md`. Identify this as Codex's final completion self-review, include the round and every repair, and require proof that the final candidate resolves each finding and meets every Done when. Run completion on the exact final implementation SHA. Stamp on `COMPLETION: complete` through the ordinary route. Separate genuine additional suggestions from blocking obligations: all approved requirements, safety breaches, real in-scope defects and regressions still block. A returned completion with gaps stays unstamped unless the bounded reconciliation procedure below produces real acceptance. There is no additional ordinary round or completion loop. A known failed call may be retried because it returned no review; an unresolved call or an unrecorded returned result uses recovery instead.
-6. Stamp with the graph command below, quoting the section's Test checkpoint and actual gate results. Use `clean` when the round found nothing, or `fixed` when completion or an accepted reconciliation proves its repairs. Run `validate` and `plan --sync`, commit the receipt and projection, and confirm HEAD and status. Announce the stamp and SHA to the coordinator. Continue the next ready section within the user's requested scope.
+2. Commit the plan before code. Prepare `docs/plan-review-prompt.md` as Codex plan self-review with the real ref and full candidate SHA. Run the plan command below. Fix every in-scope plan gap before recording Started and implementing. Preserve the plan-before-build evidence the graph validates.
+3. Record Started, implement at the owning layer, and prove regression tests fail before a fix and pass after it. Run the section's targeted tests on its assigned CPU cores after checking free memory. Run owed build, type, lint, publication and frozen gates. Commit the implementation without amending a reviewed candidate.
+4. Prepare `docs/completion-review-prompt.md` for the exact candidate and run the combined completion command below. It must verify quality and that every agreed requirement is completed and correctly implemented, not merely count passing tests. The pinned schedule covers adversarial, integration, source-defect, plan-delivery, consistency, record, quality and optimization, with design when the actual section has `Surface: yes`. Verify the complete diff, callers, failure paths, every Done when and frozen obligation. Genuine additional suggestions are separate from blocking approved requirements, safety breaches, real in-scope defects and regressions. A returned gaps verdict remains unstamped; prove repairs through the bounded reconciliation route below, not a third normal review.
+5. Stamp only with actual `COMPLETION: complete`, or explicit complete reconciliation, on the exact verified candidate. A two-pass stamp has no `--review` argument: its receipt records the real plan and combined completion, an empty reviews list and zero rounds. Quote the section's Test checkpoint and actual gate results. Run `validate` and `plan --sync`, commit the receipt and projection, confirm HEAD and status, announce the stamp and SHA, and continue the next ready section in scope.
 
-## Review commands
+## Normal review and stamp commands
 
-Replace all angle-bracket arguments with verified values. The findings path must match the section. Write prompts to scratch. A review call has to finish before another writer changes this worktree. In Codex use its normal long-running tool session and poll for completion; Claude's `run_in_background` flag is not a Codex argument.
+Replace all angle-bracket arguments with verified values. The findings path must match the section. Write prompts to scratch. Every review reads a stable worktree with all writers paused. Use the normal long-running tool session and poll for completion; Claude's `run_in_background` flag is not a Codex argument.
 
 ```bash
 python3 scripts/review-dispatch.py --check-pin --json
-python3 scripts/review-dispatch.py --writer codex --kind plan --candidate <plan-sha> --prompt <plan-prompt> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md
-python3 scripts/review-dispatch.py --writer codex --kind round --prompt <round-prompt> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md
-python3 scripts/review-dispatch.py --writer codex --kind completion --candidate <final-sha> --prompt <completion-prompt> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md
-python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <final-sha> --plan <findings-path> --completion '<findings-path>:complete' --review '<round-number>:<findings-path>:clean' --check '<quoted checkpoint and command> -> <observed result>'
+python3 scripts/review-dispatch.py --writer codex --kind plan --candidate <plan-sha> --prompt <plan-prompt> --record <findings-path>
+python3 scripts/review-dispatch.py --writer codex --kind completion --candidate <final-sha> --prompt <combined-prompt> --record <findings-path>
+python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <final-sha> --plan <findings-path> --completion '<findings-path>:complete' --check '<quoted checkpoint and command> -> <observed result>'
 ```
 
-The pin explicitly enables Codex self-review. The dispatcher marks each pass and records the pin; stamp validates that evidence. Do not hand-author approval records, relabel old passes, switch writers mid-chain or bypass a refusal. An in-progress section under an older policy keeps its evidence; ask the coordinator to resolve any policy transition explicitly rather than manufacturing a new approval.
+Use `docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md` as the canonical findings path. The committed pin authorizes and schedules each pass; stamp replays that evidence. Do not hand-author approval records, switch writers, relabel historical passes or bypass a refusal.
+
+### Transition an existing plan without inventing a round
+
+A genuine legacy `codex-self-review` plan can enter the new combined route only when its findings contain no round or completion attempts. The new committed pin must additionally enable `plan_transition = ["codex-self-review"]`; add `--transition-plan` explicitly to the combined completion command. The dispatcher binds the original plan prefix, digest, candidate and pin under the new committed authorization; known-outage retries retain that binding. The original plan remains unchanged and the plan-before-build gate still applies. Chains with implementation-review attempts already present retain their legacy route unless separately authorized, including their actual original round at stamp. Never delete attempts to qualify for transition.
+
+### Recover a normal combined completion result
+
+The dispatcher persists pending-call identity in `build/review-completion/` before the combined call and its returned response before writing findings. A response not recorded in the findings cannot support a stamp. Recover the same persisted response without another reviewer call:
+
+```bash
+python3 scripts/review-dispatch.py --recover-completion --record <findings-path>
+```
+
+Preserve unresolved call markers and failed result-persistence state. Report the exact recovery blocker; do not delete state or infer that no review returned. Only a known non-returned outage may retry. `--list-rounds` and `--list-rounds --json` expose pending and recorded review state despite the historical command name.
 
 ## Bounded completion reconciliation
 
-Operator-authorized D00 T01 §35 adds one exceptional pass for an existing Codex chain with exactly one returned plan, one returned implementation round and one returned completion ending `COMPLETION: gaps`. The committed pin must explicitly enable `reconciliation = ["codex"]` and its schedule. Preserve every original review byte, candidate and pin. This route does not migrate another writer's chain, repeat a regular review, rewrite a failed verdict or grant automatic acceptance to existing blocked sections.
+Operator-authorized D00 T01 §35 adds one exceptional pass for a valid Codex chain ending `COMPLETION: gaps`: a two-pass plan/combined completion chain or a preserved historical plan/round/completion chain. The committed pin must explicitly enable `reconciliation = ["codex"]` and its schedule. Preserve every original review byte, candidate and pin. This route does not migrate another writer's chain, repeat a regular review, rewrite a failed verdict or grant automatic acceptance to existing blocked sections.
 
 Commit a disposition document under `docs/reviews/` that identifies the original section, plan and completion candidates, every original finding, its approved requirement, the repair and falsifiable evidence, or the evidence that it is genuinely outside the unchanged approved contract with an owner and explicit deferral. Include all intervening changes and affected regression gates. Never narrow the original contract or relabel safety breaches, real in-scope defects or regressions as optional. Use the unchanged candidate for a scope-only decision or an exact descendant containing the repairs. Prepare `docs/reconciliation-review-prompt.md`; keep the worktree quiescent throughout the call.
 
 ```bash
 python3 scripts/review-dispatch.py --writer codex --kind reconciliation --candidate <verified-sha> --disposition docs/reviews/<disposition>.md --prompt <reconciliation-prompt> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md
-python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <verified-sha> --plan <findings-path> --completion '<findings-path>:gaps' --reconciliation '<findings-path>:complete' --review '<round-number>:<findings-path>:fixed' --check '<quoted checkpoint and command> -> <observed result>'
+python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <verified-sha> --plan <findings-path> --completion '<findings-path>:gaps' --reconciliation '<findings-path>:complete' --check '<quoted checkpoint and command> -> <observed result>'
 ```
 
-Use the actual original round number and `clean` instead of `fixed` when that round found nothing. Only a returned `RECONCILIATION: complete` can support the stamp. The receipt keeps the original completion verdict `gaps` and adds reconciliation evidence tied to its digest, original findings, exact candidate, committed disposition and authorized pin. A returned `RECONCILIATION: gaps` exhausts this bounded pass and leaves the section blocked pending a new explicit coordinator decision; continue independent ready work. No fourth ordinary round, second completion or automatic retry of a returned reconciliation is allowed.
+The command above is for a two-pass chain and has no round. For a preserved legacy three-pass chain, additionally supply its actual `--review` argument and use `clean` when that round found nothing or `fixed` only when its repairs are verified. Only a returned `RECONCILIATION: complete` can support the stamp. The receipt keeps the original completion verdict `gaps` and adds reconciliation evidence tied to its digest, original findings, exact candidate, committed disposition and authorized pin. A returned `RECONCILIATION: gaps` exhausts this bounded pass and leaves the section blocked pending a new explicit coordinator decision; continue independent ready work. No extra normal review, second completion or automatic retry of a returned reconciliation is allowed.
 
 If writing the findings fails after a response returns, the response is unrecorded and cannot support a stamp. Preserve the durable pending-call/result state in `build/review-reconciliation/` and use `python3 scripts/review-dispatch.py --recover-reconciliation --record <findings-path>` to replay that same persisted result without a model call. If the call state is unresolved or the returned result could not be persisted, fail closed, preserve the marker and report the exact recovery blocker; do not delete the marker or infer that no review returned. A known outage with no returned review may be retried through the supported dispatcher. Inspect `--list-rounds` or `--list-rounds --json` for the original completion and pending, complete or blocked reconciliation state.
 

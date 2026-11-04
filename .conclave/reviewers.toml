@@ -16,8 +16,10 @@
 
 schema_version = 1
 
-# Operator, 2026-11-04: Codex writes and self-reviews plan, one round, then completion.
+# Operator REVIEW-18, 2026-11-04: Codex self-reviews plan, then combined completion.
 self_review = ["codex"]
+self_review_policy = "codex-two-pass-v1"
+plan_transition = ["codex-self-review"]
 # Operator, 2026-11-04: one bound reconciliation after a returned completion with gaps.
 reconciliation = ["codex"]
 
@@ -118,3 +120,7 @@ mode = "off"
 [schedule.reconciliation]
 effort = "low"
 lenses = ["adversarial", "integration", "plan-delivery", "record"]
+
+[schedule.combined]
+effort = "low"
+lenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]

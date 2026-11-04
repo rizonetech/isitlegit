@@ -1764,6 +1764,8 @@ class Reconciliation(unittest.TestCase):
         self.git('config', 'user.email', 'test@example.invalid')
         (self.root / '.conclave').mkdir()
         pin = REPO_PIN.read_text()
+        pin = re.sub(r'^self_review_policy = .*\n|^plan_transition = .*\n', "", pin, flags=re.M)
+        pin = re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)', "", pin, flags=re.S)
         if 'reconciliation = ["codex"]' not in pin:
             pin = pin.replace('self_review = ["codex"]', 'self_review = ["codex"]\nreconciliation = ["codex"]')
             pin += '\n[schedule.reconciliation]\neffort = "low"\nlenses = ["adversarial", "integration", "plan-delivery", "record"]\n'
@@ -2039,6 +2041,245 @@ class Reconciliation(unittest.TestCase):
         self.git('checkout', base)
         with self.assertRaises(self.module.Refused):
             self.binding(candidate)
+
+
+class TwoPass(unittest.TestCase):
+    git = Reconciliation.git
+    commit = Reconciliation.commit
+
+    def setUp(self):
+        Reconciliation.setUp(self)
+        self.legacy_entry = dict(self.entry)
+        self.legacy_pin = self.pin
+        self.report.unlink()
+        self.new_pin_text = (self.root / '.conclave/reviewers.toml').read_text()
+        if 'self_review_policy' not in self.new_pin_text:
+            self.new_pin_text = self.new_pin_text.replace('self_review = ["codex"]', 'self_review = ["codex"]\nself_review_policy = "codex-two-pass-v1"\nplan_transition = ["codex-self-review"]')
+            self.new_pin_text += '\n[schedule.combined]\neffort = "low"\nlenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]\n'
+        (self.root / '.conclave/reviewers.toml').write_text(self.new_pin_text)
+        self.todo.write_text('# Test\n\n## 1. Example\n\n**Surface:** no\n\n- [ ] Preserve data.\n')
+        self.sha = self.commit()
+        self.pin = self.module.pin_blob(self.new_pin_text.encode())
+        self.entry = {**self.entry, 'pin':self.pin, 'policy':'codex-two-pass-v1'}
+        self.module.ROOT = self.root
+
+    def plan(self, legacy=False):
+        entry = self.legacy_entry if legacy else self.entry
+        self.module.record_completion(self.report, {**entry,'review':'PLAN: complete\nOVERALL: approve'}, '2026-11-04T01:00:00Z',self.sha,'plan')
+        self.commit()
+
+    def complete(self, transition=False, verdict='complete'):
+        binding = self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=transition)
+        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'COMPLETION: '+verdict},'2026-11-04T01:02:00Z',self.sha)
+        return self.module.validate_codex_chain(self.root,self.report.read_text())
+
+    def test_new_policy_two_pass_chain_has_no_round(self):
+        self.plan()
+        chain = self.complete()
+        self.assertEqual(chain['policy'],'codex-two-pass-v1')
+        self.assertIsNone(chain['round'])
+        self.assertIsNone(chain['transition'])
+
+    def test_legacy_plan_transition_is_explicit_and_bound(self):
+        self.plan(legacy=True)
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha)
+        chain = self.complete(transition=True)
+        self.assertEqual(chain['transition']['plan_pin'],self.legacy_pin)
+        self.assertEqual(chain['plan']['policy'],'codex-self-review')
+
+    def test_combined_schedule_has_all_lenses_and_conditional_design(self):
+        pin = self.module.load_pin(data=self.new_pin_text.encode())
+        self.assertEqual(self.module.review_policy(pin,'codex'),'codex-two-pass-v1')
+        names = ['adversarial','integration','source-defect','plan-delivery','consistency','record','quality','optimization']
+        self.assertEqual(self.module.scheduled(pin['schedule'],'completion',[],False)['lenses'],names)
+        self.assertEqual(self.module.scheduled(pin['schedule'],'completion',[],True)['lenses'],names+['design'])
+
+    def test_new_policy_refuses_round_and_transition_after_attempt(self):
+        self.plan(legacy=True)
+        self.module.record(self.report,{**self.legacy_entry,'reviewer':None,'review':None},'2026-11-04T01:01:00Z')
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+
+    def runner(self, reply='COMPLETION: complete', transition=False):
+        from types import SimpleNamespace
+        prompt = self.root / 'prompt.md'
+        prompt.write_text('Review the exact candidate.\n')
+        args = SimpleNamespace(writer='codex', record=str(self.report), candidate=self.sha,
+                               prompt=str(prompt), timeout=30, surface=False, transition_plan=transition)
+        pin = self.module.load_pin(self.root / '.conclave/reviewers.toml')
+        result = {**self.entry, 'review':reply, 'lenses':self.module.COMBINED_LENSES[:-1]}
+        return args, pin, result
+
+    def test_normal_completion_recovers_same_response_after_write_failure(self):
+        self.plan()
+        args, pin, result = self.runner()
+        before = self.report.read_bytes()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('write failed')):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_completion(args,pin,self.pin)
+            self.assertEqual(self.report.read_bytes(),before)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_completion(args,pin,self.pin)
+            recovered = self.module.recover_completion(self.root,self.report)
+            self.assertTrue(recovered['recorded'])
+            self.assertEqual(reviewer.call_count,1)
+            self.assertIsNone(self.module.validate_codex_chain(self.root,self.report.read_text())['round'])
+
+    def test_normal_completion_unresolved_call_and_result_store_failure_refuse(self):
+        self.plan()
+        args, pin, result = self.runner()
+        write = self.module._durable_json
+        def fail_result(path,state,exclusive=False):
+            if state.get('phase') == 'returned':
+                raise OSError('cannot persist result')
+            return write(path,state,exclusive)
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'_durable_json',side_effect=fail_result):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_completion(args,pin,self.pin)
+            with self.assertRaises(self.module.Refused):
+                self.module.recover_completion(self.root,self.report)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_completion(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+
+    def test_legacy_transition_outage_retry_keeps_original_binding(self):
+        self.plan(legacy=True)
+        args, pin, result = self.runner('No verdict',transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        args, pin, result = self.runner(transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        found = self.module.read_completions(self.report.read_text())
+        self.assertEqual(found[0]['binding']['transition'],found[1]['binding']['transition'])
+        self.assertIsNotNone(self.module.validate_codex_chain(self.root,self.report.read_text())['transition'])
+
+    def test_combined_gaps_support_one_reconciliation(self):
+        self.plan()
+        self.complete(verdict='gaps')
+        self.commit()
+        binding = self.module.make_reconciliation_binding(self.root,self.report,self.sha,self.disposition)
+        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'RECONCILIATION: complete'},'2026-11-04T01:03:00Z',self.sha,'reconciliation')
+        entry=self.module.read_reconciliations(self.report.read_text())[-1]
+        self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry)
+        with self.assertRaises(self.module.Unrecorded):
+            self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'RECONCILIATION: complete'},'2026-11-04T01:04:00Z',self.sha,'reconciliation')
+
+    def cli_fixture(self):
+        scripts = self.root / 'scripts'
+        scripts.mkdir(exist_ok=True)
+        shutil.copy(SCRIPTS/'review-dispatch.py',scripts/'review-dispatch.py')
+        shutil.copytree(SCRIPTS/'lib',scripts/'lib',dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__'))
+        binary = self.root/'bin'
+        binary.mkdir()
+        fake = self.root/'fake.py'
+        fake.write_text(FAKE_CLI)
+        write_launcher(binary,'codex',fake)
+        log=self.root/'invocations.jsonl'
+        env={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],'FAKE_CODEX':'say',
+             'FAKE_SAY':'COMPLETION: complete','FAKE_LOG':str(log)}
+        prompt=self.root/'prompt.md'
+        prompt.write_text('Verify the candidate after tests.\n')
+        argv=[sys.executable,str(scripts/'review-dispatch.py'),'--writer','codex','--kind','completion',
+              '--record',str(self.report),'--candidate',self.sha,'--prompt',str(prompt)]
+        return argv,env,log
+
+    def test_actual_cli_invocation_contains_quality_completion_frozen_and_conditional_design(self):
+        for surface in ('no','yes'):
+            with self.subTest(surface=surface):
+                if self.report.exists():
+                    self.report.unlink()
+                self.todo.write_text('# Test\n\n## 1. Example\n\n**Surface:** '+surface+'\n\n- [ ] Preserve data.\n')
+                (self.root/'marker.txt').write_text(surface)
+                self.sha=self.commit()
+                self.plan()
+                if (self.root/'bin').exists():
+                    shutil.rmtree(self.root/'bin')
+                pending=self.module.reconciliation_pending_path(self.root,self.report.relative_to(self.root).as_posix(),'completion')
+                if pending.exists():
+                    pending.unlink()
+                argv,env,log=self.cli_fixture()
+                if log.exists():
+                    log.unlink()
+                result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+                self.assertEqual(result.returncode,0,result.stderr)
+                invocation=json.loads(log.read_text().splitlines()[0])
+                for lens in self.module.COMBINED_LENSES[:-1]:
+                    self.assertIn('`'+lens+'`:',invocation['stdin'])
+                self.assertEqual('`design`:' in invocation['stdin'],surface=='yes')
+                for requirement in ('every agreed requirement','every Done when','frozen safety obligations','quality and completion','COMPLETION: complete'):
+                    self.assertIn(requirement,invocation['stdin'])
+                self.assertEqual(len(log.read_text().splitlines()),1)
+                chain=self.module.validate_codex_chain(self.root,self.report.read_text())
+                self.assertEqual(chain['policy'],'codex-two-pass-v1')
+
+    def test_missing_combined_authorization_refuses_before_actual_invocation(self):
+        self.plan()
+        argv,env,log=self.cli_fixture()
+        pin=self.root/'.conclave/reviewers.toml'
+        pin.write_text(re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)','',self.new_pin_text,flags=re.S))
+        result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse(log.exists())
+
+    def test_actual_new_round_refuses_before_invocation(self):
+        self.plan()
+        argv,env,log=self.cli_fixture()
+        argv[argv.index('completion')]='round'
+        index=argv.index('--candidate')
+        del argv[index:index+2]
+        result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse(log.exists())
+
+    def test_actual_non_codex_route_keeps_original_completion_schedule(self):
+        self.plan()
+        argv,env,log=self.cli_fixture()
+        argv[argv.index('codex')]='claude'
+        result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stderr)
+        invocation=json.loads(log.read_text().splitlines()[0])
+        self.assertNotIn('Lenses for this pass',invocation['stdin'])
+        summary=json.loads(result.stdout)
+        self.assertEqual(summary['effort'],'low')
+        self.assertEqual(summary['lenses'],[])
+        self.assertNotIn('policy',summary)
+
+    def test_returned_journal_prevents_repeat_if_findings_are_lost(self):
+        self.plan()
+        before=self.report.read_bytes()
+        args,pin,result=self.runner()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            self.module.run_completion(args,pin,self.pin)
+            self.report.write_bytes(before)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_completion(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+
+    def test_interrupted_combined_call_remains_pending_and_listed(self):
+        self.plan()
+        args,pin,result=self.runner()
+        with unittest.mock.patch.object(self.module,'review',side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.module.run_completion(args,pin,self.pin)
+        with self.assertRaises(self.module.Refused):
+            self.module.recover_completion(self.root,self.report)
+        listing=self.module.list_rounds(self.root/'docs/reviews')
+        record=next(e for e in listing['records'] if e['path'].endswith('D00-T01-s1.md'))
+        self.assertEqual(record['completion_status']['phase'],'calling')
+
+    def test_transition_scalar_types_and_missing_plan_refuse(self):
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha)
+        self.plan(legacy=True)
+        chain=self.complete(transition=True)
+        entry=chain['completion']
+        malformed={**entry,'binding':{**entry['binding'],'transition':{**entry['binding']['transition'],'version':True}}}
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_completion_binding(self.root,self.report.read_text(),malformed)
 
 
 if __name__ == "__main__":
