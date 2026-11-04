@@ -110,6 +110,211 @@ def check_pin(name, pinned):
         raise Refused(f"{name}: a GitHub pin names a commit id, not a branch or tag ({pinned!r})")
 
 
+# First-download provenance for the pinned downloader (D03 T04 §42).
+PIN_FOLDER = ".download-pins"
+PIN_MODE = {"schema_version": 1, "mode": "first-download-pins"}
+
+
+def pin_artifact(pinned, url):
+    """Canonical identity, never merely a repository/commit shared by different files.
+
+    Provider contracts: docs.github.com/en/rest/repos/contents and
+    huggingface.co/docs/huggingface_hub/en/package_reference/file_download.
+    """
+    from urllib.parse import urlsplit, unquote, parse_qs
+    if not isinstance(pinned, str) or not isinstance(url, str):
+        raise Refused("a pin and its download URL must be strings")
+    check_pin("download", pinned)
+    gh, hf = GITHUB_PIN.fullmatch(pinned), HUGGING_FACE_PIN.fullmatch(pinned)
+    if not gh and not hf:
+        raise Refused("unsupported pin: use a GitHub or Hugging Face repository and full commit id")
+    repo = pinned.split(": ", 1)[1].split(",", 1)[0]
+    revision = (gh or hf).group(1)
+    try:
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443) or parsed.fragment:
+            raise ValueError()
+        if re.search(r"%(?:2f|5c|25)", parsed.path, re.I):
+            raise ValueError()
+        path = unquote(parsed.path, errors="strict").strip("/")
+        if any(p in ("", ".", "..") for p in path.split("/")) or "\\" in path:
+            raise ValueError()
+        parts = path.split("/")
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        if query and not (hf and query == {"download": ["true"]}):
+            raise ValueError()
+    except (ValueError, UnicodeError):
+        raise Refused("a pinned URL must be an unambiguous HTTPS artifact URL") from None
+    kind, file_path, actual_repo, actual_revision = None, None, None, None
+    if hf and parsed.hostname == "huggingface.co" and len(parts) >= 6 and parts[0] == "datasets" and parts[3] == "resolve":
+        actual_repo, actual_revision, kind, file_path = "/".join(parts[1:3]), parts[4], "file", "/".join(parts[5:])
+    elif gh:
+        host = parsed.hostname
+        if host == "raw.githubusercontent.com" and len(parts) >= 4:
+            actual_repo, actual_revision, kind, file_path = "/".join(parts[:2]), parts[2], "file", "/".join(parts[3:])
+        elif host == "github.com" and len(parts) >= 5 and parts[2] == "raw":
+            actual_repo, actual_revision, kind, file_path = "/".join(parts[:2]), parts[3], "file", "/".join(parts[4:])
+        elif host == "github.com" and len(parts) == 4 and parts[2] == "archive":
+            for suffix, form in ((".tar.gz", "tar.gz"), (".zip", "zip")):
+                if parts[3].endswith(suffix):
+                    actual_repo, actual_revision, kind = "/".join(parts[:2]), parts[3][:-len(suffix)], form
+        elif host == "codeload.github.com" and len(parts) == 4 and parts[2] in ("zip", "tar.gz", "legacy.zip", "legacy.tar.gz"):
+            actual_repo, actual_revision, kind = "/".join(parts[:2]), parts[3], parts[2]
+        elif host == "api.github.com" and len(parts) == 5 and parts[0] == "repos" and parts[3] in ("zipball", "tarball"):
+            actual_repo, actual_revision = "/".join(parts[1:3]), parts[4]
+            kind = "legacy.zip" if parts[3] == "zipball" else "legacy.tar.gz"
+    matches_repo = actual_repo is not None and (actual_repo.lower() == repo.lower() if gh else actual_repo == repo)
+    if not matches_repo or actual_revision != revision or kind is None:
+        raise Refused("the URL does not name the pinned repository, commit and supported artifact")
+    return {"provider": "github" if gh else "huggingface", "repository": repo.lower() if gh else repo,
+            "revision": revision, "kind": kind, "path": file_path}
+
+
+def pin_redirect(artifact, pinned, previous, target):
+    """A provider-origin redirect may resolve to its own delivery host, never an unrelated mirror."""
+    from urllib.parse import urlsplit
+    try:
+        if pin_artifact(pinned, target) == artifact:
+            return
+    except Refused:
+        pass
+    old, new = urlsplit(previous), urlsplit(target)
+    # HF's resolve endpoint supplies signed delivery URLs. They may not be supplied
+    # as initial URLs/mirrors, since only the resolve response binds them to a file.
+    def hf_delivery(host):
+        return host in ("cdn-lfs.huggingface.co", "cdn-lfs.hf.co", "cdn-lfs-us-1.hf.co", "cdn-lfs-eu-1.hf.co", "cas-bridge.xethub.hf.co")
+    if artifact["provider"] == "huggingface" and new.scheme == "https" and not new.username and not new.password and new.port in (None, 443) and not new.fragment and hf_delivery(new.hostname) and (old.hostname == "huggingface.co" or old.hostname == new.hostname):
+        return
+    raise Refused("a pinned download redirected outside its artifact/provider delivery route")
+
+
+def _pin_directory(folder):
+    folder = Path(folder).resolve()
+    directory = folder / PIN_FOLDER
+    if not directory.resolve().is_relative_to(folder):
+        raise Refused("pin evidence leaves its source folder")
+    return directory
+
+
+def pin_receipt_path(folder, name):
+    if not isinstance(name, str) or Path(name).name != name or name.startswith("."):
+        raise Refused("a pin receipt names one source file")
+    return _pin_directory(folder) / (name + ".json")
+
+
+def _pin_json(path):
+    try:
+        if path.stat().st_size > 64 * 1024:
+            raise ValueError()
+        with path.open(encoding="utf-8") as f:
+            value = json.load(f)
+        if not isinstance(value, dict):
+            raise ValueError()
+        return value
+    except (OSError, ValueError, RecursionError):
+        raise Refused("missing or invalid first-download pin evidence") from None
+
+
+def _pin_absent(path, value, check_space=None):
+    import tempfile
+    data = (json.dumps(value, sort_keys=True) + "\n").encode()
+    if path.exists():
+        if _pin_json(path) != value:
+            raise Refused("first-download pin evidence conflicts; use a new destination for a new artifact")
+        # A previous attempt may have linked the evidence then failed its directory sync.
+        # Retry the durability boundary before allowing the caller to publish data.
+        with path.open("rb") as evidence:
+            os.fsync(evidence.fileno())
+        for directory in (path.parent, path.parent.parent):
+            directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        return
+    if check_space:
+        check_space(len(data))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    parent_fd = os.open(path.parent.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(parent_fd)
+    finally:
+        os.close(parent_fd)
+    fd, temporary = tempfile.mkstemp(prefix=".pin-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            if _pin_json(path) != value:
+                raise Refused("first-download pin evidence conflicts") from None
+        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+        if _pin_json(path) != value:
+            raise Refused("first-download pin evidence did not read back")
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def mark_pin_mode(folder, check_space=None):
+    _pin_absent(_pin_directory(folder) / ".mode.json", PIN_MODE, check_space)
+
+
+def read_pin_receipt(folder, name, pinned, artifact=None):
+    directory = _pin_directory(folder)
+    if not directory.exists():
+        return None
+    if _pin_json(directory / ".mode.json") != PIN_MODE:
+        raise Refused("invalid pinned-download mode marker")
+    path = pin_receipt_path(folder, name)
+    if not path.exists():
+        return None
+    row = _pin_json(path)
+    if row.get("schema_version") != 1 or row.get("name") != name or row.get("pinned") != pinned or not isinstance(row.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) or type(row.get("bytes")) is not int or row["bytes"] < 0 or not isinstance(row.get("artifact"), dict):
+        raise Refused("first-download pin receipt identity is invalid or different")
+    canonical = row["artifact"]
+    try:
+        provider, repo, revision, kind, file_path = (canonical[key] for key in ("provider", "repository", "revision", "kind", "path"))
+        if not all(isinstance(value, str) for value in (provider, repo, revision, kind)) or (not isinstance(file_path, str) if kind == "file" else file_path is not None):
+            raise ValueError()
+        if provider == "github":
+            url = (f"https://raw.githubusercontent.com/{repo}/{revision}/{file_path}" if kind == "file"
+                   else f"https://codeload.github.com/{repo}/{kind}/{revision}")
+        elif provider == "huggingface" and kind == "file":
+            url = f"https://huggingface.co/datasets/{repo}/resolve/{revision}/{file_path}"
+        else:
+            raise ValueError()
+        if pin_artifact(pinned, url) != canonical:
+            raise ValueError()
+    except (KeyError, TypeError, ValueError):
+        raise Refused("invalid canonical artifact in first-download receipt") from None
+    if artifact is not None and row["artifact"] != artifact:
+        raise Refused("first-download pin receipt names another artifact")
+    return row
+
+
+def save_pin_receipt(folder, name, pinned, artifact, digest, size, check_space=None):
+    mark_pin_mode(folder, check_space)
+    value = {"schema_version": 1, "name": name, "pinned": pinned, "artifact": artifact, "sha256": digest, "bytes": size}
+    _pin_absent(pin_receipt_path(folder, name), value, check_space)
+    return read_pin_receipt(folder, name, pinned, artifact)
+
+
+def _download_pin_evidence(folder, name, pinned, measured, size, required=False):
+    if not required and not _pin_directory(folder).exists():
+        return None  # Historical receipt-free manifests retain their original contract.
+    row = read_pin_receipt(folder, name, pinned)
+    if row is None or row["sha256"] != measured or row["bytes"] != size:
+        raise Refused(f"{name}: missing first-download evidence or bytes changed since pinned download")
+    return file_digest(pin_receipt_path(folder, name))
+
+
 def build(folder, files, licence):
     """Write the manifest for `files` (each `{"name", "published": {"kind": "sha256"|"md5", "value"} | None,
     "pinned": str | None}`) in `folder`, checking every published digest against the file as it is now. Returns the
@@ -129,10 +334,13 @@ def build(folder, files, licence):
                 raise Refused(f"{entry['name']}: a published digest must be SHA-256 or MD5")
             if file_digest(path, published["kind"]) != published["value"].lower():
                 raise Refused(f"{entry['name']}: does not match its published {published['kind']}")
+        measured, size = file_digest(path), path.stat().st_size
+        pin_evidence = _download_pin_evidence(folder, entry["name"], pinned, measured, size) if not published else None
         listed.append({
+            **({"download_pin": pin_evidence} if pin_evidence is not None else {}),
             "name": entry["name"],
-            "sha256": file_digest(path),
-            "bytes": path.stat().st_size,
+            "sha256": measured,
+            "bytes": size,
             "published": published,
             "pinned": pinned,
         })
@@ -162,6 +370,10 @@ def verify(folder, names):
             raise Refused(f"{name}: listed in the manifest but missing")
         if target.stat().st_size != entry["bytes"] or file_digest(target) != entry["sha256"]:
             raise Refused(f"{name}: changed since the manifest was written")
+        if not entry.get("published"):
+            evidence = _download_pin_evidence(folder, name, entry.get("pinned"), entry["sha256"], entry["bytes"], required="download_pin" in entry)
+            if "download_pin" in entry and entry["download_pin"] != evidence:
+                raise Refused(f"{name}: first-download pin receipt changed since manifest creation")
     return manifest, digest_of(manifest)
 
 

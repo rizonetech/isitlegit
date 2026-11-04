@@ -106,6 +106,39 @@ class Launcher(unittest.TestCase):
         fetcher = Path(__file__).resolve().parents[2] / "scripts" / "glimmer" / "fetch.py"
         self.assertEqual((raw / ".fetch.py").read_bytes(), fetcher.read_bytes())
 
+    def test_placed_pinned_downloader_uses_shared_validator_outside_repository(self):
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        raw = self.home / 'isitlegit-data/glimmer/raw'
+        helper = raw / '.fetch-inputs.py'
+        self.assertEqual(helper.read_bytes(), (ROOT / 'scripts/glimmer/inputs.py').read_bytes())
+        spec = importlib.util.spec_from_file_location('placed_pin_inputs', helper)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        folder = raw / 'fixture'
+        folder.mkdir()
+        data = folder / 'data.bin'
+        data.write_bytes(b'fictional data')
+        pin = 'github: fictional/corpus, ' + 'a' * 40
+        url = 'https://raw.githubusercontent.com/fictional/corpus/' + 'a' * 40 + '/data.bin'
+        module.save_pin_receipt(folder, 'data.bin', pin, module.pin_artifact(pin, url), module.file_digest(data), data.stat().st_size)
+        args = [sys.executable, '-I', str(raw / '.fetch.py'), '--url', url, '--dest', 'fixture/data.bin', '--pin', pin, '--min-free', '0']
+        present = subprocess.run(args, cwd=raw, capture_output=True, text=True, check=False)
+        self.assertEqual(present.returncode, 0, present.stderr)
+        self.assertEqual(json.loads(present.stdout)['status'], 'present')
+        helper.unlink()
+        refused = subprocess.run(args, cwd=raw, capture_output=True, text=True, check=False)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertNotIn('Traceback', refused.stderr)
+        self.assertIn('validator', refused.stdout)
+
+    def test_validator_placement_failure_refuses_collection(self):
+        raw = self.home / 'isitlegit-data/glimmer/raw'
+        (raw / '.fetch-inputs.py').mkdir(parents=True)
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.log.exists())
+
     def test_a_later_brief_is_sent_instead_and_one_outside_docs_glimmer_is_refused(self):
         later = BRIEF.with_name("astra-collection-brief-2.md")
         made = not later.exists()

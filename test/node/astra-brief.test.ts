@@ -147,7 +147,7 @@ describe("the downloads both briefs make", () => {
     expect(BRIEF_2).toContain("except a folder this sweep made itself, which holds `.sweep-2`");
     // A recollection after an invalid manifest keeps the mark, so an interrupted one can still be resumed.
     expect(BRIEF_2).toContain("deletes that source's other files except `.sweep-2`");
-    // No file is accepted unverified: a dataset with no published digest is recorded, never fetched.
+    // A missing digest still refuses unless the second brief supplies the immutable-pin contract.
     for (const [brief, floor, rejected] of [
       [BRIEF, "10000000000", "`REJECTED.md`"],
       [BRIEF_2, "20000000000", "`REJECTED-2.md`"],
@@ -156,5 +156,25 @@ describe("the downloads both briefs make", () => {
       expect(brief).toContain(`record it in ${rejected} with the reason \`no published digest\``);
       expect(brief).toContain(`\`--min-free ${floor}\``);
     }
+  });
+});
+
+// D03 T04 §42: deleting a trust rule from the brief must fail its contract.
+describe("second-sweep immutable downloads", () => {
+  const rules = [
+    '--pin "github: <owner>/<repo>, <40-hex commit>"',
+    '--pin "huggingface: <owner>/<dataset>, <40-hex commit>"',
+    "matching immutable artifact URL",
+    '"pin": "github: <owner>/<repo>, <40-hex commit>"',
+    "Never delete `.download-pins/` during cleanup or recollection",
+    "changed bytes must refuse against the original receipt",
+    "consumes the download receipt",
+    "`.fetch-inputs.py` is the shared validator",
+    "a new destination, never a replacement receipt",
+  ];
+  const missingPins = (text: string) => rules.filter((rule) => !text.includes(rule));
+  it("preserves first-download trust through collection and cleanup", () => {
+    expect(missingPins(BRIEF_2)).toEqual([]);
+    for (const rule of rules) expect(missingPins(BRIEF_2.replace(rule, ""))).toContain(rule);
   });
 });

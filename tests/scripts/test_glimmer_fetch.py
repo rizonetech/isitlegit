@@ -3711,6 +3711,143 @@ class Fetch(unittest.TestCase):
                         rate_window=0.5, sleep=lambda s: None, log=lambda line: None, **ROOMY)
 
 
+class PinnedFetch(unittest.TestCase):
+    setUp = Fetch.setUp
+    tear = Fetch.tear
+    commit = 'a' * 40
+    pin = 'github: fictional/corpus, ' + commit
+    url = 'https://raw.githubusercontent.com/fictional/corpus/' + commit + '/data.bin'
+
+    def pinned(self, **kwargs):
+        real_connect = fetch._connect
+        def connect(url, timeout, allow_loopback, watch=None, ca_file=None):
+            connection = real_connect(self.base + '/file', timeout, True, watch)
+            request = connection.request
+            connection.request = lambda method, path, **kw: request(method, '/file', **kw)
+            return connection
+        with mock.patch.object(fetch, '_connect', side_effect=connect):
+            return fetch.fetch(self.url, 'src/data.bin', ('pin', self.pin), **{**ROOMY, 'timeout': 2, 'sleep': lambda _: None, 'log': lambda _: None, **kwargs})
+
+    def test_first_pin_fetch_and_rerun_bind_original_digest(self):
+        result = self.pinned()
+        self.assertEqual(result['sha256'], SHA)
+        receipt = fetch._pin_helpers().read_pin_receipt(Path('src'), 'data.bin', self.pin)
+        self.assertEqual(receipt['sha256'], SHA)
+        self.assertEqual(self.pinned()['status'], 'present')
+        Path('src/data.bin').write_bytes(b'changed')
+        with self.assertRaises(fetch.Refused):
+            self.pinned()
+
+    def test_recollection_cannot_reset_original_digest(self):
+        self.pinned()
+        receipt = Path('src/.download-pins/data.bin.json').read_bytes()
+        Path('src/data.bin').unlink()
+        self.server.body = b'different bytes'
+        with self.assertRaises(fetch.Refused):
+            self.pinned(attempts=1)
+        self.assertEqual(Path('src/.download-pins/data.bin.json').read_bytes(), receipt)
+        self.assertFalse(Path('src/data.bin').exists())
+
+    def test_existing_file_without_receipt_is_not_recertified(self):
+        Path('src').mkdir()
+        Path('src/data.bin').write_bytes(BODY)
+        with self.assertRaises(fetch.Refused):
+            self.pinned()
+        self.assertEqual(self.server.requests, 0)
+
+    def test_mirror_for_other_file_refuses_before_fetch(self):
+        with self.assertRaises(fetch.Refused):
+            self.pinned(mirrors=[self.url.replace('data.bin', 'other.bin')])
+        self.assertEqual(self.server.requests, 0)
+
+    def test_first_pin_segmented_download_keeps_limits(self):
+        self.server.modes = {'segments'}
+        result = self.pinned(segment_threshold=1, segments=4)
+        self.assertEqual(result['sha256'], SHA)
+        self.assertEqual(Path('src/data.bin').read_bytes(), BODY)
+        self.assertLessEqual(self.server.peak, 4)
+
+    def seed_partial(self):
+        directory = Path('src/.partial')
+        directory.mkdir(parents=True)
+        partial = directory / 'data.bin'
+        partial.write_bytes(BODY[:1234])
+        state_path = directory / 'data.bin.state.json'
+        state_path.write_text(json.dumps({'url': self.url, 'expected': ['pin', self.pin, fetch._pin_helpers().pin_artifact(self.pin, self.url)], 'validator': '"v1"', 'encoding': 'identity', 'total': SIZE}))
+        return partial, state_path
+
+    def test_changed_pin_preserves_interrupted_transfer(self):
+        partial, state_path = self.seed_partial()
+        original = (partial.read_bytes(), state_path.read_bytes())
+        self.pin = self.pin.replace(self.commit, 'b' * 40)
+        self.url = self.url.replace(self.commit, 'b' * 40)
+        with self.assertRaises(fetch.Refused):
+            self.pinned(segments=1)
+        self.assertEqual((partial.read_bytes(), state_path.read_bytes()), original)
+        self.assertEqual(self.server.requests, 0)
+
+    def test_same_pin_partial_resumes_without_early_receipt(self):
+        self.seed_partial()
+        self.assertFalse(Path('src/.download-pins/data.bin.json').exists())
+        result = self.pinned(segments=1)
+        self.assertTrue(result['resumed'])
+        self.assertEqual(Path('src/data.bin').read_bytes(), BODY)
+
+    def test_failed_receipt_publication_leaves_partial_for_retry(self):
+        api = fetch._pin_helpers()
+        with mock.patch.object(api, 'save_pin_receipt', side_effect=OSError('synthetic failure')):
+            with self.assertRaises(fetch.Refused):
+                self.pinned(segments=1)
+        self.assertFalse(Path('src/data.bin').exists())
+        self.assertFalse(Path('src/.download-pins/data.bin.json').exists())
+        self.assertEqual(Path('src/.partial/data.bin').read_bytes(), BODY)
+        self.assertEqual(self.pinned(segments=1)['sha256'], SHA)
+
+    def test_cancelled_transfer_has_no_first_digest_and_resumes(self):
+        def interrupt(handle, block):
+            handle.write(block)
+            raise KeyboardInterrupt()
+        with self.assertRaises(KeyboardInterrupt):
+            self.pinned(segments=1, writer=interrupt)
+        self.assertFalse(Path('src/.download-pins/data.bin.json').exists())
+        self.assertFalse(Path('src/data.bin').exists())
+        self.assertEqual(self.pinned(segments=1)['sha256'], SHA)
+
+    def test_pinned_transfer_retains_storage_limits(self):
+        for limit in ({'source_limit': 1}, {'min_free': 10**18}):
+            with self.subTest(limit=limit), self.assertRaises(fetch.Refused):
+                self.pinned(**limit)
+            self.assertFalse(Path('src/data.bin').exists())
+            self.assertFalse(Path('src/.download-pins/data.bin.json').exists())
+
+    def test_manifest_pin_parity_and_all_lines_preflight(self):
+        self.pinned()
+        entry = {'url': self.url, 'dest': 'src/data.bin', 'pin': self.pin}
+        manifest = Path('downloads.jsonl')
+        manifest.write_text(json.dumps(entry) + '\n')
+        with mock.patch('sys.stdout'):
+            self.assertEqual(fetch.main(['--manifest', str(manifest), '--min-free', '0']), 0)
+        bad = {**entry, 'dest': 'other/data.bin', 'pin': self.pin.replace(self.commit, 'main')}
+        manifest.write_text(json.dumps(entry) + '\n' + json.dumps(bad) + '\n')
+        with mock.patch.object(fetch, '_fetch_line') as download, mock.patch('sys.stdout'), mock.patch('sys.stderr'):
+            self.assertEqual(fetch.main(['--manifest', str(manifest)]), 2)
+            download.assert_not_called()
+
+
+    def test_competing_process_cannot_publish_another_first_digest(self):
+        self.seed_partial()
+        # The real lock is shared with every existing digest-mode transfer.
+        working = fetch._working_paths(Path('src/data.bin'))
+        with working['lock'].open('a') as lock:
+            import fcntl
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(fetch.Refused, 'another download'):
+                self.pinned()
+        self.assertFalse(Path('src/.download-pins/data.bin.json').exists())
+        self.assertEqual(self.pinned(segments=1)['sha256'], SHA)
+
+
+
 class InOrderDigest(unittest.TestCase):
     """The digest a segmented run reads in file order while ranges can still be cut back (D03 T04 §22)."""
 
