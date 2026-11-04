@@ -501,8 +501,8 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       // stated on the case and the verdict goes on with what it has.
       current = "invoice";
       try {
-        await timed("invoice", () =>
-          invoiceStep(
+        await timed("invoice", async () => {
+          const res = await invoiceStep(
             {
               db,
               store,
@@ -512,8 +512,52 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
             },
             caseId,
             orgId,
-          ),
-        );
+          );
+          // If a standalone-packaged attachment is classified as `type: "other"` (not an invoice, POP or
+          // bank confirmation letter), restore full mail checks and visual threat analysis (`visionStep`)
+          // so attacker-controlled packaging cannot suppress phishing/impersonation detection (round 3).
+          if (
+            (await isStandaloneDocumentParsed(store, caseId, key, sourceKind)) &&
+            (await isNonPaymentStandaloneDocument(db, caseId))
+          ) {
+            if (sourceKind === "mail") {
+              const { table, source, id } = await brandTableRead(this.env);
+              await checks(
+                store,
+                caseId,
+                key,
+                { orgId, channel },
+                lookupMx,
+                table,
+                rdapDeps(this.env),
+                { read: (links) => followLinks(this.env.BROWSER, links, { policy: livePolicy() }) },
+                this.env.CF_VERSION_METADATA?.id ?? null,
+                undefined,
+                { revision: table.revision, id, source },
+                reputationDeps(this.env, caseId, orgId),
+                false,
+              );
+            }
+            try {
+              await visionStep(
+                {
+                  db,
+                  store,
+                  launch: () => puppeteer.launch(this.env.BROWSER),
+                  meta: { env: this.env, budget: d1Budget(db, { caller: "vision", caseId }) },
+                  kv: this.env.CACHE,
+                  waitUntil: (p) => void p.catch(() => {}),
+                  policy: (raw) => allowedUrl(raw, dohResolve()),
+                  ablateFlag: () => ablateFlagFor(this.env.CACHE, orgId),
+                },
+                caseId,
+              );
+            } catch {
+              await recordVisionNotRun(db, caseId, "error");
+            }
+          }
+          return res;
+        });
       } catch {
         await step.do("invoice:unchecked", RETRIES, () => safely(() => recordInvoiceNotRun(store, caseId, "error")));
       }
@@ -625,6 +669,19 @@ async function isStandaloneDocumentParsed(
   } catch {
     return false;
   }
+}
+
+async function isNonPaymentStandaloneDocument(db: D1Database, caseId: string): Promise<boolean> {
+  const items = await readEvidence(db, caseId);
+  if (
+    items.some(
+      (e) => e.check === "document.not_checked" && (e.detail as { reason?: unknown }).reason === "plan-required",
+    )
+  ) {
+    return false;
+  }
+  const docTypes = items.filter((e) => e.check === "document.type").map((e) => (e.detail as { type?: unknown }).type);
+  return docTypes.some((t) => t === "other");
 }
 
 // A step's failure after its last attempt: an event naming the step and its error class, and the case `partial`
@@ -853,6 +910,7 @@ export async function checks(
   // How the case's link and sender-domain reputation is asked (D02 T06 §5): none by default, so a caller that gives
   // none reads no reputation (null on the view).
   reputation: ReputationDeps | null = null,
+  allowStandaloneSkip = true,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -887,16 +945,17 @@ export async function checks(
   // A standalone document case (D06 T02 §3: an uploaded document or image, or mail whose body is empty and which
   // carries only a PDF or image) skips the mail checks (authentication, sender, header-domain and body checks).
   const standaloneDoc =
-    (read.source.kind === "upload" && (read.source.fileKind === "document" || read.source.fileKind === "image")) ||
-    (read.source.kind === "message" &&
-      read.truncated.length === 0 &&
-      read.omitted === 0 &&
-      isStandaloneDocumentCase({
-        sourceKind: "mail",
-        textBody: read.text,
-        htmlBody: read.html,
-        attachments: read.attachments,
-      }));
+    allowStandaloneSkip &&
+    ((read.source.kind === "upload" && (read.source.fileKind === "document" || read.source.fileKind === "image")) ||
+      (read.source.kind === "message" &&
+        read.truncated.length === 0 &&
+        read.omitted === 0 &&
+        isStandaloneDocumentCase({
+          sourceKind: "mail",
+          textBody: read.text,
+          htmlBody: read.html,
+          attachments: read.attachments,
+        })));
   if (standaloneDoc && read.source.kind === "message") {
     read.tenant.headersAvailable = false;
     read.headers = [];

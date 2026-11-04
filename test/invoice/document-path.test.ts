@@ -1003,5 +1003,84 @@ describe("the standalone document step (D06 T02 §3)", () => {
     await invoiceStep({ ...harness([invoiceReply]).deps, waitUntil: () => {} }, incompleteMail.caseId, org);
     const evRecovered = await readEvidence(db, incompleteMail.caseId);
     expect(evRecovered.map((e) => e.check)).not.toContain("document.not_checked");
+
+    // 6. When an empty-body email carries a non-payment document (`type: "other"`), AnalysisWorkflow restores full mail checks and runs visionStep:
+    const nonPaymentMail = await caseWithDocument(org, {
+      channel: "email",
+      sourceKind: "mail",
+      bytes: generated["gs-genuine-pop.pdf"],
+      filename: "scanned-notice.pdf",
+    });
+    await putParsed(store, nonPaymentMail.caseId, {
+      headers: [
+        { name: "Received", value: "from mail.evil.example by mx.google.com; Mon, 02 Nov 2026 10:00:00 +0000" },
+        { name: "Authentication-Results", value: "mx.google.com; spf=fail smtp.mailfrom=evil.example" },
+        { name: "From", value: "Support <alerts@evil.example>" },
+        { name: "Subject", value: "Urgent Notice" },
+      ],
+      text: "",
+      html: null,
+      attachments: [
+        {
+          key: nonPaymentMail.artefactKey,
+          filename: "scanned-notice.pdf",
+          mediaType: "application/pdf",
+          contentId: null,
+          disposition: "attachment",
+          bytes: generated["gs-genuine-pop.pdf"].length,
+        },
+      ],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    const otherReplies = [
+      () =>
+        answer({
+          type: "other",
+          issuer: null,
+          currency: null,
+          amount_cents: null,
+          paid_at: null,
+          issued_at: null,
+          reference: null,
+          beneficiary: { name: null, account_number: null, branch_code: null },
+          layout_differences: [],
+        }),
+    ];
+    const spyOther = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("gateway")) {
+        const next = otherReplies.shift();
+        if (next) return next();
+        return answer({
+          verdict: "suspicious",
+          confidence: 0.7,
+          headline: "This notice could not be verified.",
+          meaning: "Treat the attachment with caution.",
+          reasons: [{ text: "The attachment is not a payment document.", evidence_ids: ["E1"] }],
+          cited_evidence_ids: ["E1"],
+          recommended_actions: ["Verify with the sender independently."],
+        });
+      }
+      return realFetch(input as never, init as never);
+    });
+    const otherInstance = await introspectWorkflowInstance(env.ANALYSIS, nonPaymentMail.caseId);
+    try {
+      await otherInstance.modify(async (m) => {
+        await m.disableRetryDelays();
+        await m.disableSleeps();
+        await m.mockStepResult({ name: "parse" }, parsedKey(nonPaymentMail.caseId));
+        await m.mockStepResult({ name: "reply" }, { mail: "skipped" });
+      });
+      await env.ANALYSIS.create({ id: nonPaymentMail.caseId, params: { caseId: nonPaymentMail.caseId } });
+      await otherInstance.waitForStatus("complete");
+    } finally {
+      await otherInstance.dispose();
+      spyOther.mockRestore();
+    }
+    const evOther = await readEvidence(db, nonPaymentMail.caseId);
+    expect(evOther.some((e) => e.check.startsWith("auth.") || e.check.startsWith("sender."))).toBe(true);
+    expect(evOther.some((e) => e.check.startsWith("vision."))).toBe(true);
   });
 });
