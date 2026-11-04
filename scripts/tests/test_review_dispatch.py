@@ -1750,5 +1750,732 @@ class CodexSelfReview(Harness):
         result, _ = self.run_pass()
         self.assertEqual(result.returncode, 0, result.stderr)
 
+
+class Reconciliation(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.spec = importlib.util.spec_from_file_location('reconciliation_dispatch', SCRIPTS / 'review-dispatch.py')
+        self.module = importlib.util.module_from_spec(self.spec)
+        self.spec.loader.exec_module(self.module)
+        self.git('init', '-q')
+        self.git('config', 'user.name', 'Test')
+        self.git('config', 'user.email', 'test@example.invalid')
+        (self.root / '.conclave').mkdir()
+        pin = REPO_PIN.read_text()
+        pin = re.sub(r'\n\[reconciliation_extensions\]\n.*?(?=\n\[|\Z)', '', pin, flags=re.S)
+        pin = re.sub(r'^self_review_policy = .*\n|^plan_transition = .*\n', "", pin, flags=re.M)
+        pin = re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)', "", pin, flags=re.S)
+        if 'reconciliation = ["codex"]' not in pin:
+            pin = pin.replace('self_review = ["codex"]', 'self_review = ["codex"]\nreconciliation = ["codex"]')
+            pin += '\n[schedule.reconciliation]\neffort = "low"\nlenses = ["adversarial", "integration", "plan-delivery", "record"]\n'
+        (self.root / '.conclave/reviewers.toml').write_text(pin)
+        self.pin = self.module.pin_blob(pin.encode())
+        self.todo = self.root / 'todo/00-workspace/TODO-01-test.md'
+        self.todo.parent.mkdir(parents=True)
+        self.todo.write_text('# Test\n\n## 1. Example\n\n- [ ] Preserve data.\n')
+        self.report = self.root / 'docs/reviews/00-workspace/D00-T01-s1.md'
+        self.disposition = self.root / 'docs/reviews/00-workspace/D00-T01-s1-disposition.md'
+        self.disposition.parent.mkdir(parents=True)
+        self.disposition.write_text('Gap 1 is optional; original obligations remain unchanged.\n')
+        self.sha = self.commit()
+        self.entry = {'writer':'codex', 'reviewer':'astra', 'model':'gpt-6-astra', 'cli':'codex',
+                      'effort':'low', 'lenses':[], 'failover':[], 'policy':'codex-self-review', 'pin':self.pin}
+        self.module.record_completion(self.report, {**self.entry,'review':'PLAN: complete\nOVERALL: approve'}, '2026-11-04T01:00:00Z', self.sha,'plan')
+        self.module.record(self.report,{**self.entry,'review':'HIGHEST: none\nOVERALL: approve'},'2026-11-04T01:01:00Z')
+        self.module.record_completion(self.report,{**self.entry,'review':'Gap 1: optional extra.\nCOMPLETION: gaps'},'2026-11-04T01:02:00Z',self.sha)
+        self.before = self.report.read_bytes()
+        self.commit()
+
+    def git(self,*args):
+        p = subprocess.run(['git','-C',str(self.root),*args],capture_output=True,text=True)
+        self.assertEqual(p.returncode,0,p.stderr)
+        return p.stdout.strip()
+
+    def commit(self):
+        self.git('add','.')
+        self.git('commit','-qm','fixture')
+        return self.git('rev-parse','HEAD')
+
+    def binding(self,candidate=None):
+        return self.module.make_reconciliation_binding(self.root,self.report,candidate or self.sha,self.disposition)
+
+    def record(self,binding=None,reply='RECONCILIATION: complete'):
+        binding = binding or self.binding()
+        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':reply},'2026-11-04T01:03:00Z',binding['candidate'],'reconciliation')
+        return self.module.read_reconciliations(self.report.read_text())[-1]
+
+    def test_scoped_extension_preserves_failed_predecessor_and_caps_series(self):
+        first = self.record(reply='RECONCILIATION: gaps')
+        self.commit()
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        pinpath = self.root / '.conclave/reviewers.toml'
+        pinpath.write_text(pinpath.read_text() + '\n[reconciliation_extensions]\n"docs/reviews/00-workspace/D00-T01-s1.md" = "' + first['digest'] + '"\n')
+        self.commit()
+        self.entry['pin'] = self.module.pin_blob(pinpath.read_bytes())
+        original = self.report.read_bytes()
+        binding = self.binding()
+        self.assertEqual(binding['version'], 2)
+        self.assertEqual(binding['predecessor_digest'], first['digest'])
+        self.record(binding)
+        self.commit()
+        self.assertEqual(len(self.module.validate_reconciliation_series(self.root,self.report.read_text())),2)
+        self.assertTrue(self.report.read_bytes().startswith(original))
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_reconciliation_series(self.root,self.report.read_text().replace('RECONCILIATION: gaps','RECONCILIATION: complete'))
+        self.report.write_bytes(original)
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+
+    def authorize_extension(self, predecessor, digest=None):
+        pinpath = self.root / '.conclave/reviewers.toml'
+        base = re.sub(r'\n\[reconciliation_extensions\]\n.*?(?=\n\[|\Z)', '', pinpath.read_text(), flags=re.S)
+        pinpath.write_text(base + '\n[reconciliation_extensions]\n"docs/reviews/00-workspace/D00-T01-s1.md" = "' + (digest or predecessor['digest']) + '"\n')
+        self.commit()
+        self.pin = self.module.pin_blob(pinpath.read_bytes())
+        self.entry['pin'] = self.pin
+
+    def test_extension_wrong_digest_and_successful_predecessor_refused(self):
+        first = self.record(reply='RECONCILIATION: gaps')
+        self.commit()
+        self.authorize_extension(first, '0' * 16)
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        self.authorize_extension(first)
+        binding = self.binding()
+        saved = self.report.read_text()
+        self.report.write_text(saved.replace('RECONCILIATION: gaps','RECONCILIATION: complete'))
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        self.report.write_text(saved)
+        self.record(binding)
+        text = self.report.read_text()
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_reconciliation_series(self.root,text.replace(saved, self.before.decode(), 1))
+        with self.assertRaises((self.module.Refused,self.module.Unrecorded)):
+            self.record(binding)
+
+    def test_successful_predecessor_cannot_be_extended_even_with_exact_authorization(self):
+        first = self.record()
+        self.commit()
+        self.authorize_extension(first)
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            reviewer.assert_not_called()
+
+    def test_extension_outage_retries_preserve_binding_and_original_bytes(self):
+        first = self.record(reply='RECONCILIATION: gaps')
+        self.commit()
+        self.authorize_extension(first)
+        original = self.report.read_bytes()
+        args,pin,result = self.run_reconciliation('No terminal verdict')
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        outage = self.module.read_reconciliations(self.report.read_text())[-1]
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        self.assertEqual(len(self.module.validate_reconciliation_series(self.root,self.report.read_text())),2)
+        self.assertEqual(outage['binding'],self.module.read_reconciliations(self.report.read_text())[-1]['binding'])
+        self.assertTrue(self.report.read_bytes().startswith(original))
+
+    def test_extension_rejects_candidate_older_than_failed_repair(self):
+        (self.root / 'repair.txt').write_text('repair')
+        repaired = self.commit()
+        first = self.record(self.binding(repaired),reply='RECONCILIATION: gaps')
+        self.commit()
+        self.authorize_extension(first)
+        with self.assertRaises(self.module.Refused):
+            self.binding(self.sha)
+
+    def test_extension_archives_first_journal_and_recovers_without_duplicate_call(self):
+        raw_review = f'Finding at [source]({self.root}/scripts/example.py:12).\nRECONCILIATION: gaps'
+        args,pin,result = self.run_reconciliation(raw_review)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        first = self.module.read_reconciliations(self.report.read_text())[0]
+        self.assertNotIn(str(self.root), first['review'])
+        self.commit()
+        self.authorize_extension(first)
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('disk failed')):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_reconciliation(args,pin,self.pin)
+            archives = list((self.root / 'build/review-reconciliation').glob('*.archive'))
+            self.assertEqual(len(archives),1)
+            self.assertEqual(json.loads(archives[0].read_text())['result']['review'],raw_review)
+            self.module.recover_reconciliation(self.root,self.report)
+            self.assertEqual(len(self.module.validate_reconciliation_series(self.root,self.report.read_text())),2)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+
+    def test_same_candidate_and_repaired_descendant_preserve_original(self):
+        binding = self.binding()
+        entry = self.record(binding)
+        self.assertEqual(self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry),binding)
+        self.assertTrue(self.report.read_bytes().startswith(self.before))
+        self.assertEqual(entry['binding']['completion_candidate'],self.sha)
+        with self.assertRaises(self.module.Unrecorded):
+            self.record(binding)
+
+    def test_original_tampering_and_contract_narrowing_refuse(self):
+        entry = self.record()
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_reconciliation_binding(self.root,self.report.read_text().replace('optional extra','optional other'),entry)
+        self.report.write_bytes(self.before)
+        self.todo.write_text('# Test\n\n## 1. Example\n\n- [ ] Ignore data.\n')
+        candidate = self.commit()
+        with self.assertRaises(self.module.Refused):
+            self.binding(candidate)
+
+    def test_missing_disposition_and_uncommitted_pin_refuse(self):
+        self.disposition.unlink()
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+
+    def test_repaired_descendant_keeps_contract(self):
+        (self.root / 'fix.txt').write_text('repair\n')
+        candidate = self.commit()
+        entry = self.record(self.binding(candidate))
+        self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry)
+
+    def test_no_complete_verdict_for_nonterminal_reply(self):
+        self.assertFalse(self.module.returned_pass({**self.entry,'review':'All looks good'},'reconciliation'))
+        self.assertTrue(self.module.returned_pass({**self.entry,'review':'RECONCILIATION: gaps'},'reconciliation'))
+
+    def run_reconciliation(self, reply='RECONCILIATION: complete'):
+        from types import SimpleNamespace
+        self.module.ROOT = self.root
+        pin = self.module.load_pin(self.root / '.conclave/reviewers.toml')
+        prompt = self.root / 'prompt.md'
+        prompt.write_text('Verify every original gap and repair.\n')
+        args = SimpleNamespace(writer='codex',record=str(self.report),disposition=str(self.disposition),
+                               candidate=self.sha,prompt=str(prompt),timeout=30,surface=False)
+        result = {**self.entry,'effort':pin['schedule']['reconciliation']['effort'],'review':reply,'lenses':['adversarial','integration','plan-delivery','record']}
+        return args, pin, result
+
+    def test_write_failure_recovers_same_result_without_second_call(self):
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('disk write failed')):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_reconciliation(args,pin,self.pin)
+            self.assertEqual(self.report.read_bytes(),self.before)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            recovered = self.module.recover_reconciliation(self.root,self.report)
+            self.assertTrue(recovered['recorded'])
+            self.assertEqual(reviewer.call_count,1)
+            self.assertEqual(self.module.recover_reconciliation(self.root,self.report)['review'],result['review'])
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+
+    def test_result_persistence_failure_leaves_unresolved_marker(self):
+        args,pin,result = self.run_reconciliation()
+        original = self.module._durable_json
+        def fail_result(path,data,exclusive=False):
+            if data.get('phase') == 'returned':
+                raise OSError('result store unavailable')
+            return original(path,data,exclusive)
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'_durable_json',side_effect=fail_result):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_reconciliation(args,pin,self.pin)
+            self.assertEqual(self.module.reconciliation_pending(self.root,self.report.relative_to(self.root).as_posix())['phase'],'calling')
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            with self.assertRaises(self.module.Refused):
+                self.module.recover_reconciliation(self.root,self.report)
+            self.assertEqual(reviewer.call_count,1)
+            self.assertEqual(self.report.read_bytes(),self.before)
+
+    def test_nonterminal_reply_is_recorded_outage_then_retry(self):
+        args,pin,result = self.run_reconciliation('No terminal verdict')
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            first = self.module.run_reconciliation(args,pin,self.pin)
+        self.assertIsNone(first['reviewer'])
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        found = self.module.read_reconciliations(self.report.read_text())
+        self.assertEqual(len(found),2)
+        self.assertTrue(self.report.read_bytes().startswith(self.before))
+        self.assertEqual(found[0]['binding']['prefix_sha256'],found[1]['binding']['prefix_sha256'])
+
+    def test_listing_reports_pending_and_returned_status(self):
+        import contextlib, io
+        args,pin,result = self.run_reconciliation('RECONCILIATION: gaps')
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        listing = self.module.list_rounds(self.root / 'docs/reviews')
+        entry = next(e for e in listing['records'] if e.get('reconciliations'))
+        self.assertEqual(entry['reconciliations'][0]['verdict'],'RECONCILIATION: gaps')
+        self.assertEqual(entry['reconciliation_status']['phase'],'recorded')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(self.module.main(['--list-rounds','--records',str(self.root/'docs/reviews')]),0)
+        self.assertIn('RECONCILIATION: gaps',output.getvalue())
+        self.assertIn(self.sha,output.getvalue())
+        state = self.module.reconciliation_pending(self.root,self.report.relative_to(self.root).as_posix())
+        state['phase']='calling'
+        self.module._durable_json(self.module.reconciliation_pending_path(self.root,state['report']),state)
+        listing = self.module.list_rounds(self.root/'docs/reviews')
+        self.assertEqual(next(e for e in listing['records'] if e.get('reconciliations'))['reconciliation_status']['phase'],'calling')
+
+    def test_malformed_binding_and_literal_contract_change_refuse(self):
+        entry = self.record()
+        for key in entry['binding']:
+            malformed = {**entry,'binding':{**entry['binding'],key:[]}}
+            with self.subTest(key=key),self.assertRaises(self.module.Refused):
+                self.module.validate_reconciliation_binding(self.root,self.report.read_text(),malformed)
+        self.assertNotEqual(self.module._reconcile_contract('## 1. Example\nLiteral [x] value\n','1'),
+                            self.module._reconcile_contract('## 1. Example\nLiteral [ ] value\n','1'))
+
+    def test_lock_refuses_concurrent_dispatch(self):
+        args,pin,result = self.run_reconciliation()
+        report = self.report.relative_to(self.root).as_posix()
+        with self.module.reconciliation_lock(self.root,report):
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+
+    def test_cli_dispatch_and_json_listing(self):
+        import contextlib, io
+        args,pin,result = self.run_reconciliation()
+        argv=['--writer','codex','--kind','reconciliation','--record',str(self.report),'--candidate',self.sha,
+              '--disposition',str(self.disposition),'--prompt',args.prompt,'--pin',str(self.root/'.conclave/reviewers.toml')]
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output),unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            self.assertEqual(self.module.main(argv),0)
+            self.assertEqual(reviewer.call_count,1)
+            received=Path(reviewer.call_args.args[2])
+        recorded=json.loads(output.getvalue())
+        self.assertTrue(recorded['recorded'])
+        output=io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(self.module.main(['--list-rounds','--json','--records',str(self.root/'docs/reviews')]),0)
+        listing=json.loads(output.getvalue())
+        self.assertEqual(next(e for e in listing['records'] if e.get('reconciliations'))['reconciliations'][0]['verdict'],'RECONCILIATION: complete')
+        self.assertTrue(received.name.endswith('.md'))
+
+    def test_reconciliation_requires_committed_authorizing_pin(self):
+        entry=self.record()
+        for pin in ('a'*40,self.module.pin_blob(b'uncommitted')):
+            with self.assertRaises(self.module.Refused):
+                self.module.validate_reconciliation_binding(self.root,self.report.read_text(),{**entry,'pin':pin})
+
+    def test_nonancestor_candidate_and_wrong_section_refuse(self):
+        original = self.git('rev-parse','HEAD')
+        self.git('checkout','--orphan','unrelated')
+        self.git('add','.')
+        self.git('commit','-qm','unrelated')
+        candidate=self.git('rev-parse','HEAD')
+        self.git('checkout',original)
+        with self.assertRaises(self.module.Refused):
+            self.binding(candidate)
+        wrong=self.report.with_name('D00-T01-s2.md')
+        wrong.write_bytes(self.before)
+        with self.assertRaises(self.module.Refused):
+            self.module.make_reconciliation_binding(self.root,wrong,self.sha,self.disposition)
+
+    def test_malformed_pending_response_refuses_before_findings_mutation(self):
+        import copy
+        binding = self.binding()
+        result = {**self.entry, 'binding': binding, 'candidate': self.sha, 'kind': 'reconciliation',
+                  'review': 'RECONCILIATION: complete'}
+        state = {'version': 1, 'phase': 'returned', 'report': binding['report'], 'binding': binding,
+                 'findings_sha256': hashlib.sha256(self.before).hexdigest(), 'pid': 1,
+                 'run': '2026-11-04T02:00:00Z', 'result': result, 'result_sha256': self.module._result_hash(result)}
+        variants = []
+        for field, value in [('binding', []), ('run', 123), ('findings_sha256', None), ('version', True)]:
+            changed = copy.deepcopy(state)
+            changed[field] = value
+            if field == 'binding':
+                changed['result']['binding'] = value
+                changed['result_sha256'] = self.module._result_hash(changed['result'])
+            variants.append((field, changed))
+        for field, value in [('review', []), ('reviewer', []), ('failover', None), ('candidate', 12),
+                             ('lenses', 'record'), ('writer', None), ('kind', 'completion')]:
+            changed = copy.deepcopy(state)
+            changed['result'][field] = value
+            changed['result_sha256'] = self.module._result_hash(changed['result'])
+            variants.append(('result.' + field, changed))
+        for label, changed in variants:
+            with self.subTest(field=label):
+                self.report.write_bytes(self.before)
+                pending = self.module.reconciliation_pending_path(self.root, binding['report'])
+                self.module._durable_json(pending, changed)
+                original_state = pending.read_bytes()
+                with self.assertRaises(self.module.Refused):
+                    self.module.recover_reconciliation(self.root, self.report)
+                self.assertEqual(self.report.read_bytes(), self.before)
+                self.assertEqual(pending.read_bytes(), original_state)
+
+    def test_incoming_reconciliation_validates_during_diverged_merge(self):
+        base = self.git('rev-parse', 'HEAD')
+        for new_pin in (False, True):
+            with self.subTest(incoming_pin=new_pin):
+                if new_pin:
+                    self.git('merge', '--abort')
+                    self.git('checkout', base)
+                self.git('checkout', '-b', 'incoming-' + str(new_pin))
+                if new_pin:
+                    pin_path = self.root / '.conclave/reviewers.toml'
+                    pin_path.write_text(pin_path.read_text() + '# incoming committed pin\n')
+                    self.entry['pin'] = self.module.pin_blob(pin_path.read_bytes())
+                (self.root / 'repair.txt').write_text('incoming repair\n')
+                candidate = self.commit()
+                binding = self.binding(candidate)
+                entry = self.record(binding)
+                incoming = self.commit()
+                self.git('checkout', base)
+                (self.root / 'main-only.txt').write_text('main diverged\n')
+                self.commit()
+                self.git('merge', '--no-commit', '--no-ff', incoming)
+                self.assertEqual(self.git('rev-parse', 'MERGE_HEAD'), incoming)
+                reachable = subprocess.run(['git', '-C', str(self.root), 'merge-base', '--is-ancestor', candidate, 'HEAD'])
+                self.assertEqual(reachable.returncode, 1)
+                self.assertEqual(self.module.validate_reconciliation_binding(self.root, self.report.read_text(), entry), binding)
+
+    def test_unmerged_branch_evidence_stays_unreachable(self):
+        base = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-b', 'not-a-merge-parent')
+        (self.root / 'unrelated.txt').write_text('not merged\n')
+        candidate = self.commit()
+        self.git('checkout', base)
+        with self.assertRaises(self.module.Refused):
+            self.binding(candidate)
+
+
+class TwoPass(unittest.TestCase):
+    git = Reconciliation.git
+    commit = Reconciliation.commit
+
+    def setUp(self):
+        Reconciliation.setUp(self)
+        self.legacy_entry = dict(self.entry)
+        self.legacy_pin = self.pin
+        self.report.unlink()
+        self.combined_effort = tomllib.loads(REPO_PIN.read_text())["schedule"]["combined"]["effort"]
+        self.new_pin_text = (self.root / '.conclave/reviewers.toml').read_text()
+        if 'self_review_policy' not in self.new_pin_text:
+            self.new_pin_text = self.new_pin_text.replace('self_review = ["codex"]', 'self_review = ["codex"]\nself_review_policy = "codex-two-pass-v1"\nplan_transition = ["codex-self-review"]')
+            self.new_pin_text += '\n[schedule.combined]\neffort = "' + self.combined_effort + '"\nlenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]\n'
+        (self.root / '.conclave/reviewers.toml').write_text(self.new_pin_text)
+        self.todo.write_text('# Test\n\n## 1. Example\n\n**Surface:** no\n\n- [ ] Preserve data.\n')
+        self.sha = self.commit()
+        self.pin = self.module.pin_blob(self.new_pin_text.encode())
+        self.entry = {**self.entry, 'pin':self.pin, 'policy':'codex-two-pass-v1'}
+        self.module.ROOT = self.root
+
+    def plan(self, legacy=False):
+        entry = self.legacy_entry if legacy else self.entry
+        self.module.record_completion(self.report, {**entry,'review':'PLAN: complete\nOVERALL: approve'}, '2026-11-04T01:00:00Z',self.sha,'plan')
+        self.commit()
+
+    def complete(self, transition=False, verdict='complete'):
+        binding = self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=transition)
+        self.module.record_completion(self.report,{**self.entry,'effort':self.combined_effort,'binding':binding,'review':'COMPLETION: '+verdict},'2026-11-04T01:02:00Z',self.sha)
+        return self.module.validate_codex_chain(self.root,self.report.read_text())
+
+    def test_new_policy_two_pass_chain_has_no_round(self):
+        self.plan()
+        chain = self.complete()
+        self.assertEqual(chain['policy'],'codex-two-pass-v1')
+        self.assertIsNone(chain['round'])
+        self.assertIsNone(chain['transition'])
+
+    def test_legacy_plan_transition_is_explicit_and_bound(self):
+        self.plan(legacy=True)
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha)
+        chain = self.complete(transition=True)
+        self.assertEqual(chain['transition']['plan_pin'],self.legacy_pin)
+        self.assertEqual(chain['plan']['policy'],'codex-self-review')
+
+    def test_combined_schedule_has_all_lenses_and_conditional_design(self):
+        pin = self.module.load_pin(data=self.new_pin_text.encode())
+        self.assertEqual(self.module.review_policy(pin,'codex'),'codex-two-pass-v1')
+        names = ['adversarial','integration','source-defect','plan-delivery','consistency','record','quality','optimization']
+        self.assertEqual(self.module.scheduled(pin['schedule'],'completion',[],False)['lenses'],names)
+        self.assertEqual(self.module.scheduled(pin['schedule'],'completion',[],True)['lenses'],names+['design'])
+
+    def test_new_policy_refuses_round_and_transition_after_attempt(self):
+        self.plan(legacy=True)
+        self.module.record(self.report,{**self.legacy_entry,'reviewer':None,'review':None},'2026-11-04T01:01:00Z')
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+
+    def runner(self, reply='COMPLETION: complete', transition=False):
+        from types import SimpleNamespace
+        prompt = self.root / 'prompt.md'
+        prompt.write_text('Review the exact candidate.\n')
+        args = SimpleNamespace(writer='codex', record=str(self.report), candidate=self.sha,
+                               prompt=str(prompt), timeout=30, surface=False, transition_plan=transition)
+        pin = self.module.load_pin(self.root / '.conclave/reviewers.toml')
+        result = {**self.entry, 'effort':self.combined_effort, 'review':reply, 'lenses':self.module.COMBINED_LENSES[:-1]}
+        return args, pin, result
+
+    def test_normal_completion_recovers_same_response_after_write_failure(self):
+        self.plan()
+        args, pin, result = self.runner()
+        before = self.report.read_bytes()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('write failed')):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_completion(args,pin,self.pin)
+            self.assertEqual(self.report.read_bytes(),before)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_completion(args,pin,self.pin)
+            recovered = self.module.recover_completion(self.root,self.report)
+            self.assertTrue(recovered['recorded'])
+            self.assertEqual(reviewer.call_count,1)
+            self.assertIsNone(self.module.validate_codex_chain(self.root,self.report.read_text())['round'])
+
+    def test_normal_completion_unresolved_call_and_result_store_failure_refuse(self):
+        self.plan()
+        args, pin, result = self.runner()
+        write = self.module._durable_json
+        def fail_result(path,state,exclusive=False):
+            if state.get('phase') == 'returned':
+                raise OSError('cannot persist result')
+            return write(path,state,exclusive)
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'_durable_json',side_effect=fail_result):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_completion(args,pin,self.pin)
+            with self.assertRaises(self.module.Refused):
+                self.module.recover_completion(self.root,self.report)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_completion(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+
+    def test_legacy_transition_outage_retry_keeps_original_binding(self):
+        self.plan(legacy=True)
+        args, pin, result = self.runner('No verdict',transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        args, pin, result = self.runner(transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        found = self.module.read_completions(self.report.read_text())
+        self.assertEqual(found[0]['binding']['transition'],found[1]['binding']['transition'])
+        self.assertIsNotNone(self.module.validate_codex_chain(self.root,self.report.read_text())['transition'])
+
+    def test_combined_gaps_support_one_reconciliation(self):
+        self.plan()
+        self.complete(verdict='gaps')
+        self.commit()
+        binding = self.module.make_reconciliation_binding(self.root,self.report,self.sha,self.disposition)
+        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'RECONCILIATION: complete'},'2026-11-04T01:03:00Z',self.sha,'reconciliation')
+        entry=self.module.read_reconciliations(self.report.read_text())[-1]
+        self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry)
+        with self.assertRaises(self.module.Unrecorded):
+            self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'RECONCILIATION: complete'},'2026-11-04T01:04:00Z',self.sha,'reconciliation')
+
+    def cli_fixture(self):
+        scripts = self.root / 'scripts'
+        scripts.mkdir(exist_ok=True)
+        shutil.copy(SCRIPTS/'review-dispatch.py',scripts/'review-dispatch.py')
+        shutil.copytree(SCRIPTS/'lib',scripts/'lib',dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__'))
+        binary = self.root/'bin'
+        binary.mkdir()
+        fake = self.root/'fake.py'
+        fake.write_text(FAKE_CLI)
+        write_launcher(binary,'codex',fake)
+        log=self.root/'invocations.jsonl'
+        env={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],'FAKE_CODEX':'say',
+             'FAKE_SAY':'COMPLETION: complete','FAKE_LOG':str(log)}
+        prompt=self.root/'prompt.md'
+        prompt.write_text('Verify the candidate after tests.\n')
+        argv=[sys.executable,str(scripts/'review-dispatch.py'),'--writer','codex','--kind','completion',
+              '--record',str(self.report),'--candidate',self.sha,'--prompt',str(prompt)]
+        return argv,env,log
+
+    def test_actual_cli_invocation_contains_quality_completion_frozen_and_conditional_design(self):
+        for surface in ('no','yes'):
+            with self.subTest(surface=surface):
+                if self.report.exists():
+                    self.report.unlink()
+                self.todo.write_text('# Test\n\n## 1. Example\n\n**Surface:** '+surface+'\n\n- [ ] Preserve data.\n')
+                (self.root/'marker.txt').write_text(surface)
+                self.sha=self.commit()
+                self.plan()
+                if (self.root/'bin').exists():
+                    shutil.rmtree(self.root/'bin')
+                pending=self.module.reconciliation_pending_path(self.root,self.report.relative_to(self.root).as_posix(),'completion')
+                if pending.exists():
+                    pending.unlink()
+                argv,env,log=self.cli_fixture()
+                if log.exists():
+                    log.unlink()
+                result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+                self.assertEqual(result.returncode,0,result.stderr)
+                invocation=json.loads(log.read_text().splitlines()[0])
+                self.assertEqual(json.loads(result.stdout)['effort'],self.combined_effort)
+                self.assertIn('model_reasoning_effort=' + self.combined_effort,invocation['argv'])
+                for lens in self.module.COMBINED_LENSES[:-1]:
+                    self.assertIn('`'+lens+'`:',invocation['stdin'])
+                self.assertEqual('`design`:' in invocation['stdin'],surface=='yes')
+                for requirement in ('every agreed requirement','every Done when','frozen safety obligations','quality and completion','COMPLETION: complete'):
+                    self.assertIn(requirement,invocation['stdin'])
+                self.assertEqual(len(log.read_text().splitlines()),1)
+                chain=self.module.validate_codex_chain(self.root,self.report.read_text())
+                self.assertEqual(chain['policy'],'codex-two-pass-v1')
+
+    def test_missing_combined_authorization_refuses_before_actual_invocation(self):
+        self.plan()
+        argv,env,log=self.cli_fixture()
+        pin=self.root/'.conclave/reviewers.toml'
+        pin.write_text(re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)','',self.new_pin_text,flags=re.S))
+        result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse(log.exists())
+
+    def test_actual_new_round_refuses_before_invocation(self):
+        self.plan()
+        argv,env,log=self.cli_fixture()
+        argv[argv.index('completion')]='round'
+        index=argv.index('--candidate')
+        del argv[index:index+2]
+        result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse(log.exists())
+
+    def test_actual_non_codex_route_keeps_original_completion_schedule(self):
+        self.plan()
+        argv,env,log=self.cli_fixture()
+        argv[argv.index('codex')]='claude'
+        result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stderr)
+        invocation=json.loads(log.read_text().splitlines()[0])
+        self.assertNotIn('Lenses for this pass',invocation['stdin'])
+        summary=json.loads(result.stdout)
+        self.assertEqual(summary['effort'],'low')
+        self.assertEqual(summary['lenses'],[])
+        self.assertNotIn('policy',summary)
+
+    def test_returned_journal_prevents_repeat_if_findings_are_lost(self):
+        self.plan()
+        before=self.report.read_bytes()
+        args,pin,result=self.runner()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            self.module.run_completion(args,pin,self.pin)
+            self.report.write_bytes(before)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_completion(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+
+    def test_interrupted_combined_call_remains_pending_and_listed(self):
+        self.plan()
+        args,pin,result=self.runner()
+        with unittest.mock.patch.object(self.module,'review',side_effect=KeyboardInterrupt):
+            with self.assertRaises(KeyboardInterrupt):
+                self.module.run_completion(args,pin,self.pin)
+        with self.assertRaises(self.module.Refused):
+            self.module.recover_completion(self.root,self.report)
+        listing=self.module.list_rounds(self.root/'docs/reviews')
+        record=next(e for e in listing['records'] if e['path'].endswith('D00-T01-s1.md'))
+        self.assertEqual(record['completion_status']['phase'],'calling')
+
+    def test_transition_scalar_types_and_missing_plan_refuse(self):
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha)
+        self.plan(legacy=True)
+        chain=self.complete(transition=True)
+        entry=chain['completion']
+        malformed={**entry,'binding':{**entry['binding'],'transition':{**entry['binding']['transition'],'version':True}}}
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_completion_binding(self.root,self.report.read_text(),malformed)
+
+    def test_committed_legacy_attempt_restored_away_refuses_dispatch_and_replay(self):
+        self.plan(legacy=True)
+        plan_only = self.report.read_bytes()
+        binding = self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+        self.module.record(self.report,{**self.legacy_entry,'reviewer':None,'review':None},'2026-11-04T01:01:00Z')
+        self.commit()
+        self.report.write_bytes(plan_only)
+        self.commit()
+        argv,env,log=self.cli_fixture()
+        result=subprocess.run([*argv,'--transition-plan'],cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse(log.exists(),'a reviewer ran after a committed attempt was removed')
+        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'COMPLETION: complete'},'2026-11-04T01:02:00Z',self.sha)
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_codex_chain(self.root,self.report.read_text())
+
+    def test_removed_attempt_on_incoming_merge_parent_refuses(self):
+        self.plan(legacy=True)
+        base=self.git('rev-parse','HEAD')
+        plan_only=self.report.read_bytes()
+        self.git('checkout','-b','incoming-attempt')
+        self.module.record_completion(self.report,{**self.legacy_entry,'reviewer':None,'review':None},'2026-11-04T01:01:00Z',self.sha)
+        self.commit()
+        self.report.write_bytes(plan_only)
+        incoming=self.commit()
+        self.git('checkout',base)
+        (self.root/'main-only.txt').write_text('diverge\n')
+        self.commit()
+        self.git('merge','--no-commit','--no-ff',incoming)
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+
+    def test_restored_modern_attempt_cannot_start_a_new_transition(self):
+        self.plan(legacy=True)
+        plan_only=self.report.read_bytes()
+        self.complete(transition=True)
+        self.commit()
+        self.report.write_bytes(plan_only)
+        self.commit()
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+
+    def test_retained_committed_transition_outage_can_retry_and_replay(self):
+        self.plan(legacy=True)
+        args,pin,result=self.runner('No verdict',transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        self.commit()
+        args,pin,result=self.runner(transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        self.commit()
+        self.assertIsNotNone(self.module.validate_codex_chain(self.root,self.report.read_text())['transition'])
+
+    def test_different_original_plan_history_does_not_block_transition(self):
+        # setUp committed an older complete legacy chain with a different plan candidate.
+        self.plan(legacy=True)
+        self.assertIsNotNone(self.complete(transition=True)['transition'])
+
+    def test_committed_transition_reconciliation_replays_full_retained_history(self):
+        self.plan(legacy=True)
+        self.complete(transition=True,verdict='gaps')
+        self.commit()
+        original=self.report.read_bytes()
+        binding=self.module.make_reconciliation_binding(self.root,self.report,self.sha,self.disposition)
+        result={**self.entry,'binding':binding,'review':'RECONCILIATION: complete'}
+        self.module.record_completion(self.report,result,'2026-11-04T01:03:00Z',self.sha,'reconciliation')
+        entry=self.module.read_reconciliations(self.report.read_text())[-1]
+        self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry)
+        self.commit()
+        retained=self.report.read_bytes()
+        self.assertEqual(self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry),binding)
+        self.report.write_bytes(original)
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_codex_chain(self.root,self.report.read_text())
+        self.report.write_bytes(retained)
+        self.assertEqual(self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry),binding)
+
+
 if __name__ == "__main__":
     unittest.main()
