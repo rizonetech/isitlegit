@@ -261,7 +261,8 @@ async function originalView(store: Store, id: string, part: ViewPart, cursor: He
     const nextOffset = bytes && end < bytes.length ? end : null;
     return {
       part,
-      text: bytes === null ? null : new TextDecoder().decode(bytes.subarray(offset, end)),
+      // These bytes encode stored text, not a standalone file whose initial BOM is metadata.
+      text: bytes === null ? null : new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes.subarray(offset, end)),
       source,
       truncated: nextOffset !== null,
       offset,

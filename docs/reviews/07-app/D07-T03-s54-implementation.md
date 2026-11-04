@@ -12,7 +12,7 @@ The raw artefact preview route owns bounded header serialization and authorizati
 - Before client implementation, the new browser regression failed because Show the next part was absent. app-s54-browser-before.log retains the failure.
 - Final Worker checkpoint: 13 tests passed, including exact three-plus-slice joins, multibyte boundaries, malformed cursors, exact EOF, changed revision, valid and invalid capabilities, cross-tenant denial, membership loss, expiry, raw removal and read outage. app-s54-worker-final.log.
 - Browser checkpoint:23 tests passed on the final candidate. Covers exact complete text, temporary failure/retry, malformed nonprogressing response, restart, pending deduplication, late JSON, close/reopen, same-tab refresh, queued announcements, denied access, empty/missing/gone/expiry/deadline/download and both themes at 360/1280 px. app-s54-browser-candidate.log records all 23 passing; app-s54-scroll.log and app-s54-remainder-timeout.log retain the additional targeted proofs.
-- Typecheck, dry build and lint passed. Lint reports 23 existing warnings and 2 infos; no lint error. Graph validation 600 sections and publication scan passed. Design check reports 0 problems after the approved source import and one-board export. No live deployment or CI success is inferred from these gates.
+- Typecheck, dry build and lint passed. Lint reports 24 warnings and 2 infos; no lint error. Graph validation 600 sections and publication scan passed. Design check reports 0 problems after the approved source import and one-board export. No live deployment or CI success is inferred from these gates.
 
 ## Scoped accessibility workaround
 

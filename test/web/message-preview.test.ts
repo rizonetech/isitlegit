@@ -153,6 +153,36 @@ describe("the original message view", () => {
     expect(changed.headers.get("x-artefact-state")).toBe("changed");
   });
 
+  it("preserves a stored byte-order-mark character at terminal and nonterminal slice starts", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    for (const tail of ["tail", `${"z".repeat(204800)}end`]) {
+      const expected = `X: ${"a".repeat(204797)}\uFEFF${tail}`;
+      const id = await caseWith(orgId, { text: "Body", headers: [{ name: "X", value: expected.slice(3) }] });
+      const first = await read(await call(address(id, "headers"), { headers: { cookie } }));
+      expect(first.nextOffset).toBe(204800);
+      const second = await read(
+        await call(address(id, "headers", `&offset=${first.nextOffset}&revision=${first.revision}`), {
+          headers: { cookie },
+        }),
+      );
+      expect(second.text?.startsWith("\uFEFF")).toBe(true);
+      let joined = (first.text ?? "") + second.text;
+      if (second.nextOffset !== null) {
+        expect(second.nextOffset).toBe(204800 + new TextEncoder().encode(second.text ?? "").length);
+        const third = await read(
+          await call(address(id, "headers", `&offset=${second.nextOffset}&revision=${second.revision}`), {
+            headers: { cookie },
+          }),
+        );
+        expect(third.nextOffset).toBeNull();
+        joined += third.text;
+      }
+      expect(joined).toBe(expected);
+      expect(new TextEncoder().encode(joined)).toEqual(new TextEncoder().encode(expected));
+    }
+  });
+
   it("rechecks membership, signed capability, expiry, raw availability and read failures for later slices", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
