@@ -4,6 +4,7 @@ import {
   ADDED_WORDS,
   addedWords,
   distance,
+  foldAccents,
   labelSkeleton,
   MAX_LABEL_CHARACTERS,
   skeleton,
@@ -184,5 +185,17 @@ describe("addedWords", () => {
   it("has every word lowercase and unique", () => {
     expect(new Set(ADDED_WORDS).size).toBe(ADDED_WORDS.length);
     for (const word of ADDED_WORDS) expect(word).toMatch(/^[a-z]+$/);
+  });
+});
+
+describe("foldAccents", () => {
+  it("removes marks separately from the UTS #39 skeleton", () => {
+    expect(foldAccents("fýnbósfreíght")).toBe("fynbosfreight");
+    expect(distance(skeleton("fýnbósfreíght") as string, skeleton("fynbosfreight") as string)).toBe(3);
+    expect(foldAccents("cafe\u0301")).toBe("cafe");
+    expect(foldAccents("a\u0301\u1ab0\u20dd")).toBe("a");
+    expect(foldAccents("각")).toBe("각"); // NFC recomposes non-mark decompositions.
+    expect(foldAccents("øß")).toBe("øß"); // Not compatibility folding or transliteration.
+    expect(foldAccents("")).toBe("");
   });
 });

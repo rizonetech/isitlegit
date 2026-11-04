@@ -5,7 +5,7 @@
 // they are given, `distance` is bounded to a label's length, and `skeleton` is UTS #39's own function on any text. The
 // Unicode data is generated from the vendored tables by scripts/build-confusables.ts; NFD and Default_Ignorable_Code_Point
 // are the runtime's own (the plan's correction 6).
-import MAP from "./confusables-map.json";
+import MAP from "./confusables-map.json" with { type: "json" };
 
 const PROTOTYPES: Record<string, string> = MAP.prototypes;
 const RTL = MAP.rtl as [number, number][];
@@ -33,6 +33,11 @@ export function skeleton(label: string): string | null {
   let mapped = "";
   for (const character of label.normalize("NFD").replace(IGNORABLE, "")) mapped += PROTOTYPES[character] ?? character;
   return mapped.normalize("NFD");
+}
+
+// D02 T03 §5: a separate comparison form, never a change to the UTS #39 skeleton.
+export function foldAccents(label: string): string {
+  return label.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
 }
 
 // RFC 3492's decoder, for an A-label's part after `xn--`; null when the input is not valid Punycode.

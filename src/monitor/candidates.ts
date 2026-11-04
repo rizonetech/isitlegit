@@ -15,7 +15,7 @@ export const MAX_CANDIDATES = 300;
 // Spec 4.11's TLDs, and South Africa's own `co.za`, the one a South African business's lookalike most often uses
 // (completion review: `fynbosfreight.com`'s `.co.za` twin was not watched).
 export const OTHER_TLDS = ["com", "co", "africa", "net", "org", "co.za"] as const;
-const RANK: Record<Technique, number> = { "different-tld": 0, "added-word": 1, skeleton: 2, edit: 3 };
+const RANK: Record<Technique, number> = { "different-tld": 0, "added-word": 1, skeleton: 2, edit: 3, "accent-fold": 4 };
 
 // A whole host in its ASCII form (every label an A-label where it needs one), or null.
 function asciiHost(host: string): string | null {
