@@ -21,6 +21,7 @@ import { z } from "zod";
 import { registrable } from "../checks/brand-schema";
 import { hasInstruction } from "../checks/instruction-words";
 import { putArtefact, type Store } from "../intake/store";
+import { atOperation, DriverDiagnostic, DriverFailure, type DriverOperation, driverDiagnostic } from "./diagnostics";
 import { MAX_VIEW_TEXT } from "./limits";
 import { allowedUrl, type Resolve } from "./url-policy";
 
@@ -182,6 +183,7 @@ export type Outcome = "done" | "refused" | "limit" | "error";
 export type Result = {
   outcome: Outcome;
   reason?: string;
+  diagnostic?: DriverDiagnostic;
   screenshot: Uint8Array | null;
   screenshotKey?: string | undefined;
 };
@@ -250,6 +252,7 @@ const REFUSAL_WORDS = /\b(incorrect|invalid|wrong|not confirmed|does not match|n
 export type View = {
   outcome: "done" | "limit" | "error";
   reason?: string;
+  diagnostic?: DriverDiagnostic;
   screenshot: Uint8Array | null;
   screenshotKey?: string | undefined;
   text: string;
@@ -307,7 +310,7 @@ export class Driver {
   private ending: Promise<void> | undefined;
   // Aborted when the walk ends: no request the walk had begun reaches the network after it.
   private readonly stopped = new AbortController();
-  ended: { outcome: Outcome; reason: string } | undefined;
+  ended: { outcome: Outcome; reason: string; diagnostic?: DriverDiagnostic } | undefined;
 
   private constructor(
     private readonly browser: Browser,
@@ -328,9 +331,13 @@ export class Driver {
     }, driver.o.limits.ms);
     try {
       await driver.bounded(driver.setUp());
-      const verdict = await driver.bounded(allowedUrl(options.startUrl, options.resolve));
+      const verdict = await driver.bounded(
+        atOperation("policy.start", () => allowedUrl(options.startUrl, options.resolve)),
+      );
       if (!verdict.ok) {
-        await driver.record("request", { url: options.startUrl }, "refused", verdict.reason);
+        await atOperation("record.refusal", () =>
+          driver.record("request", { url: options.startUrl }, "refused", verdict.reason),
+        );
         await driver.end("refused", `start URL refused: ${verdict.reason}`);
         return driver;
       }
@@ -343,7 +350,7 @@ export class Driver {
 
   private async setUp() {
     // Every target's requests, browser-wide: a popup or a worker is paused at its first request like the page is.
-    const cdp = await this.browser.target().createCDPSession();
+    const cdp = await atOperation("setup.browser-session", () => this.browser.target().createCDPSession());
     this.browserCdp = cdp;
     // A popup is known by its opener at creation, even a `noopener` one (`target=_blank`), which Puppeteer reports with
     // no opener. Its main frame's id is its target id.
@@ -351,39 +358,49 @@ export class Driver {
       const target = event.targetInfo;
       if (target.type === "page" && target.openerId) this.popups.add(target.targetId);
     });
-    await cdp.send("Target.setDiscoverTargets", { discover: true });
+    await atOperation("setup.discover-targets", () => cdp.send("Target.setDiscoverTargets", { discover: true }));
     cdp.on("Fetch.requestPaused", (event: Paused) => {
-      this.answer(cdp, event).catch((error) => void this.fail(error));
+      this.answer(cdp, event).catch((error) => void this.fail(error, "interception.request"));
     });
-    await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+    await atOperation("setup.interception", () =>
+      cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] }),
+    );
     // Downloads are denied by the browser itself, whatever started them (an attachment header, an `<a download>`
     // link, a page-made Blob), and each attempt is recorded.
     cdp.on("Browser.downloadWillBegin", (event: { url: string }) => {
       this.refuse(`${event.url.slice(0, 200)}`, "download refused");
     });
-    await cdp.send("Browser.setDownloadBehavior", { behavior: "deny", eventsEnabled: true });
+    await atOperation("setup.download-denial", () =>
+      cdp.send("Browser.setDownloadBehavior", { behavior: "deny", eventsEnabled: true }),
+    );
     this.browser.on("targetcreated", (target) => {
-      this.contain(target).catch((error) => void this.fail(error));
+      this.contain(target).catch((error) => void this.fail(error, "containment.target"));
     });
-    const page = await this.browser.newPage();
+    const page = await atOperation("setup.new-page", () => this.browser.newPage());
     this.page = page;
-    await page.setViewport(VIEWPORT);
-    await page.setBypassServiceWorker(true);
+    await atOperation("setup.viewport", () => page.setViewport(VIEWPORT));
+    await atOperation("setup.service-worker-bypass", () => page.setBypassServiceWorker(true));
     // No page or frame of the walk can start a worker: the constructors are gone before any page script runs. A worker
     // that starts anyway is stopped by `contain`.
-    await page.evaluateOnNewDocument(
-      "for (const name of ['Worker', 'SharedWorker']) { try { delete globalThis[name]; } catch (e) {} }",
+    await atOperation("setup.worker-guard", () =>
+      page.evaluateOnNewDocument(
+        "for (const name of ['Worker', 'SharedWorker']) { try { delete globalThis[name]; } catch (e) {} }",
+      ),
     );
-    this.pageCdp = await page.createCDPSession();
+    const pageCdp = await atOperation("setup.page-session", () => page.createCDPSession());
+    this.pageCdp = pageCdp;
     // The click guard's hit test (`DOM.getNodeForLocation`) needs the DOM domain.
-    await this.pageCdp.send("DOM.enable");
+    await atOperation("setup.dom", () => pageCdp.send("DOM.enable"));
     await this.refreshFrames();
   }
 
   private async refreshFrames() {
-    if (!this.pageCdp) return;
+    const pageCdp = this.pageCdp;
+    if (!pageCdp) return;
     type Tree = { frame: { id: string }; childFrames?: Tree[] };
-    const { frameTree } = (await this.pageCdp.send("Page.getFrameTree")) as { frameTree: Tree };
+    const { frameTree } = (await atOperation("frames.read", () => pageCdp.send("Page.getFrameTree"))) as {
+      frameTree: Tree;
+    };
     const ids = new Set<string>();
     const walk = (t: Tree) => {
       ids.add(t.frame.id);
@@ -397,8 +414,8 @@ export class Driver {
   private async answer(cdp: CDPSession, event: Paused) {
     // A request carrying a canary value is a submission: recorded at once (blocked until it is delivered).
     const submission = this.submission(event);
-    const fail = (reason: string) => {
-      this.refuse(event.request.url.slice(0, 200), reason);
+    const fail = (reason: string, diagnostic?: DriverDiagnostic) => {
+      this.refuse(event.request.url.slice(0, 200), reason, diagnostic);
       // A refused navigation is answered with an empty 204, on which a browser stays on the page it was showing (no
       // error page); any other refused request fails.
       if (event.resourceType === "Document")
@@ -416,7 +433,7 @@ export class Driver {
         // A popup's or new tab's first navigation: the popup never loads and is closed; its address is followed in the
         // walk's own page when the policy allows it.
         if (event.resourceType === "Document") {
-          const verdict = await allowedUrl(event.request.url, this.o.resolve);
+          const verdict = await atOperation("policy.request", () => allowedUrl(event.request.url, this.o.resolve));
           if (this.ended) return fail("the walk has ended");
           if (verdict.ok) {
             await this.record(
@@ -435,7 +452,7 @@ export class Driver {
         return fail("not the walk's page");
       }
     }
-    const verdict = await allowedUrl(event.request.url, this.o.resolve);
+    const verdict = await atOperation("policy.request", () => allowedUrl(event.request.url, this.o.resolve));
     // A name resolved after the walk ended reaches nothing: the end is checked again before any connection.
     if (this.ended) return fail("the walk has ended");
     if (!verdict.ok) return fail(verdict.reason);
@@ -456,7 +473,8 @@ export class Driver {
     } catch (error) {
       // One request that cannot be made is refused; the walk goes on.
       if (submission) submission.state = "failed";
-      return fail(`the request failed (${error instanceof Error ? error.name : "Error"})`);
+      const diagnostic = driverDiagnostic("interception.fetch", error);
+      return fail(`the request failed (${diagnostic.category})`, diagnostic);
     }
     if (submission) {
       submission.state = "delivered";
@@ -468,7 +486,7 @@ export class Driver {
       await answer.body?.cancel();
       return cdp.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 204, responseHeaders: [] });
     }
-    const body = await readCapped(answer, MAX_RESPONSE_BYTES);
+    const body = await atOperation("interception.body", () => readCapped(answer, MAX_RESPONSE_BYTES));
     if (body === null) return fail(`the answer is over ${MAX_RESPONSE_BYTES} bytes`);
     const responseHeaders: { name: string; value: string }[] = [];
     answer.headers.forEach((value, name) => {
@@ -476,12 +494,14 @@ export class Driver {
         responseHeaders.push({ name, value });
     });
     for (const cookie of answer.headers.getSetCookie()) responseHeaders.push({ name: "set-cookie", value: cookie });
-    await cdp.send("Fetch.fulfillRequest", {
-      requestId: event.requestId,
-      responseCode: answer.status,
-      responseHeaders,
-      body: Buffer.from(body).toString("base64"),
-    });
+    await atOperation("interception.fulfill", () =>
+      cdp.send("Fetch.fulfillRequest", {
+        requestId: event.requestId,
+        responseCode: answer.status,
+        responseHeaders,
+        body: Buffer.from(body).toString("base64"),
+      }),
+    );
     // Answered only now: its whole body was read and handed to the browser. A page captured before this saw, at most,
     // a screen waiting for the answer (the headers alone are not the answer).
     if (submission) submission.deliveredAt = ++this.recordSeq;
@@ -511,25 +531,39 @@ export class Driver {
     const type = target.type();
     if (type === "browser" || type === "other" || type === "page" || this.ended) return;
     // A worker of any kind is stopped where it runs, and recorded.
-    const session = await target.createCDPSession().catch(() => null);
-    await session?.send("Runtime.terminateExecution").catch(() => undefined);
-    await session?.detach().catch(() => undefined);
-    await this.record("popup", { target: type }, "refused", `${type} stopped`);
+    let diagnostic: DriverDiagnostic | undefined;
+    const failed = (operation: DriverOperation, error: unknown) => {
+      diagnostic ??= driverDiagnostic(operation, error);
+    };
+    const session = await target.createCDPSession().catch((error) => {
+      failed("containment.session", error);
+      return null;
+    });
+    await session?.send("Runtime.terminateExecution").catch((error) => failed("containment.terminate", error));
+    await session?.detach().catch((error) => failed("containment.detach", error));
+    await this.record("popup", { target: type, ...(diagnostic ? { diagnostic } : {}) }, "refused", `${type} stopped`);
   }
 
   // A refused request or download: kept for the current action's answer and recorded at once as its own row, so a
   // refusal during loading or between actions is never lost.
-  private refuse(what: string, reason: string) {
+  private refuse(what: string, reason: string, diagnostic?: DriverDiagnostic) {
     this.blocked.push(`${what}: ${reason}`);
     // A refusal that cannot be recorded ends the walk like any other failed write: no later action answers `done`.
-    void this.record("request", { url: what }, "refused", reason).catch((error) => this.fail(error));
+    void this.record(
+      "request",
+      { url: what, ...(diagnostic ? { diagnostic: DriverDiagnostic.parse(diagnostic) } : {}) },
+      "refused",
+      reason,
+    ).catch((error) => this.fail(error, "record.refusal"));
   }
 
   private async navigate(url: string) {
     const page = this.need();
-    await page.goto(url, { timeout: REQUEST_MS, waitUntil: "load" }).catch((error: Error) => {
-      if (!/net::ERR_BLOCKED_BY_CLIENT|ERR_FAILED/.test(error.message)) throw error;
-    });
+    await atOperation("navigation.goto", () =>
+      page.goto(url, { timeout: REQUEST_MS, waitUntil: "load" }).catch((error: Error) => {
+        if (!/net::ERR_BLOCKED_BY_CLIENT|ERR_FAILED/.test(error.message)) throw error;
+      }),
+    );
     await this.refreshFrames();
   }
 
@@ -550,6 +584,7 @@ export class Driver {
       return {
         outcome: this.ended.outcome === "error" ? "error" : "limit",
         reason: this.ended.reason,
+        ...this.failureMetadata(),
         screenshot: null,
       };
     this.attempts++;
@@ -576,20 +611,20 @@ export class Driver {
       if (this.follow) {
         await this.bounded(this.followPopup());
         const reason = "a popup was followed first; the action did not run";
-        const shot = await this.bounded(this.shoot());
+        const shot = await this.bounded(atOperation("view.screenshot", () => this.shoot()));
         await this.bounded(this.record("action", kept, "refused", reason, shot.key, Date.now() - began));
         return { outcome: "refused", reason, screenshot: shot.bytes, screenshotKey: shot.key };
       }
       const refusal = await this.bounded(this.refusal(action));
       if (refusal) {
-        const shot = await this.bounded(this.shoot());
+        const shot = await this.bounded(atOperation("view.screenshot", () => this.shoot()));
         await this.bounded(this.record("action", kept, "refused", refusal, shot.key, Date.now() - began));
         return { outcome: "refused", reason: refusal, screenshot: shot.bytes, screenshotKey: shot.key };
       }
       await this.bounded(this.run(action));
       await this.bounded(this.followPopup());
       await this.bounded(this.refreshFrames());
-      const shot = await this.bounded(this.shoot());
+      const shot = await this.bounded(atOperation("view.screenshot", () => this.shoot()));
       const reason = this.blocked.length ? `blocked: ${this.blocked.join("; ")}`.slice(0, 500) : undefined;
       await this.bounded(this.record("action", kept, "done", reason, shot.key, Date.now() - began));
       return { outcome: "done", ...(reason ? { reason } : {}), screenshot: shot.bytes, screenshotKey: shot.key };
@@ -604,7 +639,12 @@ export class Driver {
       await this.record("action", kept, "error", this.endReason(), undefined, Date.now() - began).catch(
         () => undefined,
       );
-      return { outcome: "error", reason: this.endReason() ?? "error", screenshot: null };
+      return {
+        outcome: "error",
+        reason: this.endReason() ?? "error",
+        ...this.failureMetadata(),
+        screenshot: null,
+      };
     }
   }
 
@@ -1043,25 +1083,44 @@ export class Driver {
     return out;
   }
 
-  private async fail(error: unknown) {
-    // A walk already ending (the clock, a limit) keeps its reason; the caller still waits for it to finish closing.
-    if (this.ended && this.ended.outcome !== "error") return this.ending;
-    const name = error instanceof Error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name) ? error.name : "Error";
-    await this.end("error", name);
+  private async fail(error: unknown, operation: DriverOperation = "action") {
+    // First terminal outcome and diagnostic win, including callbacks completing during close/persistence.
+    if (this.ended) return this.ending;
+    const diagnostic = error instanceof DriverFailure ? error.diagnostic : driverDiagnostic(operation, error);
+    const reason = {
+      error: "Error",
+      type: "TypeError",
+      timeout: "TimeoutError",
+      abort: "AbortError",
+      protocol: "ProtocolError",
+      "target-closed": "TargetCloseError",
+      unknown: "Error",
+    }[diagnostic.category];
+    await this.end("error", reason, diagnostic);
   }
 
   // Ends the walk once: the clock stops, every target closes, the session is released, and an `end` row is kept
   // when the database allows.
-  end(outcome: Outcome, reason: string): Promise<void> {
+  end(outcome: Outcome, reason: string, diagnostic?: DriverDiagnostic): Promise<void> {
     if (this.ending) return this.ending;
-    this.ended = { outcome, reason };
+    const safe = diagnostic === undefined ? undefined : DriverDiagnostic.parse(diagnostic);
+    this.ended = { outcome, reason, ...(safe ? { diagnostic: safe } : {}) };
     this.stopped.abort();
     clearTimeout(this.timer);
     this.ending = (async () => {
       await Promise.race([this.browser.close(), new Promise((done) => setTimeout(done, 5_000))]).catch(() => undefined);
-      await this.record("end", { elapsed_ms: Date.now() - this.started }, outcome, reason).catch(() => undefined);
+      await this.record(
+        "end",
+        { elapsed_ms: Date.now() - this.started, ...(safe ? { diagnostic: safe } : {}) },
+        outcome,
+        reason,
+      ).catch(() => undefined);
     })();
     return this.ending;
+  }
+
+  private failureMetadata(): { diagnostic?: DriverDiagnostic } {
+    return this.ended?.diagnostic ? { diagnostic: this.ended.diagnostic } : {};
   }
 
   private endReason(): string | undefined {
@@ -1082,12 +1141,14 @@ export class Driver {
       return {
         outcome: this.ended.outcome === "error" ? "error" : "limit",
         reason: this.ended.reason,
+        ...this.failureMetadata(),
         screenshot: null,
         text: "",
       };
     try {
-      const shot = options.screenshot === false ? null : await this.bounded(this.shoot());
-      const read = await this.bounded(this.readPage());
+      const shot =
+        options.screenshot === false ? null : await this.bounded(atOperation("view.screenshot", () => this.shoot()));
+      const read = await this.bounded(atOperation("view.read", () => this.readPage()));
       return {
         outcome: "done",
         screenshot: shot?.bytes ?? null,
@@ -1101,7 +1162,13 @@ export class Driver {
         return { outcome: "limit", reason: "time", screenshot: null, text: "" };
       }
       await this.fail(error);
-      return { outcome: "error", reason: this.endReason() ?? "error", screenshot: null, text: "" };
+      return {
+        outcome: "error",
+        reason: this.endReason() ?? "error",
+        ...this.failureMetadata(),
+        screenshot: null,
+        text: "",
+      };
     }
   }
 
