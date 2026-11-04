@@ -11,7 +11,7 @@ export type Figure = {
 export type PaymentFigures = { quoteStart: number; quoteEnd: number; items: Figure[] };
 const WORD = /[\p{L}\p{M}\p{N}\p{Cf}_]/u;
 const SPACE = /\s/u;
-const RUN = /[\d.,/+:\s\p{Pd}\u066b\u066c'’]/u;
+const RUN = /[\d.,/+:\s\p{Pd}\p{Sm}\u066b\u066c'’]/u;
 const PREFIX = /(?:ZAR|USD|EUR|GBP|R|[$€£])$/i;
 const SUFFIX = /^\s*(rands?|dollars?|euros?|pounds?|ZAR|USD|EUR|GBP)(?=$|[^\p{L}\p{N}_])/iu;
 const MAGNITUDE = /^\s+(hundred|thousand|million|billion|trillion)(?=$|[^\p{L}\p{N}_])/iu;
@@ -92,9 +92,22 @@ export function figuresOf(transcript: string): Figure[] {
     const lastBefore = [...before].at(-1) ?? "";
     const next = transcript.slice(end, end + 2);
     const firstAfter = [...next][0] ?? "";
-    if (WORD.test(lastBefore) || /[+\-/:]/.test(lastBefore) || WORD.test(firstAfter)) continue;
+    if (WORD.test(lastBefore) || /[\p{Pd}\p{Sm}%/:]/u.test(lastBefore) || WORD.test(firstAfter)) continue;
     if (currencyBefore && suffix) continue;
-    if (MAGNITUDE.test(transcript.slice(end)) || /^\s*(?:%|percent\b|per\s+cent\b)/i.test(transcript.slice(end)))
+    let wordEnd = start;
+    while (wordEnd > 0 && SPACE.test(transcript[wordEnd - 1] ?? "")) wordEnd--;
+    if (/(?:^|[^\p{L}\p{N}_])(?:minus|negative)$/iu.test(transcript.slice(Math.max(0, wordEnd - 10), wordEnd)))
+      continue;
+    if (
+      /^\s+and\s+(?:\d|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|a\s+half)\b)/i.test(
+        transcript.slice(end),
+      )
+    )
+      continue;
+    if (
+      MAGNITUDE.test(transcript.slice(end)) ||
+      /^\s*(?:%|percent\b|per\s+cent\b|cents?\b|pence\b|penn(?:y|ies)\b)/i.test(transcript.slice(end))
+    )
       continue;
     const raw = transcript.slice(start, end);
     // Bounds reject the entire run, never shorten its digits. A quote remains available

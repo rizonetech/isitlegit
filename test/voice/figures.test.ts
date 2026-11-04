@@ -85,3 +85,16 @@ it.each([
 ])("leaves ambiguous form %s in the quote without a derived amount", (text) => {
   expect(figuresOf(text)).toEqual([]);
 });
+
+it.each([
+  "minus R100",
+  "negative 100.50",
+  "−100.50",
+  "–100.50",
+  "R100−200",
+  "R100 and fifty",
+  "R100 and 50 cents",
+  "100.50 cents",
+])("rejects unsupported signed or composite amount %s whole", (text) => {
+  expect(figuresOf(text)).toEqual([]);
+});
