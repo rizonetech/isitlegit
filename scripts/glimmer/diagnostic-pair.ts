@@ -48,16 +48,21 @@ const EXPECTED = [
   ["1.1", "isitlegit-loupe-1-1", "step-4524", "ts-db85d8de82174aa6824b775ca6e40075"],
 ] as const;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-function diagnosticTarget(version: string): string {
+function diagnosticDeployment(version: string, suffix?: string): string {
   assert(version === "1.0" || version === "1.1", "unapproved diagnostic version");
-  return `accounts/${ACCOUNT}/deployments/${evalDeployment(version)}`;
+  if (suffix !== undefined) assert.match(suffix, /^[a-f0-9]{8}$/);
+  return `${evalDeployment(version)}${suffix ? `-${suffix}` : ""}`;
 }
-export function diagnosticModel(version: string): string {
-  diagnosticTarget(version);
-  return targetOf(version, evalDeployment(version)).model;
+function diagnosticTarget(version: string, suffix?: string): string {
+  assert(version === "1.0" || version === "1.1", "unapproved diagnostic version");
+  return `accounts/${ACCOUNT}/deployments/${diagnosticDeployment(version, suffix)}`;
 }
-export function verifyTarget(read: Deployment, version: string): void {
-  assert.equal(read.name, diagnosticTarget(version), "wrong deployment");
+export function diagnosticModel(version: string, suffix?: string): string {
+  diagnosticTarget(version, suffix);
+  return targetOf(version, diagnosticDeployment(version, suffix)).model;
+}
+export function verifyTarget(read: Deployment, version: string, suffix?: string): void {
+  assert.equal(read.name, diagnosticTarget(version, suffix), "wrong deployment");
   assert.equal(read.baseModel, modelOf(version), "wrong artifact");
   assert.equal(read.state, "READY", "deployment not ready");
   assert.equal(read.preemptible, true, "diagnostic requires preemptible capacity");
@@ -140,15 +145,17 @@ type Dependencies = {
   evidenceDir?: string;
   run?: typeof runAnswers;
   smoke?: boolean;
+  targetSuffix?: string;
 };
 export async function executeSlot(version: string, dataset: string, output: string, dependencies: Dependencies) {
   const { ledger, adminKey, inferenceKey } = dependencies;
   const fetcher = dependencies.fetcher ?? fetch;
   const now = dependencies.now ?? Date.now;
   const sleep = dependencies.sleep ?? ((ms) => new Promise<void>((done) => setTimeout(done, ms)));
-  const target = diagnosticTarget(version);
-  const model = diagnosticModel(version);
-  const url = `${API}/deployments/${evalDeployment(version)}`;
+  const deployment = diagnosticDeployment(version, dependencies.targetSuffix);
+  const target = diagnosticTarget(version, dependencies.targetSuffix);
+  const model = diagnosticModel(version, dependencies.targetSuffix);
+  const url = `${API}/deployments/${deployment}`;
   const start = now();
   const runUntil = start + RUN_MS;
   const shutdownUntil = runUntil + SHUTDOWN_MS;
@@ -178,14 +185,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
   }
   // Existing live targets belong to another run. Never take them over or delete them.
   const before = await request(url, "GET", undefined, runUntil);
-  assert(!before || before.state === "DELETED", "diagnostic target already active");
-  if (before) {
-    assert.equal(before.name, target);
-    assert.equal(before.baseModel, modelOf(version));
-    assert.equal(before.preemptible, true);
-    checkReadBack(before, 1);
-    checkPriced(before);
-  }
+  assert(!before, "diagnostic target already active or previously used; a fresh target is required");
   // Match is metadata only. Pin an actual validated H200/1 shape before any capacity mutation.
   const matching = await request(
     `${API}/deploymentShapeVersions:match`,
@@ -206,7 +206,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
     RESERVE_MINUTES,
     new Date(now()),
     dependencies.evidenceDir,
-    evalDeployment(version),
+    deployment,
     DIAGNOSTIC_RATE,
   );
   // A killed process keeps a full-window durable liability, even before its first inference.
@@ -221,21 +221,19 @@ export async function executeSlot(version: string, dataset: string, output: stri
   });
   try {
     touched = true;
-    if (before) await request(`${url}:undelete`, "POST", {}, runUntil);
-    else
-      await request(
-        `${API}/deployments?deploymentId=${evalDeployment(version)}`,
-        "POST",
-        {
-          baseModel: modelOf(version),
-          deploymentShape: shape.name,
-          minReplicaCount: 0,
-          maxReplicaCount: 1,
-          preemptible: true,
-          autoscalingPolicy: { scaleToZeroWindow: "300s" },
-        },
-        runUntil,
-      );
+    await request(
+      `${API}/deployments?deploymentId=${deployment}`,
+      "POST",
+      {
+        baseModel: modelOf(version),
+        deploymentShape: shape.name,
+        minReplicaCount: 0,
+        maxReplicaCount: 1,
+        preemptible: true,
+        autoscalingPolicy: { scaleToZeroWindow: "300s" },
+      },
+      runUntil,
+    );
     let read: Deployment;
     for (;;) {
       read = await request(url, "GET", undefined, runUntil);
@@ -247,7 +245,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
       assert(now() + 5000 < runUntil, "readiness deadline reached");
       await sleep(5000);
     }
-    verifyTarget(read, version);
+    verifyTarget(read, version, dependencies.targetSuffix);
     durable(join(output, `${version}.target.json`), {
       name: read.name,
       baseModel: read.baseModel,
@@ -331,7 +329,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
     if (touched) {
       try {
         // This exact temporary target only. Unknown deletion is never reported as stopped or settled.
-        await request(url, "DELETE", undefined, shutdownUntil);
+        await request(`${url}?ignoreChecks=true`, "DELETE", undefined, shutdownUntil);
         for (;;) {
           const after = await request(url, "GET", undefined, shutdownUntil);
           if (!after || after.state === "DELETED") {
@@ -362,8 +360,9 @@ export async function diagnosticPair(manifest: string, digest: string, output: s
   durable(lock, { output, manifestSha256: digest, pid: process.pid, at: new Date().toISOString() });
   // Any failure retains this exclusive lock for explicit readback/recovery, never an automatic second cohort.
   durable(join(output, "mode.json"), { mode: dependencies.smoke ? "candidate-single-page-smoke" : "paired40" });
+  const targetSuffix = hash(Buffer.from(resolve(output))).slice(0, 8);
   for (const [version] of dependencies.smoke ? EXPECTED.slice(1) : EXPECTED)
-    await executeSlot(version, dataset, output, dependencies);
+    await executeSlot(version, dataset, output, { ...dependencies, targetSuffix });
   rmSync(lock);
 }
 if (import.meta.filename === process.argv[1]) {

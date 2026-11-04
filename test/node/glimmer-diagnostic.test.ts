@@ -21,6 +21,8 @@ describe("accounted diagnostic target", () => {
   it("uses an explicit isolated deployment, never ambiguous production model routing", () => {
     expect(diagnosticModel("1.1")).toBe(`${target.baseModel}#${target.name}`);
     expect(() => diagnosticModel("2.0")).toThrow();
+    expect(diagnosticModel("1.1", "abcdef01")).toBe(`${target.baseModel}#${target.name}-abcdef01`);
+    expect(() => diagnosticModel("1.1", "production")).toThrow();
   });
   it("checks actual artifact, GPU price, replica and idle settings before inference", () => {
     expect(() => verifyTarget(target, "1.1")).not.toThrow();
@@ -110,6 +112,7 @@ function fixture(mode = "ok") {
       return Response.json(target);
     }
     if (method === "DELETE") {
+      expect(url).toContain("?ignoreChecks=true");
       if (mode === "shutdown-failure") return new Response("private error", { status: 503 });
       deleted = true;
       return Response.json({});
