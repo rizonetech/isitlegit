@@ -49,7 +49,7 @@ track: day-1
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
 | 13 | §13 | Destination trace linked | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
-| 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
+| 15 | §15 | Early refusal alert before attribution | §12 | [x] |
 | 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [x] |
 | 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [x] |
 
@@ -532,6 +532,9 @@ Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward
 - [x] Commit: `mail: early refusal alert before attribution`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
+
+> **Verified:** 2026-11-04 | §15 | 55ae27be71fd4a021f0f32d9c29391c3465ffc27
+> **Review:** `docs/reviews/d01-t02-s15.json`
 
 ## 16. Reported methods only in the reply
 

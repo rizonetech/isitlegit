@@ -96,6 +96,7 @@ def todo_file(rows, *, ident="alpha", domain="00-workspace", status="active", de
 class Tree(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         self.root = pathlib.Path(self.tmp.name)
         (self.root / "todo/00-workspace").mkdir(parents=True)
 
@@ -1274,6 +1275,146 @@ class Stamp(Tree):
         with self.assertRaises(tg.Refused):
             self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "13 Oct")
         self.assertEqual(self.snapshot(), before)
+
+    def killed_stamp(self, boundary=1):
+        self.tick_work()
+        tg.projections(self.root, sync=True)
+        payload = {'root': str(self.root), 'sha': self.sha, 'reviews': self.reviews,
+                   'completion': self.COMPLETION, 'plan': self.PLAN, 'boundary': boundary}
+        code = '''import json, os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import todo_graph as tg
+p = json.loads(sys.argv[2])
+real = tg.atomic
+count = 0
+def crash(path, data):
+    global count
+    real(path, data)
+    count += 1
+    if count == p['boundary']:
+        os._exit(73)
+tg.atomic = crash
+tg.stamp(Path(p['root']), 'D00 T01 §1', p['sha'], p['reviews'], ['true -> ok'], '2026-10-13', sync_plan=True, completion={'report':p['completion'],'verdict':'complete'}, plan=p['plan'])
+'''
+        child = subprocess.run([sys.executable, '-B', '-c', code, str(SCRIPTS / 'lib'), json.dumps(payload)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(child.returncode,73,child.stderr)
+        return self.root / 'docs/reviews/d00-t01-s1.json'
+
+    def recovery_cli(self, *args, next_day=False):
+        if not (self.root / 'scripts').exists():
+            shutil.copytree(SCRIPTS,self.root / 'scripts',ignore=shutil.ignore_patterns('__pycache__'))
+        command = [sys.executable,'-B',str(self.root / 'scripts/todo-graph.py'),*args]
+        if next_day:
+            code = '''import datetime, runpy, sys
+class NextDay(datetime.date):
+    @classmethod
+    def today(cls):
+        return cls(2026,10,14)
+datetime.date = NextDay
+sys.argv = sys.argv[1:]
+runpy.run_path(sys.argv[0],run_name='__main__')
+'''
+            command = [sys.executable,'-B','-c',code,str(self.root / 'scripts/todo-graph.py'),*args]
+        return subprocess.run(command,capture_output=True,text=True,timeout=60)
+
+    def test_hard_exit_receipt_recovers_next_day_using_diagnostic_date(self):
+        receipt = self.killed_stamp()
+        data = json.loads(receipt.read_text())
+        receipt.write_text(json.dumps(data,sort_keys=True,separators=(',', ':')) + '\n\n')
+        original = receipt.read_bytes()
+        self.assertFalse(tg.graph(self.root)['D00 T01 §1'].done)
+        result = self.recovery_cli('validate')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('orphan receipt',result.stderr)
+        self.assertIn('--date 2026-10-13',result.stderr)
+        self.assertIn('preserve',result.stderr.lower())
+        # Today's CLI default differs from the original stamp date; use its diagnosed explicit date.
+        date = re.search(r'--date (\d{4}-\d{2}-\d{2})',result.stderr)[1]
+        args = ['stamp','D00 T01 §1','--sha',self.sha,'--review',f'1:{self.PLAN}:clean','--plan',self.PLAN,
+                '--completion',self.COMPLETION + ':complete','--check','true -> ok']
+        rejected = self.recovery_cli(*args,next_day=True)
+        self.assertNotEqual(rejected.returncode,0)
+        self.assertIn('date',rejected.stderr)
+        result = self.recovery_cli(*args,'--date',date,next_day=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(receipt.read_bytes(),original)
+        tg.projections(self.root)
+
+    def test_orphan_recovery_requires_typed_exact_fields_and_preserves_failures(self):
+        receipt = self.killed_stamp()
+        data = json.loads(receipt.read_text())
+        mutations = [('checks[0]',lambda d:d['checks'].__setitem__(0,'different')),
+                     ('date',lambda d:d.__setitem__('date','2026-10-14')),
+                     ('implementation_sha',lambda d:d.__setitem__('implementation_sha','a'*40)),
+                     ('reviews[0].round',lambda d:d['reviews'][0].__setitem__('round',True)),
+                     ('reviews[0].round',lambda d:d['reviews'][0].__setitem__('round',1.0)),
+                     ('checks',lambda d:d.pop('checks')),
+                     ('extra',lambda d:d.__setitem__('extra',None))]
+        for field, mutate in mutations:
+            with self.subTest(field=field):
+                changed = json.loads(json.dumps(data)); mutate(changed)
+                receipt.write_text(json.dumps(changed))
+                before = self.snapshot()
+                with self.assertRaises(tg.Refused) as ctx:
+                    self.stamp('D00 T01 §1',self.sha,self.reviews,['true -> ok'],'2026-10-13')
+                self.assertIn(field,str(ctx.exception))
+                self.assertEqual(self.snapshot(),before)
+        receipt.write_text(json.dumps(data))
+        before = self.snapshot()
+        real = tg.atomic
+        for boundary in (1,2):
+            calls = []
+            def fail(path, contents):
+                calls.append(path)
+                if len(calls) == boundary:
+                    raise OSError('recovery write failure')
+                return real(path,contents)
+            with mock.patch.object(tg,'atomic',side_effect=fail):
+                with self.assertRaises(OSError):
+                    self.stamp('D00 T01 §1',self.sha,self.reviews,['true -> ok'],'2026-10-13',sync_plan=True)
+            self.assertEqual(self.snapshot(),before)
+        report = self.root / self.COMPLETION
+        report.write_text('invalid review evidence')
+        before = self.snapshot()
+        with self.assertRaises(tg.Refused):
+            self.stamp('D00 T01 §1',self.sha,self.reviews,['true -> ok'],'2026-10-13')
+        self.assertEqual(self.snapshot(),before)
+
+    def test_recovery_rejects_ambiguous_json_and_symlink_without_mutation(self):
+        receipt = self.killed_stamp()
+        original = receipt.read_bytes()
+        for bad in ('{"date":"2026-10-13","date":"2026-10-13"}', '{"x":NaN}', '{"x":Infinity}', '[]', '{'):
+            with self.subTest(bad=bad):
+                receipt.write_text(bad)
+                before = self.snapshot()
+                with self.assertRaises(tg.Refused):
+                    self.stamp('D00 T01 §1',self.sha,self.reviews,['true -> ok'],'2026-10-13')
+                self.assertEqual(self.snapshot(),before)
+        target = self.root / 'retained.json'
+        target.write_bytes(original)
+        receipt.unlink()
+        receipt.symlink_to(target)
+        with self.assertRaises(tg.Refused):
+            self.stamp('D00 T01 §1',self.sha,self.reviews,['true -> ok'],'2026-10-13')
+        self.assertTrue(receipt.is_symlink())
+        self.assertEqual(target.read_bytes(),original)
+
+    def test_hard_exit_after_todo_recovers_with_plan_sync_only(self):
+        receipt = self.killed_stamp(boundary=2)
+        original = receipt.read_bytes()
+        todo = self.root / 'todo/00-workspace/TODO-01-a.md'
+        body = todo.read_bytes()
+        self.assertTrue(tg.graph(self.root)['D00 T01 §1'].done)
+        with self.assertRaises(tg.Refused):
+            tg.projections(self.root)
+        result = self.recovery_cli('plan','--sync')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(receipt.read_bytes(),original)
+        self.assertEqual(todo.read_bytes(),body)
+        self.assertEqual(body.count(b'> **Verified:**'),1)
+        self.assertEqual(body.count(b'> **Review:**'),1)
+        tg.projections(self.root)
 
     def test_failed_stamp_write_rolls_back_receipt_and_allows_retry(self):
         self.tick_work()

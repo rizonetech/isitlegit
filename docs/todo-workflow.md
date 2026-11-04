@@ -85,3 +85,9 @@ python3 scripts/review-dispatch.py --recover-reconciliation --record <findings-p
 ```
 
 The same unresolved-call refusal and known-outage retry rules apply. To reverse authorization for new work, commit the intended pin policy and stop new calls under the disabled route. Preserve historical pins, original findings, transition bindings, dispositions, pending state and receipts so existing evidence remains verifiable. Reverting policy never removes a returned review or creates permission to retry it.
+
+## Recovering an interrupted stamp
+
+If the process dies after writing its receipt but before updating the TODO, `validate` reports an orphan receipt. Preserve that receipt. Rerun the same `stamp` command with every original argument and the explicit original `--date YYYY-MM-DD` printed by the diagnostic, even when retrying on a later day. Recovery revalidates all review and safety evidence and requires identical receipt fields and JSON types; different formatting alone is allowed. It preserves the receipt bytes and refuses a different date, SHA, check, review or other field, naming the first difference. A failed recovery preserves the original receipt and restores the TODO and projection.
+
+If the TODO already contains its Verified and Review metadata, do not stamp it again. Run `python3 scripts/todo-graph.py validate`, then `python3 scripts/todo-graph.py plan --sync` to repair the interrupted projection. These commands validate the real receipt; synchronization preserves the receipt and existing stamp metadata. Orphan diagnostics run only in explicit `validate`, so ordinary graph queries and the recovery stamp can still enter. Never delete or edit a receipt to force recovery.

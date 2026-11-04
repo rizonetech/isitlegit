@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from todo_graph import (ROOT, Refused, adjacency_report, atomic, claimable, current_lane,  # noqa: E402
                         deferrals, disposition, extract_ref, graph, lane_info, lane_of, lane_query, lanes, manual_rows,
                         ordered, plan_candidate, plan_config, projections,
-                        require, review_rounds, settled, stamp, suspects, unstamp)
+                        require, review_rounds, settled, stamp, suspects, unstamp, validate_orphan_receipts)
 
 
 def review_round(value):
@@ -203,6 +203,7 @@ def main():
         lines.append("```")
         print("\n".join(lines))
     else:
+        validate_orphan_receipts(ROOT, rows)
         print(f"valid: {len(rows)} sections")
     return 0
 

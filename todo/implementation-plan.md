@@ -437,7 +437,7 @@ Sections: 224 | Checklist items: 1005
 | [x]    | D01 T01 §24 | Pipeline writes fenced across a case removal                | none                 | 3     |
 | [x]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                                    | operator             | 3     |
-| [ ]    | D01 T02 §15 | Early refusal alert before attribution                      | none                 | 3     |
+| [x]    | D01 T02 §15 | Early refusal alert before attribution                      | none                 | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                            | operator             | 6     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on                                | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code                    | none                 | 3     |
@@ -678,6 +678,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 423/602 verified sections, 116 ready to run now.
+Progress: 424/602 verified sections, 115 ready to run now.
 
-Checklist: 3095/3718 items completed (includes Commit items).
+Checklist: 3100/3718 items completed (includes Commit items).
