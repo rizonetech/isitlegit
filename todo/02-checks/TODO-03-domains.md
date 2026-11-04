@@ -169,6 +169,8 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 
 ## 5. Accent-insensitive lookalikes, measured
 
+> **Started:** 2026-11-04T15:20:15Z
+
 **Coordinator correction 2026-11-04:** All benign names are fictional synthetic businesses, never real client names. Keep the UTS #39 skeleton and all existing domain eligibility, trust exclusions, severity and evidence rules unchanged. Compare normalized eligible labels, retain the right-to-left exclusion owned by §6, and use exact accent-folded equality rather than increasing edit-distance tolerance. Measure the existing techniques, folding equality and folding plus skeleton on the same committed positive and benign populations against a separately implemented, source-digest-pinned UTS #39 reference comparator reading the vendored Unicode table. Record comparator scope and limitations honestly. Test Unicode, decomposed and A-label forms, target accents, unchanged and invalid labels, and full check evidence with no benign matches. The coordinator owns the shared DATASETS.md entry, requested as an exact hunk.
 
 The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have different skeletons, distance 3, no added word), as it should, so a name with several accented letters escapes §1's primitives. Browsers compare protected names with the accents set aside; this adds that as a separate technique beside the skeleton, never a change to it, and measures what it catches against what it wrongly flags. Filed 2026-10-29 from D02 T03 §1's completion review (Part 2, items 3 and 4): no measured comparison of detection, false positives or timing exists for the lookalike primitives yet, and this section makes one.
