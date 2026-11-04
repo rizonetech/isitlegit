@@ -335,7 +335,12 @@ export class Driver {
 
   // Opens the walk: the clock starts here, before anything else can stall.
   static async open(browser: Browser, options: OpenOptions): Promise<Driver> {
-    const driver = new Driver(browser, { ...options, fetch: options.fetch ?? fetch, limits: options.limits ?? LIMITS });
+    // Worker-native fetch requires its global receiver, not the options object used by interception.
+    const driver = new Driver(browser, {
+      ...options,
+      fetch: options.fetch ?? ((input, init) => fetch(input, init)),
+      limits: options.limits ?? LIMITS,
+    });
     driver.timer = setTimeout(() => {
       driver.signalTimeUp();
       void driver.end("limit", "time");

@@ -28,7 +28,7 @@ export const STEPS: [string, string][] = [
   ["admit", "Received and stored"],
   ["parse", "Opened the message and its attachments"],
   ["checks", "Checked the sender, authentication, domains and content"],
-  ["verdict", "Weighed the evidence and wrote the verdict"],
+  ["verdict", "Weighed the evidence and prepared the verdict"],
   ["store", "Saved the verdict"],
   ["reply", "Emailed the answer"],
   ["finish", "Finished"],

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCase } from "../../src/db/cases";
 import { artefactsOf, putAttachment, putRaw, readArtefact, type Store } from "../../src/intake/store";
 import { reserve } from "../../src/meta/budget";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { sastDay } from "../../src/meta/day";
 import type { Transcript } from "../../src/voice/transcribe";
 import { toneOgg } from "../fixtures/audio/load";
@@ -280,7 +281,7 @@ describe("the transcribe step", () => {
       model: "muse-spark-1.3",
       caseId: null,
       attempt: 1,
-      estimateUsd: 15,
+      estimateUsd: DAY_CAP_USD,
     });
     const calls = stubMeta([ok(3)]);
     const caseId = await voiceCase(toneOgg);

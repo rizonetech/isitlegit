@@ -249,7 +249,7 @@ Sections: 61 | Checklist items: 305
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 12 | Checklist items: 115
+Sections: 12 | Checklist items: 118
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -264,7 +264,7 @@ Sections: 12 | Checklist items: 115
 | [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [x]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
-| [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
+| [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 7     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
@@ -712,6 +712,6 @@ Withdrawn D99 T02 §3: 2026-11-04 | operator | Separate operator recording check
 
 Progress: 465/625 verified sections, 101 ready to run now.
 
-Checklist: 3318/3879 items completed (includes Commit items).
+Checklist: 3318/3882 items completed (includes Commit items).
 
 Withdrawn: 3 sections (not verified or delivered).

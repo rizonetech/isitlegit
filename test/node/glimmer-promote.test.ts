@@ -500,8 +500,8 @@ describe("promoting a Loupe version (§32)", () => {
 
     it("refuses with nothing sent when the allowance is spent or the ledger cannot be reached", async () => {
       const exec = ledger();
-      // 90 minutes are all the days so far allow; a wake of 8 more is refused before any request.
-      await reserveWake(exec, "monitor", 90, new Date(NOW), join(dir, "wakes"));
+      // 180 minutes are all the days so far allow; a wake of 8 more is refused before any request.
+      await reserveWake(exec, "monitor", 180, new Date(NOW), join(dir, "wakes"));
       let sent = 0;
       const counting = async (url: string, init: RequestInit) => {
         sent++;

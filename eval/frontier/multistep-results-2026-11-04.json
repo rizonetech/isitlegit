@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "id": "5a123694-7b66-4c27-939a-8913313a782d",
+  "sourceSha": "6fece3444d15155df25d77752e3c7189906477da",
+  "deployedSha": "385c3d9827885ba2e032aaf435221b2e9690d00d",
+  "fixtureHashes": {
+    "index": "0948b3d667b4e900197af3e3b360fe987a11b897efb19bb3a092d12f598a2677",
+    "lure": "0dac65e0866776ead2a8c29ccb262b5b0890850cb8654d2768323c737320b28c",
+    "login": "23d233aae081f9947f9b6c927eae1e7884dd241821af2d2c70d45f140e77f7d8",
+    "submitted": "36b3256012bd8b19fbefcf96cceb3bc3e9decb8418a7284895d6aa03236b383d"
+  },
+  "urlHash": "e7feb7f1c664f489d9b1d505912e2f96c54bb31bc5df7acf0df2c6e2c6f49169",
+  "model": "muse-wonder-1.0",
+  "allowanceUsd": 1.08828,
+  "initialCapUsd": 5,
+  "capUsd": 5,
+  "capDecisions": [],
+  "failures": 0,
+  "notBefore": null,
+  "slots": [
+    {
+      "reservationHistory": [],
+      "ordinal": 1,
+      "reservationId": "b638accd-14d2-4675-aada-60cf815059a3",
+      "status": "complete",
+      "report": {
+        "ordinal": 1,
+        "reservationId": "b638accd-14d2-4675-aada-60cf815059a3",
+        "outcome": "error",
+        "steps": 0,
+        "ms": 184,
+        "pages": [],
+        "attempts": [],
+        "capacity": []
+      },
+      "costUsd": 0,
+      "certainty": "measured"
+    },
+    {
+      "reservationHistory": [],
+      "ordinal": 2,
+      "reservationId": "70b693fe-0ea9-4a04-b792-f269246bff37",
+      "status": "complete",
+      "report": {
+        "ordinal": 2,
+        "reservationId": "70b693fe-0ea9-4a04-b792-f269246bff37",
+        "outcome": "error",
+        "steps": 0,
+        "ms": 152,
+        "pages": [],
+        "attempts": [],
+        "capacity": []
+      },
+      "costUsd": 0,
+      "certainty": "measured"
+    },
+    {
+      "reservationHistory": [],
+      "ordinal": 3,
+      "reservationId": "72219e73-a614-4b54-870f-32df52396f81",
+      "status": "complete",
+      "report": {
+        "ordinal": 3,
+        "reservationId": "72219e73-a614-4b54-870f-32df52396f81",
+        "outcome": "error",
+        "steps": 0,
+        "ms": 157,
+        "pages": [],
+        "attempts": [],
+        "capacity": []
+      },
+      "costUsd": 0,
+      "certainty": "measured"
+    },
+    {
+      "reservationHistory": [],
+      "ordinal": 4,
+      "reservationId": "75a3e5c0-85cf-465f-9a55-8e7287d897f6",
+      "status": "complete",
+      "report": {
+        "ordinal": 4,
+        "reservationId": "75a3e5c0-85cf-465f-9a55-8e7287d897f6",
+        "outcome": "error",
+        "steps": 0,
+        "ms": 187,
+        "pages": [],
+        "attempts": [],
+        "capacity": []
+      },
+      "costUsd": 0,
+      "certainty": "measured"
+    },
+    {
+      "reservationHistory": [],
+      "ordinal": 5,
+      "reservationId": "2a09c09f-815e-412a-92bd-2832f202c441",
+      "status": "complete",
+      "report": {
+        "ordinal": 5,
+        "reservationId": "2a09c09f-815e-412a-92bd-2832f202c441",
+        "outcome": "error",
+        "steps": 0,
+        "ms": 586,
+        "pages": [],
+        "attempts": [],
+        "capacity": []
+      },
+      "costUsd": 0,
+      "certainty": "measured"
+    }
+  ]
+}

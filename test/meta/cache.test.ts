@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { caseCost, d1Budget } from "../../src/meta/budget";
 import { type CacheInputs, cacheKey, MAX_CACHE_TTL_SECONDS, withCache } from "../../src/meta/cache";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { type MetaContext, ModelError, metaResponses } from "../../src/meta/client";
 import type { Budget, Owner } from "../../src/meta/guard";
 
@@ -222,8 +223,8 @@ describe("withCache", () => {
         return typeof value === "function" ? value.bind(target) : value;
       },
     }) as KVNamespace;
-    // The rest of the day's US$15 taken, so any paid call would be refused.
-    await d1Budget(db, { caller: "earlier" }).reserve("muse-spark-1.3", 15 - (await counted()), 1);
+    // The rest of the day's allowance taken, so any paid call would be refused.
+    await d1Budget(db, { caller: "earlier" }).reserve("muse-spark-1.3", DAY_CAP_USD - (await counted()), 1);
     await expect(d1Budget(db, { caller: "probe" }).reserve("muse-spark-1.3", 0.01, 1)).rejects.toThrow(/day cap/);
     expect((await withCache(cacheCtx(m.budget, { kv: slow }), key, 3600, Verdict, m.fn)).hit).toBe(true);
     const hit = (await rows()).find((r) => r.cache === "hit");

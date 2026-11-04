@@ -8,7 +8,7 @@ import { admissionFailed, type Progress } from "../pages/report-progress";
 // The recorded steps in the board's plain words; a step this map does not know reads as its recorded name.
 const STEP_WORDS: Record<string, string> = {
   walkthrough: "Walked the link like a victim would",
-  verdict: "Weighed the evidence and wrote the verdict",
+  verdict: "Verdict investigation",
   transcribe: "Transcribed the voice note",
 };
 const TOOL_WORDS: Record<string, string> = {
@@ -50,7 +50,7 @@ const SEND_KIND: Record<string, string> = {
 };
 
 // What the verdict and the walk stored for this case, which the descriptions are derived from.
-export type TraceFacts = { findings: number; cited: string[] | null };
+export type TraceFacts = { findings: number; cited: string[] | null; verdictSource: "stub" | "rules" | "agent" | null };
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 const dollars = (usd: number) => `US$${usd.toFixed(3)}`;
@@ -83,6 +83,8 @@ export function whatItDid(call: TraceCall, facts: TraceFacts, chosen: number | n
   if (call.outcome === "error") return `Did not finish: ${failureWords(call.errorClass)}`;
   if (call.outcome === null) return "Outcome not recorded";
   if (call.step === "verdict") {
+    if (facts.verdictSource === "rules") return "Rule-based verdict used; no model verdict accepted";
+    if (facts.verdictSource !== "agent") return "No accepted model verdict recorded";
     if (facts.cited === null) return "Result not stored";
     const weighed = `Weighed ${facts.findings} ${facts.findings === 1 ? "finding" : "findings"}`;
     return facts.cited.length ? `${weighed}, cited ${facts.cited.join(", ")}` : weighed;

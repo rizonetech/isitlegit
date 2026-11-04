@@ -26,32 +26,32 @@ const row = (day: string, estimateUsd: number, extra: Partial<{ id: string; case
 });
 
 describe("the caps", () => {
-  it("are the operator's: US$120 in all, US$15 a day, US$30 held for 3 and 4 November", () => {
-    expect([TOTAL_CAP_USD, DAY_CAP_USD, RESERVE_USD]).toEqual([120, 15, 30]);
-    expect(RESERVE_DAYS).toEqual(["2026-11-03", "2026-11-04"]);
-    expect(totalLimitFor("2026-11-02")).toBe(90);
-    expect(totalLimitFor("2026-11-03")).toBe(120);
-    expect(totalLimitFor("2026-11-05")).toBe(90);
+  it("uses the authorized finite judging caps through 9 November", () => {
+    expect([TOTAL_CAP_USD, DAY_CAP_USD, RESERVE_USD]).toEqual([250, 50, 30]);
+    expect(RESERVE_DAYS).toEqual(Array.from({ length: 7 }, (_, i) => `2026-11-0${i + 3}`));
+    expect(totalLimitFor("2026-11-02")).toBe(220);
+    for (const day of RESERVE_DAYS) expect(totalLimitFor(day)).toBe(250);
+    expect(totalLimitFor("2026-11-10")).toBe(220);
   });
 
   it("count the day in South Africa, so 23:30 UTC is already the next day", () => {
     expect(sastDay(new Date("2026-11-02T21:59:59.999Z"))).toBe("2026-11-02");
     expect(sastDay(new Date("2026-11-02T22:00:00.000Z"))).toBe("2026-11-03");
-    // The reserve opens at SAST midnight on the 3rd and closes at SAST midnight after the 4th.
-    expect(totalLimitFor(sastDay(new Date("2026-11-02T22:00:00.000Z")))).toBe(120);
-    expect(totalLimitFor(sastDay(new Date("2026-11-04T21:59:59.999Z")))).toBe(120);
-    expect(totalLimitFor(sastDay(new Date("2026-11-04T22:00:00.000Z")))).toBe(90);
+    // The reserve opens at SAST midnight on the 3rd and closes at SAST midnight after the 9th.
+    expect(totalLimitFor(sastDay(new Date("2026-11-02T22:00:00.000Z")))).toBe(250);
+    expect(totalLimitFor(sastDay(new Date("2026-11-09T21:59:59.999Z")))).toBe(250);
+    expect(totalLimitFor(sastDay(new Date("2026-11-09T22:00:00.000Z")))).toBe(220);
   });
 });
 
 describe("reserve", () => {
   it("admits a call under both caps and refuses the day cap, the reserve and the total", async () => {
     expect(await reserve(db, row("2026-10-30", 5))).toMatchObject({ ok: true });
-    expect(await reserve(db, row("2026-10-30", 9.99))).toMatchObject({ ok: true });
+    expect(await reserve(db, row("2026-10-30", 44.99))).toMatchObject({ ok: true });
     expect(await reserve(db, row("2026-10-30", 0.02))).toEqual({ ok: false, cap: "day" });
-    // US$87 spent before the reserve days: a call that would reach into the held-back US$30 is refused.
+    // US$217.5 spent before the reserve days: a call that would reach into the held-back US$30 is refused.
     await db.prepare("DELETE FROM model_spend").run();
-    for (let d = 1; d <= 6; d++) await reserve(db, row(`2026-10-${String(d + 20).padStart(2, "0")}`, 14.5));
+    for (let d = 1; d <= 5; d++) await reserve(db, row(`2026-10-${String(d + 20).padStart(2, "0")}`, 43.5));
     expect(await reserve(db, row("2026-11-02", 4))).toEqual({ ok: false, cap: "reserve" });
     // On a reserve day it may be spent, within the day cap, up to the total.
     expect(await reserve(db, row("2026-11-03", 15))).toMatchObject({ ok: true });
@@ -60,21 +60,21 @@ describe("reserve", () => {
   });
 
   it("admits exactly what the allowance pays for when twenty reservations race", async () => {
-    // Room for seven calls at US$2 under the US$15 day cap (US$14), no more.
-    const outcomes = await Promise.all(Array.from({ length: 20 }, () => reserve(db, row("2026-10-31", 2))));
-    expect(outcomes.filter((o) => o.ok)).toHaveLength(7);
-    // Seven admitted, each refused attempt kept as its own record costing nothing (D03 T01 §3), and the day's count
-    // still exactly the seven.
+    // Room for ten calls at US$5 under the US$50 day cap, no more.
+    const outcomes = await Promise.all(Array.from({ length: 20 }, () => reserve(db, row("2026-10-31", 5))));
+    expect(outcomes.filter((o) => o.ok)).toHaveLength(10);
+    // Ten admitted, each refused attempt kept as its own record costing nothing (D03 T01 §3), and the day's count
+    // still exactly the ten.
     const rows = await db
       .prepare(
         "SELECT sum(state = 'reserved') AS admitted, sum(outcome = 'refused' AND actual_usd = 0) AS refused, sum(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END) AS counted FROM model_spend",
       )
       .first<{ admitted: number; refused: number; counted: number }>();
-    expect(rows).toEqual({ admitted: 7, refused: 13, counted: 14 });
+    expect(rows).toEqual({ admitted: 10, refused: 10, counted: 50 });
   });
 
   it("counts a lost answer at its estimate, and a settled call at its cost, once", async () => {
-    const lost = await reserve(db, row("2026-10-30", 10));
+    const lost = await reserve(db, row("2026-10-30", 45));
     if (!lost.ok) throw new Error("reserve");
     await markUncertain(db, lost.id);
     expect(await reserve(db, row("2026-10-30", 5.5))).toEqual({ ok: false, cap: "day" });
@@ -84,7 +84,7 @@ describe("reserve", () => {
     await settle(db, paid.id, 3.5);
     const settled = await db.prepare("SELECT actual_usd, state FROM model_spend WHERE id = ?").bind(paid.id).first();
     expect(settled).toEqual({ actual_usd: 1, state: "settled" });
-    // US$10 uncertain plus US$1 settled: US$4 left today.
+    // US$45 uncertain plus US$1 settled: US$4 left today.
     expect(await reserve(db, row("2026-10-30", 4))).toMatchObject({ ok: true });
   });
 });
@@ -139,10 +139,10 @@ describe("the statement for wrangler", () => {
 describe("the cap a refusal names (completion review)", () => {
   it("names the longer-lived cap when the day's is spent too, so no one is told to come back tomorrow in vain", async () => {
     const { refusingCap } = await import("../../src/meta/caps");
-    // US$15 spent today and US$90 in all before the reserve days: tomorrow is refused too.
-    expect(refusingCap(15, 90, 1, "2026-11-01")).toBe("reserve");
-    expect(refusingCap(15, 120, 1, "2026-11-03")).toBe("total");
-    expect(refusingCap(15, 40, 1, "2026-11-01")).toBe("day");
+    // US$50 spent today and US$220 in all before the reserve days: tomorrow is refused too.
+    expect(refusingCap(50, 220, 1, "2026-11-01")).toBe("reserve");
+    expect(refusingCap(50, 250, 1, "2026-11-03")).toBe("total");
+    expect(refusingCap(50, 40, 1, "2026-11-01")).toBe("day");
   });
 });
 

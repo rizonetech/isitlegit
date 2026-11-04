@@ -404,19 +404,19 @@ describe("the inference-only key (§12)", () => {
 
   // §12 plan review gap 3, on §14's ledger: a wake is the deployment's minutes, reserved at its worst case (the wait
   // and the 6-minute tail) before anything is sent, and settled at the last request plus the tail.
-  it("reserves each wake in the day's 30 minutes before sending, settles it, and refuses one that would pass them", async () => {
+  it("reserves each wake in the cumulative allowance before sending, settles it, and refuses one that would pass them", async () => {
     const at = Date.parse("2026-10-31T10:00:00Z");
     const { fetcher, sent } = fake([200], 403);
     await checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger);
     expect(book.rows()).toEqual([
       { day: "2026-10-31", purpose: "key-check", reserved_minutes: 21, used_minutes: 6, source: "local" },
     ]);
-    // Through 2026-10-31 the ledger may hold 60 (30 a day on average, one day ahead, §34): at 56 minutes, the next
+    // Through 2026-10-31 the ledger may hold 120 (60 a day on average, one day ahead): at 116 minutes, the next
     // 21-minute wake is refused, and nothing is sent for it.
-    await reserveWake(ledger, "monitor", 50, new Date(at));
+    await reserveWake(ledger, "monitor", 110, new Date(at));
     const before = sent.length;
     await expect(checkInferenceKey("1.0", "key", fetcher, 15 * 60_000, noSleep, () => at, ledger)).rejects.toThrow(
-      /through 2026-10-31 the deployment would hold 77 of its 60 minutes/,
+      /through 2026-10-31 the deployment would hold 137 of its 120 minutes/,
     );
     expect(sent.length).toBe(before);
     expect(book.rows()).toHaveLength(2);
@@ -432,10 +432,10 @@ describe("the inference-only key (§12)", () => {
         source: "worker",
         caller: "monitor",
         purpose: "monitor",
-        minutes: 50,
+        minutes: 110,
       }),
     ).toMatchObject({ ok: true });
-    await expect(reserveWake(ledger, "warm-up", 12, at)).rejects.toThrow(/would hold 62 of its 60 minutes/);
+    await expect(reserveWake(ledger, "warm-up", 12, at)).rejects.toThrow(/would hold 122 of its 120 minutes/);
     const dir = mkdtempSync(join(tmpdir(), "glimmer-import-"));
     try {
       const file = join(dir, "deployment-minutes.json");
@@ -577,11 +577,11 @@ describe("the command line, deadlines, days, reuse, progress and diagnosis (§12
       { day: "2026-10-31", minutes: 1 },
       { day: "2026-11-01", minutes: 14 },
     ]);
-    // The next day already holds 80 minutes of its 90 through it (§34): a 15-minute wake from 23:59 would take it to 95.
+    // The next day already holds 170 minutes of its 180 through it: a 15-minute wake from 23:59 would take it to 185.
     const full = memoryLedger();
-    await reserveWake(full.exec, "monitor", 80, new Date("2026-11-01T06:00:00Z"));
+    await reserveWake(full.exec, "monitor", 170, new Date("2026-11-01T06:00:00Z"));
     await expect(reserveWake(full.exec, "key-check", 15, at)).rejects.toThrow(
-      /through 2026-11-01 the deployment would hold 95 /,
+      /through 2026-11-01 the deployment would hold 185 /,
     );
     const book = memoryLedger();
     const wake = await reserveWake(book.exec, "key-check", 20, at);
@@ -694,7 +694,7 @@ describe("round 1: the ledger lock, the bounded probe, and eval-up after eval-do
   it("gives the last minutes of a day to one of two wakes at once, and refuses with nothing reserved when D1 fails", async () => {
     const book = memoryLedger();
     const at = new Date("2026-10-31T10:00:00Z");
-    await reserveWake(book.exec, "monitor", 48, at);
+    await reserveWake(book.exec, "monitor", 108, at);
     const both = await Promise.allSettled([
       reserveWake(book.exec, "key-check", 12, at),
       reserveWake(book.exec, "warm-up", 12, at),
@@ -1155,7 +1155,7 @@ describe("reconciling an abandoned reservation (§35)", () => {
     await expect(reserveWake(exec, "key-check", 21, AT, join(blocked, "wakes"))).rejects.toThrow();
     expect((await ledgerStatus(exec, AT)).held_today).toBe(0);
     // A reservation the ledger refuses leaves no evidence behind.
-    await reserveWake(exec, "monitor", 60, AT, evidence);
+    await reserveWake(exec, "monitor", 150, AT, evidence);
     await expect(reserveWake(exec, "key-check", 40, AT, evidence)).rejects.toThrow(/refused/);
     expect(readdirSync(evidence).length).toBe(1);
     // Evidence with no reservation (a stop between the two) is refused by name.
