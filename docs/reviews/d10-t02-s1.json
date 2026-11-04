@@ -1,0 +1,127 @@
+{
+  "ref": "D10 T02 \u00a71",
+  "title": "Patch vulnerable media Zod",
+  "implementation_sha": "9ac83a116b56ebc600c5d4ae669e3af31403d8a4",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "`cd media && node --test tools/zod-security.test.mjs && pnpm exec tsc --noEmit && pnpm test:capture && pnpm test:kit` exits0; `python3 -m unittest discover -s media/tools` and `python3 scripts/check-publication.py` pass; frozen offline install retains exact4.6.7 and the dependency diff contains no broad upgrades. -> 6 security/Remotion tests,8 capture unit tests,2 kit tests,60 Python tests pass; TypeScript and publication pass; frozen offline ignored-scripts install succeeds; all Zod resolutions4.6.7, lock delta only Zod; no root upgrade or media generation."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/10-media/D10-T02-s1.md",
+    "verdict": "complete",
+    "candidate": "9ac83a116b56ebc600c5d4ae669e3af31403d8a4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/10-media/D10-T02-s1.md",
+    "candidate": "db4e8a201519d3512001375cc648034f28206168",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

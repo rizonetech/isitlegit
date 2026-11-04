@@ -2,7 +2,7 @@
 schema_version: 1
 id: media-dependency-security
 domain: 10-media
-status: active
+status: done
 title: "Media dependency security"
 track: day-6
 ---
@@ -31,7 +31,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Patch vulnerable media Zod | -- | [ ] |
+| 1 | §1 | Patch vulnerable media Zod | -- | [x] |
 
 ## 1. Patch vulnerable media Zod
 
@@ -55,6 +55,9 @@ Coordinator MEDIA-ZOD-SECURITY authorizes this narrow remediation for alerts63/6
 - [x] Commit: `media: patch Zod constrained collection vulnerability`
 
 **Test checkpoint:** `cd media && node --test tools/zod-security.test.mjs && pnpm exec tsc --noEmit && pnpm test:capture && pnpm test:kit` exits0; `python3 -m unittest discover -s media/tools` and `python3 scripts/check-publication.py` pass; frozen offline install retains exact4.6.7 and the dependency diff contains no broad upgrades.
+
+> **Verified:** 2026-11-04 | §1 | 9ac83a116b56ebc600c5d4ae669e3af31403d8a4
+> **Review:** `docs/reviews/d10-t02-s1.json`
 
 ## Verification
 
