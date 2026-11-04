@@ -683,3 +683,152 @@ it("retains the reservation when a configured new cohort loses its required diag
   expect(t.state.slots[0]?.costUsd).toBe(ALLOWANCE);
   expect(() => validateState({ ...historical, configuration: t.state.configuration })).toThrow("diagnostic");
 });
+
+it("preserves optional driver terminal metadata through report validation", () => {
+  const state = validateState(
+    JSON.parse(readFileSync("eval/frontier/multistep-recovery20261104-results.json", "utf8")),
+  );
+  const driverDiagnostic = { operation: "interception.fulfill", category: "protocol", networkCode: "ECONNRESET" };
+  const report = ReportSchema.parse({ ...state.slots[0]?.report, driverDiagnostic });
+  expect(report).toHaveProperty("driverDiagnostic", driverDiagnostic);
+});
+
+import { terminalDriverDiagnostic } from "../../eval/frontier/multistep-observation.ts";
+
+it("keeps producer terminal attribution separate from adapter cleanup failures", async () => {
+  const terminal = { operation: "interception.fulfill", category: "protocol", networkCode: "ECONNRESET" };
+  const captured = await captureExecution(async (at) =>
+    at("walk", async () => ({ outcome: "error", reason: "TypeError", diagnostic: terminal })),
+  );
+  const kept = terminalDriverDiagnostic(captured.result);
+  const base = validateState(JSON.parse(readFileSync("eval/frontier/multistep-recovery20261104-results.json", "utf8")));
+  const report = ReportSchema.parse({
+    ...base.slots[0]?.report,
+    diagnostic: captured.diagnostic,
+    driverDiagnostic: kept,
+    followupDiagnostics: [{ stage: "browser-close", category: "timeout", source: "exception" }],
+  });
+  expect(report.driverDiagnostic).toEqual(terminal);
+  expect(report.diagnostic?.category).toBe("runtime-error");
+  expect(report.followupDiagnostics?.[0]?.category).toBe("timeout");
+  expect(terminalDriverDiagnostic(undefined)).toBeUndefined();
+  expect(terminalDriverDiagnostic({})).toBeUndefined();
+  expect(
+    terminalDriverDiagnostic({ diagnostic: { operation: "containment.popup-close", category: "unknown" } }),
+  ).toEqual({ operation: "containment.popup-close", category: "unknown" });
+});
+
+it("rejects hostile driver metadata without reflecting it or settling its reservation", async () => {
+  const terminal = { operation: "navigation.goto", category: "error", networkCode: "ERR_CONNECTION_RESET" };
+  const secret = "synthetic_private_sentinel";
+  const malformed: unknown[] = [
+    null,
+    [],
+    secret,
+    {},
+    { operation: "action" },
+    { category: "error" },
+    ...["operation", "category", "networkCode"].map((key) => ({ ...terminal, [key]: secret })),
+    ...["message", "url", "headers", "dom", "canary", "cause"].map((key) => ({ ...terminal, [key]: secret })),
+  ];
+  for (const diagnostic of malformed) {
+    expect(() => terminalDriverDiagnostic({ diagnostic })).toThrow("invalid driver diagnostic");
+    try {
+      terminalDriverDiagnostic({ diagnostic });
+    } catch (error) {
+      expect(String(error)).not.toContain(secret);
+    }
+    const t = experiment(),
+      perform = t.d.perform;
+    t.d.perform = async (...args) => ({ ...ReportSchema.parse(await perform(...args)), driverDiagnostic: diagnostic });
+    await expect(runNext(t.state, t.d)).rejects.toThrow();
+    expect(t.state.slots[0]?.status).toBe("pending");
+    expect(t.state.slots[0]?.costUsd).toBe(ALLOWANCE);
+    expect(t.settlements()).toBe(0);
+    expect(t.calls()).toBe(1);
+    await expect(runNext(t.state, t.d)).rejects.toThrow("reconcile");
+    expect(t.calls()).toBe(1);
+  }
+});
+
+it("round trips driver metadata through real child/state files and interrupted settlement without replay", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "driver-metadata-"));
+  try {
+    const t = experiment(),
+      perform = t.d.perform,
+      settle = t.d.budget.settle;
+    const terminal = { operation: "view.read", category: "unknown" };
+    const child = join(dir, "child.json"),
+      stateFile = join(dir, "state.json");
+    t.d.perform = async (...args) => {
+      const report = {
+        ...ReportSchema.parse(await perform(...args)),
+        driverDiagnostic: terminalDriverDiagnostic({ diagnostic: terminal }),
+      };
+      writeFileSync(child, JSON.stringify({ testResults: [{ assertionResults: [{ meta: { multistep: report } }] }] }));
+      return readChildReport(child, args[0], args[1]);
+    };
+    t.d.save = (state) => atomicState(stateFile, state);
+    t.d.budget.settle = async () => {
+      throw new Error("settlement interrupted");
+    };
+    await expect(runNext(t.state, t.d)).rejects.toThrow("settlement interrupted");
+    const resumed = validateState(JSON.parse(readFileSync(stateFile, "utf8")));
+    expect(resumed.slots[0]?.report?.driverDiagnostic).toEqual(terminal);
+    t.d.budget.settle = settle;
+    await reconcile(resumed, t.d);
+    await reconcile(resumed, t.d);
+    const final = validateState(JSON.parse(readFileSync(stateFile, "utf8")));
+    expect(final.slots[0]?.report?.driverDiagnostic).toEqual(terminal);
+    expect(t.calls()).toBe(1);
+    expect(t.settlements()).toBe(1);
+    const report = final.slots[0]?.report;
+    expect(scoreWalk(report)).toEqual(scoreWalk({ ...report, driverDiagnostic: undefined }));
+    const envelope = JSON.parse(readFileSync(child, "utf8"));
+    envelope.testResults[0].assertionResults[0].meta.multistep.driverDiagnostic.networkCode = "not-allowed";
+    writeFileSync(child, JSON.stringify(envelope));
+    expect(() => readChildReport(child, 1, "reservation-1")).toThrow();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("preserves both legacy supplements and verifies every present driver metadata field", () => {
+  const published = readFileSync("docs/frontier-log.md", "utf8");
+  for (const [path, expected] of [
+    [
+      "eval/frontier/multistep-results-2026-11-04.json",
+      "a95aac8db68b9bf64b98c7911450f286ed556819147f54d600f0704cf3b48c18",
+    ],
+    [
+      "eval/frontier/multistep-recovery20261104-results.json",
+      "c8641eb58b014f5c6db88ffcd44cd87ac07f0e92b5de61b19b3fb2799a120561",
+    ],
+  ] as const) {
+    const bytes = readFileSync(path),
+      state = validateState(JSON.parse(bytes.toString()));
+    expect(sha256(bytes)).toBe(expected);
+    expect(renderSupplement(state)).not.toContain("driverDiagnostic");
+    expect(published).toContain(renderSupplement(state).trim());
+    const slot = state.slots[0];
+    if (!slot?.report) throw new Error("fixture observation missing");
+    slot.report.driverDiagnostic = {
+      operation: "navigation.goto",
+      category: "error",
+      networkCode: "ERR_CONNECTION_RESET",
+    };
+    const core = render(state),
+      supplement = renderSupplement(state),
+      next = core + supplement;
+    expect(() => verifyPublished(state, core, next)).not.toThrow();
+    expect(() => verifyPublished(state, core, core)).toThrow();
+    const omitted = structuredClone(state);
+    if (omitted.slots[0]?.report) delete omitted.slots[0].report.driverDiagnostic;
+    expect(() => verifyPublished(state, core, core + renderSupplement(omitted))).toThrow();
+    for (const [key, value] of Object.entries(slot.report.driverDiagnostic)) {
+      const field = `${JSON.stringify(key)}: ${JSON.stringify(value)}`;
+      expect(() => verifyPublished(state, core, next.replace(field, ""))).toThrow();
+      expect(() => verifyPublished(state, core, next.replace(field, `${JSON.stringify(key)}: "altered"`))).toThrow();
+    }
+  }
+});

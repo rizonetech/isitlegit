@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { Budget } from "../../src/meta/guard.ts";
 import { estimateUsd } from "../../src/meta/pricing.ts";
+import { DriverDiagnostic } from "../../src/walkthrough/diagnostics.ts";
 import { IMAGES_KEPT, MAX_OUTPUT_TOKENS, MODEL } from "../../src/walkthrough/limits.ts";
 import { DiagnosticSchema } from "./multistep-observation.ts";
 
@@ -44,6 +45,7 @@ export const ReportSchema = z.strictObject({
   ordinal: z.number().int().min(1).max(5),
   reservationId: Id,
   diagnostic: DiagnosticSchema.optional(),
+  driverDiagnostic: DriverDiagnostic.optional(),
   followupDiagnostics: z.array(DiagnosticSchema).max(2).optional(),
   outcome: z.enum([
     "finished",

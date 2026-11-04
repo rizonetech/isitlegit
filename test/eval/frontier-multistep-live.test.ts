@@ -3,7 +3,11 @@ import { env } from "cloudflare:workers";
 import puppeteer, { type Browser } from "@cloudflare/puppeteer";
 import { describe, it } from "vitest";
 import { arrivalEvidence, observedTransport, type Report, ReportSchema } from "../../eval/frontier/multistep-core";
-import { captureExecution, exceptionDiagnostic } from "../../eval/frontier/multistep-observation";
+import {
+  captureExecution,
+  exceptionDiagnostic,
+  terminalDriverDiagnostic,
+} from "../../eval/frontier/multistep-observation";
 import { ulid } from "../../src/db/ulid";
 import { canaryFor } from "../../src/walkthrough/canary";
 import { dohResolve } from "../../src/walkthrough/url-policy";
@@ -100,6 +104,7 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
         }
       }
       const report = ReportSchema.parse({
+        driverDiagnostic: terminalDriverDiagnostic(result),
         diagnostic,
         followupDiagnostics,
         ordinal,

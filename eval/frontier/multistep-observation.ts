@@ -1,5 +1,6 @@
 // Experiment diagnostics retain only finite categories, never content or arbitrary error text.
 import { z } from "zod";
+import { DriverDiagnostic } from "../../src/walkthrough/diagnostics.ts";
 
 export const StageSchema = z.enum([
   "unknown",
@@ -89,5 +90,15 @@ export async function captureExecution<T extends { outcome: string; reason?: str
     return { result, diagnostic: resultDiagnostic(stage, result) };
   } catch (error) {
     return { diagnostic: exceptionDiagnostic(stage, error) };
+  }
+}
+
+// Read only the producer-selected terminal metadata, never raw reasons or later action rows.
+export function terminalDriverDiagnostic(result: { diagnostic?: unknown } | undefined): DriverDiagnostic | undefined {
+  try {
+    if (result?.diagnostic === undefined) return undefined;
+    return DriverDiagnostic.parse(result.diagnostic);
+  } catch {
+    throw new Error("invalid driver diagnostic");
   }
 }

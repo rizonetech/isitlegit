@@ -97,6 +97,7 @@ export function renderSupplement(state: State) {
     ordinal: slot.ordinal,
     diagnostic: slot.report?.diagnostic ?? UNKNOWN_DIAGNOSTIC,
     followupDiagnostics: slot.report?.followupDiagnostics ?? [],
+    ...(slot.report?.driverDiagnostic ? { driverDiagnostic: slot.report.driverDiagnostic } : {}),
   }));
   return `## Wonder configuration and diagnostics: ${state.id}\n\nConfigured from immutable source ${state.sourceSha}; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.\n\nConfiguration:\n\n\`\`\`json\n${JSON.stringify(config, null, 2)}\n\`\`\`\n\nDiagnostics:\n\n\`\`\`json\n${JSON.stringify(diagnostics, null, 2)}\n\`\`\`\n\nMissing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.\n`;
 }
