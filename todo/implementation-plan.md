@@ -519,7 +519,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
-| [ ]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
+| [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 412/597 verified sections, 115 ready to run now.
+Progress: 413/597 verified sections, 115 ready to run now.
 
-Checklist: 3032/3688 items completed (includes Commit items).
+Checklist: 3035/3688 items completed (includes Commit items).
