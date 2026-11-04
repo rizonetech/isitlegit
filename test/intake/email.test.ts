@@ -422,7 +422,6 @@ describe("handleEmail", () => {
     const stopped = message(from);
     const orphan = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
     if (!orphan.ok) throw new Error(orphan.error.message);
-    await env.ARTEFACTS.put(rawKey(orphan.value.id), stopped.bytes);
     await db
       .prepare(
         "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
@@ -436,6 +435,45 @@ describe("handleEmail", () => {
     const ids = (await casesOf(orgId)).map((c) => c.id);
     expect(ids.sort()).toEqual([first.value.id, orphan.value.id, (result as { caseId: string }).caseId].sort());
     expect((await claimsOf(orgId)).map((c) => c.state)).toEqual(["done", "done"]);
+  });
+
+  it.each([true, false])("preserves an orphan mail object's identity (valid metadata: %s)", async (validMetadata) => {
+    const { orgId, from } = await member();
+    const stopped = message(from);
+    const orphan = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
+    if (!orphan.ok) throw new Error(orphan.error.message);
+    const caseId = orphan.value.id;
+    await env.ARTEFACTS.put(
+      rawKey(caseId),
+      stopped.bytes,
+      validMetadata ? { httpMetadata: { contentType: "message/rfc822" } } : undefined,
+    );
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, 'pending', ?, ?)",
+      )
+      .bind(
+        orgId,
+        `email:id:${stopped.messageId}`,
+        caseId,
+        new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString(),
+      )
+      .run();
+    if (validMetadata) {
+      expect(await handleEmail(stopped.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
+      expect(await workflowExists(caseId)).toBe(true);
+      expect((await claimsOf(orgId))[0]?.state).toBe("done");
+      await ran(caseId);
+    } else {
+      await expect(handleEmail(stopped.forwardable, mailEnv)).rejects.toThrow("media type is unavailable");
+      expect(await workflowExists(caseId)).toBe(false);
+      expect((await claimsOf(orgId))[0]?.state).toBe("pending");
+      expect(await statusOf(caseId)).toBe("received");
+    }
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([caseId]);
+    expect((await claimsOf(orgId))[0]?.case_id).toBe(caseId);
+    expect(await env.ARTEFACTS.get(rawKey(caseId))).not.toBeNull();
+    expect((await failedStep(caseId)).some((event) => event.error === "RawMissing")).toBe(false);
   });
 
   it("caps a Free organisation at its plan's 5 a day, its notice naming 5 (D07 T08 §8)", async () => {
@@ -960,7 +998,6 @@ describe("sweepIntake", () => {
     const orphan = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
     if (!started.ok || !orphan.ok) throw new Error("admission failed");
     await env.ANALYSIS.create({ id: started.value.id, params: { caseId: started.value.id } });
-    await env.ARTEFACTS.put(rawKey(orphan.value.id), new TextEncoder().encode("raw"));
     const insert = (org: string, key: string, state: string, caseId: string | null, claimedAt: string) =>
       db
         .prepare("INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, ?, ?, ?, ?)")
