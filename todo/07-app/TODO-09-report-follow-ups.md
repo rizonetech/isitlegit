@@ -55,7 +55,7 @@ track: day-2
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
 | 18 | §18 | Playback failure, retry and follow-along | §6 | [ ] |
-| 19 | §19 | Diagnostic detail on the early card | §1 | [ ] |
+| 19 | §19 | Diagnostic detail on the early card | §1 | [x] |
 | 20 | §20 | Masked bank-block preview on invoice cards | D07 T03 §15 | [ ] |
 | 21 | §21 | Baseline provenance on bank comparisons | D07 T03 §15 | [ ] |
 
@@ -585,6 +585,9 @@ Filed 2026-11-03 from D07 T09 §1's completion review: Microsoft Defender's auth
 **Corrected 2026-11-04 (plan review):** specifies the exact fields read from `auth.spf`, `auth.dkim`, `auth.dmarc` and `auth.results` (`compauth` and per-method props), keeps each result's identifier, outcome and reason paired on its own line for multi-result items, names `"reason not recorded"` / `"Policy: not recorded"` when a failed or inconclusive result stores none, and adds browser layout/overflow/accessibility verification in `test/node/report-status-browser.test.tsx`.
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with the recorded detail drawn.
+
+> **Verified:** 2026-11-04 | §19 | e9bd6e4142585cab5844b3b2c955de28e1bcc8fa
+> **Review:** `docs/reviews/d07-t09-s19.json`
 
 ## 20. Masked bank-block preview on invoice cards
 

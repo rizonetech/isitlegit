@@ -1,0 +1,111 @@
+{
+  "ref": "D07 T09 \u00a719",
+  "title": "Diagnostic detail on the early authentication card",
+  "implementation_sha": "e9bd6e4142585cab5844b3b2c955de28e1bcc8fa",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T09-s19.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 8 pnpm exec vitest run --project worker test/web/report-status.test.ts -> 52 passed (52)",
+    "taskset -c 8 pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx -t early -> 2 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T09-s19.md",
+    "verdict": "completed",
+    "candidate": "e703029c177feb6f527021a54daf48dd31c83a15",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 3,
+  "cap_outcome": "Round 3 returned P3 only (no P1 or P2 findings); stopped-low-severity per schedule (own-property lookup on COMPAUTH_REASONS folded into D07 T09 \u00a72).",
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T09-s19.md",
+    "candidate": "08d2dedf5463166950370cd5c88e5cd28c0e2261",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

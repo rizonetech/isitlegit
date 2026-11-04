@@ -626,7 +626,7 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
 | [ ]    | D07 T09 §18 | Playback failure, retry and follow-along for the voice note | none                 | 3     |
-| [ ]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
+| [x]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 408/597 verified sections, 118 ready to run now.
+Progress: 409/597 verified sections, 117 ready to run now.
 
 Checklist: 3031/3688 items completed (includes Commit items).
