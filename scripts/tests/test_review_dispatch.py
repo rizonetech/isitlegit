@@ -1765,7 +1765,9 @@ class Reconciliation(unittest.TestCase):
         self.git('config', 'user.email', 'test@example.invalid')
         (self.root / '.conclave').mkdir()
         pin = REPO_PIN.read_text()
-        pin = re.sub(r'\n\[reconciliation_extensions\]\n.*?(?=\n\[|\Z)', '', pin, flags=re.S)
+        # External authorization commits belong to the real repository, never this synthetic Git history.
+        pin = re.sub(r'\n\[reconciliation_(?:extensions|exceptions)(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)',
+                     '', pin, flags=re.S)
         pin = re.sub(r'^self_review_policy = .*\n|^plan_transition = .*\n', "", pin, flags=re.M)
         pin = re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)', "", pin, flags=re.S)
         if 'reconciliation = ["codex"]' not in pin:
@@ -2682,6 +2684,43 @@ class ExactExceptions(Reconciliation):
         base=re.sub(r'\n\[reconciliation_exceptions(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)','',pinpath.read_text(),flags=re.S)
         pinpath.write_text(base+'\n[reconciliation_exceptions.'+json.dumps(report)+']\n'+''.join(k+' = '+json.dumps(v)+'\n' for k,v in self.auth_identity.items()))
         self.commit(); self.pin=d.pin_blob(pinpath.read_bytes()); self.entry['pin']=self.pin
+
+    def test_external_authorizations_do_not_enter_synthetic_chain(self):
+        original = REPO_PIN.read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            seed = Path(directory) / 'reviewers.toml'
+            base = re.sub(r'\n\[reconciliation_(?:extensions|exceptions)(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)',
+                          '', original.decode(), flags=re.S)
+            seed.write_text(base + '\n[reconciliation_extensions]\n'
+                            '"docs/reviews/01-intake/D01-T03-s15.md" = "0123456789abcdef"\n'
+                            '[reconciliation_exceptions]\n'
+                            '[reconciliation_exceptions."docs/reviews/01-intake/D01-T03-s15.md"]\n'
+                            'path = "docs/reviews/01-intake/D01-T03-s15-exception.json"\n'
+                            'commit = "' + '1' * 40 + '"\nblob = "' + '2' * 40 + '"\n')
+            seeded_bytes = seed.read_bytes()
+            seeded = tomllib.loads(seed.read_text())
+            fixture = ExactExceptions('test_exception_authorized_exact_binding_and_returned_result')
+            self.addCleanup(fixture.doCleanups)
+            with unittest.mock.patch(__name__ + '.REPO_PIN', seed):
+                fixture.setUp()
+                initial = tomllib.loads(fixture.git('show', fixture.sha + ':.conclave/reviewers.toml'))
+                self.assertNotIn('reconciliation_extensions', initial)
+                self.assertNotIn('reconciliation_exceptions', initial)
+                for key in ('routes', 'reviewers', 'self_review', 'reconciliation'):
+                    self.assertEqual(initial[key], seeded[key])
+                self.assertEqual(initial['schedule'],
+                                 {key: value for key, value in seeded['schedule'].items() if key != 'combined'})
+                for kind in ('contract-amendment', 'exhausted-chain-successor'):
+                    with self.subTest(kind=kind):
+                        if kind != fixture.exception_kind:
+                            fixture.setup_case(kind)
+                        fixture.authorize_exception()
+                        entry = fixture.record(fixture.binding(fixture.target))
+                        fixture.commit()
+                        self.assertEqual(fixture.module.validate_reconciliation_series(
+                            fixture.root, fixture.report.read_text())[-1], entry)
+                self.assertEqual(seed.read_bytes(), seeded_bytes)
+        self.assertEqual(REPO_PIN.read_bytes(), original)
 
     def test_exception_authorized_exact_binding_and_returned_result(self):
         for kind in ('contract-amendment','exhausted-chain-successor'):
