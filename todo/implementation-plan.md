@@ -589,7 +589,7 @@ Sections: 229 | Checklist items: 1043
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
 | [ ]    | D07 T04 §37 | Gateway relay range settings                                | third-party          | 7     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
-| [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
+| [x]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
 | [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
 | [ ]    | D07 T05 §6  | Independent gateway relay revision review                   | third-party          | 7     |
 | [ ]    | D07 T05 §7  | Admin typeahead design proposal                             | none                 | 4     |
@@ -681,6 +681,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 425/605 verified sections, 114 ready to run now.
+Progress: 426/605 verified sections, 114 ready to run now.
 
 Checklist: 3111/3744 items completed (includes Commit items).

@@ -33,7 +33,7 @@ track: day-6
 | 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [x] |
 | 3 | §3 | Service health tiles on | §2 | [ ] |
-| 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
+| 4 | §4 | Find organisations by domain or ID | §2 | [x] |
 | 5 | §5 | Filter the organisations | §2 | [ ] |
 | 6 | §6 | Independent gateway relay revision review | §2 | [ ] |
 | 7 | §7 | Admin typeahead design proposal | §4 | [ ] |
@@ -163,6 +163,9 @@ The overview search matches the organisation name only (D07 T05 §2), so the ope
 - [x] Commit: `admin: find organisations by domain or ID`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a domain search returns no row.
+
+> **Verified:** 2026-11-04 | §4 | d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074
+> **Review:** `docs/reviews/d07-t05-s4.json`
 
 ## 5. Filter the organisations
 
