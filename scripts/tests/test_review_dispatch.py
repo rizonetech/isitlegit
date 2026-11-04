@@ -2229,6 +2229,46 @@ class TwoPass(unittest.TestCase):
         result = {**self.entry, 'effort':self.combined_effort, 'review':reply, 'lenses':self.module.COMBINED_LENSES[:-1]}
         return args, pin, result
 
+    def test_cli_completion_uses_committed_original_plan_pin_after_live_pin_change(self):
+        self.plan()
+        args, _, result = self.runner()
+        original_pin = self.root / 'original-pin.toml'
+        original_pin.write_text(self.new_pin_text)
+        live = self.root / '.conclave/reviewers.toml'
+        live.write_text(self.new_pin_text + '\n# unrelated newer authorization\n')
+        self.sha = self.commit()
+        live_bytes = live.read_bytes()
+        with unittest.mock.patch.object(self.module, 'review', return_value=result) as reviewer:
+            code = self.module.main(['--writer','codex','--kind','completion','--pin',str(original_pin),
+                                     '--record',str(self.report),'--candidate',self.sha,'--prompt',args.prompt])
+        self.assertEqual(code, 0)
+        self.assertEqual(reviewer.call_count, 1)
+        self.assertEqual(live.read_bytes(), live_bytes)
+        chain = self.module.validate_codex_chain(self.root, self.report.read_text())
+        self.assertEqual(chain['completion']['pin'], self.pin)
+        self.assertEqual(chain['plan']['pin'], self.pin)
+        self.assertIsNone(chain['transition'])
+        self.commit()
+        self.module.validate_codex_chain(self.root, self.report.read_text())
+
+    def test_selected_completion_pin_refuses_wrong_plan_pin_or_unreachable_pin(self):
+        self.plan()
+        args, _, result = self.runner()
+        live = self.root / '.conclave/reviewers.toml'
+        original = live.read_text()
+        live.write_text(original + '\n# another committed pin\n')
+        self.commit()
+        wrong_pin = self.module.pin_blob(live.read_bytes())
+        with self.assertRaisesRegex(self.module.Refused, 'share one pin'):
+            self.module.make_completion_binding(self.root, self.report, self.sha, pin_id=wrong_pin)
+        self.git('checkout', '-b', 'unmerged-pin')
+        live.write_text(original + '\n# unreachable pin\n')
+        self.commit()
+        unreachable_pin = self.module.pin_blob(live.read_bytes())
+        self.git('checkout', '-')
+        with self.assertRaisesRegex(self.module.Refused, 'not committed in current history'):
+            self.module.make_completion_binding(self.root, self.report, self.sha, pin_id=unreachable_pin)
+
     def test_normal_completion_recovers_same_response_after_write_failure(self):
         self.plan()
         args, pin, result = self.runner()
@@ -2870,6 +2910,20 @@ class ExactExceptions(Reconciliation):
                     self.module.run_reconciliation(args,pin,self.pin)
                 reviewer.assert_not_called()
         path.write_text(saved);self.commit()
+
+    def test_historical_selected_pin_cannot_revive_revoked_exception(self):
+        path = self.root / '.conclave/reviewers.toml'
+        before_authorization = path.read_bytes()
+        self.authorize_exception()
+        args, historical_pin, _ = self.dispatch_exception()
+        historical_id = self.pin
+        path.write_bytes(before_authorization)
+        self.commit()
+        with unittest.mock.patch.object(self.module, 'review') as reviewer:
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args, historical_pin, historical_id)
+            reviewer.assert_not_called()
+        self.assertEqual(path.read_bytes(), before_authorization)
 
     def test_exception_unresolved_invocation_remains_blocked(self):
         self.authorize_exception();args,pin,result=self.dispatch_exception()

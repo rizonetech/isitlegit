@@ -1766,7 +1766,7 @@ def validate_plan_transition_history(root, report, plan, prefix, current_text):
                                "a committed reconciliation attempt was removed at " + commit)
 
 
-def make_completion_binding(root, record_path, candidate, transition_plan=False):
+def make_completion_binding(root, record_path, candidate, transition_plan=False, pin_id=None):
     root = Path(root).resolve()
     report, contract_path, number = _completion_location(root, record_path)
     text = (root / report).read_bytes().decode("utf-8")
@@ -1781,9 +1781,11 @@ def make_completion_binding(root, record_path, candidate, transition_plan=False)
     else:
         prefix = text.encode()
     plan, attempts = _completion_plan(prefix.decode())
-    pin = load_pin(Path(root) / ".conclave/reviewers.toml")
-    pin_id = pin_blob((root / ".conclave/reviewers.toml").read_bytes())
-    _reconcile_pin(root, pin_id)
+    # Dispatch may select the original committed plan pin without changing the live pin.
+    # Replay still requires the completion and original two-pass plan to name that same pin.
+    if pin_id is None:
+        pin_id = pin_blob((root / ".conclave/reviewers.toml").read_bytes())
+    pin = _reconcile_pin(root, pin_id)
     _reconcile_require(review_policy(pin, "codex") == "codex-two-pass-v1", "combined completion needs explicit two-pass policy")
     for attempt in attempts:
         _reconcile_identity(root, attempt)
@@ -2037,7 +2039,7 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
         surface = args.surface
     else:
         check_self_review_order("completion", args.record, pin)
-        binding = make_completion_binding(ROOT, args.record, args.candidate, transition_plan=getattr(args, "transition_plan", False))
+        binding = make_completion_binding(ROOT, args.record, args.candidate, transition_plan=getattr(args, "transition_plan", False), pin_id=pin_id)
         surface = combined_surface(ROOT, args.record, args.candidate)
     _reconcile_pin(ROOT, pin_id)
     plan = scheduled(pin["schedule"], kind, [], surface, policy=review_policy(pin, args.writer) or "legacy")
