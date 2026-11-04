@@ -77,7 +77,7 @@ track: day-0
 | 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
 | 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
 | 38 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
-| 39 | §40 | Email recovery fixtures on reviewed ablation integration | D01 T03 §17, D04 T01 §17 | [ ] |
+| 39 | §40 | Email recovery fixtures on reviewed ablation integration | D01 T03 §17, D04 T01 §17 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1299,12 +1299,15 @@ Filed 2026-11-04 by coordinator authorization. The isolated integration composes
 2. Repair only `test/intake/email.test.ts` using the separately accounted-for `bc92181d` correction. Done when: both RawMissing fixtures omit the stored object, preserving their existing missing-file assertions; added valid/invalid metadata cases prove retained identity and fail-closed recovery through actual intake.
 3. Verify the integration and preserve its evidence. Done when: affected tests and local gates pass, all reviewed source bytes and historical receipts remain exact, and no CI/deployment or live ablation claim is inferred from local tests.
 
-- [ ] Correct the two RawMissing fixtures in `test/intake/email.test.ts` to represent truly absent R2 storage. Done when: red failures become green without changing production admission/store behavior, removing missing-file assertions or weakening error handling. Cheaper substitute: expect missing for a retained object, rejected because it contradicts the approved recovery contract.
-- [ ] Add valid-MIME and missing-MIME orphan object cases through `handleEmail`. Done when: valid `message/rfc822` metadata recovers the same case, completes its claim and starts its Workflow, then reads through the real store to assert original bytes, message/rfc822 MIME and the same case-owned artefact row; missing metadata refuses with no Workflow, retains pending claim, received case and object, and never records RawMissing or creates another case. Cheaper substitute: mock recovery, rejected because the R2/D1/claim boundary must be exercised.
-- [ ] Verify email/store/upload/ablation-upload, case-experiment/consumer/Workflow, vision/standalone-image, logo-tools and walkthrough-trigger suites plus unchanged floor/citations/injection tests; run typecheck, dry build, scoped lint, local migration0095, publication and TODO gates. Done when: measured results are recorded against the exact candidate, original receipts and all 23 reviewed paths remain byte-exact, and broader CI remains the coordinator release gate. Cheaper substitute: email-only green, rejected because shared admission and Workflow consumers must compose.
-- [ ] Commit: `test: reconcile email recovery fixtures with reviewed admission`
+- [x] Correct the two RawMissing fixtures in `test/intake/email.test.ts` to represent truly absent R2 storage. Done when: red failures become green without changing production admission/store behavior, removing missing-file assertions or weakening error handling. Cheaper substitute: expect missing for a retained object, rejected because it contradicts the approved recovery contract.
+- [x] Add valid-MIME and missing-MIME orphan object cases through `handleEmail`. Done when: valid `message/rfc822` metadata recovers the same case, completes its claim and starts its Workflow, then reads through the real store to assert original bytes, message/rfc822 MIME and the same case-owned artefact row; missing metadata refuses with no Workflow, retains pending claim, received case and object, and never records RawMissing or creates another case. Cheaper substitute: mock recovery, rejected because the R2/D1/claim boundary must be exercised.
+- [x] Verify email/store/upload/ablation-upload, case-experiment/consumer/Workflow, vision/standalone-image, logo-tools and walkthrough-trigger suites plus unchanged floor/citations/injection tests; run typecheck, dry build, scoped lint, local migration0095, publication and TODO gates. Done when: measured results are recorded against the exact candidate, original receipts and all 23 reviewed paths remain byte-exact, and broader CI remains the coordinator release gate. Cheaper substitute: email-only green, rejected because shared admission and Workflow consumers must compose.
+- [x] Commit: `test: reconcile email recovery fixtures with reviewed admission`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts test/intake/store.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts` passes, including both genuine missing-raw cases and valid/invalid orphan metadata cases; the valid-MIME case reads the original bytes/MIME and case-owned artefact row through the store, and a temporary causal mutation that skips row restoration fails these assertions even with a Workflow created; the affected consumer and frozen safety suites pass with reviewed production source unchanged.
+
+> **Verified:** 2026-11-04 | §40 | 2ce00d58b6cf1e3d6dd45ffa875959070e1048d8
+> **Review:** `docs/reviews/d00-t01-s40.json`
 
 ## Verification
 

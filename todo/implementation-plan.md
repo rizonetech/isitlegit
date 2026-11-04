@@ -314,7 +314,7 @@ Sections: 116 | Checklist items: 724
 | [x]    | D03 T02 §6  | Ablation flag in page screening                           | none                  | 2     |
 | [x]    | D03 T03 §6  | Ablation flag in segmentation                             | none                  | 2     |
 | [x]    | D04 T01 §17 | Immutable per-case model ablation consumers               | none                  | 7     |
-| [ ]    | D00 T01 §40 | Email recovery fixtures on reviewed ablation integration  | none                  | 4     |
+| [x]    | D00 T01 §40 | Email recovery fixtures on reviewed ablation integration  | none                  | 4     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                          | none                  | 2     |
 | [x]    | D04 T02 §10 | Multi-step evaluation fixture routes                      | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                             | none                  | 4     |
@@ -687,6 +687,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 436/611 verified sections, 111 ready to run now.
+Progress: 437/611 verified sections, 110 ready to run now.
 
-Checklist: 3156/3768 items completed (includes Commit items).
+Checklist: 3160/3768 items completed (includes Commit items).
