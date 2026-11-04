@@ -165,7 +165,7 @@ function webp(b: Uint8Array): boolean {
 // something a browser could run. The message part is the parsed plain-text body as sent (`source: "plain"`), and only a
 // message with no plain part falls back to the stored visible text (`source: "visible"`: hidden text and instruction-like
 // phrases taken out); the headers part is the stored header list in the order received, one `Name: value` a line. A part
-// never written is `text: null`; both parts are cut to the first 200 KB (UTF-8 bytes, at a whole character).
+// never written is `text: null`; the message is cut to 200 KB; headers use revision-bound slices of at most 200 KB.
 const VIEW_LIMIT = 200 * 1024;
 const encoder = new TextEncoder();
 // The text cut to its first 200 KB (bytes, as UTF-8) at a whole character, never inside one.
@@ -184,7 +184,30 @@ const hasHtml = (summary: { html?: unknown; truncated?: unknown }) =>
   typeof summary.html === "string" ||
   (Array.isArray(summary.truncated) &&
     summary.truncated.some((t) => (t as { mediaType?: unknown })?.mediaType === "text/html"));
-async function originalView(store: Store, id: string, part: ViewPart) {
+type HeaderCursor = { offset: number; revision: string | null };
+class HeaderViewError extends Error {
+  constructor(readonly status: 400 | 409) {
+    super("Invalid header cursor");
+  }
+}
+function headerCursor(params: URLSearchParams): HeaderCursor | null {
+  const offsets = params.getAll("offset");
+  const revisions = params.getAll("revision");
+  const raw = offsets[0] ?? "0";
+  const offset = Number(raw);
+  const revision = revisions[0] ?? null;
+  if (
+    offsets.length > 1 ||
+    revisions.length > 1 ||
+    !/^(0|[1-9][0-9]*)$/.test(raw) ||
+    !Number.isSafeInteger(offset) ||
+    (revision !== null && !/^[a-f0-9]{64}$/.test(revision)) ||
+    (offset > 0 && revision === null)
+  )
+    return null;
+  return { offset, revision };
+}
+async function originalView(store: Store, id: string, part: ViewPart, cursor: HeaderCursor) {
   let summary = null as { text?: unknown; headers?: unknown; html?: unknown; truncated?: unknown } | null;
   const parsed = await readArtefact(store, id, parsedKey(id));
   if (parsed && "body" in parsed) {
@@ -221,6 +244,31 @@ async function originalView(store: Store, id: string, part: ViewPart) {
       source = "visible";
     }
   }
+  if (part === "headers") {
+    const bytes = text === null ? null : encoder.encode(text);
+    const revision =
+      bytes === null
+        ? null
+        : Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), (b) =>
+            b.toString(16).padStart(2, "0"),
+          ).join("");
+    if (cursor.revision !== null && cursor.revision !== revision) throw new HeaderViewError(409);
+    const offset = cursor.offset;
+    if (offset > (bytes?.length ?? 0) || (bytes && offset < bytes.length && ((bytes[offset] ?? 0) & 0xc0) === 0x80))
+      throw new HeaderViewError(400);
+    let end = Math.min(offset + VIEW_LIMIT, bytes?.length ?? 0);
+    if (bytes) while (end > offset && end < bytes.length && ((bytes[end] ?? 0) & 0xc0) === 0x80) end--;
+    const nextOffset = bytes && end < bytes.length ? end : null;
+    return {
+      part,
+      text: bytes === null ? null : new TextDecoder().decode(bytes.subarray(offset, end)),
+      source,
+      truncated: nextOffset !== null,
+      offset,
+      nextOffset,
+      revision,
+    };
+  }
   return { part, ...cut(text), source };
 }
 
@@ -235,6 +283,10 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
   params.delete("inline");
   const view = url.searchParams.get("view");
   params.delete("view");
+  if (key === rawKey(id) && (view === "message" || view === "headers")) {
+    params.delete("offset");
+    params.delete("revision");
+  }
   const search = params.size > 0 ? `?${params}` : "";
   const hasLink = ["o", "e", "s"].some((name) => params.has(name));
   let renewed: string[] = [];
@@ -316,17 +368,35 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       const age = Date.now() - Date.parse(owned.createdAt);
       return answer(artefactGone(back, age > RETENTION_DAYS * 24 * 60 * 60 * 1000));
     }
-    if (wantsView && (view === "message" || view === "headers"))
-      return answer(
-        new Response(JSON.stringify(await originalView(store, id, view)), {
-          headers: {
-            ...HEADERS,
-            "content-type": "application/json; charset=utf-8",
-            "x-content-type-options": "nosniff",
-            "content-security-policy": "sandbox; default-src 'none'",
-          },
-        }),
-      );
+    if (wantsView && (view === "message" || view === "headers")) {
+      const cursor = headerCursor(url.searchParams);
+      if (!cursor || (view === "message" && (url.searchParams.has("offset") || url.searchParams.has("revision"))))
+        return answer(new Response(null, { status: 400, headers: HEADERS }));
+      try {
+        const data = await originalView(store, id, view, cursor);
+        return answer(
+          new Response(JSON.stringify(data), {
+            headers: {
+              ...HEADERS,
+              "content-type": "application/json; charset=utf-8",
+              "x-content-type-options": "nosniff",
+              "content-security-policy": "sandbox; default-src 'none'",
+            },
+          }),
+        );
+      } catch (error) {
+        if (!(error instanceof HeaderViewError)) throw error;
+        return answer(
+          new Response(null, {
+            status: error.status,
+            headers: {
+              ...HEADERS,
+              ...(error.status === 409 ? { "x-artefact-state": "changed" } : {}),
+            },
+          }),
+        );
+      }
+    }
     // Only a preview peeks without the body, and it has answered above.
     if (!("body" in file)) return answer(errorPage(404, id));
     const image = inline && RENDERED.has(file.stored.kind) ? passiveImage(file.body) : null;

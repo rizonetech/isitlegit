@@ -1,5 +1,5 @@
 {
- "approved": "2026-11-02",
+ "approved": "2026-11-04",
  "source": "",
  "ui_css_sha256": "724e5c002735411f26a1fc3a87557383eea2e27e26ac25a3b280973571092cce",
  "boards": {
@@ -439,7 +439,7 @@
    "title": "M3 Report: original message preview",
    "w": 1440,
    "h": 2260,
-   "sha256": "dc6f685b0f3936bb14e2b01fda92293638b24aa0021dc41c99ea6c758c9fceb3"
+   "sha256": "6efa1cb188cdf4c7eeee1d778a85234e6380966c6a56e6a90504834d16627cd1"
   },
   "Report-Running-Early": {
    "title": "M3 Report: early authentication results",
