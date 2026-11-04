@@ -592,6 +592,8 @@ Coordinator explicitly assigns narrow screening flag wiring to checks. Loupe rem
 
 ## 19. Queued verification and guarded delivery refresh
 
+> **Started:** 2026-11-04T09:25:16.824262+00:00
+
 Coordinator assignments console-scope-ownership and verification-joint-integration, 4 November 2026. Resolves the real caller and publication integration for console D05 T03 §1. Checks exclusively owns the shared Workflow, registry, evidence-store guard and narrow scheduled refresh after reconcileUncertain. Console owns its service, migration0093 and tests. Contract input is docs/verification-request-contract.md at exact console commit9a6e9cac19a3a0059da7a859ed1dad5a3f7cb1d9; this is unreviewed integration input, not a completed prerequisite. Reply handling remains D05 T03 §2.
 
 **Phase:** 6
