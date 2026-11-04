@@ -385,6 +385,7 @@ export async function reserveWake(
   at: Date,
   evidenceDir: string = wakeEvidenceDir(),
   deployment: string = DEPLOYMENT,
+  rate?: number,
 ): Promise<Wake> {
   const id = `local:${purpose}:${at.toISOString()}:${randomUUID()}`;
   // The evidence comes first: a reservation then never exists without it, so a failed write (a full disk) reserves nothing,
@@ -396,15 +397,19 @@ export async function reserveWake(
     wake_at: at.toISOString(),
     last_deadline_at: null,
   });
-  const reserved = await reserveBurst(ledger, {
-    id,
-    at,
-    source: "local",
-    caller: "deploy.ts",
-    purpose,
-    minutes,
-    deployment,
-  });
+  const reserved = await reserveBurst(
+    ledger,
+    {
+      id,
+      at,
+      source: "local",
+      caller: "deploy.ts",
+      purpose,
+      minutes,
+      deployment,
+    },
+    rate,
+  );
   if (!reserved.ok) {
     // Evidence goes only with a refusal the ledger made: when it could not be reached, the reservation may have landed
     // anyway (an insert that succeeded and a read-back that did not), and its evidence is what `reconcile` needs.
