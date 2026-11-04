@@ -263,7 +263,9 @@ def paired(reader, directory, part, role, archive_root=None):
                     original_meta = reader.object(archive / "meta.json", role + f"/archive-meta-{number}")
                     if original_meta is not None:
                         host = original_meta.get("host")
-                        if "host" not in original_meta or not (host is None or isinstance(host, str)) or original_meta.get("source") != meta.get("source") or obj(original_meta.get("sha256")).get("screenshot") != sha(image) or obj(original_meta.get("sha256")).get("text") != sha(original_text):
+                        if not {"host", "source", "sha256"} <= original_meta.keys() or not {"screenshot", "text"} <= obj(original_meta.get("sha256")).keys():
+                            reader.issue("missing_archive_metadata", role, "incomplete", line=number)
+                        elif not (host is None or isinstance(host, str)) or original_meta.get("source") != meta.get("source") or obj(original_meta.get("sha256")).get("screenshot") != sha(image) or obj(original_meta.get("sha256")).get("text") != sha(original_text):
                             reader.issue("archive_metadata_mismatch", role, line=number)
                         elif texts[0] != f"Host: {host if host is not None else 'none'}\n\n" + page_block(original_text.decode("utf-8"), nonce):
                             reader.issue("archive_request_mismatch", role, line=number)
@@ -326,6 +328,9 @@ def provenance(reader, store, version, summary, ids, counts):
         if not isinstance(row, dict):
             continue
         source, item, items = row.get("source"), row.get("item"), row.get("items")
+        if not {"id", "source", "item", "items"} <= row.keys():
+            reader.issue("missing_heldout_source_items", role, "incomplete", line=number)
+            continue
         if not isinstance(source, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,40}", source) or "item" not in row or not (item is None or isinstance(item, str) and bool(item)) or not isinstance(items, list) or not all(isinstance(x, str) and x for x in items) or len(items) != len(set(x for x in items if isinstance(x, str))) or not isinstance(row.get("id"), str) or not row["id"].startswith(source + "-"):
             reader.issue("invalid_heldout_source_items", role, line=number)
     if version + "/heldout-items" in reader.files and (len(held_ids) != len(set(x for x in held_ids if isinstance(x, str))) or set(x for x in held_ids if isinstance(x, str)) != ids):

@@ -108,6 +108,18 @@ class Audit(unittest.TestCase):
         write_json(self.dataset / "summary.json", self.summary)
         self.assertIn("missing_freeze", self.codes())
 
+    def test_absent_archive_fields_are_incomplete_not_conflicting(self):
+        write_json(self.dataset / "pages" / self.rows["eval"]["id"] / "meta.json", {"host": None, "labels": {}})
+        issues = self.run_audit()["issues"]
+        self.assertTrue(any(i["code"] == "missing_archive_metadata" and i["kind"] == "incomplete" for i in issues))
+        self.assertFalse(any(i["code"] == "archive_metadata_mismatch" for i in issues))
+
+    def test_absent_heldout_items_are_incomplete_not_conflicting(self):
+        write_json(self.store / "raw/dataset/1.1.heldout-items.jsonl", {"id": self.rows["eval"]["id"], "source": "fixture", "item": None})
+        issues = self.run_audit()["issues"]
+        self.assertTrue(any(i["code"] == "missing_heldout_source_items" and i["kind"] == "incomplete" for i in issues))
+        self.assertFalse(any(i["code"] == "invalid_heldout_source_items" for i in issues))
+
     def test_legacy_missing_floors_remain_incomplete(self):
         reader = audit.Reader()
         summary = dict(self.summary)
@@ -166,7 +178,7 @@ class Audit(unittest.TestCase):
 
     def test_id_only_heldout_items_do_not_prove_source_protection(self):
         write_json(self.store / "raw/dataset/1.1.heldout-items.jsonl", {"id": self.rows["eval"]["id"]})
-        self.assertIn("invalid_heldout_source_items", self.codes())
+        self.assertIn("missing_heldout_source_items", self.codes())
 
     def test_reference_json_is_validated_even_when_digest_matches(self):
         ref = self.dataset / "reference"
