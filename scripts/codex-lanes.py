@@ -96,10 +96,14 @@ def command(status: dict, session: str | None = None) -> list[str]:
     if status["problems"]:
         raise LaneError("; ".join(status["problems"]))
     name = status["lane"]
-    role = ("Act as the coordinator on main. Coordinate the existing lanes, own shared tooling and CI, "
-            "and merge only at verified stamp boundaries. Do not build product sections on main."
+    role = ("Act as the coordinator on main. Own the fixed twelve-hour delivery deadline and decision authority "
+            "in AGENTS.md. You may raise project caps, approve project spend, resolve decisions and reassign "
+            "work without routine operator approval. Coordinate lanes, own shared tooling and CI, and merge "
+            "at verified stamp boundaries. Respect later user corrections and stop requests."
             if name == "main" else
-            f"Act as the {name} lane. Work only the sections assigned to this lane in todo/lanes.json.")
+            f"Act as the {name} lane. Work only the sections assigned to this lane in todo/lanes.json. "
+            "Follow the coordinator's recorded delivery decisions and fixed deadline in AGENTS.md; "
+            "escalate cap changes and cross-lane decisions to it. Respect later user corrections and stop requests.")
     handover_files = (
         "~/isitlegit-data/handover/coordinator-outbox.md, ~/isitlegit-data/handover/system-state.md "
         "and ~/isitlegit-data/handover/operator-actions.md"
