@@ -20,6 +20,6 @@ Check junk mail and the email address you entered. Use **Send another link** whe
 
 ## What the demo proves
 
-The examples show the investigation workflow and its evidence. Read any checks-not-run messages. A fresh five-case check on 4 November matched the fixtures' expected verdicts, but reports still disclosed checks that did not run. Version-specific measurements and limits are in the [Loupe model card](glimmer/model-card.md) and [release status](glimmer/release-status.md). This walkthrough is not a claim that every model ran or that detection is perfect.
+The examples show the investigation workflow and its evidence. Read any checks-not-run messages. A fresh five-case check on 4 November matched the fixtures' expected verdicts, but reports still disclosed checks that did not run. Version-specific measurements and limits are in the [archived Loupe experiment model card](glimmer/model-card.md) and [release status](glimmer/release-status.md). This walkthrough is not a claim that every model ran or that detection is perfect.
 
 Developers who want to run the code locally can use the separate [local setup instructions](../README.md#run-the-worker-locally).

@@ -1,5 +1,8 @@
 # Phishing and invoice-fraud analyser: design
 
+**Operating decision, 4 November 2026:** Loupe is disabled for production calls and decisions in this release. The existing validated Muse Spark Standard page-screening path runs directly; no automatic Fireworks Spark Open fallback is implemented. All Loupe hosting is shut down; its training artifacts and failed experiment evidence remain archived. Application deployment verification is recorded separately in `docs/glimmer/release-status.md`. Historical Loupe design and cost decisions below are retained as history and superseded for current operation. Deterministic safety floors and evidence/schema validation remain unchanged. Reversal requires explicit enablement, redeployment and new quality qualification, not merely starting a deployment.
+
+
 Status: draft, 2026-10-26. Owner: Derick Payne (Rizonetech). Entry: Meta Global AI Developer Hackathon, Startup track, solo. Product name: **IsItLegit** (domain `isitlegit.co.za`, intake address `check@isitlegit.co.za`).
 
 Sources: `sources/cerebralvalley/2026-10-26-digest.md` (rules, judging), `sources/discord/2026-10-26-rules-raw.md` (banned project types, demo rules), `sources/meta-api/2026-10-26-meta-model-api.md` (Meta Model API: models, API shape, pricing, data terms).

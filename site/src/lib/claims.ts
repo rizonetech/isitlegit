@@ -164,10 +164,10 @@ export const claims = {
   "privacy.what.security": { text: "Sign-in and security records, to keep accounts safe.", owners: ["D07 T02 §6"] },
   "privacy.what.members": { text: "We accept mail only from members' verified addresses and domains.", owners: ["D01 T01 §3"] },
   "privacy.training": {
-    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. That training copy is not deleted after 30 days, and closing your account does not remove it; we have not set a fixed period for it. Loupe, the model that screens lookalike websites, is also trained on public web pages, and public lookalike pages the monitor finds are kept to train Loupe with no fixed expiry; a business can ask for its findings' pages to be removed.",
+    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. That training copy is not deleted after 30 days, and closing your account does not remove it; we have not set a fixed period for it. The archived Loupe training experiment also used public web pages. Public lookalike pages retained for model research have no fixed expiry; a business can ask for its findings' pages to be removed. Retiring Loupe does not change these retention terms.",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
-  "privacy.screening": { text: "When Loupe screens a website for you, it receives that public page only.", owners: ["D05 T04 §3"] },
+  "privacy.screening": { text: "When Muse Spark screens a lookalike website for you, it receives that public page only.", owners: ["D05 T04 §3"] },
   "privacy.keep.raw": { text: "30 days, then deleted automatically", owners: ["D00 T01 §5", "D01 T01 §2"] },
   "privacy.keep.derived": { text: "Kept with the case, not deleted at 30 days", owners: ["D01 T01 §2"] },
   "privacy.keep.case": {
@@ -185,7 +185,7 @@ export const claims = {
   "privacy.p.smtp2go": { text: "Your address and the verdict summary", owners: ["D01 T02 §1"] },
   "privacy.p.webrisk": { text: "Links with the query string removed", owners: ["D02 T06 §1"] },
   "privacy.p.fireworks": {
-    text: "Public web pages when screening a site; in training, public web pages and forwarded mail with your address and name removed and other genuine mail redacted",
+    text: "Historical Loupe inference used public web pages. Archived training used public web pages and forwarded mail with your address and name removed and other genuine mail redacted. Loupe hosting is shut down; archived training retention is unchanged.",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.protected": {
@@ -210,7 +210,7 @@ export const claims = {
     owners: ["D05 T02 §7", "D05 T02 §8"],
   },
   "protect.monitor": {
-    text: "Every day we try lookalikes of your domains. Loupe screens each live page cheaply, and only suspect pages get the full check. You get the evidence and a takedown pack with the registrar, host and abuse contacts.",
+    text: "Every day we try lookalikes of your domains. Muse Spark screens each live page, and only suspect pages get the full check. You get the evidence and a takedown pack with the registrar, host and abuse contacts.",
     owners: ["D05 T04 §1", "D05 T04 §2", "D05 T04 §3", "D05 T04 §5"],
   },
   "protect.bank": {
@@ -302,7 +302,7 @@ export const claims = {
     owners: ["D05 T01 §2", "D05 T02 §2", "D01 T03 §1"],
   },
   "about.built.models": {
-    text: "Each check uses the Meta model that fits the job: Muse Spark for reading rendered mail and invoices and weighing the evidence, Muse Wonder for walking suspicious links in a sealed browser, SAM 3.1 for finding brand logos on pages, and Muse Voice Transcribe for voice notes, alongside Loupe, our tuned page screener, a LoRA of Muse Glimmer 30B on Fireworks AI.",
+    text: "Each check uses the Meta model that fits the job: Muse Spark for reading rendered mail and invoices and weighing the evidence, Muse Wonder for walking suspicious links in a sealed browser, SAM 3.1 for finding brand logos on pages, and Muse Voice Transcribe for voice notes, with Muse Spark also screening lookalike pages. Loupe, our Muse Glimmer 30B fine-tuning experiment, is archived after unsuccessful diagnostics and is no longer part of production screening.",
     owners: ["D01 T03 §4", "D03 T02 §3", "D03 T03 §3", "D03 T04 §11", "D04 T01 §4", "D04 T02 §4", "D05 T04 §3"],
   },
 } as const satisfies Record<string, { text: string; owners: readonly string[] }>;

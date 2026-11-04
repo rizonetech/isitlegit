@@ -81,18 +81,18 @@ IsItLegit is built by [Rizonetech](https://www.rizonetech.com/), a managed IT pr
 
 | Model | Role and execution location | Provider and source |
 | ----- | --------------------------- | ------------------- |
-| Muse Spark 1.3 | Worker-side verdict reasoning, invoice extraction, reference-logo comparison and page-screening fallback/second look | Meta Model API through Cloudflare AI Gateway; [`src/agent/loop.ts`](src/agent/loop.ts), [`src/invoice/extract.ts`](src/invoice/extract.ts), [`src/vision/logo-compare.ts`](src/vision/logo-compare.ts), [`src/monitor/second-look.ts`](src/monitor/second-look.ts) |
+| Muse Spark 1.3 | Worker-side verdict reasoning, invoice extraction, reference-logo comparison, direct page screening and second look | Meta Model API through Cloudflare AI Gateway; [`src/agent/loop.ts`](src/agent/loop.ts), [`src/invoice/extract.ts`](src/invoice/extract.ts), [`src/vision/logo-compare.ts`](src/vision/logo-compare.ts), [`src/monitor/second-look.ts`](src/monitor/second-look.ts) |
 | Muse Wonder 1.0 | Chooses actions for the contained Browser Run walkthrough; the driver enforces canary and navigation limits | Meta Model API through AI Gateway; [`src/walkthrough/wonder.ts`](src/walkthrough/wonder.ts), [`src/walkthrough/driver.ts`](src/walkthrough/driver.ts) |
 | SAM 3.1 | Segments image regions used by the vision pipeline; Spark performs the reference-logo comparison | Meta Model API through AI Gateway; [`src/vision/sam.ts`](src/vision/sam.ts) |
-| Loupe, a Muse Glimmer 30B LoRA | Unsuccessful fine-tuning experiment; removal from production calls and decisions authorized, live verification pending | Dedicated Fireworks inference through AI Gateway; [`src/vision/glimmer-active.json`](src/vision/glimmer-active.json), [`src/vision/glimmer-request.ts`](src/vision/glimmer-request.ts), [training and limits](docs/glimmer/model-card.md) |
+| Loupe, a Muse Glimmer 30B LoRA | Archived unsuccessful fine-tuning experiment; disabled in this release, deployment verification pending | Historical Fireworks training and inference; [`src/vision/glimmer-active.json`](src/vision/glimmer-active.json), [`src/vision/glimmer-request.ts`](src/vision/glimmer-request.ts), [training and limits](docs/glimmer/model-card.md) |
 | Muse Image 1.0 | Offline synthetic doctored-document fixture generation, not a model call on every investigation | Meta Model API image-edit endpoint through AI Gateway; [`scripts/fixtures/make-doctored.ts`](scripts/fixtures/make-doctored.ts) |
 | Muse Voice Transcribe 1.0 | Transcribes decoded voice-note audio for subsequent checks in the Worker workflow | Meta Model API transcription endpoint through AI Gateway; [`src/voice/transcribe.ts`](src/voice/transcribe.ts) |
 
-The [Meta client](src/meta/client.ts) accepts pinned Standard model IDs and forces `store: false` on Responses requests. Gateway request headers disable payload logging. Fireworks uses a separate client and deployment configuration; model-provider inference is not local inference inside the Worker. The full safety contract remains in [AGENTS.md](AGENTS.md), and the intended model map is in section 9 of the [design spec](docs/specs/2026-10-26-phishing-invoice-analyser-design.md).
+The [Meta client](src/meta/client.ts) accepts pinned Standard model IDs and forces `store: false` on Responses requests. Gateway request headers disable payload logging. Loupe used a separate Fireworks client and deployment configuration; its hosting is shut down and this release disables production calls. Model-provider inference is not local inference inside the Worker. The full safety contract remains in [AGENTS.md](AGENTS.md), and the intended model map is in section 9 of the [design spec](docs/specs/2026-10-26-phishing-invoice-analyser-design.md).
 
 ## How it is built
 
-One Cloudflare Worker in TypeScript: Email Routing for intake, Workflows for the investigation steps, D1, R2 and KV for storage, Browser Run for rendering, and Meta Model API plus Fireworks inference through AI Gateway. Services, versions and secrets are in the [tech stack spec](docs/specs/2026-10-26-tech-stack-design.md).
+One Cloudflare Worker in TypeScript: Email Routing for intake, Workflows for the investigation steps, D1, R2 and KV for storage, Browser Run for rendering, and Meta Model API inference through AI Gateway. Services, versions and secrets are in the [tech stack spec](docs/specs/2026-10-26-tech-stack-design.md).
 
 The build runs through a validated TODO graph. Check it with Python 3.11 or newer:
 

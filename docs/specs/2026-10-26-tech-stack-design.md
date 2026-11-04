@@ -1,5 +1,8 @@
 # Tech stack: phishing and invoice-fraud analyser
 
+**Operating decision, 4 November 2026:** Loupe is disabled for production calls and decisions in this release. The existing validated Muse Spark Standard page-screening path runs directly; no automatic Fireworks Spark Open fallback is implemented. All Loupe hosting is shut down; its training artifacts and failed experiment evidence remain archived. Application deployment verification is recorded separately in `docs/glimmer/release-status.md`. Historical Loupe design and cost decisions below are retained as history and superseded for current operation. Deterministic safety floors and evidence/schema validation remain unchanged. Reversal requires explicit enablement, redeployment and new quality qualification, not merely starting a deployment.
+
+
 Status: decided 2026-10-26, before the first commit. Companion to `2026-10-26-phishing-invoice-analyser-design.md`. Versions checked against npm and the Cloudflare docs on 2026-10-26; pin exact versions at scaffold time.
 
 ## Principles

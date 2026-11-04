@@ -54,10 +54,10 @@ describe("Privacy and POPIA", () => {
     const training = element(what, /<div data-training/, "training");
     has(training, "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published.", "training");
     has(training, "That training copy is not deleted after 30 days, and closing your account does not remove it", "training retention");
-    has(training, "public lookalike pages the monitor finds are kept to train Loupe with no fixed expiry; a business can ask for its findings' pages to be removed.", "monitor lookalike training retention and removal");
+    has(training, "Public lookalike pages retained for model research have no fixed expiry; a business can ask for its findings' pages to be removed.", "monitor lookalike training retention and removal");
     assert.doesNotMatch(text(html), /We use it only to investigate/, "the summary contradicts the training disclosure");
     assert.doesNotMatch(text(html), /We do not train any model on the mail you forward/i, "the page denies training on forwarded mail");
-    has(training, "When Loupe screens a website for you, it receives that public page only.", "training");
+    has(training, "When Muse Spark screens a lookalike website for you, it receives that public page only.", "training");
     assert.doesNotMatch(text(html), /synthetic/i, "the page mentions synthetic lures");
     assert.doesNotMatch(text(html), /never use your mail to train|no model is ever trained/i, "the page promises no training at all");
   });
@@ -92,9 +92,10 @@ describe("Privacy and POPIA", () => {
     assert.match(processors.find((row) => row.startsWith("Google Web Risk")) ?? "", /Links with the query string removed/);
   });
 
-  it("agrees with itself on Fireworks: public pages in production, redacted forwarded mail only in training, no assurance beyond Fireworks' own", () => {
+  it("agrees with itself on Fireworks: historical public-page inference, redacted forwarded mail only in archived training, no assurance beyond Fireworks' own", () => {
     const fireworks = rows(region(html, "processors")).find((row) => row.startsWith("Fireworks AI")) ?? "";
-    assert.match(fireworks, /Public web pages when screening a site; in training, public web pages and forwarded mail with your address and name removed/);
+    assert.match(fireworks, /Historical Loupe inference used public web pages. Archived training used public web pages and forwarded mail with your address and name removed/);
+    assert.match(fireworks, /Loupe hosting is shut down; archived training retention is unchanged/);
     const statement = element(region(html, "processors"), /<p data-fireworks/, "Fireworks statement");
     has(statement, "Fireworks states in its published data handling terms that it does not log or store prompt or generation data for open models unless a customer opts in.", "the Fireworks statement");
     linkTo(statement, FIREWORKS_DATA.url, "published data handling terms", "the Fireworks statement");
