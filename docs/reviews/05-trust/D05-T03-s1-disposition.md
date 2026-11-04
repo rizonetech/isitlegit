@@ -1,0 +1,9 @@
+# D05 T03 §1 completion disposition
+
+2026-11-04: Genuine MEDIUM combined completion on d62287b0f8f8637b867d216aa8e4b4f9258f0ad4 returned gaps, digest b1a5dd6c960d1271. Original plan f0875818, digest0ec30ac98e5ae08b, its pre-code corrections and all3233prefix bytes remain unchanged. No stamp or repair approval is claimed.
+
+Blocking P2 verified against source: src/mail/smtp2go.ts catches claim INSERT/retry/read failures and returns failed with attempts0; src/trust/verify-request.ts maps this to unavailable; the checks adapter returns successfully after publication. The actual Workflow therefore does not retry a transient claim storage error. The original contract requires storage failures to throw. Reviewer reports a fresh in-memory fault probe; this disposition independently verifies source flow, not a new runtime reproduction.
+
+Owning repair requires preserving a typed storage-failure distinction at the shared sender boundary and propagating it through the console service, while preserving transport refusal/uncertainty, privacy, idempotent claims and all other callers. Checks owns the actual queued integration regression. Required falsifiable proof: injected claim-write failure rejects the queued attempt with no transport; after recovery the same persisted request/token sends exactly once; further retries do not duplicate delivery. Source/service and shared-caller ownership must be assigned by coordinator before edits to the frozen matched candidate. No output-string matching, blanket throwing of legitimate provider outcomes or test weakening.
+
+Repair is pending. All original requirements remain in scope. After authorized owning-layer repair and targeted gates, commit exact disposition and request supported first reconciliation; never repeat the ordinary completion. No reconciliation invoked. Separate Checks §19 review and joint release remain pending; external historical diagnostics receipt is not approval of this candidate.
