@@ -774,3 +774,119 @@ describe("exhausted tools", () => {
     expect(unflooredView.meaning).toBe("The model's own unfloored malicious sentence.");
   });
 });
+
+describe("persisted validation diagnostics", () => {
+  it("preserves rejected JSON and citation metadata across the shared two-answer budget", async () => {
+    const caseId = await newCase([
+      draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
+    ]);
+    const m = model([
+      () => message("done"),
+      () => message("PRIVATE invalid JSON"),
+      () => final({ ...ANSWER, cited_evidence_ids: ["E999"], explanation: "Private content [E999]." }),
+    ]);
+    const { ctx } = agent(caseId, m.fetchStub);
+    const view = await runAgent(ctx, caseId);
+    expect(view.source).toBe("rules");
+    expect(m.calls()).toBe(3);
+    const rows = (
+      await env.DB.prepare(
+        "SELECT diagnostic_json FROM model_validation_diagnostics WHERE case_id = ? ORDER BY attempt, phase DESC",
+      )
+        .bind(caseId)
+        .all<{ diagnostic_json: string }>()
+    ).results;
+    const diagnostics = rows.map((r) => JSON.parse(r.diagnostic_json));
+    expect(diagnostics).toEqual([
+      {
+        phase: "structured",
+        callId: expect.any(String),
+        attempt: 1,
+        remaining: 1,
+        issues: [{ category: "json_invalid", path: [] }],
+      },
+      {
+        phase: "citation",
+        callId: expect.any(String),
+        attempt: 2,
+        remaining: 0,
+        issues: [{ category: "unknown_evidence_id", path: [] }],
+      },
+    ]);
+    expect(JSON.stringify(diagnostics)).not.toMatch(/PRIVATE|Private|E999/);
+  });
+  it("persists a citation failure then accepts a valid second answer", async () => {
+    const caseId = await newCase([
+      draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
+    ]);
+    const m = model([() => message("done"), () => final({ ...ANSWER, cited_evidence_ids: [] }), () => final(ANSWER)]);
+    const { ctx } = agent(caseId, m.fetchStub);
+    const view = await runAgent(ctx, caseId);
+    expect(view.source).toBe("agent");
+    expect(m.calls()).toBe(3);
+    const rows = (
+      await env.DB.prepare("SELECT diagnostic_json FROM model_validation_diagnostics WHERE case_id = ?")
+        .bind(caseId)
+        .all<{ diagnostic_json: string }>()
+    ).results;
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0]?.diagnostic_json ?? "null")).toMatchObject({
+      phase: "citation",
+      attempt: 1,
+      remaining: 1,
+      issues: [
+        { category: "no_citations", path: [] },
+        { category: "undeclared_marker", path: [] },
+      ],
+    });
+  });
+});
+
+for (const failureMode of ["reject", "stall"] as const) {
+  it(`keeps the repaired verdict when diagnostic persistence ${failureMode}s`, async () => {
+    const caseId = await newCase([
+      draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
+    ]);
+    const m = model([() => message("done"), () => message("bad JSON"), () => final(ANSWER)]);
+    const { ctx } = agent(caseId, m.fetchStub);
+    const pending: Promise<unknown>[] = [];
+    ctx.meta.waitUntil = (p) => {
+      pending.push(p);
+    };
+    let finish: (() => void) | undefined;
+    ctx.db = new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare")
+          return (sql: string) => {
+            if (!sql.startsWith("INSERT INTO model_validation_diagnostics")) return target.prepare(sql);
+            return {
+              bind: () => ({
+                first: () =>
+                  failureMode === "reject"
+                    ? Promise.reject(new Error("PRIVATE"))
+                    : new Promise((resolve) => {
+                        finish = () => resolve(null);
+                      }),
+              }),
+            };
+          };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const view = await runAgent(ctx, caseId);
+    expect(view.source).toBe("agent");
+    expect(m.calls()).toBe(3);
+    if (failureMode === "stall") {
+      expect(pending).toHaveLength(1);
+      finish?.();
+      await Promise.all(pending);
+    }
+    const failures = (
+      await env.DB.prepare("SELECT error_class FROM model_spend WHERE case_id = ? AND error_class = 'output-invalid'")
+        .bind(caseId)
+        .all()
+    ).results;
+    expect(failures).toHaveLength(1);
+  });
+}

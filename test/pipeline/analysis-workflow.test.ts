@@ -1,6 +1,7 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as agentModule from "../../src/agent/loop";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
 import type { ProtectedCandidates } from "../../src/checks/case-view";
 import { SummaryRefused } from "../../src/checks/case-view";
@@ -384,7 +385,10 @@ describe("AnalysisWorkflow", () => {
     // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
     // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "walkthrough", "vision", "invoice"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      ...["admit", "parse", "checks", "walkthrough", "vision", "invoice", "verification"].flatMap((s) => [
+        `${s}:started`,
+        `${s}:done`,
+      ]),
       "verdict:started",
       "agent:failed",
       "verdict:done",
@@ -453,8 +457,8 @@ describe("AnalysisWorkflow", () => {
     expect(reply).toMatchObject({ state: { status: "partial", failedStep: "checks" } });
   });
 
-  it("ends partial naming parse, store or reply when each fails on every attempt", async () => {
-    for (const step of ["parse", "store", "reply"] as const) {
+  it("ends partial naming parse, verification, store or reply when each fails on every attempt", async () => {
+    for (const step of ["parse", "verification", "store", "reply"] as const) {
       const id = await caseWith(forwards["inline-forward"]);
       await run(id, (m) => m.mockStepError({ name: step }, new Error("down"), 4));
       expect((await caseRow(id))?.status, step).toBe("partial");
@@ -818,7 +822,7 @@ describe("round 1 cases", () => {
     );
   });
 
-  it("resumes with admission through store cached, running only reply and finish", async () => {
+  it("resumes with core results cached and runs the remaining steps once", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
     expect((await saveVerdict(env.DB, id, STUB_VERDICT)).ok).toBe(true);
@@ -840,6 +844,8 @@ describe("round 1 cases", () => {
       "vision:done",
       "invoice:started",
       "invoice:done",
+      "verification:started",
+      "verification:done",
       "reply:started",
       "reply:done",
       "finish:started",
@@ -2637,4 +2643,131 @@ describe("several originals in one forward (D01 T01 §12)", () => {
     );
     expect(rendered).toContain(FLOOR_CONSEQUENCES.bank.replaceAll("'", "&#39;"));
   });
+});
+
+it("retains delayed validation writes through the production Workflow verdict caller", async () => {
+  const id = await caseWith(forwards["inline-forward"]);
+  await saveEvidence(env.DB, id, [
+    {
+      check: "link.credential_form",
+      severity: "high",
+      summary: "A sign-in form.",
+      detail: { page: "https://phish.example/signin" },
+      artefacts: [],
+    },
+  ]);
+  const good = {
+    verdict: "suspicious",
+    confidence: 0.8,
+    headline: "Check this request",
+    explanation: "A sign-in form is present [E1].",
+    cited_evidence_ids: ["E1"],
+    recommended_actions: ["Verify the sender."],
+    meaning: "Check through a known channel.",
+  };
+  const bodies = ["done", "PRIVATE invalid JSON", JSON.stringify(good)];
+  let calls = 0;
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          status: "completed",
+          output: [{ type: "message", content: [{ type: "output_text", text: bodies[calls++] }] }],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
+  );
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  let retained = 0;
+  let lifetimeSupplied = false;
+  const delayedDb = new Proxy(env.DB, {
+    get(target, property) {
+      if (property === "prepare")
+        return (sql: string) => {
+          const statement = target.prepare(sql);
+          if (!sql.startsWith("INSERT INTO model_validation_diagnostics")) return statement;
+          return {
+            bind: (...args: unknown[]) => ({
+              first: () =>
+                new Promise<void>((resolve) => setTimeout(resolve, 150)).then(() => statement.bind(...args).first()),
+            }),
+          };
+        };
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const originalRunAgent = agentModule.runAgent;
+  const agentSpy = vi.spyOn(agentModule, "runAgent").mockImplementation(async (ctx, caseId) => {
+    lifetimeSupplied = typeof ctx.meta.waitUntil === "function";
+    const retain = ctx.meta.waitUntil;
+    return originalRunAgent(
+      {
+        ...ctx,
+        db: delayedDb,
+        meta: {
+          ...ctx.meta,
+          ...(retain
+            ? {
+                waitUntil: (promise: Promise<unknown>) => {
+                  retained++;
+                  retain(promise);
+                },
+              }
+            : {}),
+        },
+      },
+      caseId,
+    );
+  });
+  const instance = await introspectWorkflowInstance(env.ANALYSIS, id);
+  try {
+    await instance.modify(async (m) => {
+      await m.disableRetryDelays();
+      await m.disableSleeps();
+      for (const name of ["checks", "walkthrough", "vision", "invoice", "verification"])
+        await m.mockStepResult({ name }, { skipped: true });
+      await m.mockStepResult({ name: "reply" }, { mail: "none" });
+    });
+    await env.ANALYSIS.create({ id, params: { caseId: id } });
+    await instance.waitForStatus("complete");
+    expect(await instance.getOutput()).toMatchObject({ state: { status: "ready", verdict: "suspicious" } });
+    expect(calls).toBe(3);
+    expect(await getVerdict(env.DB, id)).toMatchObject({ ok: true, value: { source: "agent" } });
+    expect(lifetimeSupplied).toBe(true);
+    expect(retained).toBe(1);
+    expect(errors.mock.calls).toEqual([["diagnostic-write-late"]]);
+    await vi.waitFor(async () => {
+      expect(
+        (await env.DB.prepare("SELECT call_id FROM model_validation_diagnostics WHERE case_id = ?").bind(id).all())
+          .results,
+      ).toHaveLength(1);
+    });
+    const rows = (
+      await env.DB.prepare("SELECT diagnostic_json FROM model_validation_diagnostics WHERE case_id = ?")
+        .bind(id)
+        .all<{ diagnostic_json: string }>()
+    ).results;
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0]?.diagnostic_json ?? "null")).toMatchObject({
+      phase: "structured",
+      attempt: 1,
+      remaining: 1,
+      issues: [{ category: "json_invalid", path: [] }],
+    });
+    expect(JSON.stringify(rows)).not.toContain("PRIVATE");
+    expect(
+      (
+        await env.DB.prepare("SELECT id FROM model_spend WHERE case_id = ? AND error_class = 'output-invalid'")
+          .bind(id)
+          .all()
+      ).results,
+    ).toHaveLength(1);
+  } finally {
+    await instance.dispose();
+    fetchSpy.mockRestore();
+    agentSpy.mockRestore();
+    errors.mockRestore();
+  }
 });

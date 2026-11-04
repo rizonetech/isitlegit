@@ -253,3 +253,57 @@ describe("later producers", () => {
     expect((await evidenceProducers(db, id)).map((p) => p.producer)).toEqual(["checks", "walkthrough"]);
   });
 });
+
+describe("verification publication", () => {
+  it("validates verification evidence and reserves the family for the queued producer", async () => {
+    const item = {
+      check: "verification.not_requested",
+      severity: "info" as const,
+      summary: "Delivery is unconfirmed.",
+      detail: { reason: "plan-required" },
+      artefacts: [],
+    };
+    expect(Evidence.safeParse({ ...item, id: "E1" }).success).toBe(true);
+    expect(() =>
+      new CheckRegistry().register({ name: "verification.requested", needs: [], timeoutMs: 1000, run: async () => [] }),
+    ).toThrow(/later step/);
+  });
+});
+
+it("rejects a verification publication when ownership changes inside the batch boundary", async () => {
+  const caseId = await newCase();
+  const draft = {
+    check: "verification.not_requested",
+    severity: "info" as const,
+    summary: "Delivery is unconfirmed.",
+    detail: {},
+    artefacts: [],
+  };
+  await addEvidence(db, caseId, "verification", [draft]);
+  let raced = false;
+  const racing = new Proxy(db, {
+    get(target, key) {
+      if (key === "batch")
+        return async (statements: D1PreparedStatement[]) => {
+          if (!raced) {
+            raced = true;
+            await db.prepare("UPDATE cases SET org_id = 'new-owner' WHERE id = ?").bind(caseId).run();
+          }
+          return db.batch(statements);
+        };
+      return Reflect.get(target, key);
+    },
+  }) as D1Database;
+  const result = await addEvidence(
+    racing,
+    caseId,
+    "verification",
+    [{ ...draft, summary: "Stale replacement." }],
+    undefined,
+    undefined,
+    undefined,
+    { orgId: ORG, runId: caseId, state: "unavailable" },
+  );
+  expect(result).toEqual([]);
+  expect((await readEvidence(db, caseId)).map((item) => item.summary)).toEqual([draft.summary]);
+});
