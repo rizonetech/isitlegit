@@ -28,17 +28,6 @@
         "D07 T06 §19"
       ]
     },
-    "app": {
-      "branch": "app-lane",
-      "worktree": "../isitlegit-app",
-      "files": [
-        "todo/07-app/TODO-01-design-system.md",
-        "todo/07-app/TODO-03-report-page.md",
-        "todo/07-app/TODO-06-marketing-site.md",
-        "todo/07-app/TODO-08-app-essentials.md",
-        "todo/07-app/TODO-09-report-follow-ups.md"
-      ]
-    },
     "loupe": {
       "branch": "loupe-1.1",
       "worktree": "../isitlegit-loupe",
