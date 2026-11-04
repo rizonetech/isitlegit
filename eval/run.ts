@@ -737,6 +737,38 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
 
 type Execute = (s: Statement) => Promise<{ results?: Record<string, unknown>[]; meta?: { changes?: number } }>;
 
+export function canonicalReputationProvider(provider: string): string {
+  if (provider === "cloudflare") return "cloudflare-security-dns";
+  if (provider === "webrisk") return "google-web-risk";
+  return provider;
+}
+
+export function mergeCaseProviderRecords(
+  repRows: { provider: string; state: string }[],
+  evidenceProviders: string[],
+): { provider: string; checked: boolean; listed: boolean }[] {
+  const byProv = new Map<string, Set<string>>();
+  for (const r of repRows) {
+    if (!r.provider) continue;
+    const p = canonicalReputationProvider(r.provider);
+    const set = byProv.get(p) ?? new Set<string>();
+    set.add(r.state);
+    byProv.set(p, set);
+  }
+  for (const rawP of evidenceProviders) {
+    if (!rawP) continue;
+    const p = canonicalReputationProvider(rawP);
+    const set = byProv.get(p) ?? new Set<string>();
+    set.add("listed");
+    byProv.set(p, set);
+  }
+  return [...byProv.entries()].map(([provider, states]) => {
+    if (states.has("listed") || states.has("blocked")) return { provider, checked: true, listed: true };
+    if (states.has("clear") || states.has("not_listed")) return { provider, checked: true, listed: false };
+    return { provider, checked: false, listed: false };
+  });
+}
+
 export function liveDb(orgName: string, execute: Execute, now: () => Date = () => new Date()): Db {
   let org: string | null = null;
   const orgId = async () => {
@@ -790,20 +822,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
       ).results?.[0];
       if (!row) return null;
       const repRows = JSON.parse(String(row.rep_rows ?? "[]")) as { provider: string; state: string }[];
-      const byProv = new Map<string, string[]>();
-      for (const r of repRows) {
-        if (r.provider) byProv.set(r.provider, [...(byProv.get(r.provider) ?? []), r.state]);
-      }
-      const providerRecords: { provider: string; checked: boolean; listed: boolean }[] = [
-        ...byProv.entries(),
-      ].map(([provider, states]) => {
-        if (states.includes("listed")) return { provider, checked: true, listed: true };
-        if (states.includes("clear")) return { provider, checked: true, listed: false };
-        return { provider, checked: false, listed: false };
-      });
-      for (const p of JSON.parse(String(row.providers ?? "[]")) as string[]) {
-        if (p && !byProv.has(p)) providerRecords.push({ provider: p, checked: true, listed: true });
-      }
+      const evidenceProviders = JSON.parse(String(row.providers ?? "[]")) as string[];
+      const providerRecords = mergeCaseProviderRecords(repRows, evidenceProviders);
       return {
         status: row.status as CaseState["status"],
         verdict: (row.verdict ?? null) as Verdict | null,

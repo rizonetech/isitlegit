@@ -88,9 +88,10 @@ export function floorFigures(records: FloorRecord[]) {
 
 export type InvisibleObservation = {
   name: string;
-  kind: "payload" | "control";
+  kind: "payload" | "control" | "large-message";
   detected: boolean;
   ms: number | null;
+  peakMb?: number | null;
   status: "ok" | "failed";
 };
 
@@ -99,6 +100,7 @@ export type InvisibleSummary = {
   detected: number;
   controls: number;
   falsePositives: number;
+  largeMessageRuns?: number;
   p50Ms: number | null;
   p95Ms: number | null;
   peakMb: number | null;
@@ -128,11 +130,14 @@ export type AiSummary = {
 
 export type AttachmentObservation = {
   name: string;
-  category: "valid" | "disguised" | "damaged" | "batch-check";
+  category: "valid" | "disguised" | "archive-risk" | "damaged" | "batch-check";
   expected?: string;
   sniffed?: string | null;
   matched: boolean;
+  isArchive?: boolean;
+  isBenignValid?: boolean;
   mismatchFlagged?: boolean;
+  riskFlagged?: boolean;
   riskNotChecked?: string | null;
   ms?: number | null;
   status: "ok" | "failed";
@@ -141,11 +146,17 @@ export type AttachmentObservation = {
 export type AttachmentsSummary = {
   valid: number;
   identified: number;
+  typeMismatchFalsePositives?: number;
+  benignValid?: number;
+  archiveFalsePositives?: number;
   disguised: number;
   disguisedCaught: number;
+  mismatchCaught?: number;
+  archiveChecks?: number;
+  archiveRiskCaught?: number;
   damaged: number;
   damagedReadAsValid: number;
-  mismatchCaught?: number;
+  damagedArchives?: number;
   damagedArchiveCaught?: number;
   p50Ms?: number | null;
   p95Ms?: number | null;
@@ -159,6 +170,7 @@ export type IntakeRecord = {
   ms: number | null;
   status?: "ok" | "failed";
   sampleId?: string;
+  expectedBandTotal?: number;
   provenance?: string;
 };
 
@@ -167,10 +179,12 @@ export function intakeFigures(records: IntakeRecord[]) {
     const all = records.filter((r) => r.band === band);
     const ok = all.filter((r) => r.status !== "failed" && r.ms !== null);
     const times = ok.map((r) => r.ms as number);
+    const expected = all.reduce((m, r) => Math.max(m, r.expectedBandTotal ?? 0), all.length);
+    const total = Math.max(all.length, expected);
     return {
-      total: all.length,
+      total,
       completed: ok.length,
-      failed: all.length - ok.length,
+      failed: Math.max(0, total - ok.length),
       medianMs: median(times),
       p95Ms: p95(times),
     };
@@ -191,6 +205,7 @@ export type RetryRecord = {
   ms: number | null;
   completed: boolean;
   leaseWindowMs?: number;
+  expectedTotal?: number;
   provenance?: string;
 };
 
@@ -200,7 +215,8 @@ export function retryFigures(records: RetryRecord[]) {
   const retryTimes = retryDone.map((r) => r.ms as number);
   const retryMedianMs = median(retryTimes);
   const retryP95Ms = p95(retryTimes);
-  const retryIncomplete = retries.length - retryDone.length;
+  const retryTotal = retries.reduce((m, r) => Math.max(m, r.expectedTotal ?? 0), retries.length);
+  const retryIncomplete = Math.max(0, retryTotal - retryDone.length);
   const targetState: "met" | "missed" | "incomplete" | "not measured" =
     retryDone.length === 0
       ? "not measured"
@@ -213,17 +229,19 @@ export function retryFigures(records: RetryRecord[]) {
   const settles = records.filter((r) => r.kind === "interrupted-settle");
   const settleDone = settles.filter((r) => r.completed && r.ms !== null);
   const settleTimes = settleDone.map((r) => r.ms as number);
+  const settleTotal = settles.reduce((m, r) => Math.max(m, r.expectedTotal ?? 0), settles.length);
+  const settleIncomplete = Math.max(0, settleTotal - settleDone.length);
   const leaseWindowMs = settleDone.find((r) => r.leaseWindowMs !== undefined)?.leaseWindowMs ?? 300_000;
   return {
-    retryTotal: retries.length,
+    retryTotal,
     retryCompleted: retryDone.length,
     retryIncomplete,
     retryMedianMs,
     retryP95Ms,
     targetState,
-    settleTotal: settles.length,
+    settleTotal,
     settleCompleted: settleDone.length,
-    settleIncomplete: settles.length - settleDone.length,
+    settleIncomplete,
     settleMedianMs: median(settleTimes),
     settleP95Ms: p95(settleTimes),
     leaseWindowMs,
@@ -299,6 +317,7 @@ export const COMPONENT_SCHEMAS = {
       ms: z.number().nonnegative().nullable(),
       status: z.enum(["ok", "failed"]).optional(),
       sampleId: z.string().optional(),
+      expectedBandTotal: z.number().int().positive().optional(),
       provenance: z.string().optional(),
     }),
   ),
@@ -308,6 +327,7 @@ export const COMPONENT_SCHEMAS = {
       ms: z.number().nonnegative().nullable(),
       completed: z.boolean(),
       leaseWindowMs: z.number().int().nonnegative().optional(),
+      expectedTotal: z.number().int().positive().optional(),
       provenance: z.string().optional(),
     }),
   ),
@@ -316,6 +336,7 @@ export const COMPONENT_SCHEMAS = {
     detected: z.number().int().nonnegative(),
     controls: z.number().int().nonnegative(),
     falsePositives: z.number().int().nonnegative(),
+    largeMessageRuns: z.number().int().nonnegative().optional(),
     p50Ms: z.number().nonnegative().nullable(),
     p95Ms: z.number().nonnegative().nullable(),
     peakMb: z.number().nonnegative().nullable(),
@@ -324,9 +345,10 @@ export const COMPONENT_SCHEMAS = {
       .array(
         z.object({
           name: z.string().min(1),
-          kind: z.enum(["payload", "control"]),
+          kind: z.enum(["payload", "control", "large-message"]),
           detected: z.boolean(),
           ms: z.number().nonnegative().nullable(),
+          peakMb: z.number().nonnegative().nullable().optional(),
           status: z.enum(["ok", "failed"]),
         }),
       )
@@ -356,11 +378,17 @@ export const COMPONENT_SCHEMAS = {
   attachments: z.object({
     valid: z.number().int().nonnegative(),
     identified: z.number().int().nonnegative(),
+    typeMismatchFalsePositives: z.number().int().nonnegative().optional(),
+    benignValid: z.number().int().nonnegative().optional(),
+    archiveFalsePositives: z.number().int().nonnegative().optional(),
     disguised: z.number().int().nonnegative(),
     disguisedCaught: z.number().int().nonnegative(),
+    mismatchCaught: z.number().int().nonnegative().optional(),
+    archiveChecks: z.number().int().nonnegative().optional(),
+    archiveRiskCaught: z.number().int().nonnegative().optional(),
     damaged: z.number().int().nonnegative(),
     damagedReadAsValid: z.number().int().nonnegative(),
-    mismatchCaught: z.number().int().nonnegative().optional(),
+    damagedArchives: z.number().int().nonnegative().optional(),
     damagedArchiveCaught: z.number().int().nonnegative().optional(),
     p50Ms: z.number().nonnegative().nullable().optional(),
     p95Ms: z.number().nonnegative().nullable().optional(),
@@ -368,11 +396,14 @@ export const COMPONENT_SCHEMAS = {
       .array(
         z.object({
           name: z.string().min(1),
-          category: z.enum(["valid", "disguised", "damaged", "batch-check"]),
+          category: z.enum(["valid", "disguised", "archive-risk", "damaged", "batch-check"]),
           expected: z.string().optional(),
           sniffed: z.string().nullable().optional(),
           matched: z.boolean(),
+          isArchive: z.boolean().optional(),
+          isBenignValid: z.boolean().optional(),
           mismatchFlagged: z.boolean().optional(),
+          riskFlagged: z.boolean().optional(),
           riskNotChecked: z.string().nullable().optional(),
           ms: z.number().nonnegative().nullable().optional(),
           status: z.enum(["ok", "failed"]),
@@ -396,7 +427,7 @@ export function parseComponentFile<K extends keyof ComponentRecords>(
 }
 
 // Recomputes summary counts and timings from raw observations whenever observations are present,
-// refusing a summary that disagrees with its underlying observations.
+// refusing a summary that disagrees with its underlying observations or drops expected repetitions.
 export function validateComponentRecords(records: ComponentRecords): string[] {
   const problems: string[] = [];
   if (records.ai?.observations) {
@@ -405,6 +436,19 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
     const gen = obs.filter((o) => o.kind === "genuine");
     const det = inj.filter((o) => o.status === "ok" && o.detected).length;
     const fp = gen.filter((o) => o.status === "ok" && o.detected).length;
+    const expectedTotal = Math.max(
+      records.ai.injections + records.ai.genuine,
+      records.ai.provenance?.repetitions ?? 0,
+    );
+    if (records.ai.injections === 0 || records.ai.genuine === 0) {
+      problems.push(`ai.json is missing required steering or genuine denominator (${records.ai.injections} injections, ${records.ai.genuine} genuine)`);
+    }
+    if (records.ai.provenance && records.ai.injections + records.ai.genuine !== records.ai.provenance.repetitions) {
+      problems.push(`ai.json denominators (${records.ai.injections} + ${records.ai.genuine}) disagree with provenance.repetitions (${records.ai.provenance.repetitions})`);
+    }
+    if (obs.length < expectedTotal && obs.filter((o) => o.status === "failed").length === 0) {
+      problems.push(`ai.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`);
+    }
     if (inj.length !== records.ai.injections || det !== records.ai.detected) {
       problems.push(`ai.json summary (${records.ai.detected}/${records.ai.injections}) disagrees with observations (${det}/${inj.length})`);
     }
@@ -416,31 +460,98 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
     const obs = records.attachments.observations;
     const valid = obs.filter((o) => o.category === "valid");
     const idOk = valid.filter((o) => o.status === "ok" && o.matched).length;
+    const mismatchFp = valid.filter((o) => o.status === "ok" && o.mismatchFlagged).length;
+    const benignValid = valid.filter((o) => o.isBenignValid);
+    const archiveFp = benignValid.filter((o) => o.status === "ok" && o.riskFlagged).length;
     const disg = obs.filter((o) => o.category === "disguised");
     const disgOk = disg.filter((o) => o.status === "ok" && o.matched).length;
+    const mismatchOk = disg.filter((o) => o.status === "ok" && o.mismatchFlagged).length;
+    const arch = obs.filter((o) => o.category === "archive-risk");
+    const archOk = arch.filter((o) => o.status === "ok" && o.riskFlagged).length;
     const dam = obs.filter((o) => o.category === "damaged");
     const damRead = dam.filter((o) => o.status === "ok" && o.matched).length;
+    const damArch = dam.filter((o) => o.isArchive);
+    const damArchCaught = damArch.filter((o) => o.status === "ok" && Boolean(o.riskNotChecked)).length;
+    const expectedTotal = Math.max(
+      records.attachments.valid +
+        records.attachments.disguised +
+        records.attachments.damaged +
+        (records.attachments.archiveChecks ?? 0),
+      records.attachments.provenance?.repetitions ?? 0,
+    );
+    if (obs.length < expectedTotal && obs.filter((o) => o.status === "failed").length === 0) {
+      problems.push(`attachments.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`);
+    }
     if (valid.length !== records.attachments.valid || idOk !== records.attachments.identified) {
       problems.push(`attachments.json valid summary (${records.attachments.identified}/${records.attachments.valid}) disagrees with observations (${idOk}/${valid.length})`);
+    }
+    if (
+      records.attachments.typeMismatchFalsePositives !== undefined &&
+      mismatchFp !== records.attachments.typeMismatchFalsePositives
+    ) {
+      problems.push(`attachments.json typeMismatchFalsePositives disagrees with observations`);
+    }
+    if (
+      records.attachments.archiveFalsePositives !== undefined &&
+      archiveFp !== records.attachments.archiveFalsePositives
+    ) {
+      problems.push(`attachments.json archiveFalsePositives disagrees with observations`);
     }
     if (disg.length !== records.attachments.disguised || disgOk !== records.attachments.disguisedCaught) {
       problems.push(`attachments.json disguised summary disagrees with observations`);
     }
+    if (records.attachments.mismatchCaught !== undefined && mismatchOk !== records.attachments.mismatchCaught) {
+      problems.push(`attachments.json mismatchCaught disagrees with observations`);
+    }
+    if (records.attachments.archiveRiskCaught !== undefined && archOk !== records.attachments.archiveRiskCaught) {
+      problems.push(`attachments.json archiveRiskCaught disagrees with observations`);
+    }
     if (dam.length !== records.attachments.damaged || damRead !== records.attachments.damagedReadAsValid) {
       problems.push(`attachments.json damaged summary disagrees with observations`);
+    }
+    if (
+      records.attachments.damagedArchiveCaught !== undefined &&
+      damArchCaught !== records.attachments.damagedArchiveCaught
+    ) {
+      problems.push(`attachments.json damagedArchiveCaught (${records.attachments.damagedArchiveCaught}) disagrees with archive observations (${damArchCaught}/${damArch.length})`);
     }
   }
   if (records.invisible?.observations) {
     const obs = records.invisible.observations;
     const pay = obs.filter((o) => o.kind === "payload");
     const ctl = obs.filter((o) => o.kind === "control");
+    const large = obs.filter((o) => o.kind === "large-message");
     const det = pay.filter((o) => o.status === "ok" && o.detected).length;
     const fp = ctl.filter((o) => o.status === "ok" && o.detected).length;
+    const expectedTotal = Math.max(
+      records.invisible.payloads + records.invisible.controls + (records.invisible.largeMessageRuns ?? 0),
+      records.invisible.provenance?.repetitions ?? 0,
+    );
+    if (records.invisible.payloads === 0 || records.invisible.controls === 0) {
+      problems.push(`invisible.json is missing payload or control denominator`);
+    }
+    if (obs.length < expectedTotal && obs.filter((o) => o.status === "failed").length === 0) {
+      problems.push(`invisible.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`);
+    }
     if (pay.length !== records.invisible.payloads || det !== records.invisible.detected) {
       problems.push(`invisible.json payload summary (${records.invisible.detected}/${records.invisible.payloads}) disagrees with observations (${det}/${pay.length})`);
     }
     if (ctl.length !== records.invisible.controls || fp !== records.invisible.falsePositives) {
       problems.push(`invisible.json control summary disagrees with observations`);
+    }
+    if (large.length > 0) {
+      const largeOk = large.filter((o) => o.status === "ok" && o.ms !== null);
+      const times = largeOk.map((o) => o.ms as number).sort((a, b) => a - b);
+      const at = (q: number) =>
+        times.length ? (times[Math.min(times.length - 1, Math.ceil(q * times.length) - 1)] as number) : null;
+      if (at(0.5) !== records.invisible.p50Ms || at(0.95) !== records.invisible.p95Ms) {
+        problems.push(`invisible.json 1 MiB timing (p50 ${records.invisible.p50Ms}, p95 ${records.invisible.p95Ms}) disagrees with large-message observations`);
+      }
+      const peaks = largeOk.map((o) => o.peakMb).filter((x): x is number => typeof x === "number");
+      const maxPeak = peaks.length ? Math.max(...peaks) : null;
+      if (maxPeak !== records.invisible.peakMb) {
+        problems.push(`invisible.json peakMb (${records.invisible.peakMb}) disagrees with large-message observations (${maxPeak})`);
+      }
     }
   }
   return problems;
@@ -504,10 +615,19 @@ export function renderComponentRows(records: ComponentRecords): string {
   const settleText =
     retry.settleCompleted === 0
       ? `not measured (0 of ${retry.settleTotal} completed)`
-      : `sweep median ${retry.settleMedianMs} ms, p95 ${retry.settleP95Ms} ms after ${retry.leaseWindowMs} ms lease (${retry.settleCompleted} of ${retry.settleTotal} completed${retry.settleIncomplete > 0 ? `, incomplete: ${retry.settleIncomplete} failed` : ""})`;
+      : `local sweep microbenchmark median ${retry.settleMedianMs} ms, p95 ${retry.settleP95Ms} ms (injected clock across ${retry.leaseWindowMs} ms lease; ${retry.settleCompleted} of ${retry.settleTotal} completed${retry.settleIncomplete > 0 ? `, incomplete: ${retry.settleIncomplete} failed` : ""})`;
   lines.push(`| Retry latency | retry ${retryText}; interrupted settle ${settleText} |`);
   const ai = records.ai;
-  const aiFailed = ai?.observations?.filter((o) => o.status === "failed").length ?? 0;
+  const aiExpected = ai ? Math.max(ai.injections + ai.genuine, ai.provenance?.repetitions ?? 0) : 0;
+  const aiOk = ai?.observations ? ai.observations.filter((o) => o.status === "ok").length : aiExpected;
+  const aiMissingCat = ai && (ai.injections === 0 || ai.genuine === 0) ? 1 : 0;
+  const aiFailed = ai?.observations
+    ? Math.max(
+        ai.observations.filter((o) => o.status === "failed").length,
+        aiExpected - aiOk,
+        aiMissingCat,
+      )
+    : aiMissingCat;
   const aiTiming =
     ai?.p50Ms !== undefined && ai?.p50Ms !== null ? `, p50 ${ai.p50Ms} ms, p95 ${ai.p95Ms ?? "not measured"} ms` : "";
   lines.push(
@@ -516,10 +636,19 @@ export function renderComponentRows(records: ComponentRecords): string {
       : "| content.ai_instructions | not measured |",
   );
   const at = records.attachments;
-  const atFailed = at?.observations?.filter((o) => o.status === "failed").length ?? 0;
+  const atExpected = at
+    ? Math.max(
+        at.valid + at.disguised + at.damaged + (at.archiveChecks ?? 0),
+        at.provenance?.repetitions ?? 0,
+      )
+    : 0;
+  const atOk = at?.observations ? at.observations.filter((o) => o.status === "ok").length : atExpected;
+  const atFailed = at?.observations
+    ? Math.max(at.observations.filter((o) => o.status === "failed").length, atExpected - atOk)
+    : 0;
   const atChecks =
     at?.mismatchCaught !== undefined
-      ? `, mismatch caught ${at.mismatchCaught} of ${at.disguised}, damaged archive caught ${at.damagedArchiveCaught ?? 0} of ${at.damaged}`
+      ? `, type_mismatch caught ${at.mismatchCaught} of ${at.disguised} (false positives ${at.typeMismatchFalsePositives ?? 0} of ${at.valid}), archive risks caught ${at.archiveRiskCaught ?? 0} of ${at.archiveChecks ?? 0} (false positives ${at.archiveFalsePositives ?? 0} of ${at.benignValid ?? at.valid}), damaged archives caught ${at.damagedArchiveCaught ?? 0} of ${at.damagedArchives ?? 1}`
       : "";
   const atTiming =
     at?.p50Ms !== undefined && at?.p50Ms !== null ? `, p50 ${at.p50Ms} ms, p95 ${at.p95Ms ?? "not measured"} ms` : "";
@@ -529,10 +658,21 @@ export function renderComponentRows(records: ComponentRecords): string {
       : "| Attachment identification | not measured |",
   );
   const inv = records.invisible;
-  const invFailed = inv?.observations?.filter((o) => o.status === "failed").length ?? 0;
+  const invExpected = inv
+    ? Math.max(inv.payloads + inv.controls + (inv.largeMessageRuns ?? 0), inv.provenance?.repetitions ?? 0)
+    : 0;
+  const invOk = inv?.observations ? inv.observations.filter((o) => o.status === "ok").length : invExpected;
+  const invMissingCat = inv && (inv.payloads === 0 || inv.controls === 0) ? 1 : 0;
+  const invFailed = inv?.observations
+    ? Math.max(
+        inv.observations.filter((o) => o.status === "failed").length,
+        invExpected - invOk,
+        invMissingCat,
+      )
+    : invMissingCat;
   lines.push(
     inv
-      ? `| Invisible characters | detected ${inv.detected} of ${inv.payloads} payloads, false positives ${inv.falsePositives} of ${inv.controls} controls, p50 ${inv.p50Ms ?? "not measured"} ms, p95 ${inv.p95Ms ?? "not measured"} ms, peak ${inv.peakMb ?? "not measured"} MB${invFailed > 0 ? ` (incomplete: ${invFailed} failed)` : ""} |`
+      ? `| Invisible characters | detected ${inv.detected} of ${inv.payloads} payloads, false positives ${inv.falsePositives} of ${inv.controls} controls, 1 MiB message p50 ${inv.p50Ms ?? "not measured"} ms, p95 ${inv.p95Ms ?? "not measured"} ms, peak ${inv.peakMb ?? "not measured"} MB${invFailed > 0 ? ` (incomplete: ${invFailed} failed)` : ""} |`
       : "| Invisible characters | not measured |",
   );
   return `${lines.join("\n")}\n`;

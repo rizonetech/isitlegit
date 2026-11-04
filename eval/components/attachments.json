@@ -1,14 +1,20 @@
 {
  "valid": 27,
  "identified": 27,
+ "typeMismatchFalsePositives": 0,
+ "benignValid": 21,
+ "archiveFalsePositives": 0,
  "disguised": 3,
  "disguisedCaught": 3,
+ "mismatchCaught": 3,
+ "archiveChecks": 3,
+ "archiveRiskCaught": 3,
  "damaged": 3,
  "damagedReadAsValid": 1,
- "mismatchCaught": 3,
- "damagedArchiveCaught": 3,
- "p50Ms": 3.293,
- "p95Ms": 55.479,
+ "damagedArchives": 1,
+ "damagedArchiveCaught": 1,
+ "p50Ms": 14.837,
+ "p95Ms": 20.282,
  "observations": [
   {
    "name": "pdf",
@@ -16,6 +22,9 @@
    "expected": "pdf",
    "sniffed": "pdf",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -24,6 +33,9 @@
    "expected": "zip",
    "sniffed": "zip",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -32,6 +44,9 @@
    "expected": "docx",
    "sniffed": "docx",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -40,6 +55,9 @@
    "expected": "xlsx",
    "sniffed": "xlsx",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -48,6 +66,9 @@
    "expected": "pptx",
    "sniffed": "pptx",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -56,6 +77,9 @@
    "expected": "ole",
    "sniffed": "ole",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -64,6 +88,9 @@
    "expected": "pe",
    "sniffed": "pe",
    "matched": true,
+   "isBenignValid": false,
+   "mismatchFlagged": false,
+   "riskFlagged": true,
    "status": "ok"
   },
   {
@@ -72,6 +99,9 @@
    "expected": "elf",
    "sniffed": "elf",
    "matched": true,
+   "isBenignValid": false,
+   "mismatchFlagged": false,
+   "riskFlagged": true,
    "status": "ok"
   },
   {
@@ -80,6 +110,9 @@
    "expected": "macho",
    "sniffed": "macho",
    "matched": true,
+   "isBenignValid": false,
+   "mismatchFlagged": false,
+   "riskFlagged": true,
    "status": "ok"
   },
   {
@@ -88,6 +121,9 @@
    "expected": "rar",
    "sniffed": "rar",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -96,6 +132,9 @@
    "expected": "7z",
    "sniffed": "7z",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -104,6 +143,9 @@
    "expected": "iso",
    "sniffed": "iso",
    "matched": true,
+   "isBenignValid": false,
+   "mismatchFlagged": false,
+   "riskFlagged": true,
    "status": "ok"
   },
   {
@@ -112,6 +154,9 @@
    "expected": "png",
    "sniffed": "png",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -120,6 +165,9 @@
    "expected": "jpeg",
    "sniffed": "jpeg",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -128,6 +176,9 @@
    "expected": "gif",
    "sniffed": "gif",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -136,6 +187,9 @@
    "expected": "webp",
    "sniffed": "webp",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -144,6 +198,9 @@
    "expected": "html",
    "sniffed": "html",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -152,6 +209,9 @@
    "expected": "svg",
    "sniffed": "svg",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -160,6 +220,9 @@
    "expected": "lnk",
    "sniffed": "lnk",
    "matched": true,
+   "isBenignValid": false,
+   "mismatchFlagged": false,
+   "riskFlagged": true,
    "status": "ok"
   },
   {
@@ -168,6 +231,9 @@
    "expected": "script",
    "sniffed": "script",
    "matched": true,
+   "isBenignValid": false,
+   "mismatchFlagged": false,
+   "riskFlagged": true,
    "status": "ok"
   },
   {
@@ -176,6 +242,9 @@
    "expected": "text",
    "sniffed": "text",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -184,6 +253,9 @@
    "expected": "rtf",
    "sniffed": "rtf",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -192,6 +264,9 @@
    "expected": "odf",
    "sniffed": "odf",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -200,6 +275,9 @@
    "expected": "m4a",
    "sniffed": "m4a",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -208,6 +286,9 @@
    "expected": "ogg",
    "sniffed": "ogg",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -216,6 +297,9 @@
    "expected": "wav",
    "sniffed": "wav",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -224,6 +308,9 @@
    "expected": "mp3",
    "sniffed": "mp3",
    "matched": true,
+   "isBenignValid": true,
+   "mismatchFlagged": false,
+   "riskFlagged": false,
    "status": "ok"
   },
   {
@@ -236,7 +323,7 @@
    "status": "ok"
   },
   {
-   "name": "statement.docx (zip bytes)",
+   "name": "statement.pdf (zip bytes)",
    "category": "disguised",
    "expected": "zip",
    "sniffed": "zip",
@@ -254,11 +341,36 @@
    "status": "ok"
   },
   {
+   "name": "macro-docx",
+   "category": "archive-risk",
+   "expected": "attachment.macro",
+   "matched": true,
+   "riskFlagged": true,
+   "status": "ok"
+  },
+  {
+   "name": "encrypted-zip",
+   "category": "archive-risk",
+   "expected": "attachment.encrypted_archive",
+   "matched": true,
+   "riskFlagged": true,
+   "status": "ok"
+  },
+  {
+   "name": "exe-in-zip",
+   "category": "archive-risk",
+   "expected": "attachment.executable",
+   "matched": true,
+   "riskFlagged": true,
+   "status": "ok"
+  },
+  {
    "name": "truncated pdf",
    "category": "damaged",
    "expected": "pdf",
    "sniffed": "text",
    "matched": false,
+   "isArchive": false,
    "riskNotChecked": null,
    "status": "ok"
   },
@@ -268,6 +380,7 @@
    "expected": "zip",
    "sniffed": "zip",
    "matched": true,
+   "isArchive": true,
    "riskNotChecked": "it is too short to be a ZIP archive",
    "status": "ok"
   },
@@ -277,6 +390,7 @@
    "expected": "png",
    "sniffed": null,
    "matched": false,
+   "isArchive": false,
    "riskNotChecked": null,
    "status": "ok"
   },
@@ -284,63 +398,63 @@
    "name": "batch-20-rep-1",
    "category": "batch-check",
    "matched": true,
-   "ms": 55.479,
+   "ms": 20.282,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-2",
    "category": "batch-check",
    "matched": true,
-   "ms": 5.326,
+   "ms": 16.695,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-3",
    "category": "batch-check",
    "matched": true,
-   "ms": 2.416,
+   "ms": 19.477,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-4",
    "category": "batch-check",
    "matched": true,
-   "ms": 2.872,
+   "ms": 14.318,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-5",
    "category": "batch-check",
    "matched": true,
-   "ms": 3.293,
+   "ms": 14.837,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-6",
    "category": "batch-check",
    "matched": true,
-   "ms": 7.004,
+   "ms": 16.002,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-7",
    "category": "batch-check",
    "matched": true,
-   "ms": 5.136,
+   "ms": 12.633,
    "status": "ok"
   },
   {
    "name": "batch-20-rep-8",
    "category": "batch-check",
    "matched": true,
-   "ms": 2.35,
+   "ms": 12.11,
    "status": "ok"
   }
  ],
  "provenance": {
   "collector": "eval/attachments.ts#measureAttachmentChecks",
   "timingBoundary": "attachmentRisksOf (R2 range reads + archive inspection) + typeMismatchEvidence + macroEvidence + encryptedArchiveEvidence + executableEvidence over MAX_SNIFFED = 20 attachments",
-  "repetitions": 8,
-  "inputDescription": "27 valid format samples, 3 disguised samples, 3 damaged truncated packages, plus 8 batch runs of 20 attachments"
+  "repetitions": 44,
+  "inputDescription": "27 valid format samples, 3 disguised samples, 3 archive-risk samples, 3 damaged truncated packages, plus 8 batch runs of 20 attachments"
  }
 }

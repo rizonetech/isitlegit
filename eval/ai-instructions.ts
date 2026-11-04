@@ -89,18 +89,25 @@ export function scoreAiInstructions() {
 }
 
 // Runs the full `attachmentPhrases` + `aiInstructionEvidence` checks step over `MAX_TEXT_ATTACHMENTS` (10)
-// text attachments decoded from R2, persisting observations incrementally after each item.
+// text attachments decoded from R2, pre-populating planned observations so any interruption leaves unrun
+// items marked `failed` and never shrinks denominators.
 export async function measureAiInstructionsCheck(opts?: {
   outPath?: string;
   failAt?: number;
 }): Promise<AiSummary> {
   ensureTsResolve();
   const { aiInstructionEvidence, attachmentPhrases, instructionsOf } = await import("../src/checks/ai-instructions.ts");
-  const observations: AiObservation[] = [];
   const items: { name: string; text: string; kind: "injection" | "genuine" }[] = [
     ...INJECTION_TEXTS.map((t) => ({ ...t, kind: "injection" as const })),
     ...GENUINE_TEXTS.map((t) => ({ ...t, kind: "genuine" as const })),
   ];
+  const observations: AiObservation[] = items.map((item) => ({
+    name: item.name,
+    kind: item.kind,
+    detected: false,
+    checkStepMs: null,
+    status: "failed",
+  }));
 
   const computeSummary = (): AiSummary => {
     const inj = observations.filter((o) => o.kind === "injection");
@@ -114,9 +121,9 @@ export async function measureAiInstructionsCheck(opts?: {
     const at = (q: number) =>
       times.length ? (times[Math.min(times.length - 1, Math.ceil(q * times.length) - 1)] as number) : null;
     return {
-      injections: inj.length,
+      injections: INJECTION_TEXTS.length,
       detected: det,
-      genuine: gen.length,
+      genuine: GENUINE_TEXTS.length,
       falsePositives: fp,
       p50Ms: at(0.5),
       p95Ms: at(0.95),
@@ -135,6 +142,8 @@ export async function measureAiInstructionsCheck(opts?: {
       writeFileSync(opts.outPath, `${JSON.stringify(computeSummary(), null, 1)}\n`);
     }
   };
+
+  persist();
 
   for (const [idx, item] of items.entries()) {
     try {
@@ -163,21 +172,21 @@ export async function measureAiInstructionsCheck(opts?: {
       const evidence = aiInstructionEvidence(view);
       const elapsed = Number((performance.now() - t0).toFixed(3));
       const detected = evidence.some((e) => e.severity === "high");
-      observations.push({
+      observations[idx] = {
         name: item.name,
         kind: item.kind,
         detected,
         checkStepMs: elapsed,
         status: "ok",
-      });
+      };
     } catch {
-      observations.push({
+      observations[idx] = {
         name: item.name,
         kind: item.kind,
         detected: false,
         checkStepMs: null,
         status: "failed",
-      });
+      };
     }
     persist();
   }

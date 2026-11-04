@@ -22,7 +22,7 @@ describe("invisible-character measurement", () => {
     expect(s.p95Ms).not.toBeNull();
     expect(s.peakMb).not.toBeNull();
     expect(s.peakMb).toBeGreaterThan(0);
-    expect(s.timesMs).toHaveLength(11);
-    expect(s.observations).toHaveLength(11);
+    expect(s.timesMs).toHaveLength(8);
+    expect(s.observations).toHaveLength(19);
   });
 });

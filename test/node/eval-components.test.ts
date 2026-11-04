@@ -20,6 +20,7 @@ import {
 } from "../../eval/components.ts";
 import { scoreInvisible } from "../../eval/invisible.ts";
 import { scoreRetrySettle } from "../../eval/retry-latency.ts";
+import { mergeCaseProviderRecords } from "../../eval/run.ts";
 
 describe("component measurements", () => {
   it("computes cache, provider, walkthrough, floor, comparator, intake and retry figures exactly", () => {
@@ -38,12 +39,20 @@ describe("component measurements", () => {
     expect(cacheFigures([]).hitRate).toBeNull();
     expect(cacheFigures([{ hit: true, ms: 1, avoidedUsd: null }]).avoidedUsd).toBeNull();
 
+    // Cloudflare reputation_results (`cloudflare`) and evidence (`cloudflare-security-dns`) merge into one population.
+    const mergedBlocked = mergeCaseProviderRecords(
+      [{ provider: "cloudflare", state: "blocked" }],
+      ["cloudflare-security-dns"],
+    );
+    const mergedClear = mergeCaseProviderRecords([{ provider: "cloudflare", state: "clear" }], []);
     const p = providerFigures([
-      { provider: "a", checked: true, listed: true, genuine: true },
-      { provider: "a", checked: true, listed: false, genuine: true },
-      { provider: "a", checked: false, listed: false, genuine: true },
+      ...mergedBlocked.map((r) => ({ ...r, genuine: true })),
+      ...mergedClear.map((r) => ({ ...r, genuine: true })),
+      { provider: "cloudflare-security-dns", checked: false, listed: false, genuine: true },
     ]);
-    expect(p).toEqual([{ provider: "a", checked: 2, unchecked: 1, genuineChecked: 2, falsePositiveRate: 0.5 }]);
+    expect(p).toEqual([
+      { provider: "cloudflare-security-dns", checked: 2, unchecked: 1, genuineChecked: 2, falsePositiveRate: 0.5 },
+    ]);
 
     expect(
       walkthroughCost([
@@ -118,7 +127,7 @@ describe("component measurements", () => {
     expect(retryMissed.targetState).toBe("missed");
   });
 
-  it("refuses a RESULTS.md figure that differs from its records or observations", () => {
+  it("refuses a RESULTS.md figure that differs from its records, a tampered summary, or a truncated observation prefix", () => {
     const records = {
       cache: [{ hit: true, ms: 10, avoidedUsd: 0.05 }],
       floor: [{ before: "safe" as const, after: "suspicious" as const, attack: true }],
@@ -158,7 +167,25 @@ describe("component measurements", () => {
         ],
       },
     };
-    expect(validateComponentRecords(badAi).some((p) => p.includes("ai.json summary"))).toBe(true);
+    expect(validateComponentRecords(badAi).some((p) => p.includes("ai.json"))).toBe(true);
+
+    // One-observation prefix with derived denominators (injections: 1, genuine: 0) is rejected by validation
+    // AND marked incomplete by renderComponentRows.
+    const prefixAi = {
+      injections: 1,
+      detected: 1,
+      genuine: 0,
+      falsePositives: 0,
+      observations: [{ name: "a", kind: "injection" as const, detected: true, checkStepMs: 1, status: "ok" as const }],
+      provenance: {
+        collector: "eval/ai-instructions.ts#measureAiInstructionsCheck",
+        timingBoundary: "test",
+        repetitions: 8,
+        inputDescription: "test",
+      },
+    };
+    expect(validateComponentRecords({ ai: prefixAi }).length).toBeGreaterThan(0);
+    expect(renderComponentRows({ ai: prefixAi })).toContain("incomplete:");
   });
 
   it("persists incremental observations and marks interrupted collection incomplete without losing completed rows", async () => {
@@ -168,9 +195,12 @@ describe("component measurements", () => {
       const aiSummary = await measureAiInstructionsCheck({ outPath: aiFile, failAt: 2 });
       const aiReadBack = parseComponentFile("ai", JSON.parse(readFileSync(aiFile, "utf8")));
       expect(aiReadBack.ok).toBe(true);
+      expect(aiSummary.injections).toBe(4);
+      expect(aiSummary.genuine).toBe(4);
       expect(aiSummary.observations).toHaveLength(8);
       expect(aiSummary.observations?.filter((o) => o.status === "failed")).toHaveLength(1);
       expect(aiSummary.observations?.filter((o) => o.status === "ok")).toHaveLength(7);
+      expect(validateComponentRecords({ ai: aiSummary })).toEqual([]);
       expect(renderComponentRows({ ai: aiSummary })).toContain("(incomplete: 1 failed)");
 
       const attFile = join(dir, "attachments.json");
@@ -179,22 +209,31 @@ describe("component measurements", () => {
       expect(attReadBack.ok).toBe(true);
       expect(attSummary.observations?.some((o) => o.status === "failed")).toBe(true);
       expect(attSummary.mismatchCaught).toBe(3);
-      expect(attSummary.damagedArchiveCaught).toBe(3);
+      expect(attSummary.typeMismatchFalsePositives).toBe(0);
+      expect(attSummary.archiveRiskCaught).toBe(3);
+      expect(attSummary.archiveFalsePositives).toBe(0);
+      expect(attSummary.damagedArchives).toBe(1);
+      expect(attSummary.damagedArchiveCaught).toBe(1);
+      expect(validateComponentRecords({ attachments: attSummary })).toEqual([]);
 
       const invFile = join(dir, "invisible.json");
       const invSummary = scoreInvisible({ outPath: invFile, failAt: 1 });
       const invReadBack = parseComponentFile("invisible", JSON.parse(readFileSync(invFile, "utf8")));
       expect(invReadBack.ok).toBe(true);
       expect(invSummary.observations?.filter((o) => o.status === "failed")).toHaveLength(1);
+      expect(invSummary.largeMessageRuns).toBe(8);
+      expect(invSummary.p50Ms).not.toBeNull();
+      expect(invSummary.peakMb).not.toBeNull();
+      expect(validateComponentRecords({ invisible: invSummary })).toEqual([]);
 
       const retryFile = join(dir, "retry.json");
       const retryRows = await scoreRetrySettle(2, { outPath: retryFile, failAt: 1 });
       const retryReadBack = parseComponentFile("retry", JSON.parse(readFileSync(retryFile, "utf8")));
       expect(retryReadBack.ok).toBe(true);
-      expect(retryRows.filter((r) => r.kind === "retry" && r.completed)).toHaveLength(1);
-      expect(retryRows.filter((r) => r.kind === "retry" && !r.completed)).toHaveLength(1);
-      expect(retryRows.filter((r) => r.kind === "interrupted-settle" && r.completed)).toHaveLength(2);
-      expect(retryFigures(retryRows).targetState).toBe("incomplete");
+      expect(retryRows.filter((r) => r.kind === "interrupted-settle" && r.completed)).toHaveLength(1);
+      expect(retryRows.filter((r) => r.kind === "interrupted-settle" && !r.completed)).toHaveLength(1);
+      expect(retryFigures(retryRows).targetState).toBe("not measured");
+      expect(retryFigures(retryRows).settleIncomplete).toBe(1);
 
       writeFileSync(join(dir, "bad.json"), "{ invalid");
       expect(parseComponentFile("cache", "not-an-array").ok).toBe(false);

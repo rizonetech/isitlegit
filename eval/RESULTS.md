@@ -9,11 +9,11 @@
 | Walkthrough cost | median not measured over 0 completed (0 attempted or failed) |
 | Deterministic floor | not measured (0 rows; pre-floor verdict persistence pending D04 agent owner) |
 | Comparator Microsoft Defender for Office 365 | absent (not measured; no licensed comparator tenant available, no figures invented) |
-| Intake time | small median 7.523 ms, p95 24.463 ms (5 of 5 completed); near-25MiB median 91.097 ms, p95 118.799 ms (3 of 3 completed) |
-| Retry latency | retry median 2.093 ms, p95 21.009 ms (5 of 5 completed, target met); interrupted settle sweep median 0.682 ms, p95 1.419 ms after 300000 ms lease (5 of 5 completed) |
-| content.ai_instructions | detected 2 of 4 steering texts, false positives 0 of 4 genuine texts, p50 24.472 ms, p95 159.198 ms |
-| Attachment identification | identified 27 of 27 valid, disguised caught 3 of 3, damaged read as valid 1 of 3, mismatch caught 3 of 3, damaged archive caught 3 of 3, p50 3.293 ms, p95 55.479 ms |
-| Invisible characters | detected 6 of 6 payloads, false positives 0 of 5 controls, p50 0.335 ms, p95 0.888 ms, peak 11.3 MB |
+| Intake time | small median 16.839 ms, p95 67.34 ms (5 of 5 completed); near-25MiB median 167.861 ms, p95 172.572 ms (3 of 3 completed) |
+| Retry latency | retry not measured (0 of 0 completed; target median < 60000 ms, p95 < 180000 ms); interrupted settle local sweep microbenchmark median 1.259 ms, p95 2.117 ms (injected clock across 300000 ms lease; 5 of 5 completed) |
+| content.ai_instructions | detected 2 of 4 steering texts, false positives 0 of 4 genuine texts, p50 39.74 ms, p95 320.783 ms |
+| Attachment identification | identified 27 of 27 valid, disguised caught 3 of 3, damaged read as valid 1 of 3, type_mismatch caught 3 of 3 (false positives 0 of 27), archive risks caught 3 of 3 (false positives 0 of 21), damaged archives caught 1 of 1, p50 14.837 ms, p95 20.282 ms |
+| Invisible characters | detected 6 of 6 payloads, false positives 0 of 5 controls, 1 MiB message p50 799.651 ms, p95 1436.535 ms, peak 208.6 MB |
 
 ## 2026-11-02: what the untrusted blocks buy (D04 T01 §6, from D03 T01 §6)
 

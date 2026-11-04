@@ -1,67 +1,42 @@
 [
  {
-  "kind": "retry",
-  "ms": 21.009,
+  "kind": "interrupted-settle",
+  "ms": 2.117,
   "completed": true,
-  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
- },
- {
-  "kind": "retry",
-  "ms": 3.572,
-  "completed": true,
-  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
- },
- {
-  "kind": "retry",
-  "ms": 2.093,
-  "completed": true,
-  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
- },
- {
-  "kind": "retry",
-  "ms": 1.982,
-  "completed": true,
-  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
- },
- {
-  "kind": "retry",
-  "ms": 1.642,
-  "completed": true,
-  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
+  "leaseWindowMs": 300000,
+  "expectedTotal": 5,
+  "provenance": "local microbenchmark: retryCase(start_unknown) + sweepRetries rollback on node:sqlite D1 (injected clock for RETRY_SETTLE_MS lease window; live Workflow retry latency not measured locally)"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 1.419,
+  "ms": 0.569,
   "completed": true,
   "leaseWindowMs": 300000,
-  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
+  "expectedTotal": 5,
+  "provenance": "local microbenchmark: retryCase(start_unknown) + sweepRetries rollback on node:sqlite D1 (injected clock for RETRY_SETTLE_MS lease window; live Workflow retry latency not measured locally)"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 0.682,
+  "ms": 1.515,
   "completed": true,
   "leaseWindowMs": 300000,
-  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
+  "expectedTotal": 5,
+  "provenance": "local microbenchmark: retryCase(start_unknown) + sweepRetries rollback on node:sqlite D1 (injected clock for RETRY_SETTLE_MS lease window; live Workflow retry latency not measured locally)"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 0.776,
+  "ms": 1.259,
   "completed": true,
   "leaseWindowMs": 300000,
-  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
+  "expectedTotal": 5,
+  "provenance": "local microbenchmark: retryCase(start_unknown) + sweepRetries rollback on node:sqlite D1 (injected clock for RETRY_SETTLE_MS lease window; live Workflow retry latency not measured locally)"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 0.616,
+  "ms": 0.985,
   "completed": true,
   "leaseWindowMs": 300000,
-  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
- },
- {
-  "kind": "interrupted-settle",
-  "ms": 0.676,
-  "completed": true,
-  "leaseWindowMs": 300000,
-  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
+  "expectedTotal": 5,
+  "provenance": "local microbenchmark: retryCase(start_unknown) + sweepRetries rollback on node:sqlite D1 (injected clock for RETRY_SETTLE_MS lease window; live Workflow retry latency not measured locally)"
  }
 ]

@@ -208,16 +208,27 @@ export async function scoreIntakeTime(opts?: {
     },
   } as unknown as Env;
 
-  const records: IntakeRecord[] = [];
+  const specs: { band: "small" | "near-25mib"; bytes: number; count: number }[] = [
+    { band: "small", bytes: 4 * 1024, count: smallCount },
+    { band: "near-25mib", bytes: largeBytes, count: largeCount },
+  ];
+  const records: IntakeRecord[] = specs.flatMap((spec) =>
+    Array.from({ length: spec.count }, (_, i) => ({
+      band: spec.band,
+      bytes: spec.bytes,
+      ms: null,
+      status: "failed" as const,
+      sampleId: `<bench-${spec.band}-${i + 1}@${domain}>`,
+      expectedBandTotal: spec.count,
+      provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
+    })),
+  );
   const persist = () => {
     if (opts?.outPath) {
       writeFileSync(opts.outPath, `${JSON.stringify(records, null, 1)}\n`);
     }
   };
-  const specs: { band: "small" | "near-25mib"; bytes: number; count: number }[] = [
-    { band: "small", bytes: 4 * 1024, count: smallCount },
-    { band: "near-25mib", bytes: largeBytes, count: largeCount },
-  ];
+  persist();
   let seq = 0;
   for (const spec of specs) {
     for (let i = 0; i < spec.count; i++) {
@@ -242,33 +253,36 @@ export async function scoreIntakeTime(opts?: {
         const out = await handleEmail(forwardable, env, new Date(), () => {});
         const tEnd = workflowStartedAt > 0 ? workflowStartedAt : performance.now();
         if (out.kind === "admitted") {
-          records.push({
+          records[idx] = {
             band: spec.band,
             bytes: rawBytes.byteLength,
             ms: Number((tEnd - t0).toFixed(3)),
             status: "ok",
             sampleId: messageId,
+            expectedBandTotal: spec.count,
             provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
-          });
+          };
         } else {
-          records.push({
+          records[idx] = {
             band: spec.band,
             bytes: rawBytes.byteLength,
             ms: null,
             status: "failed",
             sampleId: messageId,
+            expectedBandTotal: spec.count,
             provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
-          });
+          };
         }
       } catch {
-        records.push({
+        records[idx] = {
           band: spec.band,
           bytes: rawBytes.byteLength,
           ms: null,
           status: "failed",
           sampleId: messageId,
+          expectedBandTotal: spec.count,
           provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
-        });
+        };
       }
       persist();
       // Clear large raw objects between iterations so RSS stays bounded.

@@ -3,93 +3,158 @@
  "detected": 6,
  "controls": 5,
  "falsePositives": 0,
- "p50Ms": 0.335,
- "p95Ms": 0.888,
- "peakMb": 11.3,
- "largeMessageMs": 132.456,
+ "largeMessageRuns": 8,
+ "p50Ms": 799.651,
+ "p95Ms": 1436.535,
+ "peakMb": 208.6,
+ "largeMessageMs": 799.651,
  "observations": [
   {
    "name": "tag-word",
    "kind": "payload",
    "detected": true,
-   "ms": 0.888,
+   "ms": 0.828,
    "status": "ok"
   },
   {
    "name": "tag-sentence",
    "kind": "payload",
    "detected": true,
-   "ms": 0.403,
+   "ms": 0.263,
    "status": "ok"
   },
   {
    "name": "ignorable-run",
    "kind": "payload",
    "detected": true,
-   "ms": 0.283,
+   "ms": 0.123,
    "status": "ok"
   },
   {
    "name": "mixed-run",
    "kind": "payload",
    "detected": true,
-   "ms": 0.082,
+   "ms": 0.083,
    "status": "ok"
   },
   {
    "name": "malformed-flag-run",
    "kind": "payload",
    "detected": true,
-   "ms": 0.78,
+   "ms": 0.204,
    "status": "ok"
   },
   {
    "name": "chunk-boundary-tag",
    "kind": "payload",
    "detected": true,
-   "ms": 0.248,
+   "ms": 0.087,
    "status": "ok"
   },
   {
    "name": "emoji-zwj",
    "kind": "control",
    "detected": false,
-   "ms": 0.346,
+   "ms": 0.141,
    "status": "ok"
   },
   {
    "name": "emoji-selector",
    "kind": "control",
    "detected": false,
-   "ms": 0.335,
+   "ms": 0.049,
    "status": "ok"
   },
   {
    "name": "multilingual",
    "kind": "control",
    "detected": false,
-   "ms": 0.411,
+   "ms": 0.046,
    "status": "ok"
   },
   {
    "name": "plain",
    "kind": "control",
    "detected": false,
-   "ms": 0.122,
+   "ms": 0.068,
    "status": "ok"
   },
   {
    "name": "rgi-subdivision-flag",
    "kind": "control",
    "detected": false,
-   "ms": 0.126,
+   "ms": 0.086,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-1",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 992.516,
+   "peakMb": 44.4,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-2",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 1436.535,
+   "peakMb": 78.5,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-3",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 1031.771,
+   "peakMb": 136,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-4",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 799.651,
+   "peakMb": 175.2,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-5",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 658.115,
+   "peakMb": 112.1,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-6",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 732.972,
+   "peakMb": 123.6,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-7",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 803.542,
+   "peakMb": 175.3,
+   "status": "ok"
+  },
+  {
+   "name": "large-1mib-rep-8",
+   "kind": "large-message",
+   "detected": true,
+   "ms": 746.276,
+   "peakMb": 208.6,
    "status": "ok"
   }
  ],
  "provenance": {
   "collector": "eval/invisible.ts#scoreInvisible",
-  "timingBoundary": "invisibleRuns / streaming RunReader per sample + 1 MiB message streamed in 16 KiB chunks",
-  "repetitions": 11,
-  "inputDescription": "6 payloads (including malformed flag run and surrogate-split chunk boundary) + 5 controls (emoji, multilingual, RGI flag) + 1 MiB streaming message"
+  "timingBoundary": "PhraseStream + RunReader + hiddenTextEvidence over 1 MiB message streamed in 16 KiB chunks (8 repetitions)",
+  "repetitions": 19,
+  "inputDescription": "6 payloads (including malformed flag run and surrogate-split chunk boundary) + 5 controls (emoji, multilingual, RGI flag) + 8 runs of 1 MiB streaming message"
  }
 }

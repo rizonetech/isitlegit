@@ -2,65 +2,73 @@
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 24.463,
+  "ms": 67.34,
   "status": "ok",
   "sampleId": "<bench-small-1@bench.co.za>",
+  "expectedBandTotal": 5,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 7.523,
+  "ms": 17.937,
   "status": "ok",
   "sampleId": "<bench-small-2@bench.co.za>",
+  "expectedBandTotal": 5,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 5.218,
+  "ms": 11.807,
   "status": "ok",
   "sampleId": "<bench-small-3@bench.co.za>",
+  "expectedBandTotal": 5,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 13.757,
+  "ms": 7.592,
   "status": "ok",
   "sampleId": "<bench-small-4@bench.co.za>",
+  "expectedBandTotal": 5,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 4.669,
+  "ms": 16.839,
   "status": "ok",
   "sampleId": "<bench-small-5@bench.co.za>",
+  "expectedBandTotal": 5,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "near-25mib",
   "bytes": 25165824,
-  "ms": 118.799,
+  "ms": 167.861,
   "status": "ok",
   "sampleId": "<bench-near-25mib-6@bench.co.za>",
+  "expectedBandTotal": 3,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "near-25mib",
   "bytes": 25165824,
-  "ms": 88.901,
+  "ms": 88.505,
   "status": "ok",
   "sampleId": "<bench-near-25mib-7@bench.co.za>",
+  "expectedBandTotal": 3,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "near-25mib",
   "bytes": 25165824,
-  "ms": 91.097,
+  "ms": 172.572,
   "status": "ok",
   "sampleId": "<bench-near-25mib-8@bench.co.za>",
+  "expectedBandTotal": 3,
   "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  }
 ]
