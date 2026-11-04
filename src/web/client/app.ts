@@ -355,7 +355,19 @@ const casesFailure = (name: string, event: Event) => {
   const el = event.target as Element | null;
   const inCases = el?.closest?.("#case-filters") ?? (el?.getAttribute?.("hx-target") === "#case-results" ? el : null);
   if (!inCases) return false;
-  if (name !== "htmx:timeout" && name !== "htmx:sendError") return false;
+  const detail = (event as CustomEvent<HtmxDetail>).detail;
+  const request = new URL(asked(detail), location.href);
+  const actions = request.searchParams.getAll("calendar");
+  // Explicit calendar requests retain their draft on server outages; auth refusals and ordinary filters still navigate.
+  const calendarOutage =
+    name === "htmx:responseError" &&
+    (detail.xhr?.status ?? 0) >= 500 &&
+    (detail.xhr?.status ?? 0) <= 599 &&
+    request.origin === location.origin &&
+    request.pathname === "/cases" &&
+    actions.length === 1 &&
+    (actions[0] === "month" || actions[0] === "quarter");
+  if (name !== "htmx:timeout" && name !== "htmx:sendError" && !calendarOutage) return false;
   document.getElementById("case-loading")?.classList.remove("htmx-request");
   const form = document.getElementById("case-filters");
   if (!form) return true;

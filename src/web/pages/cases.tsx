@@ -20,7 +20,8 @@ import {
   weeklyCounts,
   weeklyStats,
 } from "../../db/case-stats";
-import { CasesPage, ORG_HEADER } from "./cases-view";
+import { calendarRequest } from "./cases-calendar";
+import { CasesPage, casesHref, ORG_HEADER } from "./cases-view";
 import { errorPage, HEADERS, page, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { COOKIE, hiddenIn, stepsOf } from "./welcome-steps";
@@ -65,7 +66,8 @@ casesRoutes.get(
   sessionGate((request) => outage(request, "session")),
   async (c) => {
     const signedIn = c.get("signedIn");
-    const filters = filtersFrom(new URL(c.req.url).searchParams);
+    const params = new URL(c.req.url).searchParams;
+    const filters = filtersFrom(params);
     const membership = await activeMembership(c.env, signedIn);
     if (!membership.ok)
       return membership.reason === "unavailable"
@@ -75,6 +77,18 @@ casesRoutes.get(
     const drawnFor = c.req.header(ORG_HEADER);
     if (drawnFor && drawnFor !== membership.org.id)
       return new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": c.req.url } });
+    const calendar = calendarRequest(params);
+    if (calendar?.range) {
+      const href = casesHref({ ...filters, ...calendar.range, page: 1 });
+      return c.req.header("hx-request") === "true"
+        ? new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": href } })
+        : new Response(null, { status: 303, headers: { ...HEADERS, location: href } });
+    }
+    if (calendar && c.req.header("hx-request") === "true")
+      return new Response(null, {
+        status: 204,
+        headers: { ...HEADERS, "hx-redirect": `${new URL(c.req.url).pathname}${new URL(c.req.url).search}` },
+      });
     const now = new Date();
     try {
       // The weekly stats (D07 T04 §2) are the organisation's whatever the filters, read beside the list so every
@@ -115,9 +129,10 @@ casesRoutes.get(
             searchLong={searchTooLong(new URL(c.req.url).searchParams.get("q"))}
             datesIgnored={ignoredDates(new URL(c.req.url).searchParams)}
             members={members}
+            calendar={calendar?.draft}
           />,
         ),
-        { headers: HEADERS },
+        { status: calendar ? 400 : 200, headers: HEADERS },
       );
     } catch (error) {
       return outage(c.req.raw, (error as Error).name);

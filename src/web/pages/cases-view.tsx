@@ -25,6 +25,7 @@ import { MonitorIcon as SearchIcon } from "../components/icons";
 import { Select } from "../components/Select";
 import { EmptyState } from "../components/States";
 import { VerdictBadge } from "../components/Verdict";
+import { type CalendarDraft, calendarDraft } from "./cases-calendar";
 import { shownState } from "./report-view";
 import { STEP_COUNT } from "./welcome-view";
 
@@ -438,8 +439,14 @@ const SEARCH = cx(
   FIELD_FOCUS,
 );
 
-function Filters(props: { filters: CaseFilters; members?: { id: string; label: string }[] }) {
+function Filters(props: {
+  filters: CaseFilters;
+  now: Date;
+  calendar?: CalendarDraft | undefined;
+  members?: { id: string; label: string }[];
+}) {
   const { filters } = props;
+  const calendar = props.calendar ?? calendarDraft(props.now);
   const members = props.members ?? [];
   const unavailable = filters.checker !== "" && !members.some((m) => m.id === filters.checker);
   return (
@@ -450,7 +457,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
       id="case-filters"
       // A control's change applies it; Enter in the search box searches at once (the form's submit, kept by htmx). The
       // search box's own change on leaving it is no change: its typing has already searched.
-      hx-trigger="change[target.name!='q'], submit"
+      hx-trigger="change[target.name!='q' && !target.name.startsWith('calendar_')], submit"
       {...RESULTS}
       class="flex flex-wrap items-center gap-12"
     >
@@ -577,12 +584,83 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
           </span>
         ) : null}
       </span>
-      {/* Only without JavaScript: htmx applies each change as it is made. */}
-      <noscript>
-        <Button type="submit" variant="dark">
-          Apply
+      <Button type="submit" variant="dark">
+        Apply filters
+      </Button>
+      <fieldset class="flex flex-wrap items-center gap-12 min-w-0 basis-full" aria-describedby="case-calendar-hint">
+        <legend class="type-small weight-text-strong">Calendar period</legend>
+        <label for="case-calendar-year" class="type-small weight-text-strong">
+          Year
+        </label>
+        <input
+          id="case-calendar-year"
+          name="calendar_year"
+          type="text"
+          inputmode="numeric"
+          maxlength={4}
+          value={calendar.year}
+          class={INLINE_INPUT}
+        />
+        <label for="case-calendar-month" class="type-small weight-text-strong">
+          Month
+        </label>
+        <Select id="case-calendar-month" name="calendar_month">
+          {!/^(?:[1-9]|1[0-2])$/.test(calendar.month) ? (
+            <option value={calendar.month} selected>
+              Choose a month
+            </option>
+          ) : null}
+          {[
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+          ].map((name, index) => (
+            <option value={index + 1} selected={calendar.month === String(index + 1)}>
+              {name}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" name="calendar" value="month">
+          Show month
         </Button>
-      </noscript>
+        <label for="case-calendar-quarter" class="type-small weight-text-strong">
+          Quarter
+        </label>
+        <Select id="case-calendar-quarter" name="calendar_quarter" class="max-w-full min-w-0">
+          {!/^[1-4]$/.test(calendar.quarter) ? (
+            <option value={calendar.quarter} selected>
+              Choose a quarter
+            </option>
+          ) : null}
+          {["Q1 (January to March)", "Q2 (April to June)", "Q3 (July to September)", "Q4 (October to December)"].map(
+            (name, index) => (
+              <option value={index + 1} selected={calendar.quarter === String(index + 1)}>
+                {name}
+              </option>
+            ),
+          )}
+        </Select>
+        <Button type="submit" name="calendar" value="quarter">
+          Show quarter
+        </Button>
+        <p id="case-calendar-hint" class="type-small text-muted basis-full">
+          Choose a year and month or quarter, then show its cases. This fills From and To with SAST dates.
+        </p>
+        {calendar.invalid ? (
+          <p role="alert" class="type-small text-mal basis-full">
+            Choose a valid year and month or quarter.
+          </p>
+        ) : null}
+      </fieldset>
       <p id="case-loading" role="status" class="hidden [&.htmx-request]:inline type-small text-muted">
         Loading cases
       </p>
@@ -838,6 +916,7 @@ export function CasesPage(props: {
   senders: { domains: string[]; addresses: string[] };
   stats: WeeklyStats;
   now: Date;
+  calendar?: CalendarDraft | undefined;
   // How far the setup list is (D07 T08 §2), null when it is finished or could not be read.
   setup?: { done: number; hidden: boolean } | null;
   // The query asked for was longer than the search keeps (D07 T04 §14).
@@ -881,12 +960,12 @@ export function CasesPage(props: {
               )}
             </p>
           )}
-          {list.total === 0 ? (
+          {list.total === 0 && !props.calendar?.invalid ? (
             <FirstRun {...senders} />
           ) : (
             <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
               <StatsPanel stats={stats} orgId={shell.organization.id} />
-              <Filters filters={filters} members={props.members ?? []} />
+              <Filters filters={filters} members={props.members ?? []} now={now} calendar={props.calendar} />
               <p id="case-count" role="status" class="sr-only">
                 {countStatus(list, filters, notices, checkerName)}
               </p>
