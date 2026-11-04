@@ -6,9 +6,11 @@ import {
   DEPLOYED_GPU,
   dayLimitMinutes,
   FIREWORKS_DAY_CAP_USD,
+  FIREWORKS_TOTAL_CAP_USD,
   hourlyRateUsd,
   MAX_WARMUP_SECONDS,
   PRICE_PER_HOUR_USD,
+  SCALE_TO_ZERO_SECONDS,
   TAIL_MINUTES,
   totalLimitMinutes,
   WARMUP_MARGIN_SECONDS,
@@ -37,8 +39,8 @@ beforeEach(async () => {
   await db.prepare("DELETE FROM glimmer_runtime").run();
 });
 
-// 10:00 SAST on 2026-11-01, and 23:55 SAST the night before.
-const MORNING = new Date("2026-11-01T08:00:00Z");
+// 00:00 SAST on 2026-11-01, and 23:55 SAST the night before.
+const MORNING = new Date("2026-10-31T22:00:00Z");
 const LATE = new Date("2026-10-31T21:55:00Z");
 const reservation = (id: string, minutes: number, at = MORNING, source: "worker" | "local" = "worker") => ({
   id,
@@ -50,16 +52,24 @@ const reservation = (id: string, minutes: number, at = MORNING, source: "worker"
 });
 
 describe("caps", () => {
+  it("raises cumulative usage headroom while retaining individual execution limits", () => {
+    expect([FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD]).toEqual([50, 250]);
+    expect([DAILY_MINUTES, SCALE_TO_ZERO_SECONDS, TAIL_MINUTES, MAX_WARMUP_SECONDS, WARMUP_MARGIN_SECONDS]).toEqual([
+      60, 300, 6, 195, 60,
+    ]);
+    expect(totalLimitMinutes()).toBe(1875);
+    expect(dayLimitMinutes()).toBe(60);
+  });
   it("prices the deployed GPU and refuses one it has no price for", () => {
     expect(hourlyRateUsd()).toBe(8);
     expect(PRICE_PER_HOUR_USD[DEPLOYED_GPU]).toBe(8);
     expect(() => hourlyRateUsd("NVIDIA_B200_180GB")).toThrow(/no checked price/);
   });
-  it("keeps 30 minutes a day under the day's money cap, so the minutes bind first", () => {
+  it("keeps 60 minutes a day under the day's money cap, so the minutes bind first", () => {
     expect((DAILY_MINUTES * hourlyRateUsd()) / 60).toBeLessThan(FIREWORKS_DAY_CAP_USD);
     expect(dayLimitMinutes()).toBe(DAILY_MINUTES);
-    // A pricier GPU would make the money cap bind: at US$13 an hour, US$5 is 23.1 minutes.
-    expect(dayLimitMinutes(13)).toBeCloseTo((5 / 13) * 60, 6);
+    // A pricier GPU would make the money cap bind: at US$130 an hour, US$50 is 23.1 minutes.
+    expect(dayLimitMinutes(130)).toBeCloseTo((50 / 130) * 60, 6);
   });
   it("charges the measured tail, not the 300 s setting", () => {
     expect(TAIL_MINUTES * 60).toBeGreaterThanOrEqual(335);
@@ -95,38 +105,38 @@ describe("minutesByDay and minutesUsed", () => {
   });
 });
 
-// §34: 30 minutes a day on average since 2026-10-31, one day borrowed ahead. Through 2026-10-31 the ledger may hold
-// 60 minutes; through 2026-11-01, 90.
+// Judging allowance: 60 minutes a day on average since 2026-10-31, one day borrowed ahead. Through 2026-10-31 the ledger may hold
+// 120 minutes; through 2026-11-01, 180.
 describe("the averaged allowance", () => {
-  it("allows 30 a day times the days so far, plus one day ahead", () => {
-    expect(allowanceMinutes("2026-10-31")).toBe(60);
-    expect(allowanceMinutes("2026-11-01")).toBe(90);
-    expect(allowanceMinutes("2026-11-07")).toBe(270);
+  it("allows 60 a day times the days so far, plus one day ahead", () => {
+    expect(allowanceMinutes("2026-10-31")).toBe(120);
+    expect(allowanceMinutes("2026-11-01")).toBe(180);
+    expect(allowanceMinutes("2026-11-07")).toBe(540);
     // The strict rule is the same function with no day borrowed and its own first day.
-    expect(allowanceMinutes("2026-11-01", { from: "2026-11-01", borrow: 0 })).toBe(30);
+    expect(allowanceMinutes("2026-11-01", { from: "2026-11-01", borrow: 0 })).toBe(60);
   });
 });
 
 describe("mayCall", () => {
   it("refuses at the running allowance's edge, earlier days counted, and allows just under it", () => {
-    const ledger = { days: { "2026-10-31": 50, "2026-11-01": 30 }, total: 80 };
+    const ledger = { days: { "2026-10-31": 110, "2026-11-01": 60 }, total: 170 };
     expect(mayCall(ledger, MORNING, 10).ok).toBe(true);
     expect(mayCall(ledger, MORNING, 10.01)).toMatchObject({ ok: false, reason: "average-minutes", day: "2026-11-01" });
   });
-  it("lets a day pass 30 by borrowing ahead, and lets unused days roll over", () => {
-    // 2026-10-31 alone may reach 60: a busy first day borrows the next one's 30.
-    expect(mayCall({ days: { "2026-10-31": 40 }, total: 40 }, LATE, 4).ok).toBe(true);
-    // A day after a quiet one may reach past 60: 2026-10-31 used 10, so 2026-11-01 may take 80.
-    expect(mayCall({ days: { "2026-10-31": 10 }, total: 10 }, MORNING, 80).ok).toBe(true);
-    expect(mayCall({ days: { "2026-10-31": 10 }, total: 10 }, MORNING, 80.01).ok).toBe(false);
+  it("lets a day pass 60 by borrowing ahead, and lets unused days roll over", () => {
+    // 2026-10-31 alone may reach 120: a busy first day borrows the next one's 60.
+    expect(mayCall({ days: { "2026-10-31": 116 }, total: 116 }, LATE, 4).ok).toBe(true);
+    // A day after a quiet one may reach past 120: 2026-10-31 used 10, so 2026-11-01 may take 170.
+    expect(mayCall({ days: { "2026-10-31": 10 }, total: 10 }, MORNING, 170).ok).toBe(true);
+    expect(mayCall({ days: { "2026-10-31": 10 }, total: 10 }, MORNING, 170.01).ok).toBe(false);
   });
   it("checks a burst across midnight through each day it touches", () => {
     // 5 minutes on 2026-10-31 and 10 on 2026-11-01.
-    expect(mayCall({ days: { "2026-10-31": 56 }, total: 56 }, LATE, 15)).toMatchObject({
+    expect(mayCall({ days: { "2026-10-31": 116 }, total: 116 }, LATE, 15)).toMatchObject({
       reason: "average-minutes",
       day: "2026-10-31",
     });
-    expect(mayCall({ days: { "2026-10-31": 50, "2026-11-01": 31 }, total: 81 }, LATE, 15)).toMatchObject({
+    expect(mayCall({ days: { "2026-10-31": 110, "2026-11-01": 61 }, total: 171 }, LATE, 15)).toMatchObject({
       reason: "average-minutes",
       day: "2026-11-01",
     });
@@ -137,47 +147,47 @@ describe("mayCall", () => {
     expect(mayCall({ days: {}, total: total - 5 }, MORNING, 5.01)).toMatchObject({ ok: false, reason: "total-usd" });
   });
   it("refuses the day's money at a pricier GPU before the minutes", () => {
-    // At US$13 an hour US$5 is 23.1 minutes a day: 69.2 through 2026-11-01.
-    expect(mayCall({ days: {}, total: 0 }, MORNING, 70, 13)).toMatchObject({ ok: false, reason: "average-minutes" });
+    // At US$130 an hour US$50 is 23.1 minutes a day: 69.2 through 2026-11-01.
+    expect(mayCall({ days: {}, total: 0 }, MORNING, 70, 130)).toMatchObject({ ok: false, reason: "average-minutes" });
   });
 });
 
 describe("reserveBurst on D1", () => {
   it("reserves just under the running allowance and refuses past it", async () => {
-    expect(await reserveBurst(exec, reservation("a", 60))).toMatchObject({ ok: true, repeated: false });
-    expect(await reserveBurst(exec, reservation("b", 30.01))).toMatchObject({ ok: false, reason: "average-minutes" });
-    expect(await reserveBurst(exec, reservation("c", 30))).toMatchObject({ ok: true });
-    expect(await dayMinutes(exec, "2026-11-01")).toBe(90);
+    expect(await reserveBurst(exec, reservation("a", 120))).toMatchObject({ ok: true, repeated: false });
+    expect(await reserveBurst(exec, reservation("b", 60.01))).toMatchObject({ ok: false, reason: "average-minutes" });
+    expect(await reserveBurst(exec, reservation("c", 60))).toMatchObject({ ok: true });
+    expect(await dayMinutes(exec, "2026-11-01")).toBe(180);
   });
   it("counts the days before, and checks a burst across midnight through each day it touches", async () => {
     await db
       .prepare(
-        "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) VALUES ('x:2026-10-31', 'x', '2026-10-31', 'local', 't', 'warm-up', '2026-10-31T06:00:00Z', 56, 56, '2026-10-31T06:30:00Z')",
+        "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) VALUES ('x:2026-10-31', 'x', '2026-10-31', 'local', 't', 'warm-up', '2026-10-31T06:00:00Z', 116, 116, '2026-10-31T06:30:00Z')",
       )
       .run();
     expect(await reserveBurst(exec, reservation("late", 15, LATE))).toMatchObject({ ok: false, day: "2026-10-31" });
     expect(await reserveBurst(exec, reservation("late", 4, LATE))).toMatchObject({ ok: true });
-    expect(await dayMinutes(exec, "2026-10-31")).toBe(60);
-    // The next day: 60 already used through 2026-10-31, so 2026-11-01 may add only 30 more, though it has none yet.
-    expect(await reserveBurst(exec, reservation("next", 30.01))).toMatchObject({
+    expect(await dayMinutes(exec, "2026-10-31")).toBe(120);
+    // The next day: 120 already used through 2026-10-31, so 2026-11-01 may add only 60 more, though it has none yet.
+    expect(await reserveBurst(exec, reservation("next", 60.01))).toMatchObject({
       ok: false,
       reason: "average-minutes",
     });
-    expect(await reserveBurst(exec, reservation("next", 30))).toMatchObject({ ok: true });
+    expect(await reserveBurst(exec, reservation("next", 60))).toMatchObject({ ok: true });
   });
   // §34 plan review gap 1: a refusal caused by earlier days' minutes is named with the figures that refused it.
   it("names a refusal from every day's minutes through the reservation's day", async () => {
     await db
       .prepare(
-        "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) VALUES ('y:2026-10-31', 'y', '2026-10-31', 'local', 't', 'warm-up', '2026-10-31T06:00:00Z', 60, 60, '2026-10-31T06:30:00Z')",
+        "INSERT INTO glimmer_runtime (id, reservation_id, day, source, caller, purpose, wake_at, reserved_minutes, used_minutes, settled_at) VALUES ('y:2026-10-31', 'y', '2026-10-31', 'local', 't', 'warm-up', '2026-10-31T06:00:00Z', 120, 120, '2026-10-31T06:30:00Z')",
       )
       .run();
-    expect(await reserveBurst(exec, reservation("next", 31))).toEqual({
+    expect(await reserveBurst(exec, reservation("next", 61))).toEqual({
       ok: false,
       reason: "average-minutes",
       day: "2026-11-01",
       detail:
-        "through 2026-11-01 the deployment would hold 91 of its 90 minutes (30 a day on average since 2026-10-31, 1 day ahead)",
+        "through 2026-11-01 the deployment would hold 181 of its 180 minutes (60 a day on average since 2026-10-31, 1 day ahead)",
     });
   });
   it("answers a repeated id from its first rows and never charges it twice", async () => {
@@ -188,13 +198,13 @@ describe("reserveBurst on D1", () => {
     expect(await dayMinutes(exec, "2026-11-01")).toBe(12);
   });
   it("gives the last minutes to one of two concurrent reservations", async () => {
-    await reserveBurst(exec, reservation("held", 78));
+    await reserveBurst(exec, reservation("held", 168));
     const both = await Promise.all([
       reserveBurst(exec, reservation("p", 12)),
       reserveBurst(exec, reservation("q", 12)),
     ]);
     expect(both.filter((r) => r.ok)).toHaveLength(1);
-    expect(await dayMinutes(exec, "2026-11-01")).toBe(90);
+    expect(await dayMinutes(exec, "2026-11-01")).toBe(180);
   });
   it("refuses at the total cap with minutes left in the allowance", async () => {
     // A later day's minutes count toward the total, not toward 2026-11-01's allowance.
@@ -352,10 +362,10 @@ describe("ledgerStatus", () => {
     const first = await ledgerStatus(exec, new Date(MORNING.getTime() + 60_000));
     expect(first).toMatchObject({
       day: "2026-11-01",
-      allowance_through_today: 90,
+      allowance_through_today: 180,
       used_through_today: 49.7,
       held_today: 8,
-      day_left: 40.3,
+      day_left: 130.3,
     });
     // A fresh executor on the same database reads the same figures: nothing is kept in memory.
     expect(await ledgerStatus(d1Exec(db), new Date(MORNING.getTime() + 60_000))).toEqual(first);
@@ -368,15 +378,15 @@ describe("ledgerStatus", () => {
     expect(status).toMatchObject({
       day: "2026-11-01",
       settled: 1 + TAIL_MINUTES,
-      allowance_through_today: 90,
+      allowance_through_today: 180,
       used_through_today: 7 + 8,
       held_today: 8,
-      day_left: 90 - 7 - 8,
+      day_left: 180 - 7 - 8,
     });
     expect(status.outstanding).toEqual([
       { id: "open", purpose: "monitor", source: "local", day: "2026-11-01", reserved: 8, age_minutes: 18 },
     ]);
     expect(status.total_usd).toBe(2);
-    expect(status.total_left_usd).toBe(88);
+    expect(status.total_left_usd).toBe(FIREWORKS_TOTAL_CAP_USD - 2);
   });
 });

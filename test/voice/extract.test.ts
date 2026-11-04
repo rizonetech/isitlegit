@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { d1Budget, reserve } from "../../src/meta/budget";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { sastDay } from "../../src/meta/day";
 import type { StructuredContext } from "../../src/meta/structured";
 import { extractVoiceClaim, supported, VOICE_MODEL, verified, voiceRequest } from "../../src/voice/extract";
@@ -207,7 +208,7 @@ describe("failures", () => {
       model: VOICE_MODEL,
       caseId: null,
       attempt: 1,
-      estimateUsd: 15,
+      estimateUsd: DAY_CAP_USD,
     });
     const m = model([() => answer(CLAIM)]);
     expect(await extractVoiceClaim(TRANSCRIPT, m.ctx)).toEqual({ ok: false, reason: "budget", infra: false });

@@ -2,8 +2,8 @@
 // so these are enforced by the callers through the `glimmer_runtime` ledger (./glimmer-minutes.ts): the Worker and the
 // local scripts reserve minutes there before they send a request.
 
-// The operator's 30 minutes a day, warm-up included (design spec section 11).
-export const DAILY_MINUTES = 30;
+// The operator-authorized 60 cumulative runtime minutes a day, warm-up included (design spec section 11).
+export const DAILY_MINUTES = 60;
 
 // The deployment scales to zero 300 s after its last request, but §13 measured 319 s and 335 s from the last answer to
 // 0 replicas (docs/glimmer/training.md, warm-ups 2026-10-31), so every burst is charged 6 minutes after its last activity.
@@ -48,9 +48,9 @@ export const DEPLOYED: Target = targetOf(ACTIVE.version, ACTIVE.deployment);
 export const DEPLOYED_GPU = "NVIDIA_H200_141GB";
 export const DEPLOYED_GPU_COUNT = 1;
 
-// The money caps on the deployment (design spec section 11): US$5 a day and US$90 in total.
-export const FIREWORKS_DAY_CAP_USD = 5;
-export const FIREWORKS_TOTAL_CAP_USD = 90;
+// The money caps on the deployment (design spec section 11): US$50 a day and US$250 in total (coordinator, 4 November 2026).
+export const FIREWORKS_DAY_CAP_USD = 50;
+export const FIREWORKS_TOTAL_CAP_USD = 250;
 
 export function hourlyRateUsd(gpu: string = DEPLOYED_GPU, count: number = DEPLOYED_GPU_COUNT): number {
   const rate = PRICE_PER_HOUR_USD[gpu];
@@ -69,10 +69,10 @@ export const DEPLOYED_MODEL = DEPLOYED.model;
 export const recoveryCommand = (version: string = DEPLOYED_VERSION) =>
   `node scripts/glimmer/deploy.ts ensure ${version}`;
 
-// The 30 minutes are an average, not a hard day (operator, 2026-10-31 22:16 SAST, D03 T04 §34): from the deployment's
+// Runtime minutes accrue as an average, not a hard day (operator, 2026-10-31 22:16 SAST, D03 T04 §34): from the deployment's
 // first day (§12 created it on 2026-10-31), the minutes used through any day may reach the day limit times the days so
 // far plus one day borrowed ahead. A busy day borrows from the next, which then runs lighter; unused minutes roll over.
-// The day's money cap averages with it: at US$8.00 an hour the minutes bind first (30 minutes is US$4 of the US$5).
+// The day's money cap averages with it: at US$8.00 an hour the minutes bind first (60 minutes is US$8 of the US$50).
 export const AVERAGE_FROM_DAY = "2026-10-31";
 export const BORROW_DAYS = 1;
 export type Allowance = { from: string; borrow: number };
