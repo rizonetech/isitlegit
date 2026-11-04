@@ -1,6 +1,6 @@
 # Phone forwarding guidance
 
-D07 T04 §35 companion proposal, prepared under the coordinator's 2026-11-04 11:09 SAST research/plan authority. Exact wording needs coordinator approval and incorporation into `design/SPEC.md` M1 before implementation completion. Console owns this companion and `FirstRun`; coordinator owns shared SPEC. No change to forwarding, upload admission or authentication checks is proposed.
+D07 T04 §35 companion proposal, prepared under the coordinator's 2026-11-04 11:09 SAST research/plan authority. The coordinator approved the exact wording at2026-11-04T09:44:41UTC and authorized implementation after the genuine plan review. Incorporation into `design/SPEC.md` M1 remains required before completion. Console owns this companion and `FirstRun`; coordinator owns shared SPEC. No change to forwarding, upload admission or authentication checks is proposed.
 
 ## Source-backed limits
 

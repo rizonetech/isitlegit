@@ -17,6 +17,7 @@ import {
 import { searchTerms, searchText } from "../../src/db/search-fold";
 import { CasesPage } from "../../src/web/pages/cases-view";
 import { errorPage } from "../../src/web/pages/errors";
+import { UploadPage } from "../../src/web/pages/upload-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 import { member } from "./shell-fixtures";
@@ -206,6 +207,12 @@ async function answer(req: IncomingMessage): Promise<Response> {
             ? `attachment; filename="isitlegit-${url.searchParams.get("exact") === "1" ? "daily-counts" : "counts"}-${from}-to-${to}.csv"`
             : 'attachment; filename="isitlegit-weekly-counts.csv"',
       },
+    });
+  }
+  if (url.pathname === "/upload") {
+    const { children: _, ...shell } = member({ organization: { id: state.org, name: ORGS[state.org].name } });
+    return new Response(String(<UploadPage shell={shell} org={state.org} usage={{ used: 0, limit: 100 }} />), {
+      headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
   if (url.pathname === "/signin")
@@ -1063,5 +1070,47 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
         }
       }
       await context.close();
+    });
+
+  for (const js of [true, false])
+    it(`shows phone forwarding guidance and opens upload by keyboard with scripts ${js ? "on" : "off"}`, async () => {
+      state.org = "E";
+      const { p, context } = await open("/cases", { width: 360, js });
+      try {
+        for (const theme of ["light", "dark"] as const) {
+          await p.goto(`${origin}/cases`, { waitUntil: "load" });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          for (const title of ["Apple Mail on iPhone", "Gmail on a phone", "Checking from your phone?"])
+            expect(await p.getByText(title, { exact: true }).isVisible()).toBe(true);
+          for (const text of [
+            "Select the email, then Home, More, Forward as attachment.",
+            "Open the email, then More actions, Forward as attachment.",
+            "Tick the email in your inbox, then More at the top, Forward as attachment.",
+          ])
+            expect(await p.getByText(text, { exact: true }).isVisible()).toBe(true);
+          for (const text of [
+            "Reply, then Forward sends an ordinary forward. For the original email, open the same mailbox in Mail on a Mac, select the message, then choose Message, Forward As Attachment.",
+            "For the original email, use Gmail on a computer. Tick the message in your inbox, then choose More, Forward as attachment. You can also open the message, choose More, Download message, and upload the saved .eml file.",
+            "Already have the original .eml or .msg file? Upload it from your phone. You can also check a screenshot or a PDF you already have, but those do not include the original email headers. An ordinary forward also leaves those checks unavailable. Use a computer and the steps above when you need the original email checked.",
+            "Choose a file and select your saved file. The check starts automatically, or with Check this file if that button is shown.",
+          ])
+            expect(await p.getByText(text, { exact: true }).isVisible()).toBe(true);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+          const upload = p.getByRole("link", { name: "Upload a file", exact: true });
+          for (let i = 0; i < 60 && !(await upload.evaluate((el) => el === document.activeElement)); i++)
+            await p.keyboard.press("Tab");
+          expect(await upload.evaluate((el) => el === document.activeElement)).toBe(true);
+          await p.keyboard.press("Enter");
+          await p.waitForURL(`${origin}/upload`);
+          expect(await p.getByRole("heading", { name: "Check a file", exact: true }).isVisible()).toBe(true);
+          expect(await p.locator("#upload-file").getAttribute("type")).toBe("file");
+          expect(
+            await p.locator("#upload-file").evaluate((el) => Boolean((el as HTMLInputElement).labels?.length)),
+          ).toBe(true);
+          expect(await p.getByRole("button", { name: "Check this file", exact: true }).isVisible()).toBe(!js);
+        }
+      } finally {
+        await context.close();
+      }
     });
 });
