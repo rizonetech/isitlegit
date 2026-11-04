@@ -12,7 +12,7 @@ import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { addedWords, distance, labelSkeleton, MAX_LABEL_CHARACTERS, unicodeLabel } from "./lookalike";
 import { counted } from "./outcome-summary";
-import type { CheckRegistry } from "./registry";
+import { type CheckRegistry, MAX_OUTCOME_SUMMARY } from "./registry";
 import { mailbox } from "./sender";
 
 type Header = CaseView["headers"][number];
@@ -327,15 +327,42 @@ const DESCRIBED: Record<Technique, string> = {
   edit: "one or two characters changed",
 };
 
+// The non-exempt candidate domains the check actually compares (within MAX_COMPARED, with a comparable label).
+export function comparedDomains(view: Readonly<CaseView>): string[] {
+  const exempt = new Set<string>();
+  const addExempt = (domain: string) => {
+    const ascii = asciiDomain(domain);
+    const s = ascii ? split(ascii) : null;
+    if (s) exempt.add(s.domain);
+  };
+  for (const d of view.tenant.trusted.own) addExempt(d);
+  for (const d of view.tenant.trusted.suppliers) addExempt(d);
+  for (const brand of view.brands.brands) for (const d of brand.domains) addExempt(d);
+  const compared: string[] = [];
+  for (const entry of candidatesOf(view).slice(0, MAX_COMPARED)) {
+    if (exempt.has(entry.domain)) continue;
+    const candidate = split(entry.domain);
+    if (candidate && comparable(candidate)) compared.push(entry.domain);
+  }
+  return compared;
+}
+
 // The lookalike domains found, an overflow card's count included, and whether any domain went uncompared (D02 T01 §7;
-// round 1: a "not compared" note and an overflow card were each counted as one lookalike).
-export function lookalikeSummary(_: Readonly<CaseView>, items: readonly EvidenceDraft[]): string {
+// D02 T03 §12: a clean summary names how many domains were compared and the first of them inside MAX_OUTCOME_SUMMARY).
+export function lookalikeSummary(view: Readonly<CaseView>, items: readonly EvidenceDraft[]): string {
   const found = items
     .filter((i) => i.detail.compared !== false && i.severity !== "info")
     .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
   const unread = items.some((i) => i.detail.compared === false);
-  if (!found)
-    return unread ? "no lookalike among the domains compared, some not compared" : "no lookalike of a known name";
+  if (!found) {
+    const compared = comparedDomains(view);
+    if (!compared.length)
+      return unread ? "no lookalike among the domains compared, some not compared" : "no lookalike of a known name";
+    const lead = `no lookalike among ${counted(compared.length, "domain", "domains")}${unread ? " compared" : ""}, from `;
+    const tail = unread ? ", some not compared" : "";
+    const budget = Math.min(60, MAX_OUTCOME_SUMMARY - Array.from(lead).length - Array.from(tail).length);
+    return `${lead}${plain(compared[0] ?? "", budget)}${tail}`;
+  }
   return `${counted(found, "lookalike domain", "lookalike domains")}${unread ? ", some domains not compared" : ""}`;
 }
 

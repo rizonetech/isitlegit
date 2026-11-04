@@ -100,9 +100,10 @@ const deps = (fetcher: typeof fetch, now: Date, over: Partial<ForwardingDeps> = 
   fetch: fetcher,
   now: () => now,
   // No grace and no wait after reading, so a refusal is tied to its forward in the run that reads it; the ordering tests
-  // pass the real grace, and D01 T02 §12's both.
+  // pass the real grace, D01 T02 §12's both, and D01 T02 §15 tests earlyAlert (default true in checkForwarding).
   graceMs: 0,
   seenMs: 0,
+  earlyAlert: false,
   ...over,
 });
 
@@ -850,5 +851,151 @@ describe("a refusal alerted soon after its grace", () => {
     await checkForwarding(deps(w.fetcher, at(25), real));
     expect(w.sends).toHaveLength(2);
     expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
+  });
+});
+
+describe("early refusal alert before attribution (D01 T02 §15)", () => {
+  const real = { graceMs: MATCH_GRACE_MS, seenMs: SEEN_MS };
+  // Omit earlyAlert so checkForwarding uses its production default (true).
+  const prodDeps = (fetcher: typeof fetch, now: Date, over: Partial<ForwardingDeps> = {}): ForwardingDeps => ({
+    db,
+    token: "test-token",
+    zone: ZONE,
+    mail: { db, apiKey: "api-test", fetch: fetcher, pause: async () => {}, now: () => now },
+    operators: OPERATORS,
+    fetch: fetcher,
+    now: () => now,
+    ...real,
+    ...over,
+  });
+
+  it("sends the early alert at first reading naming destination and time but no alias, the attributed alert after the grace, and one alert when earlyAlert is false", async () => {
+    const w = world([[forward(), report()], []]);
+    // First scan at 1 minute (before the 20-minute grace): sends the early alert to both operator mailboxes.
+    const firstScan = await checkForwarding(prodDeps(w.fetcher, at(1)));
+    expect(firstScan).toMatchObject({ state: "ok", alerted: 1 });
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends.map((s) => s.to)).toEqual(OPERATORS);
+    expect(w.sends[0]?.subject).toBe("IsItLegit: a forwarded message was refused after forwarding");
+    expect(w.sends[0]?.text).toContain(`refused by rizonetech.com at ${report().datetime}`);
+    expect(w.sends[0]?.text).not.toContain("hello@isitlegit.co.za");
+    expect(w.sends[0]?.key).toMatch(/^forward-early:[0-9a-f]{64}:0$/);
+
+    // After the grace and SEEN_MS (at 22 minutes): sends the attributed alert naming hello@isitlegit.co.za.
+    const secondScan = await checkForwarding(prodDeps(w.fetcher, at(22)));
+    expect(secondScan).toMatchObject({ state: "ok", alerted: 1 });
+    expect(w.sends).toHaveLength(4);
+    expect(w.sends[2]?.subject).toBe("IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding");
+    expect(w.sends[2]?.text).toContain("from supplier.example to hello@isitlegit.co.za");
+    expect(w.sends[2]?.key).toMatch(/^forward-failure:[0-9a-f]{64}:0$/);
+
+    // When the operator says no (earlyAlert: false): nothing before the grace, one attributed alert after.
+    await db.batch([
+      db.prepare("DELETE FROM forward_scan"),
+      db.prepare("DELETE FROM forward_seen"),
+      db.prepare("DELETE FROM forward_incidents"),
+      db.prepare("DELETE FROM forward_notices"),
+      db.prepare("DELETE FROM mail_sends"),
+    ]);
+    const wNo = world([[forward(), report()], []]);
+    await checkForwarding(prodDeps(wNo.fetcher, at(1), { earlyAlert: false }));
+    expect(wNo.sends).toEqual([]);
+    await checkForwarding(prodDeps(wNo.fetcher, at(22), { earlyAlert: false }));
+    expect(wNo.sends).toHaveLength(2);
+    expect(wNo.sends[0]?.text).toContain("hello@isitlegit.co.za");
+  });
+
+  it("deduplicates the early alert across same-scan notices, later-scan notices (including an earlier timestamp read later), and replays", async () => {
+    const laterNotice = report({
+      sessionId: "s-r2",
+      messageId: "<ndr-2@x>",
+      datetime: new Date(at(0.2).getTime() + 2000).toISOString(),
+    });
+    const w = world([[laterNotice], [report()], [forward()], []]);
+    // Scan 1 reads the second notice first and sends 1 early alert (2 operator emails).
+    await checkForwarding(prodDeps(w.fetcher, at(1)));
+    expect(w.sends).toHaveLength(2);
+    // Scan 2 reads the earlier-timestamped sibling notice; it shares the cluster's early-alert key and sends nothing new.
+    await checkForwarding(prodDeps(w.fetcher, at(5)));
+    expect(w.sends).toHaveLength(2);
+    // Scan 3 (still waiting on SEEN_MS for the second notice) replays and sends nothing new.
+    await checkForwarding(prodDeps(w.fetcher, at(7)));
+    expect(w.sends).toHaveLength(2);
+    // Scan 4 (at 22 minutes, past grace and SEEN_MS for both notices): folds the cluster and sends 1 attributed alert.
+    await checkForwarding(prodDeps(w.fetcher, at(22)));
+    expect(w.sends).toHaveLength(4);
+    expect(w.sends[2]?.text).toContain("hello@isitlegit.co.za");
+    expect(w.sends[2]?.text).toContain("Cloudflare dropped the 2 refusal notices");
+  });
+
+  it("sends no second alert after the grace when no forward was found and the early alert was already confirmed delivered", async () => {
+    const w = world([[report()], []]);
+    await checkForwarding(prodDeps(w.fetcher, at(1)));
+    expect(w.sends).toHaveLength(2);
+    // Past the grace with no matching forward: the early alert already said all, so no second alert goes.
+    const postGrace = await checkForwarding(prodDeps(w.fetcher, at(22)));
+    expect(postGrace).toMatchObject({ state: "ok", alerted: 0 });
+    expect(w.sends).toHaveLength(2);
+    const incident = await db.prepare("SELECT alert FROM forward_incidents").first<{ alert: string }>();
+    expect(incident?.alert).toBe("sent");
+  });
+
+  it("retries a failed early alert on the next scan without duplicating a delivered mailbox, and sends the early alert during a partial scan while keeping attribution blocked", async () => {
+    // 1. Failed second mailbox on Scan 1, recovered on Scan 2, then attributed after the grace on Scan 3.
+    const sends: { to: string; key: string }[] = [];
+    let fallbackUp = false;
+    const pages: RoutingEvent[][] = [[forward(), report()], [], []];
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      if (url === GRAPHQL_URL)
+        return Response.json({ data: { viewer: { zones: [{ emailRoutingAdaptive: pages.shift() ?? [] }] } } });
+      if (body.to[0] === OPERATORS[1] && !fallbackUp)
+        return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
+      const key = body.custom_headers.find((h: { header: string }) => h.header === "X-IsItLegit-Send")?.value;
+      sends.push({ to: body.to[0], key });
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `e-${sends.length}` } });
+    }) as typeof fetch;
+
+    expect(await checkForwarding(prodDeps(fetcher, at(1)))).toMatchObject({ state: "degraded", alerted: 0 });
+    expect(sends.map((s) => s.to)).toEqual([OPERATORS[0]]);
+    fallbackUp = true;
+    expect(await checkForwarding(prodDeps(fetcher, at(5)))).toMatchObject({ state: "ok", alerted: 1 });
+    expect(sends.map((s) => s.to)).toEqual(OPERATORS);
+    // Attribution still waited for the grace and now sends the attributed alert at 22 minutes.
+    expect(await checkForwarding(prodDeps(fetcher, at(22)))).toMatchObject({ state: "ok", alerted: 1 });
+    expect(sends).toHaveLength(4);
+
+    // 2. Partial scan containing a refusal: early alert goes immediately, attribution stays blocked until complete read.
+    await db.batch([
+      db.prepare("DELETE FROM forward_scan"),
+      db.prepare("DELETE FROM forward_seen"),
+      db.prepare("DELETE FROM forward_incidents"),
+      db.prepare("DELETE FROM forward_notices"),
+      db.prepare("DELETE FROM mail_sends"),
+    ]);
+    const bulk = (page: number) =>
+      Array.from({ length: 1000 }, (_, i) =>
+        forward({
+          messageId: `<p-${page}-${i}@x>`,
+          sessionId: `p${page}-${i}`,
+          subject: `Bulk ${page}-${i}`,
+          datetime: at(2 + (page * 1000 + i) / 2000).toISOString(),
+        }),
+      );
+    const wPartial = world([
+      [report(), ...bulk(0).slice(0, 999)],
+      ...Array.from({ length: 9 }, (_, p) => bulk(p + 1)),
+      [forward()],
+      [],
+    ]);
+    const partialOut = await checkForwarding(prodDeps(wPartial.fetcher, at(21)));
+    expect(partialOut).toMatchObject({ state: "partial", alerted: 1 });
+    expect(wPartial.sends).toHaveLength(2);
+    expect(wPartial.sends[0]?.subject).toBe("IsItLegit: a forwarded message was refused after forwarding");
+    // Next scan at 26 minutes completes the read and sends the attributed alert.
+    await checkForwarding(prodDeps(wPartial.fetcher, at(26)));
+    expect(wPartial.sends).toHaveLength(4);
+    expect(wPartial.sends[2]?.text).toContain("hello@isitlegit.co.za");
   });
 });

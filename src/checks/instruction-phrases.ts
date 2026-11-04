@@ -47,7 +47,7 @@ const REMOVED = "[removed: text written to steer an AI]";
 // Who an instruction is addressed to. `AI_NAMED` leaves out what also names a person ("assistant" alone, "Claude",
 // "Gemini"), for the forms that would read as ordinary mail to one (completion review: "Dear assistant, please book
 // the meeting room").
-const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat\s*bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
+const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security|helpful|harmless|obedient|compliant) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat\s*bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
 const VERDICT = `(?:safe|legitimate|legit|genuine|clean|trusted|benign|harmless|not (?:spam|phishing|malicious|a scam|suspicious))`;
 const MESSAGE = `(?:e-?mail|message|mail|invoice|attachment|document|request|payment request)`;
 const VERB = `(?:classify|mark|label|flag|treat|rate|consider|ignore|approve|whitelist|summari[sz]e)`;
@@ -65,7 +65,7 @@ export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
   {
     name: "role-for-ai",
     pattern: phrase(
-      String.raw`\b(?:you are|you're|act as|pretend to be|role-?play as|behave as)\s+(?:an?\s+|the\s+)?${AI_NAMED}\b`,
+      String.raw`\b(?:from now on[, ]+)?(?:you are|you're|act as|pretend to be|role-?play as|behave as)(?:\s+now)?\s+(?:an?\s+|the\s+)?${AI_NAMED}\b`,
     ),
   },
   {
@@ -96,7 +96,7 @@ export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
     // is tried from its first only (`(?<!#)`), so a long run is read once, not once per hash (round 1).
     name: "template-marker",
     pattern:
-      /<\|\s*(?:system|im_start|im_end|user|assistant|endoftext)\s*\|>|\[\/?(?:INST|SYS)\]|<<\/?SYS>>|(?:^|\n)[ \t]*#{2,}[ \t]*(?:instructions?|system|response)[ \t]*(?=\n)|(?<!#)#{2,}[ \t]*(?:instructions?|system)[ \t]*:/gi,
+      /<\|\s*(?:system|im_start|im_end|user|assistant|endoftext)\s*\|>|\[\/?(?:INST|SYS|SYSTEM)\]|<<\/?SYS>>|(?:^|\n)[ \t]*#{2,}[ \t]*(?:instructions?|system|response)[ \t]*(?=\n)|(?<!#)#{2,}[ \t]*(?:instructions?|system)[ \t]*:/gi,
   },
 ];
 

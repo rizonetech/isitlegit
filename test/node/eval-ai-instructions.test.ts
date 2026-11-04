@@ -8,12 +8,9 @@ describe("ai_instructions measurement", () => {
     const s = scoreAiInstructions();
     expect(s.injections).toBe(4);
     expect(s.genuine).toBe(4);
-    // Exact measured outcome on this corpus (2026-11-02): the role-assignment and system-marker texts are
-    // missed by the scanner as written; no genuine text is flagged. The misses are the measurement, filed
-    // at the checks owner (D02 T05 section 2) through the coordinator.
-    expect(s.missed).toEqual(["role-assign", "system-marker"]);
+    expect(s.missed).toEqual([]);
     expect(s.flagged).toEqual([]);
-    expect(s.recall).toBe(0.5);
+    expect(s.recall).toBe(1);
     expect(s.precision).toBe(1);
   });
 });

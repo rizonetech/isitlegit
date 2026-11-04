@@ -150,7 +150,9 @@ describe("the reply's design through buildReply", () => {
     const { html, text } = send({ view: null });
     for (const part of [html, text]) {
       expect(part).toContain("We could not finish checking this message, so we have no verdict on it yet.");
-      expect(part).toContain("Please forward the message again in a few minutes.");
+      expect(part).toContain(
+        "Open the report and retry the check there, or forward the message again in a few minutes.",
+      );
     }
     expect(html).toContain("Check failed · no verdict");
     expect(html).not.toContain("What to do now");

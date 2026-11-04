@@ -66,6 +66,8 @@ export type ForwardingDeps = {
   // MATCH_GRACE_MS and SEEN_MS unless a test says otherwise.
   graceMs?: number;
   seenMs?: number;
+  // Send an early unattributed alert when a refusal is first read, before MATCH_GRACE_MS (D01 T02 §15; default true).
+  earlyAlert?: boolean;
 };
 
 export type ForwardingOutcome = {
@@ -263,7 +265,15 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
   // plan review): a failed or partial read may lack the very forward a refusal waited for, so they wait for one that
   // does not.
   if (read?.complete && recorded)
-    outcome.folded = await resolveRefusals(db, now, deps.graceMs ?? MATCH_GRACE_MS, deps.seenMs ?? SEEN_MS);
+    outcome.folded = await resolveRefusals(
+      db,
+      now,
+      deps.graceMs ?? MATCH_GRACE_MS,
+      deps.seenMs ?? SEEN_MS,
+      deps.operators.length,
+      deps.earlyAlert ?? true,
+    );
+  if (deps.earlyAlert ?? true) await sendEarlyAlerts(deps, outcome);
   const pending = await db
     .prepare(
       "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
@@ -368,7 +378,14 @@ type Waiting = {
   occurred_at: string;
   detected_at: string;
 };
-async function resolveRefusals(db: D1Database, now: Date, graceMs: number, seenMs: number): Promise<number> {
+async function resolveRefusals(
+  db: D1Database,
+  now: Date,
+  graceMs: number,
+  seenMs: number,
+  operatorCount = 0,
+  earlyAlert = true,
+): Promise<number> {
   let folded = 0;
   const waiting = await db
     .prepare(
@@ -431,6 +448,16 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number, seenM
       )
       .first<{ key: string }>();
     const only = !sibling && found.length === 1 ? found[0] : undefined;
+    // When no forward was found after the grace, attribution adds nothing to an early alert that was already confirmed
+    // delivered (D01 T02 §15: "or none when the first already said all").
+    const earlyDelivered =
+      earlyAlert && !found.length && !sibling && operatorCount > 0
+        ? await isEarlyAlertDelivered(
+            db,
+            cluster.map((m) => m.key),
+            operatorCount,
+          )
+        : false;
     const resolution =
       sibling && !found.length
         ? foldInto(sibling.key, cluster)
@@ -446,12 +473,140 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number, seenM
                 ? db
                     .prepare("UPDATE forward_incidents SET alias = ?, uncertain = 1, alert = 'pending' WHERE key = ?")
                     .bind([...new Set(found.map((f) => f.alias))].join(", "), first.key)
-                : db.prepare("UPDATE forward_incidents SET alert = 'pending' WHERE key = ?").bind(first.key),
+                : db
+                    .prepare("UPDATE forward_incidents SET alert = ? WHERE key = ?")
+                    .bind(earlyDelivered ? "sent" : "pending", first.key),
           ];
     await db.batch(resolution);
     folded += sibling && !found.length ? cluster.length : cluster.length - 1;
   }
   return folded;
+}
+
+async function isEarlyAlertDelivered(db: D1Database, keys: readonly string[], operatorCount: number): Promise<boolean> {
+  for (const key of keys) {
+    const sends = await db
+      .prepare("SELECT status FROM mail_sends WHERE send_key >= ? AND send_key < ?")
+      .bind(`forward-early:${key}:`, `forward-early:${key};`)
+      .all<{ status: string }>();
+    const rows = sends.results;
+    if (
+      rows.length === operatorCount &&
+      rows.every((r) => r.status === "sent" || r.status === "refused") &&
+      rows.some((r) => r.status === "sent")
+    )
+      return true;
+  }
+  return false;
+}
+
+export function earlyAlertText(
+  incident: Pick<Waiting, "key" | "destination_domain" | "occurred_at">,
+  reports: number,
+): { subject: string; text: string } {
+  const reference = `Incident ${incident.key.slice(0, 12)}.`;
+  return {
+    subject: "IsItLegit: a forwarded message was refused after forwarding",
+    text: [
+      `A forwarded message was refused by ${incident.destination_domain ?? "the destination"} at ${incident.occurred_at}. Which alias it was sent to is still being matched; a second alert will follow if its forward is found.`,
+      reports > 1
+        ? `The sender was not told: Cloudflare dropped the ${reports} refusal notices (a destination can send several for one message).`
+        : "The sender was not told: Cloudflare drops the refusal notice.",
+      "",
+      "Check the destination mailbox's health (quota, rules, filtering), then ask the sender to send again (docs/live-checks.md).",
+      "",
+      reference,
+    ].join("\n"),
+  };
+}
+
+// Early refusal alerts (D01 T02 §15): for each waiting refusal cluster not yet settled in this scan, send one early
+// alert naming the destination domain and refusal time (no alias), deduplicated across same-scan and later-scan notices
+// of the same cluster.
+async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome): Promise<void> {
+  const db = deps.db;
+  const waiting = await db
+    .prepare(
+      "SELECT key, subject_hash, destination_domain, occurred_at, detected_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
+    )
+    .all<Waiting>();
+  const done = new Set<string>();
+  const gap = (a: string, b: string) => Math.abs(Date.parse(b) - Date.parse(a));
+  for (const first of waiting.results) {
+    if (done.has(first.key)) continue;
+    const cluster = [first];
+    for (const next of waiting.results) {
+      const last = cluster[cluster.length - 1] as Waiting;
+      if (done.has(next.key) || cluster.includes(next)) continue;
+      if (next.subject_hash !== first.subject_hash || next.destination_domain !== first.destination_domain) continue;
+      if (Date.parse(next.occurred_at) < Date.parse(last.occurred_at)) continue;
+      if (gap(last.occurred_at, next.occurred_at) > NOTICE_SPREAD_MS) break;
+      cluster.push(next);
+    }
+    for (const member of cluster) done.add(member.key);
+    const last = cluster[cluster.length - 1] as Waiting;
+    // If a sibling refusal within NOTICE_SPREAD_MS was already settled, this notice belongs to it and needs no new
+    // early alert of its own.
+    const sibling = await db
+      .prepare(
+        "SELECT key FROM forward_incidents WHERE kind = 'refused' AND key <> ? AND alert <> 'waiting' AND subject_hash = ? AND destination_domain IS ? AND julianday(occurred_at) BETWEEN julianday(?) - ? AND julianday(?) + ? ORDER BY occurred_at LIMIT 1",
+      )
+      .bind(
+        first.key,
+        first.subject_hash,
+        first.destination_domain,
+        first.occurred_at,
+        NOTICE_SPREAD_MS / 86400000,
+        last.occurred_at,
+        NOTICE_SPREAD_MS / 86400000,
+      )
+      .first<{ key: string }>();
+    if (sibling) continue;
+    // Reuse any member key that already initiated an early alert in mail_sends (so an earlier-timestamped notice read
+    // in a later scan shares the cluster's existing early-alert key).
+    let earlyKey = first.key;
+    for (const member of cluster) {
+      const existing = await db
+        .prepare("SELECT 1 FROM mail_sends WHERE send_key >= ? AND send_key < ? LIMIT 1")
+        .bind(`forward-early:${member.key}:`, `forward-early:${member.key};`)
+        .first();
+      if (existing) {
+        earlyKey = member.key;
+        break;
+      }
+    }
+    if (deps.operators.length > 0 && (await isEarlyAlertTerminal(db, earlyKey, deps.operators.length))) continue;
+    const { subject, text } = earlyAlertText({ ...first, key: earlyKey }, cluster.length);
+    const outcomes: SendOutcome[] = [];
+    for (const [n, to] of deps.operators.entries())
+      outcomes.push(
+        await sendMail(
+          { ...deps.mail, operator: deps.operators },
+          { sendKey: `forward-early:${earlyKey}:${n}`, kind: "alert", to, from: ALERTS_FROM, subject, text },
+        ),
+      );
+    const confirmed = (o: SendOutcome) => o.status === "sent" || (o.status === "duplicate" && o.previous === "sent");
+    const refused = (o: SendOutcome) =>
+      o.status === "refused" || (o.status === "duplicate" && o.previous === "refused");
+    if (outcomes.every(refused)) continue;
+    if (outcomes.every((o) => confirmed(o) || refused(o))) {
+      outcome.alerted++;
+    } else {
+      if (outcome.state === "ok") outcome.state = "degraded";
+      outcome.errors.push(
+        `the early alert for incident ${earlyKey.slice(0, 12)} is not confirmed sent; tried again next run`,
+      );
+    }
+  }
+}
+
+async function isEarlyAlertTerminal(db: D1Database, key: string, operatorCount: number): Promise<boolean> {
+  const sends = await db
+    .prepare("SELECT status FROM mail_sends WHERE send_key >= ? AND send_key < ?")
+    .bind(`forward-early:${key}:`, `forward-early:${key};`)
+    .all<{ status: string }>();
+  const rows = sends.results;
+  return rows.length === operatorCount && rows.every((r) => r.status === "sent" || r.status === "refused");
 }
 
 type Incident = {

@@ -229,19 +229,28 @@ export function replyHeaders(evidence: readonly Pick<Evidence, "check" | "detail
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
 const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();
 
-// The failure-specific advice for a check that ended with no verdict (design/SPEC.md N1): a ParseError tells the
-// member the message could not be read, a model-budget refusal names when checks resume (D03 T01 §2), and any other
-// failure asks them to forward again in a few minutes.
+// The failure-specific advice for a check that ended with no verdict (design/SPEC.md N1; D01 T02 §10): a ParseError
+// tells the member the message could not be read, an unmendable failure (UNMENDABLE on the report: RawMissing,
+// CorruptAudio, AudioTooLong, UnsupportedAudio) asks for a fresh forward since a retry cannot mend it, a model-budget
+// refusal names when checks resume (D03 T01 §2), and any retryable passing failure points to the report's retry control.
 export function failureAdvice(failedStep?: string | null, errorClass?: string | null): string {
   const unreadable = failedStep === "parse" && errorClass === "ParseError";
   const budget = /^budget:(day|total|reserve):/.exec(errorClass ?? "")?.[1];
-  return unreadable
-    ? "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first."
-    : budget === "day"
-      ? "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply."
-      : budget
-        ? "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply."
-        : "Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
+  if (unreadable)
+    return "We could not read the message you forwarded. Forward it again as an attachment; if it was an Outlook .msg file, save it as .eml first.";
+  if (errorClass === "RawMissing")
+    return "The message did not arrive in full, so it could not be checked. Please forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
+  if (errorClass === "CorruptAudio")
+    return "The recording is damaged, so it could not be transcribed. Replace it and forward the message again. Until it is checked, do not pay, click or reply.";
+  if (errorClass === "AudioTooLong")
+    return "The recording is longer than 30 minutes, so it could not be transcribed. Shorten it to 30 minutes or less and forward the message again. Until it is checked, do not pay, click or reply.";
+  if (errorClass === "UnsupportedAudio")
+    return "We cannot transcribe this recording's format. Send it as an Ogg, Opus, WAV or MP3 voice note and forward the message again. Until it is checked, do not pay, click or reply.";
+  if (budget === "day")
+    return "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply.";
+  if (budget)
+    return "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply.";
+  return "Open the report and retry the check there, or forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
 }
 
 // One forward's grouped reply (D01 T01 §12; design/SPEC.md N1's grouped variant, not drawn): one block per
