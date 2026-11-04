@@ -225,6 +225,30 @@ class Continuation(unittest.TestCase):
         self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertIsNone(self.registry.read("main")["turn"])
 
+    def test_pending_recovery_respects_changed_missing_and_stale_wait(self):
+        self.idle()
+        self.native.fail_add = True
+        self.assertEqual(self.registry.tick("main"), "submission uncertain")
+        for mode in ["blocked", "missing", "stale"]:
+            with self.subTest(mode=mode):
+                self.outbox.write_text("WAITING: operator: unavailable credential\n")
+                if mode == "missing":
+                    self.outbox.unlink()
+                elif mode == "stale":
+                    self.outbox.write_text("WAITING: none\n")
+                    state = self.registry.read("main")
+                    state["activated_at"] = self.outbox.stat().st_mtime + 1
+                    self.registry.save(state)
+                self.assertEqual(self.registry.tick("main"), "not eligible")
+                self.assertFalse(any(m == "thread/queue/start" for m, p in self.native.calls))
+        self.assertEqual(len(self.native.queue), 1)
+
+    def test_wait_changed_after_queue_acceptance_prevents_start(self):
+        self.idle()
+        self.native.on_add = lambda: self.outbox.write_text("WAITING: operator: unavailable credential\n")
+        self.assertEqual(self.registry.tick("main"), "not eligible")
+        self.assertFalse(any(m == "thread/queue/start" for m, p in self.native.calls))
+
     def test_timestamp_only_outbox_updates_are_not_progress(self):
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         subprocess.run(["git", "-C", str(self.root), "add", "todo"], check=True)
