@@ -137,13 +137,31 @@ async function publish(r: ReturnType<typeof report>, at: string) {
     .run();
 }
 
+async function experimentBaseline(detection: number, arms: [string, string][]) {
+  await db
+    .prepare(
+      `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('ev-experiment', 'Experiment', 'ev-experiment', '2026-11-04T00:00:00Z')`,
+    )
+    .run();
+  await db
+    .prepare("INSERT INTO eval_experiments VALUES ('ev-experiment', 'experiment', ?, ?)")
+    .bind("a".repeat(64), "abcdef1234567")
+    .run();
+  await publish(report("experiment-full", { mode: "ablate:full", detection }), "2026-11-06T10:00:00.000Z");
+  for (const [flag, id] of [["full", "experiment-full"], ...arms])
+    await db
+      .prepare("INSERT INTO eval_experiment_arms VALUES ('ev-experiment', 'experiment', ?, ?)")
+      .bind(flag, id)
+      .run();
+}
+
 describe("the results page with nothing published", () => {
   it("answers with no session, says nothing is published, and shows no figure as a number", async () => {
     const { res, html } = await page();
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toMatch(/text\/html/);
     const t = text(html);
-    expect(t).toContain("No test run has been published yet");
+    expect(t).toContain("No headline test run has been published yet");
     expect(t).toContain("Attacks caught Not measured");
     expect(t).not.toMatch(/\d+\.\d%/);
     expect(t).toContain("Cases checked 0");
@@ -201,10 +219,13 @@ describe("the results page with a published run", () => {
       report("run-00000003", { mode: "ablate:no-agent-reasoning", detection: 0.5 }),
       "2026-11-07T11:00:00.000Z",
     );
+    await experimentBaseline(0.98, [["no-agent-reasoning", "run-00000003"]]);
     const t = text((await page()).html);
     expect(t).toContain("caught 97.0% of attacks");
     expect(t).toContain("Eval run run-00000002");
-    expect(t).toContain("Muse Spark reasoning Rule-based verdict minus 47.0 pts");
+    expect(t).toContain(
+      "Muse Spark reasoning Compared with full run experiment-full Rule-based verdict minus 48.0 pts",
+    );
   });
 
   it("compares an ablation only with a baseline of the same selection and commit, else says not comparable", async () => {
@@ -218,15 +239,32 @@ describe("the results page with a published run", () => {
       "2026-11-06T12:00:00.000Z",
     );
     await publish(report("run-00000004", { mode: "ablate:no-sam", detection: 0.9 }), "2026-11-06T13:00:00.000Z");
+    await experimentBaseline(0.96, [
+      ["no-agent-reasoning", "run-00000002"],
+      ["no-walkthrough", "run-00000003"],
+      ["no-sam", "run-00000004"],
+    ]);
     const t = text((await page()).html);
     expect(t).toContain(
-      "Muse Spark reasoning Rule-based verdict Not comparable: another deployed commit than the full run",
+      "Muse Spark reasoning Rule-based verdict Not comparable: matching experiment full baseline not measured or not published",
     );
     expect(t).toContain(
-      "Muse Wonder walkthrough No walkthrough Not comparable: another dataset or selection than the full run",
+      "Muse Wonder walkthrough No walkthrough Not comparable: matching experiment full baseline not measured or not published",
     );
-    expect(t).toContain("SAM 3.1 comparison No logo comparison minus 6.0 pts");
+    expect(t).toContain("SAM 3.1 comparison Compared with full run experiment-full No logo comparison minus 6.0 pts");
     expect(t).not.toContain("No model has been switched off");
+  });
+
+  it("shows a matched experiment without claiming an ordinary headline measurement", async () => {
+    await publish(report("arm-only", { mode: "ablate:no-sam", detection: 0.9 }), "2026-11-06T13:00:00Z");
+    await experimentBaseline(0.96, [["no-sam", "arm-only"]]);
+    const t = text((await page()).html);
+    expect(t).toContain("No headline test run has been published yet");
+    expect(t).toContain("Compared with full run experiment-full No logo comparison minus 6.0 pts");
+    await db.prepare("DELETE FROM eval_published WHERE run_id = 'experiment-full'").run();
+    expect(text((await page()).html)).toContain(
+      "Not comparable: matching experiment full baseline not measured or not published",
+    );
   });
 
   it("says no model has been switched off yet when there is no ablation", async () => {

@@ -201,6 +201,7 @@ async function convergeLocked(
 
 export async function publishRun(args: {
   report: Report;
+  experiment?: { baselineRunId: string };
   db: PublishDb;
   root: string;
   now: () => Date;
@@ -211,6 +212,29 @@ export async function publishRun(args: {
   const problems = publishProblems(report);
   if (problems.length) return { code: 3, message: `run ${report.run.id} is not published: ${problems.join("; ")}` };
   try {
+    if (report.run.mode.startsWith("ablate:")) {
+      if (!args.experiment)
+        return { code: 3, message: "experiment publication requires verified manifest attribution" };
+      if (report.run.mode === "ablate:full") {
+        if (args.experiment.baselineRunId !== report.run.id)
+          return { code: 3, message: "experiment baseline identity mismatch" };
+      } else {
+        const saved = await db.readPublished(args.experiment.baselineRunId);
+        const baseline = saved ? (JSON.parse(saved.reportJson) as Report) : null;
+        if (
+          !baseline ||
+          saved?.mode !== "ablate:full" ||
+          baseline.run.mode !== "ablate:full" ||
+          baseline.run.id !== args.experiment.baselineRunId ||
+          baseline.run.setVersion !== report.run.setVersion ||
+          baseline.run.commit !== report.run.commit ||
+          baseline.run.sets.join() !== report.run.sets.join() ||
+          baseline.run.selected !== report.run.selected ||
+          publishProblems(baseline).length
+        )
+          return { code: 3, message: "matching experiment full baseline is not published" };
+      }
+    }
     if (await db.readPublished(report.run.id))
       return {
         code: 3,
