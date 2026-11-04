@@ -10,8 +10,9 @@
 // Spend cap stated before any paid call (lane outbox, 2026-11-02): US$1.00 for this section, bound
 // to the shared ledger through localBudget and never raised. Completed pairs are reused on a
 // restart; nothing already saved is sent again.
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import type sharp from "sharp";
 import { z } from "zod";
 import { metaRaw } from "../../src/meta/client.ts";
@@ -88,6 +89,127 @@ export const pngOf = async (spec: DocSpec, doctored = false): Promise<Buffer> =>
     .png()
     .toBuffer();
 
+// Decode completely before publication. Both the producer and offline repair use this encoder.
+export async function normalizePng(bytes: Buffer) {
+  const sharp = await loadSharp();
+  const metadata = await sharp(bytes, { failOn: "warning" }).metadata();
+  if ((metadata.pages ?? 1) !== 1) throw new Error("multi-page image is not a payment fixture");
+  const decoded = await sharp(bytes, { failOn: "warning" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const png = await sharp(decoded.data, { raw: decoded.info }).png().toBuffer();
+  const readback = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  if (
+    readback.info.width !== decoded.info.width ||
+    readback.info.height !== decoded.info.height ||
+    !readback.data.equals(decoded.data)
+  )
+    throw new Error("PNG normalization changed decoded pixels");
+  return {
+    png,
+    pixels: decoded.data,
+    width: decoded.info.width,
+    height: decoded.info.height,
+    channels: decoded.info.channels,
+    sourceFormat: metadata.format,
+  };
+}
+
+const sha256 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+const Digest = z.string().regex(/^[0-9a-f]{64}$/);
+const NormalizationRecord = z
+  .object({
+    file: z.string().regex(/^pair-(0[1-9]|1[0-9]|20)-(genuine|doctored)\.png$/),
+    sourceFormat: z.string(),
+    outputFormat: z.literal("png"),
+    beforeSha256: Digest,
+    afterSha256: Digest,
+    decodedSha256: Digest,
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    channels: z.literal(4),
+    pixelsEqual: z.literal(true),
+  })
+  .strict();
+const NormalizationReceipt = z.object({ version: z.literal(1), records: z.array(NormalizationRecord) }).strict();
+
+// The receipt is a durable conversion intent, written after verified backups but before any
+// image replacement. Resume accepts only original or recorded output hashes, never new evidence.
+export async function normalizeExistingFixtures(
+  out: string,
+  backupDir: string,
+  publish: (name: string, bytes: Buffer | string, directory: string) => void = save,
+) {
+  const backupRelative = relative(resolve(out), resolve(backupDir));
+  if (!backupRelative || (!backupRelative.startsWith("..") && !backupRelative.startsWith("/"))) {
+    throw new Error("normalization requires a backup directory outside the fixture directory");
+  }
+  mkdirSync(backupDir, { recursive: true });
+  const receiptFile = join(out, "normalization.json");
+  const existing = existsSync(receiptFile)
+    ? NormalizationReceipt.parse(JSON.parse(readFileSync(receiptFile, "utf8")))
+    : null;
+  const records = existing?.records ?? [];
+  if (new Set(records.map((r) => r.file)).size !== records.length) throw new Error("duplicate normalization record");
+  const replacements: { file: string; png: Buffer }[] = [];
+  for (const spec of DOCS) {
+    for (const role of ["genuine", "doctored"]) {
+      const file = `${spec.pair}-${role}.png`;
+      if (!existsSync(join(out, file))) continue;
+      const current = readFileSync(join(out, file));
+      const record = records.find((r) => r.file === file);
+      const backupFile = join(backupDir, `${file}.original`);
+      if (record) {
+        const original = readFileSync(backupFile);
+        if (sha256(original) !== record.beforeSha256) throw new Error(`backup hash mismatch: ${file}`);
+        const normalized = await normalizePng(original);
+        if (
+          sha256(normalized.png) !== record.afterSha256 ||
+          sha256(normalized.pixels) !== record.decodedSha256 ||
+          normalized.width !== record.width ||
+          normalized.height !== record.height ||
+          normalized.sourceFormat !== record.sourceFormat
+        )
+          throw new Error(`normalization evidence mismatch: ${file}`);
+        const currentHash = sha256(current);
+        if (currentHash !== record.beforeSha256 && currentHash !== record.afterSha256)
+          throw new Error(`fixture changed: ${file}`);
+        if (currentHash !== record.afterSha256) replacements.push({ file, png: normalized.png });
+        continue;
+      }
+      const normalized = await normalizePng(current);
+      if (normalized.sourceFormat === "png") continue;
+      if (existing) throw new Error(`unrecorded non-PNG fixture: ${file}`);
+      if (!existsSync(backupFile)) writeFileSync(backupFile, current, { flag: "wx" });
+      if (!readFileSync(backupFile).equals(current)) throw new Error(`backup differs: ${file}`);
+      records.push(
+        NormalizationRecord.parse({
+          file,
+          sourceFormat: normalized.sourceFormat,
+          outputFormat: "png",
+          beforeSha256: sha256(current),
+          afterSha256: sha256(normalized.png),
+          decodedSha256: sha256(normalized.pixels),
+          width: normalized.width,
+          height: normalized.height,
+          channels: normalized.channels,
+          pixelsEqual: true,
+        }),
+      );
+      replacements.push({ file, png: normalized.png });
+    }
+  }
+  for (const record of records) {
+    if (!existsSync(join(out, record.file))) throw new Error(`recorded fixture missing: ${record.file}`);
+  }
+  const receipt = { version: 1 as const, records };
+  if (!existing) publish("normalization.json", `${JSON.stringify(receipt, null, 2)}\n`, out);
+  for (const { file, png } of replacements) publish(file, png, out);
+  for (const record of records) {
+    if (sha256(readFileSync(join(out, record.file))) !== record.afterSha256)
+      throw new Error(`publication failed: ${record.file}`);
+  }
+  return receipt;
+}
+
 export const editInstruction = (spec: DocSpec): string => {
   const [field, from, to] =
     spec.edit === "account"
@@ -145,19 +267,27 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
       }
     }
     if (doctored) {
-      const sharp = await loadSharp();
-      const meta = await sharp(doctored)
-        .metadata()
-        .catch(() => null);
-      const unchanged = doctored.equals(readFileSync(join(out, genuineName)));
-      if (!meta?.width || !meta?.height || unchanged) {
-        note = unchanged
-          ? "model edit returned the genuine image unchanged; made in code"
-          : "model edit returned an undecodable image; made in code";
+      let normalized: Awaited<ReturnType<typeof normalizePng>> | null = null;
+      try {
+        normalized = await normalizePng(doctored);
+      } catch {
+        note = "model edit returned an undecodable image; made in code";
+      }
+      const genuine = await normalizePng(readFileSync(join(out, genuineName)));
+      const unchanged =
+        normalized &&
+        normalized.width === genuine.width &&
+        normalized.height === genuine.height &&
+        normalized.pixels.equals(genuine.pixels);
+      if (!normalized || unchanged) {
+        if (unchanged) note = "model edit returned the genuine image unchanged; made in code";
         doctored = null;
         madeBy = "code";
+      } else {
+        doctored = normalized.png;
       }
     }
+
     // Provenance is published before the image, so no completed image can exist without the
     // record of how it was made; a sidecar without its image is simply overwritten next run.
     save(
@@ -257,7 +387,15 @@ export async function runAll(edit: EditFn | null, out: string = OUT): Promise<La
 
 if (import.meta.main) {
   const confirm = process.argv.includes("--confirm-credit");
-  if (!confirm) {
+  if (process.argv.includes("--normalize-existing")) {
+    if (confirm) throw new Error("offline normalization cannot confirm model credit");
+    const backupDir = process.argv[process.argv.indexOf("--backup-dir") + 1];
+    if (!process.argv.includes("--backup-dir") || !backupDir || backupDir.startsWith("--")) {
+      throw new Error("--normalize-existing requires --backup-dir outside the fixture directory");
+    }
+    const receipt = await normalizeExistingFixtures(OUT, backupDir);
+    console.log(`verified ${receipt.records.length} PNG normalizations; no model calls`);
+  } else if (!confirm) {
     for (const spec of DOCS) console.log(`${spec.pair}: ${editInstruction(spec)}`);
     console.log("dry run: 20 requests, nothing sent");
   } else {

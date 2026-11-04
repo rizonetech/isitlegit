@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 226 | Checklist items: 1021
+Sections: 226 | Checklist items: 1023
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -523,7 +523,7 @@ Sections: 226 | Checklist items: 1021
 | [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
 | [ ]    | D06 T02 §8  | Native PDF forensic detection and coverage repair           | none                 | 5     |
-| [ ]    | D06 T02 §9  | PNG encoding at the doctored fixture producer               | none                 | 6     |
+| [ ]    | D06 T02 §9  | PNG encoding at the doctored fixture producer               | none                 | 8     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                            | attended             | 3     |
@@ -680,4 +680,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 414/602 verified sections, 117 ready to run now.
 
-Checklist: 3035/3722 items completed (includes Commit items).
+Checklist: 3043/3724 items completed (includes Commit items).
