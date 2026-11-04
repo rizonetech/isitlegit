@@ -67,7 +67,7 @@ track: day-0
 | 26 | §26 | Uncoordinated lane: no run guard | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [x] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
-| 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
+| 29 | §29 | Stamp recovery after a killed process | §28 | [x] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
 | 32 | §32 | Wake dispatched after each | §27 | [x] |
@@ -1031,9 +1031,12 @@ Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there).
 - [x] Preserve pre-existing receipt bytes during recovery and every subsequent failure; rerun all original review and safety validation before equality permits continuation. Keep orphan diagnostics in the explicit validate command so recovery itself can enter. Done when: regression tests cover recovery write failure, mismatched checks/date/SHA, invalid evidence and normal rollback, with no pre-existing receipt overwritten or removed.
 - [x] Compare receipt values recursively with exact JSON types and identical fields, reporting the first nested difference. Done when: boolean/integer/float substitutions, missing or extra fields and nested changes refuse, while formatting-only differences recover with original bytes preserved.
 - [x] Document and prove the second interrupted boundary: if TODO metadata was written before the process died, validate the real receipt and run existing `plan --sync` to repair the projection. Done when: a child hard exit after TODO replacement leaves the original receipt and one Verified/Review block intact, and supported plan synchronization restores a current projection without another stamp.
-- [ ] Commit: `tools: a stamp killed mid-write recovers on the next run`
+- [x] Commit: `tools: a stamp killed mid-write recovers on the next run`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including the killed-stamp rerun and the differing-rerun refusal.
+
+> **Verified:** 2026-11-04 | §29 | c3f1e0ed45d12a6a344b9c60599159c141b71d07
+> **Review:** `docs/reviews/d00-t01-s29.json`
 
 ## 30. Plan candidate check before the review runs
 

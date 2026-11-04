@@ -418,7 +418,7 @@ Sections: 224 | Checklist items: 1005
 | [x]    | D00 T01 §21 | Pre-push excerpt from the tools' error output               | none                 | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard                            | none                 | 6     |
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push                          | none                 | 5     |
-| [ ]    | D00 T01 §29 | Stamp recovery after a killed process                       | none                 | 6     |
+| [x]    | D00 T01 §29 | Stamp recovery after a killed process                       | none                 | 6     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                            | operator             | 2     |
 | [x]    | D00 T01 §32 | Wake dispatched after each                                  | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
@@ -678,6 +678,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 424/602 verified sections, 115 ready to run now.
+Progress: 425/602 verified sections, 114 ready to run now.
 
-Checklist: 3100/3718 items completed (includes Commit items).
+Checklist: 3101/3718 items completed (includes Commit items).
