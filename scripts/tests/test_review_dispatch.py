@@ -2005,6 +2005,41 @@ class Reconciliation(unittest.TestCase):
                 self.assertEqual(self.report.read_bytes(), self.before)
                 self.assertEqual(pending.read_bytes(), original_state)
 
+    def test_incoming_reconciliation_validates_during_diverged_merge(self):
+        base = self.git('rev-parse', 'HEAD')
+        for new_pin in (False, True):
+            with self.subTest(incoming_pin=new_pin):
+                if new_pin:
+                    self.git('merge', '--abort')
+                    self.git('checkout', base)
+                self.git('checkout', '-b', 'incoming-' + str(new_pin))
+                if new_pin:
+                    pin_path = self.root / '.conclave/reviewers.toml'
+                    pin_path.write_text(pin_path.read_text() + '# incoming committed pin\n')
+                    self.entry['pin'] = self.module.pin_blob(pin_path.read_bytes())
+                (self.root / 'repair.txt').write_text('incoming repair\n')
+                candidate = self.commit()
+                binding = self.binding(candidate)
+                entry = self.record(binding)
+                incoming = self.commit()
+                self.git('checkout', base)
+                (self.root / 'main-only.txt').write_text('main diverged\n')
+                self.commit()
+                self.git('merge', '--no-commit', '--no-ff', incoming)
+                self.assertEqual(self.git('rev-parse', 'MERGE_HEAD'), incoming)
+                reachable = subprocess.run(['git', '-C', str(self.root), 'merge-base', '--is-ancestor', candidate, 'HEAD'])
+                self.assertEqual(reachable.returncode, 1)
+                self.assertEqual(self.module.validate_reconciliation_binding(self.root, self.report.read_text(), entry), binding)
+
+    def test_unmerged_branch_evidence_stays_unreachable(self):
+        base = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-b', 'not-a-merge-parent')
+        (self.root / 'unrelated.txt').write_text('not merged\n')
+        candidate = self.commit()
+        self.git('checkout', base)
+        with self.assertRaises(self.module.Refused):
+            self.binding(candidate)
+
 
 if __name__ == "__main__":
     unittest.main()

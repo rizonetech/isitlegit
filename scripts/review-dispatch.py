@@ -1200,10 +1200,24 @@ def _reconcile_chain(text):
     return found, chosen, entries
 
 
+def _reconcile_tips(root):
+    """Only parents of the next commit count, including the incoming parent of an open merge."""
+    merging = subprocess.run(["git", "-C", str(root), "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+                             capture_output=True, timeout=30)
+    return ["HEAD", "MERGE_HEAD"] if merging.returncode == 0 else ["HEAD"]
+
+
+def _reconcile_reachable(root, candidate):
+    _reconcile_require(isinstance(candidate, str) and CANDIDATE.fullmatch(candidate), "invalid evidence commit")
+    reachable = any(subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", candidate, tip],
+                                  capture_output=True, timeout=30).returncode == 0 for tip in _reconcile_tips(root))
+    _reconcile_require(reachable, "evidence commit is not reachable from HEAD or the active merge parent: " + candidate)
+
+
 def _reconcile_pin(root, blob):
     _reconcile_require(isinstance(blob, str) and PIN_ID.fullmatch(blob), "invalid pin identity")
     raw = _reconcile_git(root, "show", blob)
-    log = _reconcile_git(root, "log", "--format=", "--raw", "--no-abbrev", "--no-renames", "--full-history", "-m", "HEAD", "--", ".conclave/reviewers.toml").decode()
+    log = _reconcile_git(root, "log", "--format=", "--raw", "--no-abbrev", "--no-renames", "--full-history", "-m", *_reconcile_tips(root), "--", ".conclave/reviewers.toml").decode()
     _reconcile_require(any(line.startswith(":") and blob in line.split()[2:4] for line in log.splitlines()), "pin was not committed in current history")
     return load_pin(data=raw)
 
@@ -1232,7 +1246,7 @@ def make_reconciliation_binding(root, record_path, candidate, disposition_path):
     _reconcile_require(isinstance(candidate, str) and CANDIDATE.fullmatch(candidate), "candidate needs a full SHA")
     completion, plan = chosen["completion"], chosen["plan"]
     _reconcile_git(root, "merge-base", "--is-ancestor", completion["candidate"], candidate)
-    _reconcile_git(root, "merge-base", "--is-ancestor", candidate, "HEAD")
+    _reconcile_reachable(root, candidate)
     paths = list((root / "todo" / match[1]).glob(f"TODO-{match[3]}-*.md"))
     _reconcile_require(len(paths) == 1, "cannot identify one owning TODO file")
     contract_path = paths[0].relative_to(root).as_posix()
@@ -1296,7 +1310,7 @@ def validate_reconciliation_binding(root, text, entry):
         _reconcile_identity(root, original)
     _reconcile_identity(root, entry, reconciliation=True)
     _reconcile_git(root, "merge-base", "--is-ancestor", completion["candidate"], binding["candidate"])
-    _reconcile_git(root, "merge-base", "--is-ancestor", binding["candidate"], "HEAD")
+    _reconcile_reachable(root, binding["candidate"])
     report = _reconcile_path(root, binding["report"])
     match = re.fullmatch(r"docs/reviews/(\d{2}-[A-Za-z0-9_-]+)/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md", report)
     _reconcile_require(match is not None and match[1].startswith(match[2] + "-"), "noncanonical findings")
@@ -1309,7 +1323,7 @@ def validate_reconciliation_binding(root, text, entry):
     _reconcile_require(hashlib.sha256(contract(plan["candidate"]).encode()).hexdigest() == binding["plan_contract_sha256"], "original plan contract mismatch")
     disposition = _reconcile_path(root, binding["disposition_path"])
     _reconcile_require(disposition != report and CANDIDATE.fullmatch(binding["disposition_commit"]), "invalid disposition identity")
-    _reconcile_git(root, "merge-base", "--is-ancestor", binding["disposition_commit"], "HEAD")
+    _reconcile_reachable(root, binding["disposition_commit"])
     contents = _reconcile_git(root, "show", f"{binding['disposition_commit']}:{disposition}")
     _reconcile_require(contents.strip() and pin_blob(contents) == binding["disposition_blob"], "committed disposition mismatch")
     return binding

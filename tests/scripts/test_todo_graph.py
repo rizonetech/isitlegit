@@ -3137,6 +3137,16 @@ class CodexSelfStamp(Stamp):
         self.assertTrue((self.root / self.PLAN).read_bytes().startswith(before))
         self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
 
+    def test_reconciled_incoming_stamp_validates_during_merge(self):
+        self.reconcile(repair=True)
+        self.stamp_reconciled()
+        incoming = self.commit("stamped lane reconciliation")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-qb", "coordinator", self.start], check=True)
+        (self.root / "coordinator.txt").write_text("unrelated main work\n")
+        self.commit("coordinator diverged")
+        subprocess.run(["git", "-C", str(self.root), "merge", "--no-commit", "--no-ff", incoming], check=True)
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
     def test_reconciliation_dispatch_to_stamp(self):
         self.reconcile(repair=True, dispatched=True)
         self.stamp_reconciled()
