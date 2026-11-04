@@ -36,7 +36,7 @@ track: day-6
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
 | 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
-| 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
+| 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [x] |
 | 7 | §7 | Live eval runs | §1 | [x] |
 | 8 | §8 | Component measurements | §2, §7 | [x] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
@@ -48,8 +48,8 @@ track: day-6
 | 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [x] |
-| 18 | §18 | Recoverable PDF corpus publication | §2 | [ ] |
-| 19 | §19 | Machine-crash durability for generated corpora | §18 | [ ] |
+| 18 | §18 | Recoverable PDF corpus publication | §2 | [x] |
+| 19 | §19 | Machine-crash durability for generated corpora | §18 | [x] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -214,25 +214,38 @@ Run the full set, read the misses and false positives, fix the worst causes at t
 
 ## 6. PDF forensics rates on payment documents
 
+> **Started:** 2026-11-04T09:14:49.732465+02:00 (plan preparation only; implementation follows Codex plan self-review)
+
 The trust lane's PDF forensics (D06 T02 §1, `src/invoice/forensics.ts`: `analysePdf` and `forensicsEvidence`, checking `document.forensics.revisions`, producer, dates, fonts and overlay) measured for detection and false positives on payment documents, by document type (proof of payment, bank letter, invoice) and by generator, against design spec 4.9's targets (detection at least 95%, false positives at most 2%). Filed 2026-10-31 at the trust lane's request through the coordinator: their completion review had pointed it at D08 T01 §3, the synthetic mail set, which is not its home. The checks are deterministic, so this measures them directly on the documents, not through the deployed pipeline, and spends nothing.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** no
 
+**Plan corrections 2026-11-04 (Codex plan self-review):** The eight existing PDF fixtures cover POPs and one invoice; D06 T02 §4 supplies PNGs, not PDFs. Add three reproducible native-PDF genuine/doctored pairs, one per promised document type, under `eval/sets/pdf-forensics/`, using the existing synthetic PDF writer with fictional content and recorded provenance. Inventory the 40 PNGs separately as unsupported input, excluded from PDF rates. The manifest records all selected PDF hashes and labels plus the explicit unsupported inventory; no population is silently dropped. Score verdict-level detection at high or critical evidence, matching `src/agent/floor.ts`, and report any-finding counts separately. Keep every selected PDF in its labelled denominator, disclose partial/unavailable analysis and its reasons, and mark each affected group's targets incomplete; empty populations are not measured. Tests cover genuine false positives, one versus independent finding groups, partial/unavailable and empty groups, hash/metadata/missing-file refusals, and a real CLI run on independently expected native PDFs. The CLI read-back must reject a changed count. A test replacing the analyser with empty findings must lose the known doctored detections. Reuse D08 T02 §2 rate arithmetic and target constants. These synthetic engineering fixtures measure the component, not production accuracy; seven genuine controls cannot establish a population false-positive rate of 2%.
+
 **Build order:**
 
 1. Run `analysePdf` over every genuine and doctored payment document, score it by type and generator against the targets, and record the result. Done when: `eval/RESULTS.md` holds the table, and every cell below a target is filed at its owner.
 
-- [ ] Read the fixtures and their provenance (`test/fixtures/pdf-forensics/`, D06 T02 §1) and the doctored pairs (D06 T02 §4): list each document with its type, generator, genuine or doctored, and which edit was made. Done when: `eval/sets/pdf-forensics/manifest.json` names every document with those fields and its sha256, and the set's licence and provenance are recorded in `eval/DATASETS.md`.
-- [ ] Write `eval/forensics/score.ts`: `analysePdf` on each document, a document flagged when `forensicsEvidence` yields any finding at or above the severity the verdict uses; detection over the doctored, false positives over the genuine, each by document type and by generator, with the count behind every rate. Done when: `test/node/eval-forensics.test.ts` scores a fixed set of stub analyses to exact numbers, and fails when a genuine document's finding is not counted as a false positive.
-- [ ] Use D08 T02 §2's metric helpers for the rates and the target comparison, so this table reads like the main eval's. Done when: the test finds the same rate from both for one fixed input.
-- [ ] Refuse to score a set whose manifest hashes do not match the files, or whose documents lack a type or generator. Done when: the test finds each refused, naming the document.
-- [ ] Run it and write the table into `eval/RESULTS.md`: rows by document type and by generator, detection and false positives with counts, the targets, the set's size and its limit (a set this small cannot show 2% false positives on its own). Done when: the table is there and `node eval/forensics/score.ts --check eval/RESULTS.md` passes.
-- [ ] File every cell below a target through `add-todo` at the trust lane's D06 T02 (the forensics' owner), through the coordinator. Done when: each miss names its filed section, or the table has none.
-- [ ] Commit: `eval: PDF forensics rates on payment documents`
+- [x] Read the fixtures and their provenance (`test/fixtures/pdf-forensics/`, D06 T02 §1) and the doctored pairs (D06 T02 §4): list each document with its type, generator, genuine or doctored, and which edit was made. Done when: `eval/forensics/sets/pdf-forensics/manifest.json` names every document with those fields and its sha256, and the set's licence and provenance are recorded in `eval/DATASETS.md`.
+- [x] Write `eval/forensics/score.ts`: `analysePdf` on each document, a document flagged when `forensicsEvidence` yields any finding at or above the severity the verdict uses; detection over the doctored, false positives over the genuine, each by document type and by generator, with the count behind every rate. Done when: `test/node/eval-forensics.test.ts` scores a fixed set of stub analyses to exact numbers, and fails when a genuine document's finding is not counted as a false positive.
+- [x] Use D08 T02 §2's metric helpers for the rates and the target comparison, so this table reads like the main eval's. Done when: the test finds the same rate from both for one fixed input.
+- [x] Refuse to score a set whose manifest hashes do not match the files, or whose documents lack a type or generator. Done when: the test finds each refused, naming the document.
+- [x] Run it and write the table into `eval/RESULTS.md`: rows by document type and by generator, detection and false positives with counts, the targets, the set's size and its limit (a set this small cannot show 2% false positives on its own). Done when: the table is there and `node eval/forensics/score.ts --check eval/RESULTS.md` passes.
+- [x] File every cell below a target through `add-todo` at the trust lane's D06 T02 (the forensics' owner), through the coordinator. Done when: each miss names its filed section, or the table has none.
+- [x] Commit: `eval: PDF forensics rates on payment documents`
+
+**Implementation evidence 2026-11-04:** `eval/forensics/build.ts` creates three native pairs and a hash-bound inventory; `eval/forensics/score.ts` measures 14 PDFs and excludes 40 raster inputs. Targeted forensics and metrics suites passed 42 tests; the real-byte test failed when findings were suppressed (expected 3 detections, received 0), then the restored suite passed 11 tests. Typecheck, lint (existing warnings), build dry-run and publication check passed. The missed POP/Ghostscript targets and missing invoice date coverage are filed at D06 T02 §8 in console commit `20f4747f`, verified with `git show 20f4747f:todo/06-invoice/TODO-02-payment-documents.md`. That filed follow-up is not a prerequisite repair or a target-attainment claim. Completion review and stamp remain outstanding.
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-forensics.test.ts` passes and fails when a genuine document's finding is not counted as a false positive, and `node eval/forensics/score.ts --check eval/RESULTS.md` exits 0 on the committed table (a rate or count that differs from the score exits 1).
+
+**Completion state 2026-11-04:** Final completion at `ef1c3e96` returned gaps for corpus publication recovery. D08 T02 §18 is the coordinator-authorized resolving storage repair, with its own current review chain. This section remains open and unstamped pending supported reconciliation; §18 does not close it or prove PDF targets. Detector and coverage follow-up remains solely D06 T02 §8.
+
+**CI integration repair 2026-11-04:** CI41805781547 and41809060857 correctly refused the native component corpus inside the mail-only sets directory. The generator, reader, tracked corpus and recovery paths now use `eval/forensics/sets/`; the original location above records the historical plan, superseded only for storage location. A new build-plus-mail-loader regression fails before relocation and passes after it;128affected tests, typecheck, lint, build, publication and regenerated report check pass. All six generated PDF hashes remain identical; remeasurement retains3/7detections,0/7false positives,13/14complete coverage. Original report archived unchanged under `eval/forensics/history/`. No loader filter, false mail labels, target claim, receipt rewrite or extra completion pass. §6 and§18 remain unstamped pending supported reconciliation.
+
+> **Verified:** 2026-11-04 | §6 | 1982b7e9e39c86923c7f410c38f1c5afdfd757a4
+> **Review:** `docs/reviews/d08-t02-s6.json`
 
 ## 7. Live eval runs
 
@@ -570,16 +583,20 @@ Coordinator `eval-decisions-0950` authorizes this genuine scoped recovery repair
 2. Publish with a recoverable previous corpus and explicit restart recovery. Done when: failure between directory renames restores the old directory, a killed process with only the saved previous directory recovers on retry, and successful output reads back through the production manifest validator.
 3. Verify failure and success through the real builder. Done when: fault injection exercises actual filesystem operations and deterministic regeneration preserves current measurement inputs.
 
-- [ ] Refactor `eval/forensics/build.ts` to write into a sibling staging directory and validate manifest schema, generated file formats/hashes and external fixture references before publication. Done when: failed generation, truncated writes and failed validation leave all published corpus bytes untouched; owned temporary artifacts are cleaned on ordinary failures. Cheaper substitute: overwriting final files individually cannot preserve a coherent generation.
-- [ ] Retain a recoverable prior directory during publication, restore it after failed promotion, and recover it on the next invocation after process interruption. Done when: every rename boundary has a tested recoverable state; a prior backup is removed only while a complete live generation exists, successful generation retains a verified previous version, and errors propagate with no success claim. Concurrent publication must refuse or serialize before mutation, with stale-owner recovery proven if a lock is used. Cheaper substitute: deleting old files before publishing risks data loss.
-- [ ] Extend the existing failure regression and add malformed/truncated staging and subprocess termination coverage in `test/node/eval-forensics.test.ts`. Done when: actual generation and read-back preserve prior PDF bytes and manifest on failure, restart recovers at publication boundaries, a second writer cannot corrupt the corpus, and two successful builds are deterministic. Cheaper substitute: testing only the injected callback misses publication behavior.
-- [ ] Recompute the forensic report against the unchanged corpus and record the original §6 gap disposition without altering its receipt or marking it complete. Done when: `node eval/forensics/score.ts --check eval/RESULTS.md` passes with 3/7 detections, 0/7 false positives and 13/14 complete coverage; current independent-evidence severity remains unchanged. Cheaper substitute: declaring detector targets met from a storage repair.
-- [ ] Commit: `eval: publish PDF corpora with recoverable generations`
+- [x] Refactor `eval/forensics/build.ts` to write into a sibling staging directory and validate manifest schema, generated file formats/hashes and external fixture references before publication. Done when: failed generation, truncated writes and failed validation leave all published corpus bytes untouched; owned temporary artifacts are cleaned on ordinary failures. Cheaper substitute: overwriting final files individually cannot preserve a coherent generation.
+- [x] Retain a recoverable prior directory during publication, restore it after failed promotion, and recover it on the next invocation after process interruption. Done when: every rename boundary has a tested recoverable state; a prior backup is removed only while a complete live generation exists, successful generation retains a verified previous version, and errors propagate with no success claim. Concurrent publication must refuse or serialize before mutation, with stale-owner recovery proven if a lock is used. Cheaper substitute: deleting old files before publishing risks data loss.
+- [x] Extend the existing failure regression and add malformed/truncated staging and subprocess termination coverage in `test/node/eval-forensics.test.ts`. Done when: actual generation and read-back preserve prior PDF bytes and manifest on failure, restart recovers at publication boundaries, a second writer cannot corrupt the corpus, and two successful builds are deterministic. Cheaper substitute: testing only the injected callback misses publication behavior.
+- [x] Recompute the forensic report against the unchanged corpus and record the original §6 gap disposition without altering its receipt or marking it complete. Done when: `node eval/forensics/score.ts --check eval/RESULTS.md` passes with 3/7 detections, 0/7 false positives and 13/14 complete coverage; current independent-evidence severity remains unchanged. Cheaper substitute: declaring detector targets met from a storage repair.
+- [x] Commit: `eval: publish PDF corpora with recoverable generations`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts` and `node eval/forensics/score.ts --check eval/RESULTS.md` pass; failed/truncated writes and process termination preserve a verified generation, restart recovers, and successful regeneration reads back with identical hashes. Typecheck, lint and build pass.
 
+> **Verified:** 2026-11-04 | §18 | abea9b56546091cac5ddc08d03d7ee1e33ee1232
+> **Review:** `docs/reviews/d08-t02-s18.json`
 
 ## 19. Machine-crash durability for generated corpora
+
+> **Started:** 2026-11-04
 
 Filed contract only under coordinator `corpus-durability-scope-decision` (2026-11-04), from §18 final completion at `b1560b73`. No implementation or retrospective approval. §18 covers write failures and process termination; its existing SIGKILL tests leave operating-system caches alive and do not prove power-loss durability. This follow-up does not close or restamp §18 or §6. Priority remains §17.
 
@@ -592,12 +609,17 @@ Filed contract only under coordinator `corpus-durability-scope-decision` (2026-1
 1. Define filesystem guarantees and a persistence-boundary fault model. Done when: supported filesystems, file/directory synchronization order, power-loss limits and process-crash guarantees are explicit, without equating SIGKILL with machine failure.
 2. Implement synchronized publication and validated-backup recovery. Done when: a damaged live generation is preserved for diagnosis while a verified prior generation can be restored, and no unverified generation is promoted as success.
 
-- [ ] Record the supported storage contract for `eval/forensics/build.ts`, including file and directory fsync ordering and failure semantics. Done when: each acknowledged durable state maps to a named persistence boundary and every unsupported filesystem/power-loss claim is explicit. Cheaper substitute: process-only tests leave volatile caches intact.
-- [ ] Add fsync-aware publication and recovery that validates both live and saved generations before selecting a usable corpus. Done when: damaged live bytes cannot block restoration of an intact verified backup, both damaged generations fail clearly without deletion, and synchronization errors preserve recoverable evidence. Cheaper substitute: unconditional preference for the live pathname.
-- [ ] Add `test/node/eval-forensics-durability.test.ts` with a falsifiable storage model that discards unsynchronized data and namespace changes at every boundary. Done when: retry always selects a fully verified persisted generation or refuses honestly, removing each necessary synchronization makes the regression fail, and model assumptions are documented separately from actual hardware evidence. Cheaper substitute: SIGKILL alone proves process termination only.
-- [ ] Commit: `eval: synchronize corpus publication and recover verified backups`
+- [x] Record the supported storage contract for `eval/forensics/build.ts`, including file and directory fsync ordering and failure semantics. Done when: each acknowledged durable state maps to a named persistence boundary and every unsupported filesystem/power-loss claim is explicit. Cheaper substitute: process-only tests leave volatile caches intact.
+- [x] Add fsync-aware publication and recovery that validates both live and saved generations before selecting a usable corpus. Done when: damaged live bytes cannot block restoration of an intact verified backup, both damaged generations fail clearly without deletion, and synchronization errors preserve recoverable evidence. Cheaper substitute: unconditional preference for the live pathname.
+- [x] Add `test/node/eval-forensics-durability.test.ts` with a falsifiable storage model that discards unsynchronized data and namespace changes at every boundary. Done when: an interrupted publication retains a verified pre-existing generation, acknowledged success retains the newly published generation, and tests assert persisted bytes before regeneration can recreate them; refusal is reserved for unrecoverable starting states or failures outside documented storage assumptions. Removing each necessary synchronization must violate these survival assertions, and model assumptions are documented separately from actual hardware evidence. Cheaper substitute: SIGKILL alone proves process termination only.
+- [x] Commit: `eval: synchronize corpus publication and recover verified backups`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts test/node/eval-forensics-durability.test.ts` passes with synchronization-removal mutations failing. No physical power-loss or hardware guarantee is claimed without separately observed evidence.
+
+Implementation evidence (2026-11-04): `docs/eval/corpus-durability.md` records the storage assumptions, ordering, failure semantics and corrected plan-review survival oracle. The recovery regression failed on the original builder before implementation. The focused checkpoint passes 37 tests, including 12 synchronization-removal mutants, three independent writeback schedules, damaged-live/backup recovery and every observed synchronization failure. Node TypeScript, focused Biome and the Worker dry-run build pass. No physical power-loss evidence or deployed change is claimed.
+
+> **Verified:** 2026-11-04 | §19 | 7e1565209e0bb024598ee0eac734b9fb503ecfce
+> **Review:** `docs/reviews/d08-t02-s19.json`
 
 ## Verification
 

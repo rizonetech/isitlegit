@@ -381,7 +381,7 @@ Sections: 125 | Checklist items: 777
 | [x]    | D08 T02 §4  | Eval dashboard with production counts                     | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results                   | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T01 §8  | Pilot hold-out proof case                                 | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §6  | PDF forensics rates on payment documents                  | none                  | 7     |
+| [x]    | D08 T02 §6  | PDF forensics rates on payment documents                  | none                  | 7     |
 | [x]    | D08 T02 §7  | Live eval runs                                            | meta-api, cloudflare  | 5     |
 | [x]    | D08 T02 §8  | Component measurements                                    | meta-api, cloudflare  | 9     |
 | [x]    | D08 T02 §9  | Admin eval runs page                                      | none                  | 6     |
@@ -393,7 +393,7 @@ Sections: 125 | Checklist items: 777
 | [ ]    | D08 T02 §15 | Paired evidence view                                      | cloudflare            | 3     |
 | [ ]    | D08 T02 §16 | Blinded comprehension comparison                          | cloudflare            | 4     |
 | [x]    | D08 T02 §17 | Per-case ablation orchestration repair                    | none                  | 8     |
-| [ ]    | D08 T02 §18 | Recoverable PDF corpus publication                        | none                  | 5     |
+| [x]    | D08 T02 §18 | Recoverable PDF corpus publication                        | none                  | 5     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video                         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost                     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls                        | meta-api, cloudflare  | 5     |
@@ -650,7 +650,7 @@ Sections: 228 | Checklist items: 1039
 | [x]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
-| [ ]    | D08 T02 §19 | Machine-crash durability for generated corpora              | none                 | 4     |
+| [x]    | D08 T02 §19 | Machine-crash durability for generated corpora              | none                 | 4     |
 | [ ]    | D10 T01 §11 | Videos re-cut as the live gaps close                        | none                 | 6     |
 | [ ]    | D10 T01 §12 | P3 review leftovers from the media stamps                   | none                 | 2     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
@@ -697,6 +697,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 451/621 verified sections, 106 ready to run now.
+Progress: 454/621 verified sections, 104 ready to run now.
 
-Checklist: 3240/3837 items completed (includes Commit items).
+Checklist: 3256/3837 items completed (includes Commit items).
