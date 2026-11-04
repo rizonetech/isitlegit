@@ -146,6 +146,8 @@ type Dependencies = {
   run?: typeof runAnswers;
   smoke?: boolean;
   targetSuffix?: string;
+  // Explicit coordinator protocol: six modality probes on candidate1.1, at most $5 reserved.
+  modalityProbe?: boolean;
 };
 export async function executeSlot(version: string, dataset: string, output: string, dependencies: Dependencies) {
   const { ledger, adminKey, inferenceKey } = dependencies;
@@ -154,10 +156,15 @@ export async function executeSlot(version: string, dataset: string, output: stri
   const sleep = dependencies.sleep ?? ((ms) => new Promise<void>((done) => setTimeout(done, ms)));
   const deployment = diagnosticDeployment(version, dependencies.targetSuffix);
   const target = diagnosticTarget(version, dependencies.targetSuffix);
-  const model = diagnosticModel(version, dependencies.targetSuffix);
+  if (dependencies.modalityProbe) assert.equal(version, "1.1");
+  const expectedPages = dependencies.modalityProbe ? 6 : 40;
+  // Live-merge inference uses the fine-tuned model ID; #deployment is the documented multi-LoRA route.
+  const model = dependencies.modalityProbe ? modelOf(version) : diagnosticModel(version, dependencies.targetSuffix);
   const url = `${API}/deployments/${deployment}`;
   const start = now();
-  const runUntil = start + RUN_MS;
+  const runMs = dependencies.modalityProbe ? 17 * 60_000 : RUN_MS;
+  const reserveMinutes = (runMs + SHUTDOWN_MS) / 60_000 + TAIL_MINUTES;
+  const runUntil = start + runMs;
   const shutdownUntil = runUntil + SHUTDOWN_MS;
   let wake: Awaited<ReturnType<typeof reserveWake>> | undefined;
   let touched = false;
@@ -203,7 +210,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
   wake = await reserveWake(
     ledger,
     `diagnostic-${version}`,
-    RESERVE_MINUTES,
+    reserveMinutes,
     new Date(now()),
     dependencies.evidenceDir,
     deployment,
@@ -316,10 +323,11 @@ export async function executeSlot(version: string, dataset: string, output: stri
       retryErrors: false,
       maxMs: Math.max(0, runUntil - now()),
       wall: now,
-      preflight: (remaining) => (remaining === 40 ? null : "diagnostic requires exactly 40 fresh pages"),
+      preflight: (remaining) =>
+        remaining === expectedPages ? null : `diagnostic requires exactly ${expectedPages} fresh pages`,
     });
     durable(join(output, `${version}.result.json`), result);
-    assert.equal(result.asked, dependencies.smoke ? 1 : 40, "incomplete diagnostic cohort");
+    assert.equal(result.asked, dependencies.smoke ? 1 : expectedPages, "incomplete diagnostic cohort");
     if (dependencies.smoke) {
       assert.equal(result.answered, 1, "single-page smoke did not return a valid answer");
       assert.equal(result.stopped, "SMOKE_COMPLETE");

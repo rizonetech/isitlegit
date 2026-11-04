@@ -96,7 +96,9 @@ function fixture(mode = "ok") {
         ],
       });
     if (url.includes("chat/completions")) {
-      expect(JSON.parse(String(init?.body)).model).toBe(`${target.baseModel}#${target.name}`);
+      expect(JSON.parse(String(init?.body)).model).toBe(
+        mode === "modality" ? target.baseModel : `${target.baseModel}#${target.name}`,
+      );
       time += 1000;
       if (mode === "inference-refused") return new Response(null, { status: 404 });
       return Response.json({ choices: [{ message: { content: "{}" }, finish_reason: "stop" }] });
@@ -105,7 +107,7 @@ function fixture(mode = "ok") {
       const rows = db.prepare("SELECT * FROM glimmer_runtime").all();
       expect(rows.length).toBeGreaterThan(0);
       expect(rows[0]?.deployment).toBe("isitlegit-loupe-eval-1-1");
-      expect(rows[0]?.reserved_minutes).toBe(RESERVE_MINUTES);
+      expect(rows[0]?.reserved_minutes).toBe(mode === "modality" ? 25 : RESERVE_MINUTES);
       expect(JSON.parse(String(init?.body)).deploymentShape).toContain("/versions/");
       if (mode === "creation-conflict") return new Response(null, { status: 409 });
       exists = true;
@@ -130,19 +132,21 @@ function fixture(mode = "ok") {
     events,
     dependencies: {
       ledger,
+      modalityProbe: mode === "modality",
       adminKey: "test",
       inferenceKey: "test",
       fetcher,
       now: () => time,
       evidenceDir: output,
       run: async (o: Parameters<typeof import("../../scripts/glimmer/evaluate.ts").runAnswers>[0]) => {
-        expect(o.preflight?.(40)).toBeNull();
+        expect(o.preflight?.(mode === "modality" ? 6 : 40)).toBeNull();
         expect(o.preflight?.(39)).toBeTruthy();
         expect(o.concurrency).toBe(1);
         expect(o.retryErrors).toBe(false);
         await o.ask([], "page");
         if (mode === "run-failure") throw new Error("run failed");
-        return { pages: 40, skipped: 0, asked: 40, answered: 40, errors: 0 };
+        const count = mode === "modality" ? 6 : 40;
+        return { pages: count, skipped: 0, asked: count, answered: count, errors: 0 };
       },
     },
   };
@@ -225,4 +229,12 @@ describe("diagnostic lifecycle uses real runtime ledger", () => {
     expect(f.db.prepare("SELECT * FROM glimmer_runtime").get()?.used_minutes).not.toBeNull();
     f.db.close();
   });
+});
+
+it("limits the explicit modality protocol to six pages and a five-dollar live-merge reservation", async () => {
+  const f = fixture("modality");
+  await executeSlot("1.1", "unused", f.output, f.dependencies);
+  expect(f.db.prepare("SELECT reserved_minutes FROM glimmer_runtime").get()?.reserved_minutes).toBe(25);
+  expect((25 * DIAGNOSTIC_RATE) / 60).toBe(5);
+  f.db.close();
 });
