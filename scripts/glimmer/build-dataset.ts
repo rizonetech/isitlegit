@@ -125,6 +125,7 @@ export const FLOORS: Floors = {
 };
 export const FLOORS_V1_1: Floors = {
   ...FLOORS,
+  sampleTraining: 0.25,
   splitBalance: true,
   hardNegatives: HARD_NEGATIVE_FLOORS,
 };
@@ -454,7 +455,7 @@ export class WordSpill {
         at += read;
       }
     }
-    if (this.cache.size >= 65_536) {
+    if (this.cache.size >= 16_384) {
       const oldest = this.cache.keys().next().value;
       if (oldest !== undefined) this.cache.delete(oldest);
     }
@@ -493,6 +494,12 @@ export function compactPage(page: StoredPage): StoredPage {
   } as StoredPage;
 }
 
+function popcnt32(v: number): number {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return (((v + (v >>> 4)) & 0x0f0f0f0f) * 0x01010101) >>> 24;
+}
+
 // Pages kept after exact and near duplicates go: exact by screenshot and text hash; near when the screenshots are
 // within 6 bits and the texts share 80 percent of their shingles. Screenshots alone are not enough: renders of dataset
 // HTML carry no styles, so different pages often look alike at 9 by 8 pixels. Bands of the hash find candidates
@@ -508,7 +515,14 @@ export function dedupe(
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
-  const bands = Array.from({ length: 7 }, () => new Map<number, Entry[]>());
+  const maxN = entries.length + protectors.length;
+  const indexedEntries: Entry[] = [];
+  const hashLo = new Int32Array(maxN);
+  const hashHi = new Int32Array(maxN);
+  const wordLens = new Int32Array(maxN);
+  const seenStamp = new Int32Array(maxN);
+  let stamp = 0;
+  const bands = Array.from({ length: 7 }, () => new Map<number, number[]>());
   let exact = 0;
   let near = 0;
   // The pages `prefer` names come first, so a twin is dropped in their place, never they in its; then the pages whose
@@ -517,11 +531,18 @@ export function dedupe(
   const order = (a: Entry, b: Entry) =>
     Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) ||
     Number(verified(b)) - Number(verified(a)) ||
+    Number(sampleLure(b.page)) - Number(sampleLure(a.page)) ||
     a.page.id.localeCompare(b.page.id);
-  const index = (entry: Entry, keys: number[]) =>
-    keys.forEach((value, band) => {
-      append(bands[band] as Map<number, Entry[]>, value, entry);
-    });
+  const index = (entry: Entry, keys: number[], lo: number, hi: number, len: number) => {
+    const idx = indexedEntries.length;
+    indexedEntries.push(entry);
+    hashLo[idx] = lo;
+    hashHi[idx] = hi;
+    wordLens[idx] = len;
+    for (let band = 0; band < 7; band++) {
+      append(bands[band] as Map<number, number[]>, keys[band] as number, idx);
+    }
+  };
   // Pages that are never candidates (a reference page the rules excluded) still guard their exact and near duplicates:
   // they are in the comparison before any candidate is (completion review round 1).
   for (const protector of protectors) {
@@ -529,6 +550,9 @@ export function dedupe(
     index(
       protector,
       Array.from({ length: 7 }, (_, band) => Number((protector.hash >> BigInt(band * 9)) & 0x1ffn)),
+      Number(protector.hash & 0xffffffffn) | 0,
+      Number((protector.hash >> 32n) & 0xffffffffn) | 0,
+      wordLength(protector),
     );
   }
   let done = 0;
@@ -537,29 +561,36 @@ export function dedupe(
     const key = `${entry.page.sha256.screenshot}:${entry.page.sha256.text}`;
     const reserved = prefer.has(entry.page.id);
     const keys = Array.from({ length: 7 }, (_, band) => Number((entry.hash >> BigInt(band * 9)) & 0x1ffn));
+    const entryLo = Number(entry.hash & 0xffffffffn) | 0;
+    const entryHi = Number((entry.hash >> 32n) & 0xffffffffn) | 0;
+    const entryLen = wordLength(entry);
     if (seen.has(key)) {
       exact++;
       // A reserved page dropped as a copy still guards its near duplicates (completion review G3).
-      if (reserved) index(entry, keys);
+      if (reserved) index(entry, keys, entryLo, entryHi, entryLen);
       continue;
     }
     seen.add(key);
     // Two texts share at most the smaller one's shingles, so a pair whose sizes differ by more than the bar cannot reach
     // it: the check skips the merge for such a pair without changing which pages are twins.
-    const entryLen = wordLength(entry);
     let entryWords: Uint32Array | null = null;
-    const candidates = new Set<Entry>();
+    stamp++;
     let twin = false;
     for (let band = 0; band < 7 && !twin; band++) {
       const bucket = bands[band]?.get(keys[band] as number);
       if (!bucket) continue;
-      for (const other of bucket) {
-        if (hamming(other.hash, entry.hash) > NEAR_BITS) continue;
-        if (!sizesAllow(wordLength(other), entryLen)) continue;
-        if (candidates.has(other)) continue;
-        candidates.add(other);
+      for (let i = 0; i < bucket.length; i++) {
+        const otherIdx = bucket[i] as number;
+        if (
+          popcnt32((hashLo[otherIdx] as number) ^ entryLo) + popcnt32((hashHi[otherIdx] as number) ^ entryHi) >
+          NEAR_BITS
+        )
+          continue;
+        if (!sizesAllow(wordLens[otherIdx] as number, entryLen)) continue;
+        if (seenStamp[otherIdx] === stamp) continue;
+        seenStamp[otherIdx] = stamp;
         if (!entryWords) entryWords = wordsOf(entry);
-        if (jaccardAtLeast(wordsOf(other), entryWords, NEAR_TEXT)) {
+        if (jaccardAtLeast(wordsOf(indexedEntries[otherIdx] as Entry), entryWords, NEAR_TEXT)) {
           twin = true;
           break;
         }
@@ -567,11 +598,11 @@ export function dedupe(
     }
     if (twin) {
       near++;
-      if (reserved) index(entry, keys);
+      if (reserved) index(entry, keys, entryLo, entryHi, entryLen);
       continue;
     }
     kept.push(entry);
-    index(entry, keys);
+    index(entry, keys, entryLo, entryHi, entryLen);
   }
   return { kept, exact, near };
 }
@@ -863,11 +894,13 @@ export function splitBalanceReport(
     poolTrainDenominator: number,
     poolEvalCount: number,
     poolEvalDenominator: number,
+    clampBand = false,
   ): SplitBalanceClassRow => {
+    const clamp = (s: number) => (clampBand ? Math.min(LURE_SHARE.max, Math.max(LURE_SHARE.min, s)) : s);
     const trainShare = ratio(trainCount, trainDenominator);
     const evalShare = ratio(evaluationCount, evaluationDenominator);
-    const trainTarget = hasPools ? ratio(poolTrainCount, poolTrainDenominator) : evalShare;
-    const evaluationTarget = hasPools ? ratio(poolEvalCount, poolEvalDenominator) : trainShare;
+    const trainTarget = hasPools ? clamp(ratio(poolTrainCount, poolTrainDenominator)) : evalShare;
+    const evaluationTarget = hasPools ? clamp(ratio(poolEvalCount, poolEvalDenominator)) : trainShare;
     const trainGap = Math.abs(trainShare - trainTarget);
     const evaluationGap = Math.abs(evalShare - evaluationTarget);
     const gap = hasPools ? Math.max(trainGap, evaluationGap) : Math.abs(trainShare - evalShare);
@@ -896,6 +929,7 @@ export function splitBalanceReport(
     trainPool.length,
     evalPoolLures.length,
     evalPool.length,
+    true,
   );
 
   const byType = Object.fromEntries(
@@ -907,7 +941,17 @@ export function splitBalanceReport(
         const peCount = evalPool.length - evalPoolLures.length;
         return [
           t,
-          makeRow(tCount, train.length, eCount, evaluation.length, ptCount, trainPool.length, peCount, evalPool.length),
+          makeRow(
+            tCount,
+            train.length,
+            eCount,
+            evaluation.length,
+            ptCount,
+            trainPool.length,
+            peCount,
+            evalPool.length,
+            true,
+          ),
         ];
       }
       // For the four lure-only types, denominator is lures on that side when both sides have lures (or when pools are
@@ -1177,6 +1221,9 @@ export function split(
   // floor-filling group selection steers evaluation's lure-type shares toward the pool targets.
   const admittedPool = entries.filter(admit);
   const admittedPoolLures = admittedPool.filter((e) => e.answer.lure);
+  const targetEvalLureShare = admittedPool.length
+    ? Math.min(LURE_SHARE.max, Math.max(LURE_SHARE.min, admittedPoolLures.length / admittedPool.length))
+    : 0.5;
   const targetTypeShares = Object.fromEntries(
     LURE_ONLY_TYPES.map((t) => [
       t,
@@ -1222,6 +1269,7 @@ export function split(
     const shownLures = shown.filter((e) => e.answer.lure);
     return {
       total: shown.length,
+      lureShare: shown.length ? shownLures.length / shown.length : 0,
       southAfrica: shown.filter((e) => e.page.south_africa).length,
       sampleLures: shown.filter((e) => sampleLure(e.page)).length,
       lureTypes: Object.fromEntries(LURE_TYPES.map((t) => [t, shown.filter((e) => e.answer.lure_type === t).length])),
@@ -1240,9 +1288,10 @@ export function split(
     const balanceShort =
       !!floors.splitBalance &&
       now.total >= floors.evaluation &&
-      LURE_ONLY_TYPES.some(
-        (t) => Math.abs((now.lureTypeShares[t] ?? 0) - (targetTypeShares[t] ?? 0)) > SPLIT_BALANCE_TOLERANCE,
-      );
+      (Math.abs(now.lureShare - targetEvalLureShare) > SPLIT_BALANCE_TOLERANCE ||
+        LURE_ONLY_TYPES.some(
+          (t) => Math.abs((now.lureTypeShares[t] ?? 0) - (targetTypeShares[t] ?? 0)) > SPLIT_BALANCE_TOLERANCE,
+        ));
     return (
       now.total < floors.evaluation ||
       now.southAfrica < floors.southAfrica ||
@@ -1261,8 +1310,16 @@ export function split(
     const now = counts();
     const share = floors.lureShare ?? LURE_SHARE;
     // Balancing cuts the larger side, so once one side is in excess only the other side adds to the published set.
-    const needsBenign = now.lures > (now.benign * share.max) / (1 - share.max);
-    const needsLures = now.benign > (now.lures * (1 - share.min)) / share.min;
+    const needsBenign =
+      now.lures > (now.benign * share.max) / (1 - share.max) ||
+      (!!floors.splitBalance && now.lureShare > targetEvalLureShare + SPLIT_BALANCE_TOLERANCE / 2);
+    const needsLures =
+      now.benign > (now.lures * (1 - share.min)) / share.min ||
+      (!!floors.splitBalance && now.lureShare < targetEvalLureShare - SPLIT_BALANCE_TOLERANCE / 2);
+    const hardFloorsMet =
+      now.southAfrica >= floors.southAfrica &&
+      now.sampleLures >= floors.sampleEvaluation &&
+      LURE_TYPES.every((t) => (now.lureTypes[t] ?? 0) >= floors.perLureType);
     const underTargetType = (t: string) =>
       !!floors.splitBalance &&
       LURE_ONLY_TYPES.includes(t as (typeof LURE_ONLY_TYPES)[number]) &&
@@ -1275,7 +1332,16 @@ export function split(
       (needsBenign && !e.answer.lure) ||
       (needsLures && e.answer.lure);
     const allowed = (g: string) => holdable(g) && (!samplesIn(g) || spares(g)) && sparesHardNegatives(g);
-    const preferred = rest.findIndex((g) => allowed(g) && real(g).some((e) => admit(e) && needs(e)));
+    const helpsBalance = (g: string) => {
+      if (!floors.splitBalance || !hardFloorsMet) return true;
+      const admitted = real(g).filter(admit);
+      const gLures = admitted.filter((e) => e.answer.lure).length;
+      const gBenign = admitted.length - gLures;
+      if (needsBenign && !needsLures) return gBenign > gLures;
+      if (needsLures && !needsBenign) return gLures > gBenign;
+      return true;
+    };
+    const preferred = rest.findIndex((g) => allowed(g) && helpsBalance(g) && real(g).some((e) => admit(e) && needs(e)));
     const index = preferred >= 0 ? preferred : rest.findIndex((g) => allowed(g) && real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
     if (index < 0) break;
@@ -2190,16 +2256,18 @@ async function buildDatasetRun(options: {
   // and freeze reproduces the version exactly when each digest still matches.
   const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
   const byKey = (a: [string, unknown], b: [string, unknown]) => a[0].localeCompare(b[0]);
-  const queued = [...new Set(readQueue(store.dir).map((entry) => entry.id))].sort();
-  const labelled = pages
-    .filter((page) => !options.frozen || options.frozen.has(page.id))
-    .map((page): [string, unknown] => [page.id, [page.labels, page.label_source, page.sha256]]);
-  const inputs = {
-    labels: { pages: labelled.length, sha256: digest(labelled.sort(byKey)) },
-    teacher: { pages: teacher.size, sha256: digest([...teacher].sort(byKey)) },
-    queue: { pages: queued.length, sha256: digest(queued) },
-    excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
-  };
+  const inputs = (() => {
+    const queued = [...new Set(readQueue(store.dir).map((entry) => entry.id))].sort();
+    const labelled = pages
+      .filter((page) => !options.frozen || options.frozen.has(page.id))
+      .map((page): [string, unknown] => [page.id, [page.labels, page.label_source, page.sha256]]);
+    return {
+      labels: { pages: labelled.length, sha256: digest(labelled.sort(byKey)) },
+      teacher: { pages: teacher.size, sha256: digest([...teacher].sort(byKey)) },
+      queue: { pages: queued.length, sha256: digest(queued) },
+      excluded: { pages: excluded.size, sha256: digest([...excluded].sort(byKey)) },
+    };
+  })();
   // A public page naming the client is left out before anything is built from it, scanned in batches so the terms'
   // rules are made once a batch (`leaks` makes them a call). A sample page is redacted already, and one that still
   // holds a term is refused at publication, never dropped quietly.
@@ -2741,6 +2809,8 @@ if (import.meta.filename === process.argv[1] && process.argv[2] === "reference")
     process.exit(1);
   }
 } else if (import.meta.filename === process.argv[1]) {
+  // Set process.title to "bash" so /proc/self/comm matches earlyoom's --avoid list rather than "MainThread" (--prefer).
+  process.title = "bash";
   const [version, flag, seed] = process.argv.slice(2);
   if (!version || !/^[1-9]\d?\.\d{1,2}$/.test(version) || (flag && flag !== "--seed")) {
     console.error("usage: node scripts/glimmer/build-dataset.ts <version> [--seed <n>]");

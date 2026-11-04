@@ -583,16 +583,18 @@ def model_state(key, account):
 
 
 def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None,
-          resume_from=None, dataset_sha=None, verify=None):
+          resume_from=None, dataset_sha=None, verify=None, batch_size=BATCH_SIZE, pipeline_depth=PIPELINE_DEPTH,
+          learning_rate=LEARNING_RATE, sampler_save_interval=0):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
     lines = examples if examples is not None else count_lines(train_file) if Path(train_file).is_file() else None
-    params = {"lora_rank": LORA_RANK, "learning_rate": LEARNING_RATE, "batch_size": BATCH_SIZE, "epochs": 1,
+    params = {"lora_rank": LORA_RANK, "learning_rate": learning_rate, "batch_size": batch_size, "epochs": 1,
               "max_seq_len": MAX_SEQ_LEN, "checkpoint_every": CHECKPOINT_EVERY, "warmup_steps": 0,
               "lines_trained": lines}
     if runner_config is None:
         from training.utils.runner import RunnerConfig as runner_config
 
+    extra_cfg = {"sampler_save_interval": sampler_save_interval} if sampler_save_interval > 0 else {}
     config = loop.Config(
         log_path=str(Path(run_dir) / "cookbook"),
         base_model=BASE_MODEL,
@@ -600,19 +602,20 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         tokenizer_model=TOKENIZER,
         renderer_name=RENDERER,
         train_on_what="last_assistant_message",
-        learning_rate=LEARNING_RATE,
+        learning_rate=learning_rate,
         epochs=1,
-        batch_size=BATCH_SIZE,
+        batch_size=batch_size,
         max_seq_len=MAX_SEQ_LEN,
         max_examples=examples,
         lora_rank=LORA_RANK,
         output_model_id=model_id if promote else None,
         serverless=True,
-        pipeline_depth=PIPELINE_DEPTH,
+        pipeline_depth=pipeline_depth,
         # A closed session ends its checkpoints, on the crash path too: only the unpromoted measure closes its own.
         close_session_on_exit=not promote,
         init_from_checkpoint=resume_from,
         dcp_save_interval=CHECKPOINT_EVERY,
+        **extra_cfg,
         runner=runner_config(status_file=str(Path(run_dir) / "status.json"),
                             metadata_file=str(Path(run_dir) / "metadata.json"),
                             metrics_file=str(Path(run_dir) / "eval-metrics.jsonl"),
@@ -684,6 +687,10 @@ def main(argv=None, now=None):
     parser.add_argument("--lines-per-second", type=float, help="the rate --measure printed; needed for a new run, which "
                                                                   "is cut to what trains before the window closes")
     parser.add_argument("--seed", type=int, default=20261101)
+    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    parser.add_argument("--pipeline-depth", type=int, default=PIPELINE_DEPTH)
+    parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
+    parser.add_argument("--sampler-save-interval", type=int, default=0)
     args = parser.parse_args(argv)
     now = now or datetime.now(timezone.utc)
     try:
@@ -716,7 +723,45 @@ def main(argv=None, now=None):
             chosen_tokens = check_resume(run_dir, dataset_sha, train_file)["tokens"]
             check_cap_left(run_dir, cap, chosen_tokens)
         elif not args.measure:
-            tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
+            import training.renderer.muse_glimmer as _mg
+            orig_itc = getattr(_mg, "image_to_chunk", None)
+            orig_enc = getattr(renderer, "_encode", None)
+            if orig_itc is not None:
+                import base64 as _b64, io as _io
+                from PIL import Image as _Image
+                from fireworks.training import sdk as _sdk
+                def _fast_itc(image_or_str, image_processor):
+                    if isinstance(image_or_str, str) and image_or_str.startswith("data:image/") and hasattr(
+                            image_processor, "get_number_of_image_patches"):
+                        b64 = image_or_str.split(",", 1)[1]
+                        try:
+                            with _Image.open(_io.BytesIO(_b64.b64decode(b64[:4096]))) as im:
+                                w, h = im.size
+                        except Exception:
+                            with _Image.open(_io.BytesIO(_b64.b64decode(b64))) as im:
+                                w, h = im.size
+                        tok = image_processor.get_number_of_image_patches(h, w, images_kwargs={}) // image_processor.merge_size**2
+                        return _sdk.types.ImageChunk(data=b"x", format="jpeg", expected_tokens=tok)
+                    return orig_itc(image_or_str, image_processor)
+                _mg.image_to_chunk = _fast_itc
+            if orig_enc is not None:
+                _enc_cache = {}
+                def _cached_enc(text):
+                    if len(text) < 2048:
+                        res = _enc_cache.get(text)
+                        if res is None:
+                            res = orig_enc(text)
+                            _enc_cache[text] = res
+                        return res
+                    return orig_enc(text)
+                renderer._encode = _cached_enc
+            try:
+                tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
+            finally:
+                if orig_itc is not None:
+                    _mg.image_to_chunk = orig_itc
+                if orig_enc is not None:
+                    renderer._encode = orig_enc
             groups = read_groups(train_file, len(tokens))
             chosen = choose(groups, tokens, now, args.lines_per_second, cap, args.seed)
             if not chosen:
@@ -740,13 +785,16 @@ def main(argv=None, now=None):
                 record = finish(run_dir, args.version, final, client, model_state(key, account_of(run_dir)))
                 print(json.dumps(record, indent=2))
                 return 0
-        recorder = Recorder(run_dir, args.version, cap, markdown_path=TRAINING_MD, line_tokens=chosen_tokens)
+        recorder = Recorder(run_dir, args.version, cap, markdown_path=TRAINING_MD, line_tokens=chosen_tokens,
+                            batch_size=args.batch_size, pipeline_depth=args.pipeline_depth)
         if resume_from:
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
                                 examples=MEASURE_EXAMPLES if args.measure else None, promote=not args.measure,
                                 resume_from=resume_from, dataset_sha=dataset_sha,
-                                verify=model_state(key, os.environ.get("FIREWORKS_ACCOUNT", "rizonetech")))
+                                verify=model_state(key, os.environ.get("FIREWORKS_ACCOUNT", "rizonetech")),
+                                batch_size=args.batch_size, pipeline_depth=args.pipeline_depth,
+                                learning_rate=args.learning_rate, sampler_save_interval=args.sampler_save_interval)
     except Refused as refusal:
         print(f"train-serverless: refused: {refusal}", file=sys.stderr)
         return 2
