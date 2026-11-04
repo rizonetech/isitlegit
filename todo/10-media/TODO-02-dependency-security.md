@@ -49,10 +49,10 @@ Coordinator MEDIA-ZOD-SECURITY authorizes this narrow remediation for alerts63/6
 2. Pin only `media/package.json` Zod to4.6.7 and add a Zod-only override in the owning `media/pnpm-workspace.yaml` for Remotion runtime consumers pinned to4.5.4, then regenerate `media/pnpm-lock.yaml` using pnpm offline with install scripts disabled. Done when: runtime package version, importer and all Zod resolutions are4.6.7, frozen offline install succeeds, and no unrelated dependency/version or root lockfile changes.
 3. Run the regression, media TypeScript noEmit check, actual Remotion schema smoke tests, existing capture and kit unit tests, Python media tooling tests and publication scan without invoking capture/render/studio/voice/stats generation. Done when: all affected checks pass, or any genuine pre-existing unrelated issue is evidenced and escalated rather than hidden; no new regression is accepted. Record source advisory, exact versions and limitations in the review record.
 
-- [ ] Add falsifiable bounded regression coverage for early rejection and strict compatible parsing. Done when: regression fails on4.5.4 and passes on4.6.7.
-- [ ] Upgrade only Zod and its media lock resolution to exact4.6.7. Done when: frozen offline install and installed version readback match; no4.5.4 resolution remains.
-- [ ] Verify nonrender compatibility and publication safety without modifying assets or the root workspace. Done when: targeted gates pass and original media is untouched.
-- [ ] Commit: `media: patch Zod constrained collection vulnerability`
+- [x] Add falsifiable bounded regression coverage for early rejection and strict compatible parsing. Done when: regression fails on4.5.4 and passes on4.6.7.
+- [x] Upgrade only Zod and its media lock resolution to exact4.6.7. Done when: frozen offline install and installed version readback match; no4.5.4 resolution remains.
+- [x] Verify nonrender compatibility and publication safety without modifying assets or the root workspace. Done when: targeted gates pass and original media is untouched.
+- [x] Commit: `media: patch Zod constrained collection vulnerability`
 
 **Test checkpoint:** `cd media && node --test tools/zod-security.test.mjs && pnpm exec tsc --noEmit && pnpm test:capture && pnpm test:kit` exits0; `python3 -m unittest discover -s media/tools` and `python3 scripts/check-publication.py` pass; frozen offline install retains exact4.6.7 and the dependency diff contains no broad upgrades.
 
