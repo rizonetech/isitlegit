@@ -311,7 +311,8 @@ def provenance(reader, store, version, summary, ids, counts):
     if not isinstance(freeze, dict) or not integer(freeze.get("pages")) or not isinstance(freeze.get("sha256"), str) or not HEX.fullmatch(freeze["sha256"]):
         reader.issue("missing_freeze", role, "incomplete")
     else:
-        saved = reader.object(store / "raw" / f"FROZEN-{version}.json", version + "/freeze")
+        freeze_name = "FROZEN.json" if version == "1.0" else f"FROZEN-{version}.json"
+        saved = reader.object(store / "raw" / freeze_name, version + "/freeze")
         pages = saved.get("pages") if saved else None
         if saved is None:
             pass  # Reader already distinguishes an absent file from a malformed one.
@@ -343,12 +344,12 @@ def provenance(reader, store, version, summary, ids, counts):
         membership = obj(summary.get("reference")).get("sha256")
         if not isinstance(membership, str) or reference.get("membership") != membership:
             reader.issue("reference_membership_mismatch", role)
+    floors = summary.get("floors")
+    if not isinstance(floors, dict) or not floors:
+        reader.issue("missing_floors", role, "incomplete")
     if version != "1.0":
-        floors = summary.get("floors")
         balance = summary.get("splitBalance")
         hard = summary.get("hardNegatives")
-        if not isinstance(floors, dict):
-            reader.issue("missing_floors", role, "incomplete")
         balance_proof(reader, balance, counts, role)
         if not isinstance(hard, dict) or not isinstance(hard.get("training"), dict):
             reader.issue("missing_hard_negatives", role, "incomplete")
@@ -435,12 +436,24 @@ def audit(store, version, previous=None, trainer_input=None, run=None):
                        "Digest equality alone does not prove template or near-duplicate exclusion."]}
 
 
-def publish_receipt(path, report, store):
+def receipt_destination(path, store):
     path, allowed = Path(path).resolve(), (Path(store).resolve() / "runs/audits")
-    if any((p / ".git").exists() for p in (path.parent, *path.parents)):
-        raise ValueError("receipt must be outside every git checkout")
     if not path.is_relative_to(allowed) or path == allowed:
         raise ValueError("receipt must be a new file under store/runs/audits")
+    existing = path.parent
+    while not existing.exists():
+        existing = existing.parent
+    # Match store.ts insideRepository: a .git marker alone is not a working tree.
+    result = subprocess.run(["git", "-C", str(existing), "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True, timeout=30)
+    if result.returncode == 0 and result.stdout.strip() == "true":
+        raise ValueError("receipt must be outside every git checkout")
+    if path.exists():
+        raise FileExistsError("receipt destination already exists")
+    return path
+
+
+def publish_receipt(path, report, store):
+    path = receipt_destination(path, store)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = (json.dumps(report, indent=2, allow_nan=False) + "\n").encode()
     fd, temporary = tempfile.mkstemp(prefix=".audit-", dir=path.parent)
@@ -471,13 +484,15 @@ def main(argv=None):
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args(argv)
     try:
+        if args.receipt:
+            receipt_destination(args.receipt, args.store)
         report = audit(args.store, args.version, args.previous, args.trainer_input, args.run)
         if args.receipt:
             publish_receipt(args.receipt, report, args.store)
         print(json.dumps({"status": report["status"], "issues": report["issues"],
                           "comparison_ready": report["comparison_ready"]}))
         return 0 if report["status"] == "verified" else 1
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(json.dumps({"status": "error", "error_type": type(error).__name__}))
         return 2
 

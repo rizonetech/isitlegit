@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import subprocess
 from unittest import mock
 from concurrent.futures import ThreadPoolExecutor
 
@@ -107,6 +108,13 @@ class Audit(unittest.TestCase):
         write_json(self.dataset / "summary.json", self.summary)
         self.assertIn("missing_freeze", self.codes())
 
+    def test_legacy_missing_floors_remain_incomplete(self):
+        reader = audit.Reader()
+        summary = dict(self.summary)
+        summary.pop("floors")
+        audit.provenance(reader, self.store, "1.0", summary, set(), {"train": {}, "eval": {}})
+        self.assertIn("missing_floors", {i["code"] for i in reader.issues})
+
     def test_absent_evidence_is_not_called_conflicting_evidence(self):
         (self.store / "raw/FROZEN-1.1.json").unlink()
         (self.store / "raw/dataset/1.1.heldout-items.jsonl").unlink()
@@ -203,7 +211,7 @@ class Audit(unittest.TestCase):
         ref_summary = json.loads((previous / "reference/summary.json").read_text())
         ref_summary["version"] = "1.0"
         write_json(previous / "reference/summary.json", ref_summary)
-        shutil.copyfile(self.store / "raw/FROZEN-1.1.json", self.store / "raw/FROZEN-1.0.json")
+        shutil.copyfile(self.store / "raw/FROZEN-1.1.json", self.store / "raw/FROZEN.json")
         shutil.copyfile(self.store / "raw/dataset/1.1.heldout-items.jsonl", self.store / "raw/dataset/1.0.heldout-items.jsonl")
         report = audit.audit(self.store, "1.0", trainer_input=self.input, run=self.run)
         self.assertEqual(report["issues"], [])
@@ -225,9 +233,15 @@ class Audit(unittest.TestCase):
             audit.publish_receipt(self.dataset / "summary.json", report, self.store)
 
     def test_receipt_store_inside_repository_is_refused(self):
-        (self.store / ".git").mkdir()
+        subprocess.run(["git", "init", "-q", str(self.store)], check=True)
         with self.assertRaises(ValueError):
             audit.publish_receipt(self.store / "runs/audits/private.json", {}, self.store)
+
+    def test_bare_home_metadata_is_not_a_working_checkout(self):
+        subprocess.run(["git", "init", "--bare", "-q", str(self.store / ".git")], check=True)
+        target = self.store / "runs/audits/bare-parent.json"
+        audit.publish_receipt(target, {"status": "incomplete"}, self.store)
+        self.assertEqual(json.loads(target.read_text()), {"status": "incomplete"})
 
     def test_page_block_matches_producer_boundaries(self):
         nonce = "a" * 32
