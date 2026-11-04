@@ -3803,6 +3803,15 @@ class PinnedFetch(unittest.TestCase):
         self.assertEqual(Path('src/.partial/data.bin').read_bytes(), BODY)
         self.assertEqual(self.pinned(segments=1)['sha256'], SHA)
 
+    def test_interrupted_mode_initialization_can_resume(self):
+        api = fetch._pin_helpers()
+        with mock.patch.object(api.os, 'link', side_effect=OSError('synthetic initialization interruption')):
+            with self.assertRaises(fetch.Refused):
+                self.pinned()
+        self.assertTrue(Path('src/.download-pins').is_dir())
+        self.assertFalse(Path('src/.download-pins/.mode.json').exists())
+        self.assertEqual(self.pinned()['sha256'], SHA)
+
     def test_cancelled_transfer_has_no_first_digest_and_resumes(self):
         def interrupt(handle, block):
             handle.write(block)

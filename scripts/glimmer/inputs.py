@@ -270,7 +270,15 @@ def read_pin_receipt(folder, name, pinned, artifact=None):
     directory = _pin_directory(folder)
     if not directory.exists():
         return None
-    if _pin_json(directory / ".mode.json") != PIN_MODE:
+    marker = directory / ".mode.json"
+    if not marker.exists():
+        # No receipt can be published before the marker. An empty directory or
+        # abandoned staging files alone can therefore resume first initialization.
+        # Existing evidence without its marker is corruption, never a fresh start.
+        if all(item.name.startswith(".pin-") and item.is_file() for item in directory.iterdir()):
+            return None
+        raise Refused("missing mode marker beside existing pin evidence")
+    if _pin_json(marker) != PIN_MODE:
         raise Refused("invalid pinned-download mode marker")
     path = pin_receipt_path(folder, name)
     if not path.exists():
@@ -370,9 +378,11 @@ def verify(folder, names):
             raise Refused(f"{name}: listed in the manifest but missing")
         if target.stat().st_size != entry["bytes"] or file_digest(target) != entry["sha256"]:
             raise Refused(f"{name}: changed since the manifest was written")
-        if not entry.get("published"):
-            evidence = _download_pin_evidence(folder, name, entry.get("pinned"), entry["sha256"], entry["bytes"], required="download_pin" in entry)
-            if "download_pin" in entry and entry["download_pin"] != evidence:
+        # Historical manifests retain their original hash-and-pin contract even
+        # when a later download in the same folder introduces first-download receipts.
+        if not entry.get("published") and "download_pin" in entry:
+            evidence = _download_pin_evidence(folder, name, entry.get("pinned"), entry["sha256"], entry["bytes"], required=True)
+            if entry["download_pin"] != evidence:
                 raise Refused(f"{name}: first-download pin receipt changed since manifest creation")
     return manifest, digest_of(manifest)
 

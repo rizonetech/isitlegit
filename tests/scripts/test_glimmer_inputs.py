@@ -397,6 +397,29 @@ class DownloadPins(unittest.TestCase):
         with self.assertRaises(inputs.Refused):
             inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
 
+    def test_new_manifest_still_refuses_deleted_marker_or_receipt(self):
+        self.receipt()
+        inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
+        marker = self.folder / '.download-pins/.mode.json'
+        marker.unlink()
+        with self.assertRaises(inputs.Refused):
+            inputs.verify(self.folder, ['data.zip'])
+        inputs.mark_pin_mode(self.folder)
+        inputs.pin_receipt_path(self.folder, 'data.zip').unlink()
+        with self.assertRaises(inputs.Refused):
+            inputs.verify(self.folder, ['data.zip'])
+
+    def test_new_pin_does_not_invalidate_existing_legacy_manifest(self):
+        (self.folder / 'legacy.zip').write_bytes(b'legacy')
+        old = inputs.build(self.folder, [{'name': 'legacy.zip', 'pinned': self.pin}], 'CC0')
+        self.assertNotIn('download_pin', old['files'][0])
+        self.receipt()
+        verified, _ = inputs.verify(self.folder, ['legacy.zip'])
+        self.assertEqual(verified, old)
+        # New-mode builds still require first-download evidence for each pin-only file.
+        with self.assertRaises(inputs.Refused):
+            inputs.build(self.folder, [{'name': 'legacy.zip', 'pinned': self.pin}], 'CC0')
+
     def test_retry_syncs_existing_marker_after_directory_sync_failure(self):
         import os
         original = os.fsync
