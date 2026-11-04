@@ -1,5 +1,7 @@
 # Loupe model card
 
+**Current decision, 4 November 2026:** the operator has directed removal of Loupe from production calls and decisions and shutdown of all Loupe hosting. Implementation and provider shutdown are pending live verification in this snapshot. The earlier operational release below is historical evidence, not the current intended product role. Failed experiment data, model records and prior videos remain archived; the standalone Loupe demo is withdrawn from current submission deliverables.
+
 One part per version, made from the run's own records by `scripts/glimmer/model_card.py`.
 
 ## Loupe 1.1 release addendum

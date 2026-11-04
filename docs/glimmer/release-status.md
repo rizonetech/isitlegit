@@ -1,5 +1,7 @@
 # Loupe 1.1 release evidence
 
+**Current decision, 4 November 2026:** the operator has directed removal of Loupe from production calls and decisions and shutdown of all Loupe hosting. Implementation and provider shutdown are pending live verification in this snapshot. The earlier operational release below is historical evidence, not the current intended product role. Failed experiment data, model records and prior videos remain archived; the standalone Loupe demo is withdrawn from current submission deliverables.
+
 Updated 4 November 2026. This record separates training, model registration, diagnostic measurement and live application release. The historical [Loupe 1.0 model card](model-card.md) retains its original version-specific results.
 
 ## Completed training
@@ -44,7 +46,7 @@ A separate visible-feature experiment used six reused synthetic pages and the sa
 
 A subsequent candidate-only run changed decoding to provider-enforced `json_schema` while retaining the original six pages, prompt and frozen labels. All six HTTP responses passed the strict four-field schema without answer rewriting, but none of the six records was fully correct. Field matches totalled 14/24: login-form presence 6/6, payment-form presence 5/6, organisation text 0/6 and button text 3/6. The constraint resolved output format, not factual accuracy. The earlier Spark and base 24/24 results used unconstrained decoding, so this is not an equal-settings speed comparison. Earlier failed responses remain preserved; unknown GPU cost is not zero. The 1.1 feature role remains experimental, with no production-role change authorized by these results.
 
-## Live release evidence
+## Historical operational release evidence
 
 The operator authorized operational release with these limitations disclosed. Production Worker commit `995ab0b09c785d25f5d15c1f5f1e4a80de60ab40`, Worker version `ac3714b6-44d8-4e16-ac02-4e72a18dfec4`, received all traffic. The five-binding smoke check passed in 13 seconds. A live application screening check at `2026-11-04T21:27:31.679Z` recorded `screener: glimmer` and `version: 1.1`, without fallback. This verifies operational application routing to Loupe 1.1 at that time, not a new quality measurement or independent statistical qualification.
 
