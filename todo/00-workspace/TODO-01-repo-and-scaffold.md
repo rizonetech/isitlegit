@@ -78,7 +78,7 @@ track: day-0
 | 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
 | 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
-| 40 | §41 | Accurate continuation stop reasons for completed owners | §19 | [ ] |
+| 40 | §41 | Accurate continuation stop reasons for completed owners | §19 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1336,9 +1336,12 @@ Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owne
 - [x] `scripts/codex_continuation.py` distinguishes completed work, operator pause and stalled ownership in Stop/UserPromptSubmit refusal and PreToolUse denial. Done when: `tests/scripts/test_codex_continuation.py` fails against the old generic paused message and passes with the correct state-specific text. Cheaper substitute: rewrite terminal output after the hook, rejected because the controller owns the reason.
 - [x] Preserve every stop and exclusive-owner guard, including pause markers, generation mismatch, trust checks and completed-owner restart refusal. Done when: regression tests assert unchanged denial/continue=false behavior, no automatic activation, no queued wake or changed owner/generation; existing lifecycle tests pass. Cheaper substitute: allow tools after completion, rejected because it would restart completed tasks.
 - [x] Update `docs/codex-lanes.md` to explain truthful complete/paused/stalled status and the existing explicit activation path for a newly assigned scope. Done when: documentation names the actual supported command and does not claim a native heartbeat or automatic reassignment.
-- [ ] Commit: `fix: report actual stopped continuation owner state`
+- [x] Commit: `fix: report actual stopped continuation owner state`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes; removing the state-specific reason branch fails completed and stalled output regressions while stop enforcement remains unchanged.
+
+> **Verified:** 2026-11-04 | §41 | 67f9d7be2578ad6f556ca039da020fc769c1023f
+> **Review:** `docs/reviews/d00-t01-s41.json`
 
 ## Verification
 
