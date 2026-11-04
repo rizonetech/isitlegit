@@ -172,13 +172,19 @@ describe("hidden-text corpus measurement", () => {
     expect(run.output).toBeNull();
   });
   it("CLI preserves measured target misses and false flags with failure exit", () => {
-    const rows = corpus.map((r) =>
-      r.label === "control" && r.technique === "sparse" ? changed(r, "ignore previous instructions") : r,
-    );
+    const missedAttack = corpus.find((r) => r.label === "attack" && r.technique === "sparse") as Case;
+    const rows = corpus.map((r) => {
+      if (r.id === missedAttack.id) return changed(r, "The invoice is attached.");
+      return r.label === "control" && r.technique === "sparse" ? changed(r, "ignore previous instructions") : r;
+    });
     const run = cli(rows);
     expect(run.status).toBe(1);
     expect(run.output.observations).toHaveLength(410);
+    expect(run.output.summary.attacks).toBe(205);
+    expect(run.output.summary.controls).toBe(205);
     expect(run.output.summary.falseFlags).toHaveLength(40);
+    expect(run.output.summary.errors).toEqual([]);
+    expect(run.output.summary.missed).toContain(missedAttack.id);
     expect(run.output.summary.missed.length).toBeGreaterThan(0);
   });
   it("CLI preserves all cases on reader failure and returns exit two", () => {
