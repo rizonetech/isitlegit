@@ -49,7 +49,7 @@ track: day-6
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [x] |
 | 18 | §18 | Recoverable PDF corpus publication | §2 | [x] |
-| 19 | §19 | Machine-crash durability for generated corpora | §18 | [ ] |
+| 19 | §19 | Machine-crash durability for generated corpora | §18 | [x] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -617,6 +617,9 @@ Filed contract only under coordinator `corpus-durability-scope-decision` (2026-1
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts test/node/eval-forensics-durability.test.ts` passes with synchronization-removal mutations failing. No physical power-loss or hardware guarantee is claimed without separately observed evidence.
 
 Implementation evidence (2026-11-04): `docs/eval/corpus-durability.md` records the storage assumptions, ordering, failure semantics and corrected plan-review survival oracle. The recovery regression failed on the original builder before implementation. The focused checkpoint passes 37 tests, including 12 synchronization-removal mutants, three independent writeback schedules, damaged-live/backup recovery and every observed synchronization failure. Node TypeScript, focused Biome and the Worker dry-run build pass. No physical power-loss evidence or deployed change is claimed.
+
+> **Verified:** 2026-11-04 | §19 | 7e1565209e0bb024598ee0eac734b9fb503ecfce
+> **Review:** `docs/reviews/d08-t02-s19.json`
 
 ## Verification
 
