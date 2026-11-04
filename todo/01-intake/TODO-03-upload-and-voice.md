@@ -612,7 +612,9 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a vo
 
 Coordinator critical-path assignment 2026-11-04 resolves the missing server-side transport in D08 T02 §3; eval's scoped repair is D08 T02 §17. The agreed contract is `docs/specs/2026-11-04-per-case-ablation-design.md`. Checks owns upload/admission and additive migration 0095; eval owns runner and manifest hashing. No live arms before consumers are reviewed, stamped, merged and deployed.
 
-> **Started:** 2026-11-04T07:39:26+00:00
+> **Started:** 2026-11-04T07:44:53+00:00
+
+**Plan anchor correction 2026-11-04:** The earlier timestamp recorded contract drafting. Eval added capability preflight before any product implementation or plan review; this timestamp anchors the finalized contract for plan self-review. No implementation is being retrospectively approved.
 
 **Phase:** 6
 **Needs:** none
