@@ -2,6 +2,8 @@
 from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import json
+import os
+import stat
 from pathlib import Path
 import tempfile
 import unittest
@@ -180,6 +182,45 @@ class Readiness(unittest.TestCase):
 
     def test_receipt_outside_store_refuses(self):
         self.refused('invalid_receipt_destination', lambda: m.publish(self.store/'elsewhere.json', {}, self.store))
+
+    def test_failed_audit_retains_blockers_and_denies_permissions(self):
+        self.audit.update(status='failed', comparison_ready=False, issues=[{'code': 'hard_negative_floor_unmet', 'kind': 'failed', 'artifact': '1.1/provenance/own-page'}])
+        write(self.audit_path, self.audit)
+        report = self.inspect()
+        self.assertEqual(report['audit_status'], 'failed')
+        self.assertEqual(report['audit_blockers'], self.audit['issues'])
+        self.assertFalse(report['comparison_evidence_ready'])
+        self.assertFalse(report['paid_comparison_ready'])
+        self.assertFalse(report['rollout_authorized'])
+
+    def test_receipt_directory_is_synced_after_link_before_readback(self):
+        target = self.store / 'runs/checkpoint-readiness/durable.json'
+        events = []
+        real_sync, real_link, real_read = os.fsync, os.link, Path.read_bytes
+        def sync(fd):
+            events.append('directory_sync' if stat.S_ISDIR(os.fstat(fd).st_mode) else 'file_sync')
+            real_sync(fd)
+        def link(a, b):
+            events.append('link')
+            real_link(a, b)
+        def read(path):
+            if path == target:
+                events.append('readback')
+            return real_read(path)
+        with mock.patch.object(m.os, 'fsync', side_effect=sync), mock.patch.object(m.os, 'link', side_effect=link), mock.patch.object(Path, 'read_bytes', read):
+            m.publish(target, {'status': 'available'}, self.store)
+        self.assertEqual(events, ['file_sync', 'link', 'directory_sync', 'readback'])
+
+    def test_directory_sync_failure_never_reports_success(self):
+        target = self.store / 'runs/checkpoint-readiness/unsynced.json'
+        real_sync = os.fsync
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                raise OSError('synthetic directory sync failure')
+            real_sync(fd)
+        with mock.patch.object(m.os, 'fsync', side_effect=sync), self.assertRaises(OSError):
+            m.publish(target, {'status': 'available'}, self.store)
+        self.assertTrue(target.exists())  # Preserve the uncertain publication, never overwrite it.
 
     def test_cli_snapshot_success_has_readable_identity_receipt(self):
         listing = self.store / 'provider.json'
