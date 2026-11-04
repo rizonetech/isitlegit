@@ -37,8 +37,13 @@
 > [!NOTE]
 > **Status, 4 November 2026:** IsItLegit has a deployed Worker and tested signup, sign-in and report-access paths. Deployment checks, local feature verification and detection quality are separate evidence; see [status and limits](#status-and-limits). The remaining work is tracked in [`todo/`](todo/TODO-00-INDEX.md).
 
+## Getting started
+
+**Judges: [try the hosted app in five steps](docs/judge-getting-started.md).** Use the invite supplied in your private judging instructions; no API keys or local setup are needed. Start with a synthetic invoice case, then inspect its evidence and model trace.
+
 ## Contents
 
+- [Getting started](#getting-started)
 - [Why IsItLegit](#why-isitlegit)
 - [What it does](#what-it-does)
 - [Status and limits](#status-and-limits)
