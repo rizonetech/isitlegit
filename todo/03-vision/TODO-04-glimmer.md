@@ -86,6 +86,7 @@ track: day-6
 | 48 | §48 | Confidence escalation from Loupe to Spark | §1 | [x] |
 | 49 | §49 | Every screened page captured and labelled | §48 | [x] |
 | 50 | §50 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
+| 51 | §51 | Immutable training and evaluation evidence audit | §13, §32 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1671,6 +1672,30 @@ Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is t
 - [ ] Commit: `glimmer: promote Loupe 1.1 on a better-than-1.0 gate`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_version_gate` passes, and fails if an equal or worse candidate promotes.
+
+## 51. Immutable training and evaluation evidence audit
+
+Coordinator-authorized new Codex audit/repair scope, 2026-11-04 09:21 SAST. This section audits the interrupted 1.1 publication and defines truthful checkpoint evidence before §50 can promote; it does not retroactively approve §45 or §50. Historical receipts and Started lines stay unchanged. The live trainer and its input are never replaced, stopped or restarted. Owning layer: offline artifact validation in `scripts/glimmer/checkpoint-audit.py`; incomplete evidence remains incomplete rather than being reconstructed from current mutable source pages. The coordinator permits quiescent detached exact-candidate review checkouts while training continues to append progress in the original checkout.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Implement a read-only artifact audit with explicit evidence states. Done when: fixtures distinguish verified, incomplete and conflicting evidence without rewriting the input artifacts.
+2. Verify the real 1.1 artifacts and record the precise unresolved evidence. Done when: a hash-bound audit receipt exists outside the repository and the handover names the next required action without claiming promotion readiness.
+
+- [ ] Add `scripts/glimmer/checkpoint-audit.py` to stream SHA-256 and line counts for both training and evaluation JSONL and their metadata, requiring valid JSON objects, matching line counts, unique metadata page identifiers and matching recorded summary digests. Done when: malformed, truncated, duplicate, count-mismatched and hash-mismatched fixtures refuse with a named evidence issue. Cheaper substitute: trusting the summary alone cannot detect a changed training file.
+- [ ] Audit required provenance in `scripts/glimmer/checkpoint-audit.py`: freeze identity, recorded floors, split-balance report, hard-negative counts, protected held-out membership and reference artifacts, checking the current builder's actual formats. Done when: missing evidence is classified incomplete, inconsistent evidence is conflicting, and no absent field is synthesized from today's store. Cheaper substitute: rebuilding summary fields from mutable source pages would falsely certify the original build. Source: §45's publication contract and coordinator checkpoint-review-decision.
+- [ ] Bind trainer input to the audited dataset in `scripts/glimmer/checkpoint-audit.py` using a supplied input path and its measured digest, without trusting path equality or hardlink identity alone. Done when: equal bytes at another path pass identity, different bytes refuse, and the audit never changes training, checkpoint or dataset files. Cheaper substitute: a PID and a filename cannot prove which bytes trained the candidate.
+- [ ] Report comparison readiness against the existing 1.0 evaluation in `scripts/glimmer/checkpoint-audit.py`, checking both evaluation digests and training/evaluation metadata page overlap on each version. Done when: different evaluation files and detected overlap explicitly block comparison; a matching digest is never represented as proof of template or near-duplicate isolation without the original held-out provenance. Cheaper substitute: comparing ordinary per-version metrics on different files manufactures a quality gain. Source: §50's same-held-out contract.
+- [ ] Write an optional new audit receipt with `scripts/glimmer/checkpoint-audit.py --receipt`, binding issues and measured file digests to the auditor commit and timestamp, atomically publishing only to an absent external-store destination and reading it back. Done when: retries cannot overwrite another receipt, a failed audit still records its issues with a nonzero exit, and the default audit writes nothing. Cheaper substitute: overwriting earlier evidence destroys the audit trail.
+- [ ] Add synthetic regression fixtures in `tests/scripts/test_checkpoint_audit.py` for the listed refusal paths, valid evidence, concurrent receipt refusal, and unchanged input bytes. Done when: tests prove defects fail before their repair and no fixture contains client data or invokes a provider. Cheaper substitute: testing only a valid summary misses interrupted publication.
+- [ ] Run the audit on both real versions and the active trainer input, writing only its external receipt and a concise result in `docs/glimmer/checkpoint-audit.md`. Done when: the report names verified facts and unresolved provenance separately; §45 and §50 remain unstamped if their original proof is missing, and immutable checkpoint export/common-held-out evaluation proceeds only under a separately reviewed scope. Cheaper substitute: passing unit tests does not establish live artifact provenance.
+- [ ] Commit: `glimmer: audit immutable checkpoint input evidence`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_checkpoint_audit` passes, rejects missing or conflicting evidence and leaves all audited inputs unchanged; a real external audit receipt records the measured 1.1 artifact state without manufactured provenance.
 
 ## Verification
 
