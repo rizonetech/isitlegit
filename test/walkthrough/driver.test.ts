@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import puppeteer, { type Browser, type Page } from "@cloudflare/puppeteer";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ulid } from "../../src/db/ulid";
 import { readArtefact, type Store } from "../../src/intake/store";
 import { Action, Driver, LIMITS } from "../../src/walkthrough/driver";
@@ -216,6 +216,37 @@ describe("Action and LIMITS", () => {
 });
 
 describe("Driver", { timeout: 120_000 }, () => {
+  it("uses native Worker fetch without binding it to the options object", async () => {
+    const transport = vi.fn(function (this: unknown) {
+      // Native Worker fetch rejects a foreign receiver; injected arrow transports hid this boundary.
+      if (this !== undefined && this !== globalThis) throw new TypeError("Illegal invocation");
+      return Promise.resolve(
+        new Response("<html><body>Receiver-safe page</body></html>", {
+          headers: { "content-type": "text/html" },
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", transport);
+    try {
+      browser = await puppeteer.launch(env.BROWSER);
+      const driver = await Driver.open(browser, {
+        caseId: await newCase(),
+        walkId: "native-fetch-receiver",
+        canary,
+        startUrl: "https://fixture.example/",
+        store,
+        resolve,
+      });
+      expect(driver.ended).toBeUndefined();
+      expect((await driver.view()).outcome).toBe("done");
+      expect(await state(browser, "document.body.textContent")).toContain("Receiver-safe page");
+      expect(transport).toHaveBeenCalled();
+      await driver.close();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("loads the page and every subresource through the Worker's fetch", async () => {
     const { driver, served, browser: b } = await walk();
     expect(served.asked).toEqual(

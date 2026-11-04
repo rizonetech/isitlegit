@@ -256,3 +256,325 @@ Nothing on either side is weaker than the other on an address question, because 
 - Superseded earlier runs (preserved for provenance per completion reviews on `23ed9bb08` and `247cd3fe`): (a) commit `23ed9bb08` (2026-11-03T07:52Z, simulated crop `{ left: 32, top: 12, width: 320, height: 64 }`, simulated walkthrough evidence, `signals.json` omitted in `no_reading`; total spend US$0.811757 under a US$1.50 cap; `full` confirmation recall 20/20, false positives 0/20, median latency 9,445.9 ms, p95 13,756.3 ms, cost US$0.269207; `no_reading` 16/20, `no_logo` 17/20, `no_walkthrough` 18/20); (b) commit `247cd3fe` (2026-11-03T09:21:15Z, real `segment` + `groundLogos`, single-turn `walkthroughStep` paired with a manufactured `WalkRecord` instead of the multi-turn `walk` + `Driver` browser loop; total spend US$2.377859 under a US$2.50 cap; `full` confirmation recall 19/20, false positives 0/20, median latency 20,727.8 ms, p95 31,664.8 ms, cost US$0.856355; `no_reading` 18/20 with 2/20 false positives, `no_logo` 13/20, `no_walkthrough` 17/20).
 - Accounting: pre-call cap `maxSpendUsd = 3.10` recorded in `data/monitor/quality-run.json` (`provenance`) and `docs/phase-runs/2026-11-03-trust-phase-7.md`; the 40-page `full` baseline spent `paidUsd = US$2.293429` (`totalSpendUsd = 2.293429`) across 277 settled model calls (`muse-spark-1.3`, `sam-3.1`, and multi-turn `muse-wonder-1.0` driving `Driver` over `@cloudflare/puppeteer`), while `no_reading`, `no_logo`, and `no_walkthrough` replayed non-ablated stage outputs from `stageCache` with `paidUsd = US$0.000000` (`replayedUsd` recorded separately per arm); total ledger spend for run `monitor-quality:2026-11-03T10:19:00.302Z` was `ledgerSettledSpendUsd = US$3.029868` (`baselineFullSpendUsd = US$2.293429` plus `uncachedAblationSpendUsd = US$0.736439` across 9 uncached `no_reading` cases before `stageCache` replay was wired, 346 settled calls, 0 uncertain calls), settled at measured usage in both `model_spend` (`7f3e24dd-17b2-4822-af2d-eba41dab5318`) and `~/isitlegit-data/ledgers/meta-spend.json`.
 - Meaning: running the full production multi-turn `walk` + `Driver` browser loop and retaining `partial`, unavailable, and refused cases in denominators with zero credit shows where each stage earns its place and where multi-turn browser execution hits step limits: `full` confirms 17/20 lures (all 14 credential/payment form lures `lure-01`..`lure-14` where `Driver` submitted canary values and observed 200 delivery on the lookalike host, plus the 3 non-form giveaway/support lures `lure-18`..`lure-20` confirmed by logo match + Spark reading, while the 3 text-only invoice/EFT lures `lure-15`..`lure-17` that have no `<form>` element reach the 8-step `walk` limit when Spark reading flags `requested_action = "pay"` and settle `partial` alongside 3 benign pages without graphical logo crops, yielding 34/40 settled destination accuracy and 0 false positives across all 20 benign pages); ablating Spark reading (`no_reading`, with `signals.json` preserved) drops isolated reading form recall from 14/15 (0.9333) to 0/15 (0.0000, delta -0.9333) and drops confirmation recall from 17/20 (0.8500) to 16/20 (0.8000, delta -0.0500, losing `lure-19`); ablating logo detection and comparison (`no_logo`) drops confirmation recall from 17/20 (0.8500) to 14/20 (0.7000, delta -0.1500, losing `lure-18`..`lure-20`) and leaves 26/40 cases partial (+0.5000, dropping settled destination accuracy to 14/40 and settled form specificity to 0/25); ablating walkthrough findings (`no_walkthrough`) drops confirmation recall from 17/20 (0.8500) to 14/20 (0.7000, delta -0.1500, losing `lure-06`, `lure-11`, and `lure-14` whose altered header marks did not match the reference logo and therefore relied on the `muse-wonder-1.0` walkthrough to confirm credential harvesting). Limit: 40 synthetic pages over 10 fictional brands prove each stage's directional contribution and pipeline mechanics, not real-world population error rates.
+
+## Wonder multi-step experiment
+
+Source 6fece3444d15155df25d77752e3c7189906477da; deployed 385c3d9827885ba2e032aaf435221b2e9690d00d; experiment 5a123694-7b66-4c27-939a-8913313a782d.
+
+Credential page reached: 0/5. Unknown outcomes: 0. Counted cost: US$0.000000 (0 estimated ordinals). Credential arrival steps: [null,null,null,null,null]. Arrival time ms: [null,null,null,null,null]. Final steps: [0,0,0,0,0]. Final time ms: [184,152,157,187,586].
+
+No model call was attempted; model navigation capability was not measured. Reaching the credential page is distinct from successful form submission. All five observations are accounted for.
+
+- Run observed 2026-11-04, ending 12:30 UTC. All five outcomes were `error` before any model transport attempt, with no recorded page or action. This is an execution failure, not a measurement of Wonder navigation quality. The configured model was `muse-wonder-1.0`; the eight-step and sixty-second limits were unchanged.
+- Evidence: `eval/frontier/multistep-results-2026-11-04.json`, an exact copy of the durable five-ordinal state (SHA-256 a95aac8db68b9bf64b98c7911450f286ed556819147f54d600f0704cf3b48c18). Each whole-walk reservation settled at zero; no capacity response, unknown outcome, cap change or sixth attempt occurred. Historical caller spend remains separate and retained.
+- Follow-up proposed to the coordinator: the driver owner should diagnose the pre-model runtime failure without relaxing containment. The adapter did not retain the driver reason, so the root cause is unproven. No rerun or replacement denominator is authorized. The four-of-five navigation target was not attained. Local scripted fixture and stubbed-driver tests remain separate evidence.
+
+## Wonder configuration and diagnostics: 5a123694-7b66-4c27-939a-8913313a782d
+
+Configured from immutable source 6fece3444d15155df25d77752e3c7189906477da; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.
+
+Configuration:
+
+```json
+{
+  "model": "muse-wonder-1.0",
+  "promptReference": "src/walkthrough/wonder.ts#GOAL",
+  "promptSha256": "42e81eba1408c0680d3b1857517a7d35d6625b61b34075e1a83e524b9c94ace7",
+  "untrustedReference": "src/meta/untrusted.ts#UNTRUSTED_WARNING",
+  "untrustedSha256": "7c17054faee0e5b3449fce15c5e382ffa9c81763c69ff1ec11b3b1029bea5fc9",
+  "promptTemplateReference": "src/walkthrough/wonder.ts#walk",
+  "promptTemplateSourceSha256": "f659fcef0a6df870bb6895c8be1c701e38a4b4dde13efdc2e3f9f0e07474b451",
+  "toolSchemaReference": "src/walkthrough/driver.ts#Action",
+  "toolSchemaSourceSha256": "be898eb321110354fee50d571bdd34789515ec3047231fca0fba1e461f0ba299",
+  "clientReference": "src/meta/client.ts",
+  "clientSourceSha256": "1b1bd6a6f946c277dc1f35549e79f0b079b0a3a3684d599c50ec70bc54a095c8",
+  "maxOutputTokens": 1024,
+  "screenshotsRetained": 2,
+  "maxViewText": 4000,
+  "transportAttempts": 1,
+  "stepLimit": 8,
+  "timeLimitMs": 60000,
+  "toolChoice": "auto",
+  "parallelToolCalls": false,
+  "store": false,
+  "reasoningEffort": null,
+  "downloadsAllowed": false,
+  "credentials": "per-case-canaries-only"
+}
+```
+
+Diagnostics:
+
+```json
+[
+  {
+    "ordinal": 1,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 2,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 3,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 4,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 5,
+    "diagnostic": {
+      "stage": "unknown",
+      "category": "unknown",
+      "source": "unknown"
+    },
+    "followupDiagnostics": []
+  }
+]
+```
+
+Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.
+
+## Wonder multi-step experiment
+
+Source 4eabf3e6764d9a76198bd13b803ae65f671eb69c; deployed fe3a0d7943e3e9148b6d6ab888cbc751b61011e4; experiment bf8e1eff-53cd-4c59-83c8-350b734fd3f8.
+
+Credential page reached: 0/5. Unknown outcomes: 0. Counted cost: US$0.000000 (0 estimated ordinals). Credential arrival steps: [null,null,null,null,null]. Arrival time ms: [null,null,null,null,null]. Final steps: [0,0,0,0,0]. Final time ms: [150,143,391,146,415].
+
+No model call was attempted; model navigation capability was not measured. Reaching the credential page is distinct from successful form submission. All five observations are accounted for.
+
+## Wonder configuration and diagnostics: bf8e1eff-53cd-4c59-83c8-350b734fd3f8
+
+Configured from immutable source 4eabf3e6764d9a76198bd13b803ae65f671eb69c; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.
+
+Configuration:
+
+```json
+{
+  "model": "muse-wonder-1.0",
+  "promptReference": "src/walkthrough/wonder.ts#GOAL",
+  "promptSha256": "42e81eba1408c0680d3b1857517a7d35d6625b61b34075e1a83e524b9c94ace7",
+  "untrustedReference": "src/meta/untrusted.ts#UNTRUSTED_WARNING",
+  "untrustedSha256": "7c17054faee0e5b3449fce15c5e382ffa9c81763c69ff1ec11b3b1029bea5fc9",
+  "promptTemplateReference": "src/walkthrough/wonder.ts#walk",
+  "promptTemplateSourceSha256": "f659fcef0a6df870bb6895c8be1c701e38a4b4dde13efdc2e3f9f0e07474b451",
+  "toolSchemaReference": "src/walkthrough/driver.ts#Action",
+  "toolSchemaSourceSha256": "be898eb321110354fee50d571bdd34789515ec3047231fca0fba1e461f0ba299",
+  "clientReference": "src/meta/client.ts",
+  "clientSourceSha256": "1b1bd6a6f946c277dc1f35549e79f0b079b0a3a3684d599c50ec70bc54a095c8",
+  "maxOutputTokens": 1024,
+  "screenshotsRetained": 2,
+  "maxViewText": 4000,
+  "transportAttempts": 1,
+  "stepLimit": 8,
+  "timeLimitMs": 60000,
+  "toolChoice": "auto",
+  "parallelToolCalls": false,
+  "store": false,
+  "reasoningEffort": null,
+  "downloadsAllowed": false,
+  "credentials": "per-case-canaries-only"
+}
+```
+
+Diagnostics:
+
+```json
+[
+  {
+    "ordinal": 1,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 2,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 3,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 4,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  },
+  {
+    "ordinal": 5,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": []
+  }
+]
+```
+
+Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.
+
+- This separately authorized prospective cohort ended on 2026-11-04 after five pre-model runtime errors. All five child reports and remote ledger settlements were verified, and both parent and child locks were free after the parent exited zero. The finite diagnostic for each is `walk/runtime-error/result`; no raw exception content was retained or published. The exact result-state SHA-256 is c8641eb58b014f5c6db88ffcd44cd87ac07f0e92b5de61b19b3fb2799a120561.
+- Effective experiment cap remained US$5 with US$0 measured model cost. Explicit BUDGET-36 approval raised the permitted total ceiling to US$10 during the last ordinal, but the run finished before a serialized setting change. No cap change or restart was made. Shared limits and historical charges remain unchanged. Browser infrastructure charges were not measured.
+- This cohort and the original five retain separate identities and denominators. Both failed before any model transport attempt, so neither measures model navigation capability or attains the four-of-five target. No third cohort, sixth ordinal or replay is authorized. The serving deployment window was released only after verifying settled state and no active child.
+
+
+## Wonder multi-step experiment
+
+Source 27eadd73b71842eabb5172e3681b944ffc3ee3b8; deployed df1ad981d544af292de9387ad03d9fd3c5bb7e37; experiment 4c6eabf0-d2d0-4b9c-89cb-8d9cc285e771.
+
+Credential page reached: 0/5. Unknown outcomes: 0. Counted cost: US$0.000000 (0 estimated ordinals). Credential arrival steps: [null,null,null,null,null]. Arrival time ms: [null,null,null,null,null]. Final steps: [0,0,0,0,0]. Final time ms: [269,222,173,152,137].
+
+No model call was attempted; model navigation capability was not measured. Reaching the credential page is distinct from successful form submission. All five observations are accounted for.
+
+## Wonder configuration and diagnostics: 4c6eabf0-d2d0-4b9c-89cb-8d9cc285e771
+
+Configured from immutable source 27eadd73b71842eabb5172e3681b944ffc3ee3b8; configuration is not evidence of an actual model call. Prompt hashes cover the exact UTF-8 GOAL and UNTRUSTED_WARNING strings. Template and tool hashes bind the source that constructs dynamic canary/URL instructions, screenshot observations and tool schemas; private runtime values are excluded. reasoningEffort null means no explicit effort was configured.
+
+Configuration:
+
+```json
+{
+  "model": "muse-wonder-1.0",
+  "promptReference": "src/walkthrough/wonder.ts#GOAL",
+  "promptSha256": "42e81eba1408c0680d3b1857517a7d35d6625b61b34075e1a83e524b9c94ace7",
+  "untrustedReference": "src/meta/untrusted.ts#UNTRUSTED_WARNING",
+  "untrustedSha256": "7c17054faee0e5b3449fce15c5e382ffa9c81763c69ff1ec11b3b1029bea5fc9",
+  "promptTemplateReference": "src/walkthrough/wonder.ts#walk",
+  "promptTemplateSourceSha256": "745615b77d97d533ba7e7d578180f7e1791c994cbab64e8615b03a38773eb57e",
+  "toolSchemaReference": "src/walkthrough/driver.ts#Action",
+  "toolSchemaSourceSha256": "0c0f72afe79d5e61db2f4aa4ba9db5c93f46d5b3522e83203c50d4d03dc16291",
+  "clientReference": "src/meta/client.ts",
+  "clientSourceSha256": "1b1bd6a6f946c277dc1f35549e79f0b079b0a3a3684d599c50ec70bc54a095c8",
+  "maxOutputTokens": 1024,
+  "screenshotsRetained": 2,
+  "maxViewText": 4000,
+  "transportAttempts": 1,
+  "stepLimit": 8,
+  "timeLimitMs": 60000,
+  "toolChoice": "auto",
+  "parallelToolCalls": false,
+  "store": false,
+  "reasoningEffort": null,
+  "downloadsAllowed": false,
+  "credentials": "per-case-canaries-only"
+}
+```
+
+Diagnostics:
+
+```json
+[
+  {
+    "ordinal": 1,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 2,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 3,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 4,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  },
+  {
+    "ordinal": 5,
+    "diagnostic": {
+      "stage": "walk",
+      "category": "runtime-error",
+      "source": "result"
+    },
+    "followupDiagnostics": [],
+    "driverDiagnostic": {
+      "operation": "navigation.goto",
+      "category": "error"
+    }
+  }
+]
+```
+
+Missing historical diagnostic fields remain unknown; later probes do not reconstruct them. Cohorts retain separate identities and denominators.
+
+
+This separately authorized df1 fixed-five cohort finished on 2026-11-04 with five pre-model navigation failures. Each strict terminal driver diagnostic is `navigation.goto/error`; this identifies the failing operation but does not establish its cause. All five child reports match saved observations and all remote ledger entries settled at US$0. The parent exited zero and both parent and child locks were verified free before the stable deployment window was released. Effective initial and final cap remained US$10 with the exact dated BUDGET-RECOVERY-20 authority and no staged increase. Browser infrastructure cost was not measured.
+
+The state SHA-256 is 4d8e93b19c73141710306399f14da78b2742061113bed3792c5146b87a44ed6b. Original cohorts, diagnostics and review history remain unchanged and separately scored. No model transport was attempted, so this cohort does not measure model navigation or attain the four-of-five target. No sixth ordinal, replay, additional cohort or repeated diagnostic is authorized. Section completion remains unresolved.
