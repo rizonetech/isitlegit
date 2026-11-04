@@ -63,7 +63,7 @@ export function validateWarm(read: Deployment, lease: Lease, now = Date.now()): 
     "scale-to-zero policy changed",
   );
 }
-const save = (file: string, value: unknown) => {
+export const save = (file: string, value: unknown) => {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(`${file}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
   const fd = openSync(`${file}.tmp`, "r");
