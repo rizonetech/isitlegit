@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+// Worker setup imports the workflow and monitor first. Isolate this mocked caller contract.
+vi.hoisted(() => vi.resetModules());
+
 // Exercise the caller's complete Technique contract without expanding the candidate generator.
 // The current single-character generator need not naturally produce a three-accent variant.
 vi.mock("../../src/checks/domain-lookalike", async (importOriginal) => {
