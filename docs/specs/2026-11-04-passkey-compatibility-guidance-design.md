@@ -18,7 +18,7 @@ Preserve the existing Three usual causes heading and three list items, phone/QR 
 
 **Two more things to check**
 
-- "Your saved passkey has not synced: check the password manager where you saved it. For a missing iCloud-synced passkey on iPhone, open Settings, your name, iCloud, Passwords (Passwords and Keychain on iOS 17 or earlier), then turn on Sync this iPhone. A passkey kept only on another device needs that device or an email link."
+- "A saved passkey may not have synced: check the password manager where you saved it. For a missing iCloud-synced passkey on iPhone, open Settings, your name, iCloud, Passwords (Passwords and Keychain on iOS 17 or earlier), then turn on Sync this iPhone. A passkey kept only on another device needs that device or an email link."
 - "A private or incognito window can restrict passkeys on some browsers. Try a normal window, or use an email link."
 
 These are troubleshooting possibilities, not detection results. Do not imply that switching off sync deletes local passkeys, that enabling iCloud finds a credential held elsewhere, or that a normal window repairs a missing or revoked credential. No device fingerprinting, browser sniffing, platform settings changes or external navigation is added.

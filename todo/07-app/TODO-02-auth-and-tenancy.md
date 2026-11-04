@@ -1067,6 +1067,8 @@ Closing an organisation is irreversible from the moment it is pressed (§9), whi
 
 ## 30. Passkey compatibility and second-line causes
 
+> **Started:** 2026-11-04T10:07:33.292321+00:00
+
 The troubleshooting note (§28) names the three usual causes, but a member whose device is already on its latest browser learns nothing about whether their combination can use a phone passkey at all, and two more real causes sit behind the first three: a passkey store that is not set up (for example iCloud Keychain off) and a private-browsing window that cannot reach the stored passkey (D07 T02 §28 completion review, 2026-11-03, against Google Account's passkey guidance).
 
 **Coordinator scope correction 2026-11-04:** preparation approved at 09:58:13 UTC. The exact proposed A1 wording and primary sources are in `docs/specs/2026-11-04-passkey-compatibility-guidance-design.md`. Platform documentation is not a tested IsItLegit device matrix; Google Account browser-version minima are not universal application requirements. Keychain sync off can leave local passkeys. Preserve existing three causes, retry and email recovery. Coordinator owns exact A1 approval/incorporation before completion; console owns only the companion, PasskeyHelp and browser proof. No auth, credential-storage or WebAuthn behavior changes.
