@@ -381,3 +381,121 @@ describe("final review (2026-10-29)", () => {
     expect(atLimit.bodies).toHaveLength(2);
   });
 });
+
+describe("bounded verdict validation diagnostics", () => {
+  it("records JSON and hostile-property rejection without copying content and keeps the two-answer ceiling", async () => {
+    const m = model(
+      () => text("SECRET not JSON"),
+      () => text(JSON.stringify({ ...JSON.parse(GOOD), "SECRET-password": "private" })),
+    );
+    const diagnostics: unknown[] = [];
+    const got = await failure(
+      ask({
+        ...m.ctx,
+        onValidationDiagnostic: async (d) => {
+          diagnostics.push(d);
+        },
+      }),
+    );
+    expect(got?.kind).toBe("invalid");
+    expect(diagnostics).toEqual([
+      {
+        phase: "structured",
+        callId: expect.any(String),
+        attempt: 1,
+        remaining: 1,
+        issues: [{ category: "json_invalid", path: [] }],
+      },
+      {
+        phase: "structured",
+        callId: expect.any(String),
+        attempt: 2,
+        remaining: 0,
+        issues: [{ category: "unknown_property", path: [] }],
+      },
+    ]);
+    expect(JSON.stringify(diagnostics)).not.toMatch(/SECRET|private|password/);
+    expect(m.bodies).toHaveLength(2);
+    expect((await rows()).every((r) => r.error_class === "output-invalid")).toBe(true);
+  });
+  it("records a trusted static schema path and preserves a normal repaired answer", async () => {
+    const schema = z.strictObject({ confidence: z.number(), recommended_actions: z.array(z.string()) });
+    const m = model(
+      () => text('{"confidence":"PRIVATE","recommended_actions":[]}'),
+      () => text('{"confidence":0.5,"recommended_actions":[]}'),
+    );
+    const diagnostics: unknown[] = [];
+    const got = await ask(
+      {
+        ...m.ctx,
+        onValidationDiagnostic: async (d) => {
+          diagnostics.push(d);
+        },
+      },
+      schema,
+    );
+    expect(got.value).toEqual({ confidence: 0.5, recommended_actions: [] });
+    expect(diagnostics).toEqual([
+      {
+        phase: "structured",
+        callId: expect.any(String),
+        attempt: 1,
+        remaining: 1,
+        issues: [{ category: "schema_invalid", path: ["confidence"] }],
+      },
+    ]);
+    expect(JSON.stringify(diagnostics)).not.toContain("PRIVATE");
+  });
+  it("does not let a rejected diagnostic callback change repair or accounting", async () => {
+    const m = model(
+      () => text("invalid"),
+      () => text(GOOD),
+    );
+    const got = await ask({
+      ...m.ctx,
+      onValidationDiagnostic: async () => {
+        throw new Error("PRIVATE");
+      },
+    });
+    expect(got.value).toEqual(JSON.parse(GOOD));
+    expect(got.attempts).toBe(2);
+    expect((await rows()).filter((r) => r.error_class === "output-invalid")).toHaveLength(1);
+  });
+});
+
+it("bounds nested hostile properties and array paths to static schema segments", async () => {
+  const nested = z.strictObject({ recommended_actions: z.array(z.strictObject({ meaning: z.string() })) });
+  const m = model(
+    () => text('{"recommended_actions":[{"meaning":"x","PRIVATE-KEY":"secret"}]}'),
+    () => text('{"recommended_actions":[{"meaning":12}]}'),
+  );
+  const diagnostics: unknown[] = [];
+  await failure(
+    ask(
+      {
+        ...m.ctx,
+        onValidationDiagnostic: async (d) => {
+          diagnostics.push(d);
+        },
+      },
+      nested,
+    ),
+  );
+  expect(diagnostics).toEqual([
+    {
+      phase: "structured",
+      callId: expect.any(String),
+      attempt: 1,
+      remaining: 1,
+      issues: [{ category: "unknown_property", path: [] }],
+    },
+    {
+      phase: "structured",
+      callId: expect.any(String),
+      attempt: 2,
+      remaining: 0,
+      issues: [{ category: "schema_invalid", path: ["recommended_actions", "*", "meaning"] }],
+    },
+  ]);
+  expect(JSON.stringify(diagnostics)).not.toMatch(/PRIVATE|secret/);
+});

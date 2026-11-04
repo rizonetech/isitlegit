@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { bundled } from "../../src/checks/brands";
 import { type CaseView, caseViewOf, SummaryRefused } from "../../src/checks/case-view";
 import {
+  addEvidence,
   Evidence,
   type EvidenceDraft,
   EvidenceRefused,
@@ -434,5 +435,65 @@ describe("the intake items", () => {
     expect(cut?.detail.omitted).toBe(3);
     expect(Evidence.safeParse({ id: "E2", ...cut }).success).toBe(true);
     expect(uploadEvidence(uncut)).toEqual([]);
+  });
+});
+
+describe("guarded verification drafts", () => {
+  const draft: EvidenceDraft = {
+    check: "verification.not_requested",
+    severity: "info",
+    summary: "Delivery is unconfirmed.",
+    detail: { reason: "plan-required" },
+    artefacts: [],
+  };
+  it("publishes a refusal without a request row and rejects mismatched guard/draft context", async () => {
+    const made = await createCase(db, { orgId: "guard-owner", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const context = { orgId: "guard-owner", runId: id, state: "unavailable" as const };
+    expect(await addEvidence(db, id, "verification", [draft], undefined, undefined, undefined, context)).toHaveLength(
+      1,
+    );
+    expect((await readEvidence(db, id))[0]?.detail.reason).toBe("plan-required");
+    await expect(
+      addEvidence(db, id, "verification", [draft], undefined, undefined, undefined, { ...context, state: "requested" }),
+    ).rejects.toThrow(EvidenceRefused);
+    expect((await readEvidence(db, id))[0]?.check).toBe("verification.not_requested");
+  });
+  it.each(["rerun", "answer"])("preserves evidence when a %s wins immediately before publication", async (race) => {
+    const made = await createCase(db, { orgId: "guard-owner", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await addEvidence(db, id, "verification", [draft]);
+    let once = false;
+    const racing = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch")
+          return async (statements: D1PreparedStatement[]) => {
+            if (!once) {
+              once = true;
+              if (race === "rerun")
+                await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(`rerun-${id}`, id).run();
+              else
+                await addEvidence(db, id, "verification", [
+                  { ...draft, check: "verification.answered", summary: "The supplier answered." },
+                ]);
+            }
+            return db.batch(statements);
+          };
+        return Reflect.get(target, key);
+      },
+    }) as D1Database;
+    expect(
+      await addEvidence(racing, id, "verification", [draft], undefined, undefined, undefined, {
+        orgId: "guard-owner",
+        runId: id,
+        state: "unavailable",
+      }),
+    ).toEqual([]);
+    if (race === "rerun") {
+      expect(await readEvidence(db, id)).toEqual([]);
+      expect((await readEvidence(db, id, id))[0]?.summary).toBe(draft.summary);
+    } else expect((await readEvidence(db, id))[0]?.check).toBe("verification.answered");
   });
 });

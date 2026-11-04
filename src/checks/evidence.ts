@@ -215,6 +215,8 @@ const LIFT = 1_000_000;
 // this producer's earlier items there (a retried step stores its list once; an empty list removes them). Every item is
 // checked first: an unknown producer, an item outside the producer's family or a malformed item is `EvidenceRefused`
 // and nothing is written. One batch: the delete and the inserts commit together, so a failure leaves the run as it was.
+export type VerificationPublication = { orgId: string; runId: string; state: "requested" | "unavailable" };
+
 export async function addEvidence(
   db: D1Database,
   caseId: string,
@@ -223,6 +225,7 @@ export async function addEvidence(
   now: () => Date = () => new Date(),
   fence?: () => boolean,
   fenceAt?: number,
+  publication?: VerificationPublication,
 ): Promise<Evidence[]> {
   if (!(LATER_PRODUCERS as readonly string[]).includes(producer))
     throw new EvidenceRefused(
@@ -232,6 +235,41 @@ export async function addEvidence(
   for (const [i, item] of list.entries())
     if (familyOf(item.check) !== producer || !item.check.includes("."))
       throw new EvidenceRefused(`evidence item ${i + 1} is not in ${producer}'s family: ${item.check}`);
+  if (
+    publication &&
+    (producer !== "verification" ||
+      !publication.orgId ||
+      !publication.runId ||
+      !["requested", "unavailable"].includes(publication.state) ||
+      list.length !== 1 ||
+      list[0]?.check !== (publication.state === "requested" ? "verification.requested" : "verification.not_requested"))
+  )
+    throw new EvidenceRefused("invalid verification publication context");
+  // Every statement uses the same captured owner/run. No awaited preflight can protect a write
+  // against a rerun, ownership transfer or reply that reaches D1 first.
+  const publicationSql = publication
+    ? `EXISTS (SELECT 1 FROM cases c WHERE c.id = ? AND c.org_id = ? AND COALESCE(c.run_id,c.id) = ?)
+    AND NOT EXISTS (SELECT 1 FROM verifications v WHERE v.case_id = ? AND v.answer IS NOT NULL)
+    AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = ? AND e.run_id = ? AND e."check" = 'verification.answered')
+    AND ${
+      publication.state === "requested"
+        ? "EXISTS (SELECT 1 FROM verifications v WHERE v.case_id = ? AND v.org_id = ? AND v.source_run = ? AND v.sent_at IS NOT NULL)"
+        : "NOT EXISTS (SELECT 1 FROM verifications v WHERE v.case_id = ? AND v.org_id = ? AND v.source_run = ? AND v.sent_at IS NOT NULL)"
+    }`
+    : "";
+  const publicationBind = publication
+    ? [
+        caseId,
+        publication.orgId,
+        publication.runId,
+        caseId,
+        caseId,
+        publication.runId,
+        caseId,
+        publication.orgId,
+        publication.runId,
+      ]
+    : [];
   const at = now().toISOString();
   // The positions this producer already holds: a rewrite that carries its earlier items back (the agent's tools,
   // a walk statement beside its findings) keeps their numbers, so an Evidence ID already issued never moves when
@@ -252,9 +290,10 @@ export async function addEvidence(
   // that only reaches the database after it (delayed in flight while the caller's timeout statement
   // committed) deletes and inserts nothing.
   const nowMs = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
-  const onTime = fenceAt === undefined ? "" : ` WHERE ${nowMs} < ?`;
-  const stillOnTime = fenceAt === undefined ? "" : ` AND ${nowMs} < ?`;
-  const deadlineBind = fenceAt === undefined ? [] : [fenceAt];
+  const conditions = [fenceAt === undefined ? "" : `${nowMs} < ?`, publicationSql].filter(Boolean).join(" AND ");
+  const onTime = conditions ? ` WHERE ${conditions}` : "";
+  const stillOnTime = conditions ? ` AND ${conditions}` : "";
+  const deadlineBind = [...(fenceAt === undefined ? [] : [fenceAt]), ...publicationBind];
   const inserts = list.map((e, i) => {
     const seq = held[i];
     if (seq !== undefined)
@@ -299,12 +338,30 @@ export async function addEvidence(
         ...deadlineBind,
       );
   });
-  await db.batch([
+  const published = await db.batch([
     db
       .prepare(`DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF} AND producer = ?${stillOnTime}`)
       .bind(caseId, caseId, producer, ...deadlineBind),
     ...inserts,
+    ...(publication
+      ? [
+          db
+            .prepare("SELECT id FROM evidence WHERE case_id = ? AND run_id = ? AND producer = ? ORDER BY seq")
+            .bind(caseId, publication.runId, producer),
+        ]
+      : []),
   ]);
+  if (publication) {
+    // D1's batch is one transaction: return only rows inserted here, never a later async read
+    // that could misreport a skipped write as successful and acknowledge lost evidence.
+    if (inserts.some((_, i) => published[i + 1]?.meta.changes !== 1)) return [];
+    const rows = published[published.length - 1]?.results as { id: string }[];
+    return list.map((e, i) => {
+      const row = rows[i];
+      if (!row) throw new EvidenceRefused("verification publication read-back is missing");
+      return { ...e, id: row.id };
+    });
+  }
   // A batch that executed late wrote nothing (the SQL above), whatever its statements report.
   if (fenceAt !== undefined && Date.now() > fenceAt) return [];
   const ids = (await evidenceProducers(db, caseId)).filter((p) => p.producer === producer).map((p) => p.id);

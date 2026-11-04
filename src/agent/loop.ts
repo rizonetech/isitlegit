@@ -28,6 +28,7 @@ import { d1Budget } from "../meta/budget";
 import { type MetaContext, metaResponses } from "../meta/client";
 import { structured } from "../meta/structured";
 import { UNTRUSTED_WARNING, untrusted, untrustedBlock } from "../meta/untrusted";
+import { type DiagnosticCallback, deliverValidationDiagnostic } from "../meta/validation-diagnostics";
 import { caseAblateFlagFor } from "../pipeline/case-experiments";
 import { recordEvent } from "../pipeline/events";
 import type { BankKeys } from "../trust/bank";
@@ -40,10 +41,11 @@ import { parsedSummaryOf, senderDomainOf } from "../vision/step";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
-import { validateCitations } from "./citations";
+import { citationValidation } from "./citations";
 import { applyFloor, ensurePartialAttachmentEvidence, floorFor, type PartialOutcome } from "./floor";
 import { PARTIAL_HEADLINE, PARTIAL_MEANING, ruleVerdict, withPartialReason } from "./rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps, type ToolResult } from "./tools";
+import { recordValidationDiagnostic, ValidationDiagnosticError, validationRun } from "./validation-diagnostics";
 
 export const SPARK = "muse-spark-1.3";
 export const AGENT_DEADLINE_MS = 150_000;
@@ -218,6 +220,13 @@ async function fallback(
 }
 
 export async function runAgent(ctx: AgentContext, caseId: string): Promise<VerdictView> {
+  const run = validationRun(ctx.db, caseId).catch(() => undefined);
+  const onValidationDiagnostic: DiagnosticCallback = async (diagnostic) => {
+    const runId = await run;
+    if (runId === undefined) throw new ValidationDiagnosticError();
+    await recordValidationDiagnostic(ctx.db, caseId, runId, diagnostic);
+  };
+  const diagnosticWaitUntil = ctx.meta.waitUntil ?? (() => undefined);
   const now = ctx.now ?? Date.now;
   const started = now();
   const deadline = started + (ctx.deadlineMs ?? AGENT_DEADLINE_MS);
@@ -314,7 +323,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
         reasoning: { effort: SPARK_REASONING_EFFORT },
         max_output_tokens: 2000,
       },
-      { ...meta, deadlineMs: Math.max(1, deadline - now()), waitUntil: ctx.meta.waitUntil ?? (() => undefined) },
+      { ...meta, deadlineMs: Math.max(1, deadline - now()), waitUntil: diagnosticWaitUntil, onValidationDiagnostic },
     );
     await event("done", finalAt);
 
@@ -326,8 +335,20 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const fresh = await ensurePartialAttachmentEvidence(ctx.db, caseId, await readEvidence(ctx.db, caseId), outcomes);
     const byId = new Map(fresh.map((e) => [e.id, e]));
     let answer = first.value;
-    const findings = validateCitations(answer, new Set(byId.keys()));
+    const checked = citationValidation(answer, new Set(byId.keys()));
+    const findings = checked.findings;
     if (findings.length) {
+      await deliverValidationDiagnostic(
+        onValidationDiagnostic,
+        {
+          phase: "citation",
+          callId: first.callId,
+          attempt: first.attempts,
+          remaining: 2 - first.attempts,
+          issues: checked.issues,
+        },
+        diagnosticWaitUntil,
+      );
       await event("failed", finalAt);
       const left = 2 - first.attempts;
       if (left < 1 || deadline - now() <= 0) {
@@ -360,9 +381,24 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
           waitUntil: ctx.meta.waitUntil ?? (() => undefined),
           // Only what the shared budget has left: structured()'s own schema repair counts against it too.
           maxAttempts: left,
+          validationAttemptOffset: 1,
+          onValidationDiagnostic,
         },
       ).catch(() => null);
-      if (!retry || validateCitations(retry.value, new Set(byId.keys())).length) {
+      const retryChecked = retry ? citationValidation(retry.value, new Set(byId.keys())) : null;
+      if (retry && retryChecked?.findings.length)
+        await deliverValidationDiagnostic(
+          onValidationDiagnostic,
+          {
+            phase: "citation",
+            callId: retry.callId,
+            attempt: 2,
+            remaining: 0,
+            issues: retryChecked.issues,
+          },
+          diagnosticWaitUntil,
+        );
+      if (!retry || retryChecked?.findings.length) {
         const fbEvidence = await ensurePartialAttachmentEvidence(
           ctx.db,
           caseId,
