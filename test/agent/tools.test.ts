@@ -55,7 +55,7 @@ function stubs() {
 }
 
 describe("toolDefinitions", () => {
-  it("offers the five tools, each definition from its zod schema", () => {
+  it("offers the seven tools, each definition from its zod schema", () => {
     const definitions = toolDefinitions();
     expect(definitions.map((d) => d.name)).toEqual([
       "expand_link",
@@ -63,6 +63,8 @@ describe("toolDefinitions", () => {
       "lookup_domain",
       "ledger_lookup",
       "walk_phishing_site",
+      "segment_logos",
+      "compare_logo",
     ]);
     for (const d of definitions) {
       expect(d.type).toBe("function");
