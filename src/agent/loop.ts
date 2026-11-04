@@ -28,7 +28,7 @@ import { d1Budget } from "../meta/budget";
 import { type MetaContext, metaResponses } from "../meta/client";
 import { structured } from "../meta/structured";
 import { UNTRUSTED_WARNING, untrusted, untrustedBlock } from "../meta/untrusted";
-import { ablateFlagFor } from "../pipeline/ablate";
+import { caseAblateFlagFor } from "../pipeline/case-experiments";
 import { recordEvent } from "../pipeline/events";
 import type { BankKeys } from "../trust/bank";
 import { DETECTOR, type Detector, groundLogos } from "../vision/detector";
@@ -696,6 +696,7 @@ export function verdictToolDeps(
             throw new Error("the supplier ledger is not available for this case");
           },
     walk: async () => {
+      const ablateFlag = await caseAblateFlagFor(env, caseId);
       const result = await walkthroughStep(
         {
           db,
@@ -708,6 +709,7 @@ export function verdictToolDeps(
           table,
           revision: env.CF_VERSION_METADATA?.id ?? null,
           walkId: () => ulid(),
+          ablateFlag: async () => ablateFlag,
         },
         caseId,
       );
@@ -715,7 +717,7 @@ export function verdictToolDeps(
       return (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("walkthrough."));
     },
     segmentLogos: async ({ artefactKey, concept }, fence) => {
-      if ((await ablateFlagFor(env.CACHE, orgId)) === "no-sam") {
+      if ((await caseAblateFlagFor(env, caseId)) === "no-sam") {
         return [
           {
             check: "agent.segment_logos",
@@ -815,7 +817,7 @@ export function verdictToolDeps(
       }
     },
     compareLogo: async ({ cropKey, brand }, fence) => {
-      if ((await ablateFlagFor(env.CACHE, orgId)) === "no-sam") {
+      if ((await caseAblateFlagFor(env, caseId)) === "no-sam") {
         return [
           {
             check: "agent.compare_logo",

@@ -40,6 +40,8 @@ const claimOf = (
 const ADVICE = " Listen to it yourself, and confirm any request by phoning the person on a number you already have.";
 // A reason a member can read, never the internal one (kept apart in the item's detail, for whoever traces it).
 function plainReason(reason: string): string {
+  if (reason === "no-transcribe")
+    return "transcription and voice reading were deliberately omitted for this experiment";
   if (reason === "budget") return "the allowance for reading voice notes today is used up";
   if (reason === "the transcript is not stored") return "the words of the recording were not available";
   if (reason.startsWith("output-")) return "the reading did not give an answer that could be used";
