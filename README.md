@@ -17,6 +17,10 @@
 [![Meta Model API](https://img.shields.io/badge/Meta%20Model%20API-Muse%20Spark%20%C2%B7%20Wonder%20%C2%B7%20SAM%203.1-0467DF?logo=meta&logoColor=white)](https://dev.meta.ai/docs)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/workers/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Hono](https://img.shields.io/badge/Hono-Web%20framework-E36002?logo=hono&logoColor=white)](https://hono.dev/)
+[![htmx](https://img.shields.io/badge/htmx-Interactive%20UI-3366CC?logo=htmx&logoColor=white)](https://htmx.org/)
+[![Cloudflare D1](https://img.shields.io/badge/Cloudflare-D1%20database-F38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/d1/)
+[![Cloudflare R2](https://img.shields.io/badge/Cloudflare-R2%20storage-F38020?logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/r2/)
 <br>
 [![Meta Global AI Developer Hackathon](https://img.shields.io/badge/Meta%20Global%20AI%20Developer%20Hackathon-Startup%20track-FF4A14)](https://cerebralvalley.ai/e/meta-ai-developer-hackathon)
 [![Hugging Face: Loupe 1.1](https://img.shields.io/badge/Hugging%20Face-Loupe%20(Muse%20Glimmer%2030B%20LoRA)-FFD21E?logo=huggingface&logoColor=000000)](https://huggingface.co/rizonetech/isitlegit-loupe)
