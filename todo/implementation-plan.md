@@ -483,7 +483,7 @@ Sections: 222 | Checklist items: 998
 | [x]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1             | none                 | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses               | none                 | 4     |
 | [x]    | D03 T04 §41 | Day-zero case capture into the training store               | cloudflare           | 9     |
-| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 7     |
+| [x]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 7     |
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version                      | none                 | 2     |
 | [x]    | D03 T04 §44 | Five new sources for Loupe 1.1                              | none                 | 7     |
 | [x]    | D03 T04 §46 | Muse Wonder teacher pilot                                   | none                 | 3     |
@@ -676,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 402/600 verified sections, 121 ready to run now.
+Progress: 403/600 verified sections, 120 ready to run now.
 
-Checklist: 2997/3712 items completed (includes Commit items).
+Checklist: 3004/3712 items completed (includes Commit items).
