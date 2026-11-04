@@ -170,6 +170,8 @@ export function render(manifest: Manifest, rows: Observation[]): string {
     "",
     `Targets: detection >= ${TARGETS.detectionAtLeast * 100}%; false positives <= ${TARGETS.falsePositivesAtMost * 100}%. This small synthetic engineering set cannot establish a population false-positive rate of 2%.`,
     "",
+    "Missed proof-of-payment and Ghostscript targets, plus missing invoice date coverage: filed at D06 T02 section 8 (console plan commit 20f4747f). This filing is not a repair or target-attainment claim.",
+    "",
     "| Group | Detection | False positives | Complete coverage | Any finding | Detection target | FP target |",
     "| --- | --- | --- | --- | --- | --- | --- |",
   ];

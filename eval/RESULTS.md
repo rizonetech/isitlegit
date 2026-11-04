@@ -35,6 +35,8 @@ Component only: high or critical forensic evidence counts as verdict-level detec
 
 Targets: detection >= 95%; false positives <= 2%. This small synthetic engineering set cannot establish a population false-positive rate of 2%.
 
+Missed proof-of-payment and Ghostscript targets, plus missing invoice date coverage: filed at D06 T02 section 8 (console plan commit 20f4747f). This filing is not a repair or target-attainment claim.
+
 | Group | Detection | False positives | Complete coverage | Any finding | Detection target | FP target |
 | --- | --- | --- | --- | --- | --- | --- |
 | all | 3/7 (42.9%) | 0/7 (0.0%) | 13/14 | 8/14 | incomplete | incomplete |
