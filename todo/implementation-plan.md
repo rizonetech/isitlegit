@@ -301,7 +301,7 @@ Sections: 110 | Checklist items: 695
 | [x]    | D03 T04 §49 | Every screened page captured and labelled        | meta-api              | 7     |
 | [ ]    | D03 T04 §50 | Loupe 1.1 promoted on a better-than-1.0 gate     | none                  | 6     |
 | [x]    | D03 T04 §51 | Immutable training and evaluation evidence audit | none                  | 8     |
-| [ ]    | D03 T04 §52 | Immutable checkpoint readiness handoff           | none                  | 7     |
+| [x]    | D03 T04 §52 | Immutable checkpoint readiness handoff           | none                  | 7     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence         | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                               | none                  | 11    |
 | [x]    | D04 T01 §3  | Read-only agent tools with zod validation        | none                  | 6     |
@@ -676,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 401/600 verified sections, 122 ready to run now.
+Progress: 402/600 verified sections, 121 ready to run now.
 
-Checklist: 2996/3712 items completed (includes Commit items).
+Checklist: 2997/3712 items completed (includes Commit items).

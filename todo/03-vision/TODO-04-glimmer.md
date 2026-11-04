@@ -87,7 +87,7 @@ track: day-6
 | 49 | §49 | Every screened page captured and labelled | §48 | [x] |
 | 50 | §50 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
 | 51 | §51 | Immutable training and evaluation evidence audit | §13, §32 | [x] |
-| 52 | §52 | Immutable checkpoint readiness handoff | §11, §13 | [ ] |
+| 52 | §52 | Immutable checkpoint readiness handoff | §11, §13 | [x] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1732,9 +1732,12 @@ Coordinator checkpoint-review-decision and operator CHECKPOINT-04 authorize this
 - [x] Publish an optional absent-only receipt in `scripts/glimmer/checkpoint-readiness.py` beneath the external store's `runs/checkpoint-readiness/`, with schema version, observation time, source file digests, exact checkpoint/session/run identity, consumed examples and remaining evidence requirements. Done when: temporary write, atomic no-replace publication and read-back are verified; retries never overwrite evidence, default operation writes nothing, and interruption leaves original training and dataset files unchanged. Cheaper substitute: a mutable latest pointer loses which candidate was handed to eval.
 - [x] Add synthetic tests in `tests/scripts/test_checkpoint_readiness.py` for provider-only versus local-only candidates, explicit promotability, resumed session ownership, conflicting consumption, malformed provider responses, changed input, missing/failed audit, concurrent receipt publication and no trainer mutation. Done when: tests exercise real refusal branches without provider calls or credentials, including updates between snapshot reads and distinct provider failures; successful ordinary and earlier-session end-to-end fixtures assert identity, consumption and receipt read-back, while an available candidate with incomplete audit evidence retains every blocker and denies paid-comparison readiness. Implementation fixes have before/after regression evidence. Cheaper substitute: testing only a matching checkpoint misses the unsafe cross-session selection.
 - [x] Record a real read-only discovery and its limitations in `docs/glimmer/checkpoint-readiness.md`, sending the actual handoff to the eval lane and coordinator. Done when: the report identifies the available checkpoint or concrete absence, trainer input and source hashes, explicit common-held-out blockers and next permitted action; it contains no inferred evaluation result, rollout authorization or promised completion time. Cheaper substitute: reporting a percentage alone provides none of the identities an evaluation can consume.
-- [ ] Commit: `glimmer: record immutable checkpoint readiness`
+- [x] Commit: `glimmer: record immutable checkpoint readiness`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_checkpoint_readiness` passes, refuses unsupported identities and preserves trainer files; an external read-only discovery receipt records actual provider availability without treating it as promotion approval.
+
+> **Verified:** 2026-11-04 | §52 | bfb0197ead48ce14d30dfb0e11110b66b7310ec6
+> **Review:** `docs/reviews/d03-t04-s52.json`
 
 ## Verification
 
