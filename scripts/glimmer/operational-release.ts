@@ -37,6 +37,7 @@ export function operationalMessages(path: string) {
 }
 export async function operationalRelease(options: {
   root: string;
+  artifactRecord: string;
   messages: ReturnType<typeof requestOf>;
   adminKey: string;
   inferenceKey: string;
@@ -47,6 +48,18 @@ export async function operationalRelease(options: {
   evidenceDir?: string;
   gate?: (version: string, previous: string) => Gate;
 }) {
+  // This digest binds the training output-model.json record, not a downloaded weight-file digest.
+  // Provider registration and deployment baseModel are verified separately before inference.
+  const artifactBytes = readFileSync(options.artifactRecord);
+  assert.equal(
+    createHash("sha256").update(artifactBytes).digest("hex"),
+    OPERATIONAL_RELEASE_AUTHORIZATION.outputModelSha256,
+    "output model record hash differs",
+  );
+  const artifact = JSON.parse(artifactBytes.toString());
+  assert.equal(artifact.model_id, "isitlegit-loupe-1-1");
+  assert.equal(artifact.job_id, OPERATIONAL_RELEASE_AUTHORIZATION.trainingJob);
+  assert.equal(artifact.checkpoint, "step-4524");
   const messages = options.messages;
   assert.equal(messages[0]?.content, SCREENER_SYSTEM_PROMPT_V1_1, "wrong trained prompt");
   const now = options.now ?? Date.now;
@@ -63,7 +76,10 @@ export async function operationalRelease(options: {
     if (wake) touchWake(wake, until + ZERO_MS);
     const response = await fetcher(url, {
       ...init,
-      signal: AbortSignal.timeout(Math.min(60_000, remaining)),
+      signal: AbortSignal.any([
+        ...(init.signal ? [init.signal] : []),
+        AbortSignal.timeout(Math.min(60_000, remaining)),
+      ]),
       redirect: "error",
     });
     if (url.includes("chat/completions") && response.ok) {
@@ -80,6 +96,21 @@ export async function operationalRelease(options: {
         assert.equal(id, deployment);
         const found = await client.status();
         assert(!found, "operational candidate must be a fresh dedicated deployment");
+        const registered = await bounded(`${API}/models/${artifact.model_id}`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${options.adminKey}` },
+        });
+        assert(registered.ok, "candidate model registration lookup failed");
+        const registration = (await registered.json()) as {
+          name?: string;
+          state?: string;
+          baseModel?: string;
+          kind?: string;
+        };
+        assert.equal(registration.name, targetOf(version, id).model.split("#")[0]);
+        assert.equal(registration.state, "READY");
+        assert.equal(registration.kind, "HF_PEFT_ADDON");
+        assert.equal(registration.baseModel, "accounts/fireworks/models/muse-glimmer-30b");
         const match = await bounded(`${API}/deploymentShapeVersions:match`, {
           method: "POST",
           headers: { Authorization: `Bearer ${options.adminKey}`, "Content-Type": "application/json" },
@@ -166,7 +197,22 @@ export async function operationalRelease(options: {
   // Keep the reservation while the dedicated target is still running or its state is unknown. No deletion of rollback resources.
   if (wake) {
     const zeroUntil = now() + ZERO_MS;
-    const readClient = openDeployments(options.adminKey, fetcher, deployment);
+    const readClient = openDeployments(
+      options.adminKey,
+      (url, init) => {
+        const remaining = zeroUntil - now();
+        assert(remaining > 0, "zero-replica readback deadline reached");
+        return fetcher(url, {
+          ...init,
+          signal: AbortSignal.any([
+            ...(init.signal ? [init.signal] : []),
+            AbortSignal.timeout(Math.min(60_000, remaining)),
+          ]),
+          redirect: "error",
+        });
+      },
+      deployment,
+    );
     while (now() < zeroUntil) {
       const read = await readClient.status();
       if (read?.state === "READY" && read.replicaCount === 0) {
@@ -183,9 +229,14 @@ export async function operationalRelease(options: {
 if (import.meta.filename === process.argv[1]) {
   configureNetwork();
   const manifest = process.argv[2];
-  assert(manifest && process.argv.length === 3, "usage: operational-release.ts ABS_FROZEN_V2_MANIFEST");
+  const artifactRecord = process.argv[3];
+  assert(
+    manifest && artifactRecord && process.argv.length === 4,
+    "usage: operational-release.ts ABS_FROZEN_V2_MANIFEST ABS_OUTPUT_MODEL_RECORD",
+  );
   const result = await operationalRelease({
     root: join(import.meta.dirname, "../.."),
+    artifactRecord,
     messages: operationalMessages(manifest),
     adminKey: readKey(),
     inferenceKey: readKey(INFERENCE_KEY_ITEM),

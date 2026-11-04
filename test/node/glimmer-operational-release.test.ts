@@ -16,6 +16,12 @@ async function run(mode: string) {
   const root = mkdtempSync(join(tmpdir(), "loupe-operational-"));
   dirs.push(root);
   mkdirSync(join(root, "src/vision"), { recursive: true });
+  const artifactRecord = join(root, "output-model.json");
+  writeFileSync(
+    artifactRecord,
+    '{"model_id":"isitlegit-loupe-1-1","checkpoint":"step-4524","job_id":"ts-db85d8de82174aa6824b775ca6e40075"}\n',
+  );
+  if (mode === "wrong-artifact") writeFileSync(artifactRecord, "{}");
   const active = join(root, "src/vision/glimmer-active.json");
   writeFileSync(active, JSON.stringify({ version: "1.0", deployment: "isitlegit-loupe", previous: null }));
   const db = new DatabaseSync(":memory:");
@@ -33,6 +39,7 @@ async function run(mode: string) {
   let requests = 0;
   const result = await operationalRelease({
     root,
+    artifactRecord,
     evidenceDir: join(root, "evidence"),
     adminKey: "test",
     inferenceKey: "test",
@@ -69,6 +76,13 @@ async function run(mode: string) {
           ],
         });
       }
+      if (url.includes("/models/"))
+        return Response.json({
+          name: "accounts/rizonetech/models/isitlegit-loupe-1-1",
+          state: mode === "wrong-registration" ? "FAILED" : "READY",
+          kind: "HF_PEFT_ADDON",
+          baseModel: "accounts/fireworks/models/muse-glimmer-30b",
+        });
       if (url.endsWith(":match"))
         return Response.json({
           deploymentShapeVersions: [
@@ -136,4 +150,15 @@ it("refuses capacity creation and inference when admission cannot be durably res
   expect(out.active.version).toBe("1.0");
   expect(out.result.result.outcome).toBe("refused");
   expect(out.rows).toHaveLength(0);
+});
+
+it("refuses altered output metadata before any provider operation", async () => {
+  await expect(run("wrong-artifact")).rejects.toThrow("output model record hash differs");
+});
+it("refuses a model registration that is not ready before provisioning", async () => {
+  const out = await run("wrong-registration");
+  expect(out.active.version).toBe("1.0");
+  expect(out.requests).toBe(0);
+  expect(out.rows).toHaveLength(0);
+  expect(out.result.result.outcome).toBe("failed");
 });
