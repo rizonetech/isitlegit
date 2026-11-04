@@ -7,10 +7,8 @@ import { randomNonce, stripDelimiters, UNTRUSTED_WARNING, untrustedBlock } from 
 
 export const LURE_TYPES = ["credential", "payment", "fake_shop", "impersonation", "none"] as const;
 
-// The model's answer for Loupe 1.0 (where brand is taught) and the runtime screener contract until 1.1 promotion
-// (switching the production runtime screener contract on promotion is owned by D03 T04 §36 and D03 T04 §50; monitor
-// persistence is owned by D05 T04 §3 in the trust lane). Strict, so an answer that tries to name its own screener, or
-// anything else, is refused.
+// Loupe 1.0 teaches brand. The selected deployment version chooses this strict answer contract or the brand-free
+// 1.1 contract below. A model cannot name its own screener, answer version, or any other extra field.
 export const PageAnswer = z
   .strictObject({
     brand: z.string().min(1).max(200).nullable(),
@@ -46,9 +44,19 @@ export type VersionedPageAnswer = PageAnswer | (BrandFreePageAnswer & { brand?: 
 
 export type Screener = "glimmer" | "spark";
 // The caller's record of a judgement: the answer plus which screener gave it, set here and never by the model.
-export type PageScreen = PageAnswer & { screener: Screener };
-export function screened(answer: PageAnswer, screener: Screener): PageScreen {
-  return { ...PageAnswer.parse(answer), screener };
+export function pageAnswerSchema(version: string) {
+  if (version === "1.0") return PageAnswer;
+  if (version === "1.1") return BrandFreePageAnswer;
+  throw new Error("Unsupported Loupe answer version");
+}
+export const PageScreenSchema = z.union([
+  PageAnswer.safeExtend({ screener: z.enum(["glimmer", "spark"]) }),
+  BrandFreePageAnswer.safeExtend({ screener: z.enum(["glimmer", "spark"]), answer_version: z.literal("1.1") }),
+]);
+export type PageScreen = z.infer<typeof PageScreenSchema>;
+export function screened(answer: VersionedPageAnswer, screener: Screener, version = "1.0"): PageScreen {
+  const parsed = pageAnswerSchema(version).parse(answer);
+  return PageScreenSchema.parse({ ...parsed, screener, ...(version === "1.1" ? { answer_version: "1.1" } : {}) });
 }
 
 // D03 T01 §6's sentence and stripper, from the one implementation every model call uses (re-exported for this file's

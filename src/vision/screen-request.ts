@@ -3,7 +3,13 @@
 // and Spark's Responses request carrying the same screenshot, host and untrusted text.
 import { formatSchema } from "../meta/structured.ts";
 import { DEPLOYED, type Target } from "./glimmer-caps.ts";
-import { PageAnswer, type ScreenRequest } from "./page-screen.ts";
+import {
+  type PageAnswer,
+  pageAnswerSchema,
+  type ScreenRequest,
+  screenerSystemPrompt,
+  type VersionedPageAnswer,
+} from "./page-screen.ts";
 
 export const SPARK_MODEL = "muse-spark-1.3";
 // The answer's output limit, as the held-out evaluation ran it (scripts/glimmer/evaluate.ts).
@@ -17,17 +23,25 @@ export const SPARK_REASONING_EFFORT = "low" as const;
 // The request Loupe gets: exactly the training request (`buildScreenRequest`), the deployment's model, and the answer
 // constrained to `PageAnswer`'s JSON schema.
 export function glimmerBody(request: ScreenRequest, target: Target = DEPLOYED) {
+  if (request.messages.length && request.messages[0]?.content !== screenerSystemPrompt(target.version === "1.0")) {
+    throw new Error("Loupe prompt does not match selected version");
+  }
   return {
     model: target.model,
     messages: request.messages,
     temperature: 0,
     max_tokens: MAX_ANSWER_TOKENS,
-    response_format: { type: "json_schema", json_schema: { name: "page_screen", schema: formatSchema(PageAnswer) } },
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "page_screen", schema: formatSchema(pageAnswerSchema(target.version)) },
+    },
   };
 }
 
 // The answer text as a PageAnswer, strictly: JSON (a fenced block allowed, as the model was trained), then the schema.
-export function readAnswer(text: string): PageAnswer | null {
+export function readAnswer(text: string): PageAnswer | null;
+export function readAnswer(text: string, version: string): VersionedPageAnswer | null;
+export function readAnswer(text: string, version = "1.0"): VersionedPageAnswer | null {
   let data: unknown;
   try {
     data = JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
@@ -35,7 +49,7 @@ export function readAnswer(text: string): PageAnswer | null {
     // Not JSON: no answer. This is the outcome, not a lost error.
     return null;
   }
-  const parsed = PageAnswer.safeParse(data);
+  const parsed = pageAnswerSchema(version).safeParse(data);
   return parsed.success ? parsed.data : null;
 }
 

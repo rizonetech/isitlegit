@@ -1,6 +1,6 @@
 // Validated page checkpoints. Completed screening survives a later second-look interruption.
 import { z } from "zod";
-import { LURE_TYPES, PageAnswer } from "../vision/page-screen";
+import { LURE_TYPES, PageScreenSchema } from "../vision/page-screen";
 import { MonitorIdentityConflict } from "./ablation-store";
 
 const Time = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -24,7 +24,7 @@ const GlimmerReason = z.enum([
 export const ScreenResult = z.discriminatedUnion("ok", [
   z.strictObject({
     ok: z.literal(true),
-    screen: PageAnswer.safeExtend({ screener: z.enum(["glimmer", "spark"]) }),
+    screen: PageScreenSchema,
     glimmer_reason: GlimmerReason.nullable(),
     spark_call: Call.nullable(),
     tier: z.enum(["glimmer", "spark", "spark-second"]),

@@ -238,7 +238,8 @@ export async function screenOwed(
           page.domain,
           page.capture_key,
           s.screener,
-          s.brand,
+          // SQL null records unavailable brand metadata; it is never added to the model answer.
+          "brand" in s ? s.brand : null,
           s.has_login_form ? 1 : 0,
           s.has_payment_form ? 1 : 0,
           s.lure ? 1 : 0,

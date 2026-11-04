@@ -6,7 +6,7 @@ import { type MonitorDeps, monitorOrg } from "../../src/monitor/run";
 import { monitorDeps } from "../../src/monitor/workflow";
 import { ablateKey } from "../../src/pipeline/ablate";
 import { setIdentity } from "../../src/trust/identity";
-import { DEPLOYED_MODEL, TAIL_MINUTES } from "../../src/vision/glimmer-caps";
+import { allowanceMinutes, DEPLOYED_MODEL, TAIL_MINUTES } from "../../src/vision/glimmer-caps";
 import { d1Exec, dayMinutes, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
 import type { WakeCtx } from "../../src/vision/glimmer-wake";
 import { buildScreenRequest } from "../../src/vision/page-screen";
@@ -211,14 +211,15 @@ describe("failing over to Spark", () => {
   }, 20_000);
 
   it("answers with Spark when the minutes ledger refuses the burst", async () => {
-    await reserveBurst(ledger, {
+    const prior = await reserveBurst(ledger, {
       id: "earlier",
       at: new Date("2026-11-01T07:00:00Z"),
       source: "local",
       caller: "t",
       purpose: "warm-up",
-      minutes: 85,
+      minutes: allowanceMinutes("2026-11-01"),
     });
+    expect(prior.ok).toBe(true);
     const fw = fireworks([() => completion(JSON.stringify(LURE))]);
     const session = await openGlimmer(fw.ctx());
     const got = await screenPage(PAGE, session, spark(() => metaText(JSON.stringify(LURE))).ctx, "monitor-run-7");

@@ -322,36 +322,45 @@ describe("the run's screening", () => {
     });
   });
 
-  it("persists the settling tier and both Spark call references for an escalated page (§45)", async () => {
-    const b = await business();
-    const w = world(START);
-    const site = b.candidates[0] as string;
-    w.answers.set(site, live("192.0.2.9"));
-    w.deps.screen = async () => ({
-      ok: true,
-      screen: {
-        brand: null,
-        has_login_form: false,
-        has_payment_form: false,
-        lure: false,
-        lure_type: "none",
-        confidence: 0.1,
-        screener: "spark",
-      },
-      glimmer_reason: "unsure",
-      spark_call: { callId: "call-2", logId: "log-2" },
-      tier: "spark-second",
-      escalation: "loupe-unsure",
-      spark_calls: [
-        { callId: "call-1", logId: "log-1" },
-        { callId: "call-2", logId: "log-2" },
-      ],
-    });
-    await monitorOrg(w.deps, b.orgId, "s45");
-    expect(await rows(b.orgId, site)).toMatchObject([
-      { tier: "spark-second", glimmer_reason: "unsure", spark_call_id: "call-2", spark_first_call_id: "call-1" },
-    ]);
-  });
+  it.each(["1.0", "1.1"] as const)(
+    "persists %s screening and both Spark call references without inventing a brand",
+    async (version) => {
+      const b = await business();
+      const w = world(START);
+      const site = b.candidates[0] as string;
+      w.answers.set(site, live("192.0.2.9"));
+      w.deps.screen = async () => ({
+        ok: true,
+        screen: {
+          ...(version === "1.0" ? { brand: null } : { answer_version: "1.1" as const }),
+          has_login_form: false,
+          has_payment_form: false,
+          lure: false,
+          lure_type: "none",
+          confidence: 0.1,
+          screener: "spark",
+        },
+        glimmer_reason: "unsure",
+        spark_call: { callId: "call-2", logId: "log-2" },
+        tier: "spark-second",
+        escalation: "loupe-unsure",
+        spark_calls: [
+          { callId: "call-1", logId: "log-1" },
+          { callId: "call-2", logId: "log-2" },
+        ],
+      });
+      await monitorOrg(w.deps, b.orgId, "s45");
+      expect(await rows(b.orgId, site)).toMatchObject([
+        {
+          brand: null,
+          tier: "spark-second",
+          glimmer_reason: "unsure",
+          spark_call_id: "call-2",
+          spark_first_call_id: "call-1",
+        },
+      ]);
+    },
+  );
 
   it("keeps a failed escalation's call references in the run's errors, the page still owed (§45)", async () => {
     const b = await business();

@@ -10,7 +10,7 @@
 import { ModelError } from "../meta/client.ts";
 import { BudgetExceeded, BudgetUnavailable } from "../meta/guard.ts";
 import { ModelOutputError, type StructuredContext, structured } from "../meta/structured.ts";
-import { TAIL_MINUTES } from "./glimmer-caps.ts";
+import { DEPLOYED, TAIL_MINUTES } from "./glimmer-caps.ts";
 import { glimmerBody, readAnswer, sparkRequest } from "./screen-request.ts";
 
 export { glimmerBody, MAX_ANSWER_TOKENS, readAnswer, SPARK_MODEL, sparkRequest } from "./screen-request.ts";
@@ -31,11 +31,12 @@ import {
 import {
   buildScreenRequest,
   inEscalationBand,
-  PageAnswer,
   type PageScreen,
+  pageAnswerSchema,
   type ScreenMode,
   type ScreenRequest,
   screened,
+  type VersionedPageAnswer,
 } from "./page-screen.ts";
 
 export { ESCALATION_BAND, inEscalationBand } from "./page-screen.ts";
@@ -68,7 +69,7 @@ export type SparkReason =
   | "error";
 
 export type GlimmerAnswer =
-  | { answer: PageAnswer }
+  | { answer: VersionedPageAnswer }
   | { reason: GlimmerReason; failure?: { kind: "capacity" | "unknown"; status?: number; retryAfterMs?: number } };
 export type ScreeningExperiment = {
   infer(
@@ -251,7 +252,7 @@ async function requestGlimmer(
       // A 200 that is not JSON: no answer, and the page goes to Spark.
       return { reason: "bad_answer" };
     }
-    const answer = typeof content === "string" ? readAnswer(content) : null;
+    const answer = typeof content === "string" ? readAnswer(content, DEPLOYED.version) : null;
     return answer ? { answer } : { reason: "schema" };
   } catch {
     // The request's own 10-second deadline, or the network: Spark takes the page, and the next page asks Loupe again.
@@ -281,6 +282,7 @@ export async function screenPage(
   run: string,
 ): Promise<Screened> {
   const request = buildScreenRequest({
+    brandAsTruth: DEPLOYED.version === "1.0",
     ...(page.image ? { image: page.image } : {}),
     host: page.host,
     text: page.text,
@@ -313,7 +315,7 @@ export async function screenPage(
       if (!inEscalationBand(asked.answer.confidence))
         return {
           ok: true,
-          screen: screened(asked.answer, "glimmer"),
+          screen: screened(asked.answer, "glimmer", DEPLOYED.version),
           glimmer_reason: null,
           spark_call: null,
           tier: "glimmer",
@@ -331,7 +333,7 @@ export async function screenPage(
   const askSpark = async () => {
     try {
       // One attempt a pass, so the two-pass ceiling is a ceiling on paid calls, schema repairs included (§45).
-      const answer = await structured(PageAnswer, sparkRequest(request), {
+      const answer = await structured(pageAnswerSchema(DEPLOYED.version), sparkRequest(request), {
         ...spark,
         ...(spark.continuation
           ? { continuation: { ...spark.continuation, ordinal: (calls.length + 1) as 1 | 2 } }
@@ -353,7 +355,7 @@ export async function screenPage(
       throw error;
     }
   };
-  let first: PageAnswer;
+  let first: VersionedPageAnswer;
   try {
     first = await askSpark();
   } catch (error) {
@@ -369,7 +371,7 @@ export async function screenPage(
   if (!inEscalationBand(first.confidence))
     return {
       ok: true,
-      screen: screened(first, "spark"),
+      screen: screened(first, "spark", DEPLOYED.version),
       glimmer_reason: reason,
       spark_call: calls.at(-1) ?? null,
       tier: "spark",
@@ -378,7 +380,7 @@ export async function screenPage(
       ...ablatedMark,
     };
   // The second pass settles the page even when it is unsure again: it is the last tier, never a loop.
-  let second: PageAnswer;
+  let second: VersionedPageAnswer;
   try {
     second = await askSpark();
   } catch (error) {
@@ -393,7 +395,7 @@ export async function screenPage(
   }
   return {
     ok: true,
-    screen: screened(second, "spark"),
+    screen: screened(second, "spark", DEPLOYED.version),
     glimmer_reason: reason,
     spark_call: calls.at(-1) ?? null,
     tier: "spark-second",

@@ -5,7 +5,8 @@
 // monitor's Meta budget. A second look that cannot answer is `unavailable` and the flag stands: an outage never takes a
 // flagged page for benign.
 import { type StructuredContext, structured } from "../meta/structured.ts";
-import { buildScreenRequest, PageAnswer, screened } from "../vision/page-screen.ts";
+import { DEPLOYED } from "../vision/glimmer-caps.ts";
+import { buildScreenRequest, pageAnswerSchema, screened } from "../vision/page-screen.ts";
 import { type Page, sparkReason } from "../vision/screen.ts";
 import { sparkRequest } from "../vision/screen-request.ts";
 
@@ -18,17 +19,18 @@ export type SparkContext = Omit<StructuredContext, "owner">;
 export async function secondLook(page: Page, run: string, spark: SparkContext): Promise<SecondLook> {
   try {
     const request = buildScreenRequest({
+      brandAsTruth: DEPLOYED.version === "1.0",
       ...(page.image ? { image: page.image } : {}),
       host: page.host,
       text: page.text,
       mode: page.mode,
       ...(page.nonce ? { nonce: page.nonce } : {}),
     });
-    const answer = await structured(PageAnswer, sparkRequest(request), {
+    const answer = await structured(pageAnswerSchema(DEPLOYED.version), sparkRequest(request), {
       ...spark,
       owner: { kind: "monitor", run, host: page.host ?? "none", step: "second-look" },
     });
-    const screen = screened(answer.value, "spark");
+    const screen = screened(answer.value, "spark", DEPLOYED.version);
     return {
       verdict: screen.lure ? "confirmed" : "declined",
       lureType: screen.lure_type,

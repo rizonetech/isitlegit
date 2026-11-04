@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { TAIL_MINUTES } from "../vision/glimmer-caps";
-import { PageAnswer } from "../vision/page-screen";
+import { DEPLOYED, TAIL_MINUTES } from "../vision/glimmer-caps";
+import { pageAnswerSchema } from "../vision/page-screen";
 import type { ScreeningExperiment } from "../vision/screen";
 import { AttemptFailure, attempt, PendingAttempt } from "./ablation-attempts";
 import { Deployment, ExperimentId, sha256 } from "./ablation-manifest";
 
 const Answer = z.union([
-  z.strictObject({ answer: PageAnswer }),
+  z.strictObject({ answer: pageAnswerSchema(DEPLOYED.version) }),
   z.strictObject({
     reason: z.enum([
       "ablated",
