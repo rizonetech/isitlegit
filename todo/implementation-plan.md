@@ -455,7 +455,7 @@ Sections: 224 | Checklist items: 1002
 | [x]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured                       | none                 | 3     |
 | [ ]    | D02 T04 §10 | Attachment content                                          | none                 | 3     |
-| [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
+| [x]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
 | [x]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
 | [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
@@ -678,6 +678,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 422/602 verified sections, 117 ready to run now.
+Progress: 423/602 verified sections, 116 ready to run now.
 
-Checklist: 3089/3715 items completed (includes Commit items).
+Checklist: 3092/3715 items completed (includes Commit items).

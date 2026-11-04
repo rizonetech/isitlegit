@@ -39,7 +39,7 @@ track: day-2
 | 4 | §4 | Document text read for instructions | §2 | [x] |
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [x] |
 | 6 | §6 | The instruction found in invisible text, kept | §3 | [x] |
-| 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
+| 7 | §7 | Hidden instructions measured on a corpus | §5 | [x] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 | 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [x] |
@@ -242,11 +242,14 @@ The eval lane owns `eval/DATASETS.md`: detection-eval supplies an exact entry pa
 
 1. Measure the hidden-text checks on a labelled corpus. Done when: a synthetic corpus of hidden instructions (sparse invisible characters, tag runs, encoded and folded subjects, document text) and legitimate multilingual and emoji mail is checked, and the misses, false flags and p50/p95 time per message are recorded in `eval/`, each above or below a target the corpus file states.
 
-- [ ] Build the corpus in `eval/hidden-text/` from the §3 to §5 fixtures and generated variants, each labelled, with its provenance in `eval/DATASETS.md`. Done when: at least 200 attacks and 200 controls, in at least eight languages.
-- [ ] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
-- [ ] Commit: `eval: hidden instructions measured on a corpus`
+- [x] Build the corpus in `eval/hidden-text/` from the §3 to §5 fixtures and generated variants, each labelled, with its provenance in `eval/DATASETS.md`. Done when: at least 200 attacks and 200 controls, in at least eight languages.
+- [x] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
+- [x] Commit: `eval: hidden instructions measured on a corpus`
 
 **Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results; `pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts` proves arithmetic, real detection, corpus rejection, reader failure and target-miss exit codes with retained readable observations.
+
+> **Verified:** 2026-11-04 | §7 | 2b168d3a799337926513a2ce48f7495e82f8f9e9
+> **Review:** `docs/reviews/d02-t05-s7.json`
 
 ## 8. Uploaded documents read for instructions
 
