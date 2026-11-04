@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { measureAiInstructionsCheck } from "../../eval/ai-instructions.ts";
-import { measureAttachmentChecks } from "../../eval/attachments.ts";
 import {
+  type AttachmentsSummary,
   atomicWriteJson,
   cacheFigures,
   checkComponentRows,
@@ -19,6 +19,7 @@ import {
   validateComponentRecords,
   walkthroughCost,
 } from "../../eval/components.ts";
+import { importSrc } from "../../eval/intake-time.ts";
 import { scoreInvisible } from "../../eval/invisible.ts";
 import { scoreRetrySettle } from "../../eval/retry-latency.ts";
 import { mergeCaseProviderRecords } from "../../eval/run.ts";
@@ -204,6 +205,9 @@ describe("component measurements", () => {
       expect(validateComponentRecords({ ai: aiSummary })).toEqual([]);
       expect(renderComponentRows({ ai: aiSummary })).toContain("(incomplete: 1 failed)");
 
+      const { measureAttachmentChecks } = await importSrc<{
+        measureAttachmentChecks: (opts?: { outPath?: string; failAt?: number }) => Promise<AttachmentsSummary>;
+      }>("eval/attachments.ts");
       const attFile = join(dir, "attachments.json");
       const attSummary = await measureAttachmentChecks({ outPath: attFile, failAt: 5 });
       const attReadBack = parseComponentFile("attachments", JSON.parse(readFileSync(attFile, "utf8")));

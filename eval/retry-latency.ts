@@ -6,7 +6,7 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { atomicWriteJson, type RetryRecord } from "./components.ts";
-import { createSqliteD1, ensureTsResolve } from "./intake-time.ts";
+import { createSqliteD1, importSrc, type SqliteD1 } from "./intake-time.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -14,10 +14,28 @@ export async function scoreRetrySettle(
   repetitions = 5,
   opts?: { outPath?: string; failAt?: number },
 ): Promise<RetryRecord[]> {
-  ensureTsResolve();
-  const { createCase, setStatus } = await import("../src/db/cases.ts");
-  const { recordEvent } = await import("../src/pipeline/events.ts");
-  const { RETRY_SETTLE_MS, retryCase, sweepRetries } = await import("../src/pipeline/retry.ts");
+  const { createCase, setStatus } = await importSrc<{
+    createCase: (
+      db: SqliteD1,
+      input: { orgId: string; channel: string; headersAvailable: boolean },
+    ) => Promise<{ ok: true; value: { id: string } } | { ok: false; error: { message: string } }>;
+    setStatus: (db: SqliteD1, orgId: string, caseId: string, status: string) => Promise<unknown>;
+  }>("src/db/cases.ts");
+  const { recordEvent } = await importSrc<{
+    recordEvent: (db: SqliteD1, caseId: string, step: string, status: string, detail?: unknown) => Promise<unknown>;
+  }>("src/pipeline/events.ts");
+  const { RETRY_SETTLE_MS, retryCase, sweepRetries } = await importSrc<{
+    RETRY_SETTLE_MS: number;
+    retryCase: (
+      db: SqliteD1,
+      env: unknown,
+      orgId: string,
+      caseId: string,
+      memberId: string,
+      now: () => Date,
+    ) => Promise<{ ok: true } | { ok: false; error: { code: string } }>;
+    sweepRetries: (db: SqliteD1, env: unknown, now: () => Date) => Promise<{ settled: number }>;
+  }>("src/pipeline/retry.ts");
   const db = createSqliteD1();
   const orgId = "org-retry-bench";
   const memberId = "member-retry-bench";
@@ -68,7 +86,7 @@ export async function scoreRetrySettle(
             return { status: async () => ({ status: st }) };
           },
         },
-      } as unknown as Pick<Env, "ANALYSIS">;
+      };
 
       const t0 = performance.now();
       // 1. Member requests retry; Workflow start is interrupted with unknown state, leaving case 'received' with run_id.

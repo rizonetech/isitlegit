@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { register } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { atomicWriteJson, type IntakeRecord } from "./components.ts";
 
 const NODE_LOADER = `data:text/javascript,${encodeURIComponent(`
@@ -57,14 +57,43 @@ export function ensureTsResolve() {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-export function createSqliteD1(): D1Database {
+export async function importSrc<T>(relFromRoot: string): Promise<T> {
+  ensureTsResolve();
+  return import(pathToFileURL(join(ROOT, relFromRoot)).href) as Promise<T>;
+}
+
+export type SqliteResult<T = Record<string, unknown>> = {
+  results: T[];
+  success: boolean;
+  meta: { changes: number };
+};
+
+export type SqliteStmt = {
+  bind: (...values: unknown[]) => SqliteStmt;
+  first: <T = Record<string, unknown>>(col?: string) => Promise<T | null>;
+  all: <T = Record<string, unknown>>() => Promise<SqliteResult<T>>;
+  run: () => Promise<SqliteResult<never>>;
+  raw: () => Promise<unknown[]>;
+  _sql: string;
+  _params: unknown[];
+};
+
+export type SqliteD1 = {
+  prepare: (sql: string) => SqliteStmt;
+  batch: <T = unknown>(stmts: SqliteStmt[]) => Promise<SqliteResult<T>[]>;
+  exec: (sql: string) => Promise<{ count: number; duration: number }>;
+  withSession: () => never;
+  dump: () => Promise<ArrayBuffer>;
+};
+
+export function createSqliteD1(): SqliteD1 {
   const sqlite = new DatabaseSync(":memory:");
   const migDir = join(ROOT, "src/db/migrations");
   for (const file of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
     sqlite.exec(readFileSync(join(migDir, file), "utf8"));
   }
-  const makeStmt = (sql: string, params: unknown[] = []): D1PreparedStatement => {
-    const stmt = {
+  const makeStmt = (sql: string, params: unknown[] = []): SqliteStmt => {
+    const stmt: SqliteStmt = {
       bind: (...values: unknown[]) => makeStmt(sql, values),
       first: async <T = Record<string, unknown>>(col?: string): Promise<T | null> => {
         const row = sqlite.prepare(sql).get(...(params as (string | number | bigint | Uint8Array | null)[])) as
@@ -73,46 +102,45 @@ export function createSqliteD1(): D1Database {
         if (!row) return null;
         return (col ? row[col] : row) as T;
       },
-      all: async <T = Record<string, unknown>>(): Promise<D1Result<T>> => {
+      all: async <T = Record<string, unknown>>(): Promise<SqliteResult<T>> => {
         const results = sqlite.prepare(sql).all(...(params as (string | number | bigint | Uint8Array | null)[])) as T[];
-        return { results, success: true, meta: { changes: 0 } as unknown as D1Result<T>["meta"] };
+        return { results, success: true, meta: { changes: 0 } };
       },
-      run: async (): Promise<D1Result<never>> => {
+      run: async (): Promise<SqliteResult<never>> => {
         const res = sqlite.prepare(sql).run(...(params as (string | number | bigint | Uint8Array | null)[]));
         return {
           results: [],
           success: true,
-          meta: { changes: Number(res.changes) } as unknown as D1Result<never>["meta"],
+          meta: { changes: Number(res.changes) },
         };
       },
       raw: async () => [],
       _sql: sql,
       _params: params,
     };
-    return stmt as unknown as D1PreparedStatement;
+    return stmt;
   };
   return {
     prepare: (sql: string) => makeStmt(sql),
-    batch: async <T = unknown>(stmts: D1PreparedStatement[]): Promise<D1Result<T>[]> => {
+    batch: async <T = unknown>(stmts: SqliteStmt[]): Promise<SqliteResult<T>[]> => {
       sqlite.exec("BEGIN");
       try {
-        const out: D1Result<T>[] = [];
+        const out: SqliteResult<T>[] = [];
         for (const s of stmts) {
-          const inner = s as unknown as { _sql: string; _params: unknown[] };
-          const isReturning = /\bRETURNING\b/i.test(inner._sql);
+          const isReturning = /\bRETURNING\b/i.test(s._sql);
           if (isReturning) {
             const results = sqlite
-              .prepare(inner._sql)
-              .all(...(inner._params as (string | number | bigint | Uint8Array | null)[])) as T[];
-            out.push({ results, success: true, meta: { changes: results.length } as unknown as D1Result<T>["meta"] });
+              .prepare(s._sql)
+              .all(...(s._params as (string | number | bigint | Uint8Array | null)[])) as T[];
+            out.push({ results, success: true, meta: { changes: results.length } });
           } else {
             const res = sqlite
-              .prepare(inner._sql)
-              .run(...(inner._params as (string | number | bigint | Uint8Array | null)[]));
+              .prepare(s._sql)
+              .run(...(s._params as (string | number | bigint | Uint8Array | null)[]));
             out.push({
               results: [],
               success: true,
-              meta: { changes: Number(res.changes) } as unknown as D1Result<T>["meta"],
+              meta: { changes: Number(res.changes) },
             });
           }
         }
@@ -131,7 +159,7 @@ export function createSqliteD1(): D1Database {
       throw new Error("not implemented");
     },
     dump: async () => new ArrayBuffer(0),
-  } as unknown as D1Database;
+  };
 }
 
 const EMAIL_ROUTING_AUTHSERV_ID = "mx.cloudflare.net";
@@ -170,8 +198,14 @@ export async function scoreIntakeTime(opts?: {
   outPath?: string;
   failAt?: number;
 }): Promise<IntakeRecord[]> {
-  ensureTsResolve();
-  const { handleEmail } = await import("../src/intake/email.ts");
+  const { handleEmail } = await importSrc<{
+    handleEmail: (
+      msg: unknown,
+      env: unknown,
+      now: Date,
+      log: () => void,
+    ) => Promise<{ kind: string }>;
+  }>("src/intake/email.ts");
   const smallCount = opts?.smallCount ?? 5;
   const largeCount = opts?.largeCount ?? 3;
   const largeBytes = opts?.largeBytes ?? 24 * 1024 * 1024;
@@ -206,7 +240,7 @@ export async function scoreIntakeTime(opts?: {
         return {};
       },
     },
-  } as unknown as Env;
+  };
 
   const specs: { band: "small" | "near-25mib"; bytes: number; count: number }[] = [
     { band: "small", bytes: 4 * 1024, count: smallCount },
@@ -242,12 +276,12 @@ export async function scoreIntakeTime(opts?: {
           from,
           to: "check@isitlegit.co.za",
           headers,
-          raw: new Response(rawBytes).body as ReadableStream<Uint8Array>,
+          raw: new Response(new Uint8Array(rawBytes)).body as ReadableStream<Uint8Array>,
           rawSize: rawBytes.byteLength,
           setReject: () => {},
           forward: async () => ({ messageId: "" }),
           reply: async () => ({ messageId: "" }),
-        } as unknown as ForwardableEmailMessage;
+        };
         workflowStartedAt = 0;
         const t0 = performance.now();
         const out = await handleEmail(forwardable, env, new Date(), () => {});

@@ -3,10 +3,9 @@
 // PhraseStream and attachmentPhrases + aiInstructionEvidence in src/checks/ai-instructions.ts.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CaseView } from "../src/checks/case-view.ts";
 import { PhraseLog, PhraseStream } from "../src/checks/instruction-phrases.ts";
 import { type AiObservation, type AiSummary, atomicWriteJson } from "./components.ts";
-import { ensureTsResolve } from "./intake-time.ts";
+import { importSrc } from "./intake-time.ts";
 
 export const MAX_TEXT_ATTACHMENTS = 10;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,7 +24,7 @@ export const GENUINE_TEXTS: { name: string; text: string }[] = [
   { name: "newsletter", text: "Our assistant manager explains the new system in this month's newsletter." },
 ];
 
-function makeR2Bucket(store: Map<string, Uint8Array>): R2Bucket {
+function makeR2Bucket(store: Map<string, Uint8Array>): unknown {
   return {
     get: async (key: string, opts?: { range?: { offset: number; length: number } }) => {
       const full = store.get(key);
@@ -35,10 +34,10 @@ function makeR2Bucket(store: Map<string, Uint8Array>): R2Bucket {
         : full;
       return {
         arrayBuffer: async () => slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength),
-        body: new Response(slice).body,
+        body: new Response(new Uint8Array(slice)).body,
       };
     },
-  } as unknown as R2Bucket;
+  };
 }
 
 export function scoreAiInstructions() {
@@ -94,8 +93,24 @@ export async function measureAiInstructionsCheck(opts?: {
   outPath?: string;
   failAt?: number;
 }): Promise<AiSummary> {
-  ensureTsResolve();
-  const { aiInstructionEvidence, attachmentPhrases, instructionsOf } = await import("../src/checks/ai-instructions.ts");
+  const { aiInstructionEvidence, attachmentPhrases, instructionsOf } = await importSrc<{
+    aiInstructionEvidence: (view: unknown) => { severity: string }[];
+    attachmentPhrases: (
+      bucket: unknown,
+      attachments: {
+        key: string;
+        filename: string;
+        mediaType: string;
+        contentId: string | null;
+        disposition: string | null;
+        charset?: string | null;
+        bytes: number;
+      }[],
+      log: PhraseLog,
+      prefix: string,
+    ) => Promise<void>;
+    instructionsOf: (log: PhraseLog) => unknown;
+  }>("src/checks/ai-instructions.ts");
   const items: { name: string; text: string; kind: "injection" | "genuine" }[] = [
     ...INJECTION_TEXTS.map((t) => ({ ...t, kind: "injection" as const })),
     ...GENUINE_TEXTS.map((t) => ({ ...t, kind: "genuine" as const })),
@@ -148,7 +163,15 @@ export async function measureAiInstructionsCheck(opts?: {
     try {
       if (opts?.failAt === idx) throw new Error("simulated collector interruption");
       const store = new Map<string, Uint8Array>();
-      const attachments: CaseView["attachments"] = [];
+      const attachments: {
+        key: string;
+        filename: string;
+        mediaType: string;
+        contentId: string | null;
+        disposition: string | null;
+        charset?: string | null;
+        bytes: number;
+      }[] = [];
       for (let i = 0; i < MAX_TEXT_ATTACHMENTS; i++) {
         const key = `att-${item.name}-${i}`;
         const payload = item.text.repeat(16);
@@ -158,16 +181,17 @@ export async function measureAiInstructionsCheck(opts?: {
           key,
           filename: `note-${i}.txt`,
           mediaType: "text/plain",
+          contentId: null,
+          disposition: "attachment",
           charset: "utf-8",
           bytes: bytes.byteLength,
-          sha256: "0".repeat(64),
         });
       }
       const bucket = makeR2Bucket(store);
       const t0 = performance.now();
       const log = new PhraseLog();
       await attachmentPhrases(bucket, attachments, log, "attachment");
-      const view = { raw: "raw.eml", instructions: instructionsOf(log) } as unknown as CaseView;
+      const view = { raw: "raw.eml", instructions: instructionsOf(log) };
       const evidence = aiInstructionEvidence(view);
       const elapsed = Number((performance.now() - t0).toFixed(3));
       const detected = evidence.some((e) => e.severity === "high");

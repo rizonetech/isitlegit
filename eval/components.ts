@@ -153,15 +153,15 @@ export type AiSummary = {
 export type AttachmentObservation = {
   name: string;
   category: "valid" | "disguised" | "archive-risk" | "damaged" | "batch-check";
-  expected?: string;
-  sniffed?: string | null;
+  expected?: string | undefined;
+  sniffed?: string | null | undefined;
   matched: boolean;
-  isArchive?: boolean;
-  isBenignValid?: boolean;
-  mismatchFlagged?: boolean;
-  riskFlagged?: boolean;
-  riskNotChecked?: string | null;
-  ms?: number | null;
+  isArchive?: boolean | undefined;
+  isBenignValid?: boolean | undefined;
+  mismatchFlagged?: boolean | undefined;
+  riskFlagged?: boolean | undefined;
+  riskNotChecked?: string | null | undefined;
+  ms?: number | null | undefined;
   status: "ok" | "failed";
 };
 

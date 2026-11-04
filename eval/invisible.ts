@@ -5,8 +5,6 @@
 // in 16 KiB chunks for p50/p95 time and live-retained peak heap memory.
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { CaseView } from "../src/checks/case-view.ts";
-import { hiddenTextEvidence } from "../src/checks/hidden-content.ts";
 import { invisibleOf, PhraseLog, PhraseStream } from "../src/checks/instruction-phrases.ts";
 import { type InvisibleRun, invisibleRuns, RunReader } from "../src/checks/invisible-unicode.ts";
 import { atomicWriteJson, type InvisibleObservation, type InvisibleSummary } from "./components.ts";
@@ -170,20 +168,14 @@ export function scoreInvisible(opts?: {
       const t0 = performance.now();
       const log = new PhraseLog();
       const stream = new PhraseStream(log, "text", "body", false);
-      const cleanedParts: string[] = [];
       for (let i = 0; i < totalChunks; i++) {
-        cleanedParts.push(stream.feed(chunkText));
+        stream.feed(chunkText);
       }
-      cleanedParts.push(stream.end());
-      const view = {
-        raw: "raw.eml",
-        hiddenText: null,
-        invisibleText: invisibleOf(log),
-      } as unknown as CaseView;
-      const evidence = hiddenTextEvidence(view);
+      stream.end();
+      const invisibleSummary = invisibleOf(log);
       const ms = Number((performance.now() - t0).toFixed(3));
 
-      // 2. Sample heap usage while all intermediate chunk outputs, RunReader state, PhraseLog, and evidence
+      // 2. Sample heap usage while all intermediate chunk outputs, RunReader state, PhraseLog, and summary
       // remain strongly reachable in scope, plus chunk-boundary sampling during streaming.
       let maxHeap = process.memoryUsage().heapUsed;
       const retainedRuns: InvisibleRun[] = [];
@@ -204,7 +196,8 @@ export function scoreInvisible(opts?: {
       const hEnd = process.memoryUsage().heapUsed;
       if (hEnd > maxHeap) maxHeap = hEnd;
       // Keep references live through the measurement point so V8 cannot reclaim them beforehand.
-      const detected = evidence.length > 0 && retainedRuns.length > 0 && cleanedParts.length > 0 && retainedChunks.length > 0;
+      const detected =
+        (invisibleSummary?.runs.length ?? 0) > 0 && retainedRuns.length > 0 && retainedChunks.length > 0;
       const repPeakMb = Number((maxHeap / (1024 * 1024)).toFixed(1));
       observations[slot] = {
         name: `large-1mib-rep-${rep + 1}`,

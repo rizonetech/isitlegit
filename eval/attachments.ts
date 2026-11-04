@@ -5,12 +5,11 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeDecoyCompoundFile } from "../scripts/fixtures/msg-builder.ts";
-import type { CaseView } from "../src/checks/case-view.ts";
 import { MAX_SNIFFED, type SniffedType, sniff } from "../src/checks/sniff.ts";
 import { zip } from "../test/fixtures/attachments/archives.ts";
 import { samples } from "../test/fixtures/attachments/samples.ts";
 import { type AttachmentObservation, type AttachmentsSummary, atomicWriteJson } from "./components.ts";
-import { ensureTsResolve } from "./intake-time.ts";
+import { importSrc } from "./intake-time.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const enc = (s: string) => new TextEncoder().encode(s);
@@ -108,7 +107,7 @@ const VALID_SPEC: Record<
 
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes.subarray(0, 36 * 1024)).toString("base64");
 
-function makeR2Bucket(store: Map<string, Uint8Array>): R2Bucket {
+function makeR2Bucket(store: Map<string, Uint8Array>): unknown {
   return {
     get: async (key: string, opts?: { range?: { offset: number; length: number } }) => {
       const full = store.get(key);
@@ -118,10 +117,10 @@ function makeR2Bucket(store: Map<string, Uint8Array>): R2Bucket {
         : full;
       return {
         arrayBuffer: async () => slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength),
-        body: new Response(slice).body,
+        body: new Response(new Uint8Array(slice)).body,
       };
     },
-  } as unknown as R2Bucket;
+  };
 }
 
 export function scoreAttachments() {
@@ -179,14 +178,35 @@ export async function measureAttachmentChecks(opts?: {
   outPath?: string;
   failAt?: number;
 }): Promise<AttachmentsSummary> {
-  ensureTsResolve();
+  type CheckItem = { check: string; severity: string };
   const {
     attachmentRisksOf,
     encryptedArchiveEvidence,
     executableEvidence,
     macroEvidence,
-  } = await import("../src/checks/attachment-risk.ts");
-  const { typeMismatchEvidence } = await import("../src/checks/attachment-type.ts");
+  } = await importSrc<{
+    attachmentRisksOf: (
+      bucket: unknown,
+      input: {
+        attachments: {
+          key: string;
+          filename: string;
+          mediaType: string;
+          contentId: string | null;
+          disposition: string | null;
+          bytes: number;
+          sha256: string;
+        }[];
+        attachmentHeads: { heads: { key: string; head: string }[]; unread: number };
+      },
+    ) => Promise<{ items: { notChecked?: string | null }[] } | null>;
+    encryptedArchiveEvidence: (view: unknown) => CheckItem[];
+    executableEvidence: (view: unknown) => CheckItem[];
+    macroEvidence: (view: unknown) => CheckItem[];
+  }>("src/checks/attachment-risk.ts");
+  const { typeMismatchEvidence } = await importSrc<{
+    typeMismatchEvidence: (view: unknown) => CheckItem[];
+  }>("src/checks/attachment-type.ts");
   const names = Object.keys(EXPECTED) as (keyof typeof EXPECTED)[];
 
   const disguised: { name: string; filename: string; mediaType: string; bytes: Uint8Array; real: SniffedType }[] = [
@@ -324,7 +344,17 @@ export async function measureAttachmentChecks(opts?: {
 
   const runCheckSuite = async (key: string, filename: string, mediaType: string, bytes: Uint8Array) => {
     const store = new Map<string, Uint8Array>([[key, bytes]]);
-    const attachments = [{ key, filename, mediaType, bytes: bytes.byteLength, sha256: "0".repeat(64) }];
+    const attachments = [
+      {
+        key,
+        filename,
+        mediaType,
+        contentId: null,
+        disposition: "attachment",
+        bytes: bytes.byteLength,
+        sha256: "0".repeat(64),
+      },
+    ];
     const attachmentHeads = { heads: [{ key, head: b64(bytes) }], unread: 0 };
     const attachmentRisks = await attachmentRisksOf(makeR2Bucket(store), { attachments, attachmentHeads });
     const view = {
@@ -332,7 +362,7 @@ export async function measureAttachmentChecks(opts?: {
       attachments,
       attachmentHeads,
       attachmentRisks,
-    } as unknown as CaseView;
+    };
     const mismatchItems = typeMismatchEvidence(view);
     const riskItems = [
       ...macroEvidence(view),
@@ -445,6 +475,8 @@ export async function measureAttachmentChecks(opts?: {
       key,
       filename: spec.filename,
       mediaType: spec.mediaType,
+      contentId: null,
+      disposition: "attachment",
       bytes: spec.bytes.byteLength,
       sha256: "0".repeat(64),
     };
@@ -469,7 +501,7 @@ export async function measureAttachmentChecks(opts?: {
         attachments: batchAtts,
         attachmentHeads: { heads: batchHeads, unread: 0 },
         attachmentRisks,
-      } as unknown as CaseView;
+      };
       const mm = typeMismatchEvidence(view);
       const mc = macroEvidence(view);
       const ec = encryptedArchiveEvidence(view);
