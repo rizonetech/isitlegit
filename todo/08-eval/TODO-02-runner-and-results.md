@@ -484,11 +484,15 @@ Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a chang
 
 ## 15. Paired evidence view
 
+> **Started:** 2026-11-04T11:15:32.092460+02:00 (plan preparation only; no paired-view implementation)
+
 Filed 2026-11-03 from §14 completion review G4: comparing reports manually hides which evidence changed. Coordinator `eval-decisions-0950` authorizes the section's CLI-only rescoping option for this delivery window. Reason: prioritize factual paired analysis and existing authorized report links without introducing an undesigned member surface. Reversal cost: separately design and test a paired member page later. No console or design-source change is needed for this CLI-only scope.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** no
+
+**Command contract:** `--help` exits0 without credentials; invalid arguments or an unpairable/unknown/unchanged sample exit3 before evidence access. Exit0 means both sides are available; exit2 means at least one side is explicitly unavailable, while the permitted side remains readable. JSON writes one deterministic object to stdout; diagnostics stay on stderr and never echo cookies, SQL errors or raw evidence fields. Commands are read-only and spend no model credit. Bound argument lengths and reject duplicate options and duplicate sample IDs before pairing.
 
 **Build order:**
 

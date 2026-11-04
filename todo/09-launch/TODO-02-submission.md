@@ -42,7 +42,7 @@ track: day-6
 | 10 | §10 | Independent validation by an outsider | D08 T02 §10, §5 | [ ] |
 | 11 | §11 | Automated demo rehearsal, three clean runs | §3, §8, D09 T01 §2 | [ ] |
 | 12 | §12 | Ablation chart for the results and README | D08 T02 §3, §5 | [ ] |
-| 13 | §13 | Judge no-account demo: recorded replay from the repo | §6, D08 T02 §10 | [ ] |
+| 13 | §13 | Judge no-account demo: recorded replay from the repo | D08 T02 §10 | [ ] |
 
 ## 1. CONTRIBUTIONS.md by day, commit ranges
 
@@ -312,6 +312,10 @@ Operator, 2026-11-02: the ablation measurement (D08 T02 §3) rendered as one cha
 
 Operator information, 2026-11-02, recorded in `docs/hackathon-criteria.md` (Judging access): judges run the project from the public repository's setup instructions and every judging stage needs a working demo, so the video alone is not enough; a judge must never need their own outside account (here: their own Meta Model API keys or Cloudflare account). Today a clean local run stops at the Meta gateway secret, and no replay or mock mode exists. This section gives the repository a no-account path: recorded examples with provenance, replayed through the real pipeline with every simulated part labelled, explained in the README (§6). The hosted live service with judge access (§6, §10) stays the primary demo; this is the path that works from the repo alone.
 
+**Coordinator correction 2026-11-04 (`eval-merge-replay-sequence`):** Final README §6 is a packaging dependency, not a prerequisite for the self-contained replay implementation. Its prerequisite is now D08 T02 §10 alone. This section owns `eval/judge/README.md` as the exact local setup/run/recovery instructions used by the clean-clone proof; final README §6 incorporates that verified source later and remains unfinished. The recorded provider pairs, provenance, synthetic-only publication and denial of every unrecorded network call remain mandatory. No live model spending or capture is authorized by this sequencing correction. Reversal restores the packaging dependency without changing recorded evidence.
+
+**Readiness 2026-11-04:** `pnpm judge:demo` was executed and failed with command not found, so the fallback is unavailable. D08 T02 §10 publishes metrics history, not provider request/response pairs. `src/meta/client.ts` deliberately disables payload logging and retains `store: false`; no valid recorded-pair source has been established for `eval/judge/`. This input prerequisite is escalated to the coordinator. Do not reconstruct responses from verdicts or relabel test stubs as live records. A genuine plan review precedes implementation once the replay input and supported transport boundary are concrete.
+
 **Phase:** 8
 **Needs:** none
 **Surface:** no
@@ -324,8 +328,8 @@ Operator information, 2026-11-02, recorded in `docs/hackathon-criteria.md` (Judg
 - [ ] Add the replay path (`pnpm judge:demo`): the real pipeline served locally with the model transport answering from the recorded pairs, refusing any call with no recorded pair instead of reaching the network. Done when: the replay runs with no Meta or Cloudflare secret in the environment and no network call to a provider.
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** none of the named artefacts exist yet (`eval/judge/`, the `judge:demo` script, `test/node/judge-demo.test.ts`), consistent with a section filed today. The transport seam is now named: the Meta client takes an injectable fetch (`ctx.fetch ?? fetch`, `src/meta/client.ts:72`), so the replay answers through that seam and an unrecorded call is refused there, never reaching the network.
-- [ ] Label every simulated part where a judge meets it (the replay banner on each rendered page and the README wording): recorded answers read as recorded, never as a live model call. Done when: a rendered replay page carries the label and no page claims a live call.
-- [ ] Prove it from a clean clone: a fresh directory, no secrets, following only the README (§6) commands reaches a rendered verdict. Done when: the run is recorded in the section's run file with its commands and output.
+- [ ] Label every simulated part where a judge meets it (the replay banner on each rendered page and `eval/judge/README.md` wording): recorded answers read as recorded, never as a live model call. Done when: a rendered replay page carries the label and no page claims a live call.
+- [ ] Prove it from a clean clone: a fresh directory, no secrets, following only `eval/judge/README.md` commands reaches a rendered verdict. Done when: the run is recorded in the section's run file with its commands and output.
 - [ ] Commit: `launch: judge no-account demo with recorded replay`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/judge-demo.test.ts` passes (recorded pair required, unrecorded call refused, label rendered), and the clean-clone replay reaches a verdict with no provider secret set.
