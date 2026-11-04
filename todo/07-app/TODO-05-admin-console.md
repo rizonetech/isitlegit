@@ -224,6 +224,8 @@ Coordinator assignment 2026-11-04: platform review surface for D02 T02 §10. Req
 
 ## 7. Admin typeahead design proposal
 
+> **Started:** 2026-11-04T11:54:25.108271+00:00
+
 Filed from D07 T05 §4 final completion's out-of-scope suggestion under coordinator `console-scope-ownership`, 2026-11-04. The approved X1 Search/Enter interaction remains unchanged. A proposed 500 ms p95 from that review is unmeasured and is not an accepted performance claim or implementation target. This section evaluates the proposal; it does not authorize a new control or close §4's original gaps receipt.
 
 **Phase:** 7
