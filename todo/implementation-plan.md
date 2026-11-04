@@ -464,7 +464,7 @@ Sections: 227 | Checklist items: 1021
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
 | [x]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
 | [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
-| [ ]    | D02 T05 §12 | Translated instruction phrases                              | none                 | 6     |
+| [x]    | D02 T05 §12 | Translated instruction phrases                              | none                 | 6     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                                      | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports                 | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated                | none                 | 4     |
@@ -684,6 +684,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 426/608 verified sections, 118 ready to run now.
+Progress: 427/608 verified sections, 117 ready to run now.
 
-Checklist: 3113/3753 items completed (includes Commit items).
+Checklist: 3119/3753 items completed (includes Commit items).
