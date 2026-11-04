@@ -79,7 +79,7 @@ track: day-0
 | 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 | 40 | §41 | Accurate continuation stop reasons for completed owners | §19 | [ ] |
-| 41 | §45 | Batched CI with complete project test shards | -- | [ ] |
+| 41 | §45 | Batched CI with complete project test shards | -- | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1363,6 +1363,9 @@ Operator CI-BATCHING-OPERATOR-DECISION authorizes batching independent ready rev
 - [x] Commit: `ci: batch reviewed gates and shard complete project tests`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_ci_unittest_shard tests.scripts.test_ci_workflow tests.scripts.test_ci_status` passes; four offline collection lists equal the unsharded discovery multiset exactly, and mutation tests reject a dropped shard or false exact-SHA green without running the whole project suite locally.
+
+> **Verified:** 2026-11-04 | §45 | f4b37d489b638d91362add9e2bb351d9d0b55d96
+> **Review:** `docs/reviews/d00-t01-s45.json`
 
 ## Verification
 
