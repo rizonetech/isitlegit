@@ -596,6 +596,8 @@ Coordinator `eval-decisions-0950` authorizes this genuine scoped recovery repair
 
 ## 19. Machine-crash durability for generated corpora
 
+> **Started:** 2026-11-04
+
 Filed contract only under coordinator `corpus-durability-scope-decision` (2026-11-04), from §18 final completion at `b1560b73`. No implementation or retrospective approval. §18 covers write failures and process termination; its existing SIGKILL tests leave operating-system caches alive and do not prove power-loss durability. This follow-up does not close or restamp §18 or §6. Priority remains §17.
 
 **Phase:** 7
