@@ -206,4 +206,20 @@ describe("diagnostic lifecycle uses real runtime ledger", () => {
     expect(f.events.some((e) => e.startsWith("DELETE"))).toBe(true);
     f.db.close();
   });
+  it("single-page smoke never asks a second input and still closes its reservation", async () => {
+    const f = fixture();
+    const dependencies = {
+      ...f.dependencies,
+      smoke: true,
+      run: async (o: Parameters<typeof import("../../scripts/glimmer/evaluate.ts").runAnswers>[0]) => {
+        await o.ask([], "first");
+        await expect(o.ask([], "second")).rejects.toThrow("SMOKE_COMPLETE");
+        return { pages: 40, skipped: 0, asked: 1, answered: 1, errors: 0, stopped: "SMOKE_COMPLETE" };
+      },
+    };
+    await executeSlot("1.1", "unused", f.output, dependencies);
+    expect(f.events.filter((e) => e.includes("completions"))).toHaveLength(1);
+    expect(f.db.prepare("SELECT * FROM glimmer_runtime").get()?.used_minutes).not.toBeNull();
+    f.db.close();
+  });
 });
