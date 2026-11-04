@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -139,7 +140,8 @@ class CodexLanes(unittest.TestCase):
             launch.assert_not_called()
 
     def test_launch_removes_inherited_lane_override(self):
-        with mock.patch.object(self.module, "git", side_effect=self.git), \
+        with mock.patch.object(sys, "path", [str(ROOT / "scripts"), *sys.path]), \
+                mock.patch.object(self.module, "git", side_effect=self.git), \
                 mock.patch.object(self.module.shutil, "which", return_value="/bin/codex"), \
                 mock.patch.dict(self.module.os.environ, {"TODO_LANE": "eval",
                     "ISITLEGIT_CONTINUATION_DIR": str(Path(self.temp.name) / "continuation")}), \
