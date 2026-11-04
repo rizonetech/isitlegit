@@ -78,6 +78,7 @@ track: day-0
 | 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
 | 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
+| 40 | §42 | Synthetic review pin authorization isolation | §38 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1315,6 +1316,32 @@ Filed 2026-11-04 by the coordinator for the necessary integration of stamped D02
 
 > **Verified:** 2026-11-04 | §39 | 6df0678fc5317320ca7b1e241ea2e88ccf3902db
 > **Review:** `docs/reviews/d00-t01-s39.json`
+
+## 42. Synthetic review pin authorization isolation
+
+> **Started:** 2026-11-04T13:26:44.368859+00:00 (plan preparation only; no implementation before genuine plan review)
+
+Filed 2026-11-04 by coordinator authorization after checks EXCEPTION38-SETUP-AUDIT. `Reconciliation.setUp` copies the repository pin into a new synthetic Git repository and removes inherited reconciliation extensions, but leaves externally scoped reconciliation exceptions. `ExactExceptions.setup_case` builds its own voice predecessor chain before publishing its own exception authorization. With exact live pin `3bcbc096`, the fixture accidentally selects the real voice exception and correctly fails because its authorization commit is absent from the synthetic repository. Production reachability enforcement is correct. This section owns synthetic test fixture input isolation only.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Measured failing baseline:** With REPO_PIN patched only in memory to a temporary file holding exact `3bcbc096:.conclave/reviewers.toml` bytes, the unchanged ExactExceptions class ran 12 tests with two errors in 5.386 seconds. `/tmp/review-fixture-isolation-red.log` records refusal of unreachable authorization commit efaf2a704eefbe34c67f56a131b9ef3db4279b85. Live pin SHA-256: 1db41fdae178d778734be12c1c6a0c0c1b8475c94bcec1f8445a1c57d6050c9f. The checkout pin was never replaced.
+
+**Preserved inputs:** No changes to production dispatcher, graph, CLI, repository pin, live authorizations, original findings/receipts or acceptance guards. Preserve reviewer routes, models, efforts, schedules and all existing test assertions. Each synthetic chain must retain its own genuinely committed fixture pin and authorization evidence; no approval or reachability mock replaces them.
+
+**Build order:**
+
+1. Reproduce live-authorization leakage using a temporary pin only. Done when: the two actual setup errors are recorded without modifying production or lane checkouts.
+2. Isolate inherited external authorization in the owning base fixture before its first synthetic commit. Done when: only inherited reconciliation_extensions and reconciliation_exceptions configuration is removed, existing fixture-specific policy adaptation is preserved, and fixture methods subsequently install their own measured identities normally.
+3. Prove both positive lifecycle behavior and unchanged refusal guards. Done when: a deterministic preexisting-live-authorization regression and original exception/reconciliation/graph suites pass without altering production validation.
+
+- [ ] Repair base pin preparation in `scripts/tests/test_review_dispatch.py` so inherited external extension and exception tables do not enter synthetic Git history. Done when: both exception kinds construct their own predecessor chains under local pins, normal policy/routes/schedule content remains equivalent, and no live repository pin bytes are changed. Cheaper substitute: suppress the unreachable-commit error, rejected because it would weaken production evidence validation.
+- [ ] Add a deterministic regression with a temporary seed pin containing preexisting externally scoped voice exception and extension entries, using nonexistent external commit/blob identities. Done when: it verifies those entries are absent before fixture-owned authorization, retains unrelated pin settings, creates and commits its own ordered failed predecessor chain, authorizes the exact local exception and successfully validates its genuine fixture result; the test fails on the pre-fix setup. Cheaper substitute: test a pin without live entries, rejected because it misses the observed integration failure.
+- [ ] Run the original ExactExceptions class with exact temporary `3bcbc096` pin bytes, plus complete dispatcher and graph suites. Done when: the original two errors disappear, existing wrong-pin/blob/report, lost predecessor, altered contract, unresolved-call and repeated-exception refusals remain covered, temporary repositories are cleaned and production pin/source hashes remain unchanged. Cheaper substitute: skip the two failing cases, rejected because they exercise required predecessor safety.
+- [ ] Commit: `test: isolate external review authorizations from synthetic pins`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including the new live-authorization seed regression; the original ExactExceptions 12-test class also passes with REPO_PIN temporarily pointing to exact `3bcbc096` pin bytes and the real production pin untouched.
 
 ## Verification
 
