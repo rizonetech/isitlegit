@@ -1,4 +1,4 @@
-// The monitor's page screener (D03 T04 §1): Loupe, the fine-tuned Glimmer on its dedicated deployment, first; Muse
+// The monitor's page screener (D03 T04 §1): Loupe, the fine-tuned Glimmer on its dedicated deployment, first when enabled; Muse
 // Spark on the Meta Model API when Loupe cannot answer. One page in, one `PageScreen` out (or a typed failure), with
 // which screener answered, why Loupe did not, and the Spark call's ids, for the monitor's screening to store
 // (D05 T04 §3).
@@ -20,6 +20,7 @@ import {
   type Burst,
   completionsUrl,
   fireworksHeaders,
+  isLoupeDisabled,
   probeBody,
   REQUEST_MS,
   retryDelay,
@@ -43,6 +44,7 @@ export { ESCALATION_BAND, inEscalationBand } from "./page-screen.ts";
 
 // Why Loupe did not answer a page.
 export type GlimmerReason =
+  | "disabled"
   | "ablated"
   | "not_configured"
   | "refused"
@@ -130,13 +132,13 @@ const unsettledOf = (outcome: object) => {
 
 // Wakes Loupe for a run (§15). The session says, for every page after, whether Loupe may be asked.
 export async function openGlimmer(ctx: WakeCtx, experiment?: ScreeningExperiment): Promise<GlimmerSession> {
-  const flag = await ctx.ablateFlag?.().catch(() => null);
-  if (flag === "no-screening")
+  const flag = isLoupeDisabled(ctx.env) ? "disabled" : await ctx.ablateFlag?.().catch(() => null);
+  if (flag === "no-screening" || flag === "disabled")
     return {
       ctx,
       ...(experiment ? { experiment } : {}),
       burst: null,
-      state: { down: "ablated" },
+      state: { down: flag === "disabled" ? "disabled" : "ablated" },
       reservedUntil: 0,
       lastRequestEnd: null,
     };
@@ -180,6 +182,7 @@ async function askGlimmer(
   request: ScreenRequest,
   owner: { run: string; host: string },
 ): Promise<GlimmerAnswer> {
+  if (isLoupeDisabled(session.ctx.env)) return { reason: "disabled" };
   if (!session.experiment) return requestGlimmer(session, request, owner);
   const body = JSON.stringify(glimmerBody(request));
   const result = await session.experiment.infer(owner.run, body, session.reservedUntil, (attemptId) =>
@@ -197,6 +200,7 @@ async function requestGlimmer(
   attemptId?: string,
   body?: string,
 ): Promise<GlimmerAnswer> {
+  if (isLoupeDisabled(session.ctx.env)) return { reason: "disabled" };
   const { ctx } = session;
   const now = ctx.now ?? (() => Date.now());
   // The ledger reserved this many calls: a request past the reservation is refused, and Spark takes the page.
@@ -291,7 +295,8 @@ export async function screenPage(
   });
   const host = page.host ?? "none";
   let reason: GlimmerReason | null = null;
-  if (
+  if (isLoupeDisabled(session.ctx.env)) session.state = { down: "disabled" };
+  else if (
     !(typeof session.state === "object" && session.state.down === "ablated") &&
     (await session.ctx?.ablateFlag?.().catch(() => null)) === "no-screening"
   ) {

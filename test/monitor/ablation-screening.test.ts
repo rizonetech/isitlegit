@@ -32,7 +32,6 @@ const good = (confidence = 0.9) =>
             {
               type: "output_text",
               text: JSON.stringify({
-                brand: null,
                 has_login_form: true,
                 has_payment_form: false,
                 lure: true,

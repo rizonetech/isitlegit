@@ -74,6 +74,8 @@
     "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1",
     // Loupe's dedicated Fireworks deployment through AI Gateway's `fireworks` custom provider (D03 T04 §1, §15); the
     // screener appends /chat/completions. Its key is the secret FIREWORKS_API_KEY (vault "IsItLegit Fireworks").
+    // Loupe is disabled after failed qualification; production screening goes directly to Spark.
+    "LOUPE_ENABLED": "false",
     "GLIMMER_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-fireworks/v1",
     // The operator's mailbox (design spec section 11): alerts and unresolved sends go here (D01 T02 §5, §2).
     "OPERATOR_EMAIL": "hostmaster@rizonetech.com",

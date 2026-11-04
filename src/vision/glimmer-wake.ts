@@ -32,9 +32,13 @@ export const MAX_BACKOFF_MS = 30_000;
 export const WARMUP_LIMIT_MS = (MAX_WARMUP_SECONDS + WARMUP_MARGIN_SECONDS) * 1000;
 
 export type WakeEnv = GatewayEnv & {
+  LOUPE_ENABLED?: string;
   SMTP2GO_API_KEY?: string;
   OPERATOR_EMAIL?: string;
 };
+
+// Production config supplies this flag; omitted keeps isolated offline callers compatible.
+export const isLoupeDisabled = (env: WakeEnv) => env.LOUPE_ENABLED !== undefined && env.LOUPE_ENABLED !== "true";
 
 export type WakeCtx = {
   env: WakeEnv;
@@ -66,6 +70,7 @@ export type Burst = { id: string; wakeAt: number; deadline: number };
 // caller whose settlement failed (the burst stays counted at its reserve) can settle it again, however late, with
 // `settleGlimmer(ctx, burst, settleUntil)`: charged to the same moment, never to the time spent waiting to retry.
 export type Outcome =
+  | { outcome: "disabled"; settled?: boolean; burst?: Burst; settleUntil?: number }
   | { outcome: "ready"; attempts: number }
   | { outcome: "warming"; attempts: number; settled?: boolean; burst?: Burst; settleUntil?: number }
   | { outcome: "refused"; detail: string }
@@ -95,10 +100,14 @@ export function missingConfig(env: WakeEnv): string[] {
 export type Answer =
   | { kind: "ready" }
   | { kind: "retry"; why: string; capacity?: boolean; status?: number; retryAfterMs?: number }
-  | { kind: "final"; outcome: Extract<Outcome, { outcome: "deployment_missing" | "unauthorized" | "bad_answer" }> };
+  | {
+      kind: "final";
+      outcome: Extract<Outcome, { outcome: "deployment_missing" | "unauthorized" | "bad_answer" | "disabled" }>;
+    };
 
 // One request, cut at `ms`. What it answered decides whether to wait and ask again.
 async function ask(ctx: WakeCtx, ms: number, burst: Burst): Promise<Answer> {
+  if (isLoupeDisabled(ctx.env)) return { kind: "final", outcome: { outcome: "disabled" } };
   if (ctx.experiment)
     return ctx.experiment.probe(burst, String(oneTokenRequest(ctx.env).init.body), (attemptId) =>
       askOnce(ctx, ms, attemptId),
@@ -149,6 +158,7 @@ export async function probeBody(response: Response): Promise<string> {
 }
 
 async function askOnce(ctx: WakeCtx, ms: number, attemptId?: string): Promise<Answer> {
+  if (isLoupeDisabled(ctx.env)) return { kind: "final", outcome: { outcome: "disabled" } };
   const { url, init } = oneTokenRequest(ctx.env);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("deadline")), ms);
@@ -222,6 +232,7 @@ function queueNotice(ctx: WakeCtx): "queued" | "not_configured" {
 // The operator's notice for a deployment Fireworks has deleted: one per deployment per SAST day, whatever the number
 // of calls or Worker instances (the send key is kept in D1 by `sendMail`); a failed send is claimed by the next miss.
 export async function missingNotice(ctx: WakeCtx): Promise<SendOutcome | null> {
+  if (isLoupeDisabled(ctx.env)) return null;
   const operator = ctx.env.OPERATOR_EMAIL;
   if (!ctx.mail || !operator) return null;
   try {
@@ -248,6 +259,7 @@ export async function missingNotice(ctx: WakeCtx): Promise<SendOutcome | null> {
 // Reserves the burst and sends one 1-token request, without waiting for the warm-up. A burst already reserved under
 // this id (a re-entered step) is returned with its first deadline and no new request.
 export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
+  if (isLoupeDisabled(ctx.env)) return { outcome: "disabled" };
   const missing = missingConfig(ctx.env);
   if (missing.length) return { outcome: "not_configured", missing };
   const now = clock(ctx);
@@ -314,6 +326,7 @@ async function finishWake(ctx: WakeCtx, burst: Burst, reused: boolean): Promise<
 // Waits for the deployment to answer, until the burst's deadline. Each request is cut at its own deadline and never
 // past the burst's; past the deadline the answer is `warming` at once, with no request.
 export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
+  if (isLoupeDisabled(ctx.env)) return { outcome: "disabled" };
   await ctx.experiment?.assertOwner();
   const now = clock(ctx);
   const sleep = pause(ctx);

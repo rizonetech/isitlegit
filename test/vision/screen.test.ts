@@ -34,7 +34,6 @@ const FW = {
 const META = { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" };
 const NONCE = "0123456789abcdef0123456789abcdef";
 const LURE = {
-  brand: "Fynbos Freight",
   has_login_form: true,
   has_payment_form: false,
   lure: true,
@@ -42,7 +41,6 @@ const LURE = {
   confidence: 0.92,
 };
 const BENIGN = {
-  brand: null,
   has_login_form: false,
   has_payment_form: false,
   lure: false,
@@ -138,7 +136,7 @@ describe("screenPage on Loupe", () => {
     const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
     expect(got).toEqual({
       ok: true,
-      screen: { ...LURE, screener: "glimmer" },
+      screen: { ...LURE, screener: "glimmer", answer_version: "1.1" },
       glimmer_reason: null,
       spark_call: null,
       tier: "glimmer",
@@ -152,6 +150,7 @@ describe("screenPage on Loupe", () => {
       text: PAGE.text,
       mode: "image",
       nonce: NONCE,
+      brandAsTruth: false,
     });
     expect(call?.body).toEqual(JSON.parse(JSON.stringify(glimmerBody(expected))));
     expect(call?.body.model).toBe(DEPLOYED_MODEL);
@@ -209,6 +208,25 @@ describe("failing over to Spark", () => {
     expect(got).toMatchObject({ ok: true, glimmer_reason: "timeout", screen: { screener: "spark" } });
     expect(Date.now() - started).toBeLessThan(15_000);
   }, 20_000);
+
+  it("disables new and already-ready Loupe sessions without disguising this as ablation", async () => {
+    const answer = LURE;
+    const fw = fireworks([() => completion(JSON.stringify(LURE))]);
+    const ctx = fw.ctx();
+    ctx.env = { ...ctx.env, LOUPE_ENABLED: "false" };
+    const session = await openGlimmer(ctx);
+    expect(session.state).toEqual({ down: "disabled" });
+    expect(session.burst).toBeNull();
+    const got = await screenPage(PAGE, session, spark(() => metaText(JSON.stringify(answer))).ctx, "disabled-new");
+    expect(got).toMatchObject({ ok: true, glimmer_reason: "disabled", screen: { screener: "spark" } });
+    expect(got).not.toHaveProperty("ablated");
+    session.state = "ready";
+    session.reservedUntil = Date.now() + 60000;
+    const ready = await screenPage(PAGE, session, spark(() => metaText(JSON.stringify(answer))).ctx, "disabled-ready");
+    expect(ready).toMatchObject({ ok: true, glimmer_reason: "disabled", screen: { screener: "spark" } });
+    expect(fw.sent).toHaveLength(0);
+    expect(await findBurst(ledger, ctx.burstId)).toBeNull();
+  });
 
   it("answers with Spark when the minutes ledger refuses the burst", async () => {
     const prior = await reserveBurst(ledger, {

@@ -11,6 +11,7 @@ const Answer = z.union([
     reason: z.enum([
       "ablated",
       "not_configured",
+      "disabled",
       "refused",
       "burst_closed",
       "out_of_window",

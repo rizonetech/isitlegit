@@ -14,6 +14,7 @@ import {
   FIRST_BACKOFF_MS,
   isCompletion,
   MAX_BACKOFF_MS,
+  missingNotice,
   type Outcome,
   settleGlimmer,
   untilWarm,
@@ -221,8 +222,8 @@ describe("a missing deployment", () => {
       expect(await wakeGlimmer(w.ctx({ burstId: "monitor-run-2" }))).toMatchObject({ outcome: "deployment_missing" });
       await w.delivered();
       expect(smtp.sends).toHaveLength(1);
-      expect(smtp.sends[0]?.subject).toBe("IsItLegit: Loupe's deployment isitlegit-loupe is missing");
-      expect(smtp.sends[0]?.text).toContain("node scripts/glimmer/deploy.ts ensure 1.0");
+      expect(smtp.sends[0]?.subject).toBe("IsItLegit: Loupe's deployment isitlegit-loupe-1-1 is missing");
+      expect(smtp.sends[0]?.text).toContain("node scripts/glimmer/deploy.ts ensure 1.1");
     } finally {
       smtp.restore();
     }
@@ -422,4 +423,16 @@ describe("completion review gaps", () => {
     const charged = (woken.burst.deadline - woken.burst.wakeAt) / 60_000 + TAIL_MINUTES;
     expect(await dayMinutes(ledger, "2026-11-01")).toBeCloseTo(charged, 6);
   });
+});
+
+it("disabled runtime never wakes, resumes warming, or sends a recreation notice", async () => {
+  const w = world([200]);
+  const ctx = w.ctx({ env: { ...ENV, LOUPE_ENABLED: "false" } });
+  expect(await wakeGlimmer(ctx)).toEqual({ outcome: "disabled" });
+  expect(await untilWarm(ctx, { id: "disabled", wakeAt: 0, deadline: Date.now() + 60000 })).toEqual({
+    outcome: "disabled",
+  });
+  expect(await missingNotice(ctx)).toBeNull();
+  expect(w.requests).toHaveLength(0);
+  expect(await findBurst(ledger, ctx.burstId)).toBeNull();
 });

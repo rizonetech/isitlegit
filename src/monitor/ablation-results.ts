@@ -9,6 +9,7 @@ const Call = z.strictObject({ callId: z.string().min(1).max(256), logId: z.strin
 const GlimmerReason = z.enum([
   "ablated",
   "not_configured",
+  "disabled",
   "refused",
   "burst_closed",
   "out_of_window",

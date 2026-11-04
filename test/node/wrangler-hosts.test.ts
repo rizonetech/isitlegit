@@ -11,6 +11,10 @@ const config = JSON.parse(
 ) as { routes?: { pattern: string; custom_domain?: boolean }[]; workers_dev?: boolean; vars: Record<string, string> };
 
 describe("wrangler.jsonc's hosts", () => {
+  it("disables unqualified Loupe in the actual production configuration", () => {
+    expect(config.vars.LOUPE_ENABLED).toBe("false");
+  });
+
   it("serves the app on app.isitlegit.co.za as a custom domain, the host its mailed links name", () => {
     // The app's host is first; the apex trust paths and the www redirect host are D07 T06 §20's decision, and the
     // redirect fixtures' host (D02 T07 §2) is served by this Worker under a secret path prefix: a further host is
