@@ -218,3 +218,12 @@ it.each([
 ])("completion regression: repeated compound joins retain only the quote for %s", async (transcript) => {
   expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
 });
+
+it.each([
+  "Please pay R100 & -50 thousand & 20 thousand today",
+  "Please pay R100 and negative 50 thousand and 20 thousand today",
+  "Please pay R100 and minus R50 and R20 today",
+  "Please pay R100 & − 50 thousand & 20 thousand today",
+])("reconciliation regression: signed later components reject the whole expression for %s", async (transcript) => {
+  expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
+});

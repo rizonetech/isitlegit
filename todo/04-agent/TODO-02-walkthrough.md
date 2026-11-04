@@ -356,6 +356,8 @@ Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the 
 
 ## 10. Multi-step evaluation fixture routes
 
+> **Started:** 2026-11-04T11:15:10.463686+00:00
+
 Eval's D08 T03 §3 owns the synthetic multi-step assets and five-walk measurement. Its exact asset candidate `68d67b96e9030a79935e92a0ca9dc698030dc0dd` supplies four pages but cannot serve them without checks-owned dispatcher wiring. Eval authorized byte-exact use at the safe boundary on 4 November 2026. This section owns only that routing integration and its refusal tests; it does not author fixture content, change the contained driver, run paid walks or claim deployment. Existing §1 is stamped, so this extension has its own contract.
 
 **Phase:** 6

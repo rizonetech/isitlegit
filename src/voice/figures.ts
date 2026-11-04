@@ -23,11 +23,11 @@ const POWERS: Record<string, number> = { hundred: 2, thousand: 3, million: 6, bi
 const NUMBER_WORDS =
   "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|half|quarter|dozen";
 const NUMBER_START = new RegExp(
-  `^(?:[0-9$€£]|(?:R|ZAR|USD|EUR|GBP)(?=\\s|[0-9])|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
+  `^(?:(?:[\\p{Pd}\\p{Sm}]|(?:minus|negative)\\b)\\s*)*(?:[0-9$€£]|(?:R|ZAR|USD|EUR|GBP)(?=\\s|[0-9])|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
   "iu",
 );
 const NUMBER_TERM = new RegExp(
-  `^(?:${NUMBER_WORDS}|and|a|rands?|dollars?|euros?|pounds?|cents?|pence|ZAR|USD|EUR|GBP)\\b`,
+  `^(?:${NUMBER_WORDS}|and|minus|negative|a|rands?|dollars?|euros?|pounds?|cents?|pence|ZAR|USD|EUR|GBP)\\b`,
   "iu",
 );
 function compositeEnd(transcript: string, end: number): number | null {
