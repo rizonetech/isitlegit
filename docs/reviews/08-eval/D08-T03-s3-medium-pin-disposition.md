@@ -1,0 +1,11 @@
+# D08 T03 section 3: isolated completion pin disposition
+
+Coordinator decision EVAL-COMPLETION-MEDIUM-DISPOSITION, 2026-11-04T12:39:47.718821+00:00, authorizes this isolated review checkout descended from candidate `3102b12db9be510d48652a70df7ac9dae3dbffd9`. It supersedes the earlier instruction to obtain MEDIUM completion from the byte-exact LOW historical pin. This is preparation and authorization, not a review receipt or acceptance.
+
+The canonical `.conclave/reviewers.toml` here is derived from historical Git blob `0bb45776a2b27198b4bb6e41128b2ff411cac1e7`. The sole byte change relative to that blob replaces `effort = "low"` with `effort = "medium"` within `[schedule.completion]`. Parsed equality of every other field is required and verified. This pin has genuine canonical-path commit history for receipt replay; the ordinary eval checkout retains its existing default two-pass pin.
+
+Preserve original plan candidate `60f271a5484a7d2f5e65986c16dfa8dcf2f9a197`, its dispositions, the genuine implementation round, their original pins, arrival fix `fac90cc5`, and all five failed observations and reservations. The run source remains `6fece3444d15155df25d77752e3c7189906477da`, deployed source remains `385c3d9827885ba2e032aaf435221b2e9690d00d`, and recorded results remain at `3102b12db9be510d48652a70df7ac9dae3dbffd9`. There is no sixth attempt, replacement cohort, plan transition or additional implementation round.
+
+Exactly one legacy completion self-review may run through the dispatcher with `--writer codex --kind completion` after final source and gates. Invocation is held pending the coordinator's isolated no-model Driver.open/view diagnostic and release of that hold. Any necessary harness defect must be repaired at its owning layer before completion. The diagnostic cannot supply an invented historical reason for the five failed observations. No review has been invoked under this disposition.
+
+Review and stamp evidence must transfer later with its actual ancestry, never by relabeling an old candidate. Reversal stops the future completion invocation and preserves this committed decision, original reviews and observations. This scoped pin does not authorize ordinary new work under the historical policy or change any product safety limit.
