@@ -25,3 +25,47 @@
 html[data-evidence-viewing] {
   overflow: hidden;
 }
+
+/* Browser autofill, text selection and reduced motion (D07 T01 §17): token colours only, both themes. */
+@layer base {
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus,
+  [data-autofilled="true"] {
+    -webkit-text-fill-color: var(--color-ink);
+    color: var(--color-ink);
+    caret-color: var(--color-ink);
+    background-color: var(--color-surface);
+    box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  }
+
+  ::selection {
+    background-color: var(--color-orange-wash);
+    color: var(--color-ink);
+  }
+}
+
+/* Exo 2 carries the OpenType `tnum` table (Exo does not), so stats tiles, counts and table figures marked with
+   `tabular-nums` or `type-figure` use `--font-text` and `font-variant-numeric: tabular-nums` after utilities. */
+.tabular-nums,
+.type-figure {
+  font-family: var(--font-text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+}

@@ -132,7 +132,7 @@ function CasesCard(props: { weeks: WeekBar[] }) {
       >
         {props.weeks.map((week) => (
           <div class="flex flex-col gap-4 items-center">
-            <p class="type-h3">{week.total}</p>
+            <p class="type-h3 font-text tabular-nums">{week.total}</p>
             <div class="w-full rounded-card bg-subtle flex flex-col justify-end" style="height: 120px">
               <div class="w-full rounded-card bg-mal" style={`height: ${(week.bad / max) * 100}%`} />
               <div class="w-full" style={`height: ${((week.total - week.bad) / max) * 100}%`} />
@@ -157,7 +157,7 @@ function ThreatsCard(props: { threats: ThreatRow[] }) {
             <li class="flex flex-col gap-4">
               <div class="flex justify-between gap-8">
                 <p class="small">{row.name}</p>
-                <p class="small weight-text-strong">{row.count}</p>
+                <p class="small weight-text-strong tabular-nums">{row.count}</p>
               </div>
               <div class="h-10 rounded-full bg-subtle" role="img" aria-label={`${row.name}: ${row.count}`}>
                 <div class="h-10 rounded-full bg-ink" style={`width: ${(row.count / Math.max(1, row.top)) * 100}%`} />
@@ -172,7 +172,7 @@ function ThreatsCard(props: { threats: ThreatRow[] }) {
 
 function FeedbackCard(props: { feedback: OrgFeedbackRow[]; href: string }) {
   return (
-    <section class="card card-pad flex flex-col gap-16" aria-label="Feedback from this organisation">
+    <section class="card card-pad flex flex-col gap-16 min-w-0" aria-label="Feedback from this organisation">
       <div class="flex justify-between items-center gap-8">
         <h2 class="type-h3">Feedback from this organisation</h2>
         <a href={props.href} class={cx("small text-orange-text underline", FOCUS)}>
@@ -182,21 +182,31 @@ function FeedbackCard(props: { feedback: OrgFeedbackRow[]; href: string }) {
       {props.feedback.length === 0 ? (
         <p class="small muted">No feedback from this organisation.</p>
       ) : (
-        <section class="card overflow-hidden" aria-label="Recent feedback">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Case</th>
-                <th>Our verdict</th>
-                <th>They said</th>
-                <th>Status</th>
+        <section
+          class="card overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
+          tabindex={0}
+          aria-label="Recent feedback"
+        >
+          <table class="table bg-surface min-w-[520px] w-full">
+            <thead class="bg-surface">
+              <tr class="bg-surface">
+                <th class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+                  Case
+                </th>
+                <th class="bg-surface">Our verdict</th>
+                <th class="bg-surface">They said</th>
+                <th class="bg-surface">Status</th>
               </tr>
             </thead>
             <tbody>
               {props.feedback.map((row) => (
-                <tr>
-                  <td>
-                    <a href={row.caseHref} class="weight-text-strong">
+                <tr class="bg-surface">
+                  <td class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
+                    <a
+                      href={row.caseHref}
+                      title={row.caseTitle}
+                      class="block max-w-evidence-figure md:max-w-sidebar truncate weight-text-strong"
+                    >
                       {row.caseTitle}
                     </a>
                   </td>

@@ -263,7 +263,7 @@ Sections: 12 | Checklist items: 115
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
-| [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
+| [x]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
@@ -372,7 +372,7 @@ Sections: 111 | Checklist items: 699
 | [ ]    | D08 T01 §8  | Pilot hold-out proof case                    | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents     | none                  | 7     |
 | [x]    | D08 T02 §7  | Live eval runs                               | meta-api, cloudflare  | 5     |
-| [ ]    | D08 T02 §8  | Component measurements                       | meta-api, cloudflare  | 9     |
+| [x]    | D08 T02 §8  | Component measurements                       | meta-api, cloudflare  | 9     |
 | [x]    | D08 T02 §9  | Admin eval runs page                         | none                  | 6     |
 | [x]    | D08 T02 §10 | Public run history                           | none                  | 5     |
 | [x]    | D08 T02 §11 | Baseline orchestration                       | cloudflare            | 6     |
@@ -397,8 +397,8 @@ Sections: 111 | Checklist items: 699
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
-| [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
-| [ ]    | D10 T01 §2  | Remotion licence basis                       | operator              | 3     |
+| [x]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
+| [x]    | D10 T01 §2  | Remotion licence basis                       | none                  | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
 | [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive      | none                  | 10    |
@@ -408,7 +408,7 @@ Sections: 111 | Checklist items: 699
 
 ### Phase 7: After the event
 
-Sections: 224 | Checklist items: 1007
+Sections: 226 | Checklist items: 1015
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -525,7 +525,7 @@ Sections: 224 | Checklist items: 1007
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
-| [ ]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
+| [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
@@ -567,7 +567,7 @@ Sections: 224 | Checklist items: 1007
 | [x]    | D07 T04 §10 | A Checked by filter in the                                  | none                 | 7     |
 | [x]    | D07 T04 §11 | DNS help per provider                                       | none                 | 7     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                            | third-party          | 4     |
-| [ ]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
+| [x]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
 | [x]    | D07 T04 §14 | Multi-word search in the Cases list                         | none                 | 6     |
 | [x]    | D07 T04 §15 | Slash shortcut to the                                       | none                 | 4     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                          | attended             | 3     |
@@ -627,24 +627,26 @@ Sections: 224 | Checklist items: 1007
 | [x]    | D07 T09 §11 | Outcome and reason beside each version                      | none                 | 4     |
 | [x]    | D07 T09 §12 | Detection data beside each version                          | none                 | 4     |
 | [ ]    | D07 T09 §13 | A fresh walk from a reused card                             | none                 | 4     |
-| [ ]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
+| [x]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
 | [ ]    | D07 T09 §15 | Detection data freshness beside the version                 | none                 | 4     |
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
 | [ ]    | D07 T09 §18 | Playback failure, retry and follow-along for the voice note | none                 | 3     |
-| [ ]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
+| [x]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
+| [ ]    | D10 T01 §11 | Videos re-cut as the live gaps close                        | none                 | 6     |
+| [ ]    | D10 T01 §12 | P3 review leftovers from the media stamps                   | none                 | 2     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 8 | Checklist items: 39
+Sections: 8 | Checklist items: 40
 
 | Status | Reference   | Deliverable                                          | Needs                | Items |
 | ------ | ----------- | ---------------------------------------------------- | -------------------- | ----- |
 | [x]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 6     |
-| [ ]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 9     |
+| [x]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 10    |
 | [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis    | meta-api             | 4     |
 | [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing           | cloudflare, meta-api | 4     |
 | [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording       | none                 | 4     |
@@ -679,6 +681,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 413/603 verified sections, 116 ready to run now.
+Progress: 422/605 verified sections, 117 ready to run now.
 
-Checklist: 3036/3726 items completed (includes Commit items).
+Checklist: 3091/3735 items completed (includes Commit items).

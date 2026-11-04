@@ -1,0 +1,64 @@
+{
+  "sources": {
+    "sabric-2025.pdf": {
+      "sha256": "a68dc675e25aa327ec10e419bcf1232b3fcdde66784617533ffc6ec4fca55e4b",
+      "title": "SABRIC Annual Crime Statistics 2025"
+    },
+    "ic3-2025.pdf": {
+      "sha256": "7d1fe453237654d2edcf89b0dd6b8b4b2e633fc1d5d5cfbd7dad5f7c1604a0a2",
+      "title": "FBI IC3 2025 Internet Crime Report"
+    },
+    "interpol-2025.pdf": {
+      "sha256": "3899a9d377720f2c8359b50770afb9f37d2029b1ec7806467079978df212a22e",
+      "title": "INTERPOL Africa Cyberthreat Assessment Report 2025"
+    },
+    "sca-2024-zasca-90.pdf": {
+      "sha256": "a5ede27e1afea37b2ef024a130288c3cad979e0de503129d469809dbaa3754de",
+      "title": "Edward Nathan Sonnenberg Inc v Hawarden [2024] ZASCA 90"
+    }
+  },
+  "facts": {
+    "sabricLosses2025": {
+      "file": "sabric-2025.pdf",
+      "page": 7,
+      "value": "R2.41 billion",
+      "quote": "Reported client claim amounts more than doubled from R1.09 billion in 2023 to R2.41 billion in 2025, with the 2025 amount representing a 29.2% increase from approximately R1.86 billion in 2024."
+    },
+    "sabricInternetShare": {
+      "file": "sabric-2025.pdf",
+      "page": 7,
+      "value": "28.6%",
+      "quote": "Internet Banking accounted for fewer than 9% of cases but approximately 28.6% of claim value, showing that a smaller number of cases can still result in substantial financial exposure."
+    },
+    "sabricSupplierMandate": {
+      "file": "sabric-2025.pdf",
+      "page": 9,
+      "value": "supplier mandate fraud and business email compromise",
+      "quote": "In business environments, supplier mandate fraud and business email compromise remained material risks. Criminals redirected payments through fraudulent changes to banking details, falsified supplier information, or compromised communications."
+    },
+    "ic3BecLosses2025": {
+      "file": "ic3-2025.pdf",
+      "page": 26,
+      "value": "$3,046,598,558",
+      "quote": "BEC $3,046,598,558 $2,770,151,146 $2,946,830,270"
+    },
+    "interpolSmeBec": {
+      "file": "interpol-2025.pdf",
+      "page": 17,
+      "value": "small and medium-sized enterprises",
+      "quote": "However, no industry was immune to BEC attacks; organizations of all sizes, from small and medium-sized enterprises to large corporations, were affected."
+    },
+    "hawardenCitation": {
+      "file": "sca-2024-zasca-90.pdf",
+      "page": 1,
+      "value": "[2024] ZASCA 90",
+      "quote": "Neutral citation: Edward Nathan Sonnenberg Inc v Hawarden (Case no 421/23) [2024] ZASCA 90 (10 June 2024)"
+    },
+    "hawardenVerify": {
+      "file": "sca-2024-zasca-90.pdf",
+      "page": 11,
+      "value": "verify the account details",
+      "quote": "It is evident in this case that Ms Hawarden could reasonably have avoided the risk by either asking Mr Carr im or Ms Maninakis to verify the account details of ENS."
+    }
+  }
+}

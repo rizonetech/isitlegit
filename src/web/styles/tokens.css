@@ -437,7 +437,7 @@
 }
 
 @utility type-figure {
-  font-family: var(--font-heading);
+  font-family: var(--font-text);
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;

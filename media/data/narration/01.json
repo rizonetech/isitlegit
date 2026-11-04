@@ -183,5 +183,11 @@
       "scene": "close",
       "text": "The code is on GitHub, at rizonetech slash IsItLegit. Thanks for watching."
     }
-  ]
+  ],
+  "voice_settings": {
+    "stability": 0.7,
+    "similarity_boost": 0.85,
+    "style": 0.0,
+    "use_speaker_boost": true
+  }
 }

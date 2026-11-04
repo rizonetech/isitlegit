@@ -79,6 +79,35 @@ export function shownState(stored: Pick<ReportCase, "status" | "verdict">): Show
   return { state: "complete", verdict, words: "Checked" };
 }
 
+export function formatElapsedClock(seconds: number): string {
+  const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+  const mins = Math.floor(safe / 60);
+  const rem = safe - mins * 60;
+  const whole = Math.floor(rem);
+  const tenths = Math.floor((rem - whole + 1e-9) * 10);
+  return `${String(mins).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${tenths} (${safe.toFixed(1)} s)`;
+}
+
+function DemoClock(props: { createdAt: string; now?: Date }) {
+  const receivedMs = Date.parse(props.createdAt);
+  const nowMs = (props.now ?? new Date()).getTime();
+  const elapsed = Number.isNaN(receivedMs) ? 0 : Math.max(0, (nowMs - receivedMs) / 1000);
+  return (
+    <aside
+      id="demo-clock"
+      data-demo-clock
+      data-created-at={props.createdAt}
+      aria-label="Elapsed time since case received"
+      class="flex flex-wrap items-center justify-between gap-12 px-16 py-12 bg-subtle border border-line rounded-card type-small print:hidden"
+    >
+      <span class="weight-text-strong text-orange-text">Demo clock</span>
+      <span class="font-mono text-ink" data-demo-elapsed>
+        {`Elapsed since received: ${formatElapsedClock(elapsed)}`}
+      </span>
+    </aside>
+  );
+}
+
 function ReportBody(props: {
   stored: ReportCase;
   verdict: ReportVerdict | null;
@@ -99,6 +128,8 @@ function ReportBody(props: {
   confirming?: boolean;
   trace?: LiveProps["trace"];
   traceOpen?: boolean;
+  clock?: boolean;
+  now?: Date;
   // Stepping through the filtered list the member came from (D07 T04 §9); a member's only.
   steps?: ReportSteps;
   navQuery?: string;
@@ -116,6 +147,7 @@ function ReportBody(props: {
         copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`}
         {...(props.steps ? { backHref: props.steps.back } : {})}
       />
+      {props.clock && <DemoClock createdAt={stored.createdAt} {...(props.now ? { now: props.now } : {})} />}
       {props.steps && <StepsNav steps={props.steps} />}
       {props.steps?.notice && <p class="type-small text-muted">{props.steps.notice}</p>}
       {props.steps?.orgChanged && (
@@ -276,6 +308,8 @@ export function ReportDocument(props: {
   confirming?: boolean;
   trace?: LiveProps["trace"];
   traceOpen?: boolean;
+  clock?: boolean;
+  now?: Date;
   steps?: ReportSteps;
   navQuery?: string;
 }) {
@@ -300,6 +334,8 @@ export function ReportDocument(props: {
       confirming={props.confirming ?? false}
       trace={props.trace ?? null}
       traceOpen={props.traceOpen ?? false}
+      {...(props.clock ? { clock: true } : {})}
+      {...(props.now ? { now: props.now } : {})}
       {...(props.steps ? { steps: props.steps } : {})}
       {...(props.navQuery ? { navQuery: props.navQuery } : {})}
     />

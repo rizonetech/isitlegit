@@ -23,6 +23,8 @@ export const GENERATED_FILES = {
   plateA: "plate-a-south-africa.png",
   plateB: "plate-b-courtroom.png",
   plateC: "plate-c-harbour.png",
+  // The operator's on-camera intro, shown picture-in-picture at the start of the demo (spec, 2026-11-03 upgrades).
+  intro: "intro-pip.mp4",
 } as const;
 
 type Manifest = {

@@ -59,5 +59,11 @@
       "scene": "close",
       "text": "Loupe one point oh: trained, measured and deployed. The code is on GitHub, at rizonetech slash IsItLegit."
     }
-  ]
+  ],
+  "voice_settings": {
+    "stability": 0.7,
+    "similarity_boost": 0.85,
+    "style": 0.0,
+    "use_speaker_boost": true
+  }
 }

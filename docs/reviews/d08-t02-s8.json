@@ -1,0 +1,122 @@
+{
+  "ref": "D08 T02 \u00a78",
+  "title": "Component measurements",
+  "implementation_sha": "e153021d3be5432a184feed2c3472e30e55430ff",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/08-eval/D08-T02-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/08-eval/D08-T02-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "vitest: 6 passed (test/node/eval-components.test.ts, test/node/eval-invisible.test.ts, test/node/eval-ai-instructions.test.ts)",
+    "metrics: node eval/metrics.ts --check eval/RESULTS.md (exit 0)",
+    "typecheck: tsc --noEmit -p test/node (0 errors)",
+    "biome: clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T02-s8.md",
+    "verdict": "completed",
+    "candidate": "007c062fae27abdfdd1511544dfaaf97cb855b97",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 3,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T02-s8.md",
+    "candidate": "0d68141857c0729fb2d165c1d4b1a6b05f409e50",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

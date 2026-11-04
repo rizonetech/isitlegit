@@ -15,10 +15,12 @@ import type { Shell } from "./admin-view";
 import { MODES, pct, points, seconds, usd } from "./eval-view";
 
 const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
-const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden";
+const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden min-w-0";
 const TH = "text-left text-13 text-muted weight-text-strong px-16 py-12 border-b border-line";
 const TD = "text-14 px-16 py-12 border-b border-line align-top";
-const NUM = "text-right";
+const STICKY =
+  "sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere";
+const NUM = "text-right tabular-nums";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 
 export const frontierUrl = (commit: string) =>
@@ -60,7 +62,7 @@ function Tile(props: { label: string; value: string; state: string; note: string
   return (
     <div class={CARD}>
       <p class="text-14 text-muted">{props.label}</p>
-      <p class="type-h1 wrap-anywhere">{props.value}</p>
+      <p class="type-h1 font-text tabular-nums wrap-anywhere">{props.value}</p>
       <Pill variant={s.variant} class="self-start">
         {s.words}
       </Pill>
@@ -125,12 +127,16 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
           No ablation run has been published yet, so there is nothing to compare.
         </p>
       ) : null}
-      <section class="overflow-x-auto" tabindex={0} aria-label="Ablation table, scrolls sideways on a narrow screen">
+      <section
+        class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
+        tabindex={0}
+        aria-label="Ablation table, scrolls sideways on a narrow screen"
+      >
         <table class="w-full min-w-[720px] border-collapse">
           <caption class="sr-only">Each model switched off against the full pipeline</caption>
           <thead>
             <tr>
-              <th scope="col" class={TH}>
+              <th scope="col" class={cx(TH, STICKY)}>
                 Switched off
               </th>
               <th scope="col" class={TH}>
@@ -152,7 +158,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
           </thead>
           <tbody>
             <tr>
-              <th scope="row" class={cx(TD, "weight-text-strong")}>
+              <th scope="row" class={cx(TD, "weight-text-strong", STICKY)}>
                 Nothing (full pipeline)
               </th>
               <td class={TD}>Baseline</td>
@@ -165,7 +171,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
               const words = ablationWords(row.mode);
               return row.comparable ? (
                 <tr>
-                  <th scope="row" class={cx(TD, "weight-text-strong")}>
+                  <th scope="row" class={cx(TD, "weight-text-strong", STICKY)}>
                     {words.off}
                   </th>
                   <td class={TD}>{words.replacedBy}</td>
@@ -184,7 +190,7 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
                 </tr>
               ) : (
                 <tr>
-                  <th scope="row" class={cx(TD, "weight-text-strong")}>
+                  <th scope="row" class={cx(TD, "weight-text-strong", STICKY)}>
                     {words.off}
                   </th>
                   <td class={TD}>{words.replacedBy}</td>
@@ -212,12 +218,16 @@ function RunsTable(props: { runs: EvalRunRow[] }) {
           All runs
         </h2>
       </div>
-      <section class="overflow-x-auto" tabindex={0} aria-label="All runs table, scrolls sideways on a narrow screen">
+      <section
+        class="overflow-x-auto scroll-pl-evidence-figure md:scroll-pl-sidebar"
+        tabindex={0}
+        aria-label="All runs table, scrolls sideways on a narrow screen"
+      >
         <table class="w-full min-w-[720px] border-collapse">
           <caption class="sr-only">Every eval run, newest first, with its own published figures</caption>
           <thead>
             <tr>
-              <th scope="col" class={TH}>
+              <th scope="col" class={cx(TH, STICKY)}>
                 Run
               </th>
               <th scope="col" class={TH}>
@@ -246,10 +256,15 @@ function RunsTable(props: { runs: EvalRunRow[] }) {
               const met = p ? p.targets.filter((t) => t.state === "met").length : 0;
               return (
                 <tr>
-                  <td class={TD}>
+                  <td class={cx(TD, STICKY)}>
                     <span class="weight-text-strong">{sastShort(run.startedAt)}</span>
                     <br />
-                    <span class="text-13 text-muted">{run.id}</span>
+                    <span
+                      title={run.id}
+                      class="text-13 text-muted block max-w-evidence-figure md:max-w-sidebar truncate"
+                    >
+                      {run.id}
+                    </span>
                   </td>
                   <td class={cx(TD, "font-mono text-13")}>{run.commit.slice(0, 7)}</td>
                   <td class={TD}>

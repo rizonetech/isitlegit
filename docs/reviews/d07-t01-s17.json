@@ -1,0 +1,121 @@
+{
+  "ref": "D07 T01 \u00a717",
+  "title": "Premium polish sweep over every surface",
+  "implementation_sha": "c0cbefa1782fd7253ee5ea684bee48f943d5ea89",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T01-s17.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T01-s17.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T01-s17.md",
+      "verdict": "stopped-at-3"
+    }
+  ],
+  "checks": [
+    "taskset -c 8 pnpm vitest run test/node/polish-browser.test.tsx test/node/cases-browser.test.tsx test/node/gallery.test.tsx test/node/no-raw-colours.test.ts test/node/shell.test.tsx -> 82 passed",
+    "taskset -c 8 env A11Y=1 pnpm vitest run --project a11y test/node/a11y.test.tsx -> 18 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T01-s17.md",
+    "verdict": "completed",
+    "candidate": "d743a935d519cc6f5cdf81846f3b0f354304afcf",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 3,
+  "cap_outcome": "Fixed Round 3 P2 in src/web/client/app.ts by calling htmx.process() on the recovered #case-results and OOB subtrees and added browser test 5g in test/node/polish-browser.test.tsx.",
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T01-s17.md",
+    "candidate": "c66aa692e1cd438524275d8ec1834530a866dba8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
