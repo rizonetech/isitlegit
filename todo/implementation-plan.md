@@ -561,7 +561,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D07 T04 §10 | A Checked by filter in the                                  | none                 | 7     |
 | [x]    | D07 T04 §11 | DNS help per provider                                       | none                 | 7     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                            | third-party          | 4     |
-| [ ]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
+| [x]    | D07 T04 §13 | Invoice and payment-document words in Type                  | none                 | 4     |
 | [x]    | D07 T04 §14 | Multi-word search in the Cases list                         | none                 | 6     |
 | [x]    | D07 T04 §15 | Slash shortcut to the                                       | none                 | 4     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                          | attended             | 3     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 407/597 verified sections, 120 ready to run now.
+Progress: 408/597 verified sections, 119 ready to run now.
 
 Checklist: 3009/3687 items completed (includes Commit items).
