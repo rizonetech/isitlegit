@@ -407,7 +407,7 @@ Sections: 110 | Checklist items: 692
 
 ### Phase 7: After the event
 
-Sections: 224 | Checklist items: 1005
+Sections: 224 | Checklist items: 1007
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -555,8 +555,8 @@ Sections: 224 | Checklist items: 1005
 | [ ]    | D07 T03 §50 | Mail refusal reason in the trace                            | none                 | 3     |
 | [ ]    | D07 T03 §51 | Walkthrough action to its                                   | none                 | 4     |
 | [ ]    | D07 T03 §52 | Report address from a                                       | none                 | 4     |
-| [ ]    | D07 T03 §53 | One-action copy of the                                      | none                 | 3     |
 | [ ]    | D07 T03 §54 | All stored headers read in place                            | none                 | 3     |
+| [ ]    | D07 T03 §53 | One-action copy of headers                                  | none                 | 4     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification                      | none                 | 9     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                                | none                 | 6     |
 | [x]    | D07 T04 §8  | A chosen date range in the                                  | none                 | 7     |
@@ -612,7 +612,7 @@ Sections: 224 | Checklist items: 1005
 | [ ]    | D07 T08 §24 | Feedback queue search and step                              | none                 | 8     |
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page                   | operator             | 4     |
 | [x]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
-| [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 3     |
+| [x]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 4     |
 | [x]    | D07 T09 §3  | Dispute from inside the mailbox                             | none                 | 4     |
 | [x]    | D07 T09 §4  | Measured phone attribution                                  | none                 | 4     |
 | [x]    | D07 T09 §5  | Per-provider reputation results                             | none                 | 5     |
@@ -678,6 +678,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 425/602 verified sections, 114 ready to run now.
+Progress: 426/602 verified sections, 112 ready to run now.
 
-Checklist: 3101/3718 items completed (includes Commit items).
+Checklist: 3105/3720 items completed (includes Commit items).

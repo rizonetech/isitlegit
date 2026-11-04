@@ -38,7 +38,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Early results first | D07 T03 §37 | [x] |
-| 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
+| 2 | §2 | Kinds of auth error | D07 T03 §37 | [x] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [x] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [x] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [x] |
@@ -91,6 +91,8 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw o
 
 ## 2. Kinds of auth error
 
+> **Started:** 2026-11-04T07:30:12.306158+00:00
+
 Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inconclusive result (a temporary receiver error, a permanent configuration error, a result that decides nothing) as "Could not be checked" with the item's summary, where Defender's authentication view names the kind. The stored item keeps each result's raw value (`detail.results[].result`), so the kinds can be told apart on the card once the board's words are approved.
 
 **Phase:** 7
@@ -105,11 +107,21 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inc
 
 1. Record the words, then split the inconclusive state. Done when: each kind draws its own sentence.
 
-- [ ] Ask the operator (through the coordinator) for the pill and sentence for a temporary error, a permanent error and a result that decides nothing; record the answer in `design/SPEC.md` M3. Done when: the words are in the SPEC. Cheaper substitute: the raw header value as the sentence, which a member cannot read.
-- [ ] Split `inconclusive` on the early card in `src/web/pages/report-live.tsx` by the stored raw results (`temperror`, `permerror`, `neutral` and their DMARC equivalents). Done when: `test/web/report-status.test.ts` draws each kind with its approved words and a mixed set names the first that applies. Cheaper substitute: one "Could not be checked" for every kind, which is what ships today.
-- [ ] Commit: `web: kinds of authentication error on the early card`
+- [x] Record the coordinator-approved 2026-11-04 wording below in `design/SPEC.md` M3. Done when: the words are in the SPEC. Cheaper substitute: the raw header value as the sentence, which a member cannot read.
+- [x] Split `inconclusive` on the early card in `src/web/pages/report-live.tsx` by the stored method results (`temperror`, `permerror`, `neutral`) and trusted `auth.results` DMARC `fail` with `props.action=temperror` or `permerror` (the method item does not retain action). Done when: `test/web/report-status.test.ts` draws each kind with its approved words and a mixed inconclusive set prioritises configuration, temporary, then neutral; explicit failures and other conclusive states remain unchanged, and missing or untrusted results retain their existing fallback. Cheaper substitute: one "Could not be checked" for every kind, which is what ships today.
+- [x] Exercise all three new inconclusive states in `test/node/report-status-browser.test.tsx` at phone and desktop widths in both themes. Done when: the pills and sentences are visible, no card or pill clips or overflows, and the accessibility scan passes. Cheaper substitute: string assertions alone cannot detect clipped labels.
+- [x] Commit: `web: kinds of authentication error on the early card`
 
-**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with each kind worded apart.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with each kind worded apart and readable at phone and desktop widths in both themes.
+
+**Coordinator decision (2026-11-04 09:25:56 SAST, corrected 09:36:38 SAST):** Temporary error / "The receiving mail system recorded a temporary error when this message arrived." Configuration error / "This authentication check could not finish because of a configuration error." No conclusion / "This check does not confirm whether the sender is genuine." Precedence configuration, temporary, neutral applies only among these non-conclusive statuses; explicit failures, critical evidence and the deterministic floor are unchanged. App exclusively owns this scoped M3 update. Reversal costs copy and rendering changes plus tests.
+
+**Plan self-review disposition (2026-11-04):** Browser coverage finding accepted and added to the checkpoint. Historical-result wording finding accepted against `src/checks/auth.ts`; coordinator approved the historical-result sentence at 09:36:38 SAST, replacing the earlier retry instruction before rendering implementation.
+
+**Implementation evidence (2026-11-04):** The new inconclusive-state regression failed before the rendering change on missing "Configuration error". After the change, the checkpoint Worker suite passed 55 tests and browser suite passed 28 tests, pinned to core 8. `pnpm typecheck`, `pnpm build`, `python3 design/tools/check-design.py` (0 problems), and `python3 scripts/check-publication.py` passed; `pnpm lint` reported no errors with 23 existing warnings and 2 infos in unrelated files. No live deployment or CI result is claimed.
+
+> **Verified:** 2026-11-04 | §2 | 4cbe15eabe46000c07988c64ad9e5a83a11c339f
+> **Review:** `docs/reviews/d07-t09-s2.json`
 
 ## 3. Dispute from inside the mailbox
 

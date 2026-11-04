@@ -97,7 +97,7 @@ track: day-2
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its | §5 | [ ] |
 | 52 | §52 | Report address from a | §48, D01 T03 §6 | [ ] |
-| 53 | §53 | One-action copy of the | §19 | [ ] |
+| 53 | §53 | One-action copy of headers | §19, §54 | [ ] |
 | 54 | §54 | All stored headers read in place | §19 | [ ] |
 | 55 | §55 | A deadline on the full-size viewer's request | §8 | [x] |
 
@@ -1802,7 +1802,9 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
 
-## 53. One-action copy of the
+## 53. One-action copy of headers
+
+> **Started:** 2026-11-04T07:25:18.068914+00:00
 
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
 
@@ -1813,18 +1815,21 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
 **Job:** a reader copies every stored header in one action and pastes it elsewhere
-**Treatment:** to be decided: a "Copy headers" button in the headers tab's footer beside the download, with its outcome announced and the text left selectable when the clipboard refuses
+**Treatment:** a "Copy headers" button in the headers tab's footer beside the download, with its outcome announced and the text left selectable when the clipboard refuses
 **Chrome:** the preview dialog's footer (§19), the shared `Button`
 
 **Build order:**
 
 1. Record the decision, then build the control. Done when: the operator's choice is in `design/SPEC.md` M3 and the headers tab copies its text in one keyboard-operable action.
 
-- [ ] Ask the operator (through the coordinator): add a "Copy headers" action to the preview's headers tab, or leave selection by hand; record the answer and its date in `design/SPEC.md` M3 and the board. Done when: the decision line is in the SPEC.
-- [ ] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it writes the displayed header text to the clipboard, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
+- [ ] Record the existing operator approval of 2026-11-02 in `design/SPEC.md` M3 and the `Report-MessagePreview` board, export its reference and update coverage. Done when: the decision line and copy states are in the SPEC and `python3 design/tools/check-design.py` passes. Cheaper substitute: an unrecorded control outside the approved design.
+- [ ] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it retrieves every remaining bounded header slice supplied by §54 under the same access rule before writing the complete text to the clipboard, without requiring manual slice loading, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium and proves exact equality for stored headers longer than 200 KB, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
+- [ ] Keep the action hidden on the message tab and unavailable while headers load or are missing, empty or failed; guard asynchronous clipboard completion against tab changes and closing in `openOriginal`. Done when: browser tests prove no stale success or selection reaches another tab or a closed dialog, including phone width in both themes, and explicitly assert loading, missing, empty, failed reload after success, and recovery states. Cheaper substitute: copying a cached prior response during a new request.
 - [ ] Commit: `web: copy the complete headers in one action`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` passes with the headers copied and the refusal handled.
+
+**Plan self-review disposition (2026-11-04):** P1 accepted: complete copying depends on the bounded header retrieval in §54; added the dependency and long-header equality proof. P2 accepted: unavailable and recovery states now have explicit assertions. Section parked before implementation until §54 ships; no approval or stamp claimed.
 
 ## 54. All stored headers read in place
 

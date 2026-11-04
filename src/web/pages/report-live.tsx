@@ -322,6 +322,41 @@ function compositeDiagnostic(authResultsItem: CardItem | undefined): string | nu
   }
   return entries.length ? `Composite authentication (compauth): ${entries.join("; ")}` : null;
 }
+// Receiver errors describe the stored header at arrival; a later poll cannot renew that result.
+function inconclusiveAuthWords(method: string, results: unknown[], raw: Record<string, unknown>[]) {
+  const kinds = new Set(
+    results.flatMap((result) => {
+      if (!result || typeof result !== "object" || Array.isArray(result)) return [];
+      const value = cleanStr((result as { result?: unknown }).result)?.toLowerCase();
+      return value ? [value] : [];
+    }),
+  );
+  // DMARC's method item drops action; use only this method's trusted receiver details.
+  if (method === "dmarc") {
+    for (const result of raw) {
+      if (cleanStr(result.result)?.toLowerCase() !== "fail") continue;
+      const action = propRecord(result.props).action?.toLowerCase();
+      if (action === "permerror" || action === "temperror") kinds.add(action);
+    }
+  }
+  if (kinds.has("permerror"))
+    return {
+      word: "Configuration error",
+      sentence: "This authentication check could not finish because of a configuration error.",
+    };
+  if (kinds.has("temperror"))
+    return {
+      word: "Temporary error",
+      sentence: "The receiving mail system recorded a temporary error when this message arrived.",
+    };
+  if (kinds.has("neutral"))
+    return {
+      word: "No conclusion",
+      sentence: "This check does not confirm whether the sender is genuine.",
+    };
+  return null;
+}
+
 function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAuthData | null {
   if (!coverage) return null;
   const outcomes = AUTH_METHODS.map((m) => ({ ...m, outcome: coverage.find((o) => o.check === m.check) })).filter(
@@ -373,7 +408,11 @@ function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAu
               : { variant: "partial", word: "Could not be checked" };
     const rawForMethod = rawResults.filter((r) => cleanStr(r.method)?.toLowerCase() === m.method);
     const details = methodDiagnosticLines(m.method, state, item.detail, rawForMethod);
-    rows.push({ name: m.name, ...pill, sentence: item.summary, details });
+    const inconclusive =
+      state === "inconclusive" && authResults?.detail.trusted !== false && item.detail.trusted !== false
+        ? inconclusiveAuthWords(m.method, results, rawForMethod)
+        : null;
+    rows.push({ name: m.name, ...pill, sentence: item.summary, ...inconclusive, details });
   }
   return rows.length ? { kind: "results", rows, composite: compositeDiagnostic(authResults) } : null;
 }
