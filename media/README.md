@@ -33,6 +33,8 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 
 ## Render
 
+Every package render and still command validates the recorded Remotion licence basis first (`pnpm check:license`). Missing, duplicate, malformed, placeholder and invalid-date records stop rendering. This validates the evidence format; it does not verify provider entitlement or replace the recorded operator confirmation.
+
 Needs Node 22 or newer, pnpm, and Python 3.11 or newer with numpy (`python3 -m pip install --user numpy`, or `sudo apt install python3-numpy`), which `tools/master.py` uses to master each render's sound. Every render that masters its sound runs `pnpm preflight` (`tools/preflight.py`) first, so a missing numpy or an old Python stops it before the first frame with the command that installs it. From `media/`:
 
 ```bash
