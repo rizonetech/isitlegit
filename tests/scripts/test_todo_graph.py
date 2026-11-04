@@ -3328,6 +3328,43 @@ class CodexTwoPassStamp(Stamp):
         with self.assertRaises(tg.Refused):
             self.stamp_two()
 
+    def test_scoped_successor_reconciliation_stamps_and_replays_after_commit(self):
+        self.make_chain("gaps")
+        report = self.root / self.PLAN
+        pin = (self.root / tg.PIN).read_text().replace('self_review = ["codex"]',
+            'self_review = ["codex"]\nreconciliation = ["codex"]')
+        pin += '\n[schedule.reconciliation]\neffort = "medium"\nlenses = ["record"]\n'
+        (self.root / tg.PIN).write_text(pin)
+        disposition = "docs/reviews/successor-repair.md"
+        (self.root / disposition).write_text("Original gap repair and exact predecessor disposition.\n")
+        self.commit("authorize original reconciliation")
+        common = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "lenses": ["record"], "failover": [], "policy": self.POLICY}
+        binding = self.dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        self.dispatch.record_completion(report, {**common, "pin": self.dispatch.pin_blob(pin.encode()),
+            "binding": binding, "review": "RECONCILIATION: gaps"}, "2026-11-04T10:02:00Z", self.sha, "reconciliation")
+        predecessor = self.dispatch.read_reconciliations(report.read_text())[-1]
+        original = report.read_bytes()
+        self.commit("preserve genuine failed reconciliation")
+        pin += '\n[reconciliation_extensions]\n' + json.dumps(self.PLAN) + ' = ' + json.dumps(predecessor["digest"]) + '\n'
+        (self.root / tg.PIN).write_text(pin)
+        self.sha = self.commit("authorize exact failed predecessor successor")
+        binding = self.dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        self.dispatch.record_completion(report, {**common, "pin": self.dispatch.pin_blob(pin.encode()),
+            "binding": binding, "review": "RECONCILIATION: complete"}, "2026-11-04T10:03:00Z", self.sha, "reconciliation")
+        self.assertTrue(report.read_bytes().startswith(original))
+        receipt = self.stamp("D00 T01 §1", self.sha, [], ["gates -> pass"], "2026-11-04",
+            completion={"report": self.PLAN, "verdict": "gaps"},
+            reconciliation={"report": self.PLAN, "verdict": "complete"})
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["reconciliation"]["binding"]["version"], 2)
+        self.assertEqual(data["reconciliation"]["binding"]["predecessor_digest"], predecessor["digest"])
+        self.commit("preserve complete successor receipt")
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+        report.write_bytes(original)
+        with self.assertRaises(tg.Refused):
+            tg.graph(self.root)
+
     def test_two_pass_receipt_cannot_drop_policy_or_claim_a_round(self):
         receipt = self.stamp_two()
         path = self.root / receipt

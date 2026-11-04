@@ -133,7 +133,7 @@ def load_pin(path=PIN, data=None):
     # `type(...) is int`: TOML true is Python True (an int subclass) and 1.0 == 1, so `!= 1` alone let both load.
     # The optional [schedule] is checked below; the refusal text stays the one the VS Code extension matches.
     if not {"schema_version", "reviewers", "routes"} <= set(pin) <= {"schema_version", "reviewers", "routes",
-                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition"} \
+                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition", "reconciliation_extensions"} \
             or type(pin["schema_version"]) is not int or pin["schema_version"] != 1:
         raise Refused("the reviewer pin needs exactly schema_version = 1, [reviewers.*] and [routes]")
     if pin.get("self_review", []) not in ([], ["codex"]):
@@ -144,6 +144,10 @@ def load_pin(path=PIN, data=None):
         raise Refused("unknown self_review_policy")
     if pin.get("self_review_policy") and not self_review_enabled(pin, "codex"):
         raise Refused("two-pass policy needs Codex self-review")
+    extensions = pin.get("reconciliation_extensions", {})
+    if not isinstance(extensions, dict) or any(not isinstance(k, str) or not re.fullmatch(r"docs/reviews/\d{2}-[A-Za-z0-9_-]+/D\d{2}-T\d{2}-s[1-9]\d*\.md", k)
+                                               or not isinstance(v, str) or not DIGEST.fullmatch(v) for k, v in extensions.items()):
+        raise Refused("invalid scoped reconciliation extensions")
     if pin.get("plan_transition", []) not in ([], ["codex-self-review"]) or (pin.get("plan_transition") and not pin.get("self_review_policy")):
         raise Refused("plan_transition needs the explicit two-pass policy")
     combined = (pin.get("schedule") or {}).get("combined")
@@ -1148,7 +1152,7 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if found is None:
         raise Unrecorded(f"{path} cannot be read back (a heading or line is not in the format --record writes"
                          f"{unreadable_heading(existing)}; {RESERVED_NAMES}), so the {what} was not recorded")
-    if any(returned_pass(entry, kind) for entry in found[key]):
+    if any(returned_pass(entry, kind) for entry in found[key]) and not (kind == "reconciliation" and result.get("binding", {}).get("version") == 2):
         raise Unrecorded(f"{path} already holds a {what}; it is one pass, so this one was not recorded")
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
     review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval.", path))
@@ -1159,6 +1163,11 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if kind == "reconciliation" or kind == "completion" and result.get("policy") == "codex-two-pass-v1":
         lines.append("- Binding: " + json.dumps(result["binding"], sort_keys=True, separators=(",", ":")))
     lines += [f"- Lines: {len(review)}", f"- Digest: {digest(review)}", "", *review, ""]
+    if kind == "reconciliation" and result["binding"].get("version") == 2:
+        report_parts = Path(result["binding"]["report"]).parts
+        root = Path(path).resolve().parents[len(report_parts) - 1]
+        prospective = existing.rstrip("\n") + "\n\n" + "\n".join(lines) + "\n"
+        validate_reconciliation_series(root, prospective)
     append_findings(path, existing, lines)
 
 
@@ -1216,11 +1225,15 @@ def _reconcile_contract(text, number):
     return contract
 
 
-def _reconcile_chain(text, require_gaps=True, root=None):
+def _reconcile_chain(text, require_gaps=True, root=None, current_text=None):
     found = read_findings(text)
     _reconcile_require(found is not None, "unreadable original findings")
     if root is not None and any(e.get("policy") == "codex-two-pass-v1" for e in found["completions"]):
-        chain = validate_codex_chain(root, text)
+        # The immutable original prefix excludes later reconciliation records by design.
+        # History preservation must inspect the full current report, where those records remain.
+        context = text if current_text is None else current_text
+        _reconcile_require(context.startswith(text), "current findings do not preserve the original prefix")
+        chain = validate_codex_chain(root, context)
         _reconcile_require(not require_gaps or verdict_lines(chain["completion"]["review"])[-1] == "COMPLETION: gaps", "original completion did not return gaps")
         return found, {"plan": chain["plan"], "completion": chain["completion"]}, [*found["plans"], *found["completions"]]
     chosen = {}
@@ -1304,14 +1317,24 @@ def make_reconciliation_binding(root, record_path, candidate, disposition_path):
     disposition_commit = _reconcile_git(root, "rev-parse", "HEAD").decode().strip()
     disposition_bytes = _reconcile_git(root, "show", f"{disposition_commit}:{disposition}")
     _reconcile_require(disposition_bytes.strip() and disposition_bytes == (root / disposition).read_bytes(), "disposition is empty or not committed unchanged")
-    if found["reconciliations"]:
-        prefix_size = found["reconciliations"][0]["binding"].get("prefix_bytes")
-        _reconcile_require(type(prefix_size) is int and prefix_size > 0, "invalid original prefix length")
+    _reconciliation_history_preserved(root, report, text)
+    returned = validate_reconciliation_series(root, text)
+    version, extra = 1, {}
+    if returned:
+        _reconcile_require(len(returned) == 1, "no third returned reconciliation is allowed")
+        predecessor = returned[0]
+        pin_id = _reconcile_git(root, "rev-parse", "HEAD:.conclave/reviewers.toml").decode().strip()
+        _extension_authorized(root, pin_id, report, predecessor)
+        _reconcile_git(root, "merge-base", "--is-ancestor", predecessor["candidate"], candidate)
+        version = 2
+        extra = {"predecessor_digest": predecessor["digest"], "predecessor_candidate": predecessor["candidate"]}
+    attempts = [e for e in found["reconciliations"] if e["binding"].get("version") == version]
+    if attempts:
+        prefix_size = attempts[0]["binding"]["prefix_bytes"]
         prefix = text.encode()[:prefix_size]
-        _reconcile_require(hashlib.sha256(prefix).hexdigest() == found["reconciliations"][0]["binding"].get("prefix_sha256"), "original prefix changed")
     else:
         prefix = text.encode()
-    return {"version": 1, "report": report, "prefix_sha256": hashlib.sha256(prefix).hexdigest(), "prefix_bytes": len(prefix),
+    return {"version": version, **extra, "report": report, "prefix_sha256": hashlib.sha256(prefix).hexdigest(), "prefix_bytes": len(prefix),
             "completion_digest": digest(raw_lines(completion["review"])), "completion_candidate": completion["candidate"],
             "plan_candidate": plan["candidate"], "contract_path": contract_path,
             "contract_sha256": hashlib.sha256(original_contract.encode()).hexdigest(),
@@ -1323,14 +1346,16 @@ def make_reconciliation_binding(root, record_path, candidate, disposition_path):
 def _reconciliation_binding_shape(binding):
     keys = {"version", "report", "prefix_sha256", "prefix_bytes", "completion_digest", "completion_candidate", "plan_candidate",
             "contract_path", "contract_sha256", "plan_contract_sha256", "candidate", "disposition_path", "disposition_blob", "disposition_commit"}
-    _reconcile_require(isinstance(binding, dict) and set(binding) == keys and type(binding.get("version")) is int and binding.get("version") == 1, "malformed binding")
+    if isinstance(binding, dict) and binding.get("version") == 2:
+        keys |= {"predecessor_digest", "predecessor_candidate"}
+    _reconcile_require(isinstance(binding, dict) and set(binding) == keys and type(binding.get("version")) is int and binding.get("version") in (1, 2), "malformed binding")
     _reconcile_require(all(isinstance(binding[k], str) and bool(binding[k]) for k in keys - {"version", "prefix_bytes"}), "binding fields must be nonempty strings")
     _reconcile_require(all(CANDIDATE.fullmatch(binding[k]) for k in ("candidate", "completion_candidate", "plan_candidate", "disposition_commit")), "invalid bound commit")
     _reconcile_require(all(re.fullmatch(r"[0-9a-f]{64}", binding[k]) for k in ("prefix_sha256", "contract_sha256", "plan_contract_sha256"))
                        and DIGEST.fullmatch(binding["completion_digest"]) and PIN_ID.fullmatch(binding["disposition_blob"]), "invalid bound digest")
 
 
-def validate_reconciliation_binding(root, text, entry):
+def _validate_reconciliation_v1(root, text, entry):
     binding = entry.get("binding")
     _reconciliation_binding_shape(binding)
     size = binding["prefix_bytes"]
@@ -1338,7 +1363,7 @@ def validate_reconciliation_binding(root, text, entry):
     prefix = text.encode()[:size]
     _reconcile_require(hashlib.sha256(prefix).hexdigest() == binding["prefix_sha256"], "original findings prefix changed")
     try:
-        found, chosen, entries = _reconcile_chain(prefix.decode("utf-8"), root=root)
+        found, chosen, entries = _reconcile_chain(prefix.decode("utf-8"), root=root, current_text=text)
     except UnicodeDecodeError:
         raise Refused("reconciliation: prefix is not UTF-8") from None
     _reconcile_require(not found["reconciliations"], "original prefix contains reconciliation")
@@ -1372,6 +1397,80 @@ def validate_reconciliation_binding(root, text, entry):
     contents = _reconcile_git(root, "show", f"{binding['disposition_commit']}:{disposition}")
     _reconcile_require(contents.strip() and pin_blob(contents) == binding["disposition_blob"], "committed disposition mismatch")
     return binding
+
+
+def _extension_authorized(root, pin_id, report, predecessor):
+    _reconcile_require(returned_pass(predecessor, "reconciliation") and verdict_lines(predecessor["review"])[-1] == "RECONCILIATION: gaps", "extension requires a returned gaps predecessor")
+    pin = _reconcile_pin(root, pin_id)
+    _reconcile_require(pin.get("reconciliation_extensions", {}).get(report) == predecessor["digest"], "no exact scoped predecessor authorization")
+
+
+def validate_reconciliation_binding(root, text, entry):
+    binding = entry.get("binding")
+    _reconciliation_binding_shape(binding)
+    if binding["version"] == 1:
+        return _validate_reconciliation_v1(root, text, entry)
+    size = binding["prefix_bytes"]
+    _reconcile_require(type(size) is int and 0 < size <= len(text.encode()), "invalid preceding prefix size")
+    prefix = text.encode()[:size]
+    _reconcile_require(hashlib.sha256(prefix).hexdigest() == binding["prefix_sha256"], "preceding findings prefix changed")
+    try:
+        previous = read_reconciliations(prefix.decode())
+    except UnicodeDecodeError:
+        raise Refused("reconciliation: invalid preceding prefix") from None
+    _reconcile_require(previous is not None, "unreadable preceding findings")
+    returned = [e for e in previous if returned_pass(e, "reconciliation")]
+    _reconcile_require(len(returned) == 1 and returned[0]["binding"]["version"] == 1, "extension requires exactly one original returned reconciliation")
+    predecessor = returned[0]
+    for attempt in previous:
+        _reconcile_require(attempt["binding"]["version"] == 1, "preceding prefix includes another extension")
+        _validate_reconciliation_v1(root, text, attempt)
+    _reconcile_require(binding["predecessor_digest"] == predecessor["digest"] and binding["predecessor_candidate"] == predecessor["candidate"], "predecessor identity mismatch")
+    _extension_authorized(root, entry.get("pin"), binding["report"], predecessor)
+    _reconcile_git(root, "merge-base", "--is-ancestor", predecessor["candidate"], binding["candidate"])
+    attempts = read_reconciliations(text)
+    _reconcile_require(attempts is not None, "unreadable current findings")
+    extensions = [e for e in attempts if e["binding"].get("version") == 2]
+    _reconcile_require(bool(extensions), "extension record missing")
+    before = "\n".join(raw_lines(text)[:extensions[0]["offset"]]).encode()
+    _reconcile_require(before.startswith(prefix) and not before[size:].strip(), "prefix does not cover every preceding attempt")
+    original = predecessor["binding"]
+    virtual = {k: v for k, v in binding.items() if k not in ("predecessor_digest", "predecessor_candidate")}
+    virtual.update(version=1, prefix_bytes=original["prefix_bytes"], prefix_sha256=original["prefix_sha256"])
+    _validate_reconciliation_v1(root, text, {**entry, "binding": virtual})
+    return binding
+
+
+def _reconciliation_history_preserved(root, report, text):
+    current = read_findings(text)
+    _reconcile_require(current is not None, "unreadable findings history")
+    plans = [e for e in current["plans"] if returned_pass(e, "plan")]
+    if len(plans) != 1:
+        return
+    identity = _transition_plan_identity(plans[0])
+    retained = {_transition_record_identity(e) for e in current["reconciliations"]}
+    for _, old in _transition_history(root, report):
+        historical = read_findings(old)
+        if historical is None:
+            continue
+        matching = [e for e in historical["plans"] if returned_pass(e, "plan") and _transition_plan_identity(e) == identity]
+        if matching:
+            _reconcile_require(all(_transition_record_identity(e) in retained for e in historical["reconciliations"]), "committed reconciliation attempt was removed")
+
+
+def validate_reconciliation_series(root, text):
+    attempts = read_reconciliations(text)
+    _reconcile_require(attempts is not None, "unreadable reconciliation series")
+    if attempts:
+        _reconciliation_history_preserved(root, attempts[0]["binding"]["report"], text)
+    returned = []
+    for entry in attempts:
+        version = entry.get("binding", {}).get("version")
+        _reconcile_require(len(returned) < 2 and version == (2 if returned else 1), "reconciliation attempt exceeds authorized series")
+        validate_reconciliation_binding(root, text, entry)
+        if returned_pass(entry, "reconciliation"):
+            returned.append(entry)
+    return returned
 
 
 def _completion_location(root, report):
@@ -1696,6 +1795,8 @@ def _recover_reconciliation(root, record_path, kind="reconciliation"):
         matches = reader(text)[-1:]
     _reconcile_require(len(matches) == 1, "recovered response is ambiguous")
     (validate_reconciliation_binding if kind == "reconciliation" else validate_completion_binding)(root, text, matches[0])
+    if kind == "reconciliation":
+        validate_reconciliation_series(root, text)
     state["phase"] = "recorded"
     _durable_json(reconciliation_pending_path(root, report, kind), state)
     return {**result, "run": state["run"], "recorded": True, "recovered": True}
@@ -1711,13 +1812,19 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
     if pending:
         prior = pending.get("result")
         _reconcile_require(isinstance(prior, dict) and _result_hash(prior) == pending.get("result_sha256"), "recorded response journal is malformed")
-        _reconcile_require(not returned_pass(prior, kind), "a returned response already exists in the durable journal")
+        if returned_pass(prior, kind):
+            _reconcile_require(kind == "reconciliation", "a returned response already exists in the durable journal")
+            current = (ROOT / report).read_bytes().decode()
+            series = validate_reconciliation_series(ROOT, current)
+            _reconcile_require(len(series) == 1 and series[0]["digest"] == digest(raw_lines(repository_relative(prior["review"], ROOT / report))) and series[0]["binding"] == prior.get("binding"), "returned journal does not match retained predecessor")
+            _extension_authorized(ROOT, pin_id, report, series[0])
     if kind == "reconciliation":
         original = (ROOT / report).read_bytes().decode()
         chain = validate_codex_chain(ROOT, original)
         _reconcile_require(verdict_lines(chain["completion"]["review"])[-1] == "COMPLETION: gaps", "reconciliation needs a failed completion")
-        _reconcile_require(not any(returned_pass(e, "reconciliation") for e in read_reconciliations(original)), "exactly one returned reconciliation is allowed")
         binding = make_reconciliation_binding(ROOT, args.record, args.candidate, args.disposition)
+        if binding["version"] == 2:
+            _extension_authorized(ROOT, pin_id, report, validate_reconciliation_series(ROOT, original)[0])
         surface = args.surface
     else:
         check_self_review_order("completion", args.record, pin)
@@ -1738,10 +1845,9 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
         # A recorded outage may retry. Archive it before reserving this distinct attempt.
         archive = state_path.with_name(state_path.stem + "." + hashlib.sha256(json.dumps(pending, sort_keys=True).encode()).hexdigest()[:16] + ".archive")
         _durable_json(archive, pending)
-        state_path.unlink()
     state = {"version": 1, "phase": "calling", "report": report, "binding": binding,
              "findings_sha256": hashlib.sha256((ROOT / report).read_bytes()).hexdigest(), "pid": os.getpid()}
-    _durable_json(state_path, state, exclusive=True)
+    _durable_json(state_path, state, exclusive=not bool(pending))
     # The marker remains unresolved on any interruption or uncertain persistence failure.
     with tempfile.TemporaryDirectory() as temporary:
         prompt_path = Path(temporary) / (kind + ".md")

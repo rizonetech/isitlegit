@@ -1764,6 +1764,7 @@ class Reconciliation(unittest.TestCase):
         self.git('config', 'user.email', 'test@example.invalid')
         (self.root / '.conclave').mkdir()
         pin = REPO_PIN.read_text()
+        pin = re.sub(r'\n\[reconciliation_extensions\]\n.*?(?=\n\[|\Z)', '', pin, flags=re.S)
         pin = re.sub(r'^self_review_policy = .*\n|^plan_transition = .*\n', "", pin, flags=re.M)
         pin = re.sub(r'\n\[schedule.combined\]\n.*?(?=\n\[|\Z)', "", pin, flags=re.S)
         if 'reconciliation = ["codex"]' not in pin:
@@ -1804,6 +1805,119 @@ class Reconciliation(unittest.TestCase):
         binding = binding or self.binding()
         self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':reply},'2026-11-04T01:03:00Z',binding['candidate'],'reconciliation')
         return self.module.read_reconciliations(self.report.read_text())[-1]
+
+    def test_scoped_extension_preserves_failed_predecessor_and_caps_series(self):
+        first = self.record(reply='RECONCILIATION: gaps')
+        self.commit()
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        pinpath = self.root / '.conclave/reviewers.toml'
+        pinpath.write_text(pinpath.read_text() + '\n[reconciliation_extensions]\n"docs/reviews/00-workspace/D00-T01-s1.md" = "' + first['digest'] + '"\n')
+        self.commit()
+        self.entry['pin'] = self.module.pin_blob(pinpath.read_bytes())
+        original = self.report.read_bytes()
+        binding = self.binding()
+        self.assertEqual(binding['version'], 2)
+        self.assertEqual(binding['predecessor_digest'], first['digest'])
+        self.record(binding)
+        self.commit()
+        self.assertEqual(len(self.module.validate_reconciliation_series(self.root,self.report.read_text())),2)
+        self.assertTrue(self.report.read_bytes().startswith(original))
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_reconciliation_series(self.root,self.report.read_text().replace('RECONCILIATION: gaps','RECONCILIATION: complete'))
+        self.report.write_bytes(original)
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+
+    def authorize_extension(self, predecessor, digest=None):
+        pinpath = self.root / '.conclave/reviewers.toml'
+        base = re.sub(r'\n\[reconciliation_extensions\]\n.*?(?=\n\[|\Z)', '', pinpath.read_text(), flags=re.S)
+        pinpath.write_text(base + '\n[reconciliation_extensions]\n"docs/reviews/00-workspace/D00-T01-s1.md" = "' + (digest or predecessor['digest']) + '"\n')
+        self.commit()
+        self.pin = self.module.pin_blob(pinpath.read_bytes())
+        self.entry['pin'] = self.pin
+
+    def test_extension_wrong_digest_and_successful_predecessor_refused(self):
+        first = self.record(reply='RECONCILIATION: gaps')
+        self.commit()
+        self.authorize_extension(first, '0' * 16)
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        self.authorize_extension(first)
+        binding = self.binding()
+        saved = self.report.read_text()
+        self.report.write_text(saved.replace('RECONCILIATION: gaps','RECONCILIATION: complete'))
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        self.report.write_text(saved)
+        self.record(binding)
+        text = self.report.read_text()
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_reconciliation_series(self.root,text.replace(saved, self.before.decode(), 1))
+        with self.assertRaises((self.module.Refused,self.module.Unrecorded)):
+            self.record(binding)
+
+    def test_successful_predecessor_cannot_be_extended_even_with_exact_authorization(self):
+        first = self.record()
+        self.commit()
+        self.authorize_extension(first)
+        with self.assertRaises(self.module.Refused):
+            self.binding()
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            reviewer.assert_not_called()
+
+    def test_extension_outage_retries_preserve_binding_and_original_bytes(self):
+        first = self.record(reply='RECONCILIATION: gaps')
+        self.commit()
+        self.authorize_extension(first)
+        original = self.report.read_bytes()
+        args,pin,result = self.run_reconciliation('No terminal verdict')
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        outage = self.module.read_reconciliations(self.report.read_text())[-1]
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        self.assertEqual(len(self.module.validate_reconciliation_series(self.root,self.report.read_text())),2)
+        self.assertEqual(outage['binding'],self.module.read_reconciliations(self.report.read_text())[-1]['binding'])
+        self.assertTrue(self.report.read_bytes().startswith(original))
+
+    def test_extension_rejects_candidate_older_than_failed_repair(self):
+        (self.root / 'repair.txt').write_text('repair')
+        repaired = self.commit()
+        first = self.record(self.binding(repaired),reply='RECONCILIATION: gaps')
+        self.commit()
+        self.authorize_extension(first)
+        with self.assertRaises(self.module.Refused):
+            self.binding(self.sha)
+
+    def test_extension_archives_first_journal_and_recovers_without_duplicate_call(self):
+        raw_review = f'Finding at [source]({self.root}/scripts/example.py:12).\nRECONCILIATION: gaps'
+        args,pin,result = self.run_reconciliation(raw_review)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        first = self.module.read_reconciliations(self.report.read_text())[0]
+        self.assertNotIn(str(self.root), first['review'])
+        self.commit()
+        self.authorize_extension(first)
+        args,pin,result = self.run_reconciliation()
+        with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('disk failed')):
+                with self.assertRaises(self.module.Refused):
+                    self.module.run_reconciliation(args,pin,self.pin)
+            archives = list((self.root / 'build/review-reconciliation').glob('*.archive'))
+            self.assertEqual(len(archives),1)
+            self.assertEqual(json.loads(archives[0].read_text())['result']['review'],raw_review)
+            self.module.recover_reconciliation(self.root,self.report)
+            self.assertEqual(len(self.module.validate_reconciliation_series(self.root,self.report.read_text())),2)
+            with self.assertRaises(self.module.Refused):
+                self.module.run_reconciliation(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
 
     def test_same_candidate_and_repaired_descendant_preserve_original(self):
         binding = self.binding()
@@ -2342,6 +2456,25 @@ class TwoPass(unittest.TestCase):
         # setUp committed an older complete legacy chain with a different plan candidate.
         self.plan(legacy=True)
         self.assertIsNotNone(self.complete(transition=True)['transition'])
+
+    def test_committed_transition_reconciliation_replays_full_retained_history(self):
+        self.plan(legacy=True)
+        self.complete(transition=True,verdict='gaps')
+        self.commit()
+        original=self.report.read_bytes()
+        binding=self.module.make_reconciliation_binding(self.root,self.report,self.sha,self.disposition)
+        result={**self.entry,'binding':binding,'review':'RECONCILIATION: complete'}
+        self.module.record_completion(self.report,result,'2026-11-04T01:03:00Z',self.sha,'reconciliation')
+        entry=self.module.read_reconciliations(self.report.read_text())[-1]
+        self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry)
+        self.commit()
+        retained=self.report.read_bytes()
+        self.assertEqual(self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry),binding)
+        self.report.write_bytes(original)
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_codex_chain(self.root,self.report.read_text())
+        self.report.write_bytes(retained)
+        self.assertEqual(self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry),binding)
 
 
 if __name__ == "__main__":

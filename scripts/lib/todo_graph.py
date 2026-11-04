@@ -485,9 +485,13 @@ def reconciliation_record(root, recorded, ref, stamp_sha):
         allowed = _allowed_review(root, dispatch, entry, ref)
         if allowed and dispatch.returned_pass(entry, "reconciliation"):
             valid.append(entry)
-    require(len(valid) == 1 and entries[-1] is valid[0],
-            f"reconciliation needs exactly one returned pass with no unresolved attempt: {ref}")
-    entry = valid[0]
+    try:
+        series = dispatch.validate_reconciliation_series(root, text)
+    except (dispatch.Refused, ValueError) as exc:
+        raise Refused(f"invalid reconciliation series: {exc}: {ref}") from None
+    require(valid == series and series and entries[-1] == series[-1],
+            f"reconciliation needs its authorized returned series with no unresolved attempt: {ref}")
+    entry = series[-1]
     require(completion_verdict(entry["review"]) == "RECONCILIATION: complete",
             f"reconciliation must end RECONCILIATION: complete: {ref}")
     require(entry["candidate"] == stamp_sha, f"reconciliation must review the exact stamped candidate: {ref}")
