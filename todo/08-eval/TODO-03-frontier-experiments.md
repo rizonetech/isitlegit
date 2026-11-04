@@ -112,6 +112,8 @@ Does segmenting the stamp and signature with SAM 3.1 and sending the crops with 
 
 ## 3. Experiment: Wonder on a multi-step lure
 
+> **Started:** 2026-11-04T11:41:55.809932+02:00 (plan preparation only; no fixture or harness implementation)
+
 Can Muse Wonder pass a cookie banner, a fake human-verification checkbox and a document lure to reach the credential page within the unchanged 8-step, 60-second driver limits, and at what cost?
 
 **Coordinator decisions 2026-11-04 (`eval-decisions-0950`, `budget-and-ownership-correction`):** Eval owns synthetic assets and the harness; checks owns `src/fixtures/redirects.ts` route binding, and the coordinator owns CI-gated integration/deployment. Initial experiment allowance is US$5 total for five walks including every retry/repair attempt. Staged increases to US$10 then US$20 require measured usage, useful remaining attempts, a dated decision and verified owning configuration before reservation; shared-day enforcement remains unchanged. No spend before exact deployed route/driver proof. Reversal cancels unspent attempts; incurred charges cannot be reversed. No fixture or harness implementation exists before this plan review.
