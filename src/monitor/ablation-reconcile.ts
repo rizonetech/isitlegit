@@ -82,11 +82,20 @@ export async function reconciledSecondLook(
   monitorRunId: string,
   operationId: string,
 ): Promise<boolean> {
+  return reconciledPageAttempt(db, monitorRunId, operationId, "second-look");
+}
+
+export async function reconciledPageAttempt(
+  db: D1Database,
+  monitorRunId: string,
+  operationId: string,
+  phase: "screen" | "loupe" | "second-look",
+): Promise<boolean> {
   const rows = await db
     .prepare(
-      "SELECT metadata_json FROM monitor_experiment_attempts WHERE monitor_run_id=? AND operation_id=? AND phase='second-look' AND status='failed'",
+      "SELECT metadata_json FROM monitor_experiment_attempts WHERE monitor_run_id=? AND operation_id=? AND phase=? AND status='failed'",
     )
-    .bind(monitorRunId, operationId)
+    .bind(monitorRunId, operationId, phase)
     .all<{ metadata_json: string | null }>();
   return rows.results.some((row) => {
     try {

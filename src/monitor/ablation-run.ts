@@ -7,7 +7,7 @@ import { PendingAttempt } from "./ablation-attempts";
 import { loupeExperiment } from "./ablation-loupe";
 import { loadCapture, loadManifest, preflightCaptures } from "./ablation-manifest";
 import { readExperimentReport } from "./ablation-readback";
-import { reconciledSecondLook } from "./ablation-reconcile";
+import { reconciledPageAttempt, reconciledSecondLook } from "./ablation-reconcile";
 import { PageCheckpoint, readPageCheckpoint, savePageCheckpoint } from "./ablation-results";
 import { MonitorIdentityConflict, readExperiment, requestNonces } from "./ablation-store";
 import { structuredContinuation } from "./ablation-structured";
@@ -75,6 +75,25 @@ export async function runExperiment(
       const nonces = await requestNonces(env.DB, orgId, monitorRunId, identity.pageOperationId);
       if (checkpoint === null) {
         const startedAt = Date.now();
+        const unrecoverable = (await reconciledPageAttempt(env.DB, monitorRunId, identity.pageOperationId, "screen"))
+          ? "screen"
+          : (await reconciledPageAttempt(env.DB, monitorRunId, identity.pageOperationId, "loupe"))
+            ? "loupe"
+            : null;
+        if (unrecoverable) {
+          // Ledger reconciliation establishes charges, not a lost answer. Preserve that distinction and continue other pages.
+          await savePageCheckpoint(env.DB, orgId, monitorRunId, identity.pageOperationId, {
+            version: 1,
+            startedAt,
+            screenedAt: startedAt,
+            parked: null,
+            screen: null,
+            secondLook: null,
+            finishedAt: startedAt,
+            unrecoverable,
+          });
+          continue;
+        }
         const parked = parkedPage(capture.signals.text, capture.signals, capture.page.image?.length ?? 0);
         if (parked.parked) {
           checkpoint = {

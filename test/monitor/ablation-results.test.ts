@@ -104,3 +104,15 @@ it("rejects a mismatched screener attribution and a falsely ablated Loupe result
     false,
   );
 });
+
+it("keeps unrecoverable responses distinct from model answers and refuses mixed or unfinished failure records", async () => {
+  const { key } = await fixture();
+  const failed = { ...screen(), screen: null, unrecoverable: "screen" as const, finishedAt: 3 };
+  await savePageCheckpoint(...key, failed);
+  expect(await readPageCheckpoint(...key)).toEqual(failed);
+  expect(PageCheckpoint.safeParse({ ...failed, screen: screen().screen }).success).toBe(false);
+  expect(PageCheckpoint.safeParse({ ...failed, parked: { reason: "empty" } }).success).toBe(false);
+  expect(PageCheckpoint.safeParse({ ...failed, finishedAt: null }).success).toBe(false);
+  expect(PageCheckpoint.safeParse({ ...failed, unrecoverable: "arbitrary" }).success).toBe(false);
+  await expect(savePageCheckpoint(...key, { ...screen(), finishedAt: 3 })).rejects.toThrow();
+});

@@ -56,6 +56,7 @@ export const PageCheckpoint = z
     screenedAt: Time,
     parked: z.strictObject({ reason: Reason }).nullable(),
     screen: ScreenResult.nullable(),
+    unrecoverable: z.enum(["screen", "loupe"]).optional(),
     secondLook: Second.nullable(),
     finishedAt: Time.nullable(),
   })
@@ -75,7 +76,8 @@ export const PageCheckpoint = z
     )
       ctx.addIssue({ code: "custom", message: "inconsistent monitor attribution" });
     if (
-      (r.parked === null) === (r.screen === null) ||
+      [r.parked !== null, r.screen !== null, r.unrecoverable !== undefined].filter(Boolean).length !== 1 ||
+      (r.unrecoverable !== undefined && (r.finishedAt === null || r.secondLook !== null)) ||
       r.screenedAt < r.startedAt ||
       (r.finishedAt !== null && r.finishedAt < r.screenedAt) ||
       (r.secondLook !== null && !needsSecond) ||
@@ -122,7 +124,12 @@ export async function savePageCheckpoint(
   )
     throw new MonitorIdentityConflict();
   if (json.length > 16384) throw new MonitorIdentityConflict();
-  const status = next.finishedAt === null ? "running" : next.screen?.ok === false ? "failed" : "complete";
+  const status =
+    next.finishedAt === null
+      ? "running"
+      : next.screen?.ok === false || next.unrecoverable !== undefined || next.secondLook?.verdict === "unavailable"
+        ? "failed"
+        : "complete";
   const result = await db
     .prepare(
       "UPDATE monitor_experiment_results SET result_json=?,status=? WHERE org_id=? AND monitor_run_id=? AND page_operation_id=? AND result_json IS ?",

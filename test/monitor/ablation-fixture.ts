@@ -11,7 +11,7 @@ import { fakeJpeg } from "../fixtures/jpeg";
 import { makeOrg } from "../trust/helpers";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
-export async function monitorFixture(parked = false, ownerOrg?: string) {
+export async function monitorFixture(parked = false, ownerOrg?: string, pageCount = 1) {
   const org = ownerOrg ?? (await makeOrg());
   const deployment = "a".repeat(40);
   const image = fakeJpeg(640, 480),
@@ -39,7 +39,12 @@ export async function monitorFixture(parked = false, ownerOrg?: string) {
     textSha256: await sha256(text),
     signalsSha256: await sha256(signals),
   };
-  const digest = await captureDigest(capture);
+  const captures = await Promise.all(
+    Array.from({ length: pageCount }, async (_, index) => {
+      const value = { ...capture, pageId: `p${index + 1}` };
+      return { value, digest: await captureDigest(value) };
+    }),
+  );
   const manifest = {
     version: 1,
     kind: "monitor-screening",
@@ -47,11 +52,18 @@ export async function monitorFixture(parked = false, ownerOrg?: string) {
     deployment,
     modelVersions: modelVersions(),
     settingsDigest: await settingsDigest(deployment),
-    pages: [{ experimentCaseId: "e1", pageId: "p1", captureDigest: digest, labelDigest: "2".repeat(64) }],
+    pages: captures.map(({ value, digest }, index) => ({
+      experimentCaseId: `e${index + 1}`,
+      pageId: value.pageId,
+      captureDigest: digest,
+      labelDigest: "2".repeat(64),
+    })),
   };
   const md = await manifestDigest(manifest);
   const objects: Record<string, Uint8Array> = {
-    [`eval/monitor-captures/${digest}.json`]: bytes(JSON.stringify(capture)),
+    ...Object.fromEntries(
+      captures.map(({ value, digest }) => [`eval/monitor-captures/${digest}.json`, bytes(JSON.stringify(value))]),
+    ),
     [`eval/monitor-objects/${capture.screenshotSha256}.jpg`]: image,
     [`eval/monitor-objects/${capture.textSha256}.txt`]: text,
     [`eval/monitor-objects/${capture.signalsSha256}.json`]: signals,
