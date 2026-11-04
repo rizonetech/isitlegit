@@ -32,3 +32,12 @@ All intervening commits through setup `d40b97adcd935a8e6bf547747e78ba6c669d84a8`
 - `d40b97adcd935a8e6bf547747e78ba6c669d84a8`: Sync verified coordinator review tooling release.
 
 The intervening offline sections 51, 52 and 42 retain their own contracts and original review histories. Shared tooling is the coordinator-authorized exact 23-file snapshot from `e4401838e1a23986f2536fc6d71d4811b883c8b7`; its local 447 tests passed with one skip, graph validation passed 600 sections and publication scan was clean. No product runtime, trainer input or evaluation population changes are part of these repairs. The trainer-owned uncommitted progress file is excluded from the isolated candidate. The reconciliation reviewer must inspect the full original-completion-to-candidate diff, including these intervening changes, against unchanged original obligations.
+
+## Returned reconciliation gaps, 4 November 2026
+
+First reconciliation on `f5e5ea11caa3ba2113e92b3ccb05fac9e36eaee8`, digest `6cf1f4977c1d5e6c`, resolved the original cache-redirect gap but identified two mandatory durability defects. The returned gaps record is preserved unchanged.
+
+1. `scripts/glimmer/inputs.py` omitted persistence of a newly created source folder's parent entry. The owning pin-evidence publisher now synchronizes all ancestors after linking and on retries of existing evidence. Two new regressions fail before and pass after: `test_new_source_pin_syncs_all_ancestors_on_first_write_and_retry` and `test_source_parent_sync_failure_preserves_marker_and_refuses_retry`. A source-parent synchronization error refuses acknowledgment, preserves the marker and refuses the same failing retry; a successful later retry retains original bytes. Affected gate `taskset -c 4,5 python3 -m unittest tests.scripts.test_glimmer_inputs tests.scripts.test_glimmer_fetch.PinnedFetch tests.scripts.test_astra_collect`:81 tests passed in32.247seconds. Logs: `build/s42-ancestor-before.log`, `build/s42-ancestor-after.log`.
+2. Coordinator-owned `scripts/review-dispatch.py` journal publication omits newly created ancestor persistence. Escalated as LOUPE-JOURNAL-ANCESTRY; coordinator confirmed and issued REVIEW-JOURNAL-HOLD. No lane edit, waiver, retry or approval is substituted for its owning-layer repair.
+
+This section remains unstamped. A supported scoped successor authorization and reviewed journal repair are required before any further reconciliation. Original contracts, findings and pins remain unchanged; no optional-scope relabeling is used.

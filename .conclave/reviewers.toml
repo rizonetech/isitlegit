@@ -130,3 +130,4 @@ lenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consi
 # Coordinator scoped repair decision: one successor for this exact failed reconciliation only.
 [reconciliation_extensions]
 "docs/reviews/00-workspace/D00-T01-s36.md" = "bd520ac7d1311303"
+"docs/reviews/03-vision/D03-T04-s52.md" = "1a6c0d8e3ba2dd96"

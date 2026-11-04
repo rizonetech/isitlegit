@@ -435,6 +435,48 @@ class DownloadPins(unittest.TestCase):
             inputs.mark_pin_mode(self.folder)
             self.assertGreaterEqual(sync.call_count, 2)
 
+    def test_new_source_pin_syncs_all_ancestors_on_first_write_and_retry(self):
+        import os
+        import stat
+        source = self.folder / 'collection/new-source'
+        marker = source / '.download-pins/.mode.json'
+        real_open, real_sync = os.open, os.fsync
+        opened, synced = {}, []
+        def open_path(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                opened[fd] = Path(path)
+            return fd
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                synced.append(opened[fd])
+            real_sync(fd)
+        with unittest.mock.patch.object(inputs.os, 'open', side_effect=open_path), unittest.mock.patch.object(inputs.os, 'fsync', side_effect=sync):
+            for attempt in range(2):
+                synced.clear()
+                inputs.mark_pin_mode(source)
+                expected = [marker.parent, *marker.parent.parents]
+                self.assertEqual(synced[-len(expected):], expected, attempt)
+
+    def test_source_parent_sync_failure_preserves_marker_and_refuses_retry(self):
+        import os
+        source = self.folder / 'collection/new-source'
+        marker = source / '.download-pins/.mode.json'
+        real_sync = os.fsync
+        def fail_parent(fd):
+            if os.fstat(fd).st_ino == source.parent.stat().st_ino:
+                raise OSError('synthetic source parent sync failure')
+            real_sync(fd)
+        with unittest.mock.patch.object(inputs.os, 'fsync', side_effect=fail_parent):
+            with self.assertRaisesRegex(OSError, 'source parent sync failure'):
+                inputs.mark_pin_mode(source)
+            original = marker.read_bytes()
+            with self.assertRaisesRegex(OSError, 'source parent sync failure'):
+                inputs.mark_pin_mode(source)
+            self.assertEqual(marker.read_bytes(), original)
+        inputs.mark_pin_mode(source)
+        self.assertEqual(marker.read_bytes(), original)
+
     def test_archive_receipt_accepts_null_file_path(self):
         self.url = 'https://github.com/fictional/corpus/archive/' + self.commit + '.zip'
         self.receipt()

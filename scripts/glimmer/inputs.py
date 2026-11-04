@@ -217,6 +217,16 @@ def _pin_json(path):
         raise Refused("missing or invalid first-download pin evidence") from None
 
 
+def _sync_pin_ancestors(path):
+    # Existing parents can also be remnants of an interrupted first publication.
+    for directory in [path.parent, *path.parent.parents]:
+        directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+
 def _pin_absent(path, value, check_space=None):
     import tempfile
     data = (json.dumps(value, sort_keys=True) + "\n").encode()
@@ -227,12 +237,7 @@ def _pin_absent(path, value, check_space=None):
         # Retry the durability boundary before allowing the caller to publish data.
         with path.open("rb") as evidence:
             os.fsync(evidence.fileno())
-        for directory in (path.parent, path.parent.parent):
-            directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+        _sync_pin_ancestors(path)
         return
     if check_space:
         check_space(len(data))
@@ -253,11 +258,7 @@ def _pin_absent(path, value, check_space=None):
         except FileExistsError:
             if _pin_json(path) != value:
                 raise Refused("first-download pin evidence conflicts") from None
-        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        _sync_pin_ancestors(path)
         if _pin_json(path) != value:
             raise Refused("first-download pin evidence did not read back")
     finally:
