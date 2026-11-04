@@ -212,9 +212,9 @@ Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove 
 
 1. Measure extraction. Done when: a labelled, licensed, synthetic corpus of messages and PDFs with their links listed gives recall, false links and p50/p95 extraction time, recorded with the commit measured.
 
-- [ ] Build `eval/components/links/` (labels in D08 T01's format, each file's expected links) with HTML, text, SVG and PDF samples, damaged and cap-padded ones included, recorded in `eval/DATASETS.md`. Done when: `loadSets` reads it.
-- [ ] Measure `linksOf` on it in `eval/links.ts`: recall, false links, and p50 and p95 time per case. Done when: `docs/eval/links.md` records the figures and the commit, with no case marked complete that was not.
-- [ ] Commit: `eval: link extraction measured`
+- [x] Build `eval/components/links/` (labels in D08 T01's format, each file's expected links) with HTML, text, SVG and PDF samples, damaged and cap-padded ones included, recorded in `eval/DATASETS.md`. Done when: `loadSets` reads it.
+- [x] Measure `linksOf` on it in `eval/links.ts`: recall, false links, and p50 and p95 time per case. Done when: `docs/eval/links.md` records the figures and the commit, with no case marked complete that was not.
+- [x] Commit: `eval: link extraction measured`
 
 **Test checkpoint:** `node eval/links.ts` prints recall, false links and timings for the set.
 
