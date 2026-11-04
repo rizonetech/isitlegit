@@ -7,6 +7,10 @@
 import fynbosLookalike from "../../fixtures/fynbos-lookalike/index.html";
 import nimbusmailLure from "../../fixtures/nimbusmail/index.html";
 import nimbusmailLogin from "../../fixtures/nimbusmail/login.html";
+import multistepIndex from "../../fixtures/nimbusmail-multistep/index.html";
+import multistepLogin from "../../fixtures/nimbusmail-multistep/login.html";
+import multistepLure from "../../fixtures/nimbusmail-multistep/lure.html";
+import multistepSubmitted from "../../fixtures/nimbusmail-multistep/submitted.html";
 import proteabankCard from "../../fixtures/proteabank/index.html";
 import { collectSubmission, type FixtureDeps } from "./collect";
 
@@ -50,8 +54,21 @@ export async function fixturesResponse(
   const go = (location: string, status: number) => new Response(null, { status, headers: headers({ location }) });
   const here = (path: string) => `/${prefix}/${path}`;
   const htmlPage = (html: string) =>
-    new Response(html, { headers: headers({ "content-type": "text/html; charset=utf-8" }) });
+    new Response(request.method === "HEAD" ? null : html, {
+      headers: headers({ "content-type": "text/html; charset=utf-8" }),
+    });
   switch (path) {
+    // D04 T02 §10: byte-exact eval-owned pages, using the same host/prefix/method boundary.
+    case "nimbusmail-multistep":
+      return go(here("nimbusmail-multistep/"), 301);
+    case "nimbusmail-multistep/":
+      return htmlPage(multistepIndex);
+    case "nimbusmail-multistep/lure":
+      return htmlPage(multistepLure);
+    case "nimbusmail-multistep/login":
+      return htmlPage(multistepLogin);
+    case "nimbusmail-multistep/submitted":
+      return htmlPage(multistepSubmitted);
     // The fictional-brand pages (D04 T02 §1): a NimbusMail lure and login, a Protea Bank card form.
     // The slash-less addresses redirect to their slashed form, so the pages' relative links and
     // form actions resolve under the prefix either way (completion review, G1).
