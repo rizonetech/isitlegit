@@ -108,3 +108,47 @@ c19945b3f6d5c8f41d6f290cfb86477a8b4bce48 todo: prepare paired evidence and separ
 57fc61508811e065a9ae7bdbd5b44c4e8d9ebdc6 todo: define capacity and lost-walk reconciliation
 d7e3d125ba1df127287cd9a0294aa2ae1111d97e eval: keep native PDF corpus outside mail datasets
 ```
+
+## Current exception preparation disposition, 2026-11-04
+
+This dated update supersedes the historical status statements above without changing their evidence or the canonical findings. Coordinator EXCEPTION38-EVAL-SETUP at 2026-11-04T12:54:26.784287+00:00 authorizes preparation only of the exact §6 contract-amendment exception. Invocation remains held for coordinator setup audit; no acceptance, stamp, paid run or product change is authorized.
+
+The original completion candidate remains `ef1c3e960e8c1dcb6dc9edae252380fb394e084c`, sealed completion digest `1aaa5eb7f19091f8`, and plan candidate `353dd9e298f2c38b9904f5283e77ea60d7d63f89`. The full canonical report is unchanged at 9375 bytes, SHA-256 `a889972e3f8c9c86cbec7a6139d4e3d7f8d48562a7a403e7cc54768b17377b16`; no reconciliation has returned for §6. Original contract hash `44e48dd1ad7bb707876f87320b18da916c707fd06d9a6588ca71457c220cabee` changes to accepted hash `a00edd9e91ef6a0a6fd0ab33928499ceb3f4de79d3fefafba8abcb48f12fcc51` only through the manifest storage relocation and the two additive historical completion/CI paragraphs. Their historical statement that §18 remained unstamped is retained in the accepted contract; its later actual stamp is recorded here, not silently substituted into that contract.
+
+### Original requirements and findings
+
+1. Plan gap 1, native PDF population: the manifest retains 14 native PDFs across genuine/doctored labels, all three document types and recorded generators; six project-generated PDFs supplement the pinned external fixtures. The 40 raster inputs remain explicitly excluded. Relocation changes storage paths only, not bytes, population, labels, licence or provenance obligations.
+2. Plan gap 2, unreadable/partial coverage: coverage and reasons remain explicit, zero denominators remain incomplete, and unsupported inputs cannot improve a clean rate. Measured complete coverage remains 13/14. Tests cover partial/unavailable and zero-denominator states.
+3. Plan gap 3, severity policy: verdict-level detection remains high/critical evidence under the unchanged independent-group severity rule; any-finding counts stay separate. No single-group finding or blocklist result is promoted to satisfy the target. Tests retain single versus independent-group behavior and false-positive counting.
+4. Plan gap 4, real-byte execution: the real command-entry regression still loads actual native PDF bytes, checks manifest hashes, runs the analyser and evidence mapping, scores groups and verifies report read-back. Changed counts, malformed manifests and missing files refuse. The original empty-analyser mutation failure remains historical verification evidence, not a new mutation run claimed here.
+5. Original round 1 resolving-reference gap: D06 T02 §8 in console plan commit `20f4747f` remains the sole detector/coverage follow-up. Filing is not repair or target attainment. Detection remains 3/7 and false positives 0/7; no denominator, label or deterministic floor changed.
+6. Both original completion gaps concern one recoverable-publication defect. Initial staged publication repair `f7780c0509aec017723054c72cde3f83dc39e23a` validates a sibling stage, retains a prior generation, rolls back failed promotion and recovers after process termination. Storage relocation `d7e3d125ba1df127287cd9a0294aa2ae1111d97e` keeps native components outside the mail-only dataset tree. Final repair base `abea9b56546091cac5ddc08d03d7ee1e33ee1232` additionally preserves legacy live, backup and interrupted-stage bytes under the forensic archive while holding both old and new kernel locks; ambiguous legacy entries refuse before moving anything. These repairs satisfy the original recovery obligation only if the actual evidence passes the new reconciliation. They do not establish physical power-loss durability.
+
+### Resolving repair and current gates
+
+D08 T02 §18 is now supported-stamped at `cecc2d36519ee250553aff5eee209ba3660d87f0`, with original completion gaps and first reconciliation gaps retained. Its final repaired candidate is `abea9b56546091cac5ddc08d03d7ee1e33ee1232`; genuine successor completion digest `c79fca10c88a27a1` verifies recovery. Read its canonical report and receipt, including the first reconciliation digest `d017f3421b44019e`. This stamp resolves the storage repair chain only; §6 remains unstamped until its own authorized review returns complete. Machine-crash durability stays separately scoped in §19 and is not claimed delivered.
+
+Fresh preparation gates on unchanged product source: `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts test/node/eval-datasets-doc.test.ts` passed all 36 tests (26 forensic, 10 provenance/documentation); `node eval/forensics/score.ts --check eval/RESULTS.md` returned PDF forensic report verified. Tests cover actual SIGKILL at write/save/promotion, interrupted legacy relocation, old-lock exclusion, failed generation, legacy byte retention, build-plus-mail-loader integration and genuine false positives. The 3/7 detections, 0/7 false positives, 13/14 coverage and 40 raster exclusions remain unchanged. Prior failing-first upgrade regressions, 128-test relocation gates and CI41811216490 success remain candidate-specific history. Full typecheck, lint, dry build and publication passed at `3102b12d`; this preparation changes development tooling and evidence only, not product source. Source/test verification is not physical power-loss, Windows durability, detector target or deployment proof.
+
+The current setup imports only the exact reviewed dispatcher and dispatcher tests from `853a5586c27b72a7a449da780612dcb8c13c17ac`, retaining journal-ancestry durability and all original review state. The separate exception JSON must bind this newly committed disposition, then a later canonical pin commit must bind that JSON. The actual v3 binding and focused gates must be returned to the coordinator before invocation. Removal of the new map entry reverses future authorization only; it never removes original reports, this disposition, the authorization document or a returned result.
+
+### Additional intervening ancestry
+
+The earlier history list above remains preserved. Subsequent commits through the present product candidate are listed below; unrelated work is disclosed, not approved by this exception. The separate §3 isolated completion branch is not merged into this checkout, and its gaps remain preserved at `833a6ca47`.
+
+```text
+b7145b3c4b11af4a62707667f8990a6b49bd7292 docs: prepare bounded PDF gap dispositions
+68d67b96e9030a79935e92a0ca9dc698030dc0dd eval: prepare bounded Wonder multi-step experiment
+fac90cc531caa35f81db67c2994fc6da12365348 eval: score credential arrival separately from later walk outcome
+2cf9730bd3765707536e96559ae39f8aafe5a100 chore: integrate verified coordinator review tooling release
+7e452aa7dff91abb84ad235a7e738acb142b952c docs: register hidden instruction corpus provenance
+313e606065df269be21b88b13dc7b7c030af2fef review: preserve PDF publication reconciliation gap
+abea9b56546091cac5ddc08d03d7ee1e33ee1232 eval: preserve legacy PDF recovery artifacts during relocation
+d1149facc510a326048ee1022ae66d4ec18e4b8a review: authorize exact PDF recovery reconciliation successor
+cecc2d36519ee250553aff5eee209ba3660d87f0 todo: verify recoverable PDF corpus publication
+94058a0bd5366e7773dce45529e018211b0fecae chore: install verified review journal ancestry repair
+6fece3444d15155df25d77752e3c7189906477da Align eval product source with authorized fixture deployment
+3102b12db9be510d48652a70df7ac9dae3dbffd9 Record five bounded walk failures without claiming model measurement
+```
+
+Dispatcher installation gate: the complete dispatcher suite passed 170 tests with 1 skip in 83.502 seconds, including exact-exception authorization, prefix preservation, malformed provenance, outage recovery, revocation and JournalDurability tests. These are local synthetic tooling tests, not product review receipts or hardware-crash proof. `--check-pin --json` confirms the existing two-pass default and MEDIUM reconciliation schedule remain unchanged before adding the separately committed scoped map.
