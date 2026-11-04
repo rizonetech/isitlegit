@@ -40,6 +40,8 @@ track: day-2
 | 7 | §7 | First-time sender per recipient | §5 | [ ] |
 | 8 | §8 | Familiarity from consented mail | §5 | [ ] |
 | 9 | §9 | Gateway relay ranges, decided | §6 | [ ] |
+| 10 | §10 | Configured relay revision lifecycle | §9 | [ ] |
+| 11 | §11 | Configured relay trust consumption | §10 | [ ] |
 
 ## 1. Trusted Authentication-Results parsing
 
@@ -288,6 +290,52 @@ Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6
 - [ ] Commit: `docs: gateway relay ranges from configuration decided`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` and `python3 scripts/todo-graph.py plan --check` pass with the filed sections; final completion self-review verifies every design requirement maps to a resolving implementation section and a falsifiable test, including verified no-SPF success and cached-trust removal after edit/revocation.
+
+## 10. Configured relay revision lifecycle
+
+Implement the configuration service designed in `docs/specs/2026-11-04-gateway-relay-ranges-design.md`. This section owns storage and service authorization; the coordinator assigns the member and platform review surfaces before §9 closes. Obtain a migration number from the coordinator before writing a migration. Do not modify console routes owned by another lane.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Define immutable proposals and current revisions in `src/auth/relay-ranges.ts` and a coordinator-numbered migration in `src/db/migrations/`. Done when: schema validation, tenancy and verified-claim binding are exercised by `test/auth/relay-ranges.test.ts`.
+2. Implement the lifecycle service in `src/auth/relay-ranges.ts`. Done when: proposal, exact-revision review, edit, revoke, restore automatic discovery and read-back are authorized, atomic, idempotent and audited.
+3. Prove refusals and races in `test/auth/relay-ranges.test.ts`. Done when: stale writes and late verification after claim removal cannot restore trust or lose another revision.
+
+- [ ] Define strict CIDR proposal validation in `src/auth/relay-ranges.ts`. Done when: canonical public IPv4/IPv6 networks round-trip, malformed networks, host bits, zero prefixes, reserved-space overlap and more than 64 CIDRs fail; exact duplicates are deduplicated. Cheaper substitute: syntactic parsing alone accepts dangerously broad ranges. Source: §9's configured-range design, Configuration lifecycle.
+- [ ] Add revision persistence in a coordinator-numbered migration under `src/db/migrations/`. Done when: configured records are separate from `org_receiving_chains`, tenant/claim scoped, cascade on claim deletion and cannot reference an unverified claim through the service. Cheaper substitute: writing configuration into the discovery cache loses source ownership. Source: §9's design, Owning layer and Configuration lifecycle.
+- [ ] Implement proposal/read-back and exact-revision platform review in `src/auth/relay-ranges.ts`. Done when: an organisation admin can propose only for its verified binding, only the independent platform role can approve/reject, and the stored source URL/digest/retrieval date and actors are required for approval; arbitrary submitted evidence never auto-verifies. Cheaper substitute: a client-supplied verified flag creates trust without proof. Source: §9's design, Trust source.
+- [ ] Implement transactional edit/revoke/restore in `src/auth/relay-ranges.ts`. Done when: edit retires the old verified revision immediately, revoke is idempotent, restore invalidates discovery before fresh lookup, and each accepted operation returns stored state and one audit event; conflicting retries fail. Cheaper substitute: deleting a UI row leaves cached trust active. Source: §9's design, Consumption and revocation.
+- [ ] Add conflict, failure and deletion tests in `test/auth/relay-ranges.test.ts`. Done when: cross-tenant access, tenant self-approval, stale editor/reviewer, DB failure, claim deletion/unverification, tenant closure and late approval are all refused without partial state; a valid lifecycle and duplicate retry are proven against D1. Cheaper substitute: mocked return values do not prove persistence or atomicity. Source: §9's design, Configuration lifecycle.
+- [ ] Commit: `feat: store and govern configured relay revisions`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/relay-ranges.test.ts` passes, including the invalid-range, cross-tenant, exact-review, idempotency, rollback and claim-removal cases above; `pnpm typecheck` passes.
+
+## 11. Configured relay trust consumption
+
+Consume §10's current revision in `src/auth/receiving-chains.ts`, preserving the existing provider ingress boundary and deterministic verdict floor. Configuration is authoritative for its tuple only while verified and current; pending/rejected/revoked overrides block fallback until the admin explicitly restores automatic discovery. Source: `docs/specs/2026-11-04-gateway-relay-ranges-design.md`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Load the current configured revision in `src/auth/receiving-chains.ts`. Done when: tests prove scoped exclusive precedence, fail-closed errors and no cached configured rules.
+2. Carry the configuration revision through `src/pipeline/analysis-workflow.ts` at the checks evidence persistence boundary. Done when: an edit/revoke between snapshot and save forces fresh checks before authentication evidence is published.
+3. Exercise the synthetic no-SPF gateway in `test/auth/relay-range-consumption.test.ts`. Done when: verification enables the exact egress peer and revocation disables it, including a matching old SPF cache and a concurrent revocation.
+
+- [ ] Read current overrides in `src/auth/receiving-chains.ts`. Done when: only verified active revisions for the current org, still-verified claim, gateway and provider produce trusted ranges, and all other explicit states or read failures return unverified without discovered fallback. Cheaper substitute: using the 24-hour cache delays revocation. Source: §9's design, Consumption.
+- [ ] Apply exclusive source precedence in `src/checks/receiving-chain.ts` through the assembled chain. Done when: a verified override replaces discovered rules for its tuple, an outside peer fails, and existing provider ingress and lower-header forgery tests still pass. Cheaper substitute: unioning configured and SPF addresses silently broadens trust. Source: §9's design, Consumption.
+- [ ] Bind checks evidence persistence to the current configuration revision in `src/pipeline/analysis-workflow.ts`. Done when: a version mismatch before authentication evidence storage retries under current state; evidence records the source revision and completed historical reports retain truthful provenance. Cheaper substitute: checking only when the view is first built misses revocation races. Source: §9's design, Revocation.
+- [ ] Add no-SPF and cache/race coverage in `test/auth/relay-range-consumption.test.ts`. Done when: synthetic ingress `192.0.2.10` and egress `198.51.100.7` differ, no SPF names the egress, pending fails, verified succeeds, edit/revoke fails even against cached discovery, and restore automatic still fails for that peer; a test-only fixture adapter admits documentation IPs without weakening production validation. Cheaper substitute: a single happy-path address test cannot prove revocation. Source: §9's design, Synthetic acceptance example.
+- [ ] Add isolation and failure coverage in `test/auth/relay-range-consumption.test.ts`. Done when: foreign tenant, removed or unverified claim, changed gateway/provider, configuration read failure and concurrent revision changes cannot confer configured trust; `test/pipeline/receiving-chain.test.ts` retains its existing forged-header and ingress cases. Cheaper substitute: response-only assertions miss stale persisted evidence. Source: §9's design, Requirement coverage.
+- [ ] Commit: `feat: consume verified relay ranges without stale trust`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/relay-range-consumption.test.ts test/pipeline/receiving-chain.test.ts` passes with the no-SPF, precedence, cache and in-flight revocation tests; `pnpm typecheck` passes.
 
 ## Verification
 

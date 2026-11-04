@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 222 | Checklist items: 995
+Sections: 224 | Checklist items: 1007
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -447,6 +447,8 @@ Sections: 222 | Checklist items: 995
 | [ ]    | D02 T02 §7  | First-time sender per recipient                             | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                             | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                               | none                 | 4     |
+| [ ]    | D02 T02 §10 | Configured relay revision lifecycle                         | none                 | 6     |
+| [ ]    | D02 T02 §11 | Configured relay trust consumption                          | none                 | 6     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
@@ -674,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 412/598 verified sections, 115 ready to run now.
+Progress: 412/600 verified sections, 115 ready to run now.
 
-Checklist: 3028/3695 items completed (includes Commit items).
+Checklist: 3028/3707 items completed (includes Commit items).
