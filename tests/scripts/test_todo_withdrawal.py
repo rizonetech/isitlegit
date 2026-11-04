@@ -46,6 +46,28 @@ class Withdrawal(unittest.TestCase):
                 with self.assertRaisesRegex(tg.Refused, 'Withdrawn'):
                     tg.graph(self.root)
 
+    def test_nested_quotes_and_list_prefixes_cannot_hide_metadata(self):
+        for prefix in ('> > ', '>> ', '- ', '* ', '1. ', '1) '):
+            for marker in (prefix + MARKER, MARKER + '\n' + prefix + MARKER):
+                with self.subTest(marker=marker):
+                    self.write(self.document(marker))
+                    with self.assertRaisesRegex(tg.Refused, 'Withdrawn'):
+                        tg.graph(self.root)
+
+    def test_fenced_examples_do_not_withdraw_or_count_as_duplicate_fields(self):
+        examples = ('```markdown\n' + MARKER + '\n```',
+                    '~~~~ markdown\n' + MARKER + '\n~~~~',
+                    '````markdown\n```\n' + MARKER + '\n````',
+                    '   ```markdown\n' + MARKER + '\n   ```')
+        for example in examples:
+            with self.subTest(example=example):
+                self.write(self.document(example))
+                rows = tg.graph(self.root)
+                self.assertEqual(tg.disposition(rows['D00 T01 §1'], rows), 0)
+                self.write(self.document(example + '\n' + MARKER))
+                rows = tg.graph(self.root)
+                self.assertEqual(tg.disposition(rows['D00 T01 §1'], rows), 5)
+
     def test_ordinary_prose_does_not_withdraw_and_removal_restores_unmet_work(self):
         self.write(self.document('The operator withdrew this idea in conversation.'))
         rows = tg.graph(self.root)

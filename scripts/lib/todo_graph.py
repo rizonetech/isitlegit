@@ -245,8 +245,20 @@ def field(body, name, required=True):
 
 def withdrawal(body):
     """Only the explicit operator field withdraws unverified work; prose is not authority."""
-    lines = [line for line in body.splitlines()
-             if re.match(r"^[ \t]*(?:>[ \t]*)?\*\*Withdrawn:\*\*", line)]
+    lines = []
+    fence = None
+    for line in body.splitlines():
+        if fence is not None:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + r"{" + str(fence[1]) + r",}[ \t]*", line):
+                fence = None
+            continue
+        opening = re.fullmatch(r" {0,3}(`{3,}|~{3,})(.*)", line)
+        if opening and not (opening[1][0] == "`" and "`" in opening[2]):
+            fence = (opening[1][0], len(opening[1]))
+            continue
+        # Recognize malformed quote/list prefixes too, then require the exact standalone field below.
+        if re.match(r"^[ \t>+*0-9().-]*\*\*Withdrawn:\*\*", line):
+            lines.append(line)
     require(len(lines) <= 1, "duplicate Withdrawn field")
     if not lines:
         return None
