@@ -1298,14 +1298,16 @@ The Cases first-run page tells a member on a phone how to forward mail from desk
 1. Name the phone steps in `design/SPEC.md` M1. Done when: M1 names the phone mail app steps and the upload choice, and `python3 design/tools/check-design.py` passes.
 2. Draw the phone guidance in the first-run how-to tiles (`src/web/pages/cases-view.tsx`). Done when: `test/node/cases-browser.test.tsx` reads the phone steps and the upload choice at 360 px in both themes.
 
-- [ ] Obtain coordinator approval and incorporation of the exact source-backed companion wording into `design/SPEC.md` M1, naming Apple Mail/Gmail desktop fallbacks and existing-file upload limits. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
+- [x] Obtain coordinator approval and incorporation of the exact source-backed companion wording into `design/SPEC.md` M1, naming Apple Mail/Gmail desktop fallbacks and existing-file upload limits. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
 - [x] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
 - [x] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes with scripts on and off reads the phone fallback steps, original-header limits and upload choice, follows Upload a file by keyboard to the rendered upload form, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
-- [ ] Commit: `web: phone forwarding guidance on the Cases page`
+- [x] Commit: `web: phone forwarding guidance on the Cases page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/cases-browser.test.tsx` passes with the phone guidance read at 360 px in both themes.
 
 **Implementation evidence 2026-11-04:** coordinator approved exact companion wording at09:44:41UTC; shared M1 incorporation remains pending before completion. Both new phone browser tests failed before implementation on the missing phone tile; final full Cases checkpoint passed44/44, including exact copy, unchanged desktop steps, no horizontal overflow, keyboard navigation to rendered UploadPage, script on/off, and both themes at360px. Existing accessibility states passed360px/1280px both themes. Separate upload chosen-file and no-script baseline tests passed2/2; these are fixture-backed Chromium proofs, not physical-device or live-delivery evidence. Typecheck, Biome on changed code, dry build, publication scan and design check passed. Logs: `/tmp/console-phone-before.log`, `/tmp/console-phone-browser.log`, `/tmp/console-phone-upload-baseline.log`, `/tmp/console-phone-types.log`, `/tmp/console-phone-build.log`, `/tmp/console-phone-publication.log`.
+
+**M1 incorporation 2026-11-04:** coordinator explicitly authorized the exact approved phone-guidance line from `ac75ff1959e5f77a367cee67dc2f7f65bbbc4c73` at09:55:45UTC. Imported that line only; companion source-backed limits and exact wording match the coordinator bytes. Implementation committed as `07ccc0db`; single self-review returned no findings, noting only this now-incorporated prerequisite.
 
 ## 36. Choose a departed person in the team history
 
