@@ -8,6 +8,11 @@ import { DiagnosticSchema } from "./multistep-observation.ts";
 
 export class Refusal extends Error {}
 export const INITIAL_CAP = 5;
+// Coordinator approval is for a separately released fresh run, never a legacy-state reset.
+export const INITIAL10_AUTHORITY = {
+  decision: "BUDGET-RECOVERY-20",
+  at: "2026-11-04T14:11:17.441321+00:00",
+} as const;
 export const ALLOWANCE =
   9 * estimateUsd(MODEL, { inputBytes: 13000, images: IMAGES_KEPT, maxOutputTokens: MAX_OUTPUT_TOKENS });
 const ConfigurationHash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -184,7 +189,13 @@ export const StateSchema = z.strictObject({
   urlHash: z.string().regex(/^[a-f0-9]{64}$/),
   model: z.literal(MODEL),
   allowanceUsd: z.literal(ALLOWANCE),
-  initialCapUsd: z.literal(INITIAL_CAP),
+  initialCapUsd: z.union([z.literal(INITIAL_CAP), z.literal(10)]),
+  initialCapAuthority: z
+    .strictObject({
+      decision: z.literal(INITIAL10_AUTHORITY.decision),
+      at: z.literal(INITIAL10_AUTHORITY.at),
+    })
+    .optional(),
   capUsd: z.union([z.literal(5), z.literal(10), z.literal(20)]),
   capDecisions: z
     .array(
@@ -201,7 +212,9 @@ export function validateState(raw: unknown): State {
   const identities = s.slots.flatMap((slot) => [slot.reservationId, ...slot.reservationHistory]);
   if (s.slots.some((x, i) => x.ordinal !== i + 1) || new Set(identities).size !== identities.length)
     throw new Refusal("invalid ordinal identities");
-  let cap = INITIAL_CAP;
+  if ((s.initialCapUsd === 10) !== (s.initialCapAuthority !== undefined))
+    throw new Refusal("initial cap needs its recorded dated authority");
+  let cap: number = s.initialCapUsd;
   for (const decision of s.capDecisions) {
     if (decision.from !== cap || decision.to !== cap * 2 || !Number.isFinite(Date.parse(decision.at)))
       throw new Refusal("invalid cap history");

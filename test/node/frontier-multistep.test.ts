@@ -832,3 +832,95 @@ it("preserves both legacy supplements and verifies every present driver metadata
     }
   }
 });
+
+const initial10Authority = { decision: "BUDGET-RECOVERY-20", at: "2026-11-04T14:11:17.441321+00:00" };
+it("reads back authorized fresh10 while retaining legacy5 and strict dated authority", () => {
+  const legacy = experiment().state;
+  expect(validateState(legacy)).toEqual(legacy);
+  const fresh = { ...legacy, initialCapUsd: 10, capUsd: 10, initialCapAuthority: initial10Authority };
+  const dir = mkdtempSync(join(tmpdir(), "multistep-initial10-"));
+  try {
+    const file = join(dir, "state.json");
+    atomicState(file, validateState(fresh));
+    expect(validateState(JSON.parse(readFileSync(file, "utf8")))).toEqual(fresh);
+    for (const bad of [
+      { ...fresh, initialCapAuthority: undefined },
+      { ...fresh, initialCapAuthority: { ...initial10Authority, decision: "unapproved" } },
+      { ...fresh, initialCapAuthority: { ...initial10Authority, at: "invalid" } },
+      { ...fresh, initialCapAuthority: { ...initial10Authority, extra: true } },
+      { ...fresh, initialCapUsd: 20, capUsd: 20 },
+      { ...legacy, initialCapAuthority: initial10Authority },
+    ])
+      expect(() => validateState(bad)).toThrow();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+it("preserves initial10 liabilities and requires measured usage for staged20", async () => {
+  const t = experiment();
+  Object.assign(t.state, { initialCapUsd: 10, capUsd: 10, initialCapAuthority: initial10Authority });
+  expect(() => raiseCap(t.state, 20, "Authorized measured remaining work", new Date())).toThrow();
+  await runNext(t.state, t.d);
+  const before = structuredClone(t.state.slots);
+  raiseCap(t.state, 20, "Authorized measured remaining work", new Date());
+  expect(t.state.capDecisions[0]).toMatchObject({ from: 10, to: 20, usedUsd: 0.1 });
+  expect(t.state.slots).toEqual(before);
+  const pending = t.state.slots[1];
+  if (!pending) throw new Error("missing test ordinal");
+  t.state.slots[1] = { ...pending, status: "unknown", certainty: "estimated", costUsd: ALLOWANCE };
+  expect(validateState(t.state).slots[1]?.costUsd).toBe(ALLOWANCE);
+  const liability = structuredClone(t.state.slots[1]);
+  await runNext(t.state, t.d);
+  expect(t.state.slots[1]).toEqual(liability);
+  expect(t.state.slots[2]?.status).toBe("complete");
+  expect(t.calls()).toBe(2);
+});
+it("rejects fresh-cap options on resume without changing state or reservations", async () => {
+  const { main } = await import("../../eval/frontier/multistep.ts");
+  const dir = mkdtempSync(join(tmpdir(), "multistep-initial-resume-"));
+  try {
+    const file = join(dir, "state.json");
+    atomicState(file, experiment().state);
+    const before = readFileSync(file);
+    await expect(
+      main([
+        "run",
+        "--confirm-credit",
+        "--dir",
+        dir,
+        "--initial-cap-usd",
+        "10",
+        "--initial-cap-authority",
+        "BUDGET-RECOVERY-20",
+      ]),
+    ).rejects.toThrow("initial cap cannot change on resume");
+    expect(readFileSync(file)).toEqual(before);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+it("rejects invalid or unauthorized fresh-cap CLI values before creating state", async () => {
+  const { main } = await import("../../eval/frontier/multistep.ts");
+  for (const options of [
+    ["--initial-cap-usd", "20", "--initial-cap-authority", "BUDGET-RECOVERY-20"],
+    ["--initial-cap-usd", "10"],
+    ["--initial-cap-authority", "BUDGET-RECOVERY-20"],
+    ["--initial-cap-usd", "10", "--initial-cap-authority", "unapproved"],
+    ["--initial-cap-usd", "10", "--initial-cap-authority", "BUDGET-RECOVERY-20", "--cap-usd", "20"],
+  ])
+    await expect(main(["run", "--confirm-credit", ...options])).rejects.toThrow("initial cap");
+});
+
+it("constructs only default5 or explicitly authorized fresh10 budgets", async () => {
+  const { initialBudget } = await import("../../eval/frontier/multistep.ts");
+  expect(initialBudget()).toEqual({ initialCapUsd: 5, capUsd: 5 });
+  expect(initialBudget(10, "BUDGET-RECOVERY-20")).toEqual({
+    initialCapUsd: 10,
+    capUsd: 10,
+    initialCapAuthority: initial10Authority,
+  });
+  for (const value of [0, 5, 20, Number.NaN, Number.POSITIVE_INFINITY])
+    expect(() => initialBudget(value, "BUDGET-RECOVERY-20")).toThrow();
+  expect(() => initialBudget(10)).toThrow();
+  expect(() => initialBudget(undefined, "BUDGET-RECOVERY-20")).toThrow();
+});
