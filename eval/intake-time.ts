@@ -89,7 +89,9 @@ export type SqliteD1 = {
 export function createSqliteD1(): SqliteD1 {
   const sqlite = new DatabaseSync(":memory:");
   const migDir = join(ROOT, "src/db/migrations");
-  for (const file of readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
+  for (const file of readdirSync(migDir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()) {
     sqlite.exec(readFileSync(join(migDir, file), "utf8"));
   }
   const makeStmt = (sql: string, params: unknown[] = []): SqliteStmt => {
@@ -134,9 +136,7 @@ export function createSqliteD1(): SqliteD1 {
               .all(...(s._params as (string | number | bigint | Uint8Array | null)[])) as T[];
             out.push({ results, success: true, meta: { changes: results.length } });
           } else {
-            const res = sqlite
-              .prepare(s._sql)
-              .run(...(s._params as (string | number | bigint | Uint8Array | null)[]));
+            const res = sqlite.prepare(s._sql).run(...(s._params as (string | number | bigint | Uint8Array | null)[]));
             out.push({
               results: [],
               success: true,
@@ -199,12 +199,7 @@ export async function scoreIntakeTime(opts?: {
   failAt?: number;
 }): Promise<IntakeRecord[]> {
   const { handleEmail } = await importSrc<{
-    handleEmail: (
-      msg: unknown,
-      env: unknown,
-      now: Date,
-      log: () => void,
-    ) => Promise<{ kind: string }>;
+    handleEmail: (msg: unknown, env: unknown, now: Date, log: () => void) => Promise<{ kind: string }>;
   }>("src/intake/email.ts");
   const smallCount = opts?.smallCount ?? 5;
   const largeCount = opts?.largeCount ?? 3;

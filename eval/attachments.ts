@@ -112,9 +112,7 @@ function makeR2Bucket(store: Map<string, Uint8Array>): unknown {
     get: async (key: string, opts?: { range?: { offset: number; length: number } }) => {
       const full = store.get(key);
       if (!full) return null;
-      const slice = opts?.range
-        ? full.subarray(opts.range.offset, opts.range.offset + opts.range.length)
-        : full;
+      const slice = opts?.range ? full.subarray(opts.range.offset, opts.range.offset + opts.range.length) : full;
       return {
         arrayBuffer: async () => slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength),
         body: new Response(new Uint8Array(slice)).body,
@@ -179,12 +177,7 @@ export async function measureAttachmentChecks(opts?: {
   failAt?: number;
 }): Promise<AttachmentsSummary> {
   type CheckItem = { check: string; severity: string };
-  const {
-    attachmentRisksOf,
-    encryptedArchiveEvidence,
-    executableEvidence,
-    macroEvidence,
-  } = await importSrc<{
+  const { attachmentRisksOf, encryptedArchiveEvidence, executableEvidence, macroEvidence } = await importSrc<{
     attachmentRisksOf: (
       bucket: unknown,
       input: {
@@ -210,7 +203,13 @@ export async function measureAttachmentChecks(opts?: {
   const names = Object.keys(EXPECTED) as (keyof typeof EXPECTED)[];
 
   const disguised: { name: string; filename: string; mediaType: string; bytes: Uint8Array; real: SniffedType }[] = [
-    { name: "invoice.pdf (pe bytes)", filename: "invoice.pdf", mediaType: "application/pdf", bytes: samples.pe, real: "pe" },
+    {
+      name: "invoice.pdf (pe bytes)",
+      filename: "invoice.pdf",
+      mediaType: "application/pdf",
+      bytes: samples.pe,
+      real: "pe",
+    },
     {
       name: "statement.pdf (zip bytes)",
       filename: "statement.pdf",
@@ -218,9 +217,21 @@ export async function measureAttachmentChecks(opts?: {
       bytes: zip([{ name: "readme.txt", data: enc("Hello") }]),
       real: "zip",
     },
-    { name: "photo.png (html bytes)", filename: "photo.png", mediaType: "image/png", bytes: samples.html, real: "html" },
+    {
+      name: "photo.png (html bytes)",
+      filename: "photo.png",
+      mediaType: "image/png",
+      bytes: samples.html,
+      real: "html",
+    },
   ];
-  const archiveRisks: { name: string; filename: string; mediaType: string; bytes: Uint8Array; expectedCheck: string }[] = [
+  const archiveRisks: {
+    name: string;
+    filename: string;
+    mediaType: string;
+    bytes: Uint8Array;
+    expectedCheck: string;
+  }[] = [
     {
       name: "macro-docx",
       filename: "report.docx",
@@ -244,9 +255,27 @@ export async function measureAttachmentChecks(opts?: {
     },
   ];
   const damaged: { name: string; filename: string; bytes: Uint8Array; valid: SniffedType; isArchive: boolean }[] = [
-    { name: "truncated pdf", filename: "truncated.pdf", bytes: samples.pdf.slice(0, 4), valid: "pdf", isArchive: false },
-    { name: "truncated zip", filename: "truncated.zip", bytes: samples.zip.slice(0, 10), valid: "zip", isArchive: true },
-    { name: "truncated png", filename: "truncated.png", bytes: samples.png.slice(0, 4), valid: "png", isArchive: false },
+    {
+      name: "truncated pdf",
+      filename: "truncated.pdf",
+      bytes: samples.pdf.slice(0, 4),
+      valid: "pdf",
+      isArchive: false,
+    },
+    {
+      name: "truncated zip",
+      filename: "truncated.zip",
+      bytes: samples.zip.slice(0, 10),
+      valid: "zip",
+      isArchive: true,
+    },
+    {
+      name: "truncated png",
+      filename: "truncated.png",
+      bytes: samples.png.slice(0, 4),
+      valid: "png",
+      isArchive: false,
+    },
   ];
   const BATCH_REPS = 8;
 
@@ -327,9 +356,11 @@ export async function measureAttachmentChecks(opts?: {
       observations,
       provenance: {
         collector: "eval/attachments.ts#measureAttachmentChecks",
-        timingBoundary: "attachmentRisksOf (R2 range reads + archive inspection) + typeMismatchEvidence + macroEvidence + encryptedArchiveEvidence + executableEvidence over MAX_SNIFFED = 20 attachments",
+        timingBoundary:
+          "attachmentRisksOf (R2 range reads + archive inspection) + typeMismatchEvidence + macroEvidence + encryptedArchiveEvidence + executableEvidence over MAX_SNIFFED = 20 attachments",
         repetitions: observations.length,
-        inputDescription: "27 valid format samples, 3 disguised samples, 3 archive-risk samples, 3 damaged truncated packages, plus 8 batch runs of 20 attachments",
+        inputDescription:
+          "27 valid format samples, 3 disguised samples, 3 archive-risk samples, 3 damaged truncated packages, plus 8 batch runs of 20 attachments",
       },
     };
   };
@@ -364,11 +395,7 @@ export async function measureAttachmentChecks(opts?: {
       attachmentRisks,
     };
     const mismatchItems = typeMismatchEvidence(view);
-    const riskItems = [
-      ...macroEvidence(view),
-      ...encryptedArchiveEvidence(view),
-      ...executableEvidence(view),
-    ];
+    const riskItems = [...macroEvidence(view), ...encryptedArchiveEvidence(view), ...executableEvidence(view)];
     return {
       attachmentRisks,
       mismatchFlagged: mismatchItems.some((e) => e.check === "attachment.type_mismatch"),

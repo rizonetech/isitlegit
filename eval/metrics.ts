@@ -18,12 +18,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import {
-  type ComponentRecords,
-  checkComponentRows,
-  parseComponentFile,
-  providerFigures,
-} from "./components.ts";
+import { type ComponentRecords, checkComponentRows, parseComponentFile, providerFigures } from "./components.ts";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";

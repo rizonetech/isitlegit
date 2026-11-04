@@ -29,9 +29,7 @@ function makeR2Bucket(store: Map<string, Uint8Array>): unknown {
     get: async (key: string, opts?: { range?: { offset: number; length: number } }) => {
       const full = store.get(key);
       if (!full) return null;
-      const slice = opts?.range
-        ? full.subarray(opts.range.offset, opts.range.offset + opts.range.length)
-        : full;
+      const slice = opts?.range ? full.subarray(opts.range.offset, opts.range.offset + opts.range.length) : full;
       return {
         arrayBuffer: async () => slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength),
         body: new Response(new Uint8Array(slice)).body,
@@ -89,10 +87,7 @@ export function scoreAiInstructions() {
 // Runs the full `attachmentPhrases` + `aiInstructionEvidence` checks step over `MAX_TEXT_ATTACHMENTS` (10)
 // text attachments decoded from R2, pre-populating planned observations so any interruption leaves unrun
 // items marked `failed` and never shrinks denominators.
-export async function measureAiInstructionsCheck(opts?: {
-  outPath?: string;
-  failAt?: number;
-}): Promise<AiSummary> {
+export async function measureAiInstructionsCheck(opts?: { outPath?: string; failAt?: number }): Promise<AiSummary> {
   const { aiInstructionEvidence, attachmentPhrases, instructionsOf } = await importSrc<{
     aiInstructionEvidence: (view: unknown) => { severity: string }[];
     attachmentPhrases: (
@@ -144,9 +139,11 @@ export async function measureAiInstructionsCheck(opts?: {
       observations,
       provenance: {
         collector: "eval/ai-instructions.ts#measureAiInstructionsCheck",
-        timingBoundary: "attachmentPhrases (R2 range read + TextDecoderStream over 10 text attachments) + aiInstructionEvidence",
+        timingBoundary:
+          "attachmentPhrases (R2 range read + TextDecoderStream over 10 text attachments) + aiInstructionEvidence",
         repetitions: items.length,
-        inputDescription: "4 steering texts + 4 genuine business texts, each replicated across MAX_TEXT_ATTACHMENTS = 10 text attachments",
+        inputDescription:
+          "4 steering texts + 4 genuine business texts, each replicated across MAX_TEXT_ATTACHMENTS = 10 text attachments",
       },
     };
   };

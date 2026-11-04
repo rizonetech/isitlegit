@@ -80,7 +80,9 @@ export function scoreInvisible(opts?: {
     const largeObs = observations.filter((o) => o.kind === "large-message" && o.status === "ok" && o.ms !== null);
     const largeTimes = largeObs.map((o) => o.ms as number).sort((a, b) => a - b);
     const at = (q: number) =>
-      largeTimes.length ? (largeTimes[Math.min(largeTimes.length - 1, Math.ceil(q * largeTimes.length) - 1)] as number) : null;
+      largeTimes.length
+        ? (largeTimes[Math.min(largeTimes.length - 1, Math.ceil(q * largeTimes.length) - 1)] as number)
+        : null;
     const peaks = largeObs.map((o) => o.peakMb).filter((x): x is number => typeof x === "number");
     const maxPeak = peaks.length ? Math.max(...peaks) : null;
     const p50 = at(0.5);
@@ -97,9 +99,11 @@ export function scoreInvisible(opts?: {
       observations,
       provenance: {
         collector: "eval/invisible.ts#scoreInvisible",
-        timingBoundary: "PhraseStream + RunReader + hiddenTextEvidence over 1 MiB message streamed in 16 KiB chunks (8 repetitions)",
+        timingBoundary:
+          "PhraseStream + RunReader + hiddenTextEvidence over 1 MiB message streamed in 16 KiB chunks (8 repetitions)",
         repetitions: observations.length,
-        inputDescription: "6 payloads (including malformed flag run and surrogate-split chunk boundary) + 5 controls (emoji, multilingual, RGI flag) + 8 runs of 1 MiB streaming message",
+        inputDescription:
+          "6 payloads (including malformed flag run and surrogate-split chunk boundary) + 5 controls (emoji, multilingual, RGI flag) + 8 runs of 1 MiB streaming message",
       },
       missed,
       flagged,
@@ -196,8 +200,7 @@ export function scoreInvisible(opts?: {
       const hEnd = process.memoryUsage().heapUsed;
       if (hEnd > maxHeap) maxHeap = hEnd;
       // Keep references live through the measurement point so V8 cannot reclaim them beforehand.
-      const detected =
-        (invisibleSummary?.runs.length ?? 0) > 0 && retainedRuns.length > 0 && retainedChunks.length > 0;
+      const detected = (invisibleSummary?.runs.length ?? 0) > 0 && retainedRuns.length > 0 && retainedChunks.length > 0;
       const repPeakMb = Number((maxHeap / (1024 * 1024)).toFixed(1));
       observations[slot] = {
         name: `large-1mib-rep-${rep + 1}`,

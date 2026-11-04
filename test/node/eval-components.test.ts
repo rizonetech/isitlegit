@@ -148,9 +148,13 @@ describe("component measurements", () => {
       retry: [{ kind: "interrupted-settle" as const, ms: 1.5, completed: true, leaseWindowMs: 300000 }],
     };
     const rendered = renderComponentRows(records);
-    expect(rendered).toContain("| Reputation providers | not measured (0 rows; per-provider checked/unchecked rates populate from reputation_results) |");
+    expect(rendered).toContain(
+      "| Reputation providers | not measured (0 rows; per-provider checked/unchecked rates populate from reputation_results) |",
+    );
     expect(rendered).toContain("| Deterministic floor | raised 1 of 1, added detections 1, caused false positives 0 |");
-    expect(rendered).toContain("| Comparator Microsoft Defender for Office 365 | absent (not measured; no figures invented) |");
+    expect(rendered).toContain(
+      "| Comparator Microsoft Defender for Office 365 | absent (not measured; no figures invented) |",
+    );
     expect(checkComponentRows(rendered, records)).toEqual([]);
     const problems = checkComponentRows("| Result cache | 0% hits |", records);
     expect(problems.some((p) => p.includes("Result cache"))).toBe(true);

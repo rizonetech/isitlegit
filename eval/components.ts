@@ -458,24 +458,31 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
     const gen = obs.filter((o) => o.kind === "genuine");
     const det = inj.filter((o) => o.status === "ok" && o.detected).length;
     const fp = gen.filter((o) => o.status === "ok" && o.detected).length;
-    const expectedTotal = Math.max(
-      records.ai.injections + records.ai.genuine,
-      records.ai.provenance?.repetitions ?? 0,
-    );
+    const expectedTotal = Math.max(records.ai.injections + records.ai.genuine, records.ai.provenance?.repetitions ?? 0);
     if (records.ai.injections === 0 || records.ai.genuine === 0) {
-      problems.push(`ai.json is missing required steering or genuine denominator (${records.ai.injections} injections, ${records.ai.genuine} genuine)`);
+      problems.push(
+        `ai.json is missing required steering or genuine denominator (${records.ai.injections} injections, ${records.ai.genuine} genuine)`,
+      );
     }
     if (records.ai.provenance && records.ai.injections + records.ai.genuine !== records.ai.provenance.repetitions) {
-      problems.push(`ai.json denominators (${records.ai.injections} + ${records.ai.genuine}) disagree with provenance.repetitions (${records.ai.provenance.repetitions})`);
+      problems.push(
+        `ai.json denominators (${records.ai.injections} + ${records.ai.genuine}) disagree with provenance.repetitions (${records.ai.provenance.repetitions})`,
+      );
     }
     if (obs.length < expectedTotal && obs.filter((o) => o.status === "failed").length === 0) {
-      problems.push(`ai.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`);
+      problems.push(
+        `ai.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`,
+      );
     }
     if (inj.length !== records.ai.injections || det !== records.ai.detected) {
-      problems.push(`ai.json summary (${records.ai.detected}/${records.ai.injections}) disagrees with observations (${det}/${inj.length})`);
+      problems.push(
+        `ai.json summary (${records.ai.detected}/${records.ai.injections}) disagrees with observations (${det}/${inj.length})`,
+      );
     }
     if (gen.length !== records.ai.genuine || fp !== records.ai.falsePositives) {
-      problems.push(`ai.json falsePositives (${records.ai.falsePositives}/${records.ai.genuine}) disagrees with observations (${fp}/${gen.length})`);
+      problems.push(
+        `ai.json falsePositives (${records.ai.falsePositives}/${records.ai.genuine}) disagrees with observations (${fp}/${gen.length})`,
+      );
     }
   }
   if (records.attachments?.observations) {
@@ -502,10 +509,14 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
       records.attachments.provenance?.repetitions ?? 0,
     );
     if (obs.length < expectedTotal && obs.filter((o) => o.status === "failed").length === 0) {
-      problems.push(`attachments.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`);
+      problems.push(
+        `attachments.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`,
+      );
     }
     if (valid.length !== records.attachments.valid || idOk !== records.attachments.identified) {
-      problems.push(`attachments.json valid summary (${records.attachments.identified}/${records.attachments.valid}) disagrees with observations (${idOk}/${valid.length})`);
+      problems.push(
+        `attachments.json valid summary (${records.attachments.identified}/${records.attachments.valid}) disagrees with observations (${idOk}/${valid.length})`,
+      );
     }
     if (
       records.attachments.typeMismatchFalsePositives !== undefined &&
@@ -535,7 +546,9 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
       records.attachments.damagedArchiveCaught !== undefined &&
       damArchCaught !== records.attachments.damagedArchiveCaught
     ) {
-      problems.push(`attachments.json damagedArchiveCaught (${records.attachments.damagedArchiveCaught}) disagrees with archive observations (${damArchCaught}/${damArch.length})`);
+      problems.push(
+        `attachments.json damagedArchiveCaught (${records.attachments.damagedArchiveCaught}) disagrees with archive observations (${damArchCaught}/${damArch.length})`,
+      );
     }
   }
   if (records.invisible?.observations) {
@@ -553,10 +566,14 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
       problems.push(`invisible.json is missing payload or control denominator`);
     }
     if (obs.length < expectedTotal && obs.filter((o) => o.status === "failed").length === 0) {
-      problems.push(`invisible.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`);
+      problems.push(
+        `invisible.json observations (${obs.length}) are fewer than expected (${expectedTotal}) without recording failed/interrupted status`,
+      );
     }
     if (pay.length !== records.invisible.payloads || det !== records.invisible.detected) {
-      problems.push(`invisible.json payload summary (${records.invisible.detected}/${records.invisible.payloads}) disagrees with observations (${det}/${pay.length})`);
+      problems.push(
+        `invisible.json payload summary (${records.invisible.detected}/${records.invisible.payloads}) disagrees with observations (${det}/${pay.length})`,
+      );
     }
     if (ctl.length !== records.invisible.controls || fp !== records.invisible.falsePositives) {
       problems.push(`invisible.json control summary disagrees with observations`);
@@ -567,12 +584,16 @@ export function validateComponentRecords(records: ComponentRecords): string[] {
       const at = (q: number) =>
         times.length ? (times[Math.min(times.length - 1, Math.ceil(q * times.length) - 1)] as number) : null;
       if (at(0.5) !== records.invisible.p50Ms || at(0.95) !== records.invisible.p95Ms) {
-        problems.push(`invisible.json 1 MiB timing (p50 ${records.invisible.p50Ms}, p95 ${records.invisible.p95Ms}) disagrees with large-message observations`);
+        problems.push(
+          `invisible.json 1 MiB timing (p50 ${records.invisible.p50Ms}, p95 ${records.invisible.p95Ms}) disagrees with large-message observations`,
+        );
       }
       const peaks = largeOk.map((o) => o.peakMb).filter((x): x is number => typeof x === "number");
       const maxPeak = peaks.length ? Math.max(...peaks) : null;
       if (maxPeak !== records.invisible.peakMb) {
-        problems.push(`invisible.json peakMb (${records.invisible.peakMb}) disagrees with large-message observations (${maxPeak})`);
+        problems.push(
+          `invisible.json peakMb (${records.invisible.peakMb}) disagrees with large-message observations (${maxPeak})`,
+        );
       }
     }
   }
@@ -644,11 +665,7 @@ export function renderComponentRows(records: ComponentRecords): string {
   const aiOk = ai?.observations ? ai.observations.filter((o) => o.status === "ok").length : aiExpected;
   const aiMissingCat = ai && (ai.injections === 0 || ai.genuine === 0) ? 1 : 0;
   const aiFailed = ai?.observations
-    ? Math.max(
-        ai.observations.filter((o) => o.status === "failed").length,
-        aiExpected - aiOk,
-        aiMissingCat,
-      )
+    ? Math.max(ai.observations.filter((o) => o.status === "failed").length, aiExpected - aiOk, aiMissingCat)
     : aiMissingCat;
   const aiTiming =
     ai?.p50Ms !== undefined && ai?.p50Ms !== null ? `, p50 ${ai.p50Ms} ms, p95 ${ai.p95Ms ?? "not measured"} ms` : "";
@@ -659,10 +676,7 @@ export function renderComponentRows(records: ComponentRecords): string {
   );
   const at = records.attachments;
   const atExpected = at
-    ? Math.max(
-        at.valid + at.disguised + at.damaged + (at.archiveChecks ?? 0),
-        at.provenance?.repetitions ?? 0,
-      )
+    ? Math.max(at.valid + at.disguised + at.damaged + (at.archiveChecks ?? 0), at.provenance?.repetitions ?? 0)
     : 0;
   const atOk = at?.observations ? at.observations.filter((o) => o.status === "ok").length : atExpected;
   const atFailed = at?.observations
@@ -686,11 +700,7 @@ export function renderComponentRows(records: ComponentRecords): string {
   const invOk = inv?.observations ? inv.observations.filter((o) => o.status === "ok").length : invExpected;
   const invMissingCat = inv && (inv.payloads === 0 || inv.controls === 0) ? 1 : 0;
   const invFailed = inv?.observations
-    ? Math.max(
-        inv.observations.filter((o) => o.status === "failed").length,
-        invExpected - invOk,
-        invMissingCat,
-      )
+    ? Math.max(inv.observations.filter((o) => o.status === "failed").length, invExpected - invOk, invMissingCat)
     : invMissingCat;
   lines.push(
     inv
@@ -733,7 +743,9 @@ export function checkComponentRows(resultsText: string, records: ComponentRecord
     }
   }
   if (actualRows.length !== expected.length && rowProblems.length === 0) {
-    rowProblems.push(`RESULTS.md component row count (${actualRows.length}) differs from expected (${expected.length})`);
+    rowProblems.push(
+      `RESULTS.md component row count (${actualRows.length}) differs from expected (${expected.length})`,
+    );
   }
   return [...recordProblems, ...rowProblems];
 }
