@@ -73,7 +73,7 @@ track: day-0
 | 32 | §32 | Wake dispatched after each | §27 | [x] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 | 34 | §34 | Codex unattended continuation and session ownership | §19 | [ ] |
-| 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [ ] |
+| 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
 | 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -1183,6 +1183,9 @@ Filed 2026-11-04 by the coordinator at the operator's request to repair the revi
 
 **Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including genuine dispatcher-to-stamp reconciliation acceptance and refusal with original review bytes unchanged, while old receipts continue to validate.
 
+> **Verified:** 2026-11-04 | §35 | 5168772014556768c0e9c92bbb01e09bfee8e11f
+> **Review:** `docs/reviews/d00-t01-s35.json`
+
 ## 36. Two-pass Codex review with a combined final gate
 
 Filed 2026-11-04 from the operator's explicit correction: normal review is a plan pass followed by one combined adversarial, completeness, consistency and integration pass. Preserve existing review history and the bounded repair verification delivered by §35. This changes review orchestration, never product safety or evidence requirements. Already-returned reviews remain truthful records; no synthetic regular round is created to satisfy an older schema.
@@ -1194,7 +1197,7 @@ Filed 2026-11-04 from the operator's explicit correction: normal review is a pla
 **Build order:**
 
 1. Version the new Codex policy as `codex-two-pass-v1` in the committed reviewer pin and dispatcher, with a separate combined schedule. Done when: newly opted-in chains accept one plan and one combined completion, refuse a separate ordinary round, and historical three-pass chains retain their original interpretation.
-2. Make the combined completion cover all required lenses. Done when: adversarial, integration, source-defect, plan-delivery, consistency and record checks plus every Done when and frozen obligation are included in its pinned schedule and prompt; a real gap still refuses stamping.
+2. Make the combined completion cover all required lenses. Done when: adversarial, integration, source-defect, plan-delivery, consistency, record, quality and optimization checks (plus design when Surface is yes) plus every Done when and frozen obligation are included in its pinned schedule and prompt; a real gap still refuses stamping.
 3. Update receipt validation for a genuinely two-pass chain. Done when: receipts record zero implementation rounds and validate the actual plan and exact combined completion with their committed pins, rather than inventing a round or accepting an arbitrary empty review list.
 4. Carry bounded reconciliation and active plan transitions forward. Done when: a gaps result may use §35's one explicit reconciliation, and a genuine legacy plan with no round/completion attempts can transition explicitly under the new committed policy while retaining its original digest/candidate/pin. Chains with implementation reviews already performed retain the legacy route unless separately authorized; no history is erased.
 
