@@ -91,6 +91,8 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card can only draw o
 
 ## 2. Kinds of auth error
 
+> **Started:** 2026-11-04T07:30:12.306158+00:00
+
 Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inconclusive result (a temporary receiver error, a permanent configuration error, a result that decides nothing) as "Could not be checked" with the item's summary, where Defender's authentication view names the kind. The stored item keeps each result's raw value (`detail.results[].result`), so the kinds can be told apart on the card once the board's words are approved.
 
 **Phase:** 7
@@ -105,11 +107,13 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inc
 
 1. Record the words, then split the inconclusive state. Done when: each kind draws its own sentence.
 
-- [ ] Ask the operator (through the coordinator) for the pill and sentence for a temporary error, a permanent error and a result that decides nothing; record the answer in `design/SPEC.md` M3. Done when: the words are in the SPEC. Cheaper substitute: the raw header value as the sentence, which a member cannot read.
-- [ ] Split `inconclusive` on the early card in `src/web/pages/report-live.tsx` by the stored raw results (`temperror`, `permerror`, `neutral` and their DMARC equivalents). Done when: `test/web/report-status.test.ts` draws each kind with its approved words and a mixed set names the first that applies. Cheaper substitute: one "Could not be checked" for every kind, which is what ships today.
+- [ ] Record the coordinator-approved 2026-11-04 wording below in `design/SPEC.md` M3. Done when: the words are in the SPEC. Cheaper substitute: the raw header value as the sentence, which a member cannot read.
+- [ ] Split `inconclusive` on the early card in `src/web/pages/report-live.tsx` by the stored method results (`temperror`, `permerror`, `neutral`) and trusted `auth.results` DMARC `fail` with `props.action=temperror` or `permerror` (the method item does not retain action). Done when: `test/web/report-status.test.ts` draws each kind with its approved words and a mixed inconclusive set prioritises configuration, temporary, then neutral; explicit failures and other conclusive states remain unchanged, and missing or untrusted results retain their existing fallback. Cheaper substitute: one "Could not be checked" for every kind, which is what ships today.
 - [ ] Commit: `web: kinds of authentication error on the early card`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with each kind worded apart.
+
+**Coordinator decision (2026-11-04 09:25:56 SAST):** Temporary error / "This authentication check could not finish because of a temporary error. Try again later." Configuration error / "This authentication check could not finish because of a configuration error." No conclusion / "This check does not confirm whether the sender is genuine." Precedence configuration, temporary, neutral applies only among these non-conclusive statuses; explicit failures, critical evidence and the deterministic floor are unchanged. App exclusively owns this scoped M3 update. Reversal costs copy and rendering changes plus tests.
 
 ## 3. Dispute from inside the mailbox
 
