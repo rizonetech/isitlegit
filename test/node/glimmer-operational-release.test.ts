@@ -81,7 +81,7 @@ async function run(mode: string) {
           name: "accounts/rizonetech/models/isitlegit-loupe-1-1",
           state: mode === "wrong-registration" ? "FAILED" : "READY",
           kind: "HF_PEFT_ADDON",
-          baseModel: "accounts/fireworks/models/muse-glimmer-30b",
+          peftDetails: { baseModel: "accounts/fireworks/models/muse-glimmer-30b", r: 8 },
         });
       if (url.endsWith(":match"))
         return Response.json({

@@ -104,13 +104,14 @@ export async function operationalRelease(options: {
         const registration = (await registered.json()) as {
           name?: string;
           state?: string;
-          baseModel?: string;
+          peftDetails?: { baseModel?: string; r?: number };
           kind?: string;
         };
         assert.equal(registration.name, targetOf(version, id).model.split("#")[0]);
         assert.equal(registration.state, "READY");
         assert.equal(registration.kind, "HF_PEFT_ADDON");
-        assert.equal(registration.baseModel, "accounts/fireworks/models/muse-glimmer-30b");
+        assert.equal(registration.peftDetails?.baseModel, "accounts/fireworks/models/muse-glimmer-30b");
+        assert.equal(registration.peftDetails?.r, 8);
         const match = await bounded(`${API}/deploymentShapeVersions:match`, {
           method: "POST",
           headers: { Authorization: `Bearer ${options.adminKey}`, "Content-Type": "application/json" },
