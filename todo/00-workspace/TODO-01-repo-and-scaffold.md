@@ -76,6 +76,7 @@ track: day-0
 | 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
 | 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
 | 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
+| 38 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1248,6 +1249,30 @@ Filed 2026-11-04 from LOUPE-JOURNAL-ANCESTRY. The shared `scripts/review-dispatc
 
 > **Verified:** 2026-11-04 | §37 | 794d8a9e8a185d47819aa58e02e8d7a2c75f29f4
 > **Review:** `docs/reviews/d00-t01-s37.json`
+
+## 39. Controlled failure proof for the composed detection harness
+
+> **Started:** 2026-11-04T12:32:08.118215+00:00 (plan preparation only; no implementation yet)
+
+Filed 2026-11-04 by the coordinator for the necessary integration of stamped D02 T05 §7 measurement (`22cdba7d`, implementation `2b168d3a`) and stamped D02 T05 §12 detector correction (`5b40363e`, implementation `40b407d0`). Both approved implementations are inputs, not new product scope. The composed Node suite actually returns 13 passes and one failure at `test/node/eval-hidden-text.test.ts:182`: the failure-exit test injects 40 false flags but relies on the historical translated attacks still producing misses. The corrected detector produces zero misses. The owning layer is the integration test's controlled failure input, not the detector, measurement thresholds or historical evidence. Existing review receipts and candidate ancestry remain unchanged.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Preserved inputs:** Preserve `eval/hidden-text/corpus.json`, `observations.json` and `results.md` byte-for-byte against `505de4b799416c1f2e39abe3e805e97ef00e0240`; retain all original 28 misses, the 205/205 denominators and the failed 5% baseline target. Keep all production source and existing frozen detector tests unchanged from the composed inputs.
+
+**Build order:**
+
+1. Retain the actual failing-before result from the exact composed harness. Done when: the Node suite fails specifically because measured misses are zero while the other 13 tests pass, before any test repair.
+2. Give the failure-exit test its own explicit missed attack. Done when: one selected sparse attack keeps its ID, label and metadata but uses ordinary benign text via the existing `changed()` helper, which recomputes its payload hash; the real detector and CLI still run, and all 40 deliberately flagged sparse controls remain.
+3. Prove the composed candidate without overwriting prior evidence. Done when: the repaired harness and unchanged detector gates pass; any fresh unchanged-corpus measurement writes to a separate external directory and identifies this exact source candidate.
+
+- [ ] Repair only the controlled rows and assertions in `test/node/eval-hidden-text.test.ts`. Done when: the failure-exit case asserts exit 1, 410 retained observations, 205 attacks, 205 controls, 40 false flags, no reader errors and the selected benign attack ID in the missed set, retaining the positive miss assertion. Cheaper substitute: remove the miss assertion or tolerate zero misses, rejected because it removes the promised failure accounting proof.
+- [ ] Verify the new miss is causal through the real harness. Done when: removing the controlled benign-attack mutation makes the miss assertion fail again, restoring it passes, and the full 14-test suite remains green. No replacement matcher, detector stub or production special case is introduced.
+- [ ] Run affected integration gates and preserve immutable evidence. Done when: the Node harness, six D02 T05 §12 check suites, typecheck, dry build, scoped lint, publication scan, TODO validation and plan checks pass; original corpus, observations and results still match `505de4b7`, all imported canonical findings and receipts retain exact bytes, and a separate corrected observation set makes no production or generalization claim.
+- [ ] Commit: `test: control missed attack in detection failure proof`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts` passes all 14 tests and fails when the explicit missed-attack mutation is removed; `pnpm exec vitest run test/checks/translated-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts test/checks/invisible-unicode.test.ts test/checks/document-instructions.test.ts test/checks/ai-instructions-shapes.test.ts` passes without changing the frozen suites.
 
 ## Verification
 
