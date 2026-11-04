@@ -276,11 +276,13 @@ def publish(path, report, store):
             f.flush()
             os.fsync(f.fileno())
         os.link(temporary, path)
-        directory_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(directory_fd)
-        finally:
-            os.close(directory_fd)
+        # Persist every directory entry, including ancestors left by an interrupted attempt.
+        for directory in [path.parent, *path.parent.parents]:
+            directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
         if path.read_bytes() != data:
             raise Refused("receipt_readback_failed")
     finally:

@@ -3,6 +3,8 @@ import base64
 import hashlib
 import importlib.util
 import json
+import os
+import stat
 from pathlib import Path
 import tempfile
 import unittest
@@ -263,6 +265,43 @@ class Audit(unittest.TestCase):
         report = audit.audit(self.store, "1.0", trainer_input=self.input, run=self.run)
         self.assertEqual(report["issues"], [])
         self.assertEqual(report["status"], "verified")
+
+    def test_new_nested_receipt_ancestors_synced_leaf_to_root(self):
+        target = self.store / 'runs/audits/new/nested/durable.json'
+        synced = []
+        real_sync, real_open = os.fsync, os.open
+        opened = {}
+        def opened_path(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                opened[fd] = Path(path)
+            return fd
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                synced.append(opened[fd])
+            real_sync(fd)
+        with mock.patch.object(audit.os, 'open', side_effect=opened_path), mock.patch.object(audit.os, 'fsync', side_effect=sync):
+            audit.publish_receipt(target, {'status': 'available'}, self.store)
+        self.assertEqual(synced, [target.parent, *target.parent.parents])
+
+    def test_ancestor_sync_failure_refuses_acknowledgment(self):
+        target = self.store / 'runs/audits/new/nested/uncertain.json'
+        real_sync, real_open = os.fsync, os.open
+        opened = {}
+        def opened_path(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                opened[fd] = Path(path)
+            return fd
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode) and opened[fd] == target.parent.parent:
+                raise OSError('synthetic ancestor sync failure')
+            real_sync(fd)
+        with mock.patch.object(audit.os, 'open', side_effect=opened_path), mock.patch.object(audit.os, 'fsync', side_effect=sync), self.assertRaisesRegex(OSError, 'ancestor sync failure'):
+            audit.publish_receipt(target, {'status': 'available'}, self.store)
+        self.assertTrue(target.exists())
+        with self.assertRaises(FileExistsError):
+            audit.publish_receipt(target, {'status': 'replacement'}, self.store)
 
     def test_receipt_cannot_overwrite_and_failed_audits_are_recordable(self):
         report = self.run_audit()

@@ -481,11 +481,13 @@ def publish_receipt(path, report, store):
             handle.flush()
             os.fsync(handle.fileno())
         os.link(temporary, path)  # Atomic absent-only publication, including concurrent writers.
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        # Persist every directory entry, including ancestors left by an interrupted attempt.
+        for ancestor in [path.parent, *path.parent.parents]:
+            directory = os.open(ancestor, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
         if path.read_bytes() != data:
             raise OSError("receipt read-back mismatch")
     finally:

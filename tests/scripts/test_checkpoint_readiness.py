@@ -209,7 +209,44 @@ class Readiness(unittest.TestCase):
             return real_read(path)
         with mock.patch.object(m.os, 'fsync', side_effect=sync), mock.patch.object(m.os, 'link', side_effect=link), mock.patch.object(Path, 'read_bytes', read):
             m.publish(target, {'status': 'available'}, self.store)
-        self.assertEqual(events, ['file_sync', 'link', 'directory_sync', 'readback'])
+        self.assertEqual(events, ['file_sync', 'link'] + ['directory_sync'] * len([target.parent, *target.parent.parents]) + ['readback'])
+
+    def test_new_nested_receipt_ancestors_synced_leaf_to_root(self):
+        target = self.store / 'runs/checkpoint-readiness/new/nested/durable.json'
+        synced = []
+        real_sync, real_open = os.fsync, os.open
+        opened = {}
+        def opened_path(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if flags & os.O_DIRECTORY:
+                opened[fd] = Path(path)
+            return fd
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                synced.append(opened[fd])
+            real_sync(fd)
+        with mock.patch.object(m.os, 'open', side_effect=opened_path), mock.patch.object(m.os, 'fsync', side_effect=sync):
+            m.publish(target, {'status': 'available'}, self.store)
+        self.assertEqual(synced, [target.parent, *target.parent.parents])
+
+    def test_ancestor_sync_failure_refuses_acknowledgment(self):
+        target = self.store / 'runs/checkpoint-readiness/new/nested/uncertain.json'
+        real_sync, real_open = os.fsync, os.open
+        opened = {}
+        def opened_path(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if flags & os.O_DIRECTORY:
+                opened[fd] = Path(path)
+            return fd
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode) and opened[fd] == target.parent.parent:
+                raise OSError('synthetic ancestor sync failure')
+            real_sync(fd)
+        with mock.patch.object(m.os, 'open', side_effect=opened_path), mock.patch.object(m.os, 'fsync', side_effect=sync), self.assertRaisesRegex(OSError, 'ancestor sync failure'):
+            m.publish(target, {'status': 'available'}, self.store)
+        self.assertTrue(target.exists())
+        with self.assertRaises(FileExistsError):
+            m.publish(target, {'status': 'replacement'}, self.store)
 
     def test_directory_sync_failure_never_reports_success(self):
         target = self.store / 'runs/checkpoint-readiness/unsynced.json'
