@@ -1675,6 +1675,8 @@ Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is t
 
 ## 51. Immutable training and evaluation evidence audit
 
+> **Started:** 2026-11-04T07:28:17.354402Z
+
 Coordinator-authorized new Codex audit/repair scope, 2026-11-04 09:21 SAST. This section audits the interrupted 1.1 publication and defines truthful checkpoint evidence before §50 can promote; it does not retroactively approve §45 or §50. Historical receipts and Started lines stay unchanged. The live trainer and its input are never replaced, stopped or restarted. Owning layer: offline artifact validation in `scripts/glimmer/checkpoint-audit.py`; incomplete evidence remains incomplete rather than being reconstructed from current mutable source pages. The coordinator permits quiescent detached exact-candidate review checkouts while training continues to append progress in the original checkout.
 
 **Phase:** 6
