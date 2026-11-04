@@ -50,7 +50,7 @@ track: day-2
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [x] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
-| 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
+| 14 | §14 | Abandoned preview response during a retry | §8 | [x] |
 | 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
@@ -465,6 +465,9 @@ Filed 2026-11-02 from D07 T09 §8's round 5 (P3): §8's browser test releases ea
 **Corrected 2026-11-04 (plan review):** the test exercises both a `200` PNG and a `404` abandoned response delivered while the retry's separate request is confirmed pending, verifies request ordering across the two attempts, and proves both browser-level response isolation and handler-level stale-event isolation (with a negative control demonstrating the assertions fail when the isolation guard is bypassed).
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the abandoned response delivered during a pending retry.
+
+> **Verified:** 2026-11-04 | §14 | 652433cd48ddebe26c1ab8ff10157954d89b7f6b
+> **Review:** `docs/reviews/d07-t09-s14.json`
 
 ## 15. Detection data freshness beside the version
 

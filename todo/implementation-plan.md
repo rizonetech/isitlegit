@@ -621,7 +621,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D07 T09 §11 | Outcome and reason beside each version                      | none                 | 4     |
 | [x]    | D07 T09 §12 | Detection data beside each version                          | none                 | 4     |
 | [ ]    | D07 T09 §13 | A fresh walk from a reused card                             | none                 | 4     |
-| [ ]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
+| [x]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
 | [ ]    | D07 T09 §15 | Detection data freshness beside the version                 | none                 | 4     |
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 407/597 verified sections, 119 ready to run now.
+Progress: 408/597 verified sections, 118 ready to run now.
 
 Checklist: 3019/3688 items completed (includes Commit items).

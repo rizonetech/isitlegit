@@ -1,0 +1,110 @@
+{
+  "ref": "D07 T09 \u00a714",
+  "title": "Abandoned preview response during a retry",
+  "implementation_sha": "652433cd48ddebe26c1ab8ff10157954d89b7f6b",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T09-s14.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 8 pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx -t 'ignores an abandoned preview response' -> 1 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T09-s14.md",
+    "verdict": "completed",
+    "candidate": "585d9e0fb9f152b9deca96ef57ade108ee7e222c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 3,
+  "cap_outcome": "Round 1 returned P3 only (no P1 or P2 findings); stopped-low-severity per schedule.",
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T09-s14.md",
+    "candidate": "f0fa2ba8552261721ed9a9f6b295e3493dbb0542",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
