@@ -6,6 +6,12 @@
 // A paid answer that fails is marked on its call's record (D03 T01 §3), its usage and cost kept.
 import { z } from "zod";
 import { DEFAULT_DEADLINE_MS, type MetaContext, metaResponses, type ResponsesParams } from "./client.ts";
+import {
+  type DiagnosticCallback,
+  DiagnosticSegment,
+  deliverValidationDiagnostic,
+  type ValidationIssue,
+} from "./validation-diagnostics";
 
 export type ModelOutputErrorKind = "schema" | "invalid" | "incomplete" | "refused" | "failed";
 
@@ -256,6 +262,8 @@ export type StructuredContext = MetaContext & {
   // D04 T01 §5) caps this so the retries never compose into an extra accepted answer; the default
   // stays the schema repair pair. The returned attempts count says what a call spent.
   maxAttempts?: number;
+  onValidationDiagnostic?: DiagnosticCallback;
+  validationAttemptOffset?: 0 | 1;
 };
 
 export async function structured<S extends z.ZodType>(
@@ -326,16 +334,39 @@ export async function structured<S extends z.ZodType>(
     } catch {
       parsedJson = false;
     }
-    if (!parsedJson) problems = "the answer was not JSON";
-    else if (unknownProperty(value, json)) problems = "the answer has a property the schema does not name";
-    else {
+    let issues: ValidationIssue[] = [];
+    if (!parsedJson) {
+      problems = "the answer was not JSON";
+      issues = [{ category: "json_invalid", path: [] }];
+    } else if (unknownProperty(value, json)) {
+      problems = "the answer has a property the schema does not name";
+      issues = [{ category: "unknown_property", path: [] }];
+    } else {
       const parsed = schema.safeParse(value);
       if (parsed.success && !stripped(value, parsed.data))
         return { value: parsed.data, logId: answer.logId, callId: answer.callId, attempts: calls.length };
       problems = parsed.success
         ? "the answer has a property the schema does not name"
         : said(parsed.error.issues, known);
+      issues = parsed.success
+        ? [{ category: "unknown_property", path: [] }]
+        : parsed.error.issues.slice(0, 4).map((issue) => ({
+            category: "schema_invalid",
+            path: diagnosticPath(json, issue.path),
+          }));
     }
+    const totalAttempt = attempt + (ctx.validationAttemptOffset ?? 0);
+    await deliverValidationDiagnostic(
+      ctx.onValidationDiagnostic,
+      {
+        phase: "structured",
+        callId: answer.callId,
+        attempt: totalAttempt,
+        remaining: 2 - totalAttempt,
+        issues,
+      },
+      ctx.waitUntil,
+    );
     if (attempt === maxAttempts)
       return fail(
         "invalid",
@@ -353,4 +384,22 @@ export async function structured<S extends z.ZodType>(
     ] as ResponsesParams["input"];
   }
   throw new ModelOutputError("invalid", `Meta's answer did not match the schema: ${problems}`, calls);
+}
+
+// Follow trusted schema structure, never arbitrary names from a model or a validator message.
+function diagnosticPath(schema: Node, path: readonly PropertyKey[]): ValidationIssue["path"] {
+  let node = schema;
+  const result: ValidationIssue["path"] = [];
+  for (const segment of path.slice(0, 6)) {
+    if (typeof segment === "number" && node.items && typeof node.items === "object") {
+      result.push("*");
+      node = node.items as Node;
+    } else if (typeof segment === "string" && node.properties && Object.hasOwn(node.properties as object, segment)) {
+      const safe = DiagnosticSegment.safeParse(segment);
+      if (!safe.success) break;
+      result.push(safe.data);
+      node = (node.properties as Record<string, Node>)[segment] ?? {};
+    } else break;
+  }
+  return result;
 }
