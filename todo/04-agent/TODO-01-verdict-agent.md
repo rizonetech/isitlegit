@@ -570,6 +570,8 @@ Coordinator critical-path assignment 2026-11-04. Replace organisation KV flags w
 
 ## 18. Labelled screening experiment binding
 
+> **Started:** 2026-11-04T14:49:19.710870+00:00
+
 Coordinator MONITOR-18-CONTRACT (2026-11-04T14:10:18Z) accepts the exact interface in handover/eval-ablation-digest-monitor-contract.md (SHA256 fcee5aaf2af95cf41ba4d158c0e1de14d2ecfaf8828e8af01749b41b699923aa), allocates additive migration0097 and authorizes genuine-plan-first offline implementation. Driver §11 is verified first. This removes the former interface decision dependency, not the separate population/publication/live-run holds. Checks owns capability, trigger, readback, immutable monitor bindings and screening adapter integration; eval owns private population/provenance/scoring; coordinator owns immutable artifact publication and release. Shared src/index.ts registration waits explicit joint verification baseline release; no frozen verification source is restored or edited in parallel. Loupe lane remains offline-only. Uploaded cases never count as screened monitor pages. Source: `docs/specs/2026-11-04-per-case-ablation-design.md`, labelled monitor contract.
 
 **Phase:** 6
