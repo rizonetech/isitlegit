@@ -53,7 +53,7 @@ track: day-6
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
 | 16 | §16 | Message-specific consequence sentences | §2 | [x] |
-| 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [ ] |
+| 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [x] |
 | 18 | §18 | Labelled screening experiment binding | D01 T03 §17 | [ ] |
 | 19 | §19 | Queued verification and guarded delivery refresh | §17 | [ ] |
 
@@ -554,15 +554,18 @@ Coordinator critical-path assignment 2026-11-04. Replace organisation KV flags w
 2. Wire four case skip paths and attribution. Done when: reasoning, walkthrough, SAM and transcription hooks skip exactly their owned contributions, preserve ordinary behavior and record the actual arm.
 3. Prove calls and persisted outcomes in `test/pipeline/ablation-consumers.test.ts`. Done when: every arm's applicable skipped and retained calls, resume behavior and safety gates are asserted with stubbed model transports.
 
-- [ ] Resolve immutable context before model-dependent work in `src/pipeline/analysis-workflow.ts`. Done when: missing ordinary metadata means normal behavior, but metadata read failure or experimental deployment mismatch propagates as failure/partial rather than executing an unflagged arm. Cheaper substitute: catch-to-null silently changes the experiment. Source: design, Consumers.
-- [ ] Replace org KV reads for verdict reasoning and walkthrough in `src/pipeline/analysis-workflow.ts`. Done when: no-agent-reasoning uses rules with unchanged floor/citations/actions, no-walkthrough reuses no cached walk, and other arms leave those calls eligible. Cheaper substitute: a label on an unchanged model call is not ablation. Source: design, Consumers.
-- [ ] Replace org KV reads for all SAM paths in `src/agent/loop.ts`, `src/agent/tools.ts` and `src/vision/step.ts`. Done when: no-sam prevents segmentation and comparison, retained vision reading runs, and stored coverage names the skipped contribution. Cheaper substitute: suppressing only the UI or one tool leaves SAM active. Source: design, Consumers.
-- [ ] Add the no-transcribe gate in `src/pipeline/analysis-workflow.ts`. Done when: uploaded audio and mail audio attachments call neither transcription nor dependent voice extraction and reuse no cached transcript/claim; explicit not-checked evidence survives read-back while other checks continue, including stale transcript/claim artefacts present before the step. Cheaper substitute: skipping extraction after paying for transcription does not measure removal. Source: design, Consumers.
-- [ ] Publish the four installed upload consumers through `UPLOAD_EXPERIMENT_ARMS` in `src/pipeline/ablate.ts`. Done when: authenticated capability advertises exactly full, no-agent-reasoning, no-walkthrough, no-sam and no-transcribe after their tested wiring; no-screening remains absent. Cheaper substitute: caller assertions cannot prove installed hooks. Source: design, Capability preflight.
-- [ ] Test all case arms in `test/pipeline/ablation-consumers.test.ts`. Done when: stub call counts prove both removals and retained work, ordinary/full neighbors remain unchanged, concurrent arms stay isolated, resume and malformed/read-failed metadata never change arm, floor/citations and ledger attribution stay intact. Cheaper substitute: testing only flag lookup proves no model removal.
-- [ ] Commit: `pipeline: apply immutable case ablation across model consumers`
+- [x] Resolve immutable context before model-dependent work in `src/pipeline/analysis-workflow.ts`. Done when: missing ordinary metadata means normal behavior, but metadata read failure or experimental deployment mismatch propagates as failure/partial rather than executing an unflagged arm. Cheaper substitute: catch-to-null silently changes the experiment. Source: design, Consumers.
+- [x] Replace org KV reads for verdict reasoning and walkthrough in `src/pipeline/analysis-workflow.ts`. Done when: no-agent-reasoning uses rules with unchanged floor/citations/actions, no-walkthrough reuses no cached walk, and other arms leave those calls eligible. Cheaper substitute: a label on an unchanged model call is not ablation. Source: design, Consumers.
+- [x] Replace org KV reads for all SAM paths in `src/agent/loop.ts`, `src/agent/tools.ts` and `src/vision/step.ts`. Done when: no-sam prevents segmentation and comparison, retained vision reading runs, and stored coverage names the skipped contribution. Cheaper substitute: suppressing only the UI or one tool leaves SAM active. Source: design, Consumers.
+- [x] Add the no-transcribe gate in `src/pipeline/analysis-workflow.ts`. Done when: uploaded audio and mail audio attachments call neither transcription nor dependent voice extraction and reuse no cached transcript/claim; explicit not-checked evidence survives read-back while other checks continue, including stale transcript/claim artefacts present before the step. Cheaper substitute: skipping extraction after paying for transcription does not measure removal. Source: design, Consumers.
+- [x] Publish the four installed upload consumers through `UPLOAD_EXPERIMENT_ARMS` in `src/pipeline/ablate.ts`. Done when: authenticated capability advertises exactly full, no-agent-reasoning, no-walkthrough, no-sam and no-transcribe after their tested wiring; no-screening remains absent. Cheaper substitute: caller assertions cannot prove installed hooks. Source: design, Capability preflight.
+- [x] Test all case arms in `test/pipeline/ablation-consumers.test.ts`. Done when: stub call counts prove both removals and retained work, ordinary/full neighbors remain unchanged, concurrent arms stay isolated, resume and malformed/read-failed metadata never change arm, floor/citations and ledger attribution stay intact. Cheaper substitute: testing only flag lookup proves no model removal.
+- [x] Commit: `pipeline: apply immutable case ablation across model consumers`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/ablation-consumers.test.ts test/pipeline/ablate.test.ts test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes and fails if any removed model still runs or an ordinary case inherits another case's arm; `pnpm typecheck` passes.
+
+> **Verified:** 2026-11-04 | §17 | a6a30c332d034d413e95df437b71321d5c3571e4
+> **Review:** `docs/reviews/d04-t01-s17.json`
 
 ## 18. Labelled screening experiment binding
 

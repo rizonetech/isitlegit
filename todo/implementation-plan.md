@@ -310,7 +310,7 @@ Sections: 112 | Checklist items: 706
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step                | none                  | 5     |
 | [x]    | D03 T02 §6  | Ablation flag in page screening                  | none                  | 2     |
 | [x]    | D03 T03 §6  | Ablation flag in segmentation                    | none                  | 2     |
-| [ ]    | D04 T01 §17 | Immutable per-case model ablation consumers      | none                  | 7     |
+| [x]    | D04 T01 §17 | Immutable per-case model ablation consumers      | none                  | 7     |
 | [ ]    | D04 T01 §18 | Labelled screening experiment binding            | third-party           | 5     |
 | [ ]    | D04 T01 §19 | Queued verification and guarded delivery refresh | none                  | 6     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                 | none                  | 2     |
@@ -682,6 +682,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 422/606 verified sections, 117 ready to run now.
+Progress: 423/606 verified sections, 117 ready to run now.
 
-Checklist: 3091/3742 items completed (includes Commit items).
+Checklist: 3098/3742 items completed (includes Commit items).
