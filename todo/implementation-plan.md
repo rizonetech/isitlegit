@@ -580,7 +580,7 @@ Sections: 229 | Checklist items: 1043
 | [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page                         | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page                         | none                 | 5     |
-| [ ]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 5     |
+| [x]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 5     |
 | [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
@@ -681,6 +681,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 427/605 verified sections, 113 ready to run now.
+Progress: 428/605 verified sections, 112 ready to run now.
 
-Checklist: 3115/3744 items completed (includes Commit items).
+Checklist: 3120/3744 items completed (includes Commit items).

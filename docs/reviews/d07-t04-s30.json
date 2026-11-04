@@ -1,0 +1,154 @@
+{
+  "ref": "D07 T04 \u00a730",
+  "title": "Calendar month and quarter ranges in the Cases list",
+  "implementation_sha": "a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "`pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the named month is listed. Observed: 49 Worker tests passed; expanded five calendar tests cover36actual-read failure permutations; 53 Cases browser tests passed on unchanged product source. Later isolated From/To Enter test passed all four combinations; submit-suppression negative control fails at new-request waiter. Full type/drybuild/design/publication and affected lint passed, with two existing warnings retained. Original completion and first reconciliation gaps are preserved; authorized v2 successor is genuinely complete."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "reconciliation": {
+    "report": "docs/reviews/07-app/D07-T04-s30.md",
+    "verdict": "complete",
+    "candidate": "a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "c4039723cedc29aafde30f4403fb3c23f7e2e927",
+    "binding": {
+      "candidate": "a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee",
+      "completion_candidate": "a7de32b0cabd26dbc5af994209c041c38e5e61f0",
+      "completion_digest": "618693d38aea5f98",
+      "contract_path": "todo/07-app/TODO-04-member-console.md",
+      "contract_sha256": "2bce8c974b589d683ce2390616fe803aa75b8bc2aa60487af8f52b41aecb8477",
+      "disposition_blob": "2d7c2fdebf2ecc158f3119485fefa58c2a73c854",
+      "disposition_commit": "a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee",
+      "disposition_path": "docs/reviews/07-app/D07-T04-s30-disposition.md",
+      "plan_candidate": "64fa917fe293dc0dfa48eb6b6eb69caafea09110",
+      "plan_contract_sha256": "6b87fd8d272941b681c74b89c15bdbc8bf9edcc612b665f7727167f70204bc77",
+      "predecessor_candidate": "8f4c4932b61a343347da8d1c2b2be0574ac27e05",
+      "predecessor_digest": "ca9734ba9be58e28",
+      "prefix_bytes": 15347,
+      "prefix_sha256": "6400ab7750976bb9977f342ce1d9ea53294c6b36879702be47c1e2a2a3096b58",
+      "report": "docs/reviews/07-app/D07-T04-s30.md",
+      "version": 2
+    },
+    "digest": "3a368be90ae7bdd4"
+  },
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T04-s30.md",
+    "verdict": "gaps",
+    "candidate": "a7de32b0cabd26dbc5af994209c041c38e5e61f0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T04-s30.md",
+    "candidate": "64fa917fe293dc0dfa48eb6b6eb69caafea09110",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
