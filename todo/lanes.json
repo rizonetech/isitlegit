@@ -17,13 +17,6 @@
         "D09 T02 §3",
         "D09 T02 §4"
       ]
-    },
-    "corpus-durability": {
-      "branch": "corpus-durability-lane",
-      "worktree": "../isitlegit-corpus-durability",
-      "sections": [
-        "D08 T02 §19"
-      ]
     }
   }
 }
