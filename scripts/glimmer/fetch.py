@@ -1,10 +1,10 @@
 """One dataset file, downloaded so an interruption resumes and nothing unverified is accepted (D03 T04 §16).
 
-    python3 <repo>/scripts/glimmer/fetch.py --url URL --dest SOURCE/NAME (--sha256 HEX | --md5 HEX)
+    python3 <repo>/scripts/glimmer/fetch.py --url URL --dest SOURCE/NAME (--sha256 HEX | --md5 HEX | --pin IMMUTABLE_REF)
         [--source-limit BYTES] [--min-free BYTES] [--timeout 30] [--attempts 3] [--min-rate BYTES_PER_SECOND]
         [--segments 0..4] [--segment-threshold BYTES] [--mirror URL ...]
     python3 <repo>/scripts/glimmer/fetch.py --manifest FILE [the same options, but none of --url, --dest, --sha256,
-        --md5 or --mirror]
+        --md5, --pin or --mirror]
 
 Run from the store's `raw/` folder, as the collection brief's collector runs. The bytes go to
 `SOURCE/.partial/NAME`, with `NAME.state.json` beside them (the URL, the published digest and the first answer's
@@ -12,7 +12,7 @@ validator, written temp-then-rename and synced), and move to `SOURCE/NAME` by an
 file's digest matches the published one (SHA-256, or the MD5 a dataset such as a Zenodo record publishes instead), and
 that digest is of the very file renamed: a file renamed over the partial's name after the check is taken back out and
 nothing is published. A file already in place whose digest matches is reported `present` and not fetched again, so a rerun of a multi-file
-source reuses what it finished. A dataset that publishes no digest is not fetched: the collector records it.
+source reuses what it finished. A supported immutable GitHub/Hugging Face artifact can instead use --pin: its first complete SHA-256 is durably recorded in .download-pins/ before publication and governs every later fetch. Other sources without a published digest are refused.
 
 A resume asks for the rest with `Range` and `If-Range` (a strong ETag, or a Last-Modified date when the server sent no
 ETag at all), and appends a `206` only when its `Content-Range` starts where the partial ends, ends inside the total
@@ -685,7 +685,7 @@ class _Turn:
 
 
 def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None,
-             method: str = "GET", ca_file: str | None = None, reuse=None, place: _Place | None = None):
+             method: str = "GET", ca_file: str | None = None, reuse=None, place: _Place | None = None, route_check=None):
     """The final response after at most 5 redirects, each hop checked, with the URL it came from. `reuse`, a
     (connection, socket) pair whose last answer from `url` was read whole, carries the first request instead of a new
     connection; one the server has closed meanwhile gives way to a new connection, as any HTTP client does. With no
@@ -703,6 +703,8 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
         parts = _split_url(url)
+        if route_check is not None:
+            route_check(previous, url)
         if parts.scheme == "http" and previous is not None and urllib.parse.urlsplit(previous).hostname != parts.hostname:
             raise _Route("refused: a redirect to plain http on another host")
         path = parts.path or "/"
@@ -935,6 +937,28 @@ class _InOrderDigest:
                 self.at = at + len(block)
 
 
+_PIN_HELPERS = None
+_PIN_EVIDENCE_LOCK = threading.Lock()
+
+
+def _pin_helpers():
+    global _PIN_HELPERS
+    if _PIN_HELPERS is None:
+        import importlib.util
+        parent = Path(__file__).resolve().parent
+        path = parent / (".fetch-inputs.py" if Path(__file__).name == ".fetch.py" else "inputs.py")
+        try:
+            spec = importlib.util.spec_from_file_location("fetch_pin_inputs", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        except (OSError, ImportError, AttributeError):
+            raise Refused("refused: the pinned-download validator is missing or unreadable") from None
+        if not all(callable(getattr(module, name, None)) for name in ("pin_artifact", "pin_redirect", "read_pin_receipt", "mark_pin_mode", "save_pin_receipt")):
+            raise Refused("refused: the pinned-download validator is incompatible")
+        _PIN_HELPERS = module
+    return _PIN_HELPERS
+
+
 def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int = 5 * 10**9, min_free: int = 10 * 10**9,
           timeout: float = 30.0, attempts: int = 3, min_rate: float = 16 * 1024, rate_window: float = RATE_WINDOW,
           segments: int = 0, segment_threshold: int = SEGMENT_THRESHOLD, mirrors: tuple[str, ...] | list[str] = (),
@@ -946,7 +970,19 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
     batch (its places in the batch's connection budget and its ledger entry); None for a single run."""
     share = turn.share if turn is not None else None
     kind, want = expected
-    if kind not in ("sha256", "md5") or not re.fullmatch(r"[0-9a-f]{64}" if kind == "sha256" else r"[0-9a-f]{32}", want or ""):
+    pin, pin_api, artifact = None, None, None
+    state_expected = [kind, want]
+    if kind == "pin":
+        pin, pin_api = want, _pin_helpers()
+        try:
+            artifact = pin_api.pin_artifact(pin, url)
+            if any(pin_api.pin_artifact(pin, mirror) != artifact for mirror in mirrors):
+                raise pin_api.Refused("mirrors must name the same immutable artifact")
+        except pin_api.Refused as error:
+            raise Refused(f"refused: {error}") from None
+        state_expected = ["pin", pin, artifact]
+        kind, want = "sha256", None
+    if pin is None and (kind not in ("sha256", "md5") or not re.fullmatch(r"[0-9a-f]{64}" if kind == "sha256" else r"[0-9a-f]{32}", want or "")):
         raise Refused("refused: a published SHA-256 or MD5 is required")
     if (attempts < 1 or not math.isfinite(timeout) or timeout <= 0 or source_limit <= 0 or min_free < 0 or min_rate < 0
             or not 0 <= segments <= 4 or segment_threshold < 1):
@@ -983,6 +1019,29 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             return list(sources)
         used = {span[2] for span in spans}
         return [name for number, name in enumerate(sources) if number in used]
+
+    def pin_call(function, *args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except (pin_api.Refused, OSError) as error:
+            raise Refused(f"incomplete: pinned download evidence refused ({type(error).__name__}); preserve its receipt and retry only after resolving it") from None
+
+    def pin_route(previous, target_url):
+        try:
+            if previous is None:
+                if pin_api.pin_artifact(pin, target_url) != artifact:
+                    raise pin_api.Refused("different artifact")
+            else:
+                pin_api.pin_redirect(artifact, pin, previous, target_url)
+        except (pin_api.Refused, ValueError):
+            raise _Route("refused: pinned artifact redirect mismatch") from None
+
+    request = _request if pin is None else lambda *args, **kwargs: _request(*args, route_check=pin_route, **kwargs)
+    if pin is not None:
+        recorded_pin = pin_call(pin_api.read_pin_receipt, source, target.name, pin, artifact)
+        want = recorded_pin["sha256"] if recorded_pin else None
+        if target.exists() and recorded_pin is None:
+            raise Refused("refused: existing file has no first-download pin receipt")
 
     if target.exists():
         if share is not None:
@@ -1031,6 +1090,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             lock.close()
         raise Refused("incomplete: another download into this source is running; run this one after it") from None
     try:
+        if pin is not None:
+            recorded_pin = pin_call(pin_api.read_pin_receipt, source, target.name, pin, artifact)
+            want = recorded_pin["sha256"] if recorded_pin else None
         state = {}
         if state_file.exists():
             try:
@@ -1038,7 +1100,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             except (OSError, ValueError):
                 state = {}
         # A partial whose state is for another URL or digest, or has no state, is not resumed: it starts again.
-        if state.get("url") != url or state.get("expected") != [kind, want]:
+        if state.get("url") != url or state.get("expected") != state_expected:
+            previous = state.get("expected")
+            if partial.exists() and (pin is not None or (isinstance(previous, list) and previous[:1] == ["pin"])):
+                raise Refused("refused: interrupted pinned transfer has another identity or invalid state; preserve it and use a new destination")
             state = {}
             partial.unlink(missing_ok=True)
 
@@ -1080,7 +1145,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
         def forget() -> None:
             """The download's state is dropped (its partial starts again); what proved a source bad is not."""
             if excluded:
-                _write_json(state_file, {"url": url, "expected": [kind, want], "ruled_out": list(excluded)})
+                _write_json(state_file, {"url": url, "expected": state_expected, "ruled_out": list(excluded)})
             else:
                 state_file.unlink(missing_ok=True)
 
@@ -1198,7 +1263,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             left open stays with that place for the file's next request to the same origin."""
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
-                connection, response, final = _request(candidate, {}, timeout, allow_loopback, watch, method="HEAD",
+                connection, response, final = request(candidate, {}, timeout, allow_loopback, watch, method="HEAD",
                                                        ca_file=ca_file, place=place)
                 try:
                     status = response.status
@@ -1237,7 +1302,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             or `unusable` (any other answer, closed unread: the `HEAD` and the later requests meet it themselves)."""
             watch = _Watchdog(min_rate, rate_window).__enter__()
             try:
-                connection, response, final = _request(candidate, {"Range": f"bytes=0-{size - 1}"}, timeout, allow_loopback,
+                connection, response, final = request(candidate, {"Range": f"bytes=0-{size - 1}"}, timeout, allow_loopback,
                                                        watch, ca_file=ca_file, place=place)
             except _Route as error:
                 watch.__exit__()
@@ -1573,7 +1638,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         os.fsync(handle.fileno())
                 except OSError as error:
                     raise Refused(f"incomplete: the partial file could not be made ({error.strerror})") from error
-                state = {"url": url, "expected": [kind, want], "validator": validator, "encoding": "identity",
+                state = {"url": url, "expected": state_expected, "validator": validator, "encoding": "identity",
                          "total": total, "segments": [[a, min(a + size, total) - 1, 0] for a in range(0, total, size)],
                          "sources": [], "provenance": []}
                 write_state()
@@ -1849,7 +1914,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 connection, response = adopted["connection"], adopted["response"]
                                 watch.sock, final = adopted["sock"], adopted["final_url"]
                             else:
-                                connection, response, final = _request(
+                                connection, response, final = request(
                                     source, {"Range": f"bytes={at}-{last}", "If-Range": state["validator"]}, timeout,
                                     allow_loopback, watch, ca_file=ca_file, reuse=reuse, place=place)
                         except _Retry as error:
@@ -2221,7 +2286,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 watch = _Watchdog(min_rate, rate_window).__enter__()
                 try:
                     try:
-                        connection, response, _ = _request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file,
+                        connection, response, _ = request(candidate, {}, timeout, allow_loopback, watch, ca_file=ca_file,
                                                            place=place)
                     except _Route as error:
                         drop(error, candidate)
@@ -2302,7 +2367,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 candidate = queue.pop(0)
                 result = trial(candidate, state["total"])
                 if result == "verified":
-                    state = {"url": url, "expected": [kind, want], "validator": state.get("validator"),
+                    state = {"url": url, "expected": state_expected, "validator": state.get("validator"),
                              "encoding": state.get("encoding"), "total": state["total"], "sources": [candidate]}
                     log(f"fetch: {candidate} gives bytes that verify; published")
                     return True
@@ -2345,6 +2410,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 handle.close()
                 raise
 
+        if pin is not None:
+            with _PIN_EVIDENCE_LOCK:
+                pin_call(pin_api.mark_pin_mode, source, check_space=room)
         found = None
         while True:
             if state.get("recovery"):
@@ -2354,7 +2422,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     except OSError as error:
                         raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
                     found = opened[2]
-                    if found != want:
+                    if want is not None and found != want:
                         opened[0].close()
                         partial.unlink(missing_ok=True)
                         forget()
@@ -2413,7 +2481,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         connection, response, final_url = adopted["connection"], adopted["response"], adopted["final_url"]
                         watch.sock = adopted["sock"]
                     else:
-                        connection, response, final_url = _request(asked, headers, timeout, allow_loopback, watch,
+                        connection, response, final_url = request(asked, headers, timeout, allow_loopback, watch,
                                                                    ca_file=ca_file, place=place)
                 except BaseException as error:
                     # Any failure gives the place back, before a wait or a raise: a place kept by a failed request would
@@ -2456,7 +2524,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         room(span[2])
                         with partial.open("wb") as handle:
                             os.fsync(handle.fileno())
-                        state = {"url": url, "expected": [kind, want], "validator": adopted["validator"],
+                        state = {"url": url, "expected": state_expected, "validator": adopted["validator"],
                                  "encoding": adopted["encoding"], "total": span[2], "final_url": final_url, "sources": []}
                         write_state()
                         have = 0
@@ -2486,7 +2554,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         # Truncate first, then record the new answer: old bytes never sit under the new validator.
                         with partial.open("wb") as handle:
                             os.fsync(handle.fileno())
-                        state = {"url": url, "expected": [kind, want], "validator": _validator(response.headers),
+                        state = {"url": url, "expected": state_expected, "validator": _validator(response.headers),
                                  "encoding": encoding, "total": body, "final_url": final_url, "sources": []}
                         write_state()
                         have = 0
@@ -2585,7 +2653,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
             except OSError as error:
                 raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
             found = opened[2]
-            if found != want:
+            if want is not None and found != want:
                 opened[0].close()
                 opened = None
                 partial.unlink(missing_ok=True)
@@ -2610,7 +2678,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     # source that agreed on the file is tried alone, whole, into a file of its own (`recover`).
                     known = {*suppliers, *agreed}
                     candidates = [name for name in dict.fromkeys([url, *mirrors]) if name in live and name in known]
-                    state = {"url": url, "expected": [kind, want], **kept, "sources": [],
+                    state = {"url": url, "expected": state_expected, **kept, "sources": [],
                              "recovery": {"candidates": candidates or list(live), "ruled_out": list(excluded)}}
                     write_state()
                     log(f"fetch: the {kind} does not match and the bytes came from {len(suppliers) or 'unrecorded'} URLs; "
@@ -2626,6 +2694,9 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 raise Refused(f"incomplete: the partial file could not be read ({error.strerror}); it is kept") from error
             try:
                 os.fsync(handle.fileno())
+                if pin is not None:
+                    with _PIN_EVIDENCE_LOCK:
+                        pin_call(pin_api.save_pin_receipt, source, target.name, pin, artifact, sha256, verified.st_size, check_space=room)
                 os.replace(partial, target)
             except OSError as error:
                 raise Refused(f"incomplete: the verified file could not be moved into place ({error.strerror}); a rerun moves it") from error
@@ -2663,14 +2734,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
 
 
 # Every option's default once: the quick reader and the argparse parser both start from this table.
-_DEFAULTS = {"url": None, "dest": None, "sha256": None, "md5": None, "source_limit": 5 * 10**9, "min_free": 10 * 10**9,
+_DEFAULTS = {"url": None, "dest": None, "sha256": None, "md5": None, "pin": None, "source_limit": 5 * 10**9, "min_free": 10 * 10**9,
              "timeout": 30.0, "attempts": 3, "min_rate": 16 * 1024, "segments": 0, "segment_threshold": SEGMENT_THRESHOLD,
              "mirror": [], "ca_file": None, "allow_loopback": False, "manifest": None}
-_VALUE_OPTIONS = {"--url": str, "--dest": str, "--sha256": str, "--md5": str, "--source-limit": int, "--min-free": int,
+_VALUE_OPTIONS = {"--url": str, "--dest": str, "--sha256": str, "--md5": str, "--pin": str, "--source-limit": int, "--min-free": int,
                   "--timeout": float, "--attempts": int, "--min-rate": float, "--segments": int,
                   "--segment-threshold": int, "--mirror": str, "--ca-file": str, "--manifest": str}
 # What `--manifest` replaces on the command line: a file's own URLs and digest come from its line.
-_PER_FILE_ONLY = ("url", "dest", "sha256", "md5")
+_PER_FILE_ONLY = ("url", "dest", "sha256", "md5", "pin")
 
 
 def _quick_args(argv: list[str]):
@@ -2709,7 +2780,7 @@ def _quick_args(argv: list[str]):
     if found["manifest"] is not None:
         if any(found[key] is not None for key in _PER_FILE_ONLY) or found["mirror"]:
             return None
-    elif found["url"] is None or found["dest"] is None or (found["sha256"] is None) == (found["md5"] is None):
+    elif found["url"] is None or found["dest"] is None or sum(found[k] is not None for k in ("sha256", "md5", "pin")) != 1:
         return None
     return SimpleNamespace(**found)
 
@@ -2721,8 +2792,9 @@ def _parser():
     parser.add_argument("--url", help="required unless --manifest is given")
     parser.add_argument("--dest", help="SOURCE/NAME; required unless --manifest is given")
     digest = parser.add_mutually_exclusive_group()
-    digest.add_argument("--sha256", help="the published SHA-256; this or --md5 is required unless --manifest is given")
+    digest.add_argument("--sha256", help="the published SHA-256; one of --sha256, --md5 or --pin is required unless --manifest is given")
     digest.add_argument("--md5")
+    digest.add_argument("--pin", help="immutable GitHub/Hugging Face repository and commit; alternative to published digest")
     parser.add_argument("--source-limit", type=int, default=_DEFAULTS["source_limit"])
     parser.add_argument("--min-free", type=int, default=_DEFAULTS["min_free"])
     parser.add_argument("--timeout", type=float, default=_DEFAULTS["timeout"])
@@ -2738,12 +2810,12 @@ def _parser():
     parser.add_argument("--ca-file", help="a PEM file of extra certificate authorities to trust (verification stays on)")
     parser.add_argument("--allow-loopback", action="store_true", help="for the tests' local server only")
     parser.add_argument("--manifest",
-                        help="a JSON Lines file, one object a file (url, dest, sha256 or md5, optional mirrors list, and "
+                        help="a JSON Lines file, one object a file (url, dest, sha256 or md5 or pin, optional mirrors list, and "
                              "optionally source_limit, min_free, timeout, attempts, min_rate, segments, "
                              "segment_threshold), all fetched by this one process, several at once inside its four "
                              "connections. Precedence: a line's own value, then this command line's option, then the "
                              "default; --ca-file and --allow-loopback "
-                             "hold for every file and are never read from a line; --url, --dest, --sha256, --md5 and "
+                             "hold for every file and are never read from a line; --url, --dest, --sha256, --md5, --pin and "
                              "--mirror are refused beside it. One JSON line a file, in order; a failed file does not "
                              "stop the rest. Exit 0 only when every file is in place, 1 when any is not, 2 when the "
                              "command line or the manifest (empty, malformed, or a destination repeated or writing "
@@ -2753,7 +2825,7 @@ def _parser():
 
 
 # The keys a manifest line may carry and the JSON types each takes (D03 T04 §23); a bool is never a number here.
-_MANIFEST_KEYS = {"url": (str,), "dest": (str,), "sha256": (str,), "md5": (str,), "mirrors": (list,),
+_MANIFEST_KEYS = {"url": (str,), "dest": (str,), "sha256": (str,), "md5": (str,), "pin": (str,), "mirrors": (list,),
                   "source_limit": (int,), "min_free": (int,), "timeout": (int, float), "attempts": (int,),
                   "min_rate": (int, float), "segments": (int,), "segment_threshold": (int,)}
 # The options a line may set for its own file, over the command line's.
@@ -2792,10 +2864,21 @@ def _read_manifest(path: str) -> list[dict]:
             raise _BadManifest(f"{where}: mirrors must be a list of URLs")
         if not entry.get("url") or not entry.get("dest"):
             raise _BadManifest(f"{where} needs a url and a dest")
-        if ("sha256" in entry) == ("md5" in entry):
-            raise _BadManifest(f"{where} needs exactly one of sha256 or md5")
-        kind = "sha256" if "sha256" in entry else "md5"
-        if not re.fullmatch(r"[0-9a-fA-F]{64}" if kind == "sha256" else r"[0-9a-fA-F]{32}", entry[kind]):
+        if sum(k in entry for k in ("sha256", "md5", "pin")) != 1:
+            raise _BadManifest(f"{where} needs exactly one of sha256 or md5 or pin")
+        kind = next(k for k in ("sha256", "md5", "pin") if k in entry)
+        if kind == "pin":
+            try:
+                api = _pin_helpers()
+            except Refused as error:
+                raise _BadManifest(f"{where}: {error}") from None
+            try:
+                identity = api.pin_artifact(entry["pin"], entry["url"])
+                if any(api.pin_artifact(entry["pin"], mirror) != identity for mirror in entry.get("mirrors", [])):
+                    raise api.Refused("mirrors name different artifacts")
+            except api.Refused as error:
+                raise _BadManifest(f"{where}: {error}") from None
+        elif not re.fullmatch(r"[0-9a-fA-F]{64}" if kind == "sha256" else r"[0-9a-fA-F]{32}", entry[kind]):
             raise _BadManifest(f"{where}: {kind} is not {64 if kind == 'sha256' else 32} hex digits")
         # The same file named twice, however spelled (src/a, src//a, ./src/a), or a destination whose download would
         # write another line's working file (src/a.bin.state.json is src/a.bin's partial beside src/a.bin's state): two
@@ -2869,7 +2952,7 @@ def _run_entries(args, entries: list[dict]) -> int:
 
     def one(index: int, entry: dict, turn: _Turn) -> None:
         try:
-            expected = ("sha256", entry["sha256"].lower()) if "sha256" in entry else ("md5", entry["md5"].lower())
+            expected = ("pin", entry["pin"]) if "pin" in entry else (("sha256", entry["sha256"].lower()) if "sha256" in entry else ("md5", entry["md5"].lower()))
             options = {key: entry.get(key, getattr(args, key)) for key in _PER_FILE_OPTIONS}
             line = _fetch_line(entry["url"], entry["dest"], expected, mirrors=entry.get("mirrors", []),
                                ca_file=args.ca_file, allow_loopback=args.allow_loopback, turn=turn, **options)
@@ -2916,13 +2999,13 @@ def main(argv=None) -> int:
         args = parser.parse_args(argv)
         if args.manifest is not None:
             if any(getattr(args, key) is not None for key in _PER_FILE_ONLY) or args.mirror:
-                parser.error("--url, --dest, --sha256, --md5 and --mirror come from the manifest's lines, not beside "
+                parser.error("--url, --dest, --sha256, --md5, --pin and --mirror come from the manifest's lines, not beside "
                              "--manifest")
-        elif args.url is None or args.dest is None or (args.sha256 is None and args.md5 is None):
-            parser.error("--url, --dest and one of --sha256 or --md5 are required (or --manifest FILE)")
+        elif args.url is None or args.dest is None or (args.sha256 is None and args.md5 is None and args.pin is None):
+            parser.error("--url, --dest and one of --sha256, --md5 or --pin is required (or --manifest FILE)")
     if args.manifest is not None:
         return _run_manifest(args)
-    expected = ("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower())
+    expected = ("pin", args.pin) if args.pin is not None else (("sha256", (args.sha256 or "").lower()) if args.sha256 is not None else ("md5", (args.md5 or "").lower()))
     line = _fetch_line(args.url, args.dest, expected, source_limit=args.source_limit, min_free=args.min_free,
                        timeout=args.timeout, attempts=args.attempts, min_rate=args.min_rate, segments=args.segments,
                        segment_threshold=args.segment_threshold, mirrors=args.mirror, ca_file=args.ca_file,

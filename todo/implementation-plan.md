@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 114 | Checklist items: 713
+Sections: 116 | Checklist items: 728
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -304,6 +304,8 @@ Sections: 114 | Checklist items: 713
 | [x]    | D03 T04 §48 | Confidence escalation from Loupe to Spark                 | meta-api              | 8     |
 | [x]    | D03 T04 §49 | Every screened page captured and labelled                 | meta-api              | 7     |
 | [ ]    | D03 T04 §50 | Loupe 1.1 promoted on a better-than-1.0 gate              | none                  | 6     |
+| [x]    | D03 T04 §51 | Immutable training and evaluation evidence audit          | none                  | 8     |
+| [x]    | D03 T04 §52 | Immutable checkpoint readiness handoff                    | none                  | 7     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence                  | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                                        | none                  | 11    |
 | [x]    | D04 T01 §3  | Read-only agent tools with zod validation                 | none                  | 6     |
@@ -411,7 +413,7 @@ Sections: 114 | Checklist items: 713
 
 ### Phase 7: After the event
 
-Sections: 227 | Checklist items: 1023
+Sections: 227 | Checklist items: 1027
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -489,7 +491,7 @@ Sections: 227 | Checklist items: 1023
 | [x]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1             | none                 | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses               | none                 | 4     |
 | [x]    | D03 T04 §41 | Day-zero case capture into the training store               | cloudflare           | 9     |
-| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 3     |
+| [x]    | D03 T04 §42 | A pinned download mode for fetch.py                         | none                 | 7     |
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version                      | none                 | 2     |
 | [x]    | D03 T04 §44 | Five new sources for Loupe 1.1                              | none                 | 7     |
 | [x]    | D03 T04 §46 | Muse Wonder teacher pilot                                   | none                 | 3     |
@@ -685,6 +687,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 435/609 verified sections, 110 ready to run now.
+Progress: 438/611 verified sections, 109 ready to run now.
 
-Checklist: 3149/3757 items completed (includes Commit items).
+Checklist: 3171/3776 items completed (includes Commit items).

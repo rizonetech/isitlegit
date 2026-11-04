@@ -1,0 +1,157 @@
+{
+  "ref": "D03 T04 \u00a751",
+  "title": "Immutable training and evaluation evidence audit",
+  "implementation_sha": "4ab063321afb6e2636990bebe9d9f205b1f270b5",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s51.md",
+      "verdict": "fixed"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_checkpoint_audit passes, rejects missing or conflicting evidence and leaves all audited inputs unchanged; a real external audit receipt records the measured 1.1 artifact state without manufactured provenance. -> Included in 307 passing targeted tests; repaired real audit runs/audits/loupe-1.1-20261104T0831.json records input-selection match, unchanged inputs and 17 blockers, comparison_ready=false."
+  ],
+  "reconciliation": {
+    "report": "docs/reviews/03-vision/D03-T04-s51.md",
+    "verdict": "complete",
+    "candidate": "4ab063321afb6e2636990bebe9d9f205b1f270b5",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "e46165fa04230623e480f729a98b1893e0a236ed",
+    "binding": {
+      "candidate": "4ab063321afb6e2636990bebe9d9f205b1f270b5",
+      "completion_candidate": "f5e32922a7748bcdcfe5892534b475545197162c",
+      "completion_digest": "330885f5aaf103aa",
+      "contract_path": "todo/03-vision/TODO-04-glimmer.md",
+      "contract_sha256": "828fc92cd19c91f51ffe013dd1367160d5f95146c489002ed8024d6d0c653d46",
+      "disposition_blob": "38c49eac59dd058a3471ed19d8c22d3073395139",
+      "disposition_commit": "4ab063321afb6e2636990bebe9d9f205b1f270b5",
+      "disposition_path": "docs/reviews/03-vision/D03-T04-s51-disposition.md",
+      "plan_candidate": "8d0c78c66f0d8d50b8223d9d11d4793066c39a02",
+      "plan_contract_sha256": "d74b3cb3bd57c6155194b23edaab1aed6e3055f05cd4a1801217df1f0a1b8e7c",
+      "prefix_bytes": 11915,
+      "prefix_sha256": "ee0c8eed3f43b20b78fc8e961e5ab3416f0d9373faab9c3e23afc876db5a331a",
+      "report": "docs/reviews/03-vision/D03-T04-s51.md",
+      "version": 1
+    },
+    "digest": "7d7ad1084220f270"
+  },
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s51.md",
+    "verdict": "gaps",
+    "candidate": "f5e32922a7748bcdcfe5892534b475545197162c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s51.md",
+    "candidate": "8d0c78c66f0d8d50b8223d9d11d4793066c39a02",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
