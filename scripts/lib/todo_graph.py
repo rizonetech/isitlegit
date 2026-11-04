@@ -410,10 +410,11 @@ def completion_verdict(review):
 
 def completion_record(root, completion, ref, stamp_sha, commits=None):
     """The receipt's record of the section's completion review, from `--completion <findings file>:<verdict>`: the
-    findings file holds exactly one completion review returned by a reviewer of another model family, its last line
+    findings file holds exactly one completion review returned by an authorized reviewer, its last line
     `COMPLETION: complete` (verdict complete) or `COMPLETION: gaps` (completed or filed), its candidate a commit at or
     before the stamped one, and, for filed, the `- Filed: DNN TNN §N` lines the writer added under it. Whether each
-    filed section resolves is checked against the whole graph by the caller."""
+    filed section resolves is checked against the whole graph by the caller. Codex self-review requires a complete
+    result on the exact stamped candidate."""
     require(isinstance(completion, dict) and isinstance(completion.get("report"), str)
             and isinstance(completion.get("verdict"), str), f"receipt completion is malformed: {ref}")
     report, verdict = completion["report"], completion["verdict"]
@@ -424,11 +425,11 @@ def completion_record(root, completion, ref, stamp_sha, commits=None):
     found = dispatch.read_completions(path.read_bytes().decode("utf-8"))
     require(found is not None, f"{report} is not a findings file the dispatcher can read: {ref}")
     require(bool(found), f"{report} holds no ## Completion review; run review-dispatch.py --kind completion: {ref}")
-    returned = [e for e in found if e["reviewer"] and e["writer"] in dispatch.WRITER_FAMILY
-                and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
+    returned = [e for e in found if _allowed_review(root, dispatch, e, ref)
                 and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")]
     require(len(returned) == 1, f"{report} must hold exactly one completion review returned by another model family "
-                                f"and ending COMPLETION: complete or COMPLETION: gaps (a closing ### Second reading "
+                                f"or authorized Codex self-review and ending COMPLETION: complete or COMPLETION: gaps "
+                                f"(a closing ### Second reading "
                                 f"block may follow it), not {len(returned)}: {ref}")
     (entry,) = returned
     last = completion_verdict(entry["review"])
@@ -441,6 +442,9 @@ def completion_record(root, completion, ref, stamp_sha, commits=None):
             f"review in {report}, and only filed lists any: {ref}")
     require(ref not in filed, f"{ref} cannot file a completion gap to itself: {ref}")
     candidate = entry["candidate"]
+    if entry.get("policy") == "codex-self-review":
+        require(verdict == "complete", f"Codex self-review needs completion verdict complete: {ref}")
+        require(candidate == stamp_sha, f"Codex completion must review the exact stamped commit: {ref}")
     if commits is None or candidate not in commits:
         commit_ok(root, candidate)
     if commits is None:  # stamping: the candidate is the stamped commit or one before it
@@ -496,6 +500,73 @@ def _other_family(dispatch, entry):
     """A review returned by a reviewer of another model family than the writer: not an outage, not a self-review."""
     return bool(entry["reviewer"]) and entry["writer"] in dispatch.WRITER_FAMILY \
         and dispatch.FAMILY.get(entry["cli"]) not in (None, dispatch.WRITER_FAMILY[entry["writer"]])
+
+
+def _allowed_review(root, dispatch, entry, ref):
+    """A self-review is authorized by its committed pin, never by a prose marker alone."""
+    if entry.get("policy") is None:
+        return _other_family(dispatch, entry)
+    blob = entry.get("pin")
+    require(blob is not None and blob in committed_pins(root),
+            f"Codex self-review needs a committed Pin: {ref}")
+    raw = _object_at(root, blob)
+    try:
+        pin = dispatch.load_pin(PIN, data=raw)
+    except dispatch.Refused as exc:
+        raise Refused(f"self-review pin does not load: {exc}: {ref}") from None
+    require(entry.get("policy") == "codex-self-review" and dispatch.self_review_enabled(pin, entry["writer"]),
+            f"pin {blob} does not authorize Codex self-review: {ref}")
+    name = pin["routes"][entry["writer"]][0]
+    reviewer = pin["reviewers"][name]
+    # Failed attempts retain policy and pin but have no returned reviewer identity.
+    if not entry["reviewer"]:
+        return False
+    require(entry["reviewer"] == name and entry["model"] == reviewer["model"]
+            and entry["cli"] == reviewer["cli"], f"self-review identity does not match its committed pin: {ref}")
+    return dispatch.reviewer_allowed(entry)
+
+
+def self_review_chain_ok(root, data, ref):
+    """Codex owns three passes in order; its final completion proves the single round's fixes."""
+    dispatch = review_dispatch()
+    reports = {data["plan"]["report"], data["completion"]["report"],
+               *(r["report"] for r in data["reviews"])}
+    texts = [(Path(root) / r).read_bytes().decode("utf-8") for r in reports]
+    records = [dispatch.read_findings(text) for text in texts]
+    require(all(found is not None for found in records), f"unreadable review chain: {ref}")
+    entries = [entry for found in records for group in found.values() for entry in group]
+    if not any(e.get("policy") == "codex-self-review" for e in entries):
+        require(data["round_cap"] != 1, f"a one-round cap requires the Codex self-review policy: {ref}")
+        return
+    require(data["round_cap"] == 1, f"Codex self-review records a one-round cap: {ref}")
+    require(len(reports) == 1, f"Codex self-review uses one section findings file: {ref}")
+    found = records[0]
+    require(not found["finals"], f"Codex self-review ends at completion, with no separate final review: {ref}")
+    require(all(e.get("policy") == "codex-self-review" for e in entries),
+            f"Codex self-review cannot mix review policies: {ref}")
+    require(len({e.get("pin") for e in entries}) == 1,
+            f"Codex self-review must use one committed pin throughout: {ref}")
+    returned = {}
+    for kind, group in (("plan", found["plans"]), ("round", found["rounds"]),
+                        ("completion", found["completions"])):
+        valid = [e for e in group if (dispatch.returned_review(e) if kind == "round"
+                                       else dispatch.returned_pass(e, kind))]
+        require(len(valid) == 1, f"Codex self-review needs exactly one returned {kind}: {ref}")
+        require(group[-1] is valid[0], f"Codex self-review has an unresolved {kind} attempt: {ref}")
+        returned[kind] = valid[0]
+        for entry in group:
+            _allowed_review(root, dispatch, entry, ref)
+    try:
+        times = [datetime.datetime.fromisoformat(returned[k]["run"].replace("Z", "+00:00"))
+                 for k in ("plan", "round", "completion")]
+        ordered = all(t.tzinfo is not None for t in times) and times[0] <= times[1] <= times[2]
+    except (ValueError, TypeError):
+        ordered = False
+    positions = [returned[k]["offset"] for k in ("plan", "round", "completion")]
+    require(ordered and positions == sorted(positions),
+            f"Codex self-review order is plan, one round, then completion: {ref}")
+    require(len(data["reviews"]) == 1 and data["reviews"][0]["verdict"] in ("clean", "fixed"),
+            f"Codex self-review records one clean or fixed round, with no cap stop: {ref}")
 
 
 def section_text(text, number):
@@ -637,9 +708,10 @@ def plan_record(root, report, ref, commits=None):
         lines = dispatch.verdict_lines(entry["review"])
         return len(lines) >= 2 and lines[-2] in ("PLAN: complete", "PLAN: gaps") \
             and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
-    returned = [e for e in found if _other_family(dispatch, e) and verdict(e)]
-    require(len(returned) == 1, f"{report} must hold exactly one plan review returned by another model family and "
-                                f"ending PLAN: complete or gaps, then OVERALL: approve or needs-attention, not "
+    returned = [e for e in found if _allowed_review(root, dispatch, e, ref) and verdict(e)]
+    require(len(returned) == 1, f"{report} must hold exactly one plan review returned by another model family or "
+                                f"authorized Codex self-review ending PLAN: complete or gaps, then OVERALL: approve "
+                                f"or needs-attention, not "
                                 f"{len(returned)}: {ref}")
     (entry,) = returned
     candidate = entry["candidate"]
@@ -881,7 +953,7 @@ def pass_schedules(root, entry, stamped, ref, where):
 def schedule_ok(root, data, ref, surface, risk="full"):
     """Every pass the receipt names ran at the effort and lenses the pin's schedule gave it: every attempt at the plan
     and completion reviews, and each round in each findings file, replayed through the dispatcher's own `scheduled`
-    over the rounds recorded before it (outages, self-reviews and replies without the OVERALL line do not advance the
+    over the rounds recorded before it (outages, unauthorized self-reviews and replies without OVERALL do not advance the
     position). Each pass is held to the pin it recorded running under (`pass_schedule`); the final mode and the
     receipt's schedule stay the stamped commit's."""
     require(isinstance(surface, bool), f"the section's Surface is needed to check the review schedule: {ref}")
@@ -915,6 +987,8 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     def check(where, recorded, expectations):
         """The pass matches the step one of the pins it may have run under scheduled (one, for a pass with a Pin). An
         Antigravity pass is held to the lenses alone, with no effort recorded, as the dispatcher ran it."""
+        if recorded.get("policy") is not None:
+            _allowed_review(root, dispatch, recorded, ref)
         got = (recorded["effort"], list(recorded["lenses"] or []))
         if agy_pass(recorded):
             if got[0] is None and any(got[1] == e["lenses"] for e in expectations):
@@ -934,7 +1008,7 @@ def schedule_ok(root, data, ref, surface, risk="full"):
         check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "plan", [], surface))
     completion = data["completion"]["report"]
     completions = dispatch.read_completions((Path(root) / completion).read_bytes().decode("utf-8"))
-    require(sum(1 for e in completions if _other_family(dispatch, e)
+    require(sum(1 for e in completions if _allowed_review(root, dispatch, e, ref)
                 and e["candidate"] == data["completion"]["candidate"]
                 and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
             f"{completion} must hold exactly one returned completion review: {ref}")
@@ -999,7 +1073,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
     if "rounds_spent" in data:
         spent, cap = data.get("rounds_spent"), data.get("round_cap")
         require(type(spent) is int and spent >= max(r["round"] for r in rounds)
-                and type(cap) is int and cap in EARLIER_CAPS | {REVIEW_ROUND_CAP, LIGHT_ROUND_CAP},
+                and type(cap) is int and cap in EARLIER_CAPS | {1, REVIEW_ROUND_CAP, LIGHT_ROUND_CAP},
                 f"receipt rounds_spent or round_cap is invalid: {ref}")
         # A cap stop is the current cap, reached: stopped-at-3, -8 and -13 belong to receipts older than this field.
         require(all(r["verdict"] == f"stopped-at-{cap}" for r in rounds if r["verdict"].startswith("stopped-at-")),
@@ -1038,10 +1112,10 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 for r in claimed:
                     e = reviewed.get(r["round"])
                     last = (dispatch.verdict_lines(e["review"]) or [""])[-1] if e else ""
-                    require(e is not None and e["writer"] in dispatch.WRITER_FAMILY
-                            and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
+                    require(e is not None and _allowed_review(root, dispatch, e, ref)
                             and last == ("OVERALL: approve" if r["verdict"] == "clean" else "OVERALL: needs-attention"),
-                            f"round {r['round']} is not a review returned by another model family with a verdict "
+                            f"round {r['round']} is not a review returned by another model family or authorized "
+                            f"Codex self-review with a verdict "
                             f"matching {r['verdict']} (clean needs OVERALL: approve, any other needs-attention) in "
                             f"{report}: {ref}")
                     # A severity stop is for a round whose findings are all P3 or advisory. The reviewer, who tags each
@@ -1068,7 +1142,9 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                         f"the review loop in {report} ends with round {len(recorded)}, which returned no review; "
                         f"run another round before stamping: {ref}")
                 require(claimed[-1]["round"] == max(reviewed)
-                        and (claimed[-1]["verdict"] == "clean" or claimed[-1]["verdict"].startswith("stopped-")),
+                        and (claimed[-1]["verdict"] == "clean" or claimed[-1]["verdict"].startswith("stopped-")
+                             or (reviewed[max(reviewed)].get("policy") == "codex-self-review"
+                                 and claimed[-1]["verdict"] == "fixed")),
                         f"the review loop in {report} must end at its last reviewed round ({max(reviewed)}), clean or "
                         f"stopped, and the receipt must name that round: {ref}")
             # The count the receipt reports is the count the findings files hold, so query rounds sums real rounds.
@@ -1133,6 +1209,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                     f"receipt plan does not match its findings file {recorded['report']}: {ref}")
             require(pin_schedule(root, stamp_sha, ref) == data["schedule"],
                     f"receipt schedule is not the [schedule] in {PIN} at the stamped commit: {ref}")
+            self_review_chain_ok(root, data, ref)
             schedule_ok(root, data, ref, surface, risk)
     elif not building:
         frozen = root is not None and (legacy_receipts(root).get(ref) == receipt_digest(data)
@@ -1799,7 +1876,7 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     receipt = f"docs/reviews/{slug}.json"
     require(completion is not None,
             f"--completion '<findings file>:<{'|'.join(COMPLETION_VERDICTS)}>' is required: run the one-pass completion "
-            f"review (scripts/review-dispatch.py --kind completion) before the rounds and name its verdict: {ref}")
+            f"review (scripts/review-dispatch.py --kind completion) and name its verdict: {ref}")
     require(plan is not None,
             f"--plan '<findings file>' is required: run the one-pass plan review (scripts/review-dispatch.py --kind "
             f"plan) before the build: {ref}")
@@ -1815,7 +1892,9 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     for target in data["completion"]["filed"]:
         require(target in rows, f"completion gap filed as {target}, which does not resolve: {ref}")
     data["rounds_spent"] = rounds_recorded(root, reviews)
-    data["round_cap"] = round_cap(field(row.body, "Risk", False) or "full")
+    completion_entries = review_dispatch().read_completions((root / completion["report"]).read_bytes().decode("utf-8"))
+    self_review = any(e.get("policy") == "codex-self-review" for e in completion_entries)
+    data["round_cap"] = 1 if self_review else round_cap(field(row.body, "Risk", False) or "full")
     if stopped:
         data["cap_outcome"] = cap_outcome.strip()
     data["plan"] = plan_record(root, plan, ref)

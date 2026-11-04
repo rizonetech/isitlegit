@@ -1,4 +1,6 @@
-# Independent reviewers for this repository, read by scripts/review-dispatch.py.
+# Review policy for this repository, read by scripts/review-dispatch.py.
+# The explicit Codex self_review policy overrides the cross-family rule and
+# regular schedule below for Codex only. Historical pins keep their own policy.
 #
 # A route names exactly one reviewer for work written by one agent, never of
 # the writer's own model family (the CLI names it: codex is OpenAI, agy is
@@ -13,6 +15,9 @@
 # too. Edit this file to suit the project: it is a starting point, not a link.
 
 schema_version = 1
+
+# Operator, 2026-11-04: Codex writes and self-reviews plan, one round, then completion.
+self_review = ["codex"]
 
 # GPT-6 Astra through the Codex CLI, read-only sandbox. The effort here is the
 # default for a pass the schedule does not cover; [schedule] sets each pass's
@@ -42,7 +47,7 @@ model = "gemini-4-argon-medium"
 # (operator, 2026-10-31 20:55 SAST: lanes moved off Claude to separate usage pools, each reviewed by another family).
 [routes]
 claude = ["astra"]
-codex = ["argon"]
+codex = ["astra"]
 gemini = ["astra"]
 muse = ["astra"]
 
