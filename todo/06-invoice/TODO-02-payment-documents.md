@@ -39,6 +39,8 @@ track: day-5
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 | 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
+| 8 | §8 | Native PDF forensic limits diagnosis | §1, §5, §6 | [x] |
+| 9 | §9 | PNG encoding at the doctored fixture producer | §4 | [x] |
 
 ## 1. PDF forensics
 
@@ -249,6 +251,63 @@ The §4 set shares one sparse template and confounds document type with edit typ
 - [ ] Commit: `eval: diverse doctored pairs with verified truth`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/make-doctored.test.ts` passes and the labels name all nine combinations.
+
+## 8. Native PDF forensic limits diagnosis
+
+Coordinator scope correction `console-scope-ownership`, 2026-11-04 10:14 SAST: the originally assigned detector repair becomes a narrow diagnosis and semantic regression section after reproduction found intentional single-signal limits, not established parser defects. The source baseline remains 3/7 detections, 0/7 false positives and 13/14 complete; proof-of-payment 1/5 and Ghostscript 0/4. The Chromium invoice has an invoice date but no payment date. Original assignment and review history remain in git; no prior section review has run. Completing this diagnosis is not detection improvement or target attainment.
+
+> **Started:** 2026-11-04T08:32:12.097588+00:00
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Pin and reproduce the native-PDF baseline. Done when: all 14 original hashes/labels and per-file outcomes are recorded from eval's exact corpus with the scorer and detector source identified.
+2. Protect the diagnosed limits with falsifiable tests. Done when: the four Ghostscript edits each retain exactly their intended independent medium signal, genuine controls remain non-detections, and missing payment date remains unavailable.
+3. Return the measured limits to eval. Done when: denominators, missing coverage and unchanged 95 percent detection target and complete-coverage requirement are explicit, with no invented corroboration or sample exclusions.
+
+- [x] Record the exact labelled native-PDF baseline in `docs/pdf-forensics-repair.md`. Done when: artifact hashes, generator provenance, labels, per-file findings/coverage and reproducible scorer command substantiate 3/7 detections, 0/7 false positives and 13/14 complete. Cheaper substitute: treating a coordinator summary as a new measurement. Source: D08 T02 §6 evaluation and coordinator scope correction.
+- [x] Extend `test/invoice/forensics-generated.test.ts` using the existing eight unchanged Ghostscript/Chromium fixtures to assert actual evidence severities and coverage, not only finding kinds. Done when: four doctored Ghostscript files remain single medium findings and no genuine fixture reaches high/critical; promoting a single independent group to high makes the tests fail. Cheaper substitute: weakening the detector threshold to improve synthetic detection counts. Source: existing independent-evidence contract and coordinator scope correction.
+- [x] Assert the missing payment date in `test/invoice/forensics-generated.test.ts` and record its source in `docs/pdf-forensics-repair.md`. Done when: the Chromium invoice's date coverage is unavailable with its concrete reason, the other seven generated fixtures have full coverage, and changing missing-date coverage to ran makes the test fail. Cheaper substitute: treating invoice date as a payment date or calling unavailable coverage complete. Source: `test/node/make-pdf-forensics.ts` and `src/invoice/forensics.ts` date semantics.
+- [x] Document unresolved targets and supported follow-up opportunities in `docs/pdf-forensics-repair.md` without altering `src/invoice/` production policy or eval-owned data. Done when: diagnosis is clearly distinguished from repair, 95 percent detection target and complete-coverage requirement remain unmet, no unsupported new detector is promised, and eval receives the exact diagnostic commit. Cheaper substitute: equating passing semantic tests with detection improvement. Source: coordinator scope correction.
+- [x] Commit: `invoice: document native PDF forensic limits with regression proof`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/invoice/forensics-generated.test.ts test/invoice/pdf-filters.test.ts` passes; the single-signal promotion and missing-date-as-complete mutations fail, with production source restored afterward. The pinned eval scorer reproduces the unchanged 14-file baseline; local tests do not claim a measured production accuracy improvement.
+
+> **Verified:** 2026-11-04 | §8 | 270a2e5da923198b4a31a12acb2808e1906ccbc2
+> **Review:** `docs/reviews/d06-t02-s8.json`
+
+## 9. PNG encoding at the doctored fixture producer
+
+> **Started:** 2026-11-04T07:31:43.896386+00:00
+
+Coordinator scoped authority 2026-11-04: own the narrow shared producer `scripts/fixtures/make-doctored.ts`, targeted tests and existing payment-document artifacts. Nineteen provider WebP images were stored under PNG names. Preserve original provenance and original bytes through git history and an external backup, normalize losslessly without new model calls, and record every hash change. Native-PDF detection remains §8.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add a regression for non-PNG provider bytes in `test/node/make-doctored.test.ts`. Done when: the existing producer fails the real-PNG assertion.
+2. Normalize accepted provider bytes in `scripts/fixtures/make-doctored.ts`. Done when: newly saved PNG fixtures decode with the same pixels as the provider image and restart preserves provenance.
+3. Repair the existing corpus through the same normalization. Done when: every renamed-format artifact has recorded before/after hashes, formats and pixel equivalence.
+
+- [x] Add producer regressions to `test/node/make-doctored.test.ts` for WebP input, invalid/truncated image data, unchanged output and restart provenance. Done when: real PNG bytes are required and invalid input cannot become a mislabeled completed image.
+- [x] Encode accepted provider images with explicit PNG output in `scripts/fixtures/make-doctored.ts`. Done when: PNG signature and full decoding pass before publication, with original model/code attribution retained. Cheaper substitute: changing MIME claims or filenames without fixing the producer. Source: coordinator scoped-repair-authority.
+- [x] Add an explicit offline normalization operation in `scripts/fixtures/make-doctored.ts` using the same encoder. Done when: it validates decoded-pixel equivalence, records original/current SHA-256 and format, handles already-PNG input idempotently and never calls a model. Cheaper substitute: silently replacing artifact bytes. Source: coordinator scoped-repair-authority.
+- [x] Normalize the 19 affected `test/fixtures/payment-docs/` images and add `normalization.json` evidence. Done when: actual formats are PNG, dimensions and decoded pixels are unchanged, and existing labels/sidecar provenance remain byte-exact. Cheaper substitute: regenerating model images or relabelling ground truth. Source: coordinator scoped-repair-authority.
+- [x] Record verification and notify eval in `docs/payment-fixture-normalization.md`. Done when: the exact corrected candidate and changed hashes are available, with no claim that raster normalization improves native-PDF detection. Cheaper substitute: reusing stale evaluation receipts.
+- [x] Prove durable recovery in `test/node/make-doctored.test.ts`: verified external backups and original-hash records precede atomic replacement; interruption after replacement or a failed write retains the original evidence on restart. Done when: fault injection recovers the same original hashes and bytes. Cheaper substitute: recomputing a source hash from already-normalized bytes. Source: Codex plan self-review P2-1.
+- [x] Compare decoded pixels for unchanged provider output in `scripts/fixtures/make-doctored.ts`. Done when: a lossless WebP encoding of the genuine PNG is attributed to the existing code fallback, never to a model edit. Cheaper substitute: encoded-byte equality. Source: Codex plan self-review P2-2.
+- [x] Commit: `fixtures: encode doctored payment images as PNG`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/make-doctored.test.ts` passes, fails on non-PNG saved output before the fix, and the corpus normalization record proves all 19 repairs without pixel changes.
+
+> **Verified:** 2026-11-04 | §9 | a4e04dad45e02ba03e64d6ffa61e9c789b959301
+> **Review:** `docs/reviews/d06-t02-s9.json`
 
 ## Verification
 

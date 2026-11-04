@@ -67,6 +67,7 @@ track: day-6
 | 34 | §34 | Exact calendar-period counts export | §19 | [x] |
 | 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [x] |
 | 36 | §36 | Choose a departed person in the team history | §23 | [ ] |
+| 37 | §37 | Gateway relay range settings | §4 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -1344,6 +1345,34 @@ An owner investigating someone who has left the team cannot pick them in §24's 
 - [ ] Commit: `web: choose a departed person in the team history`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a departed person's changes mix with another's.
+
+## 37. Gateway relay range settings
+
+Coordinator assignment 2026-11-04: member surface for the checks-owned immutable gateway relay lifecycle. Requires D02 T02 §10 storage to be stamped and merged, and coordinator approval of the scoped treatment; the resolving graph edge is added at that merge boundary.
+
+**Phase:** 7
+**Needs:** third-party
+**Surface:** yes
+**Fidelity:** `docs/specs/2026-11-04-gateway-relay-surfaces-design.md` member settings; existing `design/SPEC.md` Domains card chrome, pending scoped treatment approval
+**Job:** an administrator proposes, edits, revokes or restores automatic relay configuration and sees the stored result
+**Treatment:** verified-domain/gateway/provider selector, CIDR editor, revision/status and separately confirmed lifecycle actions
+**Chrome:** existing Domains card and AppShell
+
+**Build order:**
+
+1. Confirm the scoped treatment in `docs/specs/2026-11-04-gateway-relay-surfaces-design.md` and import the checks lifecycle contract. Done when: approval and the resolving prerequisite edge are recorded.
+2. Build `src/web/pages/gateway-ranges.tsx` through the checks lifecycle API. Done when: every action reads back its stored revision.
+3. Prove refusals and recovery in `test/web/gateway-ranges.test.ts` and browser tests. Done when: foreign claims, stale forms and failed reads cannot mutate trust.
+
+- [ ] Record coordinator surface approval in `docs/specs/2026-11-04-gateway-relay-surfaces-design.md`. Done when: every control and state has an approved treatment without conflicting edits to `design/SPEC.md`. Cheaper substitute: treating assignment as board approval. Source: coordinator delivery decision 2026-11-04.
+- [ ] Implement proposal and edit in `src/web/pages/gateway-ranges.tsx` using verified binding selectors and the checks API. Done when: read-back shows the exact pending revision and editing retires old configured trust. Cheaper substitute: direct table writes. Source: gateway relay ranges design.
+- [ ] Implement confirmed revoke and restore-automatic actions in `src/web/pages/gateway-ranges.tsx`. Done when: revoked hold and fresh-discovery requirement survive reload. Cheaper substitute: hiding the editor while trust stays active. Source: gateway relay ranges design.
+- [ ] Implement validation, permission, conflict, failed-read and retry states in `src/web/pages/gateway-ranges.tsx`. Done when: attempted text survives conflict separately, retry is idempotent and foreign or unverified claims are refused. Cheaper substitute: displaying an empty configuration after read failure. Source: scoped surface contract.
+- [ ] Prove the persisted lifecycle in `test/web/gateway-ranges.test.ts`. Done when: each action and refusal reads the actual store and checks no unintended revision or audit entry.
+- [ ] Prove keyboard operation, focus return, statuses and layout in `test/node/gateway-ranges-browser.test.tsx`. Done when: both themes at 360 px exercise confirmations and conflict recovery without overflow.
+- [ ] Commit: `web: gateway relay range settings`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/gateway-ranges.test.ts test/node/gateway-ranges-browser.test.tsx` passes and fails if stale or foreign configuration changes trust.
 
 ## Verification
 

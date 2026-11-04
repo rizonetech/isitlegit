@@ -1,0 +1,5 @@
+# Reviewed normalized fixture snapshot
+
+Exact normalized image bytes and receipt from D06 T02 §9 stamp `297e0a4987cfea661ef16eaa3214bdfbee98ea21`, preserved at this explicit versioned location during coordinator integration on 4 November 2026. The 19 `afterSha256` entries in normalization.json bind these files; `beforeSha256` entries bind the original files retained under `test/fixtures/payment-docs/`. Labels and sidecars remain in that original directory and are unchanged by normalization.
+
+The active `eval/forensics/sets/pdf-forensics/manifest.json` and historical results bind the original bytes at the original paths. Those files remain immutable. This snapshot is not selected by that manifest and no existing measurement transfers to these normalized bytes. Future adoption requires a separately versioned corpus/manifest and fresh measurement; do not overwrite the old manifest or reuse its results. The producer repair is active for future image publication. Original section contracts, reviews and receipts describe the exact reviewed historical candidate, not a new evaluation of this composed release.

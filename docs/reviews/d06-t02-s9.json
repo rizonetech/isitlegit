@@ -1,0 +1,109 @@
+{
+  "ref": "D06 T02 \u00a79",
+  "title": "PNG encoding at the doctored fixture producer",
+  "implementation_sha": "a4e04dad45e02ba03e64d6ffa61e9c789b959301",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T02-s9.md",
+      "verdict": "fixed"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/make-doctored.test.ts passes, fails on non-PNG saved output before the fix, and the corpus normalization record proves all 19 repairs without pixel changes. Executed on core 9: 12 tests passed; 2 producer regressions failed before repair; 2 atomicity/durability mutations failed and passed restored; 19 original/output hashes and decoded pixels verified. Typecheck, targeted Node typecheck, lint, build dry-run and publication passed."
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T02-s9.md",
+    "verdict": "complete",
+    "candidate": "a4e04dad45e02ba03e64d6ffa61e9c789b959301",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T02-s9.md",
+    "candidate": "20f4747fed9c73eca1d4eec1ebd818db8e2ea839",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

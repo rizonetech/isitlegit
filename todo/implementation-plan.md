@@ -425,7 +425,7 @@ Sections: 128 | Checklist items: 793
 
 ### Phase 7: After the event
 
-Sections: 228 | Checklist items: 1043
+Sections: 232 | Checklist items: 1070
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -544,6 +544,8 @@ Sections: 228 | Checklist items: 1043
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
 | [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
+| [x]    | D06 T02 §8  | Native PDF forensic limits diagnosis                        | none                 | 5     |
+| [x]    | D06 T02 §9  | PNG encoding at the doctored fixture producer               | none                 | 8     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                            | attended             | 3     |
@@ -607,10 +609,12 @@ Sections: 228 | Checklist items: 1043
 | [x]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 5     |
 | [x]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
+| [ ]    | D07 T04 §37 | Gateway relay range settings                                | third-party          | 7     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
 | [x]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
 | [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
-| [ ]    | D07 T05 §7  | Admin typeahead design proposal                             | none                 | 4     |
+| [ ]    | D07 T05 §6  | Independent gateway relay revision review                   | third-party          | 7     |
+| [x]    | D07 T05 §7  | Admin typeahead design proposal                             | none                 | 4     |
 | [x]    | D07 T06 §11 | Already paid: what to do now                                | none                 | 7     |
 | [x]    | D07 T06 §12 | Pricing terms: VAT and commitment                           | none                 | 7     |
 | [ ]    | D07 T06 §13 | On-site invite request                                      | none                 | 2     |
@@ -706,8 +710,8 @@ Withdrawn D99 T01 §11: 2026-11-04 | operator | Accept existing checks as is; ad
 
 Withdrawn D99 T02 §3: 2026-11-04 | operator | Separate operator recording checklist is redundant; recording remains media-owned.
 
-Progress: 460/621 verified sections, 102 ready to run now.
+Progress: 463/625 verified sections, 101 ready to run now.
 
-Checklist: 3290/3854 items completed (includes Commit items).
+Checklist: 3307/3881 items completed (includes Commit items).
 
 Withdrawn: 3 sections (not verified or delivered).

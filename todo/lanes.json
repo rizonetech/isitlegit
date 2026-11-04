@@ -39,22 +39,6 @@
         "todo/07-app/TODO-09-report-follow-ups.md"
       ]
     },
-    "console": {
-      "branch": "console-lane",
-      "worktree": "../isitlegit-console",
-      "domains": [
-        "D05",
-        "D06"
-      ],
-      "files": [
-        "todo/07-app/TODO-02-auth-and-tenancy.md",
-        "todo/07-app/TODO-04-member-console.md",
-        "todo/07-app/TODO-05-admin-console.md"
-      ],
-      "sections": [
-        "D07 T03 §17"
-      ]
-    },
     "loupe": {
       "branch": "loupe-1.1",
       "worktree": "../isitlegit-loupe",

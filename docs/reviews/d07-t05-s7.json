@@ -1,0 +1,127 @@
+{
+  "ref": "D07 T05 \u00a77",
+  "title": "Admin typeahead design proposal",
+  "implementation_sha": "f981e6abb1380c237d77aed9aa975f1bb22f65d7",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "`python3 scripts/todo-graph.py validate` passes, and the proposal records reproducible measurements or explicit unknowns plus a coordinator disposition; X1 and \u00a74 review receipts remain unchanged unless a later supported policy decision authorizes their owning changes. Observed: graph validate passed605sections; targeted request-count browser test passed360/1280; test/node typecheck and Biome passed. Coordinator KEEP/DEFER is recorded; no production latency or competitor claim."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T05-s7.md",
+    "verdict": "complete",
+    "candidate": "f981e6abb1380c237d77aed9aa975f1bb22f65d7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T05-s7.md",
+    "candidate": "0e03e3e8cc6fe9a3f52dd978c55f3e2ebdcb303c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
