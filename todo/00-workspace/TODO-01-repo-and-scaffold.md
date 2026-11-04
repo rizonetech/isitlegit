@@ -76,7 +76,8 @@ track: day-0
 | 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
 | 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
 | 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
-| 38 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
+| 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
+| 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1249,6 +1250,42 @@ Filed 2026-11-04 from LOUPE-JOURNAL-ANCESTRY. The shared `scripts/review-dispatc
 
 > **Verified:** 2026-11-04 | §37 | 794d8a9e8a185d47819aa58e02e8d7a2c75f29f4
 > **Review:** `docs/reviews/d00-t01-s37.json`
+
+## 38. Exact evidence-bound reconciliation exceptions
+
+> **Started:** 2026-11-04T12:08:24.146401+00:00 (plan preparation only; implementation follows genuine plan review)
+
+Filed 2026-11-04 by coordinator authorization, plan preparation only. D08 T02 §6 cannot enter its first reconciliation because a necessary corpus relocation and additive status paragraphs change its exact original contract. D01 T03 §15 has two genuine returned reconciliation gaps and a later parser repair; existing versions 1 and 2 correctly refuse another returned reconciliation. This section owns one narrow exception capability in the shared review controller, not acceptance of either product section. Preserve original plans, findings, pins, failed verdicts and journals. §37 must be stamped before implementation or review of this section begins. Filing this plan activates no authorization.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Bounded policy:** Exactly two exception kinds: `contract-amendment` for `docs/reviews/08-eval/D08-T02-s6.md` with zero preceding returned reconciliations, and `exhausted-chain-successor` for `docs/reviews/01-intake/D01-T03-s15.md` with exactly two preceding returned gaps. No generic cap, additional normal review, version 3 successor or retry of a returned result. Other reports/kinds require a separately reviewed policy change. Exception gaps remain unstamped.
+
+**Authorization schema:** A new committed pin map binds the exact canonical report to an immutable authorization document Git blob. Its strict versioned fields name kind, report, original plan/completion candidates and completion digest, original/accepted contract SHA-256 hashes, full preceding findings prefix byte count/SHA-256, ordered predecessor candidate/digest/binding-version identities, repair-base candidate, and committed disposition path/blob. Version 3 bindings retain existing original identities and bind the authorization document's committed path, commit and blob. All identities must be reachable and verified from committed Git data. Use the existing contract extractor, without generic normalization. Compute actual hashes at the separate authorization boundary; never invent them in this plan.
+
+**Exact intended cases:** Eval original completion is `ef1c3e960e8c1dcb6dc9edae252380fb394e084c`. Its sole approved contract delta is `eval/sets/pdf-forensics/manifest.json` to `eval/forensics/sets/pdf-forensics/manifest.json` plus its two existing additive completion/CI status paragraphs; the entire accepted contract hash governs. Verify all original population, fixture hash, label, target, coverage, recovery and report obligations. Voice must retain equal original/accepted contract hashes, ordered failed digests `281af4d55783cda5` and `e20dca3cfcb30a4e`, authentic candidates/pins, and repair-base ancestry at `972b649d403c048fa3c7587860e3dc5dfa137f47`. Its review covers the entire original whole-expression obligation and both failed reconciliations, not only recent examples. Actual lane authorization entries require separate explicit coordinator decisions after tooling verification; this section does not activate them.
+
+**Build order:**
+
+1. Add strict dormant authorization and binding schemas. Done when: malformed, uncommitted or wrong-report exceptions refuse before invocation and historical versions 1/2 remain unchanged.
+2. Integrate binding through invocation, durable recovery and receipt validation. Done when: only one genuinely complete exact exception can stamp, retaining every prior failure and preventing duplicate uncertain/returned calls.
+3. Prove the lifecycle and document reversal. Done when: both positive end-to-end fixtures and all negative cases pass without real product authorizations or review calls.
+
+- [x] Extend pin loading and authorization parsing in `scripts/review-dispatch.py` with exact keys/types, canonical report restrictions and committed-document provenance. Done when: the two synthetic authorized fixtures load; absent authorization, unknown keys/kinds, another report/section, uncommitted bytes, wrong blob or mismatched disposition refuses before invocation. Cheaper substitute: a global round-cap switch, rejected because it authorizes unrelated retries.
+- [x] Add version 3 construction/validation in `scripts/review-dispatch.py`, leaving version 1/2 validators and equality/caps intact. Done when: all original pins/identities and full findings prefix validate, predecessors pass their historical validators, candidates descend from original completion/every predecessor/repair base, eval matches its exact authorized contract hash, and voice requires equal original/accepted hashes. Cheaper substitute: strip status paragraphs or rewrite paths before comparing, rejected because narrowed obligations could be hidden.
+- [x] Enforce exact series eligibility in `scripts/review-dispatch.py`. Done when: eval requires zero returned predecessors, voice requires exactly two returned gaps in order, and successful/missing/reordered/extra predecessors or an already-returned version 3 pass refuse; returned gaps cannot stamp. Cheaper substitute: treat version 3 as a larger cap, rejected because it enables further successors.
+- [x] Integrate explicit authorization identity into findings append, durable pending/results, retry archives, invocation prompts and supported same-result recovery in `scripts/review-dispatch.py`. Done when: mocked actual invocation includes original obligations and all findings, known non-returned outage retries preserve identical bindings, unresolved calls refuse, publication failures retain evidence, and recovery appends the same persisted result without another call. Retain §37 ancestry durability. Cheaper substitute: delete calling state or repeat a returned review, rejected because uncertain identity is lost.
+- [x] Integrate version 3 into `scripts/lib/todo_graph.py`, `scripts/todo-graph.py` where needed, and receipt read-back. Done when: genuinely complete exact exceptions produce separate immutable exception evidence beside original gaps, validate replays identical checks, changed candidate/contract/prefix/authorization cannot stamp, and no normal round or ordinary review-count change is invented. Cheaper substitute: manually mark the original row complete, rejected because no verified receipt supports it.
+- [x] Add failing-first regression and CLI-to-stamp/read-back fixtures in `scripts/tests/test_review_dispatch.py` and `tests/scripts/test_todo_graph.py`. Done when: both exact kinds succeed only with genuine complete results; one-byte prefix mutation/truncation, missing/reordered predecessor, wrong digest, changed obligation/target/manifest field, unrelated candidate, stale authorization, altered disposition, successful predecessor, third predecessor, repeated exception, unresolved call and returned gaps all refuse. Preserve full existing version 1/2 tests. Prove known-outage retry keeps identity, result-write failure recovers with zero new calls, and later authorization removal prevents new calls while historical complete receipts validate under recorded pins/documents. Cheaper substitute: parser-only tests, rejected because recording, recovery and stamping have separate acceptance paths.
+- [x] Update `AGENTS.md`, `.agents/skills/codex-lane-workflow/SKILL.md`, `docs/todo-workflow.md` and `todo/README.md` at implementation. Done when: instructions name the two exact exceptions, genuine completion gate, dormant setup, failed-result handling, receipt evidence and historical validation; reversal removes only new-call authorization, preserves all history, and never implies broader caps, product-safety changes or acceptance. Cheaper substitute: undocumented pin entries, rejected because lanes could confuse permission with proof.
+- [x] Commit: `tools: bind exact reconciliation exceptions to preserved evidence`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes with both authorized dispatch-to-stamp/read-back flows, negative identity/contract/series cases, durable same-result recovery and unchanged historical acceptance/refusal tests.
+
+> **Verified:** 2026-11-04 | §38 | 853a5586c27b72a7a449da780612dcb8c13c17ac
+> **Review:** `docs/reviews/d00-t01-s38.json`
 
 ## 39. Controlled failure proof for the composed detection harness
 

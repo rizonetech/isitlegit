@@ -169,3 +169,9 @@ python -m unittest tests.scripts.test_todo_graph   # the tooling's own tests
 - One line per paragraph and per list item in Markdown prose; no em dashes or en dashes in new text; keep Markdown table description cells at or under 88 characters so they do not wrap in raw `.md` view.
 - A defect noticed outside the current work is filed in `todo/findings.md` with `file:line`, not fixed on the side inside someone else's commit; scheduling it means writing a section through `add-todo`.
 - Questions that need a person are not TODO rows without a Need: the section names `owner-decision` or `third-party` and records the answer before the Need is removed.
+
+### Exact exception receipts (D00 T01 §38)
+
+Version 3 is an explicit exception binding inside the separate `reconciliation` receipt record, beside the unchanged original completion gaps. It adds the authorization document path, commit and Git blob, exact exception kind and accepted contract hash while retaining all original candidate, contract, prefix and disposition fields. It is permitted only for the two report/kind pairs documented in `docs/todo-workflow.md`, following a separate coordinator decision and committed pin entry. No live authorization is installed by the capability itself.
+
+Receipt replay verifies the original chain, every preceding failed reconciliation, exact full prefix, committed authorization and disposition, candidate ancestry, contract hashes, recorded reviewer pin, schedule and chronology. A successful predecessor, missing/reordered/extra evidence, changed obligation, returned exception gaps or repeated exception cannot stamp. Historical versions 1 and 2 retain their existing rules and receipts. Revocation removes new-call authorization only and preserves all historical documents and pins.

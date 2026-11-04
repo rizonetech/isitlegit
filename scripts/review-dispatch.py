@@ -133,7 +133,7 @@ def load_pin(path=PIN, data=None):
     # `type(...) is int`: TOML true is Python True (an int subclass) and 1.0 == 1, so `!= 1` alone let both load.
     # The optional [schedule] is checked below; the refusal text stays the one the VS Code extension matches.
     if not {"schema_version", "reviewers", "routes"} <= set(pin) <= {"schema_version", "reviewers", "routes",
-                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition", "reconciliation_extensions"} \
+                                                                     "schedule", "self_review", "reconciliation", "self_review_policy", "plan_transition", "reconciliation_extensions", "reconciliation_exceptions"} \
             or type(pin["schema_version"]) is not int or pin["schema_version"] != 1:
         raise Refused("the reviewer pin needs exactly schema_version = 1, [reviewers.*] and [routes]")
     if pin.get("self_review", []) not in ([], ["codex"]):
@@ -148,6 +148,11 @@ def load_pin(path=PIN, data=None):
     if not isinstance(extensions, dict) or any(not isinstance(k, str) or not re.fullmatch(r"docs/reviews/\d{2}-[A-Za-z0-9_-]+/D\d{2}-T\d{2}-s[1-9]\d*\.md", k)
                                                or not isinstance(v, str) or not DIGEST.fullmatch(v) for k, v in extensions.items()):
         raise Refused("invalid scoped reconciliation extensions")
+    exceptions = pin.get("reconciliation_exceptions", {})
+    if not isinstance(exceptions, dict):
+        raise Refused("reconciliation_exceptions must be an exact report map")
+    for report, identity in exceptions.items():
+        _exception_identity_shape(identity, report)
     if pin.get("plan_transition", []) not in ([], ["codex-self-review"]) or (pin.get("plan_transition") and not pin.get("self_review_policy")):
         raise Refused("plan_transition needs the explicit two-pass policy")
     combined = (pin.get("schedule") or {}).get("combined")
@@ -1034,11 +1039,14 @@ def existing_findings(path, what):
         raise Unrecorded(f"{path} cannot be read back ({exc}), so the {what} was not recorded") from None
 
 
-def append_findings(path, existing, lines):
-    # Always one blank line before the heading, even when the file already ends in one: a review whose last line is
-    # empty also ends the file in "\n\n", and the reader needs a blank line after the review's own lines.
+def appended_findings(existing, lines):
+    # Preserve every existing byte, including blank lines sealed by a reconciliation prefix.
     separator = "" if not existing else ("\n" if existing.endswith("\n") else "\n\n")
-    atomic_write(path, existing + separator + "\n".join(lines))
+    return existing + separator + "\n".join(lines)
+
+
+def append_findings(path, existing, lines):
+    atomic_write(path, appended_findings(existing, lines))
 
 
 def record(path, result, when):
@@ -1152,7 +1160,7 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if found is None:
         raise Unrecorded(f"{path} cannot be read back (a heading or line is not in the format --record writes"
                          f"{unreadable_heading(existing)}; {RESERVED_NAMES}), so the {what} was not recorded")
-    if any(returned_pass(entry, kind) for entry in found[key]) and not (kind == "reconciliation" and result.get("binding", {}).get("version") == 2):
+    if any(returned_pass(entry, kind) for entry in found[key]) and not (kind == "reconciliation" and result.get("binding", {}).get("version") in (2, 3)):
         raise Unrecorded(f"{path} already holds a {what}; it is one pass, so this one was not recorded")
     who = f"{result['reviewer']} (`{result['model']}` via `{result['cli']}`)" if result["reviewer"] else "none"
     review = raw_lines(repository_relative(result["review"] or f"No reviewer returned a {what}. This pass is not an approval.", path))
@@ -1163,10 +1171,10 @@ def record_completion(path, result, when, candidate, kind="completion"):
     if kind == "reconciliation" or kind == "completion" and result.get("policy") == "codex-two-pass-v1":
         lines.append("- Binding: " + json.dumps(result["binding"], sort_keys=True, separators=(",", ":")))
     lines += [f"- Lines: {len(review)}", f"- Digest: {digest(review)}", "", *review, ""]
-    if kind == "reconciliation" and result["binding"].get("version") == 2:
+    if kind == "reconciliation" and result["binding"].get("version") in (2, 3):
         report_parts = Path(result["binding"]["report"]).parts
         root = Path(path).resolve().parents[len(report_parts) - 1]
-        prospective = existing.rstrip("\n") + "\n\n" + "\n".join(lines) + "\n"
+        prospective = appended_findings(existing, lines)
         validate_reconciliation_series(root, prospective)
     append_findings(path, existing, lines)
 
@@ -1292,12 +1300,187 @@ def _reconcile_identity(root, entry, reconciliation=False):
     return pin
 
 
+# Dormant capability: only these two independently authorized cases can use version 3.
+EXCEPTION_REPORTS = {
+    "docs/reviews/08-eval/D08-T02-s6.md": "contract-amendment",
+    "docs/reviews/01-intake/D01-T03-s15.md": "exhausted-chain-successor",
+}
+
+
+def _exception_identity_shape(identity, report):
+    _reconcile_require(isinstance(identity, dict) and set(identity) == {"path", "commit", "blob"}
+                       and all(isinstance(v, str) for v in identity.values()), "malformed exception document identity")
+    _reconcile_require(report in EXCEPTION_REPORTS and identity["path"] == report[:-3] + "-exception.json"
+                       and CANDIDATE.fullmatch(identity["commit"]) and PIN_ID.fullmatch(identity["blob"]), "invalid exception document provenance")
+
+
+def _exception_json(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            _reconcile_require(key not in result, "duplicate exception field: " + key)
+            result[key] = value
+        return result
+    def invalid(value):
+        raise Refused("reconciliation: nonfinite exception value: " + value)
+    try:
+        return json.loads(raw.decode("utf-8"), object_pairs_hook=pairs, parse_constant=invalid)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise Refused("reconciliation: unreadable exception document: " + str(exc)) from None
+
+
+def _exception_authorization(root, pin_id, report, expected=None):
+    pin = _reconcile_pin(root, pin_id)
+    _reconcile_require(reconciliation_enabled(pin, "codex"), "exception pin does not authorize reconciliation")
+    identity = pin.get("reconciliation_exceptions", {}).get(report)
+    _exception_identity_shape(identity, report)
+    _reconcile_require(expected is None or identity == expected, "exception authorization identity changed")
+    _reconcile_reachable(root, identity["commit"])
+    raw = _reconcile_git(root, "show", f"{identity['commit']}:{identity['path']}")
+    _reconcile_require(pin_blob(raw) == identity["blob"], "committed exception blob mismatch")
+    data = _exception_json(raw)
+    keys = {"version", "kind", "report", "plan_candidate", "completion_candidate", "completion_digest",
+            "original_contract_sha256", "accepted_contract_sha256", "prefix_bytes", "prefix_sha256", "predecessors",
+            "repair_base_candidate", "disposition_path", "disposition_blob", "disposition_commit"}
+    _reconcile_require(isinstance(data, dict) and set(data) == keys and type(data.get("version")) is int and data["version"] == 1,
+                       "malformed exception authorization")
+    _reconcile_require(all(isinstance(data[k], str) and bool(data[k]) for k in keys - {"version", "prefix_bytes", "predecessors"}), "invalid exception field types")
+    _reconcile_require(data["report"] == report and data["kind"] == EXCEPTION_REPORTS[report], "wrong exception report or kind")
+    _reconcile_require(type(data["prefix_bytes"]) is int and data["prefix_bytes"] > 0, "invalid exception prefix length")
+    _reconcile_require(all(CANDIDATE.fullmatch(data[k]) for k in ("plan_candidate", "completion_candidate", "repair_base_candidate", "disposition_commit")), "invalid exception candidate")
+    _reconcile_require(all(re.fullmatch(r"[0-9a-f]{64}", data[k]) for k in ("original_contract_sha256", "accepted_contract_sha256", "prefix_sha256"))
+                       and DIGEST.fullmatch(data["completion_digest"]) and PIN_ID.fullmatch(data["disposition_blob"]), "invalid exception digest")
+    predecessors = data["predecessors"]
+    _reconcile_require(isinstance(predecessors, list), "invalid exception predecessors")
+    for item in predecessors:
+        _reconcile_require(isinstance(item, dict) and set(item) == {"candidate", "digest", "binding_version"}
+                           and isinstance(item["candidate"], str) and CANDIDATE.fullmatch(item["candidate"])
+                           and isinstance(item["digest"], str) and DIGEST.fullmatch(item["digest"])
+                           and type(item["binding_version"]) is int and item["binding_version"] in (1, 2), "malformed exception predecessor")
+    _reconcile_require(len(predecessors) == (0 if data["kind"] == "contract-amendment" else 2), "wrong exception predecessor count")
+    if data["kind"] == "exhausted-chain-successor":
+        _reconcile_require([p["binding_version"] for p in predecessors] == [1, 2]
+                           and data["original_contract_sha256"] == data["accepted_contract_sha256"], "successor must preserve contract and ordered prior versions")
+    return identity, data
+
+
+def _exception_context(root, text, report, candidate, pin_id, identity=None):
+    identity, auth = _exception_authorization(root, pin_id, report, identity)
+    raw = text.encode("utf-8")
+    size = auth["prefix_bytes"]
+    _reconcile_require(size <= len(raw) and hashlib.sha256(raw[:size]).hexdigest() == auth["prefix_sha256"], "exception preceding findings changed")
+    try:
+        prefix = raw[:size].decode("utf-8")
+    except UnicodeDecodeError:
+        raise Refused("reconciliation: exception prefix is not UTF-8") from None
+    found, chosen, originals = _reconcile_chain(prefix, root=root, current_text=text)
+    _reconcile_require(all(e["binding"].get("version") in (1, 2) for e in found["reconciliations"]), "exception cannot follow another exception")
+    predecessors = []
+    for entry in found["reconciliations"]:
+        validate_reconciliation_binding(root, text, entry)
+        _reconcile_require(len(predecessors) < 2 and entry["binding"]["version"] == (2 if predecessors else 1), "invalid preceding reconciliation sequence")
+        if returned_pass(entry, "reconciliation"):
+            _reconcile_require(verdict_lines(entry["review"])[-1] == "RECONCILIATION: gaps", "exception cannot follow successful reconciliation")
+            predecessors.append({"candidate": entry["candidate"], "digest": entry["digest"], "binding_version": entry["binding"]["version"]})
+    _reconcile_require(predecessors == auth["predecessors"], "exception predecessor identities mismatch")
+    if auth["kind"] == "contract-amendment":
+        _reconcile_require(not predecessors, "contract amendment cannot follow returned reconciliation")
+    completion, plan = chosen["completion"], chosen["plan"]
+    _reconcile_require(auth["completion_candidate"] == completion["candidate"] and auth["plan_candidate"] == plan["candidate"]
+                       and auth["completion_digest"] == digest(raw_lines(completion["review"])), "exception original review mismatch")
+    for entry in originals:
+        _reconcile_identity(root, entry)
+    _reconcile_reachable(root, candidate)
+    _reconcile_reachable(root, plan["candidate"])
+    for ancestor in [completion["candidate"], auth["repair_base_candidate"], *[p["candidate"] for p in predecessors]]:
+        _reconcile_git(root, "merge-base", "--is-ancestor", ancestor, candidate)
+    _, contract_path, number = _completion_location(root, report)
+    def contract_hash(sha):
+        value = _reconcile_contract(_reconcile_git(root, "show", f"{sha}:{contract_path}").decode("utf-8"), number)
+        return hashlib.sha256(value.encode()).hexdigest()
+    _reconcile_require(contract_hash(completion["candidate"]) == auth["original_contract_sha256"]
+                       and contract_hash(candidate) == auth["accepted_contract_sha256"], "exception contract hash mismatch")
+    disposition = _reconcile_path(root, auth["disposition_path"])
+    _reconcile_require(disposition != report, "exception disposition must be separate")
+    _reconcile_reachable(root, auth["disposition_commit"])
+    contents = _reconcile_git(root, "show", f"{auth['disposition_commit']}:{disposition}")
+    _reconcile_require(contents.strip() and pin_blob(contents) == auth["disposition_blob"], "exception disposition mismatch")
+    all_found = read_reconciliations(text)
+    _reconcile_require(all_found is not None, "unreadable exception findings")
+    later = [e for e in all_found if e["binding"].get("version") == 3]
+    before = "\n".join(raw_lines(text)[:later[0]["offset"]]).encode() if later else raw
+    expected_before = raw[:size] if not later or raw[:size].endswith(b"\n") else raw[:size] + b"\n"
+    _reconcile_require(before == expected_before, "exception prefix omits preceding evidence")
+    _reconciliation_history_preserved(root, report, text)
+    return identity, auth, contract_path, contract_hash(plan["candidate"])
+
+
+def _make_exception_binding(root, report, text, candidate, disposition_path, pin_id):
+    identity, auth, contract_path, plan_hash = _exception_context(root, text, report, candidate, pin_id)
+    auth_path = Path(root) / identity["path"]
+    _reconcile_require(auth_path.is_file() and not auth_path.is_symlink()
+                       and pin_blob(auth_path.read_bytes()) == identity["blob"], "exception authorization has uncommitted or missing bytes")
+    _reconcile_require(_reconcile_path(root, disposition_path) == auth["disposition_path"], "exception disposition argument differs")
+    _reconcile_require((Path(root) / auth["disposition_path"]).read_bytes() == _reconcile_git(root, "show", f"{auth['disposition_commit']}:{auth['disposition_path']}"), "exception disposition has uncommitted changes")
+    binding = {"version": 3, "report": report, "prefix_sha256": auth["prefix_sha256"], "prefix_bytes": auth["prefix_bytes"],
+               "completion_digest": auth["completion_digest"], "completion_candidate": auth["completion_candidate"],
+               "plan_candidate": auth["plan_candidate"], "contract_path": contract_path, "contract_sha256": auth["original_contract_sha256"],
+               "plan_contract_sha256": plan_hash, "candidate": candidate, "disposition_path": auth["disposition_path"],
+               "disposition_blob": auth["disposition_blob"], "disposition_commit": auth["disposition_commit"],
+               "exception_kind": auth["kind"], "accepted_contract_sha256": auth["accepted_contract_sha256"],
+               "authorization_path": identity["path"], "authorization_commit": identity["commit"], "authorization_blob": identity["blob"]}
+    attempts = read_reconciliations(text)
+    for entry in attempts:
+        if entry["binding"].get("version") == 3:
+            _reconcile_require(not returned_pass(entry, "reconciliation"), "exception already returned; no successor is authorized")
+            _reconcile_require(entry["binding"] == binding, "exception outage retry must retain identical binding")
+    validate_reconciliation_series(root, text)
+    return binding
+
+
+def _exception_prompt_evidence(root, binding):
+    report = (Path(root) / binding["report"]).read_bytes()
+    _reconcile_require(hashlib.sha256(report[:binding["prefix_bytes"]]).hexdigest() == binding["prefix_sha256"], "exception evidence changed before invocation")
+    number = re.search(r"-s([1-9]\d*)\.md$", binding["report"])[1]
+    sections = []
+    for label, candidate in (("Original plan contract", binding["plan_candidate"]),
+                             ("Original completion contract", binding["completion_candidate"]),
+                             ("Exact accepted candidate contract", binding["candidate"])):
+        raw = _reconcile_git(root, "show", f"{candidate}:{binding['contract_path']}").decode("utf-8")
+        sections.append(label + ":\n" + _reconcile_contract(raw, number))
+    sections.append("Preserved findings and preceding attempts:\n" + report.decode("utf-8"))
+    for label, commit, path in (("Committed exception authorization", binding["authorization_commit"], binding["authorization_path"]),
+                                ("Committed repair disposition", binding["disposition_commit"], binding["disposition_path"])):
+        sections.append(label + ":\n" + _reconcile_git(root, "show", f"{commit}:{path}").decode("utf-8"))
+    return "\n\n".join(sections)
+
+
+def _validate_exception_binding(root, text, entry):
+    binding = entry["binding"]
+    identity = {"path": binding["authorization_path"], "commit": binding["authorization_commit"], "blob": binding["authorization_blob"]}
+    _, auth, contract_path, plan_hash = _exception_context(root, text, binding["report"], binding["candidate"], entry.get("pin"), identity)
+    _reconcile_identity(root, entry, reconciliation=True)
+    expected = {"prefix_bytes": auth["prefix_bytes"], "prefix_sha256": auth["prefix_sha256"], "completion_digest": auth["completion_digest"],
+                "completion_candidate": auth["completion_candidate"], "plan_candidate": auth["plan_candidate"], "contract_path": contract_path,
+                "contract_sha256": auth["original_contract_sha256"], "plan_contract_sha256": plan_hash,
+                "disposition_path": auth["disposition_path"], "disposition_blob": auth["disposition_blob"], "disposition_commit": auth["disposition_commit"],
+                "exception_kind": auth["kind"], "accepted_contract_sha256": auth["accepted_contract_sha256"]}
+    _reconcile_require(entry.get("candidate") == binding["candidate"] and all(binding[k] == v for k,v in expected.items()), "exception binding differs from authorization")
+    return binding
+
+
 def make_reconciliation_binding(root, record_path, candidate, disposition_path):
     root = Path(root).resolve()
     report = _reconcile_path(root, record_path)
     match = re.fullmatch(r"docs/reviews/(\d{2}-[A-Za-z0-9_-]+)/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md", report)
     _reconcile_require(match is not None and match[1].startswith(match[2] + "-"), "findings path is not canonical")
     text = (root / report).read_bytes().decode("utf-8")
+    current_pin = _reconcile_git(root, "rev-parse", "HEAD:.conclave/reviewers.toml").decode().strip()
+    pin = _reconcile_pin(root, current_pin)
+    if report in pin.get("reconciliation_exceptions", {}):
+        return _make_exception_binding(root, report, text, candidate, disposition_path, current_pin)
+    attempts = read_reconciliations(text)
+    _reconcile_require(attempts is not None and not any(e["binding"].get("version") == 3 for e in attempts), "exception authorization missing or revoked")
     found, chosen, entries = _reconcile_chain(text, root=root)
     for entry in entries:
         _reconcile_identity(root, entry)
@@ -1348,7 +1531,10 @@ def _reconciliation_binding_shape(binding):
             "contract_path", "contract_sha256", "plan_contract_sha256", "candidate", "disposition_path", "disposition_blob", "disposition_commit"}
     if isinstance(binding, dict) and binding.get("version") == 2:
         keys |= {"predecessor_digest", "predecessor_candidate"}
-    _reconcile_require(isinstance(binding, dict) and set(binding) == keys and type(binding.get("version")) is int and binding.get("version") in (1, 2), "malformed binding")
+    if isinstance(binding, dict) and binding.get("version") == 3:
+        keys |= {"exception_kind", "accepted_contract_sha256", "authorization_path", "authorization_commit", "authorization_blob"}
+    _reconcile_require(isinstance(binding, dict) and set(binding) == keys and type(binding.get("version")) is int and binding.get("version") in (1, 2, 3), "malformed binding")
+    _reconcile_require(type(binding["prefix_bytes"]) is int and binding["prefix_bytes"] > 0, "binding prefix length must be a positive integer")
     _reconcile_require(all(isinstance(binding[k], str) and bool(binding[k]) for k in keys - {"version", "prefix_bytes"}), "binding fields must be nonempty strings")
     _reconcile_require(all(CANDIDATE.fullmatch(binding[k]) for k in ("candidate", "completion_candidate", "plan_candidate", "disposition_commit")), "invalid bound commit")
     _reconcile_require(all(re.fullmatch(r"[0-9a-f]{64}", binding[k]) for k in ("prefix_sha256", "contract_sha256", "plan_contract_sha256"))
@@ -1410,6 +1596,8 @@ def validate_reconciliation_binding(root, text, entry):
     _reconciliation_binding_shape(binding)
     if binding["version"] == 1:
         return _validate_reconciliation_v1(root, text, entry)
+    if binding["version"] == 3:
+        return _validate_exception_binding(root, text, entry)
     size = binding["prefix_bytes"]
     _reconcile_require(type(size) is int and 0 < size <= len(text.encode()), "invalid preceding prefix size")
     prefix = text.encode()[:size]
@@ -1464,12 +1652,22 @@ def validate_reconciliation_series(root, text):
     if attempts:
         _reconciliation_history_preserved(root, attempts[0]["binding"]["report"], text)
     returned = []
+    exception_binding = None
+    exception_returned = False
     for entry in attempts:
         version = entry.get("binding", {}).get("version")
-        _reconcile_require(len(returned) < 2 and version == (2 if returned else 1), "reconciliation attempt exceeds authorized series")
+        _reconcile_require(not exception_returned, "exception already returned; no further attempt authorized")
+        if version == 3:
+            _reconcile_require(exception_binding is None or exception_binding == entry["binding"], "exception retry identity changed")
+            exception_binding = entry["binding"]
+            expected = 0 if exception_binding.get("exception_kind") == "contract-amendment" else 2
+            _reconcile_require(len(returned) == expected, "exception returned predecessor count mismatch")
+        else:
+            _reconcile_require(exception_binding is None and len(returned) < 2 and version == (2 if returned else 1), "reconciliation attempt exceeds authorized series")
         validate_reconciliation_binding(root, text, entry)
         if returned_pass(entry, "reconciliation"):
             returned.append(entry)
+            exception_returned = version == 3
     return returned
 
 
@@ -1820,8 +2018,13 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
             _reconcile_require(kind == "reconciliation", "a returned response already exists in the durable journal")
             current = (ROOT / report).read_bytes().decode()
             series = validate_reconciliation_series(ROOT, current)
-            _reconcile_require(len(series) == 1 and series[0]["digest"] == digest(raw_lines(repository_relative(prior["review"], ROOT / report))) and series[0]["binding"] == prior.get("binding"), "returned journal does not match retained predecessor")
-            _extension_authorized(ROOT, pin_id, report, series[0])
+            _reconcile_require(series and series[-1]["digest"] == digest(raw_lines(repository_relative(prior["review"], ROOT / report))) and series[-1]["binding"] == prior.get("binding"), "returned journal does not match retained predecessor")
+            if report in pin.get("reconciliation_exceptions", {}):
+                _reconcile_require(series[-1]["binding"]["version"] != 3, "exception already returned")
+                _exception_authorization(ROOT, pin_id, report)
+            else:
+                _reconcile_require(len(series) == 1, "no further reconciliation authorized")
+                _extension_authorized(ROOT, pin_id, report, series[0])
     if kind == "reconciliation":
         original = (ROOT / report).read_bytes().decode()
         chain = validate_codex_chain(ROOT, original)
@@ -1829,6 +2032,8 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
         binding = make_reconciliation_binding(ROOT, args.record, args.candidate, args.disposition)
         if binding["version"] == 2:
             _extension_authorized(ROOT, pin_id, report, validate_reconciliation_series(ROOT, original)[0])
+        if binding["version"] == 3:
+            _exception_authorization(ROOT, pin_id, report, {"path":binding["authorization_path"], "commit":binding["authorization_commit"], "blob":binding["authorization_blob"]})
         surface = args.surface
     else:
         check_self_review_order("completion", args.record, pin)
@@ -1841,6 +2046,9 @@ def _run_reconciliation(args, pin, pin_id, kind="reconciliation"):
     instructions = ("Read original plan and failed completion, committed disposition and full repair diff; reject narrowed obligations, safety exceptions, unresolved gaps and regressions."
                     if kind == "reconciliation" else
                     "This is the combined final review after implementation and tests. Verify every agreed requirement, every Done when, the original plan and its dispositions, all frozen safety obligations, correct implementation, quality and completion. Inspect the full candidate and integration callers, adversarial failure paths, consistency, regressions and actual test evidence. Optional new scope is separate; missing proof or real defects block completion. Read governing AGENTS.md, manifesto and applicable design/SPEC. Do not invent approval or treat failed tests as passing.")
+    if binding.get("version") == 3:
+        prompt += "\n\nRead-only exact exception evidence:\n" + _exception_prompt_evidence(ROOT, binding)
+        instructions += " This exact exception authorizes one evidence-bound verification only. Read its committed authorization document, every original obligation and all preceding failed findings. Verify the complete approved contract, not only recent examples. No weakened safety, population, target, coverage or recovery requirement is authorized. Returned gaps remain blocked; this is not another ordinary review round."
     verdict = kind.upper()
     prompt += ("\n\nBinding verified by dispatcher:\n" + json.dumps(binding, sort_keys=True) + "\n" + instructions +
                f"\nEnd with {verdict}: complete or {verdict}: gaps. Unreadable evidence is {verdict}: blocked.\n")

@@ -3529,5 +3529,74 @@ for _name in [n for n in vars(Stamp) if n.startswith("test_") and n not in vars(
     setattr(CodexTwoPassStamp, _name, None)
 
 
+class ExactExceptionStamp(unittest.TestCase):
+    def fixture(self,kind):
+        from scripts.tests.test_review_dispatch import ExactExceptions
+        class Fixture(ExactExceptions):
+            def contract_template(self,domain,task,number):
+                return todo_file([(int(number),'Exact repair',0,'none','--')],domain=domain,ident='exception-'+domain).replace(
+                    '**Test checkpoint:**',STARTED+'**Test checkpoint:**',1).replace('- [ ] Work.','- [x] Work.')
+        f=Fixture();f.setUp();self.addCleanup(f.doCleanups)
+        if kind != f.exception_kind: f.setup_case(kind)
+        # The dispatch fixture's unrelated original section remains open and valid in this graph.
+        original=f.root/'todo/00-workspace/TODO-01-test.md'
+        original.write_text(todo_file([(1,'Unrelated',0,'none','--')]))
+        paths=list((f.root/'todo').glob('*/*.md'))
+        root_index=f.root/'todo/TODO-00-INDEX.md'
+        root_index.write_text('# Index\n'+''.join('- '+p.relative_to(f.root/'todo').as_posix()+'\n' for p in paths))
+        for domain in {p.parent for p in paths}:
+            (domain/'INDEX.md').write_text('# Index\n'+''.join('- '+p.name+'\n' for p in paths if p.parent==domain))
+        f.commit();f.authorize_exception()
+        return f
+
+    def dispatch_cli(self,f,verdict='complete'):
+        from scripts.tests.test_review_dispatch import FAKE_CLI,write_launcher
+        shutil.copytree(SCRIPTS,f.root/'scripts',ignore=shutil.ignore_patterns('__pycache__'))
+        binary=f.root/'bin';binary.mkdir()
+        fake=f.root/'fake.py';fake.write_text(FAKE_CLI);write_launcher(binary,'codex',fake)
+        log=f.root/'invocations.jsonl'
+        env={**os.environ,'PATH':str(binary)+os.pathsep+os.environ['PATH'],'FAKE_CODEX':'say','FAKE_SAY':'RECONCILIATION: '+verdict,'FAKE_LOG':str(log)}
+        prompt=f.root/'prompt.md';prompt.write_text('Verify every original requirement and all failed findings.')
+        args=[sys.executable,'-B',str(f.root/'scripts/review-dispatch.py'),'--writer','codex','--kind','reconciliation',
+              '--record',str(f.report),'--candidate',f.target,'--disposition',str(f.disposition),'--prompt',str(prompt)]
+        result=subprocess.run(args,cwd=f.root,env=env,capture_output=True,text=True,timeout=60)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(len(log.read_text().splitlines()),1)
+        return env
+
+    def stamp_cli(self,f):
+        ref='D08 T02 §6' if f.exception_kind=='contract-amendment' else 'D01 T03 §15'
+        report=f.report.relative_to(f.root).as_posix()
+        args=[sys.executable,'-B',str(f.root/'scripts/todo-graph.py'),'stamp',ref,'--sha',f.target,'--review','1:'+report+':clean',
+              '--plan',report,'--completion',report+':gaps','--reconciliation',report+':complete','--check','gates -> pass','--date','2026-11-04']
+        return ref,subprocess.run(args,cwd=f.root,capture_output=True,text=True,timeout=60)
+
+    def test_both_exact_exception_clis_stamp_and_replay_after_authorization_removal(self):
+        for kind in ('contract-amendment','exhausted-chain-successor'):
+            with self.subTest(kind=kind):
+                f=self.fixture(kind);self.dispatch_cli(f)
+                ref,result=self.stamp_cli(f)
+                self.assertEqual(result.returncode,0,result.stderr)
+                rows=tg.graph(f.root);self.assertTrue(rows[ref].done)
+                receipt=f.root/rows[ref].receipt;data=json.loads(receipt.read_text())
+                self.assertEqual(data['completion']['verdict'],'gaps')
+                self.assertEqual(data['reconciliation']['binding']['version'],3)
+                self.assertEqual(data['reconciliation']['binding']['authorization_blob'],f.auth_identity['blob'])
+                f.commit()
+                pinpath=f.root/'.conclave/reviewers.toml'
+                pinpath.write_text(re.sub(r'\n\[reconciliation_exceptions\.[^\n]+\]\n.*?(?=\n\[|\Z)','',pinpath.read_text(),flags=re.S));f.commit()
+                self.assertTrue(tg.graph(f.root)[ref].done)
+                changed=json.loads(receipt.read_text());changed['reconciliation']['binding']['authorization_blob']='0'*40
+                receipt.write_text(json.dumps(changed))
+                with self.assertRaises(tg.Refused):tg.graph(f.root)
+
+    def test_returned_exception_gaps_cannot_stamp(self):
+        f=self.fixture('contract-amendment');self.dispatch_cli(f,'gaps')
+        ref,result=self.stamp_cli(f)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('RECONCILIATION: complete',result.stderr)
+        self.assertFalse(tg.graph(f.root)[ref].done)
+
+
 if __name__ == "__main__":
     unittest.main()
