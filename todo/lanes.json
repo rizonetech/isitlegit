@@ -18,14 +18,6 @@
         "D09 T02 §4"
       ]
     },
-    "access": {
-      "branch": "access-lane",
-      "worktree": "../isitlegit-access",
-      "sections": [
-        "D07 T02 §30",
-        "D00 T01 §41"
-      ]
-    },
     "link-quality": {
       "branch": "link-quality-lane",
       "worktree": "../isitlegit-link-quality",
