@@ -71,6 +71,8 @@ export default defineConfig({
             miniflare: {
               bindings: {
                 COMMIT_SHA: TEST_COMMIT_SHA,
+                // Synthetic monitor experiments exercise the actual Workflow binding, never a live population.
+                EVAL_ORG_ID: "monitor-experiment-fixture",
                 SMOKE_TOKEN: "test-smoke-token",
                 TEST_MIGRATIONS,
                 VOICE_BENCH: process.env.VOICE_BENCH ?? "",

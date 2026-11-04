@@ -22,6 +22,7 @@ import { sendTrialNotices } from "./mail/trial-notices";
 import { sendWeeklyReports } from "./mail/weekly-report";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
+import { monitorAblationRoutes } from "./monitor/ablation-routes";
 import { scheduledMonitor } from "./monitor/workflow";
 import { sweepRetries } from "./pipeline/retry";
 import { refreshVerificationEvidence } from "./pipeline/verification-request";
@@ -115,6 +116,10 @@ app.post("/orgs/switch", (c) => switchOrganisation(c.env, c.req.raw));
 app.route("/api/org", domainRoutes);
 app.route("/api/team", teamHistoryRoutes);
 app.route("/api/upload", uploadRoutes);
+app.route(
+  "/api/monitor",
+  monitorAblationRoutes((env) => env.MONITOR),
+);
 // The report, to a member of the case's organisation or a signed link (D07 T03 §1), src/web/pages/report.tsx.
 app.route("/", reportRoutes);
 app.route("/", artefactRoutes);

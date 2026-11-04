@@ -1,0 +1,127 @@
+{
+  "ref": "D04 T01 \u00a718",
+  "title": "Labelled screening experiment binding",
+  "implementation_sha": "bbfe5bebf5d6cd57975bf4c8380affa54c7bb013",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "`pnpm exec vitest run test/monitor/ablation-experiment.test.ts test/monitor/screen.test.ts test/monitor/second-look.test.ts test/monitor/cron.test.ts test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes with actual production entrypoints, counted Loupe/Spark calls and persisted run/spend identity; full `pnpm typecheck` and dry build pass. New failure regressions fail before implementation. Source stamp does not approve any population, registry publication, paid run, model promotion, remote migration or deployment. Live paired measurement remains eval/coordinator-owned after separate exact release. -> Observed final targeted runs:287tests across25files passed (231/19 checkpoint,20/4 mounted route and actual Workflow identity/restart,36/2 continuation and ordinary wake); full pnpm typecheck and pnpm build dry run passed; targeted Biome34files, publication3674files and git diff --check passed. Setup TwoPass and revoked-exception24tests passed. Source-only limits unchanged."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T01-s18.md",
+    "verdict": "complete",
+    "candidate": "bbfe5bebf5d6cd57975bf4c8380affa54c7bb013",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T01-s18.md",
+    "candidate": "0d6021c995013af76bf45f32ff4f62eab2e6f669",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

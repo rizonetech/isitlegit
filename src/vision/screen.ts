@@ -20,7 +20,9 @@ import {
   type Burst,
   completionsUrl,
   fireworksHeaders,
+  probeBody,
   REQUEST_MS,
+  retryDelay,
   settleGlimmer,
   untilWarm,
   type WakeCtx,
@@ -65,7 +67,21 @@ export type SparkReason =
   | `model-${string}`
   | "error";
 
+export type GlimmerAnswer =
+  | { answer: PageAnswer }
+  | { reason: GlimmerReason; failure?: { kind: "capacity" | "unknown"; status?: number; retryAfterMs?: number } };
+export type ScreeningExperiment = {
+  infer(
+    operationId: string,
+    body: string,
+    deadline: number,
+    send: (attemptId: string) => Promise<GlimmerAnswer>,
+  ): Promise<GlimmerAnswer>;
+  settlementAllowed(): Promise<boolean>;
+};
+
 export type GlimmerSession = {
+  experiment?: ScreeningExperiment;
   ctx: WakeCtx;
   burst: Burst | null;
   // Loupe's state for the run: not yet asked, ready, or down for the rest of the run with the reason.
@@ -112,11 +128,12 @@ const unsettledOf = (outcome: object) => {
 };
 
 // Wakes Loupe for a run (§15). The session says, for every page after, whether Loupe may be asked.
-export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
+export async function openGlimmer(ctx: WakeCtx, experiment?: ScreeningExperiment): Promise<GlimmerSession> {
   const flag = await ctx.ablateFlag?.().catch(() => null);
   if (flag === "no-screening")
     return {
       ctx,
+      ...(experiment ? { experiment } : {}),
       burst: null,
       state: { down: "ablated" },
       reservedUntil: 0,
@@ -126,6 +143,7 @@ export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
   if (woken.outcome !== "woken")
     return {
       ctx,
+      ...(experiment ? { experiment } : {}),
       burst: null,
       state: { down: woken.outcome },
       reservedUntil: 0,
@@ -135,6 +153,7 @@ export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
   const reservedUntil = woken.burst.wakeAt + (burstMinutes(ctx.calls, ctx.callSeconds) - TAIL_MINUTES) * 60_000;
   return {
     ctx,
+    ...(experiment ? { experiment } : {}),
     burst: woken.burst,
     state: woken.first?.outcome === "ready" ? "ready" : "unknown",
     reservedUntil,
@@ -146,6 +165,8 @@ export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
 // to the end of the burst's reserved window, plus the tail. Never to the time the run spent elsewhere after its last
 // request. The result is returned, so a settlement that failed is reported.
 export async function closeGlimmer(session: GlimmerSession) {
+  if (session.experiment && !(await session.experiment.settlementAllowed()))
+    return { ok: false as const, detail: "unknown experimental Loupe outcome" };
   if (!session.burst && session.unsettled)
     return settleGlimmer(session.ctx, session.unsettled.burst, session.unsettled.until);
   if (!session.burst) return null;
@@ -157,7 +178,24 @@ async function askGlimmer(
   session: GlimmerSession,
   request: ScreenRequest,
   owner: { run: string; host: string },
-): Promise<{ answer: PageAnswer } | { reason: GlimmerReason }> {
+): Promise<GlimmerAnswer> {
+  if (!session.experiment) return requestGlimmer(session, request, owner);
+  const body = JSON.stringify(glimmerBody(request));
+  const result = await session.experiment.infer(owner.run, body, session.reservedUntil, (attemptId) =>
+    requestGlimmer(session, request, owner, attemptId, body),
+  );
+  if ("reason" in result && (result.reason === "deployment_missing" || result.reason === "unauthorized"))
+    session.state = { down: result.reason };
+  return result;
+}
+
+async function requestGlimmer(
+  session: GlimmerSession,
+  request: ScreenRequest,
+  owner: { run: string; host: string },
+  attemptId?: string,
+  body?: string,
+): Promise<GlimmerAnswer> {
   const { ctx } = session;
   const now = ctx.now ?? (() => Date.now());
   // The ledger reserved this many calls: a request past the reservation is refused, and Spark takes the page.
@@ -167,11 +205,16 @@ async function askGlimmer(
   try {
     const response = await (ctx.fetcher ?? fetch)(completionsUrl(ctx.env), {
       method: "POST",
-      headers: fireworksHeaders(ctx.env, { caller: "glimmer-screen", monitor_run: owner.run, host: owner.host }),
-      body: JSON.stringify(glimmerBody(request)),
+      headers: fireworksHeaders(ctx.env, {
+        caller: "glimmer-screen",
+        monitor_run: owner.run,
+        host: owner.host,
+        ...(attemptId ? { attempt: attemptId } : {}),
+      }),
+      body: body ?? JSON.stringify(glimmerBody(request)),
       signal: controller.signal,
     });
-    const text = await response.text();
+    const text = session.experiment ? await probeBody(response) : await response.text();
     if (response.status === 404) {
       session.state = { down: "deployment_missing" };
       return { reason: "deployment_missing" };
@@ -180,7 +223,26 @@ async function askGlimmer(
       session.state = { down: "unauthorized" };
       return { reason: "unauthorized" };
     }
-    if (!response.ok) return { reason: "error" };
+    if (!response.ok) {
+      if (session.experiment) {
+        let scaling = false;
+        try {
+          scaling = response.status === 503 && JSON.parse(text)?.error?.code === "DEPLOYMENT_SCALING_UP";
+        } catch {
+          /* A generic server failure is an unknown paid outcome. */
+        }
+        const retryAfterMs = retryDelay(response.headers.get("retry-after"), now());
+        return {
+          reason: "error",
+          failure: {
+            kind: response.status === 429 || scaling ? "capacity" : "unknown",
+            status: response.status,
+            ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+          },
+        };
+      }
+      return { reason: "error" };
+    }
     let content: unknown;
     try {
       content = (JSON.parse(text) as { choices?: { message?: { content?: unknown } }[] }).choices?.[0]?.message
@@ -193,7 +255,10 @@ async function askGlimmer(
     return answer ? { answer } : { reason: "schema" };
   } catch {
     // The request's own 10-second deadline, or the network: Spark takes the page, and the next page asks Loupe again.
-    return { reason: controller.signal.aborted ? "timeout" : "error" };
+    return {
+      reason: controller.signal.aborted ? "timeout" : "error",
+      ...(session.experiment ? { failure: { kind: "unknown" as const } } : {}),
+    };
   } finally {
     clearTimeout(timer);
     session.lastRequestEnd = now();
@@ -268,6 +333,9 @@ export async function screenPage(
       // One attempt a pass, so the two-pass ceiling is a ceiling on paid calls, schema repairs included (§45).
       const answer = await structured(PageAnswer, sparkRequest(request), {
         ...spark,
+        ...(spark.continuation
+          ? { continuation: { ...spark.continuation, ordinal: (calls.length + 1) as 1 | 2 } }
+          : {}),
         maxAttempts: 1,
         transportAttempts: 1,
         owner: { kind: "monitor", run, host, step: "screen" },
@@ -289,6 +357,7 @@ export async function screenPage(
   try {
     first = await askSpark();
   } catch (error) {
+    if (spark.continuation?.pending(error)) throw error;
     return {
       ok: false,
       glimmer_reason: reason,
@@ -313,6 +382,7 @@ export async function screenPage(
   try {
     second = await askSpark();
   } catch (error) {
+    if (spark.continuation?.pending(error)) throw error;
     return {
       ok: false,
       glimmer_reason: reason,
