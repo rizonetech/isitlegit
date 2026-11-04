@@ -408,6 +408,8 @@ Filed 2026-10-27 from the D00 T01 §4 completion review (gap 3, missing out of s
 **Needs:** none
 **Surface:** no
 
+**Plan corrections (2026-11-04):** The CI helper has a five-second total deadline; timeout terminates its process tree and reports unknown. Ordinary resolve remains read-only and returns one JSON object with existing fields, matching process/JSON exit codes and CI metadata; human diagnostics go to stderr. Exit 0 with no decisive run, invalid helper configuration, malformed output, missing gh and timeout are unknown warnings, never represented as green. Existing reference, verified and lane refusals retain their codes and skip CI. A non-whitespace single-line `--allow-red` reason (at most 500 characters) explicitly authorizes resolve to persist an adjacent CI-override note with read-back, preserving an existing Started timestamp or creating one if absent. Repeating the same reason is idempotent. Persistence failure keeps the red refusal (exit 5); no override is granted without the record. Tests cover those branches, JSON compatibility, no ordinary filesystem edits and a hanging child process.
+
 **Build order:**
 
 1. Make `python3 scripts/todo-graph.py resolve` report a red `main` for an open section. Done when: `resolve` on a ready section exits non-zero with the red workflow and run URL while `scripts/ci_status.py` reports red.
