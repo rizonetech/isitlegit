@@ -297,7 +297,7 @@ Sections: 112 | Checklist items: 704
 | [x]    | D00 T01 §35 | Bounded completion reconciliation with preserved evidence | none                  | 6     |
 | [x]    | D00 T01 §36 | Two-pass Codex review with a combined final gate          | none                  | 6     |
 | [x]    | D00 T01 §37 | Durable ancestry for review journals                      | none                  | 4     |
-| [ ]    | D00 T01 §38 | Exact evidence-bound reconciliation exceptions            | none                  | 8     |
+| [x]    | D00 T01 §38 | Exact evidence-bound reconciliation exceptions            | none                  | 8     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover                          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst                     | none                  | 3     |
@@ -680,6 +680,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 426/604 verified sections, 115 ready to run now.
+Progress: 427/604 verified sections, 114 ready to run now.
 
-Checklist: 3105/3730 items completed (includes Commit items).
+Checklist: 3113/3730 items completed (includes Commit items).
