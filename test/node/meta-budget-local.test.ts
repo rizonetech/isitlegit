@@ -5,6 +5,7 @@ import { execute, ledgerId, localBudget } from "../../scripts/lib/meta-budget.ts
 import { BEFORE_LEDGER, importSpend } from "../../scripts/meta-spend-import.ts";
 import type { Runner } from "../../scripts/smoke.ts";
 import { inline, reserveStatement } from "../../src/meta/budget-sql.ts";
+import { DAY_CAP_USD, totalLimitFor } from "../../src/meta/caps.ts";
 import { BudgetExceeded } from "../../src/meta/guard.ts";
 
 // The local callers' budget (D03 T01 §2): the same statement the Worker runs, sent through `wrangler d1 execute`. Here
@@ -37,9 +38,20 @@ function wrangler(db = new DatabaseSync(":memory:")) {
 const at = () => new Date("2026-10-30T08:00:00.000Z");
 
 describe("the local budget", () => {
+  it("admits beyond the old daily ceiling while retaining every existing ledger row", async () => {
+    const w = wrangler();
+    const budget = localBudget("judge-budget-proof", w.run, () => new Date("2026-11-05T08:00:00Z"));
+    const previous = await budget.reserve("muse-spark-1.3", 15, 1);
+    await budget.uncertain(previous);
+    const before = w.db.prepare("SELECT * FROM model_spend WHERE id=?").get(previous);
+    await expect(budget.reserve("muse-spark-1.3", 35, 1)).resolves.toBeTypeOf("string");
+    expect(w.db.prepare("SELECT * FROM model_spend WHERE id=?").get(previous)).toEqual(before);
+    await expect(budget.reserve("muse-spark-1.3", 0.01, 1)).rejects.toBeInstanceOf(BudgetExceeded);
+  });
+
   it("reserves in the shared table and refuses once a Worker's reservation took the rest of the day", async () => {
     const w = wrangler();
-    // The Worker reserved US$13 today through its own binding: the same statement, on the same rows.
+    // The Worker reserved all but US$2 today through its own binding: the same statement, on the same rows.
     w.db.exec(
       inline(
         reserveStatement(
@@ -52,10 +64,10 @@ describe("the local budget", () => {
             model: "muse-spark-1.3",
             caseId: "c1",
             attempt: 1,
-            estimateUsd: 13,
+            estimateUsd: DAY_CAP_USD - 2,
           },
-          15,
-          90,
+          DAY_CAP_USD,
+          totalLimitFor("2026-10-30"),
         ),
       ),
     );
@@ -131,7 +143,7 @@ describe("completion review (2026-10-29)", () => {
   it("records a local refusal's cap event once, for the Worker's cron to alert the operator", async () => {
     const w = wrangler();
     const budget = localBudget("meta-smoke", w.run, at);
-    await budget.reserve("muse-spark-1.3", 15, 1);
+    await budget.reserve("muse-spark-1.3", DAY_CAP_USD, 1);
     for (const _ of [1, 2]) await budget.reserve("muse-spark-1.3", 1, 1).catch(() => null);
     expect(w.db.prepare("SELECT event, cap, model, notified_at FROM budget_events").all()).toEqual([
       { event: "budget:day:2026-10-30", cap: "day", model: "muse-spark-1.3", notified_at: null },
@@ -172,7 +184,7 @@ describe("round 1: an event that cannot be recorded is said", () => {
     const spy = vi.spyOn(console, "error").mockImplementation((line: string) => void errors.push(String(line)));
     try {
       const budget = localBudget("meta-smoke", failing, at);
-      await budget.reserve("muse-spark-1.3", 15, 1);
+      await budget.reserve("muse-spark-1.3", DAY_CAP_USD, 1);
       const refused = await budget.reserve("muse-spark-1.3", 1, 1).catch((e: unknown) => e);
       expect(refused).toBeInstanceOf(BudgetExceeded);
       expect(errors.join("\n")).toMatch(/the day cap's event could not be recorded; tell the operator/);
@@ -269,7 +281,7 @@ describe("final review: a local refusal leaves its record", () => {
   it("writes the refused attempt costing nothing, with its owner's name", async () => {
     const w = wrangler();
     const budget = localBudget("glimmer-teacher-label", w.run, at);
-    await budget.reserve("muse-spark-1.3", 15, 1);
+    await budget.reserve("muse-spark-1.3", DAY_CAP_USD, 1);
     const call = { callId: "call-1", owner: { kind: "script" as const, name: "glimmer-teacher-label" } };
     await budget.reserve("muse-spark-1.3", 1, 1, undefined, call).catch(() => null);
     await budget.refused("gpt-9", call, "refused-model");

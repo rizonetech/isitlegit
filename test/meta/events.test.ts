@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { caseCost, d1Budget, markUnsettled } from "../../src/meta/budget";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { type MetaContext, metaRaw, metaResponses } from "../../src/meta/client";
 import type { Owner } from "../../src/meta/guard";
 
@@ -244,7 +245,7 @@ describe("completion review (2026-10-29)", () => {
 
 describe("final review (2026-10-29)", () => {
   it("records a refusal before the network, a cap's and the client's own, each costing nothing", async () => {
-    await d1Budget(db, { caller: "earlier" }).reserve("muse-spark-1.3", 15, 1);
+    await d1Budget(db, { caller: "earlier" }).reserve("muse-spark-1.3", DAY_CAP_USD, 1);
     await metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, context(CASE)).catch(
       () => null,
     );

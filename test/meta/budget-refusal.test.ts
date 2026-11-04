@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { d1Budget, reserve } from "../../src/meta/budget";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { metaResponses } from "../../src/meta/client";
 import { sastDay } from "../../src/meta/day";
 import { BudgetExceeded } from "../../src/meta/guard";
@@ -25,7 +26,7 @@ describe("the Worker's budget", () => {
       model: "muse-spark-1.3",
       caseId: null,
       attempt: 1,
-      estimateUsd: 15,
+      estimateUsd: DAY_CAP_USD,
     });
     const sent: string[] = [];
     const error = await metaResponses(
@@ -71,7 +72,7 @@ describe("the operator's notice for a cap event", () => {
 
   it("sends one notice however many refusals race or Worker instances see them, and another on the next day", async () => {
     await db.prepare("DELETE FROM mail_sends WHERE send_key LIKE 'budget:%'").run();
-    await spendToday(15);
+    await spendToday(DAY_CAP_USD);
     const smtp = stubSmtp2go();
     try {
       const pending: Promise<unknown>[] = [];
