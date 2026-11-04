@@ -187,20 +187,20 @@ function FeedbackCard(props: { feedback: OrgFeedbackRow[]; href: string }) {
           tabindex={0}
           aria-label="Recent feedback"
         >
-          <table class="table min-w-[520px] w-full">
-            <thead>
-              <tr>
+          <table class="table bg-surface min-w-[520px] w-full">
+            <thead class="bg-surface">
+              <tr class="bg-surface">
                 <th class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
                   Case
                 </th>
-                <th>Our verdict</th>
-                <th>They said</th>
-                <th>Status</th>
+                <th class="bg-surface">Our verdict</th>
+                <th class="bg-surface">They said</th>
+                <th class="bg-surface">Status</th>
               </tr>
             </thead>
             <tbody>
               {props.feedback.map((row) => (
-                <tr>
+                <tr class="bg-surface">
                   <td class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
                     <a
                       href={row.caseHref}

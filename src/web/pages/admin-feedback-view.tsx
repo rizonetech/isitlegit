@@ -103,22 +103,22 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
       tabindex={0}
       aria-label="Feedback reports"
     >
-      <table class="table min-w-[640px] w-full">
-        <thead>
-          <tr>
+      <table class="table bg-surface min-w-[640px] w-full">
+        <thead class="bg-surface">
+          <tr class="bg-surface">
             <th class="sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar">
               Case
             </th>
-            <th>Organisation</th>
-            <th>Our verdict</th>
-            <th>They say</th>
-            <th>Decided by</th>
-            <th>When</th>
+            <th class="bg-surface">Organisation</th>
+            <th class="bg-surface">Our verdict</th>
+            <th class="bg-surface">They say</th>
+            <th class="bg-surface">Decided by</th>
+            <th class="bg-surface">When</th>
           </tr>
         </thead>
         <tbody>
           {props.items.map((item) => (
-            <tr class={item.id === props.selected ? "bg-subtle" : undefined}>
+            <tr class={item.id === props.selected ? "bg-subtle" : "bg-surface"}>
               <td
                 class={cx(
                   "sticky left-0 w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar",
