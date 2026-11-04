@@ -394,7 +394,7 @@ Sections: 108 | Checklist items: 680
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
-| [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
+| [x]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
 | [x]    | D10 T01 §2  | Remotion licence basis                       | none                  | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
@@ -675,6 +675,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 417/599 verified sections, 113 ready to run now.
+Progress: 418/599 verified sections, 118 ready to run now.
 
 Checklist: 3071/3696 items completed (includes Commit items).
