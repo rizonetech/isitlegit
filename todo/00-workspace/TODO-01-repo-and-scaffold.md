@@ -1188,6 +1188,8 @@ Filed 2026-11-04 by the coordinator at the operator's request to repair the revi
 
 ## 36. Two-pass Codex review with a combined final gate
 
+> **Started:** 2026-11-04T09:57:21.824036+00:00
+
 Filed 2026-11-04 from the operator's explicit correction: normal review is a plan pass followed by one combined adversarial, completeness, consistency and integration pass. Preserve existing review history and the bounded repair verification delivered by §35. This changes review orchestration, never product safety or evidence requirements. Already-returned reviews remain truthful records; no synthetic regular round is created to satisfy an older schema.
 
 **Phase:** 6
