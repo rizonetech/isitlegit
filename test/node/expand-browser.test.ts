@@ -45,6 +45,12 @@ beforeAll(async () => {
       res.writeHead(200, { "content-type": "text/html" });
       res.end(`<!doctype html><title>t</title>${body}`);
     };
+    if (path.startsWith("/policy-frames/")) {
+      const count = Number(path.split("/").pop());
+      return html(
+        `<h1>Frames</h1><script>Promise.all(Array.from({length:${count}},(_,i)=>new Promise(resolve=>{const f=document.createElement('iframe');f.onload=resolve;f.onerror=resolve;f.src='https://policy-inner.example/frame-'+i;document.body.append(f)}))).then(()=>location.href='https://policy-inner.example/main')</script>`,
+      );
+    }
     if (path === "/policy-reset") return void req.socket.destroy();
     if (path === "/policy-mixed-error")
       return html(`<img src="https://policy-inner.example/image" onerror="location.href='/policy-reset'">`);
@@ -472,6 +478,25 @@ describe("shared URL policy parity", () => {
     expect(calls).toBe(1);
     expect((await livePolicy(resolve)("https://cache.example/new-case")).ok).toBe(false);
     expect(calls).toBe(2);
+  });
+
+  it.each([19, 20, 40])("keeps the main refusal after %i refused child documents", async (count) => {
+    const asked: string[] = [];
+    const production = livePolicy(async () => ["10.0.0.1"]);
+    const result = await expandLink(browser, `${origin}/policy-frames/${count}`, {
+      ...deps,
+      policy: (raw) => {
+        if (raw.startsWith(`${origin}/`)) return policy(raw);
+        asked.push(raw);
+        return production(raw);
+      },
+    });
+    expect(new Set(asked.filter((url) => url.includes("/frame-"))).size).toBe(count);
+    expect(asked).toContain("https://policy-inner.example/main");
+    expect(result.outcome).toBe("blocked");
+    expect(result.reason).toBe("policy-inner.example resolves to a non-public address");
+    expect(result.refused.length).toBeLessThanOrEqual(20);
+    expect(result.hops.some((hop) => hop.host === "policy-inner.example")).toBe(false);
   });
 
   it("does not call an unrelated navigation error a policy refusal", async () => {
