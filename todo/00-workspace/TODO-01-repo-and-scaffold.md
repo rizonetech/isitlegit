@@ -1371,6 +1371,8 @@ Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owne
 
 ## 43. Upload refusal matches reviewed admission
 
+> **Started:** 2026-11-04T13:52:17.334819+00:00 (plan preparation only; no test repair before genuine plan review)
+
 Filed 2026-11-04 by coordinator authorization after exact candidate `6c3f582a4a2ffb6d526374abf8e9ebe77dc2db78` CI41839458039 Worker shard3 failed job126606845208. The one failing test at `test/web/upload-page.test.ts:248` expects the old multipart refusal without the optional ablate field. Reviewed D01 T03 §17 admission intentionally permits one textual ablate field with strict eval authorization and attribution. `src/intake/upload.ts:102` emits the updated refusal, and the web page correctly renders that complete API error with HTTP400. This section repairs only the stale test expectation, never upload behavior, user wording or a security gate.
 
 **Phase:** 6
