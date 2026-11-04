@@ -1,10 +1,10 @@
-# Completion and excellence review prompt
+# Combined quality and completion review prompt
 
-Copy this into a scratch file, fill in the placeholders, delete the lines that do not apply, and use the writer and order authorized by the committed pin. For Codex, run `scripts/review-dispatch.py --kind completion --candidate <FULL_SHA> --writer codex --prompt <file> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md` once after the single implementation round and its repairs. Identify the role below as Codex final completion self-review. Other writers retain their recorded policy and order; this is not a regular round.
+Copy this into a scratch file, fill in the placeholders, delete the lines that do not apply, and use the writer and order authorized by the committed pin. For Codex, run `scripts/review-dispatch.py --kind completion --candidate <FULL_SHA> --writer codex --prompt <file> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md` once after implementation and tests under `self_review_policy = "codex-two-pass-v1"`. This is the second normal review after the sound-plan review, not a third pass after an implementation round. Add `--transition-plan` only for an explicitly eligible legacy plan with no round or completion attempts. Identify the role below as Codex combined quality and completion self-review. Other writers retain their recorded policy and order; this is not a regular round.
 
 ---
 
-You are the product completion reviewer under the candidate's recorded review policy (Codex final completion self-review for a Codex chain). Do not modify any file. The candidate below is a feature a TODO section has just built. Answer two questions about it: is it complete for a user, and does it do the job better than the strongest alternative a user could pick instead. Report what is missing or weaker, not what is present and fine.
+You are the product completion reviewer under the candidate's recorded review policy (Codex combined quality and completion self-review for a two-pass chain). Do not modify any file. The candidate below is a feature a TODO section has just built. Prove that every agreed requirement is completed and correctly implemented, with the required quality and safety. Also assess whether it is complete for a user and how its verified behavior compares with the strongest relevant alternative. Report what is missing or weaker, not what is present and fine.
 
 ## Candidate
 
@@ -18,6 +18,18 @@ You are the product completion reviewer under the candidate's recorded review po
 ## Scope and acceptance boundary
 
 For the current Codex policy, assess the approved section, its plan and dispositions, governing design, safety contract and actual regressions. These obligations cannot be narrowed after implementation to obtain acceptance. An unmet requirement, safety breach, real in-scope defect or regression is blocking even if a checklist omitted it. A genuinely additional improvement requiring a new scope or design decision is a separate recommendation with a named owner and explicit disposition; do not describe it as delivered, but do not make it block this section solely because it would improve a larger product. Verify classifications against source and evidence, not the author's labels. Preserve the required fidelity and all already-decided improvements. Other writers remain subject to their recorded policy.
+
+## Combined verification lenses
+
+For `codex-two-pass-v1`, this one review includes all required implementation checks. Inspect the actual complete diff, callers, contracts and refusal paths, not only test output. The committed combined schedule supplies adversarial, integration, source-defect, plan-delivery, consistency, record, quality and optimization lenses; design applies when the actual TODO section has `Surface: yes`. Apply each lens to the area changed. A source-only section does not invent a UI requirement, and a surface cannot avoid design review by omitting it from the prompt.
+
+- Adversarial and source-defect: hostile accepted inputs, races, cancellation, data boundaries, schema validation, failure handling and actual platform/source contracts.
+- Integration and consistency: callers and consumers, durable data and API contracts, cross-component behavior, existing conventions and regression risk across the full change.
+- Plan-delivery and record: every agreed requirement, Done when, Test checkpoint, original plan disposition and exact-candidate evidence; distinguish source, local tests, runtime, CI and deployment claims.
+- Quality and optimization: correctness, reliability, maintainability, accessible and clear behavior, measured performance where required, and avoidable complexity. Passing tests alone do not prove quality or completion.
+- Design where applicable: the approved fidelity contract, tokens, required controls and states, responsive behavior and accessibility on the real surface.
+
+The frozen safety contract remains mandatory. Report any real defect, unverified requirement or regression as a blocking finding. Do not lower tests, narrow agreed obligations or add a third normal pass to substitute for a complete review. Historical chains remain subject to their own recorded policy rather than being relabeled two-pass.
 
 ## Part 1: completeness
 

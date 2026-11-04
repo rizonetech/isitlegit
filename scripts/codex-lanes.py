@@ -117,8 +117,10 @@ def command(status: dict, session: str | None = None) -> list[str]:
     prompt = (
         f"{role} Read AGENTS.md, docs/manifesto.md, docs/codex-lanes.md and "
         ".agents/skills/codex-lane-workflow/SKILL.md first. The operator selected Codex as writer: "
-        "plan self-review, implementation, one implementation self-review round, final completion review, "
-        "then a verified stamp and the next ready section. Use the dispatcher with --writer codex; "
+        "plan self-review, implementation and tests, one combined quality and completion self-review "
+        "covering every agreed requirement, then a verified stamp and the next ready section. "
+        "Preserve historical review chains and use only the supported explicit transition or bounded reconciliation. "
+        "Use the dispatcher with --writer codex; "
         "never invent review receipts or weaken the product safety contract. "
         f"Read {handover_files}; continue from the latest dated Resume point and acknowledge urgent messages first. "
         f"{takeover}"

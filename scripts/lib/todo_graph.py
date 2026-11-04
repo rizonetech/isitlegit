@@ -442,7 +442,7 @@ def completion_record(root, completion, ref, stamp_sha, commits=None, reconcilia
             f"review in {report}, and only filed lists any: {ref}")
     require(ref not in filed, f"{ref} cannot file a completion gap to itself: {ref}")
     candidate = entry["candidate"]
-    if entry.get("policy") == "codex-self-review":
+    if entry.get("policy") in ("codex-self-review", "codex-two-pass-v1"):
         if reconciliation is not None:
             require(verdict == "gaps", f"reconciliation preserves the original completion verdict gaps: {ref}")
             reconciliation_record(root, reconciliation, ref, stamp_sha)
@@ -485,9 +485,13 @@ def reconciliation_record(root, recorded, ref, stamp_sha):
         allowed = _allowed_review(root, dispatch, entry, ref)
         if allowed and dispatch.returned_pass(entry, "reconciliation"):
             valid.append(entry)
-    require(len(valid) == 1 and entries[-1] is valid[0],
-            f"reconciliation needs exactly one returned pass with no unresolved attempt: {ref}")
-    entry = valid[0]
+    try:
+        series = dispatch.validate_reconciliation_series(root, text)
+    except (dispatch.Refused, ValueError) as exc:
+        raise Refused(f"invalid reconciliation series: {exc}: {ref}") from None
+    require(valid == series and series and entries[-1] == series[-1],
+            f"reconciliation needs its authorized returned series with no unresolved attempt: {ref}")
+    entry = series[-1]
     require(completion_verdict(entry["review"]) == "RECONCILIATION: complete",
             f"reconciliation must end RECONCILIATION: complete: {ref}")
     require(entry["candidate"] == stamp_sha, f"reconciliation must review the exact stamped candidate: {ref}")
@@ -554,7 +558,8 @@ def _allowed_review(root, dispatch, entry, ref):
         pin = dispatch.load_pin(PIN, data=raw)
     except dispatch.Refused as exc:
         raise Refused(f"self-review pin does not load: {exc}: {ref}") from None
-    require(entry.get("policy") == "codex-self-review" and dispatch.self_review_enabled(pin, entry["writer"]),
+    require(entry.get("policy") == dispatch.review_policy(pin, entry["writer"])
+            and dispatch.self_review_enabled(pin, entry["writer"]),
             f"pin {blob} does not authorize Codex self-review: {ref}")
     name = pin["routes"][entry["writer"]][0]
     reviewer = pin["reviewers"][name]
@@ -576,6 +581,35 @@ def self_review_chain_ok(root, data, ref):
     require(all(found is not None for found in records), f"unreadable review chain: {ref}")
     entries = [entry for found in records for key, group in found.items()
                if key != "reconciliations" for entry in group]
+    if any(e.get("policy") == "codex-two-pass-v1" for e in entries):
+        require(data.get("review_policy") == "codex-two-pass-v1" and len(reports) == 1,
+                f"two-pass chain needs its explicit receipt policy and one findings file: {ref}")
+        require(data["reviews"] == [] and data["round_cap"] == 0 and data["rounds_spent"] == 0,
+                f"two-pass chain records zero implementation rounds: {ref}")
+        try:
+            chain = dispatch.validate_codex_chain(root, texts[0])
+        except dispatch.Refused as exc:
+            raise Refused(f"invalid two-pass chain: {exc}: {ref}") from None
+        require(chain["policy"] == "codex-two-pass-v1", f"receipt policy disagrees with completion: {ref}")
+        transition = chain.get("transition")
+        require(data.get("policy_transition") == transition and ("policy_transition" in data) == (transition is not None),
+                f"receipt plan transition does not match actual review evidence: {ref}")
+        reconciliations = records[0].get("reconciliations", [])
+        require(bool(reconciliations) == ("reconciliation" in data),
+                f"two-pass reconciliation must be explicitly recorded: {ref}")
+        previous = chain["completion"]
+        for entry in reconciliations:
+            try:
+                at = datetime.datetime.fromisoformat(entry["run"].replace("Z", "+00:00"))
+                before = datetime.datetime.fromisoformat(previous["run"].replace("Z", "+00:00"))
+                ordered = at.tzinfo is not None and before.tzinfo is not None and at >= before and entry["offset"] > previous["offset"]
+            except (ValueError, TypeError, KeyError):
+                ordered = False
+            require(ordered, f"reconciliation must follow combined completion chronologically: {ref}")
+            previous = entry
+        return
+    require("review_policy" not in data and "policy_transition" not in data,
+            f"legacy chain cannot claim the two-pass policy or transition: {ref}")
     if not any(e.get("policy") == "codex-self-review" for e in entries):
         require(data["round_cap"] != 1, f"a one-round cap requires the Codex self-review policy: {ref}")
         return
@@ -1072,7 +1106,8 @@ def schedule_ok(root, data, ref, surface, risk="full"):
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         where = f"the completion review in {completion}"
-        check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "completion", [], surface))
+        check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "completion", [], surface,
+                                  policy=entry.get("policy") or "legacy"))
     if "reconciliation" in data:
         report = data["reconciliation"]["report"]
         for entry in dispatch.read_reconciliations((Path(root) / report).read_bytes().decode("utf-8")):
@@ -1114,7 +1149,9 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
     require(data.get("ref") == ref and data.get("implementation_sha") == stamp_sha,
             f"receipt does not match its stamp: {ref}")
     rounds = data.get("reviews")
-    require(isinstance(rounds, list) and rounds and all(
+    two_pass = data.get("review_policy") == "codex-two-pass-v1"
+    require("review_policy" not in data or two_pass, f"unknown receipt review policy: {ref}")
+    require(isinstance(rounds, list) and (rounds == [] if two_pass else bool(rounds)) and all(
         isinstance(r, dict) and type(r.get("round")) is int and r["round"] >= 1
         and isinstance(r.get("report"), str) and r["report"]
         and isinstance(r.get("verdict"), str) and r["verdict"] in VERDICTS for r in rounds),
@@ -1136,8 +1173,9 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 f"a receipt without rounds_spent must be one of the old receipts {LEGACY_RECEIPTS} freezes: {ref}")
     if "rounds_spent" in data:
         spent, cap = data.get("rounds_spent"), data.get("round_cap")
-        require(type(spent) is int and spent >= max(r["round"] for r in rounds)
-                and type(cap) is int and cap in EARLIER_CAPS | {1, REVIEW_ROUND_CAP, LIGHT_ROUND_CAP},
+        require(type(spent) is int and spent >= max((r["round"] for r in rounds), default=0)
+                and type(cap) is int and ((spent == 0 and cap == 0) if two_pass
+                    else cap in EARLIER_CAPS | {1, REVIEW_ROUND_CAP, LIGHT_ROUND_CAP}),
                 f"receipt rounds_spent or round_cap is invalid: {ref}")
         # A cap stop is the current cap, reached: stopped-at-3, -8 and -13 belong to receipts older than this field.
         require(all(r["verdict"] == f"stopped-at-{cap}" for r in rounds if r["verdict"].startswith("stopped-at-")),
@@ -1957,7 +1995,22 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
             "severity), and only then")
     data = {"ref": ref, "title": row.title, "implementation_sha": sha, "date": date,
             "reviews": reviews, "checks": checks}
-    # Every argument is checked before anything is read or written.
+    # Empty rounds need actual policy-bound completion evidence before argument validation permits them.
+    report = completion.get("report") if isinstance(completion, dict) else None
+    if report is not None:
+        text = report_ok(root, report, ref).read_bytes().decode("utf-8")
+        dispatch = review_dispatch()
+        entries = dispatch.read_completions(text)
+        if entries and any(e.get("policy") == "codex-two-pass-v1" for e in entries):
+            require(report == section_findings(root, ref), f"two-pass completion must use its own findings: {ref}")
+            try:
+                chain = dispatch.validate_codex_chain(root, text)
+            except dispatch.Refused as exc:
+                raise Refused(f"invalid two-pass completion: {exc}: {ref}") from None
+            require(chain["policy"] == "codex-two-pass-v1", f"two-pass completion policy mismatch: {ref}")
+            data["review_policy"] = chain["policy"]
+            if chain.get("transition") is not None:
+                data["policy_transition"] = chain["transition"]
     receipt_data_ok(data, ref, sha, root=root, building=True)
     if reconciliation is not None:
         data["reconciliation"] = reconciliation_record(root, reconciliation, ref, sha)
@@ -1967,7 +2020,8 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     data["rounds_spent"] = rounds_recorded(root, reviews)
     completion_entries = review_dispatch().read_completions((root / completion["report"]).read_bytes().decode("utf-8"))
     self_review = any(e.get("policy") == "codex-self-review" for e in completion_entries)
-    data["round_cap"] = 1 if self_review else round_cap(field(row.body, "Risk", False) or "full")
+    data["round_cap"] = (0 if data.get("review_policy") == "codex-two-pass-v1" else
+                         1 if self_review else round_cap(field(row.body, "Risk", False) or "full"))
     if stopped:
         data["cap_outcome"] = cap_outcome.strip()
     data["plan"] = plan_record(root, plan, ref)

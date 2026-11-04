@@ -16,8 +16,10 @@
 
 schema_version = 1
 
-# Operator, 2026-11-04: Codex writes and self-reviews plan, one round, then completion.
+# Operator REVIEW-18, 2026-11-04: Codex self-reviews plan, then combined completion.
 self_review = ["codex"]
+self_review_policy = "codex-two-pass-v1"
+plan_transition = ["codex-self-review"]
 # Operator, 2026-11-04: one bound reconciliation after a returned completion with gaps.
 reconciliation = ["codex"]
 
@@ -115,6 +117,16 @@ effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 mode = "off"
 
+# Operator EFFORT-22, 2026-11-04: repair verification uses medium; plan remains low.
 [schedule.reconciliation]
-effort = "low"
+effort = "medium"
 lenses = ["adversarial", "integration", "plan-delivery", "record"]
+
+# Operator EFFORT-22, 2026-11-04: combined quality and completion uses medium.
+[schedule.combined]
+effort = "medium"
+lenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]
+
+# Coordinator scoped repair decision: one successor for this exact failed reconciliation only.
+[reconciliation_extensions]
+"docs/reviews/00-workspace/D00-T01-s36.md" = "bd520ac7d1311303"
