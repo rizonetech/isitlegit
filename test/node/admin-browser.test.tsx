@@ -181,6 +181,48 @@ afterAll(async () => {
 const context = (width: number): Promise<BrowserContext> => browser.newContext({ viewport: { width, height: 900 } });
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the admin console in Chromium", { timeout: 120_000 }, () => {
+  it("measures explicit search request cost for the admin interaction proposal", async () => {
+    for (const width of [360, 1280]) {
+      const ctx = await context(width);
+      const p = await ctx.newPage();
+      await p.goto(`${origin}/admin`, { waitUntil: "load" });
+      const requests: string[] = [];
+      p.on("request", (request) => {
+        const url = new URL(request.url());
+        if (url.pathname === "/admin") requests.push(url.search);
+      });
+      await p.getByLabel("Search organisations").pressSequentially("Plain", { delay: 50 });
+      // A bounded observation of the shipped explicit-submit flow, not a production latency benchmark.
+      await p.waitForTimeout(1000);
+      const requestsBeforeEnter = requests.length;
+      expect(requests).toEqual([]);
+      await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+      expect(requests).toEqual(["?q=Plain"]);
+      expect(await p.getByRole("link", { name: "Plain Org", exact: true }).isVisible()).toBe(true);
+      expect(
+        await p
+          .getByRole("link", { name: "Export CSV", exact: true })
+          .evaluateAll((links) => links.map((link) => link.getAttribute("href"))),
+      ).toEqual(["/admin/organisations.csv?q=Plain", "/admin/organisations.csv?q=Plain"]);
+      console.log(
+        JSON.stringify({
+          evidence: "admin-submit-request-cost-v1",
+          width,
+          fixtureRows: ROWS.length,
+          typed: "Plain",
+          inputDelayMs: 50,
+          observationWindowMs: 1000,
+          requestsBeforeEnter,
+          explicitSubmissions: 1,
+          requestsAfterEnter: requests.length,
+          authenticatedBackend: false,
+          productionLatencyMeasured: false,
+        }),
+      );
+      await ctx.close();
+    }
+  });
+
   it("reads the tiles, bars, a searched table and the panel at phone and desktop widths in both themes", async () => {
     for (const width of [360, 1280]) {
       const ctx = await context(width);
