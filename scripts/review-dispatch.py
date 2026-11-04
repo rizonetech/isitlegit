@@ -1722,11 +1722,15 @@ def _durable_json(path, data, exclusive=False):
             if os.path.exists(temporary):
                 os.unlink(temporary)
     if os.name != "nt":
-        fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+        # The section lock can create these directories before publication. Persist every
+        # directory link, not only directories this call happened to create, before returning.
+        parent = path.parent.absolute()
+        for directory in (parent, *parent.parents):
+            fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
 
 
 def reconciliation_pending(root, report, kind="reconciliation"):
