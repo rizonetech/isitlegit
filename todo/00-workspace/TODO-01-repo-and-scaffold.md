@@ -74,7 +74,7 @@ track: day-0
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 | 34 | §34 | Codex unattended continuation and session ownership | §19 | [ ] |
 | 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
-| 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [ ] |
+| 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1211,6 +1211,9 @@ Filed 2026-11-04 from the operator's explicit correction: normal review is a pla
 - [x] Commit: `tools: combine Codex implementation checks into one final review`
 
 **Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including an actual two-pass dispatch-to-stamp flow, refusal of unauthorized empty-round receipts and preserved historical chains.
+
+> **Verified:** 2026-11-04 | §36 | e4401838e1a23986f2536fc6d71d4811b883c8b7
+> **Review:** `docs/reviews/d00-t01-s36.json`
 
 ## Verification
 
