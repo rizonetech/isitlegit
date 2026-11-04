@@ -2,6 +2,10 @@
 
 The operator selected Codex on 4 November 2026. The current lane assignments are in `todo/lanes.json`; the coordinator stays on `main`. Each lane keeps its existing branch, worktree, backlog and handover files. Codex writes and uses the explicitly enabled self-review policy: plan self-review, implementation, one implementation self-review round, final completion review, stamp, then the next ready section. Follow `.agents/skills/codex-lane-workflow/SKILL.md` for the exact review and stamp commands. Historic reviews keep their original policy.
 
+## Delivery authority and deadline
+
+The coordinator has standing authority to raise project caps and approve additional project spend, resolve decisions, change priorities and reassign work to finish before **4 November 2026, 16:21 SAST (14:21 UTC)**. This deadline is fixed from the operator's delegation and does not restart with a session. AGENTS.md's Coordinator delivery authority is the governing record, including the requirement to change caps at their owning layer, preserve accounting and record the decision. Every lane follows those decisions over earlier project preferences. Later user instructions and stop requests still prevail; the product safety contract and evidence gates remain mandatory. This setup grants authority; it does not itself increase any spending limit or start a project run.
+
 ## Start the coordinator and lanes
 
 Run this from the coordinator checkout to inspect readiness without starting agents or changing files:

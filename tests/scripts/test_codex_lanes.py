@@ -102,6 +102,18 @@ class CodexLanes(unittest.TestCase):
         self.assertIn("coordinator-outbox.md", prompt)
         self.assertIn("system-state.md", prompt)
 
+    def test_delivery_authority_is_assigned_to_coordinator_and_respected_by_lanes(self):
+        with mock.patch.object(self.module, "git", side_effect=self.git):
+            main = self.module.command(self.module.inspect_lane(self.root, "main"))[-1]
+            lane = self.module.command(self.module.inspect_lane(self.root, "checks"))[-1]
+        self.assertIn("You may raise project caps, approve project spend", main)
+        self.assertIn("fixed twelve-hour delivery deadline", main)
+        self.assertNotIn("Do not build product sections on main", main)
+        self.assertIn("escalate cap changes and cross-lane decisions to it", lane)
+        self.assertNotIn("You may raise project caps", lane)
+        for prompt in (main, lane):
+            self.assertIn("Respect later user corrections and stop requests", prompt)
+
     def test_guard_owned_by_other_session_refuses_resume(self):
         path = self.lane / "build/claude-campaign-guard.json"
         path.parent.mkdir()
