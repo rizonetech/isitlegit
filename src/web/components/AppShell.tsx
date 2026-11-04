@@ -155,6 +155,7 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
     return (
       <p class="flex items-center gap-12 min-h-48 px-12 py-8 text-15 weight-text-strong text-ink">
         <OrgBadge name={organization.name} />
+        {/* biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: Hono JSX uses lowercase tabindex on inline reveal span inside <p> */}
         <span
           tabindex={0}
           role="button"

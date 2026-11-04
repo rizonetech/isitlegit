@@ -583,16 +583,18 @@ def model_state(key, account):
 
 
 def train(loop, train_file, version, run_dir, recorder, examples=None, promote=True, runner_config=None,
-          resume_from=None, dataset_sha=None, verify=None):
+          resume_from=None, dataset_sha=None, verify=None, batch_size=BATCH_SIZE, pipeline_depth=PIPELINE_DEPTH,
+          learning_rate=LEARNING_RATE, sampler_save_interval=0):
     """One cookbook SFT run on `train_file`. `loop` is the cookbook's `recipes.sft_loop` module (a fake in tests)."""
     model_id, _checkpoint = names(version)
     lines = examples if examples is not None else count_lines(train_file) if Path(train_file).is_file() else None
-    params = {"lora_rank": LORA_RANK, "learning_rate": LEARNING_RATE, "batch_size": BATCH_SIZE, "epochs": 1,
+    params = {"lora_rank": LORA_RANK, "learning_rate": learning_rate, "batch_size": batch_size, "epochs": 1,
               "max_seq_len": MAX_SEQ_LEN, "checkpoint_every": CHECKPOINT_EVERY, "warmup_steps": 0,
               "lines_trained": lines}
     if runner_config is None:
         from training.utils.runner import RunnerConfig as runner_config
 
+    extra_cfg = {"sampler_save_interval": sampler_save_interval} if sampler_save_interval > 0 else {}
     config = loop.Config(
         log_path=str(Path(run_dir) / "cookbook"),
         base_model=BASE_MODEL,
@@ -600,19 +602,20 @@ def train(loop, train_file, version, run_dir, recorder, examples=None, promote=T
         tokenizer_model=TOKENIZER,
         renderer_name=RENDERER,
         train_on_what="last_assistant_message",
-        learning_rate=LEARNING_RATE,
+        learning_rate=learning_rate,
         epochs=1,
-        batch_size=BATCH_SIZE,
+        batch_size=batch_size,
         max_seq_len=MAX_SEQ_LEN,
         max_examples=examples,
         lora_rank=LORA_RANK,
         output_model_id=model_id if promote else None,
         serverless=True,
-        pipeline_depth=PIPELINE_DEPTH,
+        pipeline_depth=pipeline_depth,
         # A closed session ends its checkpoints, on the crash path too: only the unpromoted measure closes its own.
         close_session_on_exit=not promote,
         init_from_checkpoint=resume_from,
         dcp_save_interval=CHECKPOINT_EVERY,
+        **extra_cfg,
         runner=runner_config(status_file=str(Path(run_dir) / "status.json"),
                             metadata_file=str(Path(run_dir) / "metadata.json"),
                             metrics_file=str(Path(run_dir) / "eval-metrics.jsonl"),
@@ -684,6 +687,10 @@ def main(argv=None, now=None):
     parser.add_argument("--lines-per-second", type=float, help="the rate --measure printed; needed for a new run, which "
                                                                   "is cut to what trains before the window closes")
     parser.add_argument("--seed", type=int, default=20261101)
+    parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    parser.add_argument("--pipeline-depth", type=int, default=PIPELINE_DEPTH)
+    parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
+    parser.add_argument("--sampler-save-interval", type=int, default=0)
     args = parser.parse_args(argv)
     now = now or datetime.now(timezone.utc)
     try:
@@ -778,13 +785,16 @@ def main(argv=None, now=None):
                 record = finish(run_dir, args.version, final, client, model_state(key, account_of(run_dir)))
                 print(json.dumps(record, indent=2))
                 return 0
-        recorder = Recorder(run_dir, args.version, cap, markdown_path=TRAINING_MD, line_tokens=chosen_tokens)
+        recorder = Recorder(run_dir, args.version, cap, markdown_path=TRAINING_MD, line_tokens=chosen_tokens,
+                            batch_size=args.batch_size, pipeline_depth=args.pipeline_depth)
         if resume_from:
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
         _result, record = train(sft_loop, train_file, args.version, run_dir, recorder,
                                 examples=MEASURE_EXAMPLES if args.measure else None, promote=not args.measure,
                                 resume_from=resume_from, dataset_sha=dataset_sha,
-                                verify=model_state(key, os.environ.get("FIREWORKS_ACCOUNT", "rizonetech")))
+                                verify=model_state(key, os.environ.get("FIREWORKS_ACCOUNT", "rizonetech")),
+                                batch_size=args.batch_size, pipeline_depth=args.pipeline_depth,
+                                learning_rate=args.learning_rate, sampler_save_interval=args.sampler_save_interval)
     except Refused as refusal:
         print(f"train-serverless: refused: {refusal}", file=sys.stderr)
         return 2
