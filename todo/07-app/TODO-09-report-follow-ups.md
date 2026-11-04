@@ -563,6 +563,8 @@ Filed 2026-11-02 from D07 T09 §6's completion review: the shipped player delega
 
 ## 19. Diagnostic detail on the early authentication card
 
+> **Started:** 2026-11-04T00:26:00Z
+
 Filed 2026-11-03 from D07 T09 §1's completion review: Microsoft Defender's authentication view shows the supporting detail beside each result (the SPF addresses, the DKIM failure reason, the composite authentication), where the early card shows a status and a summary only, so a member checking why a result happened must leave the compact view.
 
 **Phase:** 7
