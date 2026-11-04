@@ -51,6 +51,7 @@ track: day-1
 | 14 | §14 | Voice extraction measured on | §4 | [ ] |
 | 15 | §15 | Figures read out of a transcript by code | §4 | [ ] |
 | 16 | §16 | Transcript stored as its own evidence item | §3 | [x] |
+| 17 | §17 | Immutable per-case ablation admission | §1 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -606,6 +607,32 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a vo
 
 > **Verified:** 2026-11-02 | §16 | 7227f20930bd9ef9a6ba129ca8a564188b9a5f3b
 > **Review:** `docs/reviews/d01-t03-s16.json`
+
+## 17. Immutable per-case ablation admission
+
+Coordinator critical-path assignment 2026-11-04 resolves the missing server-side transport in D08 T02 §3; eval's scoped repair is D08 T02 §17. The agreed contract is `docs/specs/2026-11-04-per-case-ablation-design.md`. Checks owns upload/admission and additive migration 0095; eval owns runner and manifest hashing. No live arms before consumers are reviewed, stamped, merged and deployed.
+
+> **Started:** 2026-11-04T07:39:26+00:00
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Validate the exact transport in `src/pipeline/ablate.ts` and `src/intake/upload.ts`. Done when: only the configured eval organisation can submit the strict experiment JSON plus replay ID and every refusal occurs before admission side effects.
+2. Persist immutable identities in `src/db/migrations/0095_case_experiments.sql` and `src/intake/admit.ts`. Done when: exact retry and recovery read the original arm and conflicting identity cannot alias an existing case.
+3. Prove durable attribution in `test/intake/ablation-upload.test.ts` and `test/pipeline/case-experiments.test.ts`. Done when: duplicate, concurrent conflict, stored-but-unstarted sweep and deployment mismatch tests exercise D1 and record exact read-back.
+
+- [ ] Define the strict six-arm schema in `src/pipeline/ablate.ts`. Done when: full and five flags accept only exact fields, bounded IDs, lowercase digest/deployment hex and explicit replay identity; malformed and unknown data fail. Cheaper substitute: arbitrary JSON or org KV cannot identify one immutable arm. Source: agreed per-case ablation design, Wire contract.
+- [ ] Enforce eval-org and deployed-commit admission in `src/intake/upload.ts`. Done when: forged metadata returns 403, malformed fields 400, deployment mismatch 409, before any claim, case, raw object or Workflow; ordinary/replay-only uploads remain supported. Cheaper substitute: runner-side validation cannot enforce tenancy. Source: design, Wire contract.
+- [ ] Add experiment, arm and case attribution tables in `src/db/migrations/0095_case_experiments.sql`. Done when: immutable constraints, foreign keys, organisation/replay uniqueness and case deletion cleanup work without rebuilding cases. Cheaper substitute: mutable case flags cannot prove a resumed arm. Source: design, Durable identity.
+- [ ] Bind metadata before raw storage in `src/intake/admit.ts`. Done when: same arm/sample retries recover the same case, distinct arm IDs admit fresh cases, concurrent conflicts fail explicitly, persistence failure cannot start an untagged experiment and the sweep restores original attribution. Cheaper substitute: storing metadata after Workflow creation permits wrong-arm calls. Source: design, Durable identity.
+- [ ] Return persisted attribution from `src/intake/upload.ts`. Done when: 201 and repeat 200 carry exact experiment fields, ordinary responses omit them and conflicting duplicate metadata is refused rather than relabelled. Cheaper substitute: echoing the request does not prove storage. Source: design, Durable identity.
+- [ ] Prove admission and recovery in `test/intake/ablation-upload.test.ts` and `test/pipeline/case-experiments.test.ts`. Done when: all above branches, daily-cap preservation, D1 outage, immutable conflicts, same-content different-arm cases and stored-but-unstarted recovery are exercised with no model spend. Cheaper substitute: schema-only tests miss ordering and resume defects.
+- [ ] Commit: `intake: persist immutable per-case ablation identity`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/ablation-upload.test.ts test/pipeline/case-experiments.test.ts test/intake/upload.test.ts` passes including persisted resume/read-back and pre-admission refusal assertions; `pnpm typecheck` passes.
 
 ## Verification
 

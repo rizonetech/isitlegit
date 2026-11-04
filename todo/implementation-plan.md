@@ -290,10 +290,11 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 108 | Checklist items: 680
+Sections: 111 | Checklist items: 698
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
+| [ ]    | D01 T03 §17 | Immutable per-case ablation admission        | none                  | 7     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail      | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
@@ -309,6 +310,8 @@ Sections: 108 | Checklist items: 680
 | [x]    | D04 T01 §14 | Ablation flag in the verdict step            | none                  | 5     |
 | [x]    | D03 T02 §6  | Ablation flag in page screening              | none                  | 2     |
 | [x]    | D03 T03 §6  | Ablation flag in segmentation                | none                  | 2     |
+| [ ]    | D04 T01 §17 | Immutable per-case model ablation consumers  | none                  | 6     |
+| [ ]    | D04 T01 §18 | Labelled screening experiment binding        | third-party           | 5     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough             | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks           | cloudflare            | 9     |
@@ -676,6 +679,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 412/600 verified sections, 115 ready to run now.
+Progress: 412/603 verified sections, 116 ready to run now.
 
-Checklist: 3028/3707 items completed (includes Commit items).
+Checklist: 3028/3725 items completed (includes Commit items).

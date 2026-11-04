@@ -2,7 +2,7 @@
 schema_version: 1
 id: verdict-agent
 domain: 04-agent
-status: done
+status: active
 title: "TODO-01 -- Verdict Agent, Citations, Deterministic Floor and Injection Defence"
 frozen: true
 track: day-6
@@ -53,6 +53,8 @@ track: day-6
 | 14 | §14 | Ablation flag in the verdict step | §4 | [x] |
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
 | 16 | §16 | Message-specific consequence sentences | §2 | [x] |
+| 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [ ] |
+| 18 | §18 | Labelled screening experiment binding | D01 T03 §17 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -529,6 +531,53 @@ Filed 2026-11-03 from the coordinator's filing request (app lane, D07 T03 §10's
 
 > **Verified:** 2026-11-04 | §16 | 560a867b8a368ede3b31f517e7f45d882a658045
 > **Review:** `docs/reviews/d04-t01-s16.json`
+
+## 17. Immutable per-case model ablation consumers
+
+Coordinator critical-path assignment 2026-11-04. Replace organisation KV flags with D01 T03 §17's immutable case identity in the analysis Workflow, vision and agent tooling. Resolves D08 T02 §3's case hooks; eval owns orchestration in D08 T02 §17. Screening is separately exercised by §18. Source: `docs/specs/2026-11-04-per-case-ablation-design.md`.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Read durable context in `src/pipeline/analysis-workflow.ts` and `src/agent/loop.ts`. Done when: flags survive resume and KV edits cannot change ordinary or experimental cases.
+2. Wire four case skip paths and attribution. Done when: reasoning, walkthrough, SAM and transcription hooks skip exactly their owned contributions, preserve ordinary behavior and record the actual arm.
+3. Prove calls and persisted outcomes in `test/pipeline/ablation-consumers.test.ts`. Done when: every arm's applicable skipped and retained calls, resume behavior and safety gates are asserted with stubbed model transports.
+
+- [ ] Resolve immutable context before model-dependent work in `src/pipeline/analysis-workflow.ts`. Done when: missing ordinary metadata means normal behavior, but metadata read failure or experimental deployment mismatch propagates as failure/partial rather than executing an unflagged arm. Cheaper substitute: catch-to-null silently changes the experiment. Source: design, Consumers.
+- [ ] Replace org KV reads for verdict reasoning and walkthrough in `src/pipeline/analysis-workflow.ts`. Done when: no-agent-reasoning uses rules with unchanged floor/citations/actions, no-walkthrough reuses no cached walk, and other arms leave those calls eligible. Cheaper substitute: a label on an unchanged model call is not ablation. Source: design, Consumers.
+- [ ] Replace org KV reads for all SAM paths in `src/agent/loop.ts`, `src/agent/tools.ts` and `src/vision/step.ts`. Done when: no-sam prevents segmentation and comparison, retained vision reading runs, and stored coverage names the skipped contribution. Cheaper substitute: suppressing only the UI or one tool leaves SAM active. Source: design, Consumers.
+- [ ] Add the no-transcribe gate in `src/pipeline/analysis-workflow.ts`. Done when: uploaded audio and mail audio attachments call neither transcription nor dependent voice extraction and reuse no cached transcript/claim; explicit not-checked evidence survives read-back while other checks continue. Cheaper substitute: skipping extraction after paying for transcription does not measure removal. Source: design, Consumers.
+- [ ] Test all case arms in `test/pipeline/ablation-consumers.test.ts`. Done when: stub call counts prove both removals and retained work, ordinary/full neighbors remain unchanged, concurrent arms stay isolated, resume and malformed/read-failed metadata never change arm, floor/citations and ledger attribution stay intact. Cheaper substitute: testing only flag lookup proves no model removal.
+- [ ] Commit: `pipeline: apply immutable case ablation across model consumers`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/ablation-consumers.test.ts test/pipeline/ablate.test.ts test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes and fails if any removed model still runs or an ordinary case inherits another case's arm; `pnpm typecheck` passes.
+
+## 18. Labelled screening experiment binding
+
+Coordinator explicitly assigns narrow screening flag wiring to checks. Loupe remains offline-only. Uploaded cases do not call the monitor screener, so no-screening is measured only on a separately triggered labelled-page experiment, agreed with eval before implementation. Source: `docs/specs/2026-11-04-per-case-ablation-design.md`; D08 T02 §3 and eval repair D08 T02 §17.
+
+**Phase:** 6
+**Needs:** third-party
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Agree and record the exact labelled-page trigger and immutable run-to-experiment binding with eval/coordinator in the design. Done when: the trigger, baseline population, Spark replacement and result/spend attribution have a concrete consumer and cannot use org KV.
+2. Wire only the approved binding in `src/monitor/workflow.ts` and `src/vision/screen.ts`. Done when: no-screening avoids Loupe wake/inference and uses Spark for the same labelled pages, with ordinary monitoring unchanged.
+3. Prove the contract in `test/monitor/ablation-experiment.test.ts`. Done when: forged binding, wrong org/deployment, resume, skipped Loupe calls, retained Spark calls and ledger attribution are asserted.
+
+- [ ] Record the agreed trigger in `docs/specs/2026-11-04-per-case-ablation-design.md`. Done when: eval/coordinator approve an exact run-to-case/experiment interface and baseline page selection, rather than claiming uploads screen pages. Cheaper substitute: a bare flag cannot exercise the monitor contribution.
+- [ ] Validate the binding in `src/monitor/workflow.ts`. Done when: only the durable eval experiment in the matching organisation/deployment governs the labelled run; resume preserves identity and invalid/read-failed metadata cannot become ordinary mode. Cheaper substitute: org KV leaks across runs. Source: design, Consumers.
+- [ ] Apply the bound no-screening flag in `src/vision/screen.ts`. Done when: no Loupe wake/inference occurs, Spark fallback screens every applicable page and results/spend retain the exact experiment/run identity; ordinary monitoring remains unchanged. Cheaper substitute: skipping all screening removes two contributions. Source: design, Consumers.
+- [ ] Prove trigger, isolation and accounting in `test/monitor/ablation-experiment.test.ts`. Done when: both baseline and no-screening consume the same fixture pages, calls/records differ only as intended, failures stay explicit and ordinary monitoring cannot inherit an arm. Cheaper substitute: a fake metric table proves no runtime path.
+- [ ] Commit: `monitor: bind labelled screening ablations to immutable experiments`
+
+**Test checkpoint:** `pnpm exec vitest run test/monitor/ablation-experiment.test.ts` passes with counted Loupe/Spark calls and persisted run/spend identity; `pnpm typecheck` passes. Live measurement remains eval-owned after deployment.
 
 ## Verification
 
