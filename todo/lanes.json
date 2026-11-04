@@ -18,13 +18,6 @@
         "D09 T02 §4"
       ]
     },
-    "lookalikes": {
-      "branch": "lookalikes-lane",
-      "worktree": "../isitlegit-lookalikes",
-      "sections": [
-        "D02 T03 §5"
-      ]
-    },
     "corpus-durability": {
       "branch": "corpus-durability-lane",
       "worktree": "../isitlegit-corpus-durability",
