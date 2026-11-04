@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { readModelTrace } from "../../src/db/model-trace";
-import { whatItDid } from "../../src/web/components/model-trace";
+import { finalVerdictSummary, whatItDid } from "../../src/web/components/model-trace";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
 import { putStoredVerdict } from "./stored-verdict";
@@ -74,14 +74,14 @@ async function spend(caseId: string, s: Spend = {}) {
     )
     .run();
 }
-const finish = async (id: string) => {
+const finish = async (id: string, source: "rules" | "agent" = "rules") => {
   await putStoredVerdict(db, id, {
     verdict: "suspicious",
     headline: "A headline.",
     confidence: 0.6,
     reasons: ["A reason."],
     actions: ["An action."],
-    source: "rules",
+    source,
   });
   await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
 };
@@ -175,15 +175,28 @@ describe("the model trace", () => {
     expect(await page(`/r/${none.id}?trace=1`, none.cookie)).toContain("Result not stored");
   });
 
-  // A stored verdict keeps its reasons as text, so the evidence they cite is not stored yet and the panel says only how many
-  // findings were weighed; the wording that names the cited ids is the pure function's, for when a verdict stores them.
-  it("names the cited evidence when a verdict stores it, and nothing it does not", () => {
+  it("keeps final-verdict attribution once per case rather than attributing it to every successful call", async () => {
+    const { cookie, id } = await member();
+    await spend(id, { step: "verdict" });
+    await spend(id, { step: "verdict" });
+    await finish(id, "agent");
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html.match(/Returned a response to the verdict investigation/g)).toHaveLength(2);
+    expect(html.match(/The final verdict used an accepted model assessment/g)).toHaveLength(1);
+    expect(html).not.toContain("Weighed 0 findings");
+  });
+
+  it("attributes final citations to the case, and no citations to an exploratory response", () => {
     const call = { step: "verdict", outcome: "ok" } as Parameters<typeof whatItDid>[0];
-    expect(whatItDid(call, { findings: 3, cited: ["E1", "E2", "E3"], verdictSource: "agent" }, 0)).toBe(
-      "Weighed 3 findings, cited E1, E2, E3",
+    const facts = { findings: 3, cited: ["E1", "E2", "E3"], verdictSource: "agent" as const };
+    expect(whatItDid(call, 0)).toBe("Returned a response to the verdict investigation");
+    expect(finalVerdictSummary(facts)).toBe(
+      "The final verdict used an accepted model assessment with deterministic safety checks, citing E1, E2, E3.",
     );
-    expect(whatItDid(call, { findings: 3, cited: [], verdictSource: "agent" }, 0)).toBe("Weighed 3 findings");
-    expect(whatItDid(call, { findings: 0, cited: null, verdictSource: "agent" }, 0)).toBe("Result not stored");
+    expect(finalVerdictSummary({ ...facts, verdictSource: "rules" })).toBe(
+      "Rule-based verdict used; no model verdict accepted.",
+    );
+    expect(finalVerdictSummary({ ...facts, cited: null })).toBe("No accepted model verdict recorded.");
   });
 
   it("lists the agent's actions in order, a refused one said refused, with no typed text", async () => {

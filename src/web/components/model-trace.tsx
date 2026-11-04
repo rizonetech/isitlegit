@@ -78,22 +78,23 @@ function actionReason(a: TraceAction): string | null {
 
 // `chosen`: the actions this call led to (the ones after it, until the next call of its step), or null when no walk was
 // stored. A trace attributes work to the call that produced it and never repeats a run-wide total on every call.
-export function whatItDid(call: TraceCall, facts: TraceFacts, chosen: number | null): string {
+export function whatItDid(call: TraceCall, chosen: number | null): string {
   if (call.outcome === "refused") return `Refused: ${failureWords(call.errorClass)}`;
   if (call.outcome === "error") return `Did not finish: ${failureWords(call.errorClass)}`;
   if (call.outcome === null) return "Outcome not recorded";
-  if (call.step === "verdict") {
-    if (facts.verdictSource === "rules") return "Rule-based verdict used; no model verdict accepted";
-    if (facts.verdictSource !== "agent") return "No accepted model verdict recorded";
-    if (facts.cited === null) return "Result not stored";
-    const weighed = `Weighed ${facts.findings} ${facts.findings === 1 ? "finding" : "findings"}`;
-    return facts.cited.length ? `${weighed}, cited ${facts.cited.join(", ")}` : weighed;
-  }
+  if (call.step === "verdict") return "Returned a response to the verdict investigation";
   if (call.step === "walkthrough") {
     if (chosen === null) return "Result not stored";
     return chosen === 0 ? "Concluded the walk" : `Chose ${chosen} ${chosen === 1 ? "action" : "actions"}`;
   }
   return (call.step && STEP_WORDS[call.step]) || "A model call";
+}
+
+// The final verdict is a case result, never proof that every exploratory response cited its evidence.
+export function finalVerdictSummary(facts: TraceFacts): string {
+  if (facts.verdictSource === "rules") return "Rule-based verdict used; no model verdict accepted.";
+  if (facts.verdictSource !== "agent" || facts.cited === null) return "No accepted model verdict recorded.";
+  return `The final verdict used an accepted model assessment with deterministic safety checks${facts.cited.length ? `, citing ${facts.cited.join(", ")}` : ""}.`;
 }
 
 // The actions each walkthrough call led to: those made from the call until the next walkthrough call. Null for every call
@@ -112,14 +113,14 @@ function chosenBy(trace: ModelTrace): Map<string, number | null> {
   return out;
 }
 
-function Row(props: { call: TraceCall; facts: TraceFacts; chosen: number | null }) {
+function Row(props: { call: TraceCall; chosen: number | null }) {
   const { call } = props;
   return (
     <tr class="align-top border-t border-line">
       <td class="py-8 pr-8 wrap-anywhere">{(call.step && STEP_WORDS[call.step]) || call.step || "A model call"}</td>
       <td class="py-8 pr-8 wrap-anywhere">{call.model}</td>
       <td class="py-8 pr-8 wrap-anywhere">
-        {whatItDid(call, props.facts, props.chosen)}
+        {whatItDid(call, props.chosen)}
         {call.cached ? " · cached" : ""}
       </td>
       <td class="py-8 pr-8 wrap-anywhere">{call.ms === null ? "not recorded" : seconds(call.ms)}</td>
@@ -228,6 +229,9 @@ export function ModelTracePanel(props: {
         ) : (
           <>
             <p class="text-14 weight-text-strong">{totals}</p>
+            {trace.calls.some((call) => call.step === "verdict") && (
+              <p class="text-14">{finalVerdictSummary(props.facts)}</p>
+            )}
             <div>
               <table class="w-full table-fixed text-14 text-left">
                 <caption class="sr-only">The model calls made for this case</caption>
@@ -252,7 +256,7 @@ export function ModelTracePanel(props: {
                 </thead>
                 <tbody>
                   {trace.calls.map((call) => (
-                    <Row call={call} facts={props.facts} chosen={chosen.get(call.id) ?? null} />
+                    <Row call={call} chosen={chosen.get(call.id) ?? null} />
                   ))}
                 </tbody>
               </table>
