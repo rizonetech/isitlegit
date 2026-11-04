@@ -1,6 +1,16 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -57,6 +67,141 @@ describe("PDF forensic measurement", () => {
     expect(loadManifest(root).documents).toHaveLength(14);
     expect(loadSets(join(root, "eval/sets"))).toEqual(before);
   });
+  it.each([false, true])("preserves legacy recovery bytes on upgrade, generation failure=%s", async (fail) => {
+    const root = temp();
+    for (const path of [SET, "eval/sets/synthetic-sa", "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const before = loadSets(join(root, "eval/sets"));
+    const legacy = join(root, "eval/sets/.pdf-forensics-previous");
+    cpSync(join(root, SET), legacy, { recursive: true });
+    const manifest = readFileSync(join(legacy, "manifest.json"), "utf8").replaceAll(
+      `${SET}/`,
+      "eval/sets/pdf-forensics/",
+    );
+    writeFileSync(join(legacy, "manifest.json"), manifest);
+    const saved = readdirSync(legacy).map((name) => [name, readFileSync(join(legacy, name))] as const);
+    const stage = join(root, "eval/sets/.pdf-forensics-stage-old123");
+    mkdirSync(stage);
+    writeFileSync(join(stage, "partial.pdf"), "%PDF-partial");
+    expect(() => loadSets(join(root, "eval/sets"))).toThrow();
+    if (fail)
+      await expect(
+        build(root, {
+          write() {
+            throw new Error("disk full");
+          },
+        }),
+      ).rejects.toThrow("disk full");
+    else await build(root);
+    expect(loadSets(join(root, "eval/sets"))).toEqual(before);
+    const archive = join(root, "eval/forensics/legacy-publication");
+    const generations = readdirSync(archive);
+    expect(generations).toHaveLength(1);
+    const generation = generations[0];
+    if (!generation) throw new Error("missing archived generation");
+    const moved = join(archive, generation);
+    for (const [name, bytes] of saved)
+      expect(readFileSync(join(moved, ".pdf-forensics-previous", name))).toEqual(bytes);
+    expect(readFileSync(join(moved, ".pdf-forensics-stage-old123/partial.pdf"), "utf8")).toBe("%PDF-partial");
+    await build(root);
+    expect(readdirSync(archive)).toEqual(generations);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    expect(loadSets(join(root, "eval/sets"))).toEqual(before);
+  });
+
+  it("resumes interrupted legacy relocation and preserves the old live generation", async () => {
+    const root = temp();
+    for (const path of ["eval/sets/synthetic-sa", "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const before = loadSets(join(root, "eval/sets"));
+    for (const name of ["pdf-forensics", ".pdf-forensics-previous"])
+      cpSync(join(ROOT, SET), join(root, "eval/sets", name), { recursive: true });
+    const prior = readFileSync(join(ROOT, SET, "manifest.json"), "utf8").replaceAll(
+      `${SET}/`,
+      "eval/sets/pdf-forensics/",
+    );
+    for (const name of ["pdf-forensics", ".pdf-forensics-previous"])
+      writeFileSync(join(root, "eval/sets", name, "manifest.json"), prior);
+    const killed = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
+      import {build} from ${JSON.stringify(join(ROOT, "eval/forensics/build.ts"))};
+      import {renameSync} from 'node:fs';
+      await build(${JSON.stringify(root)}, {rename(from,to) {
+        renameSync(from,to);
+        if (to.includes('/legacy-publication/')) process.kill(process.pid,'SIGKILL');
+      }});
+    `,
+      ],
+      { encoding: "utf8", timeout: 10000 },
+    );
+    expect(killed.signal, killed.stderr).toBe("SIGKILL");
+    await build(root);
+    expect(loadSets(join(root, "eval/sets"))).toEqual(before);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    const archive = join(root, "eval/forensics/legacy-publication");
+    const generations = readdirSync(archive);
+    expect(generations).toHaveLength(2);
+    const names = generations.flatMap((generation) => readdirSync(join(archive, generation)));
+    expect(names.sort()).toEqual([".pdf-forensics-previous", "pdf-forensics"]);
+    for (const generation of generations)
+      for (const name of readdirSync(join(archive, generation)))
+        expect(readFileSync(join(archive, generation, name, "manifest.json"), "utf8")).toEqual(prior);
+  });
+
+  it("refuses ambiguous legacy entries without moving a recovery generation", async () => {
+    const root = temp();
+    mkdirSync(join(root, "eval/sets"), { recursive: true });
+    const legacy = join(root, "eval/sets/.pdf-forensics-previous");
+    cpSync(join(ROOT, SET), legacy, { recursive: true });
+    const prior = readFileSync(join(legacy, "manifest.json"));
+    writeFileSync(join(root, "eval/sets/.pdf-forensics-stage-unknown"), "preserve me");
+    await expect(build(root)).rejects.toThrow("legacy PDF artifact is not a directory");
+    expect(readFileSync(join(legacy, "manifest.json"))).toEqual(prior);
+    expect(readFileSync(join(root, "eval/sets/.pdf-forensics-stage-unknown"), "utf8")).toBe("preserve me");
+    expect(existsSync(join(root, "eval/forensics/legacy-publication"))).toBe(false);
+  });
+
+  it("refuses relocation while a legacy writer holds its original lock", async () => {
+    const root = temp();
+    for (const path of ["eval/sets/synthetic-sa", "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const legacy = join(root, "eval/sets/.pdf-forensics-previous");
+    cpSync(join(ROOT, SET), legacy, { recursive: true });
+    const prior = readFileSync(join(legacy, "manifest.json"));
+    const child = spawn(
+      "flock",
+      [
+        "--no-fork",
+        join(root, "eval/sets/.pdf-forensics.lock"),
+        process.execPath,
+        "-e",
+        'process.stdout.write("held");setInterval(()=>{},1000);',
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", () => reject(new Error("legacy lock holder exited")));
+        child.stdout.once("data", () => resolve());
+      });
+      await expect(build(root)).rejects.toThrow("already running");
+      expect(readFileSync(join(legacy, "manifest.json"))).toEqual(prior);
+      expect(existsSync(join(root, "eval/forensics/legacy-publication"))).toBe(false);
+    } finally {
+      // flock --no-fork makes the holder itself the process that owns the descriptor.
+      child.kill("SIGKILL");
+      await closed;
+    }
+    await build(root);
+    expect(loadSets(join(root, "eval/sets"))).toHaveLength(1);
+  });
+
   it("preserves a verified corpus on failed generation and recovers an interrupted publication", async () => {
     const root = temp();
     for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])

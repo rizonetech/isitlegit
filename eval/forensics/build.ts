@@ -48,13 +48,38 @@ async function lock(path: string): Promise<() => Promise<void>> {
   };
 }
 
+// Keep legacy generations byte-for-byte, including incomplete staging and its original manifest paths.
+// Atomic moves make an interrupted relocation retryable without deleting the only recovery copy.
+function preserveLegacy(root: string, rename: NonNullable<Operations["rename"]>) {
+  const oldParent = join(root, "eval/sets");
+  const entries = readdirSync(oldParent, { withFileTypes: true }).filter(
+    (entry) =>
+      entry.name === "pdf-forensics" ||
+      entry.name === ".pdf-forensics-previous" ||
+      entry.name.startsWith(".pdf-forensics-stage-"),
+  );
+  if (!entries.length) return;
+  if (entries.some((entry) => !entry.isDirectory())) throw new Error("legacy PDF artifact is not a directory");
+  const archive = join(root, "eval/forensics/legacy-publication");
+  mkdirSync(archive, { recursive: true });
+  const destination = mkdtempSync(join(archive, "generation-"));
+  for (const entry of entries) rename(join(oldParent, entry.name), join(destination, entry.name));
+}
+
 export async function build(root = ROOT, operations: Operations = {}) {
   const out = join(root, SET);
   const parent = dirname(out);
   mkdirSync(parent, { recursive: true });
   const unlock = await lock(join(parent, ".pdf-forensics.lock"));
   let stage: string | undefined;
+  let unlockLegacy: (() => Promise<void>) | undefined;
   try {
+    const oldParent = join(root, "eval/sets");
+    if (existsSync(oldParent)) {
+      // Retain the old lock inode and hold it through publication so an old builder cannot race relocation.
+      unlockLegacy = await lock(join(oldParent, ".pdf-forensics.lock"));
+      preserveLegacy(root, operations.rename ?? renameSync);
+    }
     const previous = join(parent, ".pdf-forensics-previous");
     // Recover before generation; never remove the only usable generation.
     if (!existsSync(out) && existsSync(previous)) renameSync(previous, out);
@@ -96,7 +121,11 @@ export async function build(root = ROOT, operations: Operations = {}) {
     try {
       if (stage) rmSync(stage, { recursive: true, force: true });
     } finally {
-      await unlock();
+      try {
+        if (unlockLegacy) await unlockLegacy();
+      } finally {
+        await unlock();
+      }
     }
   }
 }
