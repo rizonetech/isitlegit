@@ -2610,5 +2610,258 @@ class JournalDurability(unittest.TestCase):
                     self.assertEqual(invoke.call_count,1)
 
 
+class ExactExceptions(Reconciliation):
+    def setUp(self):
+        super().setUp()
+        self.setup_case('contract-amendment')
+
+    def contract_template(self,domain,task,number):
+        return f'# Test\n\n## {number}. Example\n\n- [ ] Preserve all evidence.\n'
+
+    def record(self,binding=None,reply='RECONCILIATION: complete'):
+        step=self.module.scheduled(self.module.load_pin(self.root/'.conclave/reviewers.toml')['schedule'],'reconciliation',[],False,policy=self.entry['policy'])
+        self.entry.update(effort=step['effort'],lenses=step['lenses'])
+        return super().record(binding,reply)
+
+    def setup_case(self, kind):
+        self.exception_kind = kind
+        domain, task, number = ('08-eval','02','6') if kind == 'contract-amendment' else ('01-intake','03','15')
+        self.report = self.root / f'docs/reviews/{domain}/D{domain[:2]}-T{task}-s{number}.md'
+        self.report.parent.mkdir(parents=True,exist_ok=True)
+        self.todo = self.root / f'todo/{domain}/TODO-{task}-example.md'
+        self.todo.parent.mkdir(parents=True,exist_ok=True)
+        self.todo.write_text(self.contract_template(domain,task,number))
+        self.disposition = self.report.with_name(self.report.stem+'-disposition.md')
+        self.disposition.write_text('All original obligations and every failed finding remain mandatory.\n')
+        self.sha = self.commit()
+        self.report.write_text('')
+        schedule=self.module.load_pin(self.root/'.conclave/reviewers.toml')['schedule']
+        step=lambda kind:self.module.scheduled(schedule,kind,[],False,policy=self.entry['policy'])
+        self.module.record_completion(self.report,{**self.entry,**step('plan'),'review':'PLAN: complete\nOVERALL: approve'},'2026-11-04T01:00:00Z',self.sha,'plan')
+        self.module.record(self.report,{**self.entry,**step('round'),'review':'HIGHEST: none\nOVERALL: approve'},'2026-11-04T01:01:00Z')
+        self.module.record_completion(self.report,{**self.entry,**step('completion'),'review':'Original required repair.\nCOMPLETION: gaps'},'2026-11-04T01:02:00Z',self.sha)
+        self.commit()
+        if kind == 'exhausted-chain-successor':
+            first = self.record(reply='RECONCILIATION: gaps')
+            pinpath=self.root/'.conclave/reviewers.toml'
+            base=re.sub(r'\n\[reconciliation_extensions\]\n.*?(?=\n\[|\Z)','',pinpath.read_text(),flags=re.S)
+            pinpath.write_text(base+'\n[reconciliation_extensions]\n'+json.dumps(self.report.relative_to(self.root).as_posix())+' = '+json.dumps(first['digest'])+'\n')
+            self.commit(); self.pin=self.module.pin_blob(pinpath.read_bytes()); self.entry['pin']=self.pin
+            self.record(reply='Second required repair.\nRECONCILIATION: gaps')
+            self.commit()
+        else:
+            self.todo.write_text(self.todo.read_text()+'\nAdditive recorded clarification, all evidence remains mandatory.\n')
+            self.commit()
+        self.target=self.git('rev-parse','HEAD')
+
+    def authorize_exception(self):
+        d=self.module; text=self.report.read_text(); found=d.read_findings(text)
+        original=found['completions'][-1]; plan=found['plans'][-1]
+        report=self.report.relative_to(self.root).as_posix(); contract=self.todo.relative_to(self.root).as_posix()
+        number=re.search(r'-s(\d+)\.md$',report)[1]
+        def contract_hash(sha):
+            content=self.git('show',sha+':'+contract)+'\n'
+            return hashlib.sha256(d._reconcile_contract(content,number).encode()).hexdigest()
+        self.authorization={
+            'version':1,'kind':self.exception_kind,'report':report,
+            'plan_candidate':plan['candidate'],'completion_candidate':original['candidate'],
+            'completion_digest':d.digest(d.raw_lines(original['review'])),
+            'original_contract_sha256':contract_hash(original['candidate']),
+            'accepted_contract_sha256':contract_hash(self.target),
+            'prefix_bytes':len(text.encode()),'prefix_sha256':hashlib.sha256(text.encode()).hexdigest(),
+            'predecessors':[{'candidate':e['candidate'],'digest':e['digest'],'binding_version':e['binding']['version']}
+                            for e in found['reconciliations'] if d.returned_pass(e,'reconciliation')],
+            'repair_base_candidate':self.target,
+            'disposition_path':self.disposition.relative_to(self.root).as_posix(),
+            'disposition_blob':d.pin_blob(self.disposition.read_bytes()),'disposition_commit':self.target}
+        self.auth_path=self.report.with_name(self.report.stem+'-exception.json')
+        self.auth_path.write_text(json.dumps(self.authorization,sort_keys=True)+'\n')
+        auth_commit=self.commit()
+        self.auth_identity={'path':self.auth_path.relative_to(self.root).as_posix(),'commit':auth_commit,'blob':d.pin_blob(self.auth_path.read_bytes())}
+        pinpath=self.root/'.conclave/reviewers.toml'
+        base=re.sub(r'\n\[reconciliation_exceptions(?:\.[^\n]+)?\]\n.*?(?=\n\[|\Z)','',pinpath.read_text(),flags=re.S)
+        pinpath.write_text(base+'\n[reconciliation_exceptions.'+json.dumps(report)+']\n'+''.join(k+' = '+json.dumps(v)+'\n' for k,v in self.auth_identity.items()))
+        self.commit(); self.pin=d.pin_blob(pinpath.read_bytes()); self.entry['pin']=self.pin
+
+    def test_exception_authorized_exact_binding_and_returned_result(self):
+        for kind in ('contract-amendment','exhausted-chain-successor'):
+            with self.subTest(kind=kind):
+                if kind != self.exception_kind: self.setup_case(kind)
+                self.authorize_exception()
+                binding=self.binding(self.target)
+                self.assertEqual(binding['version'],3)
+                entry=self.record(binding)
+                self.commit()
+                self.assertEqual(self.module.validate_reconciliation_series(self.root,self.report.read_text())[-1],entry)
+                with self.assertRaises(self.module.Refused): self.binding(self.target)
+
+    def test_exception_preserves_extra_prefix_blank_lines(self):
+        self.report.write_bytes(self.report.read_bytes()+b'\n\n')
+        self.commit();self.authorize_exception()
+        prefix=self.report.read_bytes()
+        self.record(self.binding(self.target))
+        self.assertTrue(self.report.read_bytes().startswith(prefix))
+
+    def test_exception_binding_requires_exact_integer_prefix_length(self):
+        self.authorize_exception();entry=self.record(self.binding(self.target))
+        malformed={**entry,'binding':{**entry['binding'],'prefix_bytes':float(entry['binding']['prefix_bytes'])}}
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_reconciliation_binding(self.root,self.report.read_text(),malformed)
+
+    def test_exception_authorization_covers_all_preceding_bytes(self):
+        self.authorize_exception()
+        self.report.write_bytes(self.report.read_bytes()+b'\n')
+        with self.assertRaises(self.module.Refused):self.binding(self.target)
+
+    def test_exception_original_plan_candidate_must_be_reachable(self):
+        tree=self.git('rev-parse',self.sha+'^{tree}')
+        orphan=self.git('commit-tree',tree,'-m','unreachable plan candidate')
+        self.report.write_text(self.report.read_text().replace('- Candidate: '+self.sha,'- Candidate: '+orphan,1))
+        self.commit();self.authorize_exception()
+        with self.assertRaises(self.module.Refused):self.binding(self.target)
+
+    def publish_changed_authorization(self):
+        self.auth_path.write_text(json.dumps(self.authorization,sort_keys=True)+'\n')
+        commit=self.commit()
+        old=self.auth_identity
+        self.auth_identity={**old,'commit':commit,'blob':self.module.pin_blob(self.auth_path.read_bytes())}
+        path=self.root/'.conclave/reviewers.toml'; text=path.read_text()
+        text=text.replace(old['commit'],self.auth_identity['commit']).replace(old['blob'],self.auth_identity['blob'])
+        path.write_text(text);self.commit();self.pin=self.module.pin_blob(path.read_bytes());self.entry['pin']=self.pin
+
+    def dispatch_exception(self, reply='RECONCILIATION: complete'):
+        args,pin,result=self.run_reconciliation(reply)
+        args.candidate=self.target
+        return args,pin,result
+
+    def test_exception_requires_exact_authorization_fields_and_committed_bytes(self):
+        self.authorize_exception()
+        pristine=json.loads(json.dumps(self.authorization))
+        mutations=[('extra',lambda a:a.update(extra=True)),('type',lambda a:a.update(version=True)),
+                   ('unknown kind',lambda a:a.update(kind='any-successor')),
+                   ('report',lambda a:a.update(report='docs/reviews/08-eval/D08-T02-s7.md')),
+                   ('prefix',lambda a:a.update(prefix_sha256='0'*64)),
+                   ('truncated',lambda a:a.update(prefix_bytes=a['prefix_bytes']-1)),
+                   ('contract',lambda a:a.update(accepted_contract_sha256='0'*64)),
+                   ('original',lambda a:a.update(completion_digest='0'*16)),
+                   ('disposition',lambda a:a.update(disposition_blob='0'*40)),
+                   ('predecessor',lambda a:a.update(predecessors=[{'candidate':self.sha,'digest':'0'*16,'binding_version':1}]))]
+        for name,change in mutations:
+            with self.subTest(name=name):
+                self.authorization=json.loads(json.dumps(pristine));change(self.authorization);self.publish_changed_authorization()
+                args,pin,result=self.dispatch_exception()
+                with unittest.mock.patch.object(self.module,'review',return_value=result) as reviewer:
+                    with self.assertRaises(self.module.Refused): self.module.run_reconciliation(args,pin,self.pin)
+                    reviewer.assert_not_called()
+        self.authorization=pristine;self.publish_changed_authorization()
+        self.auth_path.write_text(self.auth_path.read_text()+' ')
+        with self.assertRaises(self.module.Refused): self.binding(self.target)
+
+    def test_exception_outage_recovery_revocation_and_prompt(self):
+        self.authorize_exception()
+        args,pin,result=self.dispatch_exception('No terminal result')
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_reconciliation(args,pin,self.pin)
+        first=self.module.read_reconciliations(self.report.read_text())[-1]
+        args,pin,result=self.dispatch_exception()
+        def review(pin,writer,path,timeout,schedule):
+            prompt=Path(path).read_text()
+            self.assertIn('every original obligation and all preceding failed findings',prompt)
+            self.assertIn(self.auth_identity['blob'],prompt)
+            self.assertIn('Original required repair.',prompt)
+            self.assertIn('Preserve all evidence.',prompt)
+            self.assertIn('All original obligations and every failed finding remain mandatory.',prompt)
+            return result
+        with unittest.mock.patch.object(self.module,'review',side_effect=review) as reviewer:
+            with unittest.mock.patch.object(self.module,'record_completion',side_effect=self.module.Unrecorded('write failed')):
+                with self.assertRaises(self.module.Refused): self.module.run_reconciliation(args,pin,self.pin)
+            with self.assertRaises(self.module.Refused): self.module.run_reconciliation(args,pin,self.pin)
+            recovered=self.module.recover_reconciliation(self.root,self.report)
+            self.assertEqual(reviewer.call_count,1)
+        self.assertTrue(recovered['recorded'])
+        entry=self.module.read_reconciliations(self.report.read_text())[-1]
+        self.assertEqual(first['binding'],entry['binding'])
+        self.commit()
+        pinpath=self.root/'.conclave/reviewers.toml'
+        pinpath.write_text(re.sub(r'\n\[reconciliation_exceptions\.[^\n]+\]\n.*?(?=\n\[|\Z)','',pinpath.read_text(),flags=re.S));self.commit()
+        self.assertEqual(self.module.validate_reconciliation_series(self.root,self.report.read_text())[-1],entry)
+        with self.assertRaises(self.module.Refused): self.binding(self.target)
+
+    def test_exception_removed_history_changed_contract_and_unrelated_candidate_refuse(self):
+        self.authorize_exception()
+        original=self.report.read_bytes()
+        for value in (original[:-1], original.replace(b'Original required',b'Changed required')):
+            self.report.write_bytes(value)
+            with self.assertRaises(self.module.Refused): self.binding(self.target)
+        self.report.write_bytes(original)
+        with self.assertRaises(self.module.Refused): self.binding(self.sha)
+        self.todo.write_text(self.todo.read_text().replace('Preserve all evidence','Remove evidence'))
+        changed=self.commit()
+        with self.assertRaises(self.module.Refused): self.binding(changed)
+        entry=self.record(self.binding(self.target))
+        self.commit();self.report.write_bytes(original)
+        with self.assertRaises(self.module.Refused): self.binding(self.target)
+
+    def test_exhausted_exception_checks_predecessor_order_and_success(self):
+        self.setup_case('exhausted-chain-successor');self.authorize_exception()
+        saved=json.loads(json.dumps(self.authorization))
+        self.authorization['predecessors'].reverse();self.publish_changed_authorization()
+        with self.assertRaises(self.module.Refused): self.binding(self.target)
+        self.authorization=saved;self.publish_changed_authorization()
+        original=self.report.read_text()
+        entries=self.module.read_reconciliations(original)
+        # Deleting either actual predecessor cannot be repaired by an authorization document.
+        before='\n'.join(self.module.raw_lines(original)[:entries[0]['offset']])+'\n'
+        self.report.write_text(before)
+        with self.assertRaises(self.module.Refused): self.binding(self.target)
+        self.report.write_text(original)
+        self.record(self.binding(self.target),reply='RECONCILIATION: gaps')
+        self.commit()
+        with self.assertRaises(self.module.Refused): self.binding(self.target)
+
+
+    def test_exception_wrong_pin_blob_and_unknown_report_refuse_before_invocation(self):
+        self.authorize_exception()
+        path=self.root/'.conclave/reviewers.toml';saved=path.read_text()
+        for changed in (saved.replace(self.auth_identity['blob'],'0'*40),saved.replace(self.report.relative_to(self.root).as_posix(),'docs/reviews/08-eval/D08-T02-s7.md')):
+            path.write_text(changed);self.commit();self.pin=self.module.pin_blob(path.read_bytes())
+            with unittest.mock.patch.object(self.module,'review') as reviewer:
+                with self.assertRaises(self.module.Refused):
+                    args,pin,result=self.dispatch_exception()
+                    self.module.run_reconciliation(args,pin,self.pin)
+                reviewer.assert_not_called()
+        path.write_text(saved);self.commit()
+
+    def test_exception_unresolved_invocation_remains_blocked(self):
+        self.authorize_exception();args,pin,result=self.dispatch_exception()
+        with unittest.mock.patch.object(self.module,'review',side_effect=OSError('uncertain connection')) as reviewer:
+            with self.assertRaises(OSError):self.module.run_reconciliation(args,pin,self.pin)
+            with self.assertRaises(self.module.Refused):self.module.run_reconciliation(args,pin,self.pin)
+            self.assertEqual(reviewer.call_count,1)
+        state=self.module.reconciliation_pending(self.root,self.report.relative_to(self.root).as_posix())
+        self.assertEqual(state['phase'],'calling')
+        with self.assertRaises(self.module.Refused):self.module.recover_reconciliation(self.root,self.report)
+
+    def test_exception_cannot_authorize_successful_or_third_predecessor(self):
+        self.setup_case('exhausted-chain-successor');self.authorize_exception()
+        saved=json.loads(json.dumps(self.authorization))
+        self.authorization['predecessors'].append(dict(self.authorization['predecessors'][-1]))
+        self.publish_changed_authorization()
+        with self.assertRaises(self.module.Refused):self.binding(self.target)
+        self.authorization=saved;self.publish_changed_authorization()
+        text=self.report.read_text();entries=self.module.read_reconciliations(text)
+        prefix='\n'.join(self.module.raw_lines(text)[:entries[0]['offset']])+'\n'
+        self.report.write_text(prefix)
+        original=entries[0]
+        self.module.record_completion(self.report,{**original,'review':'RECONCILIATION: complete','failover':[]},original['run'],original['candidate'],'reconciliation')
+        self.commit()
+        with self.assertRaises(self.module.Refused):self.binding(self.target)
+
+
+
+for _name in [n for n in vars(Reconciliation) if n.startswith('test_') and n not in vars(ExactExceptions)]:
+    setattr(ExactExceptions,_name,None)
+
+
 if __name__ == "__main__":
     unittest.main()
