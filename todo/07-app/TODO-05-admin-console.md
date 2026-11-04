@@ -135,6 +135,8 @@ SPEC X1 draws six service-health tiles (email intake, workflows, Meta Model API,
 
 ## 4. Find organisations by domain or ID
 
+> **Started:** 2026-11-04T07:22:58.161817+00:00
+
 The overview search matches the organisation name only (D07 T05 §2), so the operator cannot start from the domain on a certificate or the ID in a log. This section extends the same search box to match a verified domain or the organisation ID too, with the table, the CSV and the empty state reading the same matches.
 
 **Phase:** 7
