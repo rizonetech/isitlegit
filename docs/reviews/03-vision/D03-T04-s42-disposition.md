@@ -20,3 +20,15 @@ Recorded affected gate: `python3 -m unittest tests.scripts.test_glimmer_inputs t
 ## Acceptance boundary
 
 All original gaps are accepted as mandatory. No additional suggestion is substituted for a defect, and no obligation is removed. Original plan, single regular round, failed completion, pins and candidates remain unchanged. The coordinator owns release of the supported reconciliation command and pin. A future reconciliation must inspect the full intervening diff and all original obligations at its exact candidate; this document and passing tests alone do not authorize stamping. No reconciliation has run for this section.
+
+## Released tooling and intervening candidate changes
+
+Original plan candidate: `0b0af98b5e864269265bbb85bc21994f0b6a5924`; its immutable findings and plan-gap dispositions remain in the canonical findings file. This disposition supplements the prior preparation after verified coordinator release REVIEW-ROLLOUT-36.
+
+All intervening commits through setup `d40b97adcd935a8e6bf547747e78ba6c669d84a8`, in order:
+
+- `ba850799c1c469a2d37c7819f66fbb9b0778201a`: glimmer: bind Hugging Face cache redirects to pinned artifacts.
+- `1d930af4b18ea5fcb78974c0ba8a4c85d91d9d09`: docs: bind Loupe completion gaps to their repairs.
+- `d40b97adcd935a8e6bf547747e78ba6c669d84a8`: Sync verified coordinator review tooling release.
+
+The intervening offline sections 51, 52 and 42 retain their own contracts and original review histories. Shared tooling is the coordinator-authorized exact 23-file snapshot from `e4401838e1a23986f2536fc6d71d4811b883c8b7`; its local 447 tests passed with one skip, graph validation passed 600 sections and publication scan was clean. No product runtime, trainer input or evaluation population changes are part of these repairs. The trainer-owned uncommitted progress file is excluded from the isolated candidate. The reconciliation reviewer must inspect the full original-completion-to-candidate diff, including these intervening changes, against unchanged original obligations.
