@@ -298,7 +298,9 @@ Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6
 
 ## 10. Configured relay revision lifecycle
 
-Implement the configuration service designed in `docs/specs/2026-11-04-gateway-relay-ranges-design.md`. This section owns storage and service authorization; the coordinator assigns the member and platform review surfaces before §9 closes. Obtain a migration number from the coordinator before writing a migration. Do not modify console routes owned by another lane.
+> **Started:** 2026-11-04T10:00:55.651123+00:00
+
+Implement the configuration service designed in `docs/specs/2026-11-04-gateway-relay-ranges-design.md`. This section owns storage and service authorization. Migration 0094 is allocated by coordinator-delivery-decisions (4 November 09:25:56 SAST); console owns member D07 T04 §37 and review D07 T05 §6 at `20f4747f`. Do not modify console routes owned by another lane. The service contract must distinguish server-authenticated member and Access reviewer principals, recheck current database membership/closure and verified claim at mutations, and refuse a reviewer belonging to the target tenant even through another membership. Console constructs principals only from its authenticated request context, never from submitted JSON. Strict operation schemas accept no actor or verified flag. Binding discovery must confirm the current gateway and DNS-named provider, not merely an old cached row. Transactions must condition every mutation, audit and cache invalidation on the same current revision and claim, including state changes between preflight and batch. Return typed validation, forbidden, unavailable and conflict outcomes with persisted read-back. Idempotency stores the action/payload and original outcome so a later revision cannot be overwritten by a replay.
 
 **Phase:** 7
 **Needs:** none
