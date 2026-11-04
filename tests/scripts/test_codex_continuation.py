@@ -1,11 +1,13 @@
 """Continuation state transitions and native transport, with no model calls."""
 import base64
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import socket
 import struct
+import subprocess
 import sys
 import tempfile
 import threading
@@ -59,6 +61,7 @@ class Native:
             return {}
         if method == "thread/queue/start":
             self.on_start()
+            self.status = "active"
             return {"turn": {"id": "wake-turn"}}
         if method == "turn/interrupt":
             return {}
@@ -195,15 +198,44 @@ class Continuation(unittest.TestCase):
         self.assertEqual(self.registry.tick("main"), "revoked wake interrupted")
         self.assertIn(("turn/interrupt", {"threadId": self.session, "turnId": "wake-turn"}), self.native.calls)
 
-    def test_ambiguous_acceptance_stalls_without_duplicate(self):
+    def test_ambiguous_acceptance_recovers_same_submission_without_duplicate(self):
         self.idle()
         self.native.fail_add = True
         self.assertEqual(self.registry.tick("main"), "submission uncertain")
-        self.registry.tick("main")
+        self.assertEqual(self.registry.tick("main"), "queued; acknowledgement pending")
         self.assertEqual(len(self.native.queue), 1)
+        self.assertEqual(sum(m == "thread/queue/start" for m, p in self.native.calls), 1)
+        self.assertNotIn("last_ack", self.registry.read("main"))
         self.now += 601
         self.assertEqual(self.registry.tick("main"), "stalled")
         self.assertEqual(self.native.queue, [])
+
+    def test_event_revalidates_owner_after_acquiring_lock(self):
+        original = self.registry.locked
+        replacement_session = str(uuid.uuid4())
+        @contextmanager
+        def replace_before_lock(lane):
+            with original(lane):
+                state = self.registry.read(lane)
+                state.update(session=replacement_session, turn=None, phase="unverified")
+                self.registry.save(state)
+                yield
+        with mock.patch.object(self.registry, "locked", replace_before_lock):
+            result = self.event("PreToolUse", turn="obsolete-owner")
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIsNone(self.registry.read("main")["turn"])
+
+    def test_timestamp_only_outbox_updates_are_not_progress(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "add", "todo"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Fixture", "-c", "user.email=fixture@example.test",
+                        "commit", "-qm", "fixture"], check=True)
+        state = self.registry.read("main")
+        before = cc.Registry.fingerprint(self.registry, state)
+        self.outbox.write_text("Status at 2026-11-04T05:00:00+02:00\nWAITING: none\n")
+        self.assertEqual(cc.Registry.fingerprint(self.registry, state), before)
+        (self.root / "todo/lanes.json").write_text('{"lanes": {}, "changed": true}')
+        self.assertNotEqual(cc.Registry.fingerprint(self.registry, state), before)
 
     def test_complete_and_restart_remain_stopped(self):
         self.registry.pause("main", self.session, complete=True)

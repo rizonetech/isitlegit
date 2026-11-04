@@ -278,12 +278,25 @@ class Registry:
         return wait == state.get("released_wait")
 
     def fingerprint(self, state):
-        result = subprocess.run(["git", "-C", state["worktree"], "diff", "HEAD", "--"],
+        # Status timestamps are bookkeeping, not substantive work. Include untracked source changes too.
+        result = subprocess.run(["git", "-C", state["worktree"], "diff", "HEAD", "--", ".",
+                                 ":(exclude)docs/phase-runs", ":(exclude)todo/implementation-plan.md"],
                                 capture_output=True, timeout=5, check=True)
         head = subprocess.check_output(["git", "-C", state["worktree"], "rev-parse", "HEAD"], timeout=5)
-        name = "coordinator" if state["lane"] == "main" else state["lane"]
-        outbox = self.handover / f"{name}-outbox.md"
-        return hashlib.sha256(head + result.stdout + (outbox.read_bytes() if outbox.exists() else b"")).hexdigest()
+        digest = hashlib.sha256(head + result.stdout)
+        names = subprocess.check_output(["git", "-C", state["worktree"], "ls-files", "--others", "--exclude-standard", "-z"], timeout=5)
+        for name in sorted(names.split(b"\0")):
+            if not name or name.startswith(b"docs/phase-runs/"):
+                continue
+            path = Path(state["worktree"]) / os.fsdecode(name)
+            digest.update(name)
+            if path.is_symlink():
+                digest.update(os.fsencode(os.readlink(path)))
+            elif path.is_file():
+                with path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(65536), b""):
+                        digest.update(chunk)
+        return digest.hexdigest()
 
     def event(self, payload):
         event = payload.get("hook_event_name")
@@ -298,8 +311,14 @@ class Registry:
         if event == "Interrupt":
             self.pause(lane, state["session"], native_interrupt=True)
             return {}
+        expected_owner = (state["session"], state["worktree"], state["generation"], state["claim"])
         with self.locked(lane):
             state = self.read(lane)
+            if state is None or (state["session"], state["worktree"], state["generation"], state["claim"]) != expected_owner:
+                if event == "PreToolUse":
+                    return {"hookSpecificOutput": {"hookEventName": event, "permissionDecision": "deny",
+                                                   "permissionDecisionReason": "Unattended ownership changed before this event."}}
+                return {"continue": False, "stopReason": "Unattended ownership changed."}
             if self.paused(state):
                 if event == "PreToolUse":
                     return {"hookSpecificOutput": {"hookEventName": event, "permissionDecision": "deny",
@@ -350,6 +369,23 @@ class Registry:
                 "a conversational stop, run codex_continuation.py pause for this owner. Use complete when the authorized "
                 "run is finished. Never invent review or runtime evidence.")
 
+    def queued_wake(self, client, state, wake):
+        cursor = None
+        for _ in range(20):
+            params = {"threadId": state["session"]}
+            if cursor:
+                params["cursor"] = cursor
+            page = client.call("thread/queue/list", params)
+            matches = [item for item in page["data"] if item["clientUserMessageId"] == wake]
+            if matches:
+                if len(matches) != 1:
+                    raise Refusal("ambiguous duplicate wake identity")
+                return matches[0]
+            cursor = page.get("nextCursor")
+            if not cursor:
+                return None
+        raise Refusal("queue pagination limit exceeded")
+
     def tick(self, lane):
         with self.locked(lane):
             state = self.read(lane)
@@ -360,53 +396,65 @@ class Registry:
                     self.cancel(client, state)
                     return "paused"
                 pending = state.get("pending")
-                if pending:
-                    if self.now() - pending["at"] >= 600:
-                        state.update(phase="stalled", error="wake unacknowledged for ten minutes")
-                        self.save(state)
-                        self.cancel(client, state)
-                        return "stalled"
-                    return "awaiting acknowledgement"
-                if state["phase"] != "idle" or not state["observed"].get("Stop") or not self.wait_ready(state):
+                if pending and self.now() - pending["at"] >= 600:
+                    state.update(phase="stalled", error="wake unacknowledged for ten minutes")
+                    self.save(state)
+                    self.cancel(client, state)
+                    return "stalled"
+                if not pending and (state["phase"] != "idle" or not state["observed"].get("Stop") or not self.wait_ready(state)):
                     return "not eligible"
                 thread = client.call("thread/read", {"threadId": state["session"], "includeTurns": False})["thread"]
                 if thread["status"]["type"] != "idle" or Path(thread["cwd"]).resolve() != Path(state["worktree"]):
-                    return "not idle"
+                    return "awaiting acknowledgement" if pending else "not idle"
                 self.trusted(client, state["session"], state["worktree"])
-                wake = str(uuid.uuid4())
-                state["pending"] = {"id": wake, "at": self.now(), "phase": "submitting", "submission": None}
-                self.save(state)  # A crash cannot cause blind duplicate submission.
-                try:
-                    if self.paused(state):
-                        return "paused"
-                    queued = client.call("thread/queue/add", {"threadId": state["session"], "clientUserMessageId": wake,
-                                         "input": [{"type": "text", "text": self.prompt(state, wake)}]})["queuedSubmission"]
-                    if queued["clientUserMessageId"] != wake:
-                        raise Refusal("queue correlation differs")
-                    state["pending"].update(submission=queued["id"], phase="queued")
+                if pending:
+                    # Recover accepted-but-unanswered submissions by their persisted client identity, never by re-adding.
+                    queued = self.queued_wake(client, state, pending["id"])
+                    if queued is None:
+                        return "awaiting acknowledgement"
+                    wake = pending["id"]
+                else:
+                    wake = str(uuid.uuid4())
+                    state["pending"] = {"id": wake, "at": self.now(), "phase": "submitting", "submission": None}
                     self.save(state)
-                    if self.paused(state):
-                        self.cancel(client, state)
-                        return "paused"
-                    # Starting a turn invokes UserPromptSubmit, which must be able to acquire this lock.
-                    start = (state["session"], queued["id"], wake, state["generation"])
-                except (OSError, RpcError, Refusal, KeyError, ValueError) as error:
-                    state["error"] = type(error).__name__ + ": wake outcome unknown; reconcile before retry"
-                    self.save(state)
-                    return "submission uncertain"
-        session, submission, wake, generation = start
+                    try:
+                        if self.paused(state):
+                            return "paused"
+                        queued = client.call("thread/queue/add", {"threadId": state["session"], "clientUserMessageId": wake,
+                                             "input": [{"type": "text", "text": self.prompt(state, wake)}]})["queuedSubmission"]
+                    except (OSError, RpcError, KeyError, ValueError):
+                        state["error"] = "wake outcome unknown; reconcile before retry"
+                        self.save(state)
+                        return "submission uncertain"
+                if queued["clientUserMessageId"] != wake:
+                    raise Refusal("queue correlation differs")
+                state["pending"].update(submission=queued["id"], phase="queued")
+                self.save(state)
+                if self.paused(state):
+                    self.cancel(client, state)
+                    return "paused"
+                # Starting a turn invokes UserPromptSubmit, which must be able to acquire this lock.
+                start = (state["session"], queued["id"], wake, state["generation"], state["claim"])
+        session, submission, wake, generation, claim = start
         with self.rpc() as client:
             current = self.read(lane)
+            if current is None or current["session"] != session or current["claim"] != claim:
+                return "owner changed; no start"
             if current["generation"] != generation or self.paused(current):
                 self.cancel(client, current)
                 return "paused"
+            thread = client.call("thread/read", {"threadId": session, "includeTurns": False})["thread"]
+            if thread["status"]["type"] != "idle":
+                return "awaiting acknowledgement"
             try:
                 turn = client.call("thread/queue/start", {"threadId": session, "queuedSubmissionId": submission})["turn"]
                 current = self.read(lane)
-                if self.paused(current) or current["generation"] != generation:
+                if current is None or self.paused(current) or current["generation"] != generation or current["claim"] != claim:
                     # Cancel only the wake turn we just started, never a user's unrelated turn.
                     client.call("turn/interrupt", {"threadId": session, "turnId": turn["id"]})
                     return "revoked wake interrupted"
+                if current.get("last_ack", {}).get("wake") == wake:
+                    return "acknowledged"
                 return "queued; acknowledgement pending"
             except (OSError, RpcError, KeyError, ValueError):
                 return "start outcome uncertain; pending identity retained"
