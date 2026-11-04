@@ -257,7 +257,7 @@ def withdrawal(body):
             fence = (opening[1][0], len(opening[1]))
             continue
         # Recognize malformed quote/list prefixes too, then require the exact standalone field below.
-        if re.match(r"^[ \t>+*0-9().-]*\*\*Withdrawn:\*\*", line):
+        if re.match(r"^(?:[ \t>+*0-9().-]|\[[^\]\r\n]*\])*\*\*Withdrawn:\*\*", line):
             lines.append(line)
     require(len(lines) <= 1, "duplicate Withdrawn field")
     if not lines:

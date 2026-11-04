@@ -54,6 +54,12 @@ class Withdrawal(unittest.TestCase):
                     with self.assertRaisesRegex(tg.Refused, 'Withdrawn'):
                         tg.graph(self.root)
 
+    def test_task_list_prefixes_refuse_malformed_and_concealed_duplicate_fields(self):
+        for prefix in ('- [ ] ', '- [x] ', '- [X] ', '> - [ ] ', '1. [ ] ', '- [?] '):
+            for body in (prefix + MARKER, MARKER + '\n' + prefix + MARKER):
+                with self.subTest(body=body), self.assertRaisesRegex(tg.Refused, 'Withdrawn'):
+                    tg.withdrawal(body)
+
     def test_fenced_examples_do_not_withdraw_or_count_as_duplicate_fields(self):
         examples = ('```markdown\n' + MARKER + '\n```',
                     '~~~~ markdown\n' + MARKER + '\n~~~~',
