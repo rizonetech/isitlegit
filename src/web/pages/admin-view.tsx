@@ -181,6 +181,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                 value={query}
                 placeholder="Search organisations"
                 maxlength={120}
+                aria-describedby="org-search-help"
                 class={cx(
                   "h-control-small w-220 px-12 border border-control-border rounded-control-small font-text text-14 bg-surface",
                   FIELD_FOCUS,
@@ -190,6 +191,9 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                 Search
               </Button>
             </form>
+            <p id="org-search-help" class="type-small text-muted w-220 mt-4">
+              Name, verified domain or organisation ID
+            </p>
           </search>
           <Button href={csvHref} variant="ghost" size="small">
             Export CSV
@@ -205,7 +209,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
             <EmptyState
               layout="filtered"
               title="No organisations match"
-              sentence={`Nothing is named like “${query}”.`}
+              sentence={`Nothing matches “${query}”.`}
               action={
                 <Button href="/admin" variant="ghost" size="small">
                   Clear search

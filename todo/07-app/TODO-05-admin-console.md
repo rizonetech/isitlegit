@@ -154,12 +154,12 @@ The overview search matches the organisation name only (D07 T05 §2), so the ope
 2. Export the same matches from `GET /admin/organisations.csv`. Done when: the CSV test reads the domain- and ID-matched rows and no other row.
 3. Keep the empty state naming what was searched. Done when: a search matching nothing names the searched text with its Clear search link.
 
-- [ ] Match name, verified domain and organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` reads the org back from each of the three. Cheaper substitute: matching the name twice.
-- [ ] Export the same matches from the CSV. Done when: the CSV test reads the domain- and ID-matched rows only. Cheaper substitute: exporting the unfiltered table.
-- [ ] Name the searched text in the empty state. Done when: the no-match test reads the searched domain or ID with its Clear search link.
-- [ ] Prove verified-only, unique matches in `test/web/admin-page.test.ts` with pending domains, several matching verified domains, unrelated organisations and domainless name/ID matches. Done when: HTML and CSV contain the exact matching organisation identities once and reject pending-only matches; literal wildcard searches stay literal. Cheaper substitute: positive-only substring assertions. Source: Codex plan self-review P2-1.
-- [ ] Describe name, verified-domain and ID search in `src/web/pages/admin-view.tsx` and use field-neutral no-match wording. Done when: the rendered search explains all three fields and Clear search restores every organisation. Cheaper substitute: keeping name-only wording after changing matching. Source: Codex plan self-review P2-2.
-- [ ] Commit: `admin: find organisations by domain or ID`
+- [x] Match name, verified domain and organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` reads the org back from each of the three. Cheaper substitute: matching the name twice.
+- [x] Export the same matches from the CSV. Done when: the CSV test reads the domain- and ID-matched rows only. Cheaper substitute: exporting the unfiltered table.
+- [x] Name the searched text in the empty state. Done when: the no-match test reads the searched domain or ID with its Clear search link.
+- [x] Prove verified-only, unique matches in `test/web/admin-page.test.ts` with pending domains, several matching verified domains, unrelated organisations and domainless name/ID matches. Done when: HTML and CSV contain the exact matching organisation identities once and reject pending-only matches; literal wildcard searches stay literal. Cheaper substitute: positive-only substring assertions. Source: Codex plan self-review P2-1.
+- [x] Describe name, verified-domain and ID search in `src/web/pages/admin-view.tsx` and use field-neutral no-match wording. Done when: the rendered search explains all three fields and Clear search restores every organisation. Cheaper substitute: keeping name-only wording after changing matching. Source: Codex plan self-review P2-2.
+- [x] Commit: `admin: find organisations by domain or ID`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a domain search returns no row.
 

@@ -297,6 +297,53 @@ describe("the admin overview", () => {
     expect(filteredBody).not.toContain("Tricky");
   });
 
+  it("shares unique name, ID and verified-domain matches between the table and CSV", async () => {
+    const target = await makeOrg("Juniper Workshop (fictional)");
+    const domainless = await makeOrg("Cedar Office (fictional)");
+    const pending = await makeOrg("Acacia Stores (fictional)");
+    await addDomain(target, "relay.example");
+    await addDomain(target, "relay-second.example");
+    await addDomain(pending, "relay-pending.example", "pending");
+    for (const [query, id, name] of [
+      ["Juniper", target, "Juniper Workshop (fictional)"],
+      ["RELAY", target, "Juniper Workshop (fictional)"],
+      [target, target, "Juniper Workshop (fictional)"],
+      ["Cedar", domainless, "Cedar Office (fictional)"],
+      [domainless, domainless, "Cedar Office (fictional)"],
+    ]) {
+      const encoded = encodeURIComponent(query as string);
+      const page = await (await get(`/admin?q=${encoded}`)).text();
+      // The server renders one desktop row and one phone card per organisation.
+      expect([...page.matchAll(/href="\/admin\/orgs\/([^"]+)"/g)].map((m) => m[1])).toEqual([id, id]);
+      const csv = await (await get(`/admin/organisations.csv?q=${encoded}`)).text();
+      expect(csv.trim().split("\r\n")).toHaveLength(2);
+      expect(csv).toContain(`${name},`);
+      expect(csv).not.toContain("Acacia Stores");
+    }
+    for (const query of ["relay-pending.example", "%", "_", "' OR 1=1 --"]) {
+      const encoded = encodeURIComponent(query);
+      const page = await (await get(`/admin?q=${encoded}`)).text();
+      expect(page).toContain("No organisations match");
+      expect(page).not.toContain('href="/admin/orgs/');
+      expect((await (await get(`/admin/organisations.csv?q=${encoded}`)).text()).trim().split("\r\n")).toHaveLength(1);
+    }
+  });
+
+  it("explains all search fields and clears a failed domain search to the unfiltered table", async () => {
+    const first = await makeOrg("Juniper Workshop (fictional)");
+    const second = await makeOrg("Cedar Office (fictional)");
+    const page = words(await (await get("/admin?q=missing.example")).text());
+    expect(page).toContain("Name, verified domain or organisation ID");
+    expect(page).toContain("Nothing matches “missing.example”.");
+    const clear = page.match(/<a\b[^>]*>[\s\S]*?<\/a>/g)?.find((a) => a.includes("Clear search"));
+    const href = clear?.match(/href="([^"]+)"/)?.[1];
+    expect(href).toBe("/admin");
+    const reset = await (await get(href as string)).text();
+    expect([...reset.matchAll(/href="\/admin\/orgs\/([^"]+)"/g)].map((m) => m[1]).sort()).toEqual(
+      [first, first, second, second].sort(),
+    );
+  });
+
   it("searches by name, says when nothing matches, and names the empty service", async () => {
     await makeOrg("Karoo Couriers (fictional)");
     const found = words(await (await get("/admin?q=Karoo")).text());
