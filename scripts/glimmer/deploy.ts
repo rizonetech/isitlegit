@@ -987,7 +987,7 @@ export function parseCommand(args: string[]): { command: string; version?: strin
   return null;
 }
 
-if (import.meta.filename === process.argv[1]) {
+async function runCli(): Promise<void> {
   const parsed = parseCommand(process.argv.slice(2));
   if (!parsed) {
     console.error(USAGE);
@@ -1145,4 +1145,13 @@ if (import.meta.filename === process.argv[1]) {
     console.error(`deploy: ${(error as Error).message}`);
     process.exit(1);
   }
+}
+
+// Finish evaluating this module before awaiting CLI work: promote.ts imports these deployment helpers.
+// A top-level await of its dynamic import would leave both modules waiting on each other.
+if (import.meta.filename === process.argv[1]) {
+  void runCli().catch((error: unknown) => {
+    console.error(`deploy: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
 }
