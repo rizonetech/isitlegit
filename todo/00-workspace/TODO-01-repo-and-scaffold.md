@@ -72,6 +72,7 @@ track: day-0
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
 | 32 | §32 | Wake dispatched after each | §27 | [x] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
+| 34 | §34 | Codex unattended continuation and session ownership | §19 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1122,6 +1123,31 @@ Filed 2026-11-01 by the coordinator after the lanes moved from Claude Code to Mu
 - [ ] Commit: `tools: unattended Muse lanes keep working for days`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_waits` passes, including the cleared wait notified once, the uncleared wait left alone, the lane with no `WAITING:` line reported unknown, an unacknowledged urgent message reported with its age, an acknowledged one absent, and one older than 10 minutes flagged for escalation.
+
+## 34. Codex unattended continuation and session ownership
+
+Filed 2026-11-04 by the coordinator. The operator requests unattended coordinator and lane sessions with no blocking questions, a verified heartbeat and Stop hook, and respect for explicit stops. The owning layer is shared Codex session lifecycle tooling. The installed runtime exposes Stop and Interrupt hooks but no native recurring-job API. A narrowly scoped host timer is an explicitly named workaround for the absent native scheduler; it must not be described as a native Codex job.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Implement session ownership and lifecycle state in `scripts/codex_continuation.py`. Done when: explicit activation binds one lane to one exact session and worktree, hook events cannot replace that owner, an interrupt pauses it, and malformed state refuses continuation.
+2. Integrate Stop and Interrupt hooks through `.codex/hooks.json` and `scripts/codex-lanes.py`. Done when: an active owner can continue ready work without a blocking question, explicit stop remains paused until explicit activation, and a different session cannot resume it.
+3. Implement a host heartbeat through `scripts/codex_continuation.py` and a user systemd timer. Done when: only registered idle owners with confirmed lifecycle events receive a bounded queued resume, active or paused sessions receive none, and queue success is distinguished from an acknowledged wake.
+4. Verify and document runtime readiness. Done when: `docs/codex-lanes.md` gives activation, status, pause, timer installation/removal, and hook trust steps; recorded evidence distinguishes code tests, installed timer, trusted hook execution and actual resumed session.
+
+- [ ] Implement locked atomic state transitions in `scripts/codex_continuation.py`. Done when: owner/session/worktree mismatches refuse activation and hook events, interrupt pauses, and explicit activation is needed after pause. Cheaper substitute: a shared boolean run flag, rejected because it allows two sessions to own one checkout.
+- [ ] Implement native lifecycle configuration in `.codex/hooks.json`. Done when: Stop continues only the registered enabled owner, Interrupt records a durable pause, and disabled or unknown owners do nothing. Cheaper substitute: relying on prompts to honor a stop, rejected because a timer could resume the stopped session.
+- [ ] Implement a five-minute user-systemd heartbeat in `scripts/codex_continuation.py`. Done when: it queues only eligible idle sessions, limits retries while awaiting acknowledgement, records failures, and never acquires the Claude campaign guard with a host job ID. Cheaper substitute: pretending a host timer is a native Codex recurring job, rejected because the runtime has no exposed native scheduler.
+- [ ] Update `scripts/codex-lanes.py` and `docs/codex-lanes.md` to carry unattended instructions and require current continuation tooling. Done when: launch readiness catches missing hook/tooling files and docs explain explicit activation and real trust verification. Cheaper substitute: silently bypassing hook trust, rejected because approval state is not installation evidence.
+- [ ] Add `tests/scripts/test_codex_continuation.py` regression tests. Done when: wrong-owner, interrupt, malformed payload/state, active session, blocked wait, repeated wake, queue failure, and acknowledged wake paths are exercised without real model calls. Cheaper substitute: mocking the decision result itself, rejected because it would not test the state machine.
+- [ ] Record deployment evidence in `docs/codex-lanes.md` and the external handovers. Done when: timer identity and observed state are recorded truthfully, hook trust limitations remain explicit, and lanes only claim tested coverage. Cheaper substitute: reporting all lanes installed before their sessions exist, rejected because installation belongs to each real session.
+- [ ] Commit: `tools: add guarded Codex unattended continuation`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes, including stopped owners never receiving a timer wake and successful queueing never counting as acknowledged execution.
 
 ## Verification
 
