@@ -64,7 +64,7 @@ track: day-6
 | 31 | §31 | Saved Cases views | §8 | [ ] |
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
-| 34 | §34 | Exact calendar-period counts export | §19 | [ ] |
+| 34 | §34 | Exact calendar-period counts export | §19 | [x] |
 | 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [ ] |
 | 36 | §36 | Choose a departed person in the team history | §23 | [ ] |
 | 37 | §37 | Gateway relay range settings | §4 | [ ] |
@@ -795,7 +795,7 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 - [x] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week for the weeks overlapping the range, the window anchored to the range's end. Done when: the test reads October 2026's rows only (the weeks beginning 28 September to 26 October), and a reversed, over-limit, missing or unreadable date is refused with the HTML 400 page. Cheaper substitute: filtering the 12-week rows.
 - [x] Commit: `web: chosen period for the counts export`
 
-> **Deferred:** exact calendar-date totals -> XREF: D07 T04 §34
+> **Resolved:** exact calendar-date totals -> XREF: D07 T04 §34. Verified 2026-11-04 at `e00c997f`: inclusive SAST daily CSV alongside the preserved whole-week export.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
@@ -1266,13 +1266,16 @@ An owner exports counts clipped to the exact calendar dates chosen, not whole ov
 1. Record the clipped export and its day rows in `design/SPEC.md` M1. Done when: the SPEC names both.
 2. Clip the counts to the dates. Done when: `test/web/stats.test.ts` reads only the chosen dates' rows.
 
-- [ ] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
-- [ ] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
-- [ ] Add the Daily counts CSV submit button and labelled required inputs to the existing form in `src/web/pages/cases-view.tsx`, preserving weekly actions and date read-back after redraw. Done when: `test/node/cases-browser.test.tsx` downloads daily counts by keyboard at 360 px in both themes, preserves dates and weekly exports, and reports no overflow or missing accessible names. Cheaper substitute: an unbound link or a second independent date-state control. Source: coordinator exact-counts surface approval.
-- [ ] Prove exact SAST bounds, zeros, state/median totals, same-day/leap-day/maximum-span cases, privacy and tenant/refusal behaviour in `test/web/stats.test.ts`. Done when: adjacent dates and other organisations never enter rows, each day's counts reconcile, and invalid or unauthorised requests never download a CSV. Cheaper substitute: checking only a happy-path month total. Source: approved companion contract.
-- [ ] Commit: `web: exact calendar-period counts export`
+- [x] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
+- [x] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
+- [x] Add the Daily counts CSV submit button and labelled required inputs to the existing form in `src/web/pages/cases-view.tsx`, preserving weekly actions and date read-back after redraw. Done when: `test/node/cases-browser.test.tsx` downloads daily counts by keyboard at 360 px in both themes, preserves dates and weekly exports, and reports no overflow or missing accessible names. Cheaper substitute: an unbound link or a second independent date-state control. Source: coordinator exact-counts surface approval.
+- [x] Prove exact SAST bounds, zeros, state/median totals, same-day/leap-day/maximum-span cases, privacy and tenant/refusal behaviour in `test/web/stats.test.ts`. Done when: adjacent dates and other organisations never enter rows, each day's counts reconcile, and invalid or unauthorised requests never download a CSV. Cheaper substitute: checking only a happy-path month total. Source: approved companion contract.
+- [x] Commit: `web: exact calendar-period counts export`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/stats.test.ts` and `pnpm exec vitest run test/node/cases-browser.test.tsx -t "daily counts|exports a chosen period"` pass and fail if a case outside the selected dates is exported or the daily submitter loses its mode, keyboard path or chosen dates. The 360 px both-theme proof and actual M1 SPEC incorporation are required before completion.
+
+> **Verified:** 2026-11-04 | §34 | e00c997f81fd67b61b150265c77d7e930310f55f
+> **Review:** `docs/reviews/d07-t04-s34.json`
 
 ## 35. Phone forwarding guidance on the Cases page
 
