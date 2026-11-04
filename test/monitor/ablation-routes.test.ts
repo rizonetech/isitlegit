@@ -1,6 +1,7 @@
 import { createExecutionContext, env } from "cloudflare:test";
 import { afterEach, expect, it } from "vitest";
 import worker from "../../src/index";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { monitorAblationRoutes } from "../../src/monitor/ablation-routes";
 import { call, signIn, stubSmtp2go } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
@@ -177,9 +178,9 @@ it("refuses zero shared headroom before starting a Workflow", async () => {
   const w = await world();
   const day = new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 10);
   await env.DB.prepare(
-    "INSERT INTO model_spend(id,at,day,source,caller,model,estimate_usd,state) VALUES('headroom-route',?,?,'worker','test','model',15,'uncertain')",
+    "INSERT INTO model_spend(id,at,day,source,caller,model,estimate_usd,state) VALUES('headroom-route',?,?,'worker','test','model',?,'uncertain')",
   )
-    .bind(new Date().toISOString(), day)
+    .bind(new Date().toISOString(), day, DAY_CAP_USD)
     .run();
   expect((await w.fetch("/ablation-runs", w.request)).status).toBe(503);
   expect(w.starts).toHaveLength(0);
@@ -194,9 +195,9 @@ it("returns an already completed immutable arm at zero remaining headroom withou
     .run();
   const day = new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 10);
   await env.DB.prepare(
-    "INSERT INTO model_spend(id,at,day,source,caller,model,estimate_usd,state) VALUES('repeat-headroom',?,?,'worker','test','model',15,'uncertain')",
+    "INSERT INTO model_spend(id,at,day,source,caller,model,estimate_usd,state) VALUES('repeat-headroom',?,?,'worker','test','model',?,'uncertain')",
   )
-    .bind(new Date().toISOString(), day)
+    .bind(new Date().toISOString(), day, DAY_CAP_USD)
     .run();
   const repeated = await w.fetch("/ablation-runs", w.request);
   expect(repeated.status).toBe(202);

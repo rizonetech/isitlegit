@@ -4,6 +4,7 @@
 // stand-in transport; Loupe's verdict is the stub, so the question under test is the second look.
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { DAY_CAP_USD } from "../../src/meta/caps";
 import { flaggedForWalkthrough } from "../../src/monitor/flagged";
 import { type MonitorDeps, monitorOrg } from "../../src/monitor/run";
 import { monitorDeps } from "../../src/monitor/workflow";
@@ -305,7 +306,7 @@ describe("the second look in the run", () => {
       .bind(
         new Date().toISOString(),
         new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 10),
-        15 - estimate - 0.0001,
+        DAY_CAP_USD - estimate - 0.0001,
       )
       .run();
     const b = await business();

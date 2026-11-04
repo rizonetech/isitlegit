@@ -1,6 +1,13 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEPLOYED_MODEL, MAX_WARMUP_SECONDS, TAIL_MINUTES, WARMUP_MARGIN_SECONDS } from "../../src/vision/glimmer-caps";
+import {
+  allowanceMinutes,
+  DEPLOYED_MODEL,
+  MAX_WARMUP_SECONDS,
+  TAIL_MINUTES,
+  totalLimitMinutes,
+  WARMUP_MARGIN_SECONDS,
+} from "../../src/vision/glimmer-caps";
 import { d1Exec, dayMinutes, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
 import {
   type Burst,
@@ -80,14 +87,15 @@ function world(answers: (number | "hang")[], start = Date.parse("2026-11-01T08:0
 
 describe("wakeGlimmer", () => {
   it("sends nothing when the day's minutes are spent", async () => {
-    await reserveBurst(ledger, {
+    const earlier = await reserveBurst(ledger, {
       id: "earlier",
       at: new Date("2026-11-01T07:00:00Z"),
       source: "local",
       caller: "t",
       purpose: "warm-up",
-      minutes: 85,
+      minutes: Math.min(allowanceMinutes("2026-11-01"), totalLimitMinutes()),
     });
+    expect(earlier.ok).toBe(true);
     const w = world([503]);
     expect(await wakeGlimmer(w.ctx())).toMatchObject({ outcome: "refused" });
     expect(w.requests).toHaveLength(0);
