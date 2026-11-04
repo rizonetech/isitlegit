@@ -378,7 +378,7 @@ Sections: 110 | Checklist items: 695
 | [x]    | D08 T02 §14 | Paired-evidence investigation                | cloudflare            | 3     |
 | [ ]    | D08 T02 §15 | Paired evidence view                         | none                  | 5     |
 | [ ]    | D08 T02 §16 | Blinded comprehension comparison             | cloudflare            | 4     |
-| [ ]    | D08 T02 §17 | Per-case ablation orchestration repair       | none                  | 8     |
+| [x]    | D08 T02 §17 | Per-case ablation orchestration repair       | none                  | 8     |
 | [ ]    | D08 T02 §18 | Recoverable PDF corpus publication           | none                  | 5     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video            | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost        | meta-api, cloudflare  | 3     |
@@ -677,6 +677,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 413/601 verified sections, 117 ready to run now.
+Progress: 414/601 verified sections, 116 ready to run now.
 
-Checklist: 3049/3714 items completed (includes Commit items).
+Checklist: 3057/3714 items completed (includes Commit items).
