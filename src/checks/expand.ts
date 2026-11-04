@@ -438,6 +438,8 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   let unfinished = false;
   let overflowed = false;
   let failedNavigation: string | null = null;
+  let blockedNavigation: string | null = null;
+  const refusedDocuments = new Map<string, string>();
   // A main-frame document request begun and not yet answered or failed: a navigation still in flight.
   let pending = 0;
   const whole = (text: string) => {
@@ -493,6 +495,14 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
         };
         const fail = (reason: string, quiet = false) => {
           if (!quiet) refuse(event.request.url, reason);
+          // Correlate only an exact bounded document URL with the page's failed navigation.
+          // A refused image or frame must not disguise an unrelated main-navigation error.
+          if (
+            event.resourceType === "Document" &&
+            event.request.url.length <= MAX_ADDRESS &&
+            refusedDocuments.size < MAX_NOTES
+          )
+            refusedDocuments.set(event.request.url, reason);
           return answer(() =>
             session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }),
           );
@@ -567,6 +577,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       // not where the link ends. A download's aborted navigation is accounted for by the download itself.
       const why = request.failure()?.errorText ?? "failed";
       failedNavigation ??= why;
+      blockedNavigation ??= refusedDocuments.get(request.url()) ?? null;
     });
     page.on("response", (response: HTTPResponse) => {
       const request = response.request();
@@ -644,9 +655,9 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       ended = true;
     }
   } catch (error) {
-    if (result.refused.length > 0 && result.hops.length === 0) {
+    if (blockedNavigation !== null || (result.refused.length > 0 && result.hops.length === 0)) {
       result.outcome = "blocked";
-      result.reason = result.refused[0]?.reason ?? null;
+      result.reason = blockedNavigation ?? result.refused[0]?.reason ?? null;
     } else {
       result.outcome = "error";
       result.reason = errorName(error);
@@ -680,8 +691,8 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     const failed = seen !== null && /ERR_ABORTED/.test(seen) && result.downloads.length > 0 ? null : seen;
     if (result.outcome === "done" && failed) {
       // The page's next navigation was refused or failed: the end is not confirmed. A refused destination is a refusal.
-      result.outcome = result.refused.length > 0 ? "blocked" : "error";
-      result.reason = result.refused[0]?.reason ?? `a navigation failed (${failed.replace(/^net::/, "")})`;
+      result.outcome = blockedNavigation !== null ? "blocked" : "error";
+      result.reason = blockedNavigation ?? `a navigation failed (${failed.replace(/^net::/, "")})`;
     }
     if (result.outcome === "done" && cut) {
       result.outcome = "error";

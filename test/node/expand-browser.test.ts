@@ -11,8 +11,11 @@ import {
   type FollowLink,
   followable,
   isBrowserIconRequest,
+  livePolicy,
   MAX_FOLLOWED,
 } from "../../src/checks/expand";
+import { allowedUrl } from "../../src/walkthrough/url-policy";
+import { ALLOWED_URLS, REFUSED_URLS } from "../fixtures/url-policy";
 import { chromiumPath } from "./browser";
 
 // Redirect expansion in a real Chromium (D02 T07 §2). The page is driven through @cloudflare/puppeteer exactly as Browser
@@ -42,6 +45,12 @@ beforeAll(async () => {
       res.writeHead(200, { "content-type": "text/html" });
       res.end(`<!doctype html><title>t</title>${body}`);
     };
+    if (path === "/policy-reset") return void req.socket.destroy();
+    if (path === "/policy-mixed-error")
+      return html(`<img src="https://policy-inner.example/image" onerror="location.href='/policy-reset'">`);
+    if (path === "/policy-redirect")
+      return void res.writeHead(302, { location: "https://policy-inner.example/redirect" }).end();
+    if (path === "/policy-subresource") return html('<img src="https://policy-inner.example/image">');
     if (path === "/r1") return void res.writeHead(302, { location: "/r2" }).end();
     if (path === "/r2") return void res.writeHead(301, { location: "/land" }).end();
     if (path === "/land") return html("<h1>Landing</h1>");
@@ -415,4 +424,87 @@ describe("expansionsOf", () => {
     expect(result.items.map((i) => i.outcome)).toEqual(["done", "done", "blocked"]);
     expect(result.items[0]?.hops).toHaveLength(3);
   });
+});
+
+describe("shared URL policy parity", () => {
+  it("refuses every shared URL before the expansion opens a page", async () => {
+    const before = served.length;
+    const pages = (await browser.pages()).length;
+    for (const { url, answers, reason } of REFUSED_URLS) {
+      const resolve = async () => answers;
+      const expected = await allowedUrl(url, resolve);
+      const production = livePolicy(resolve);
+      expect(await production(url), url).toEqual(expected);
+      expect(expected.ok, url).toBe(false);
+      if (expected.ok) throw new Error("refusal fixture was allowed");
+      expect(expected.reason, url).toMatch(reason);
+      const result = await expandLink(browser, url, { ...deps, policy: production });
+      expect([result.outcome, result.hops, result.final], url).toEqual(["blocked", [], null]);
+      expect(result.reason, url).toMatch(reason);
+    }
+    expect(served).toHaveLength(before);
+    expect(await browser.pages()).toHaveLength(pages);
+  });
+
+  it("agrees on public names, normalization and default ports without navigating", async () => {
+    for (const url of ALLOWED_URLS) {
+      const names: string[] = [];
+      const resolve = async (name: string) => {
+        names.push(name);
+        return ["1.1.1.1", "2606:4700:4700::1111"];
+      };
+      const expected = await allowedUrl(url, resolve);
+      expect(expected.ok).toBe(true);
+      expect(await livePolicy(resolve)(url)).toEqual(expected);
+      expect(names).toEqual(["public.example", "public.example"]);
+    }
+  });
+
+  it("keeps resolution within one expansion policy and refuses fresh private answers", async () => {
+    let calls = 0;
+    const resolve = async () => {
+      calls++;
+      return calls === 1 ? ["1.1.1.1"] : ["10.0.0.1"];
+    };
+    const first = livePolicy(resolve);
+    expect((await first("https://cache.example/first")).ok).toBe(true);
+    expect((await first("http://cache.example/second")).ok).toBe(true);
+    expect(calls).toBe(1);
+    expect((await livePolicy(resolve)("https://cache.example/new-case")).ok).toBe(false);
+    expect(calls).toBe(2);
+  });
+
+  it("does not call an unrelated navigation error a policy refusal", async () => {
+    const production = livePolicy(async () => ["10.0.0.1"]);
+    const result = await expandLink(browser, `${origin}/policy-mixed-error`, {
+      ...deps,
+      policy: (raw) => (raw.startsWith(`${origin}/`) ? policy(raw) : production(raw)),
+    });
+    expect(result.refused.some((item) => item.url === "https://policy-inner.example/image")).toBe(true);
+    expect(result.outcome).toBe("error");
+    expect(result.reason).not.toContain("non-public");
+  });
+
+  it.each(["policy-redirect", "policy-subresource"])(
+    "applies the live shared policy to a browser's %s target",
+    async (path) => {
+      const asked: string[] = [];
+      const production = livePolicy(async () => ["10.0.0.1"]);
+      const contained: ExpandDeps["policy"] = async (raw) => {
+        // Only the local fixture start is exempt; its untrusted target uses the actual shared policy.
+        if (raw.startsWith(`${origin}/`)) return policy(raw);
+        asked.push(raw);
+        return production(raw);
+      };
+      const result = await expandLink(browser, `${origin}/${path}`, { ...deps, policy: contained });
+      expect(asked).toContain(`https://policy-inner.example/${path === "policy-redirect" ? "redirect" : "image"}`);
+      expect(result.refused).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "policy-inner.example resolves to a non-public address" }),
+        ]),
+      );
+      expect(result.hops.some((hop) => hop.host === "policy-inner.example")).toBe(false);
+      if (path === "policy-redirect") expect(result.outcome).toBe("blocked");
+    },
+  );
 });
