@@ -131,3 +131,8 @@ lenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consi
 [reconciliation_extensions]
 "docs/reviews/00-workspace/D00-T01-s36.md" = "bd520ac7d1311303"
 "docs/reviews/08-eval/D08-T02-s18.md" = "d017f3421b44019e"
+
+[reconciliation_exceptions."docs/reviews/08-eval/D08-T02-s6.md"]
+path = "docs/reviews/08-eval/D08-T02-s6-exception.json"
+commit = "af8a11824ac83eb56a4743aaf9c09103b26c6e8a"
+blob = "7ba1fc2e859b549db43f4cab56e612ad84b9e79a"
