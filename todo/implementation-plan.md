@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 224 | Checklist items: 1003
+Sections: 224 | Checklist items: 1004
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -610,7 +610,7 @@ Sections: 224 | Checklist items: 1003
 | [ ]    | D07 T08 §24 | Feedback queue search and step                              | none                 | 8     |
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page                   | operator             | 4     |
 | [x]    | D07 T09 §1  | Early results first                                         | none                 | 4     |
-| [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 3     |
+| [ ]    | D07 T09 §2  | Kinds of auth error                                         | none                 | 4     |
 | [x]    | D07 T09 §3  | Dispute from inside the mailbox                             | none                 | 4     |
 | [x]    | D07 T09 §4  | Measured phone attribution                                  | none                 | 4     |
 | [x]    | D07 T09 §5  | Per-provider reputation results                             | none                 | 5     |
@@ -678,4 +678,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 416/600 verified sections, 114 ready to run now.
 
-Checklist: 3066/3704 items completed (includes Commit items).
+Checklist: 3070/3705 items completed (includes Commit items).
