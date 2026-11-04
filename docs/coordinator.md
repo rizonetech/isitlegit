@@ -156,6 +156,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-11-04 13:45 | `245ba0f39d937315e8562a6c1c5791055fba5724` | `21c1a606-efaa-493f-8fd0-52e871f79dce` | none; remote list reported no pending migrations | All 12 jobs green on exact-tip gate 41821393004 before main push and deploy. Both health endpoints returned HTTP 200 with the exact commit. Fresh authenticated smoke passed DB, ARTEFACTS, CACHE, ANALYSIS and BROWSER in 13 seconds with unchanged serving version. First smoke failed because its final status read returned the previous version d333b71e; deployment history contains no intervening deployment. Fresh signup and judge provisioning proof remain pending with app. |
 | 2026-11-03 04:20 | `ce217297` | `8ee8dc06-6802-407c-8beb-27ee5dcbb862` | none new; remote read "No migrations to apply" | `/health` reports ce21729772a2f8d5d393d319a74380a0348bea22; gate 41563762886 green; carries walkthrough lane's remaining stamps (D03 T03 s4, D04 T01 s6, D04 T02 s7), eval D08 T02 section 12 with the publishable replay, section 13 filing, and the logo measurements relocated out of eval/sets |
 | 2026-11-03 03:20 | `1739b4cb` | `302c6e1f-fa9d-4ac1-af14-fab4b2dc946f` | 0082, 0085 and 0089 applied; remote then read "No migrations to apply" | `/health` reports 1739b4cb0151c70128afbe090f2053b34c6a958a; gate 41557276544 green; carries checks sections (D02 T01 s8, D02 T05 s11, D02 T06 s9, D04 T01 s13 and s14) and report D07 T09 section 6 |
 | 2026-11-03 01:20 | `b80e2ad7` | `851c4abd-f2c7-42dd-824f-dbcfaf85fa25` | none new; remote read "No migrations to apply" | `/health` reports b80e2ad7d58a9b202892c3ff92940b846dbbf752; gate 41542043421 green after one flake re-run (load-top-sites remote-API test, passes locally); carries report D07 T09 sections 3, 4, 7, 8, 11 and 12 |
@@ -270,5 +271,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | 0093 | console | D05 T03 §1 (verifications) | 2026-11-04 09:26 SAST, Codex coordinator allocation |
 | 0094 | checks | D02 T02 §10 (configured gateway relay revisions) | 2026-11-04 09:26 SAST, Codex coordinator allocation |
+| 0095 | checks | Per-case ablation transport and pipeline consumers | Reserved by coordinator on 2026-11-04; additive storage only, no cases table rebuild. Reservation does not imply migration applied. |
 
-The next free number is 0095. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0096. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
