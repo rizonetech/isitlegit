@@ -45,7 +45,7 @@ track: day-6
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [x] |
 | 13 | §13 | Source-versus-replay comparison | §12 | [x] |
 | 14 | §14 | Paired-evidence investigation | §13 | [x] |
-| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
+| 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [x] |
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [x] |
 | 18 | §18 | Recoverable PDF corpus publication | §2 | [x] |
@@ -489,26 +489,35 @@ Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a chang
 
 ## 15. Paired evidence view
 
-Filed 2026-11-03 from §14's completion review (G4, out-of-scope there): the comparison names both reports, but aligning their evidence to explain a verdict change is still manual. This section adds one paired view, designed with the console owner (D07 T04 §2), that opens both cases' evidence together for a changed sample.
+> **Started:** 2026-11-04T11:15:32.092460+02:00 (plan preparation only; no paired-view implementation)
+
+Filed 2026-11-03 from §14 completion review G4: comparing reports manually hides which evidence changed. Coordinator `eval-decisions-0950` authorizes the section's CLI-only rescoping option for this delivery window. Reason: prioritize factual paired analysis and existing authorized report links without introducing an undesigned member surface. Reversal cost: separately design and test a paired member page later. No console or design-source change is needed for this CLI-only scope.
 
 **Phase:** 6
-**Needs:** cloudflare
-**Surface:** yes
-**Fidelity:** `design/SPEC.md` (the paired view's entry is this section's first item, agreed with the D07 T04 §2 owner; no board yet)
-**Job:** an operator investigating a changed verdict sees both cases' evidence together and learns which evidence moved the verdict
-**Treatment:** tokens only, both reports in the member shell, phone width holds
-**Chrome:** the member shell of D07 T04 §2; the paired view is its content, not a new frame
+**Needs:** none
+**Surface:** no
+
+**Command contract:** `--help` exits0 without credentials; invalid arguments or an unpairable/unknown/unchanged sample exit3 before evidence access. Exit0 means both sides are available; exit2 means at least one side is explicitly unavailable, while the permitted side remains readable. JSON writes one deterministic object to stdout; diagnostics stay on stderr and never echo cookies, SQL errors or raw evidence fields. Commands are read-only and spend no model credit. Bound argument lengths and reject duplicate options and duplicate sample IDs before pairing.
+
+**Plan dispositions 2026-11-04:** Both genuine plan gaps accepted before code. Within each check, match the multiset of exact `(summary,severity)` tuples first, using numeric Evidence ID order only to break ties within each side; retain duplicate multiplicity. Remaining identical summaries pair by severity order and report severity changes. Remaining rows are removed on source or added on replay; do not infer a rewritten summary is the same finding. Group change labels summarize these explicit matches. Tests cover reordering, multiple findings, duplicate summaries and severity-only changes with exact text/JSON. Existing `comparisonText` must print `node eval/paired-evidence.ts --replay <shell-quoted-id> --sample <shell-quoted-id>` for every changed sample, using POSIX-safe single-quote escaping; a test follows the printed arguments through the real command dispatch to the stored pair without executing arbitrary sample text.
 
 **Build order:**
 
-1. Agree the paired view's surface with the console owner and record it in `design/SPEC.md` before any page work. Done when: the SPEC names the view, its route and its states, or the section is re-scoped to a CLI-only diff with the reason recorded.
-2. Show both cases' evidence together with the verdict change. Done when: a changed sample opens one view naming both verdicts and each side's evidence, and an unavailable side leaves the other readable with its reason.
+1. Add a read-only paired evidence command on the existing source/replay comparison contract. Done when: one changed sample resolves both persisted case IDs with existing eval membership checks and per-side unavailable reasons.
+2. Align allowed evidence content and verdicts in text/JSON. Done when: the available side remains readable, denied content never enters output, and changed/missing evidence is explicit without invented causal claims.
 
-- [ ] Record the agreed surface in `design/SPEC.md` with its route, controls and states (empty, one-side-missing, denied), agreed with the D07 T04 §2 owner through the coordinator. Done when: the SPEC entry exists and names the section that builds it. Cheaper substitute: none (an undesigned surface is a defect).
-- [ ] Build the paired view at the agreed route: both cases' verdicts and evidence side by side, the changed sample named, an unavailable or denied side explained while the other stays readable. Done when: browser tests open the view for a stored changed pair and for a one-side-missing pair. Cheaper substitute: none (two separate reports are today's manual path).
-- [ ] Commit: `eval: paired evidence view`
+- [x] Implement `eval/paired-evidence.ts` as `node eval/paired-evidence.ts --replay <run-id> --sample <set-qualified-id> [--json]`, reusing `pairForCompare` and `compareRuns` from `eval/metrics.ts`. Done when: source/replay population and sample binding are verified before evidence is fetched, unknown/unchanged samples refuse honestly, and IDs are read from stored results rather than accepted from caller-supplied case IDs. Cheaper substitute: two independent report links still require manual alignment.
+- [x] Require an authenticated `EVAL_SESSION_COOKIE` and exact eval-organisation membership using existing `liveApi`/`liveDb` primitives before evidence access. Add a read-only D1 adapter scoped by org/case and the case's current analysis run, returning only evidence ID, check, severity and public summary plus the verdict and report route. Done when: missing, denied and unavailable sides have explicit reasons; denied verdict/evidence does not appear even if present in comparison input; raw detail JSON, registered bank details, artifacts and signed URLs are never dumped. A case retried after the recorded measurement is marked stale/unavailable rather than pairing new evidence with the old verdict. Cheaper substitute: database access alone grants no report membership.
+- [x] Render both permitted verdicts, labelled source/replay report routes, evidence grouped by check with side-specific IDs, and added/removed/changed public summaries. Done when: both-side, missing-side, denied-side, stale-side, empty and read-error outputs are deterministic in text and JSON, an available side remains readable, and the text states membership is required and evidence changes do not prove why a model changed its verdict. Cheaper substitute: matching Evidence IDs across independent cases falsely treats them as global IDs.
+- [x] Add `test/node/eval-paired-evidence.test.ts` exercising the command with injected clients plus its real SQL against SQLite. Done when: mismatched samples, cross-org denial, stale analysis, failed reads and no-secret output regressions fail if checks are removed, and existing metrics comparison tests remain green. Cheaper substitute: checking only prebuilt strings cannot prove access controls or persistence.
+- [x] Commit: `eval: compare paired verdict evidence in the CLI`
 
-**Test checkpoint:** the agreed surface's browser tests pass, and `pnpm exec vitest run test/node/eval-metrics.test.ts` still passes.
+**Implementation evidence 2026-11-04:** Local checkpoint49tests passed. Removing the in-query membership guard fails the real SQLite denial/revocation test; removing stale timestamp/duration guards fails stale-side redaction. Both mutations restored before49tests passed again. Full typecheck, lint, dry-run build and publication checks passed; lint retains21existing warnings and2infos outside changed files, and build retains the existing asset-route warning. No live paired comparison, model call or deployment claimed. Public CLI instructions are in `eval/PAIRED-EVIDENCE.md`.
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-paired-evidence.test.ts test/node/eval-metrics.test.ts` passes, including real command dispatch, SQL read-back and denied-side redaction; typecheck, lint and build pass. No live comparative claim is made from stubbed cases.
+
+> **Verified:** 2026-11-04 | §15 | 6e930b6db82693a888baf2aed84cf7f5535a27e7
+> **Review:** `docs/reviews/d08-t02-s15.json`
 
 ## 16. Blinded comprehension comparison
 

@@ -14,20 +14,6 @@
         "todo/03-vision/TODO-03-sam-logos.md"
       ]
     },
-    "eval": {
-      "branch": "eval-lane",
-      "worktree": "../isitlegit-eval",
-      "domains": [
-        "D08",
-        "D09"
-      ],
-      "files": [
-        "todo/07-app/TODO-07-demo-organisations.md"
-      ],
-      "sections": [
-        "D07 T06 §19"
-      ]
-    },
     "loupe": {
       "branch": "loupe-1.1",
       "worktree": "../isitlegit-loupe",

@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 128 | Checklist items: 793
+Sections: 128 | Checklist items: 795
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -393,7 +393,7 @@ Sections: 128 | Checklist items: 793
 | [x]    | D08 T02 §12 | Eval replay after deploy                                  | cloudflare            | 8     |
 | [x]    | D08 T02 §13 | Source-versus-replay comparison                           | cloudflare            | 4     |
 | [x]    | D08 T02 §14 | Paired-evidence investigation                             | cloudflare            | 3     |
-| [ ]    | D08 T02 §15 | Paired evidence view                                      | cloudflare            | 3     |
+| [x]    | D08 T02 §15 | Paired evidence view                                      | none                  | 5     |
 | [ ]    | D08 T02 §16 | Blinded comprehension comparison                          | cloudflare            | 4     |
 | [x]    | D08 T02 §17 | Per-case ablation orchestration repair                    | none                  | 8     |
 | [x]    | D08 T02 §18 | Recoverable PDF corpus publication                        | none                  | 5     |
@@ -710,8 +710,8 @@ Withdrawn D99 T01 §11: 2026-11-04 | operator | Accept existing checks as is; ad
 
 Withdrawn D99 T02 §3: 2026-11-04 | operator | Separate operator recording checklist is redundant; recording remains media-owned.
 
-Progress: 463/625 verified sections, 101 ready to run now.
+Progress: 464/625 verified sections, 101 ready to run now.
 
-Checklist: 3307/3881 items completed (includes Commit items).
+Checklist: 3312/3883 items completed (includes Commit items).
 
 Withdrawn: 3 sections (not verified or delivered).
