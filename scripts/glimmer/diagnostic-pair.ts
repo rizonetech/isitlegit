@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, MAX_WARMUP_SECONDS, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
+import {
+  DEPLOYED_GPU,
+  DEPLOYED_GPU_COUNT,
+  MAX_WARMUP_SECONDS,
+  TAIL_MINUTES,
+  targetOf,
+} from "../../src/vision/glimmer-caps.ts";
 import type { Exec } from "../../src/vision/glimmer-minutes.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import {
@@ -18,7 +24,15 @@ import {
   touchWake,
   wakeEvidenceDir,
 } from "./deploy.ts";
-import { askLoupe, COMPLETIONS_URL, INFERENCE_KEY_ITEM, indexLines, readMetas, runAnswers } from "./evaluate.ts";
+import {
+  askLoupe,
+  COMPLETIONS_URL,
+  INFERENCE_KEY_ITEM,
+  indexLines,
+  readMetas,
+  runAnswers,
+  StopRun,
+} from "./evaluate.ts";
 import { wranglerExec } from "./runtime-ledger.ts";
 
 // Published H200 $8/hour with the published 1.5x regional premium. This is a conservative admission
@@ -34,12 +48,16 @@ const EXPECTED = [
   ["1.1", "isitlegit-loupe-1-1", "step-4524", "ts-db85d8de82174aa6824b775ca6e40075"],
 ] as const;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-export function diagnosticModel(version: string): string {
+function diagnosticTarget(version: string): string {
   assert(version === "1.0" || version === "1.1", "unapproved diagnostic version");
   return `accounts/${ACCOUNT}/deployments/${evalDeployment(version)}`;
 }
+export function diagnosticModel(version: string): string {
+  diagnosticTarget(version);
+  return targetOf(version, evalDeployment(version)).model;
+}
 export function verifyTarget(read: Deployment, version: string): void {
-  assert.equal(read.name, diagnosticModel(version), "wrong deployment");
+  assert.equal(read.name, diagnosticTarget(version), "wrong deployment");
   assert.equal(read.baseModel, modelOf(version), "wrong artifact");
   assert.equal(read.state, "READY", "deployment not ready");
   assert.equal(read.preemptible, true, "diagnostic requires preemptible capacity");
@@ -127,7 +145,8 @@ export async function executeSlot(version: string, dataset: string, output: stri
   const fetcher = dependencies.fetcher ?? fetch;
   const now = dependencies.now ?? Date.now;
   const sleep = dependencies.sleep ?? ((ms) => new Promise<void>((done) => setTimeout(done, ms)));
-  const target = diagnosticModel(version);
+  const target = diagnosticTarget(version);
+  const model = diagnosticModel(version);
   const url = `${API}/deployments/${evalDeployment(version)}`;
   const start = now();
   const runUntil = start + RUN_MS;
@@ -229,7 +248,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
     }
     verifyTarget(read, version);
     durable(join(output, `${version}.target.json`), read);
-    const ask = askLoupe(inferenceKey, target, {
+    const ask = askLoupe(inferenceKey, model, {
       requestMs: REQUEST_MS,
       deadlineAt: runUntil,
       maxWaitMs: MAX_WARMUP_SECONDS * 1000,
@@ -237,18 +256,22 @@ export async function executeSlot(version: string, dataset: string, output: stri
       sleep,
       fetcher: async (endpoint, init) => {
         assert.equal(endpoint, COMPLETIONS_URL);
-        assert.equal(JSON.parse(String(init.body)).model, target);
+        assert.equal(JSON.parse(String(init.body)).model, model);
         assert(now() + REQUEST_MS <= runUntil, "inference deadline reached");
         assert(wake);
         touchWake(wake, now() + REQUEST_MS);
-        return fetcher(endpoint, { ...init, redirect: "error" });
+        const response = await fetcher(endpoint, { ...init, redirect: "error" });
+        if ([400, 401, 403, 404].includes(response.status)) {
+          throw new StopRun(`diagnostic inference binding refused HTTP ${response.status}; no further pages sent`);
+        }
+        return response;
       },
     });
     const result = await (dependencies.run ?? runAnswers)({
       dataset,
       runs: join(output, version),
       screener: "loupe",
-      model: target,
+      model,
       ask,
       concurrency: 1,
       retryErrors: false,

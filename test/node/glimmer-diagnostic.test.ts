@@ -19,7 +19,7 @@ describe("accounted diagnostic target", () => {
     autoscalingPolicy: { scaleToZeroWindow: "300s" },
   };
   it("uses an explicit isolated deployment, never ambiguous production model routing", () => {
-    expect(diagnosticModel("1.1")).toBe(target.name);
+    expect(diagnosticModel("1.1")).toBe(`${target.baseModel}#${target.name}`);
     expect(() => diagnosticModel("2.0")).toThrow();
   });
   it("checks actual artifact, GPU price, replica and idle settings before inference", () => {
@@ -72,7 +72,7 @@ function fixture(mode = "ok") {
   let deleted = false;
   const events: string[] = [];
   const target = {
-    name: diagnosticModel("1.1"),
+    name: "accounts/rizonetech/deployments/isitlegit-loupe-eval-1-1",
     baseModel: "accounts/rizonetech/models/isitlegit-loupe-1-1",
     state: "READY",
     minReplicaCount: 0,
@@ -94,8 +94,9 @@ function fixture(mode = "ok") {
         ],
       });
     if (url.includes("chat/completions")) {
-      expect(JSON.parse(String(init?.body)).model).toBe(target.name);
+      expect(JSON.parse(String(init?.body)).model).toBe(`${target.baseModel}#${target.name}`);
       time += 1000;
+      if (mode === "inference-refused") return new Response(null, { status: 404 });
       return Response.json({ choices: [{ message: { content: "{}" }, finish_reason: "stop" }] });
     }
     if (method === "POST") {
@@ -196,6 +197,13 @@ describe("diagnostic lifecycle uses real runtime ledger", () => {
     await expect(executeSlot("1.1", "unused", f.output, f.dependencies)).rejects.toThrow("409");
     expect(f.events.some((e) => e.startsWith("DELETE"))).toBe(false);
     expect(f.db.prepare("SELECT * FROM glimmer_runtime").get()?.used_minutes).toBeNull();
+    f.db.close();
+  });
+  it("stops on an infrastructure refusal instead of spending the rest of the cohort", async () => {
+    const f = fixture("inference-refused");
+    await expect(executeSlot("1.1", "unused", f.output, f.dependencies)).rejects.toThrow("no further pages sent");
+    expect(f.events.filter((e) => e.includes("completions"))).toHaveLength(1);
+    expect(f.events.some((e) => e.startsWith("DELETE"))).toBe(true);
     f.db.close();
   });
 });
