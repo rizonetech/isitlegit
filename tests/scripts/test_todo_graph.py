@@ -2961,9 +2961,10 @@ class Repository(unittest.TestCase):
         # D00 T01 §28, completion review E1: a documented stamp, filled in, runs without a missing-argument retry.
         readme = (REPO / "todo/README.md").read_text(encoding="utf-8")
         examples = [line for line in readme.splitlines() if "todo-graph.py stamp " in line]
-        self.assertEqual(len(examples), 2)
+        self.assertGreaterEqual(len(examples), 2)
+        self.assertIn("codex-two-pass-v1", readme)
         for line in examples:
-            for flag in ("--sha ", "--plan ", "--completion ", "--review ", "--check "):
+            for flag in ("--sha ", "--plan ", "--completion ", "--check "):
                 self.assertIn(flag, line)
 
     def test_the_repository_graph_validates_and_its_plan_is_current(self):
@@ -3085,8 +3086,306 @@ class CodexSelfStamp(Stamp):
                        completion={"report": self.COMPLETION, "verdict": "completed"})
 
 
+    def reconcile(self, verdict="complete", repair=False, dispatched=False):
+        self.chain(completion="COMPLETION: gaps")
+        original = self.root / self.PLAN
+        before = original.read_bytes()
+        if repair:
+            (self.root / "repair.txt").write_text("Real repair candidate\n")
+            self.sha = self.commit("repair completion finding")
+        pin_path = self.root / tg.PIN
+        pin_text = pin_path.read_text().replace('self_review = ["codex"]',
+            'self_review = ["codex"]\nreconciliation = ["codex"]')
+        pin_text += '\n[schedule.reconciliation]\neffort = "medium"\nlenses = ["record"]\n'
+        pin_path.write_text(pin_text)
+        disposition = "docs/reviews/reconciliation-disposition.md"
+        (self.root / disposition).write_text("All original findings: evidence and scope disposition.\n")
+        self.commit("authorize reconciliation and record disposition")
+        dispatch = tg.review_dispatch()
+        binding = dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        result = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "lenses": ["record"], "failover": [],
+                  "pin": dispatch.pin_blob(pin_text.encode()), "policy": "codex-self-review",
+                  "binding": binding, "review": "RECONCILIATION: " + verdict}
+        if dispatched:
+            prompt = self.root / "reconciliation-prompt.txt"
+            prompt.write_text("Verify original findings and all repairs.\n")
+            args = types.SimpleNamespace(writer="codex", record=str(original), disposition=disposition,
+                candidate=self.sha, surface=False, prompt=str(prompt), timeout=5)
+            with mock.patch.object(dispatch, "ROOT", self.root), \
+                 mock.patch.object(dispatch, "review", return_value=result) as reviewer, \
+                 mock.patch.object(dispatch, "datetime", wraps=dispatch.datetime) as clock:
+                clock.now.return_value = dispatch.datetime.fromisoformat("2026-11-05T10:03:00+00:00")
+                response = dispatch.run_reconciliation(args, dispatch.load_pin(data=pin_text.encode()), result["pin"])
+            self.assertTrue(response["recorded"])
+            self.assertEqual(reviewer.call_count, 1)
+        else:
+            dispatch.record_completion(original, result, "2026-11-04T10:03:00Z", self.sha, "reconciliation")
+        self.assertTrue(original.read_bytes().startswith(before))
+        return before
+
+    def stamp_reconciled(self):
+        return self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-11-04",
+            completion={"report": self.PLAN, "verdict": "gaps"},
+            reconciliation={"report": self.PLAN, "verdict": "complete"})
+
+    def test_reconciliation_keeps_original_gaps_and_revalidates(self):
+        before = self.reconcile()
+        receipt = self.stamp_reconciled()
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["completion"]["verdict"], "gaps")
+        self.assertEqual(data["reconciliation"]["candidate"], self.sha)
+        self.assertTrue((self.root / self.PLAN).read_bytes().startswith(before))
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciled_incoming_stamp_validates_during_merge(self):
+        self.reconcile(repair=True)
+        self.stamp_reconciled()
+        incoming = self.commit("stamped lane reconciliation")
+        subprocess.run(["git", "-C", str(self.root), "checkout", "-qb", "coordinator", self.start], check=True)
+        (self.root / "coordinator.txt").write_text("unrelated main work\n")
+        self.commit("coordinator diverged")
+        subprocess.run(["git", "-C", str(self.root), "merge", "--no-commit", "--no-ff", incoming], check=True)
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciliation_dispatch_to_stamp(self):
+        self.reconcile(repair=True, dispatched=True)
+        self.stamp_reconciled()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciliation_accepts_verified_descendant(self):
+        self.reconcile(repair=True)
+        self.stamp_reconciled()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciliation_still_gaps_refuses_stamp(self):
+        self.reconcile("gaps")
+        with self.assertRaisesRegex(tg.Refused, "reconciliation.*complete|RECONCILIATION: complete"):
+            self.stamp_reconciled()
+
+    def test_reconciliation_stale_candidate_refuses_stamp(self):
+        self.reconcile()
+        self.sha = self.commit("later unreviewed code")
+        with self.assertRaisesRegex(tg.Refused, "exact.*candidate|exact.*commit"):
+            self.stamp_reconciled()
+
+    def test_reconciliation_altered_original_refuses_stamp(self):
+        self.reconcile()
+        path = self.root / self.PLAN
+        path.write_bytes(path.read_bytes().replace(b"# Self review", b"# Changed review"))
+        with self.assertRaises(tg.Refused):
+            self.stamp_reconciled()
+
+    def test_reconciliation_receipt_tampering_refuses_revalidation(self):
+        self.reconcile()
+        receipt = self.stamp_reconciled()
+        path = self.root / receipt
+        data = json.loads(path.read_text())
+        data["reconciliation"]["candidate"] = self.start
+        path.write_text(json.dumps(data))
+        with self.assertRaises(tg.Refused):
+            tg.graph(self.root)
+
+
 for _name in [n for n in vars(Stamp) if n.startswith("test_") and n not in vars(CodexSelfStamp)]:
     setattr(CodexSelfStamp, _name, None)
+
+
+class CodexTwoPassStamp(Stamp):
+    COMPLETION = Stamp.PLAN
+    POLICY = "codex-two-pass-v1"
+    LENSES = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization"]
+
+    def setUp(self):
+        super().setUp()
+        self.dispatch = tg.review_dispatch()
+        pin = UNIFORM_PIN.replace('schema_version = 1', 'schema_version = 1\nself_review = ["codex"]\nself_review_policy = "codex-two-pass-v1"')
+        pin = pin.replace('claude = ["astra"]', 'codex = ["astra"]')
+        pin += '\n[schedule.combined]\neffort = "medium"\nlenses = ' + json.dumps(self.LENSES + ["design"]) + '\n'
+        (self.root / tg.PIN).write_text(pin)
+        self.pin = self.dispatch.pin_blob(pin.encode())
+        self.commit("authorize two-pass policy")
+        self.tick_work()
+        self.sha = self.commit("implement under two-pass policy")
+        self.reviews = []
+        self.make_chain()
+
+    def make_chain(self, verdict="complete", dispatched=False):
+        report = self.root / self.PLAN
+        report.write_text("# Two-pass evidence\n\n")
+        common = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "failover": [], "pin": self.pin, "policy": self.POLICY}
+        self.dispatch.record_completion(report, {**common, "lenses": ["plan"],
+            "review": "PLAN: complete\nOVERALL: approve"}, "2026-11-04T10:00:00Z", self.start, "plan")
+        binding = self.dispatch.make_completion_binding(self.root, self.PLAN, self.sha)
+        result = {**common, "lenses": self.LENSES, "binding": binding, "review": "COMPLETION: " + verdict}
+        if dispatched:
+            prompt = self.root / "combined-prompt.txt"
+            prompt.write_text("Verify complete implementation and quality.\n")
+            args = types.SimpleNamespace(writer="codex", record=str(report), candidate=self.sha,
+                prompt=str(prompt), timeout=5, surface=False, transition_plan=False)
+            with mock.patch.object(self.dispatch, "ROOT", self.root), \
+                 mock.patch.object(self.dispatch, "review", return_value=result) as reviewer, \
+                 mock.patch.object(self.dispatch, "datetime", wraps=self.dispatch.datetime) as clock:
+                clock.now.return_value = self.dispatch.datetime.fromisoformat("2026-11-05T10:01:00+00:00")
+                reply = self.dispatch.run_completion(args, self.dispatch.load_pin(self.root / tg.PIN), self.pin)
+            self.assertTrue(reply["recorded"])
+            self.assertEqual(reviewer.call_count, 1)
+        else:
+            self.dispatch.record_completion(report, result, "2026-11-04T10:01:00Z", self.sha)
+
+    def stamp_two(self):
+        return self.stamp("D00 T01 §1", self.sha, [], ["gates -> pass"], "2026-11-04")
+
+    def test_two_pass_stamp_records_zero_rounds_and_revalidates(self):
+        receipt = self.stamp_two()
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["review_policy"], self.POLICY)
+        self.assertEqual((data["reviews"], data["rounds_spent"], data["round_cap"]), ([], 0, 0))
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_actual_combined_dispatch_stamps_without_a_round(self):
+        self.make_chain(dispatched=True)
+        self.stamp_two()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_two_pass_missing_plan_and_added_round_refuse(self):
+        report = self.root / self.PLAN
+        text = report.read_text()
+        report.write_text(text[text.index("## Completion review:"):])
+        with self.assertRaises(tg.Refused):
+            self.stamp_two()
+        report.write_text(text)
+        self.dispatch.record(report, {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+            "effort": "low", "lenses": ["adversarial"], "failover": [], "pin": self.pin,
+            "policy": self.POLICY, "review": "HIGHEST: none\nOVERALL: approve"}, "2026-11-04T10:02:00Z")
+        with self.assertRaises(tg.Refused):
+            self.stamp_two()
+
+    def test_legacy_plan_transition_keeps_original_evidence(self):
+        modern_pin = (self.root / tg.PIN).read_text()
+        legacy_pin = UNIFORM_PIN.replace('schema_version = 1', 'schema_version = 1\nself_review = ["codex"]')
+        legacy_pin = legacy_pin.replace('claude = ["astra"]', 'codex = ["astra"]')
+        (self.root / tg.PIN).write_text(legacy_pin)
+        self.commit("historical legacy plan policy")
+        report = self.root / self.PLAN
+        report.write_text("# Preserved legacy plan\n\n")
+        common = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "failover": [], "pin": self.dispatch.pin_blob(legacy_pin.encode()),
+                  "policy": "codex-self-review"}
+        self.dispatch.record_completion(report, {**common, "lenses": ["plan"],
+            "review": "PLAN: complete\nOVERALL: approve"}, "2026-11-04T10:00:00Z", self.start, "plan")
+        original = report.read_bytes()
+        modern_pin = modern_pin.replace('self_review_policy = "codex-two-pass-v1"',
+            'self_review_policy = "codex-two-pass-v1"\nplan_transition = ["codex-self-review"]')
+        (self.root / tg.PIN).write_text(modern_pin)
+        self.pin = self.dispatch.pin_blob(modern_pin.encode())
+        self.commit("explicit plan-only transition policy")
+        binding = self.dispatch.make_completion_binding(self.root, self.PLAN, self.sha, transition_plan=True)
+        self.dispatch.record_completion(report, {**common, "pin": self.pin, "policy": self.POLICY,
+            "lenses": self.LENSES, "binding": binding, "review": "COMPLETION: complete"},
+            "2026-11-04T10:01:00Z", self.sha)
+        receipt = self.stamp_two()
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["policy_transition"], binding["transition"])
+        self.assertTrue(report.read_bytes().startswith(original))
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+        data["policy_transition"]["plan_candidate"] = self.sha
+        (self.root / receipt).write_text(json.dumps(data))
+        with self.assertRaises(tg.Refused):
+            tg.graph(self.root)
+
+    def test_two_pass_gaps_need_real_bounded_reconciliation(self):
+        self.make_chain("gaps")
+        original = (self.root / self.PLAN).read_bytes()
+        pin = (self.root / tg.PIN).read_text().replace('self_review = ["codex"]',
+            'self_review = ["codex"]\nreconciliation = ["codex"]')
+        pin += '\n[schedule.reconciliation]\neffort = "medium"\nlenses = ["record"]\n'
+        (self.root / tg.PIN).write_text(pin)
+        disposition = "docs/reviews/two-pass-repairs.md"
+        (self.root / disposition).write_text("Original gap disposition and regression proof.\n")
+        self.commit("authorize bounded repair verification")
+        binding = self.dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        self.dispatch.record_completion(self.root / self.PLAN, {"writer": "codex", "reviewer": "astra",
+            "model": "m", "cli": "codex", "effort": "medium", "lenses": ["record"], "failover": [],
+            "policy": self.POLICY, "pin": self.dispatch.pin_blob(pin.encode()), "binding": binding,
+            "review": "RECONCILIATION: complete"}, "2026-11-04T10:02:00Z", self.sha, "reconciliation")
+        receipt = self.stamp("D00 T01 §1", self.sha, [], ["gates -> pass"], "2026-11-04",
+            completion={"report": self.PLAN, "verdict": "gaps"},
+            reconciliation={"report": self.PLAN, "verdict": "complete"})
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["completion"]["verdict"], "gaps")
+        self.assertEqual(data["rounds_spent"], 0)
+        self.assertTrue((self.root / self.PLAN).read_bytes().startswith(original))
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_two_pass_gaps_and_stale_candidate_refuse(self):
+        self.make_chain("gaps")
+        with self.assertRaises(tg.Refused):
+            self.stamp_two()
+        self.make_chain()
+        self.sha = self.commit("unreviewed change after completion")
+        with self.assertRaises(tg.Refused):
+            self.stamp_two()
+
+    def test_scoped_successor_reconciliation_stamps_and_replays_after_commit(self):
+        self.make_chain("gaps")
+        report = self.root / self.PLAN
+        pin = (self.root / tg.PIN).read_text().replace('self_review = ["codex"]',
+            'self_review = ["codex"]\nreconciliation = ["codex"]')
+        pin += '\n[schedule.reconciliation]\neffort = "medium"\nlenses = ["record"]\n'
+        (self.root / tg.PIN).write_text(pin)
+        disposition = "docs/reviews/successor-repair.md"
+        (self.root / disposition).write_text("Original gap repair and exact predecessor disposition.\n")
+        self.commit("authorize original reconciliation")
+        common = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "lenses": ["record"], "failover": [], "policy": self.POLICY}
+        binding = self.dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        self.dispatch.record_completion(report, {**common, "pin": self.dispatch.pin_blob(pin.encode()),
+            "binding": binding, "review": "RECONCILIATION: gaps"}, "2026-11-04T10:02:00Z", self.sha, "reconciliation")
+        predecessor = self.dispatch.read_reconciliations(report.read_text())[-1]
+        original = report.read_bytes()
+        self.commit("preserve genuine failed reconciliation")
+        pin += '\n[reconciliation_extensions]\n' + json.dumps(self.PLAN) + ' = ' + json.dumps(predecessor["digest"]) + '\n'
+        (self.root / tg.PIN).write_text(pin)
+        self.sha = self.commit("authorize exact failed predecessor successor")
+        binding = self.dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        self.dispatch.record_completion(report, {**common, "pin": self.dispatch.pin_blob(pin.encode()),
+            "binding": binding, "review": "RECONCILIATION: complete"}, "2026-11-04T10:03:00Z", self.sha, "reconciliation")
+        self.assertTrue(report.read_bytes().startswith(original))
+        receipt = self.stamp("D00 T01 §1", self.sha, [], ["gates -> pass"], "2026-11-04",
+            completion={"report": self.PLAN, "verdict": "gaps"},
+            reconciliation={"report": self.PLAN, "verdict": "complete"})
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["reconciliation"]["binding"]["version"], 2)
+        self.assertEqual(data["reconciliation"]["binding"]["predecessor_digest"], predecessor["digest"])
+        self.commit("preserve complete successor receipt")
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+        report.write_bytes(original)
+        with self.assertRaises(tg.Refused):
+            tg.graph(self.root)
+
+    def test_two_pass_receipt_cannot_drop_policy_or_claim_a_round(self):
+        receipt = self.stamp_two()
+        path = self.root / receipt
+        original = json.loads(path.read_text())
+        for key,value in (("review_policy", "codex-self-review"), ("round_cap", 1), ("rounds_spent", 1)):
+            changed = {**original, key: value}
+            path.write_text(json.dumps(changed))
+            with self.subTest(key=key), self.assertRaises(tg.Refused):
+                tg.graph(self.root)
+        path.write_text(json.dumps(original))
+
+    def test_two_pass_pin_marker_cannot_authorize_legacy_pin(self):
+        report = self.root / self.PLAN
+        original = self.dispatch.pin_blob(UNIFORM_PIN.encode())
+        report.write_text(report.read_text().replace(self.pin, original))
+        with self.assertRaises(tg.Refused):
+            self.stamp_two()
+
+
+for _name in [n for n in vars(Stamp) if n.startswith("test_") and n not in vars(CodexTwoPassStamp)]:
+    setattr(CodexTwoPassStamp, _name, None)
 
 
 if __name__ == "__main__":
