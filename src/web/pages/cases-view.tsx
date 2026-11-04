@@ -751,17 +751,26 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
               <input type="hidden" name="org" value={props.orgId} />
               <label class="flex flex-col gap-4">
                 <span class="text-muted">From</span>
-                <input id="case-export-from" type="date" name="from" class={INLINE_INPUT} />
+                <input id="case-export-from" type="date" name="from" required class={INLINE_INPUT} />
               </label>
               <label class="flex flex-col gap-4">
                 <span class="text-muted">To</span>
-                <input id="case-export-to" type="date" name="to" class={INLINE_INPUT} />
+                <input id="case-export-to" type="date" name="to" required class={INLINE_INPUT} />
               </label>
               <button type="submit" class={cx("underline underline-offset-4 text-orange-text", FOCUS)}>
                 Export period
               </button>
+              <button
+                type="submit"
+                name="exact"
+                value="1"
+                class={cx("underline underline-offset-4 text-orange-text", FOCUS)}
+              >
+                Daily counts CSV
+              </button>
             </form>
-            <p class="text-muted mt-4">Whole weeks that overlap your dates.</p>
+            <p class="text-muted mt-4">Export period: whole weeks that overlap your dates.</p>
+            <p class="text-muted mt-4">Daily counts: one row per selected SAST day, including days with no cases.</p>
             <p class="mt-4 flex gap-12">
               <a
                 href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${monthRange().from}&to=${monthRange().to}`}

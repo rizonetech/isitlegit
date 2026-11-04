@@ -203,7 +203,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
         "content-type": "text/csv; charset=utf-8",
         "content-disposition":
           from && to
-            ? `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`
+            ? `attachment; filename="isitlegit-${url.searchParams.get("exact") === "1" ? "daily-counts" : "counts"}-${from}-to-${to}.csv"`
             : 'attachment; filename="isitlegit-weekly-counts.csv"',
       },
     });
@@ -863,6 +863,46 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => p.locator("#case-export-from").inputValue()).toBe("2026-10-01");
     await expect.poll(() => p.locator("#case-export-to").inputValue()).toBe("2026-10-31");
     await context.close();
+  });
+
+  it("exports daily counts by keyboard at phone width in both themes and retains required dates", async () => {
+    const context = await browser.newContext({ viewport: { width: 360, height: 900 } });
+    const p = await context.newPage();
+    try {
+      for (const theme of ["light", "dark"] as const) {
+        await p.goto(`${origin}/cases`, { waitUntil: "load" });
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        const daily = p.getByRole("button", { name: "Daily counts CSV", exact: true });
+        expect(await daily.isVisible()).toBe(true);
+        await p.locator("#case-export-from").fill("");
+        await p.locator("#case-export-to").fill("");
+        await daily.click();
+        expect(await p.locator("#case-export-from").evaluate((el) => el === document.activeElement)).toBe(true);
+        expect(
+          await p.locator("#case-export-from").evaluate((el) => (el as HTMLInputElement).validity.valueMissing),
+        ).toBe(true);
+        await p.locator("#case-export-from").fill("2026-10-01");
+        await daily.click();
+        expect(await p.locator("#case-export-to").evaluate((el) => el === document.activeElement)).toBe(true);
+        await p.locator("#case-export-to").fill("2026-10-31");
+        // Real tab order from the date input through the existing weekly submitter to daily.
+        for (let i = 0; i < 12 && !(await daily.evaluate((el) => el === document.activeElement)); i++)
+          await p.keyboard.press("Tab");
+        expect(await daily.evaluate((el) => el === document.activeElement)).toBe(true);
+        const download = p.waitForEvent("download");
+        await p.keyboard.press("Enter");
+        expect((await download).suggestedFilename()).toBe("isitlegit-daily-counts-2026-10-01-to-2026-10-31.csv");
+        await segment(p, "Safe").click();
+        await expect.poll(() => p.locator("#case-export-from").inputValue()).toBe("2026-10-01");
+        await expect.poll(() => p.locator("#case-export-to").inputValue()).toBe("2026-10-31");
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+        const weekly = p.waitForEvent("download");
+        await p.getByRole("button", { name: "Export period", exact: true }).click();
+        expect((await weekly).suggestedFilename()).toBe("isitlegit-counts-2026-10-01-to-2026-10-31.csv");
+      }
+    } finally {
+      await context.close();
+    }
   });
 
   it("reads the threat kinds line at phone width in both themes (D07 T04 §18)", async () => {
