@@ -1279,14 +1279,18 @@ An owner exports counts clipped to the exact calendar dates chosen, not whole ov
 
 ## 35. Phone forwarding guidance on the Cases page
 
+> **Started:** 2026-11-04T09:19:08.030238+00:00
+
 The Cases first-run page tells a member on a phone how to forward mail from desktop Outlook, Outlook on the web and Gmail (`HOW_TO` in `src/web/pages/cases-view.tsx`), but not from a phone mail app, and it does not say when uploading the file instead is the better route (D07 T01 §14 completion review, 2026-11-02). A member whose only device is a phone is left to guess the step this page exists to teach.
+
+**Coordinator scope correction 2026-11-04:** research/plan approved at11:09SAST. Official sources establish desktop original-message paths, not mobile original-file export. The companion `docs/specs/2026-11-04-phone-forwarding-guidance-design.md` proposes honest Apple Mail/Gmail desktop fallbacks and upload of an already saved original file or clearly limited screenshot/PDF. Exact wording approval and coordinator-owned M1 incorporation are required; no invented mobile save command.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 (Cases, first-run state), board `Cases-Empty`
 **Job:** a member on a phone forwards a suspicious email as an attachment, or uploads it, without guessing
-**Treatment:** the first-run how-to tiles name the phone mail apps' forward-as-attachment steps and when to upload instead
+**Treatment:** the first-run how-to tiles name verified desktop fallbacks for phone apps and when an already saved file can be uploaded, with original-header limits
 **Chrome:** `EmptyState` (§8 of D07 T01) on the Cases page (D07 T04 §1)
 
 **Build order:**
@@ -1294,9 +1298,9 @@ The Cases first-run page tells a member on a phone how to forward mail from desk
 1. Name the phone steps in `design/SPEC.md` M1. Done when: M1 names the phone mail app steps and the upload choice, and `python3 design/tools/check-design.py` passes.
 2. Draw the phone guidance in the first-run how-to tiles (`src/web/pages/cases-view.tsx`). Done when: `test/node/cases-browser.test.tsx` reads the phone steps and the upload choice at 360 px in both themes.
 
-- [ ] Add the phone mail app steps (Apple Mail and Gmail on a phone: forward as attachment where the app offers it, save and upload where it does not) and the when-to-upload line to `design/SPEC.md` M1. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
+- [ ] Obtain coordinator approval and incorporation of the exact source-backed companion wording into `design/SPEC.md` M1, naming Apple Mail/Gmail desktop fallbacks and existing-file upload limits. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
 - [ ] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
-- [ ] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes reads the phone steps and the upload choice, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
+- [ ] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes with scripts on and off reads the phone fallback steps, original-header limits and upload choice, follows Upload a file by keyboard to the rendered upload form, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
 - [ ] Commit: `web: phone forwarding guidance on the Cases page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/cases-browser.test.tsx` passes with the phone guidance read at 360 px in both themes.
