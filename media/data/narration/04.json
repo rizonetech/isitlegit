@@ -5,19 +5,19 @@
   "segments": [
     {
       "scene": "intro",
-      "text": "Welcome to the IsItLegit judge getting-started guide. You have two zero-friction ways to verify the system in under sixty seconds: on the live web, or locally with zero API keys."
+      "text": "Here is how to see Is It Legit working in about a minute, on the live service, with the Fynbos Freight demo organisation."
     },
     {
-      "scene": "live web path",
-      "text": "Path one is the live web at isitlegit.co.za and app.isitlegit.co.za, pre-populated with our Fynbos Freight demo organisation. Forward any suspicious email to check@isitlegit.co.za, or upload an email, a PDF invoice or an Opus voice note on slash check. Append question-mark trace equals one and clock equals one to any report URL to open the live model trace and inspect Muse Spark one point three, SAM 3.1, Muse Wonder one point zero, Loupe, and Muse Voice Transcribe one point zero, then check slash eval and our open-weight LoRA adapter on Hugging Face."
+      "scene": "check a message",
+      "text": "Sign in at app.isitlegit.co.za. Forward a suspicious email as an attachment to check@isitlegit.co.za, or drop a file on the Check a file page. The report fills in live: every finding with its evidence, and a verdict from Muse Spark that cites each one, with the first thing to do."
     },
     {
-      "scene": "local replay path",
-      "text": "Path two is zero-account local replay. Run pnpm install and pnpm judge colon demo. It runs the real Worker pipeline locally against recorded Meta Model API and Fireworks AI request and response pairs, with explicit provenance badges on every report."
+      "scene": "protect, monitor, results",
+      "text": "Open Protect to see who Fynbos Freight really is, its domains and its logo for SAM 3.1. Open Monitor to see the lookalike sites it has caught. And the public results page shows how often Is It Legit is right, published whether the numbers are good or not."
     },
     {
-      "scene": "outro",
-      "text": "Try the live web at isitlegit.co.za, or run pnpm judge colon demo locally. Thanks for judging IsItLegit."
+      "scene": "close",
+      "text": "Everything you just saw is live at app.isitlegit.co.za. The code is on GitHub, at rizonetech slash isitlegit."
     }
   ],
   "voice_settings": {
