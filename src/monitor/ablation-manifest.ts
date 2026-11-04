@@ -336,3 +336,12 @@ export async function loadCapture(
 export async function preflightCaptures(bucket: CaptureBucket, manifest: Manifest): Promise<void> {
   for (const page of Manifest.parse(manifest).pages) await loadCapture(bucket, page);
 }
+
+export async function approvedManifests(bucket: CaptureBucket, deployment: string): Promise<Manifest[]> {
+  Deployment.parse(deployment);
+  const registry = Registry.parse(await json(bucket, "eval/monitor-registry.json"));
+  if (registry.deployment !== deployment) return refuse();
+  const manifests: Manifest[] = [];
+  for (const digest of registry.manifests) manifests.push(await loadManifest(bucket, digest, deployment));
+  return manifests;
+}

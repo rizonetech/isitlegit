@@ -25,6 +25,8 @@ CREATE TABLE monitor_experiment_arms (
  monitor_run_id TEXT NOT NULL UNIQUE,
  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','waiting','unknown','complete','failed')),
  created_at INTEGER NOT NULL CHECK(typeof(created_at)='integer' AND created_at>=0 AND created_at<=9007199168340991),
+ resume_state TEXT NOT NULL DEFAULT 'idle' CHECK(resume_state IN ('idle','calling','unknown')),
+ resume_token TEXT,
  spark_deadline INTEGER NOT NULL CHECK(typeof(spark_deadline)='integer' AND spark_deadline=created_at+86400000),
  PRIMARY KEY(org_id,experiment_id,arm),
  UNIQUE(org_id,replay_run_id),
