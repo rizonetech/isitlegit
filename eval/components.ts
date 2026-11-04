@@ -27,6 +27,8 @@ export function cacheFigures(records: CacheRecord[]) {
   const avoided = hits.filter((r) => r.avoidedUsd !== null);
   return {
     rows: records.length,
+    hits: hits.length,
+    misses: misses.length,
     hitRate: records.length ? hits.length / records.length : null,
     hitMedianMs: median(hits.map((r) => r.ms)),
     hitP95Ms: p95(hits.map((r) => r.ms)),
@@ -85,7 +87,14 @@ export type InvisibleSummary = {
   peakMb: number | null;
 };
 
-export type AiSummary = { injections: number; detected: number; genuine: number; falsePositives: number };
+export type AiSummary = {
+  injections: number;
+  detected: number;
+  genuine: number;
+  falsePositives: number;
+  p50Ms?: number | null;
+  p95Ms?: number | null;
+};
 export type AttachmentsSummary = {
   valid: number;
   identified: number;
@@ -93,13 +102,113 @@ export type AttachmentsSummary = {
   disguisedCaught: number;
   damaged: number;
   damagedReadAsValid: number;
+  p50Ms?: number | null;
+  p95Ms?: number | null;
 };
+
+export type IntakeRecord = {
+  band: "small" | "near-25mib";
+  bytes: number;
+  ms: number | null;
+  status?: "ok" | "failed";
+};
+
+export function intakeFigures(records: IntakeRecord[]) {
+  const bandOf = (band: "small" | "near-25mib") => {
+    const all = records.filter((r) => r.band === band);
+    const ok = all.filter((r) => r.status !== "failed" && r.ms !== null);
+    const times = ok.map((r) => r.ms as number);
+    return {
+      total: all.length,
+      completed: ok.length,
+      failed: all.length - ok.length,
+      medianMs: median(times),
+      p95Ms: p95(times),
+    };
+  };
+  return {
+    small: bandOf("small"),
+    near25Mib: bandOf("near-25mib"),
+  };
+}
+
+export const RETRY_TARGETS = {
+  medianUnderMs: 60_000,
+  p95UnderMs: 180_000,
+} as const;
+
+export type RetryRecord = {
+  kind: "retry" | "interrupted-settle";
+  ms: number | null;
+  completed: boolean;
+};
+
+export function retryFigures(records: RetryRecord[]) {
+  const retries = records.filter((r) => r.kind === "retry");
+  const retryDone = retries.filter((r) => r.completed && r.ms !== null);
+  const retryTimes = retryDone.map((r) => r.ms as number);
+  const retryMedianMs = median(retryTimes);
+  const retryP95Ms = p95(retryTimes);
+  const retryIncomplete = retries.length - retryDone.length;
+  const targetState: "met" | "missed" | "incomplete" | "not measured" =
+    retryDone.length === 0
+      ? "not measured"
+      : retryIncomplete > 0
+        ? "incomplete"
+        : (retryMedianMs as number) < RETRY_TARGETS.medianUnderMs && (retryP95Ms as number) < RETRY_TARGETS.p95UnderMs
+          ? "met"
+          : "missed";
+
+  const settles = records.filter((r) => r.kind === "interrupted-settle");
+  const settleDone = settles.filter((r) => r.completed && r.ms !== null);
+  const settleTimes = settleDone.map((r) => r.ms as number);
+  return {
+    retryTotal: retries.length,
+    retryCompleted: retryDone.length,
+    retryIncomplete,
+    retryMedianMs,
+    retryP95Ms,
+    targetState,
+    settleTotal: settles.length,
+    settleCompleted: settleDone.length,
+    settleIncomplete: settles.length - settleDone.length,
+    settleMedianMs: median(settleTimes),
+    settleP95Ms: p95(settleTimes),
+  };
+}
+
+export type ComparatorRecord = {
+  name: string;
+  evaluated: number;
+  attacks: number;
+  detected: number;
+  genuine: number;
+  falsePositives: number;
+  medianMs: number | null;
+};
+
+export function comparatorFigures(records: ComparatorRecord[]) {
+  return records.map((r) => ({
+    name: r.name,
+    evaluated: r.evaluated,
+    detectionRate: r.attacks > 0 && r.evaluated > 0 ? r.detected / r.attacks : null,
+    falsePositiveRate: r.genuine > 0 && r.evaluated > 0 ? r.falsePositives / r.genuine : null,
+    detected: r.detected,
+    attacks: r.attacks,
+    falsePositives: r.falsePositives,
+    genuine: r.genuine,
+    medianMs: r.evaluated > 0 ? r.medianMs : null,
+  }));
+}
 
 export type ComponentRecords = {
   cache?: CacheRecord[];
   providers?: ProviderRecord[];
   walkthrough?: WalkRecord[];
   floor?: FloorRecord[];
+  comparators?: ComparatorRecord[];
+  intake?: IntakeRecord[];
+  retry?: RetryRecord[];
   invisible?: InvisibleSummary;
   ai?: AiSummary;
   attachments?: AttachmentsSummary;
@@ -108,10 +217,11 @@ export type ComponentRecords = {
 export function renderComponentRows(records: ComponentRecords): string {
   const lines: string[] = [];
   const c = cacheFigures(records.cache ?? []);
-  const hitText = c.hitRate === null ? "not measured" : `${(100 * c.hitRate).toFixed(1)}% hits`;
+  const hitText =
+    c.hitRate === null ? "not measured" : `${(100 * c.hitRate).toFixed(1)}% hits (${c.hits} hits, ${c.misses} misses)`;
   const avoidedText = c.avoidedUsd === null ? "not measured" : `US$${c.avoidedUsd.toFixed(4)}`;
   lines.push(
-    `| Result cache | ${hitText} (${c.rows} rows), hit median ${c.hitMedianMs ?? "not measured"} ms, avoided ${avoidedText} |`,
+    `| Result cache | ${hitText} (${c.rows} rows), hit median ${c.hitMedianMs ?? "not measured"} ms (p95 ${c.hitP95Ms ?? "not measured"} ms), miss median ${c.missMedianMs ?? "not measured"} ms (p95 ${c.missP95Ms ?? "not measured"} ms), avoided ${avoidedText} |`,
   );
   for (const p of providerFigures(records.providers ?? []))
     lines.push(
@@ -123,18 +233,54 @@ export function renderComponentRows(records: ComponentRecords): string {
   );
   const f = floorFigures(records.floor ?? []);
   lines.push(
-    `| Deterministic floor | raised ${f.raised} of ${f.rows}, added detections ${f.addedDetections}, caused false positives ${f.causedFalsePositives} |`,
+    f.rows === 0
+      ? "| Deterministic floor | not measured (0 rows; pre-floor verdict persistence pending D04 agent owner) |"
+      : `| Deterministic floor | raised ${f.raised} of ${f.rows}, added detections ${f.addedDetections}, caused false positives ${f.causedFalsePositives} |`,
   );
+  const comps = comparatorFigures(records.comparators ?? []);
+  if (comps.length === 0) {
+    lines.push(
+      "| Comparator Microsoft Defender for Office 365 | absent (not measured; no licensed comparator tenant available, no figures invented) |",
+    );
+  } else {
+    for (const comp of comps) {
+      lines.push(
+        comp.evaluated === 0
+          ? `| Comparator ${comp.name} | absent (not measured; no figures invented) |`
+          : `| Comparator ${comp.name} | detection ${comp.detectionRate === null ? "not measured" : `${(100 * comp.detectionRate).toFixed(1)}%`} (${comp.detected} of ${comp.attacks}), false positives ${comp.falsePositiveRate === null ? "not measured" : `${(100 * comp.falsePositiveRate).toFixed(1)}%`} (${comp.falsePositives} of ${comp.genuine}), median ${comp.medianMs ?? "not measured"} ms (${comp.evaluated} evaluated) |`,
+      );
+    }
+  }
+  const intake = intakeFigures(records.intake ?? []);
+  const bandText = (b: ReturnType<typeof intakeFigures>["small"]) =>
+    b.completed === 0
+      ? `not measured (0 of ${b.total} completed)`
+      : `median ${b.medianMs} ms, p95 ${b.p95Ms} ms (${b.completed} of ${b.total} completed)`;
+  lines.push(`| Intake time | small ${bandText(intake.small)}; near-25MiB ${bandText(intake.near25Mib)} |`);
+  const retry = retryFigures(records.retry ?? []);
+  const retryText =
+    retry.retryCompleted === 0
+      ? `not measured (0 of ${retry.retryTotal} completed; target median < 60000 ms, p95 < 180000 ms)`
+      : `median ${retry.retryMedianMs} ms, p95 ${retry.retryP95Ms} ms (${retry.retryCompleted} of ${retry.retryTotal} completed, target ${retry.targetState})`;
+  const settleText =
+    retry.settleCompleted === 0
+      ? `not measured (0 of ${retry.settleTotal} completed)`
+      : `median ${retry.settleMedianMs} ms, p95 ${retry.settleP95Ms} ms (${retry.settleCompleted} of ${retry.settleTotal} completed)`;
+  lines.push(`| Retry latency | retry ${retryText}; interrupted settle ${settleText} |`);
   const ai = records.ai;
+  const aiTiming =
+    ai?.p50Ms !== undefined && ai?.p50Ms !== null ? `, p50 ${ai.p50Ms} ms, p95 ${ai.p95Ms ?? "not measured"} ms` : "";
   lines.push(
     ai
-      ? `| content.ai_instructions | detected ${ai.detected} of ${ai.injections} steering texts, false positives ${ai.falsePositives} of ${ai.genuine} genuine texts |`
+      ? `| content.ai_instructions | detected ${ai.detected} of ${ai.injections} steering texts, false positives ${ai.falsePositives} of ${ai.genuine} genuine texts${aiTiming} |`
       : "| content.ai_instructions | not measured |",
   );
   const at = records.attachments;
+  const atTiming =
+    at?.p50Ms !== undefined && at?.p50Ms !== null ? `, p50 ${at.p50Ms} ms, p95 ${at.p95Ms ?? "not measured"} ms` : "";
   lines.push(
     at
-      ? `| Attachment identification | identified ${at.identified} of ${at.valid} valid, disguised caught ${at.disguisedCaught} of ${at.disguised}, damaged read as valid ${at.damagedReadAsValid} of ${at.damaged} |`
+      ? `| Attachment identification | identified ${at.identified} of ${at.valid} valid, disguised caught ${at.disguisedCaught} of ${at.disguised}, damaged read as valid ${at.damagedReadAsValid} of ${at.damaged}${atTiming} |`
       : "| Attachment identification | not measured |",
   );
   const inv = records.invisible;

@@ -1,0 +1,50 @@
+[
+ {
+  "band": "small",
+  "bytes": 4096,
+  "ms": 34.719,
+  "status": "ok"
+ },
+ {
+  "band": "small",
+  "bytes": 4096,
+  "ms": 9.507,
+  "status": "ok"
+ },
+ {
+  "band": "small",
+  "bytes": 4096,
+  "ms": 4.516,
+  "status": "ok"
+ },
+ {
+  "band": "small",
+  "bytes": 4096,
+  "ms": 14.066,
+  "status": "ok"
+ },
+ {
+  "band": "small",
+  "bytes": 4096,
+  "ms": 9.255,
+  "status": "ok"
+ },
+ {
+  "band": "near-25mib",
+  "bytes": 25165824,
+  "ms": 82.165,
+  "status": "ok"
+ },
+ {
+  "band": "near-25mib",
+  "bytes": 25165824,
+  "ms": 98.584,
+  "status": "ok"
+ },
+ {
+  "band": "near-25mib",
+  "bytes": 25165824,
+  "ms": 95.738,
+  "status": "ok"
+ }
+]

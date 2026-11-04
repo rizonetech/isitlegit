@@ -2,7 +2,7 @@
 // of every valid synthetic sample, of disguised bytes (a real type behind another name, which identification
 // must catch as its real type), and of damaged packages (truncated bytes, which must not read as the valid
 // type). Scored through the real `sniff` the checks step uses.
-import { type SniffedType, sniff } from "../src/checks/sniff.ts";
+import { MAX_SNIFFED, type SniffedType, sniff } from "../src/checks/sniff.ts";
 import { samples } from "../test/fixtures/attachments/samples.ts";
 
 export const EXPECTED: Partial<Record<keyof typeof samples, SniffedType>> = {
@@ -53,6 +53,19 @@ export function scoreAttachments() {
     { name: "truncated png", bytes: samples.png.slice(0, 4), valid: "png" },
   ];
   const readAsValid = damaged.filter((d) => sniff(d.bytes) === d.valid).map((d) => d.name);
+
+  // Measure p50 and p95 time with MAX_SNIFFED (20) attachments per case.
+  const batchBytes = names.slice(0, MAX_SNIFFED).map((n) => samples[n]);
+  const timesMs: number[] = [];
+  for (let rep = 0; rep < 8; rep++) {
+    const t0 = performance.now();
+    for (const b of batchBytes) sniff(b);
+    timesMs.push(Number((performance.now() - t0).toFixed(3)));
+  }
+  const sorted = [...timesMs].sort((a, b) => a - b);
+  const at = (q: number) =>
+    sorted.length ? (sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)] as number) : null;
+
   return {
     valid: names.length,
     identified: names.length - missed.length,
@@ -60,8 +73,11 @@ export function scoreAttachments() {
     disguisedCaught: disguised.length - undetected.length,
     damaged: damaged.length,
     damagedReadAsValid: readAsValid.length,
+    p50Ms: at(0.5),
+    p95Ms: at(0.95),
     missed,
     undetected,
     readAsValid,
+    timesMs,
   };
 }
