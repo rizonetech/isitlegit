@@ -1319,6 +1319,8 @@ Filed 2026-11-04 by the coordinator for the necessary integration of stamped D02
 
 ## 41. Accurate continuation stop reasons for completed owners
 
+> **Started:** 2026-11-04T13:30:59.829563+00:00 (plan preparation only; implementation follows genuine plan review)
+
 Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owners correctly refuse further work, but the hook describes them as paused. Fix the reason emitted by the ownership controller; do not bypass its stop or reactivate a completed assignment automatically.
 
 **Phase:** 6
