@@ -86,7 +86,7 @@ track: day-6
 | 48 | §48 | Confidence escalation from Loupe to Spark | §1 | [x] |
 | 49 | §49 | Every screened page captured and labelled | §48 | [x] |
 | 50 | §50 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
-| 51 | §51 | Immutable training and evaluation evidence audit | §13, §32 | [ ] |
+| 51 | §51 | Immutable training and evaluation evidence audit | §13, §32 | [x] |
 | 52 | §52 | Immutable checkpoint readiness handoff | §11, §13 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
@@ -1704,9 +1704,12 @@ Coordinator-authorized new Codex audit/repair scope, 2026-11-04 09:21 SAST. This
 - [x] Write an optional new audit receipt with `scripts/glimmer/checkpoint-audit.py --receipt`, binding issues and measured file digests to the auditor commit and timestamp, atomically publishing only to an absent external-store destination and reading it back. Done when: retries cannot overwrite another receipt, a failed audit still records its issues with a nonzero exit, and the default audit writes nothing. Cheaper substitute: overwriting earlier evidence destroys the audit trail.
 - [x] Add synthetic regression fixtures in `tests/scripts/test_checkpoint_audit.py` for the listed refusal paths, valid evidence, swapped metadata, mismatched answer labels, consistent-but-unmet floor reports, missing or conflicting historical selection, concurrent receipt refusal, and unchanged input bytes. Done when: tests prove defects fail before their repair and no fixture contains client data or invokes a provider. Cheaper substitute: testing only a valid summary misses interrupted publication.
 - [x] Run the audit on both real versions and the active trainer input, writing only its external receipt and a concise result in `docs/glimmer/checkpoint-audit.md`. Done when: the report names verified facts and unresolved provenance separately; §45 and §50 remain unstamped if their original proof is missing, and immutable checkpoint export/common-held-out evaluation proceeds only under a separately reviewed scope. Cheaper substitute: passing unit tests does not establish live artifact provenance.
-- [ ] Commit: `glimmer: audit immutable checkpoint input evidence`
+- [x] Commit: `glimmer: audit immutable checkpoint input evidence`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_checkpoint_audit` passes, rejects missing or conflicting evidence and leaves all audited inputs unchanged; a real external audit receipt records the measured 1.1 artifact state without manufactured provenance.
+
+> **Verified:** 2026-11-04 | §51 | 4ab063321afb6e2636990bebe9d9f205b1f270b5
+> **Review:** `docs/reviews/d03-t04-s51.json`
 
 ## 52. Immutable checkpoint readiness handoff
 
