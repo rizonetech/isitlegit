@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 121 | Checklist items: 759
+Sections: 122 | Checklist items: 765
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -319,6 +319,7 @@ Sections: 121 | Checklist items: 759
 | [x]    | D03 T03 §6  | Ablation flag in segmentation                             | none                  | 2     |
 | [x]    | D04 T01 §17 | Immutable per-case model ablation consumers               | none                  | 7     |
 | [x]    | D00 T01 §40 | Email recovery fixtures on reviewed ablation integration  | none                  | 4     |
+| [ ]    | D04 T01 §19 | Queued verification and guarded delivery refresh          | none                  | 6     |
 | [x]    | D04 T02 §9  | Ablation flag in the walkthrough                          | none                  | 2     |
 | [x]    | D04 T02 §10 | Multi-step evaluation fixture routes                      | none                  | 5     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator                             | none                  | 4     |
@@ -418,7 +419,7 @@ Sections: 121 | Checklist items: 759
 
 ### Phase 7: After the event
 
-Sections: 227 | Checklist items: 1035
+Sections: 227 | Checklist items: 1039
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -530,7 +531,7 @@ Sections: 227 | Checklist items: 1035
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
 | [x]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
-| [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
+| [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 10    |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
@@ -692,6 +693,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 447/616 verified sections, 106 ready to run now.
+Progress: 447/617 verified sections, 107 ready to run now.
 
-Checklist: 3223/3815 items completed (includes Commit items).
+Checklist: 3223/3825 items completed (includes Commit items).

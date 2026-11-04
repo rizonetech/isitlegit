@@ -2,7 +2,7 @@
 schema_version: 1
 id: verdict-agent
 domain: 04-agent
-status: done
+status: active
 title: "TODO-01 -- Verdict Agent, Citations, Deterministic Floor and Injection Defence"
 frozen: true
 track: day-6
@@ -54,6 +54,7 @@ track: day-6
 | 15 | §15 | Fixed action on every critical invoice item | §12 | [x] |
 | 16 | §16 | Message-specific consequence sentences | §2 | [x] |
 | 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [x] |
+| 18 | §19 | Queued verification and guarded delivery refresh | §17 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -564,6 +565,32 @@ Coordinator critical-path assignment 2026-11-04. Replace organisation KV flags w
 
 > **Verified:** 2026-11-04 | §17 | a6a30c332d034d413e95df437b71321d5c3571e4
 > **Review:** `docs/reviews/d04-t01-s17.json`
+
+## 19. Queued verification and guarded delivery refresh
+
+> **Started:** 2026-11-04T09:25:16.824262+00:00
+
+Coordinator assignments console-scope-ownership and verification-joint-integration, 4 November 2026. Resolves the real caller and publication integration for console D05 T03 §1. Checks exclusively owns the shared Workflow, registry, evidence-store guard and narrow scheduled refresh after reconcileUncertain. Console owns its service, migration0093 and tests. Contract input is docs/verification-request-contract.md at exact console commit9a6e9cac19a3a0059da7a859ed1dad5a3f7cb1d9; this is unreviewed integration input, not a completed prerequisite. Reply handling remains D05 T03 §2.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes unchanged; registered bank details and reply tokens never reach checker evidence, Workflow results or logs.
+
+**Build order:**
+
+1. At the clean boundary after §17, plan-review this scope, import only the pinned isolated service commit with git cherry-pick -x as coordinator authorized, and preserve service ownership/history. Done when: the imported contract, migration, service and test bytes match the pin and no unrelated console history is transferred.
+2. Add queued invocation and atomic validated evidence publication, then bounded scheduled refresh and successful-publication acknowledgment. Done when: real paths produce safe verification evidence and races cannot overwrite another run or an answered request.
+3. Test service and wiring together and transfer wiring-only commits back to console with git cherry-pick -x. Done when: both lanes compare service/wiring/migration/test hashes and review the same integrated behavior through their own genuine section-local round/completion chains. Neither section ships alone; coordinator owns joint CI/deployment.
+
+- [ ] Invoke requestVerification after persisted invoice rules for mail and standalone documents, before verdict, in a retryable queued step in `src/pipeline/analysis-workflow.ts`. Done when: actual current entitlement, registry-mismatch prerequisites and idempotent service semantics govern invocation; the queued attempt budget covers bounded SMTP attempts/backoff and persistence, storage failures remain explicit, and safe step results contain no token/contact/registered account. Cheaper substitute: a helper with no queued caller does not verify anything. Source: pinned verification contract.
+- [ ] Admit the verification producer in `src/checks/registry.ts` and extend the owning `src/checks/evidence.ts` publication API with the minimal atomic guard. Done when: validated verification.* drafts publish only for the exact current case owner/run and unanswered request, including both deletion and insertion. Pre-request refusals publish with the captured owner/run and no answered request without requiring a request row; a delayed unavailable result cannot replace already confirmed delivery evidence. A racing rerun or answer causes no replacement and cannot erase verification.answered. No invoice family alias or schema weakening. Cheaper substitute: asynchronous preflight is racy. Source: pinned verification contract.
+- [ ] Call refreshVerificationDeliveries with limit25 after reconcileUncertain in `src/index.ts`, publishing through that guard and acknowledging only successful publication. Done when: failed/skipped publication remains retryable, prior-run/answered rows cannot overwrite current evidence, processing is bounded and refresh never sends mail. Cheaper substitute: acknowledging selection loses delivery evidence on a write failure. Source: pinned verification contract.
+- [ ] Prove real integration in `test/pipeline/verification-request.test.ts`, `test/checks/evidence-producers.test.ts` and `test/checks/evidence.test.ts` alongside console's service tests. Done when: queued invocation, execution-time entitlement lapse, tenant/run/answer races, persisted pre-creation refusals (plan/contact/signing), concurrent retries, failed publication retry, confirmed-delivery refresh and stale unavailable publication after confirmed refresh/ack, preserved severity floor, and private-result/log assertions fail when broken, with stubbed transport and no live mail/model spend. Cheaper substitute: service-only tests miss the caller and producer boundary.
+- [ ] Transfer wiring-only commits back to console and compare hashes before section reviews. Done when: any service finding returns to console, any wiring finding returns here, repairs transfer explicitly before matching candidate reviews, and each graph gate accepts its own real evidence without reciprocal dependency fabrication. Cheaper substitute: a single invented joint receipt proves neither section. Source: coordinator verification-joint-integration.
+- [ ] Commit: `pipeline: integrate guarded closed-loop verification requests`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/verification-request.test.ts test/trust/verify-request.test.ts test/checks/evidence-producers.test.ts test/checks/evidence.test.ts` passes with real queued/scheduled caller and atomic race assertions; `pnpm typecheck` passes. Joint release waits for both real section stamps and coordinator CI/deployment.
 
 ## Verification
 
