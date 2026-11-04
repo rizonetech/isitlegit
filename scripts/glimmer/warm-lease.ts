@@ -65,11 +65,11 @@ export function validateWarm(read: Deployment, lease: Lease, now = Date.now()): 
 }
 export const save = (file: string, value: unknown) => {
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(`${file}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
-  const fd = openSync(`${file}.tmp`, "r");
+  writeFileSync(`${file}.${process.pid}.tmp`, `${JSON.stringify(value, null, 2)}\n`);
+  const fd = openSync(`${file}.${process.pid}.tmp`, "r");
   fsyncSync(fd);
   closeSync(fd);
-  renameSync(`${file}.tmp`, file);
+  renameSync(`${file}.${process.pid}.tmp`, file);
   const directory = openSync(dirname(file), "r");
   fsyncSync(directory);
   closeSync(directory);

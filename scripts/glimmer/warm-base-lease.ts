@@ -22,6 +22,10 @@ export function validateBase(read: Deployment, lease: Lease, now = Date.now()) {
   assert.equal(lease.model, `${BASE_MODEL}#${read.name}`);
   assert(now >= Date.parse(lease.startedAt) && now < Date.parse(lease.sendCutoff), "outside original send window");
   assert(Date.parse(lease.hardDeadline) - Date.parse(lease.startedAt) <= 3600000, "hour cannot restart");
+  assert(
+    Date.parse(lease.sendCutoff) <= Date.parse(lease.hardDeadline) - 10 * 60_000,
+    "closure window must remain reserved",
+  );
   assert.equal(read.minReplicaCount, 1);
   assert.equal(read.maxReplicaCount, 1);
   assert.equal(read.replicaCount, 1);

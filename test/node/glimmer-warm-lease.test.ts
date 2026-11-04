@@ -1,6 +1,9 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkReadBack, type Deployment } from "../../scripts/glimmer/deploy.ts";
-import { type Lease, validateWarm } from "../../scripts/glimmer/warm-lease.ts";
+import { type Lease, save, validateWarm } from "../../scripts/glimmer/warm-lease.ts";
 
 const start = Date.parse("2026-11-04T22:00:00Z");
 const lease = {
@@ -44,4 +47,17 @@ describe("explicit warm host lease", () => {
       validateWarm(ready, { ...lease, sendCutoff: new Date(start + 120 * 60000).toISOString() }, start + 1),
     ).toThrow();
   });
+});
+
+it("does not overwrite another writer staging file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "warm-lease-test-"));
+  try {
+    const file = join(dir, "lease.json");
+    writeFileSync(`${file}.tmp`, "other writer");
+    save(file, { phase: "restored" });
+    expect(readFileSync(`${file}.tmp`, "utf8")).toBe("other writer");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ phase: "restored" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
