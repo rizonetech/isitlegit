@@ -18,7 +18,6 @@
       "branch": "eval-lane",
       "worktree": "../isitlegit-eval",
       "domains": [
-        "D00",
         "D08",
         "D09"
       ],
