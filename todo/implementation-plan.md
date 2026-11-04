@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 224 | Checklist items: 1004
+Sections: 224 | Checklist items: 1008
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -553,7 +553,7 @@ Sections: 224 | Checklist items: 1004
 | [ ]    | D07 T03 §50 | Mail refusal reason in the trace                            | none                 | 3     |
 | [ ]    | D07 T03 §51 | Walkthrough action to its                                   | none                 | 4     |
 | [ ]    | D07 T03 §52 | Report address from a                                       | none                 | 4     |
-| [ ]    | D07 T03 §54 | All stored headers read in place                            | none                 | 3     |
+| [ ]    | D07 T03 §54 | All stored headers read in place                            | none                 | 7     |
 | [ ]    | D07 T03 §53 | One-action copy of headers                                  | none                 | 4     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification                      | none                 | 9     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                                | none                 | 6     |
@@ -678,4 +678,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 422/600 verified sections, 114 ready to run now.
 
-Checklist: 3087/3705 items completed (includes Commit items).
+Checklist: 3087/3709 items completed (includes Commit items).
