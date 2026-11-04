@@ -176,6 +176,24 @@ const propRecord = (v: unknown): Record<string, string> => {
   }
   return out;
 };
+const COMPAUTH_REASONS: Record<string, string> = {
+  "000": "explicit authentication failed",
+  "001": "implicit authentication failed",
+  "002": "sender domain requires explicit authentication",
+  "010": "authentication failed and sender history did not match",
+  "100": "explicit authentication passed",
+  "101": "implicit authentication passed",
+  "109": "authentication passed via trusted ARC chain",
+  "110": "sender allowed by organisation policy",
+  "130": "trusted ARC seal passed",
+};
+function joinWhy(comment: string | null, reason: string | null, needsReason: boolean): string | null {
+  const parts: string[] = [];
+  if (reason) parts.push(comment && comment !== reason ? `reason ${reason}` : reason);
+  if (comment && comment !== reason) parts.push(comment);
+  if (parts.length > 0) return parts.join(" · ");
+  return needsReason ? "reason not recorded" : null;
+}
 function methodDiagnosticLines(
   method: "spf" | "dkim" | "dmarc",
   state: string,
@@ -187,7 +205,7 @@ function methodDiagnosticLines(
     : [];
   const lines: string[] = [];
   if (method === "spf") {
-    const itemHelo = detail.helo === true;
+    const singleHelo = detail.helo === true && results.length === 1;
     for (let i = 0; i < results.length; i++) {
       const r = results[i] as Record<string, unknown>;
       const res = cleanStr(r.result) ?? "unknown";
@@ -197,18 +215,18 @@ function methodDiagnosticLines(
       const mailfrom = props["smtp.mailfrom"];
       const helo = props["smtp.helo"];
       const ip = props["client-ip"];
-      const reason = comment ?? props.reason ?? null;
-      if (res === "none" && !id && !mailfrom && !helo && !ip && !reason) continue;
+      const reason = props.reason ?? null;
+      const isHelo = r.helo === true || (singleHelo && !mailfrom && !helo);
+      if (res === "none" && !id && !mailfrom && !helo && !ip && !comment && !reason) continue;
       const who = [
-        id ? (itemHelo && !helo ? `${id} (HELO)` : id) : "no domain named",
+        id ? (isHelo ? `${id} (HELO)` : id) : "no domain named",
         mailfrom && mailfrom !== id ? `smtp.mailfrom=${mailfrom}` : null,
         helo ? `smtp.helo=${helo}` : null,
         ip ? `IP ${ip}` : null,
       ]
         .filter(Boolean)
         .join(", ");
-      const needsReason = res !== "pass" && res !== "none";
-      const why = reason ?? (needsReason ? "reason not recorded" : null);
+      const why = joinWhy(comment, reason, res !== "pass" && res !== "none");
       lines.push([`${who}: ${res}`, why].filter(Boolean).join(" · "));
     }
     return lines;
@@ -223,14 +241,13 @@ function methodDiagnosticLines(
       const hd = props["header.d"];
       const hi = props["header.i"];
       const hs = props["header.s"];
-      const reason = comment ?? props.reason ?? null;
-      if (res === "none" && !id && !hd && !hi && !hs && !reason) continue;
+      const reason = props.reason ?? null;
+      if (res === "none" && !id && !hd && !hi && !hs && !comment && !reason) continue;
       const signer = id ?? hd ?? hi ?? "no signer named";
       const who = [signer, hi && hi !== signer ? `header.i=${hi}` : null, hs ? `selector ${hs}` : null]
         .filter(Boolean)
         .join(", ");
-      const needsReason = res !== "pass" && res !== "none";
-      const why = reason ?? (needsReason ? "reason not recorded" : null);
+      const why = joinWhy(comment, reason, res !== "pass" && res !== "none");
       lines.push([`${who}: ${res}`, why].filter(Boolean).join(" · "));
     }
     return lines;
@@ -255,10 +272,9 @@ function methodDiagnosticLines(
     const comment = cleanStr(r.comment);
     const props = propRecord(rawForMethod[i]?.props);
     const action = props.action;
-    const reason = comment ?? props.reason ?? null;
+    const reason = props.reason ?? null;
     if (res === "none" && !comment && !action && !reason) continue;
-    const needsReason = res !== "pass" && res !== "none" && res !== "bestguesspass";
-    const why = reason ?? (needsReason && !policyWords && !action ? "reason not recorded" : null);
+    const why = joinWhy(comment, reason, res !== "pass" && res !== "none" && res !== "bestguesspass");
     lines.push([`Result: ${res}`, action ? `action ${action}` : null, why].filter(Boolean).join(" · "));
   }
   return lines;
@@ -276,7 +292,9 @@ function compositeDiagnostic(authResultsItem: CardItem | undefined): string | nu
     const res = cleanStr(r.result);
     if (!res) continue;
     const props = propRecord(r.props);
-    const reason = props.reason ? `reason ${props.reason}` : null;
+    const code = props.reason;
+    const explained = code ? (COMPAUTH_REASONS[code] ?? "reason code not documented") : null;
+    const reason = code ? `reason ${code} (${explained})` : null;
     entries.push([res, reason].filter(Boolean).join(" · "));
   }
   return entries.length ? `Composite authentication (compauth): ${entries.join("; ")}` : null;
