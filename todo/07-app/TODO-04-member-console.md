@@ -65,7 +65,7 @@ track: day-6
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
 | 34 | §34 | Exact calendar-period counts export | §19 | [x] |
-| 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [ ] |
+| 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [x] |
 | 36 | §36 | Choose a departed person in the team history | §23 | [ ] |
 | 37 | §37 | Gateway relay range settings | §4 | [ ] |
 
@@ -1308,6 +1308,9 @@ The Cases first-run page tells a member on a phone how to forward mail from desk
 **Implementation evidence 2026-11-04:** coordinator approved exact companion wording at09:44:41UTC; shared M1 incorporation remains pending before completion. Both new phone browser tests failed before implementation on the missing phone tile; final full Cases checkpoint passed44/44, including exact copy, unchanged desktop steps, no horizontal overflow, keyboard navigation to rendered UploadPage, script on/off, and both themes at360px. Existing accessibility states passed360px/1280px both themes. Separate upload chosen-file and no-script baseline tests passed2/2; these are fixture-backed Chromium proofs, not physical-device or live-delivery evidence. Typecheck, Biome on changed code, dry build, publication scan and design check passed. Logs: `/tmp/console-phone-before.log`, `/tmp/console-phone-browser.log`, `/tmp/console-phone-upload-baseline.log`, `/tmp/console-phone-types.log`, `/tmp/console-phone-build.log`, `/tmp/console-phone-publication.log`.
 
 **M1 incorporation 2026-11-04:** coordinator explicitly authorized the exact approved phone-guidance line from `ac75ff1959e5f77a367cee67dc2f7f65bbbc4c73` at09:55:45UTC. Imported that line only; companion source-backed limits and exact wording match the coordinator bytes. Implementation committed as `07ccc0db`; single self-review returned no findings, noting only this now-incorporated prerequisite.
+
+> **Verified:** 2026-11-04 | §35 | b537091a5429b5ed4818213e61865d3c05877a8b
+> **Review:** `docs/reviews/d07-t04-s35.json`
 
 ## 36. Choose a departed person in the team history
 
