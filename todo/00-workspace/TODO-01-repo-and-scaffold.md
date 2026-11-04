@@ -1252,6 +1252,8 @@ Filed 2026-11-04 from LOUPE-JOURNAL-ANCESTRY. The shared `scripts/review-dispatc
 
 ## 38. Exact evidence-bound reconciliation exceptions
 
+> **Started:** 2026-11-04T12:08:24.146401+00:00 (plan preparation only; implementation follows genuine plan review)
+
 Filed 2026-11-04 by coordinator authorization, plan preparation only. D08 T02 §6 cannot enter its first reconciliation because a necessary corpus relocation and additive status paragraphs change its exact original contract. D01 T03 §15 has two genuine returned reconciliation gaps and a later parser repair; existing versions 1 and 2 correctly refuse another returned reconciliation. This section owns one narrow exception capability in the shared review controller, not acceptance of either product section. Preserve original plans, findings, pins, failed verdicts and journals. §37 must be stamped before implementation or review of this section begins. Filing this plan activates no authorization.
 
 **Phase:** 6
