@@ -73,6 +73,7 @@ track: day-0
 | 32 | §32 | Wake dispatched after each | §27 | [x] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 | 34 | §34 | Codex unattended continuation and session ownership | §19 | [ ] |
+| 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1154,6 +1155,30 @@ Filed 2026-11-04 by the coordinator. The operator requests unattended coordinato
 - [ ] Commit: `tools: add guarded Codex unattended continuation`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes, including stopped owners never receiving a timer wake and successful queueing never counting as acknowledged execution.
+
+## 35. Bounded completion reconciliation with preserved evidence
+
+Filed 2026-11-04 by the coordinator at the operator's request to repair the review process immediately. Completion currently fails for optional out-of-scope improvements and has no supported way to verify actual repairs. The owning layer is review policy, dispatcher and graph receipt validation. This section creates the supported route; it does not approve any blocked product section. Original review bytes, candidates and pins remain immutable.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Define the scope rule and bounded follow-up contract. Done when: requirements from the section, governing design, safety contract and real regressions still block completion; a genuinely additional improvement is explicitly separated and assigned without falsely marking it implemented.
+2. Add one explicit reconciliation pass for a Codex chain whose original completion returned gaps. Done when: the dispatcher verifies the original plan/one round/one completion chain, binds the follow-up to the original completion digest and exact candidate, and records an append-only result under its own heading rather than replacing the failed completion.
+3. Validate reconciliation at stamp and on every later receipt validation. Done when: only a genuine complete reconciliation permits the exact verified candidate to stamp; malformed, stale, mismatched, missing or still-gaps evidence refuses, including historical chains with no reconciliation.
+4. Prove backward compatibility, refusal behavior and recovery. Done when: old valid receipts still validate, old failed completions remain failed without explicit reconciliation, failed calls may retry but a second returned reconciliation is refused, and preservation is verified byte-for-byte.
+
+- [ ] Update the current Codex policy, workflow skill and review prompt at their owning files. Done when: completion distinguishes blocking obligations from additional suggestions, all real in-scope defects remain mandatory, and the exception is one explicit reconciliation rather than another ordinary round or completion loop. Cheaper substitute: coordinator manually declares old gaps complete, rejected because no actual verified evidence would support the stamp.
+- [ ] Implement explicit `--kind reconciliation` in `scripts/review-dispatch.py`. Done when: only an existing Codex three-pass chain ending in gaps qualifies; same-candidate scope reconciliation or descendant repair verification is supported, with original digest and candidate binding, a committed disposition document addressing every original finding, and an explicit authorization in the committed reconciliation pin. Original chain pins remain unchanged and verifiable; the later reconciliation records its own authorized pin. The reviewer verifies unchanged original obligations and rejects contract narrowing, and failed/unreadable/nonterminal replies never treated as approval. The reviewer examines original obligations and all repairs, including new regressions; it cannot excuse a safety breach as out of scope. Cheaper substitute: permit repeated completion calls, rejected because that loses the bounded workflow and original verdict identity.
+- [ ] Extend `scripts/lib/todo_graph.py` and the CLI receipt path to accept and replay the explicit reconciliation evidence. Done when: successful stamps retain the original failed completion plus the real reconciliation, validate its binding, exact candidate, ancestry, schedule/pin and chronological order, and reject forged, changed, incomplete, wrong-section or unrelated-candidate evidence. The original plan and single round remain required. No legacy receipt is rewritten. Cheaper substitute: interpret every old gaps verdict as nonblocking, rejected because real defects would ship unverified.
+- [ ] Add regression and integration tests in the existing dispatcher and graph suites. Done when: tests cover optional-only same-candidate reconciliation, repaired descendant acceptance, genuine remaining gap refusal, duplicate returned pass refusal, outage retry, altered original evidence, candidate/pin mismatch, missing disposition evidence, narrowed contract, wrong section, invalid ancestry and unchanged legacy valid/failed chains. Demonstrate relevant failures before implementation and passing gates afterward. Cheaper substitute: test only a fake complete parser response, rejected because it does not prove dispatch-to-stamp enforcement.
+- [ ] Document exact commands, bounded policy transition and rollback in `docs/todo-workflow.md`, `todo/README.md` and the Codex workflow skill. Done when: lanes can use the supported tool without inventing receipts; existing failed chains opt in explicitly with original records preserved, old pins remain verifiable, and a returned reconciliation with gaps stays blocked pending a new explicit decision. Cheaper substitute: ad hoc handover permission, rejected because machines and future sessions would disagree.
+- [ ] Commit: `tools: reconcile completion gaps without replacing review evidence`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including genuine dispatcher-to-stamp reconciliation acceptance and refusal with original review bytes unchanged, while old receipts continue to validate.
 
 ## Verification
 
