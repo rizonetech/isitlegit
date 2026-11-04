@@ -10,7 +10,7 @@ import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { refreshVerificationEvidence, verificationStep } from "../../src/pipeline/verification-request";
 import { setIdentity } from "../../src/trust/identity";
 import { requestVerification } from "../../src/trust/verify-request";
-import { makeOrg, protectableOrg } from "../trust/helpers";
+import { addAddress, makeOrg, protectableOrg } from "../trust/helpers";
 
 const db = env.DB;
 afterEach(() => vi.restoreAllMocks());
@@ -218,6 +218,71 @@ describe("verification publication integration", () => {
     expect((await readEvidence(db, s.caseId)).filter((e) => e.check === "verification.requested")).toHaveLength(1);
     expect(await ackOf(s.caseId)).toBe(s.caseId);
     expect(await verificationStep(depsFor(), s.caseId, "foreign-owner")).toEqual({ outcome: "none", evidence: 0 });
+  });
+
+  it("rejects a queued mail claim storage failure and recovers the same request exactly once", async () => {
+    const s = await scenario();
+    await db.exec(
+      "CREATE TRIGGER fail_verification_claim BEFORE INSERT ON mail_sends WHEN NEW.kind = 'verify' BEGIN SELECT RAISE(ABORT, 'synthetic claim storage failure'); END",
+    );
+    try {
+      await expect(verificationStep(depsFor(), s.caseId, s.orgId)).rejects.toThrow(
+        "verification mail claim storage failed",
+      );
+      expect(s.calls).toHaveLength(0);
+      expect((await readEvidence(db, s.caseId)).some((e) => e.check.startsWith("verification."))).toBe(false);
+    } finally {
+      await db.exec("DROP TRIGGER fail_verification_claim");
+    }
+    const before = await db.prepare("SELECT * FROM verifications WHERE case_id = ?").bind(s.caseId).first();
+    expect(before).not.toBeNull();
+    expect(await verificationStep(depsFor(), s.caseId, s.orgId)).toEqual({ outcome: "requested", evidence: 1 });
+    expect(await verificationStep(depsFor(), s.caseId, s.orgId)).toEqual({ outcome: "requested", evidence: 1 });
+    const after = await db.prepare("SELECT * FROM verifications WHERE case_id = ?").bind(s.caseId).first();
+    expect(after).toMatchObject({
+      token_hash: before?.token_hash,
+      recipient_hash: before?.recipient_hash,
+      expires_at: before?.expires_at,
+    });
+    expect(s.calls).toHaveLength(1);
+    expect((await readEvidence(db, s.caseId)).filter((e) => e.check === "verification.requested")).toHaveLength(1);
+  });
+
+  it("rejects refusal storage failure and retries to a durable refusal without transport", async () => {
+    const s = await scenario();
+    await addAddress(s.supplierId, "finance@fictional-refused.example");
+    await setIdentity(db, s.supplierId, "owner", {
+      displayNames: ["Fictional Supplier"],
+      financeContact: "finance@fictional-refused.example",
+      protected: true,
+    });
+    await db.exec(
+      "CREATE TRIGGER fail_verification_refusal BEFORE INSERT ON mail_sends WHEN NEW.kind = 'verify' AND NEW.status = 'refused' BEGIN SELECT RAISE(ABORT, 'synthetic refusal storage failure'); END",
+    );
+    try {
+      await expect(verificationStep(depsFor(), s.caseId, s.orgId)).rejects.toThrow(
+        "verification mail refusal storage failed",
+      );
+      expect(s.calls).toHaveLength(0);
+      expect((await readEvidence(db, s.caseId)).some((e) => e.check.startsWith("verification."))).toBe(false);
+      expect(await db.prepare("SELECT 1 FROM mail_sends WHERE case_id = ?").bind(s.caseId).first()).toBeNull();
+    } finally {
+      await db.exec("DROP TRIGGER fail_verification_refusal");
+    }
+    const before = await db.prepare("SELECT * FROM verifications WHERE case_id = ?").bind(s.caseId).first();
+    expect(before).not.toBeNull();
+    expect(await verificationStep(depsFor(), s.caseId, s.orgId)).toEqual({ outcome: "unavailable", evidence: 1 });
+    expect(await verificationStep(depsFor(), s.caseId, s.orgId)).toEqual({ outcome: "unavailable", evidence: 1 });
+    expect(
+      (await db.prepare("SELECT status, attempts FROM mail_sends WHERE case_id = ?").bind(s.caseId).all()).results,
+    ).toEqual([{ status: "refused", attempts: 0 }]);
+    expect(await db.prepare("SELECT * FROM verifications WHERE case_id = ?").bind(s.caseId).first()).toMatchObject({
+      token_hash: before?.token_hash,
+      recipient_hash: before?.recipient_hash,
+      expires_at: before?.expires_at,
+    });
+    expect(s.calls).toHaveLength(0);
+    expect((await readEvidence(db, s.caseId)).filter((e) => e.check === "verification.not_requested")).toHaveLength(1);
   });
 
   it("propagates queued publication failure, then retries without sending twice", async () => {

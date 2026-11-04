@@ -1,0 +1,165 @@
+{
+  "ref": "D00 T01 \u00a736",
+  "title": "Two-pass Codex review with a combined final gate",
+  "implementation_sha": "e4401838e1a23986f2536fc6d71d4811b883c8b7",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph passes, including actual two-pass dispatch-to-stamp, unauthorized empty-round refusal and historical chains. Final dispatcher suite: 154 tests passed, one skip; graph/launcher/continuation/health suite: 293 passed; post-normalization reconciliation suite: 23 passed. Actual failing-first history, committed replay, successor and absolute-link regressions recorded in dispositions.",
+    "python3 design/tools/check-design.py -> 0 problems; python3 scripts/check-publication.py -> clean; python3 scripts/review-dispatch.py --check-pin -> ok; git diff --check -> clean. No CI/deployment claim."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "policy_transition": {
+    "from_policy": "codex-self-review",
+    "plan_candidate": "fd3c2439fdc80933358c7505bb14d4ec8899b773",
+    "plan_digest": "7d478c3d75d6949b",
+    "plan_pin": "de91270457719cd58e67ba4f2564bd62f1849fa7",
+    "prefix_bytes": 2364,
+    "prefix_sha256": "5ac56fe3a319b967ba3a2a3439b0b88b1ef8da8fb0623e01dbc65e7cb80ae459",
+    "to_policy": "codex-two-pass-v1",
+    "version": 1
+  },
+  "reconciliation": {
+    "report": "docs/reviews/00-workspace/D00-T01-s36.md",
+    "verdict": "complete",
+    "candidate": "e4401838e1a23986f2536fc6d71d4811b883c8b7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "e46165fa04230623e480f729a98b1893e0a236ed",
+    "binding": {
+      "candidate": "e4401838e1a23986f2536fc6d71d4811b883c8b7",
+      "completion_candidate": "39bd5ca172c5439082fc09d660c1904dd6cbe7ec",
+      "completion_digest": "b59a8196281091b9",
+      "contract_path": "todo/00-workspace/TODO-01-repo-and-scaffold.md",
+      "contract_sha256": "ab63007bc399929ff33cd5a0745bf252ba2a0be7667bace800158223224d7a52",
+      "disposition_blob": "c9c1727a1e721c60cf0d7d6b68e599e78b114047",
+      "disposition_commit": "e4401838e1a23986f2536fc6d71d4811b883c8b7",
+      "disposition_path": "docs/reviews/00-workspace/D00-T01-s36-successor-disposition.md",
+      "plan_candidate": "fd3c2439fdc80933358c7505bb14d4ec8899b773",
+      "plan_contract_sha256": "c90b4c5e5d2ef9776c6a74084309e40126cb76589e512e6b264df4e762206f0a",
+      "predecessor_candidate": "688a0fdc575bbd246ac56a9ab110576f33283bf5",
+      "predecessor_digest": "bd520ac7d1311303",
+      "prefix_bytes": 12609,
+      "prefix_sha256": "eed17cc3879f1722efc144963dffed0234dab566891442e5923d7a3b5a155117",
+      "report": "docs/reviews/00-workspace/D00-T01-s36.md",
+      "version": 2
+    },
+    "digest": "a1a7dcf44b36b466"
+  },
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s36.md",
+    "verdict": "gaps",
+    "candidate": "39bd5ca172c5439082fc09d660c1904dd6cbe7ec",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s36.md",
+    "candidate": "fd3c2439fdc80933358c7505bb14d4ec8899b773",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

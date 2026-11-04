@@ -1,0 +1,159 @@
+{
+  "ref": "D03 T04 \u00a752",
+  "title": "Immutable checkpoint readiness handoff",
+  "implementation_sha": "bfb0197ead48ce14d30dfb0e11110b66b7310ec6",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s52.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "`python3 -m unittest tests.scripts.test_checkpoint_readiness` passes, refuses unsupported identities and preserves trainer files; an external read-only discovery receipt records actual provider availability without treating it as promotion approval. -> 66 targeted audit/readiness/version tests pass; all four ancestor regressions fail before and pass after. Real GET-only receipt runs/checkpoint-readiness/loupe-1.1-60percent-20261104T1126.json records actual step2400 availability, matching input and all17 blockers; paid_comparison_ready=false, rollout_authorized=false."
+  ],
+  "reconciliation": {
+    "report": "docs/reviews/03-vision/D03-T04-s52.md",
+    "verdict": "complete",
+    "candidate": "bfb0197ead48ce14d30dfb0e11110b66b7310ec6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "f3335c6dddef36cacf5adda9c7c99e6d6045f996",
+    "binding": {
+      "candidate": "bfb0197ead48ce14d30dfb0e11110b66b7310ec6",
+      "completion_candidate": "54df5704f5eb21516e4e7dece82dd70263c8daa3",
+      "completion_digest": "efd7d81333438cc8",
+      "contract_path": "todo/03-vision/TODO-04-glimmer.md",
+      "contract_sha256": "d43e1b92f188dbf2596415ba65a495ddd432df1d9a3533c2f2476fad19903b0c",
+      "disposition_blob": "279eb8063b1eaa23354e1aa07adf06c53384992b",
+      "disposition_commit": "bfb0197ead48ce14d30dfb0e11110b66b7310ec6",
+      "disposition_path": "docs/reviews/03-vision/D03-T04-s52-disposition.md",
+      "plan_candidate": "39c80c251b3dd591babeb67df405c47a864b0e5e",
+      "plan_contract_sha256": "c8b0c32ceb3668c124112eea9e8f48d6f3878171b32ca74ccf34f7f954db030f",
+      "predecessor_candidate": "5f1043fa79fc455c911a6f8564f58059c9cc2484",
+      "predecessor_digest": "1a6c0d8e3ba2dd96",
+      "prefix_bytes": 15143,
+      "prefix_sha256": "bb9ce505425dfe965d7fc513cf071e947b8eaa7c5b609a2cb31c3cd3a838b9ae",
+      "report": "docs/reviews/03-vision/D03-T04-s52.md",
+      "version": 2
+    },
+    "digest": "e027206d5a1c103b"
+  },
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s52.md",
+    "verdict": "gaps",
+    "candidate": "54df5704f5eb21516e4e7dece82dd70263c8daa3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s52.md",
+    "candidate": "39c80c251b3dd591babeb67df405c47a864b0e5e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

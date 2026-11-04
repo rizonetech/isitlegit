@@ -20,7 +20,7 @@ const html = (body: unknown, status: number, extra: Record<string, string> = {})
 
 export async function evalView(db: D1Database): Promise<EvalView> {
   const [latest, counts] = await Promise.all([latestFull(db), productionCounts(db)]);
-  if (!latest) return { kind: "empty", counts, history: [] };
+  if (!latest) return { kind: "empty", counts, history: [], ablations: await ablations(db, null) };
   return {
     kind: "report",
     report: latest.report,

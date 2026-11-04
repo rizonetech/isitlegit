@@ -69,8 +69,17 @@ function longestBase64(text: string): number {
   return longest;
 }
 
-// The features of one HTML or SVG document.
+// Only this runtime parser resource refusal is an unread document. Storage and arbitrary errors still throw.
+const parserMemoryRejected = (error: unknown) =>
+  error instanceof TypeError && error.message === "Parser error: The memory limit has been exceeded.";
+
+// Direct callers still receive failures. The attachment boundary can retain observed positive features while
+// recording damaged coverage through its existing unread representation.
 export async function analyseHtml(html: string, truncated = false): Promise<HtmlFeatures> {
+  return analyseAttachmentHtml(html, truncated);
+}
+
+async function analyseAttachmentHtml(html: string, truncated: boolean, onRejected?: () => void): Promise<HtmlFeatures> {
   let passwordField = false;
   let cardField = false;
   let dataDownload = false;
@@ -140,7 +149,11 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
       },
     })
     .transform(new Response(html, { headers: { "content-type": "text/html" } }))
-    .body?.pipeTo(new WritableStream());
+    .body?.pipeTo(new WritableStream())
+    .catch((error: unknown) => {
+      if (!onRejected || !parserMemoryRejected(error)) throw error;
+      onRejected();
+    });
   // Labels left open at the end of the document still name what they wrap (round 1: a browser shows them).
   for (const label of openLabels) {
     if (label.wraps && CARD.test(decodeEntities(label.text))) cardField = true;
@@ -261,12 +274,25 @@ export async function htmlAttachmentsOf(
     // Past MAX_HTML_BYTES only the start is read, and the item says so (plan review).
     const html = decodeHtml(new Uint8Array(await object.arrayBuffer()));
     const links = new LinkLog();
-    await links.html(html, a.key);
+    let damaged = false;
+    try {
+      await links.html(html, a.key);
+    } catch (error) {
+      if (!parserMemoryRejected(error)) throw error;
+      damaged = true;
+    }
+    const features = await analyseAttachmentHtml(html, object.size > MAX_HTML_BYTES, () => {
+      damaged = true;
+    });
+    if (damaged) {
+      unread++;
+      links.unread.push({ key: a.key, why: "damaged" });
+    }
     items.push({
       key: a.key,
       filename: a.filename,
       kind,
-      features: await analyseHtml(html, object.size > MAX_HTML_BYTES),
+      features,
       links: links.result(),
     });
   }
@@ -304,7 +330,9 @@ export function htmlAttachmentEvidence(view: CaseView): EvidenceDraft[] {
     items.push({
       check: "attachment.html",
       severity: "info",
-      summary: bounded(`${read.unread} more web-page attachments were not read.`),
+      summary: bounded(
+        `${read.unread} web-page attachment${read.unread === 1 ? "" : "s"} could not be read completely.`,
+      ),
       detail: { checked: false, unread: read.unread },
       artefacts: [],
     });

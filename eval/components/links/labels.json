@@ -1,0 +1,72 @@
+[
+  {
+    "path": "message.txt",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "negative.txt",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "boundary.txt",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "message.html",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "logo.svg",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "invoice.pdf",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "damaged.pdf",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "many.txt",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "large.html",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  },
+  {
+    "path": "large.pdf",
+    "label": "genuine",
+    "category": "genuine-business",
+    "expected": [],
+    "source": "Project-owned synthetic link extraction fixture; not a verdict benchmark"
+  }
+]

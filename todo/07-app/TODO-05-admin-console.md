@@ -33,8 +33,9 @@ track: day-6
 | 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [x] |
 | 3 | §3 | Service health tiles on | §2 | [ ] |
-| 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
+| 4 | §4 | Find organisations by domain or ID | §2 | [x] |
 | 5 | §5 | Filter the organisations | §2 | [ ] |
+| 6 | §7 | Admin typeahead design proposal | §4 | [ ] |
 
 ## 1. Access application and JWT verification
 
@@ -135,6 +136,8 @@ SPEC X1 draws six service-health tiles (email intake, workflows, Meta Model API,
 
 ## 4. Find organisations by domain or ID
 
+> **Started:** 2026-11-04T07:22:58.161817+00:00
+
 The overview search matches the organisation name only (D07 T05 §2), so the operator cannot start from the domain on a certificate or the ID in a log. This section extends the same search box to match a verified domain or the organisation ID too, with the table, the CSV and the empty state reading the same matches.
 
 **Phase:** 7
@@ -151,12 +154,17 @@ The overview search matches the organisation name only (D07 T05 §2), so the ope
 2. Export the same matches from `GET /admin/organisations.csv`. Done when: the CSV test reads the domain- and ID-matched rows and no other row.
 3. Keep the empty state naming what was searched. Done when: a search matching nothing names the searched text with its Clear search link.
 
-- [ ] Match name, verified domain and organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` reads the org back from each of the three. Cheaper substitute: matching the name twice.
-- [ ] Export the same matches from the CSV. Done when: the CSV test reads the domain- and ID-matched rows only. Cheaper substitute: exporting the unfiltered table.
-- [ ] Name the searched text in the empty state. Done when: the no-match test reads the searched domain or ID with its Clear search link.
-- [ ] Commit: `admin: find organisations by domain or ID`
+- [x] Match name, verified domain and organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` reads the org back from each of the three. Cheaper substitute: matching the name twice.
+- [x] Export the same matches from the CSV. Done when: the CSV test reads the domain- and ID-matched rows only. Cheaper substitute: exporting the unfiltered table.
+- [x] Name the searched text in the empty state. Done when: the no-match test reads the searched domain or ID with its Clear search link.
+- [x] Prove verified-only, unique matches in `test/web/admin-page.test.ts` with pending domains, several matching verified domains, unrelated organisations and domainless name/ID matches. Done when: HTML and CSV contain the exact matching organisation identities once and reject pending-only matches; literal wildcard searches stay literal. Cheaper substitute: positive-only substring assertions. Source: Codex plan self-review P2-1.
+- [x] Describe name, verified-domain and ID search in `src/web/pages/admin-view.tsx` and use field-neutral no-match wording. Done when: the rendered search explains all three fields and Clear search restores every organisation. Cheaper substitute: keeping name-only wording after changing matching. Source: Codex plan self-review P2-2.
+- [x] Commit: `admin: find organisations by domain or ID`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a domain search returns no row.
+
+> **Verified:** 2026-11-04 | §4 | d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074
+> **Review:** `docs/reviews/d07-t05-s4.json`
 
 ## 5. Filter the organisations
 
@@ -184,6 +192,26 @@ The organisations table is fixed in alphabetical order (D07 T05 §2), so the ope
 - [ ] Commit: `admin: filter the organisations table by need`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if the filter reads every row.
+
+## 7. Admin typeahead design proposal
+
+Filed from D07 T05 §4 final completion's out-of-scope suggestion under coordinator `console-scope-ownership`, 2026-11-04. The approved X1 Search/Enter interaction remains unchanged. A proposed 500 ms p95 from that review is unmeasured and is not an accepted performance claim or implementation target. This section evaluates the proposal; it does not authorize a new control or close §4's original gaps receipt.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Assess the interaction proposal against the existing approved flow. Done when: a scoped proposal records measured costs, access constraints and recovery, and the coordinator records keep, defer or authorize-design.
+2. Record the resulting design boundary. Done when: any authorized future UI implementation has its own resolving section and approved treatment before code changes.
+
+- [ ] Capture the current Search/Enter contract and the original suggestion in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: existing domain/ID/name search, verified-domain privacy, CSV equivalence and neutral empty recovery are retained, and the 500 ms figure is explicitly unmeasured. Cheaper substitute: treating review prose as approved design. Source: `docs/reviews/07-app/D07-T05-s4.md` and coordinator scope decision.
+- [ ] Compare measured local submit-flow cost with a documented typeahead proposal in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: assumptions, request-load tradeoffs, cancellation/stale-response protection, keyboard/screen-reader behaviour, empty/error recovery and explicit-submit fallback are specified with reproducible evidence rather than an invented competitor claim. Cheaper substitute: adopting a latency number without measurement. Source: §4 completion suggestion.
+- [ ] Record coordinator keep/defer/authorize-design disposition and reversal cost in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: the proposal remains separate from X1 until approved, and any new implementation is filed with its design and tests before starting. Cheaper substitute: silently changing the approved surface or rewriting §4's receipt. Source: coordinator scope decision.
+- [ ] Commit: `design: record admin search interaction proposal decision`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes, and the proposal records reproducible measurements or explicit unknowns plus a coordinator disposition; X1 and §4 review receipts remain unchanged unless a later supported policy decision authorizes their owning changes.
 
 ## Verification
 

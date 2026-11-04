@@ -1,0 +1,127 @@
+{
+  "ref": "D00 T01 \u00a743",
+  "title": "Upload refusal matches reviewed admission",
+  "implementation_sha": "9a8f7bd2d4a17b9323c625e05fed4d7730221e2b",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Original exact assertion failed before correction; 63 targeted Worker tests, typecheck, publication and scoped lint pass. Malformed original plan retained; implementation preceded supported valid plan retry, expressly assessed by combined completion c23a82ebb8e2c57d. CI recovery and deployment not claimed."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s43.md",
+    "verdict": "complete",
+    "candidate": "9a8f7bd2d4a17b9323c625e05fed4d7730221e2b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s43.md",
+    "candidate": "9ab35a46491f573c0c09217933821133800b9efc",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

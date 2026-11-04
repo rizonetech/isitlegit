@@ -39,7 +39,7 @@ track: day-2
 | 4 | §4 | Document text read for instructions | §2 | [x] |
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [x] |
 | 6 | §6 | The instruction found in invisible text, kept | §3 | [x] |
-| 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
+| 7 | §7 | Hidden instructions measured on a corpus | §5 | [x] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 | 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [x] |
@@ -222,22 +222,35 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 ## 7. Hidden instructions measured on a corpus
 
+> **Started:** 2026-11-04T10:41Z
+
 Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the hidden-text checks are proven on chosen fixtures, not measured: how often an instruction hidden by invisible characters, an encoded subject or a document's text gets through, how often legitimate multilingual mail is flagged, and what the checks cost. Microsoft's Prompt Shields with Spotlighting is the comparator named.
+
+**Measurement contract (2026-11-04, LANES-19):** Offline deterministic synthetic data only, no paid or live comparator. Own `eval/hidden-text/`, `scripts/eval-hidden-text.ts` and a new section-specific Node test. At least 200 attacks and 200 controls cover eight named languages, sparse invisible characters, Unicode tag runs, encoded/folded subjects and document text. Language labels describe the surrounding business text; English steering payloads and translated steering payloads are distinguished, and repeated templates are disclosed rather than treated as independent real-world samples. Cases retain stable IDs, expected labels, technique, language, source fixture and payload hash. Targets fixed before execution: attack miss rate at most 5%, control false-flag rate at most 2%, p50 at most 10 ms and p95 at most 50 ms per case on the recorded local Node runtime. These are component targets, not end-to-end verdict or delivery claims.
+
+Use the real `PhraseStream`/`PhraseLog`, the production subject decoder and PDF/OOXML text readers where applicable, never a reimplementation of detection. Time decoding/extraction and detection, excluding corpus generation and file I/O; record each observation, errors and missed/flagged IDs plus per-technique and language counts. Reader failures are explicit failed observations, never clean controls; denominators retain all cases. Save machine-readable observations and a readable report with corpus SHA-256, tested source SHA, runtime and timing boundary; write each file atomically and refuse malformed/undersized/duplicate-ID corpora. A nonzero command result distinguishes invalid runs or failed quality targets from success, while preserving honest measured results. Tests prove metric arithmetic, failure accounting, validation and real detector invocation, including deliberately missed attacks and false-flag controls without weakening existing frozen tests.
+
+The eval lane owns `eval/DATASETS.md`: detection-eval supplies an exact entry patch with source, project-owned licence, generation date, count and hashes through the coordinator; integration into that register remains required before stamping. Microsoft Prompt Shields with Spotlighting is an unmeasured comparator here; no superiority claim is authorized. Reversal removes this offline corpus and runner, with no production state or spend to reverse.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
 
+**Plan findings resolved (2026-11-04):** Detection means at least one production instruction match (high severity), or an invisible run at medium/high severity; low-only ignorable runs do not count. Record match patterns/locations and run kinds/severities for every case. Tests cover instruction-only, invisible-run-only, benign low-only and ordinary clean text. CLI exits 0 for valid passing measurements, 1 for target misses, 2 for invalid corpus or reader failures; measured target misses are escalated to the coordinator without changing production detection in this lane.
+
 **Build order:**
 
 1. Measure the hidden-text checks on a labelled corpus. Done when: a synthetic corpus of hidden instructions (sparse invisible characters, tag runs, encoded and folded subjects, document text) and legitimate multilingual and emoji mail is checked, and the misses, false flags and p50/p95 time per message are recorded in `eval/`, each above or below a target the corpus file states.
 
-- [ ] Build the corpus in `eval/hidden-text/` from the §3 to §5 fixtures and generated variants, each labelled, with its provenance in `eval/DATASETS.md`. Done when: at least 200 attacks and 200 controls, in at least eight languages.
-- [ ] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
-- [ ] Commit: `eval: hidden instructions measured on a corpus`
+- [x] Build the corpus in `eval/hidden-text/` from the §3 to §5 fixtures and generated variants, each labelled, with its provenance in `eval/DATASETS.md`. Done when: at least 200 attacks and 200 controls, in at least eight languages.
+- [x] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
+- [x] Commit: `eval: hidden instructions measured on a corpus`
 
-**Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results.
+**Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results; `pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts` proves arithmetic, real detection, corpus rejection, reader failure and target-miss exit codes with retained readable observations.
+
+> **Verified:** 2026-11-04 | §7 | 2b168d3a799337926513a2ce48f7495e82f8f9e9
+> **Review:** `docs/reviews/d02-t05-s7.json`
 
 ## 8. Uploaded documents read for instructions
 

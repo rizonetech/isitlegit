@@ -14,7 +14,7 @@ import {
   sweepIntake,
 } from "../../src/intake/email";
 import { EMAIL_ROUTING_AUTHSERV_ID } from "../../src/intake/sender";
-import { rawKey } from "../../src/intake/store";
+import { rawKey, readArtefact } from "../../src/intake/store";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 
 // D01 T01 §3: the email front door. A forward becomes one case only from an authenticated sender of a verified domain
@@ -463,6 +463,17 @@ describe("handleEmail", () => {
       expect(await handleEmail(stopped.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
       expect(await workflowExists(caseId)).toBe(true);
       expect((await claimsOf(orgId))[0]?.state).toBe("done");
+      const recovered = await readArtefact({ db, bucket: env.ARTEFACTS }, caseId, rawKey(caseId));
+      expect(recovered).not.toBeNull();
+      if (!recovered || !("body" in recovered)) throw new Error("the recovered mail row or object is missing");
+      expect(recovered.stored).toMatchObject({
+        key: rawKey(caseId),
+        caseId,
+        kind: "raw",
+        mediaType: "message/rfc822",
+        bytes: stopped.bytes.byteLength,
+      });
+      expect(recovered.body).toEqual(stopped.bytes);
       await ran(caseId);
     } else {
       await expect(handleEmail(stopped.forwardable, mailEnv)).rejects.toThrow("media type is unavailable");

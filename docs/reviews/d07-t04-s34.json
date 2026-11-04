@@ -1,0 +1,109 @@
+{
+  "ref": "D07 T04 \u00a734",
+  "title": "Exact calendar-period counts export",
+  "implementation_sha": "e00c997f81fd67b61b150265c77d7e930310f55f",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T04-s34.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "`pnpm exec vitest run --project worker test/web/stats.test.ts` and `pnpm exec vitest run test/node/cases-browser.test.tsx -t \"daily counts|exports a chosen period\"` pass and fail if a case outside the selected dates is exported or the daily submitter loses its mode, keyboard path or chosen dates. The 360 px both-theme proof and actual M1 SPEC incorporation are required before completion. -> PASS:23Worker tests;4targeted browser tests (checkpoint names plus axe360/1280both themes);3Worker and missing daily submitter browser regressions failed before. M1 incorporated e00c997f from coordinator b348eb74; design0problems; fulltypecheck,Biome,builddryrun,publication passed."
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T04-s34.md",
+    "verdict": "complete",
+    "candidate": "e00c997f81fd67b61b150265c77d7e930310f55f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T04-s34.md",
+    "candidate": "1edc3a2ba5c55d2b5e24fad4fa9672388597cfb4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

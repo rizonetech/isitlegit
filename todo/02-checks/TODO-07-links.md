@@ -39,7 +39,7 @@ track: day-3
 | 3 | §3 | Landing screenshot and form detection | §2 | [x] |
 | 4 | §4 | QR code decoding from images | §2 | [ ] |
 | 5 | §5 | Automatic and click-time | §1 | [ ] |
-| 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
+| 6 | §6 | Link extraction measured on a corpus | §1 | [x] |
 | 7 | §7 | Redirect fixtures proven live | §2 | [ ] |
 | 8 | §8 | One URL policy with the walkthrough | §2 | [x] |
 
@@ -200,6 +200,8 @@ Filed 2026-10-31 from §1's completion review (out of scope): a member must forw
 
 **Ownership preparation:** Checks owns this TODO section. Narrow ownership of eval/sets/links/, eval/links.ts, section-specific measurement helpers/tests and the shared eval/DATASETS.md entry has been requested from the coordinator as CHECKS-LINK-CORPUS-SCOPE. No corpus, harness or shared dataset edits start before the recorded assignment. Shared loader/schema, other corpora and other lane source remain outside this section.
 
+**Coordinator correction 2026-11-04 (LINK-QUALITY-DECISION-01):** The component corpus moves byte-preserved from the originally approved `eval/sets/links/` to `eval/components/links/`, outside default verdict-mail discovery. The existing strict label loader/schema, exact bytes, hashes, expectations, denominator and production extraction obligations remain unchanged. The original plan/report/pin and Started evidence remain intact; combined completion must assess the original obligations and this storage-path correction. The coordinator also authorizes the narrow HTML attachment parser-rejection repair and its regressions. Reversal changes the component path and harness references together while retaining provenance; returning raw components to verdict discovery requires separately reviewed classification design.
+
 Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove chosen examples, not how many links extraction finds in real-shaped mail, how many it invents, or how long it takes on large and damaged files.
 
 **Phase:** 7
@@ -210,11 +212,14 @@ Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove 
 
 1. Measure extraction. Done when: a labelled, licensed, synthetic corpus of messages and PDFs with their links listed gives recall, false links and p50/p95 extraction time, recorded with the commit measured.
 
-- [ ] Build `eval/sets/links/` (labels in D08 T01's format, each file's expected links) with HTML, text, SVG and PDF samples, damaged and cap-padded ones included, recorded in `eval/DATASETS.md`. Done when: `loadSets` reads it.
-- [ ] Measure `linksOf` on it in `eval/links.ts`: recall, false links, and p50 and p95 time per case. Done when: `docs/eval/links.md` records the figures and the commit, with no case marked complete that was not.
-- [ ] Commit: `eval: link extraction measured`
+- [x] Build `eval/components/links/` (labels in D08 T01's format, each file's expected links) with HTML, text, SVG and PDF samples, damaged and cap-padded ones included, recorded in `eval/DATASETS.md`. Done when: `loadSets` reads it.
+- [x] Measure `linksOf` on it in `eval/links.ts`: recall, false links, and p50 and p95 time per case. Done when: `docs/eval/links.md` records the figures and the commit, with no case marked complete that was not.
+- [x] Commit: `eval: link extraction measured`
 
 **Test checkpoint:** `node eval/links.ts` prints recall, false links and timings for the set.
+
+> **Verified:** 2026-11-04 | §6 | 7ccf7c0c68f0ac6ff67cb374235dd501aaa208d5
+> **Review:** `docs/reviews/d02-t07-s6.json`
 
 ## 7. Redirect fixtures proven live
 

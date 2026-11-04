@@ -8,12 +8,15 @@ import {
   MAX_COMPARED,
   MAX_LOOKALIKES,
   split,
+  techniqueOf,
 } from "../../src/checks/domain-lookalike";
 import { readEvidence } from "../../src/checks/evidence";
 import { runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putParsed, putRaw, rawKey, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
+import BENIGN from "../fixtures/lookalikes/benign.json";
+import POSITIVES from "../fixtures/lookalikes/positive.json";
 
 // D02 T03 §2: the original's header domains against the organisation's own, its suppliers' and the brand table's.
 const OWN = "fynbosfreight.co.za";
@@ -694,5 +697,140 @@ describe("lookalike clean summary names the domains compared (D02 T03 §12)", ()
     expect(lookalikeSummary(uncomparedOnly, lookalikeEvidence(uncomparedOnly))).toBe(
       "no lookalike among the domains compared, some not compared",
     );
+  });
+});
+
+describe("accent-only lookalikes (D02 T03 §5)", () => {
+  it("finds three changed accents with cited evidence in Unicode and A-label forms", () => {
+    const unicode = "fýnbósfreíght.co.za";
+    const ace = new URL(`https://${unicode}`).hostname;
+    for (const domain of [unicode, unicode.normalize("NFD"), ace]) {
+      expect(lookalikeEvidence(from(`accounts@${domain}`))).toMatchObject([
+        {
+          check: "domain.lookalike",
+          severity: "high",
+          artefacts: ["raw/case-lookalike/message.eml"],
+          detail: { domain: ace, target: OWN, technique: "accent-fold", fields: ["From"] },
+        },
+      ]);
+    }
+  });
+});
+
+describe("accent-fold boundaries and fixed corpus", () => {
+  it("preserves existing edit precedence, folds both targets and candidates, and refuses invalid or RTL accent matching", () => {
+    const pair = (label: string) => ({ label, domain: `${label}.co.za`, suffix: "co.za" });
+    expect(techniqueOf(pair("fynbosfreíght"), pair("fynbosfreight"))).toBe("edit");
+    expect(techniqueOf(pair("fynbosfreight"), pair("fýnbósfreíght"))).toBe("accent-fold");
+    expect(techniqueOf(pair("xn--a"), pair("fynbosfreight"))).toBeNull();
+    expect(techniqueOf(pair("fýnbósfreíght."), pair("fynbosfreight"))).toBeNull();
+    expect(techniqueOf(pair("fýnbósfreíght"), pair("fýnbósfreíght"))).toBeNull();
+    // Three Hebrew marks are not permission to bypass the right-to-left exclusion.
+    const rtl = from("x@א֑ב֒ג֓.co.za");
+    rtl.tenant.trusted.own = ["אבג.co.za"];
+    expect(lookalikeEvidence(rtl).every((e) => e.severity === "info")).toBe(true);
+    const trusted = from("x@fýnbósfreíght.co.za");
+    trusted.tenant.trusted.own.push("fýnbósfreíght.co.za");
+    expect(lookalikeEvidence(trusted)).toEqual([]);
+    expect(lookalikeEvidence(view([h("From", "x@fýnbósfreíght.co.za")], { headersAvailable: false }))).toEqual([]);
+  });
+
+  it("detects every fixed positive against its intended target and flags none of the fixed benign set against any target", () => {
+    for (const positive of POSITIVES.cases) {
+      const v = from(`x@${positive.label}.co.za`);
+      v.tenant.trusted = { own: [`${positive.target}.co.za`], suppliers: [] };
+      v.brands = { ...TABLE, brands: [] };
+      expect(
+        lookalikeEvidence(v).some((e) => e.severity === "high"),
+        JSON.stringify(positive),
+      ).toBe(true);
+    }
+    for (const label of BENIGN.cases) {
+      const v = from(`x@${label}.co.za`);
+      v.tenant.trusted = { own: POSITIVES.targets.map((target) => `${target}.co.za`), suppliers: [] };
+      v.brands = { ...TABLE, brands: [] };
+      expect(lookalikeEvidence(v), label).toEqual([]);
+    }
+  });
+
+  it("retains supplier and brand severity and link provenance", () => {
+    const supplier = from("x@fýnbósfreíght.co.za");
+    supplier.tenant.trusted = { own: [], suppliers: [OWN] };
+    expect(only(supplier)).toMatchObject({
+      severity: "high",
+      detail: { technique: "accent-fold", targetKind: "supplier" },
+    });
+    const branded = from("x@fýnbósfreíght.co.za");
+    branded.tenant.trusted = { own: [], suppliers: [] };
+    branded.brands = { ...TABLE, brands: [brand("Fynbos Freight", [OWN])] } as unknown as BrandTable;
+    expect(only(branded)).toMatchObject({
+      severity: "medium",
+      detail: { technique: "accent-fold", targetKind: "brand" },
+    });
+    const v = view([], { headersAvailable: false });
+    const url = new URL("https://fýnbósfreíght.co.za/pay");
+    v.links = {
+      items: [
+        {
+          raw: url.href,
+          href: url.href,
+          host: url.hostname,
+          display: url.hostname,
+          kind: "text",
+          part: "body",
+          anchor: null,
+        },
+      ],
+      more: 0,
+      unread: [],
+    };
+    expect(only(v)).toMatchObject({
+      detail: { technique: "accent-fold", found: [{ via: "link", url: url.href, part: "body" }] },
+    });
+  });
+
+  it("stores accent-only evidence through the checks step and reads it back", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const org = `org-accent-${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+    // Unique domain keeps this test independent of the other stored-evidence test.
+    const label = `fynbosfreight${crypto.randomUUID().slice(0, 8)}`;
+    const own = `${label}.co.za`;
+    const lookalike = new URL(`https://${label.replace("fynbosfreight", "fýnbósfreíght")}.co.za`).hostname;
+    await env.DB.prepare(
+      "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+    )
+      .bind(crypto.randomUUID(), org, own, "t".repeat(32), now, now)
+      .run();
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode(`From: accounts@${lookalike}\r\n\r\nInvoice.\r\n`));
+    await putParsed(store, id, {
+      headers: [h("From", `accounts@${lookalike}`)],
+      text: "Invoice.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => []);
+    const items = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.lookalike");
+    expect(items).toMatchObject([
+      {
+        severity: "high",
+        artefacts: [rawKey(id)],
+        detail: {
+          domain: lookalike,
+          target: own,
+          targetKind: "own",
+          technique: "accent-fold",
+          fields: ["From"],
+          headers: [`From: accounts@${lookalike}`],
+        },
+      },
+    ]);
+    expect(items[0]?.id).toBeTruthy();
   });
 });

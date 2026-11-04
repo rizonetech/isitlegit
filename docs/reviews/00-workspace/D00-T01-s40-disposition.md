@@ -1,0 +1,3 @@
+# D00 T01 §40 plan disposition
+
+2026-11-04: Accepted the genuine plan P2 from candidate65989d0c (digest e6ea2e3a0cdf7ce9) before implementation. Workflow existence and the terminal-status polling helper do not establish restored storage. The corrected contract and checkpoint require real store read-back of original bytes, MIME and case-owned artefact identity after handleEmail. A temporary skipped-row-restoration mutation must fail that assertion despite Workflow creation. Production source returns byte-exact to the reviewed baseline; no global ran semantics change. Original review bytes are preserved.

@@ -1301,6 +1301,18 @@
     "evidence": "Plain text only: pictures, links and scripts in it were not loaded or run."
    },
    {
+    "name": "copy complete headers",
+    "kind": "control",
+    "board": "Report-MessagePreview",
+    "evidence": "Copy headers"
+   },
+   {
+    "name": "next bounded header slice",
+    "kind": "control",
+    "board": "Report-MessagePreview",
+    "evidence": "Show the next part"
+   },
+   {
     "name": "early authentication results",
     "kind": "state",
     "board": "Report-Running-Early",

@@ -85,3 +85,34 @@ python3 scripts/review-dispatch.py --recover-reconciliation --record <findings-p
 ```
 
 The same unresolved-call refusal and known-outage retry rules apply. To reverse authorization for new work, commit the intended pin policy and stop new calls under the disabled route. Preserve historical pins, original findings, transition bindings, dispositions, pending state and receipts so existing evidence remains verifiable. Reverting policy never removes a returned review or creates permission to retry it.
+
+## Recovering an interrupted stamp
+
+If the process dies after writing its receipt but before updating the TODO, `validate` reports an orphan receipt. Preserve that receipt. Rerun the same `stamp` command with every original argument and the explicit original `--date YYYY-MM-DD` printed by the diagnostic, even when retrying on a later day. Recovery revalidates all review and safety evidence and requires identical receipt fields and JSON types; different formatting alone is allowed. It preserves the receipt bytes and refuses a different date, SHA, check, review or other field, naming the first difference. A failed recovery preserves the original receipt and restores the TODO and projection.
+
+If the TODO already contains its Verified and Review metadata, do not stamp it again. Run `python3 scripts/todo-graph.py validate`, then `python3 scripts/todo-graph.py plan --sync` to repair the interrupted projection. These commands validate the real receipt; synchronization preserves the receipt and existing stamp metadata. Orphan diagnostics run only in explicit `validate`, so ordinary graph queries and the recovery stamp can still enter. Never delete or edit a receipt to force recovery.
+
+Review journal publication on POSIX synchronizes the journal file and every ancestor directory, from its containing directory through the filesystem root, before returning. This includes directories created earlier by the section lock. A failed directory open or synchronization propagates and prevents a new reviewer invocation; existing uncertain markers, returned responses and retry archives remain evidence for supported recovery. Returned-response recovery never invokes another reviewer. Windows retains the existing file synchronization and atomic replacement behavior but skips directory synchronization; machine-crash durability of directory ancestry on Windows is not proven by these POSIX tests.
+
+## Exact reconciliation exception authorization
+
+D00 T01 §38 provides dormant capability for exactly two cases. `contract-amendment` applies only to `docs/reviews/08-eval/D08-T02-s6.md`, with zero preceding returned reconciliations and an exact coordinator-approved accepted contract hash. Its intended amendment is the PDF manifest relocation to `eval/forensics/sets/pdf-forensics/manifest.json` and the two recorded additive completion/CI paragraphs, retaining all original population, labels, targets, coverage, recovery and report requirements. `exhausted-chain-successor` applies only to `docs/reviews/01-intake/D01-T03-s15.md`, with exactly two ordered returned gaps under versions 1 and 2, equal original/accepted contract hashes, and the complete original voice-expression obligation. These capabilities do not authorize any product case by themselves. Another report or kind requires a separately reviewed policy change.
+
+After a separate explicit coordinator decision, prepare the report's sibling `DNN-TNN-sN-exception.json` from measured committed evidence. Its JSON has exactly the following fields; duplicate keys, extra fields, incorrect types and nonfinite numbers refuse:
+
+| Field | Required evidence |
+| --- | --- |
+| `version` | Integer `1` |
+| `kind`, `report` | The exact allowed pair above |
+| `plan_candidate`, `completion_candidate`, `completion_digest` | Full original commit identities and original sealed completion digest |
+| `original_contract_sha256`, `accepted_contract_sha256` | Exact SHA-256 values from the existing contract extractor at original completion and accepted repair candidate; no new normalization |
+| `prefix_bytes`, `prefix_sha256` | Positive integer byte count and SHA-256 of all preceding findings, including each failed reconciliation and disposition note |
+| `predecessors` | Ordered objects containing exactly `candidate`, `digest`, `binding_version`; empty for eval, exactly versions `1` and `2` for voice |
+| `repair_base_candidate` | Full committed repair base, an ancestor of the proposed candidate |
+| `disposition_path`, `disposition_blob`, `disposition_commit` | Separate nonempty committed review disposition and its exact Git identity |
+
+Commit that document first. The separately committed pin map `reconciliation_exceptions` maps only its exact canonical report to an object with exactly `path`, `commit` and `blob`, identifying that committed document. The path must be the report's sibling with suffix `-exception.json`. All commits must be reachable from HEAD or an active merge parent. Actual hashes, candidates and blobs are computed at the authorization boundary; never substitute examples or guessed values. The live pin has no exception entry until the coordinator authorizes the actual measured case.
+
+The existing reconciliation command constructs a version 3 binding containing the authorization identity and accepted hash in addition to the original evidence. It verifies unchanged original identities, exact predecessor sequence, full prefix and candidate descent from the original completion, every predecessor and repair base. The reviewer must examine all original obligations and failures, not only the latest repair examples. Existing stamp arguments remain unchanged, including the actual legacy round where applicable; only a genuinely returned complete exception supports the exact candidate. The receipt preserves the original failed completion and the separate exception evidence.
+
+Known non-returned outages may retry only with the identical version 3 binding. An unresolved journal refuses another invocation; supported `--recover-reconciliation` records the same durable response without a new call. A returned version 3 result exhausts the exception, including a gaps result, and no version 3 successor is authorized. Reversal removes the current pin entry, preventing new exception calls while preserving the documents, findings, journals and historical pin needed to recover persisted results and validate existing receipts. No ordinary review count or product safety rule changes.

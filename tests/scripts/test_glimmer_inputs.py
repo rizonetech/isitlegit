@@ -339,5 +339,174 @@ class ItemLedger(unittest.TestCase):
         self.assertEqual((self.dir / inputs.INVENTORY_ITEMS).read_text(encoding="utf-8"), '{"inputs":"prev"}\n')
 
 
+class DownloadPins(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.folder = Path(self.temp.name)
+        self.commit = 'a' * 40
+        self.pin = 'github: fictional/corpus, ' + self.commit
+        self.url = 'https://raw.githubusercontent.com/fictional/corpus/' + self.commit + '/data.zip'
+
+    def receipt(self):
+        artifact = inputs.pin_artifact(self.pin, self.url)
+        inputs.mark_pin_mode(self.folder)
+        data = b'fictional source bytes'
+        (self.folder / 'data.zip').write_bytes(data)
+        inputs.save_pin_receipt(self.folder, 'data.zip', self.pin, artifact, hashlib.sha256(data).hexdigest(), len(data))
+        return artifact
+
+    def test_artifact_identity_distinguishes_files_and_archive_formats(self):
+        first = inputs.pin_artifact(self.pin, self.url)
+        self.assertNotEqual(first, inputs.pin_artifact(self.pin, self.url.replace('data.zip', 'other.zip')))
+        archive = 'https://github.com/fictional/corpus/archive/' + self.commit
+        self.assertNotEqual(inputs.pin_artifact(self.pin, archive + '.zip'), inputs.pin_artifact(self.pin, archive + '.tar.gz'))
+        with self.assertRaises(inputs.Refused):
+            inputs.pin_artifact(self.pin, self.url.replace(self.commit, 'main'))
+
+    def test_new_mode_manifest_consumes_first_digest(self):
+        self.receipt()
+        entries = [{'name': 'data.zip', 'published': None, 'pinned': self.pin}]
+        manifest = inputs.build(self.folder, entries, 'CC0')
+        self.assertIn('download_pin', manifest['files'][0])
+        inputs.verify(self.folder, ['data.zip'])
+        (self.folder / 'data.zip').write_bytes(b'changed source bytes')
+        with self.assertRaises(inputs.Refused):
+            inputs.build(self.folder, entries, 'CC0')
+
+    def test_missing_receipt_cannot_fall_back_to_legacy_pin(self):
+        self.receipt()
+        inputs.pin_receipt_path(self.folder, 'data.zip').unlink()
+        with self.assertRaises(inputs.Refused):
+            inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
+
+    def test_first_receipt_is_never_replaced(self):
+        artifact = self.receipt()
+        path = inputs.pin_receipt_path(self.folder, 'data.zip')
+        original = path.read_bytes()
+        with self.assertRaises(inputs.Refused):
+            inputs.save_pin_receipt(self.folder, 'data.zip', self.pin, artifact, 'b' * 64, 42)
+        self.assertEqual(path.read_bytes(), original)
+
+    def test_manifest_refuses_invalid_canonical_artifact(self):
+        self.receipt()
+        path = inputs.pin_receipt_path(self.folder, 'data.zip')
+        row = json.loads(path.read_text())
+        row['artifact']['revision'] = 'b' * 40
+        path.write_text(json.dumps(row))
+        with self.assertRaises(inputs.Refused):
+            inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
+
+    def test_new_manifest_still_refuses_deleted_marker_or_receipt(self):
+        self.receipt()
+        inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
+        marker = self.folder / '.download-pins/.mode.json'
+        marker.unlink()
+        with self.assertRaises(inputs.Refused):
+            inputs.verify(self.folder, ['data.zip'])
+        inputs.mark_pin_mode(self.folder)
+        inputs.pin_receipt_path(self.folder, 'data.zip').unlink()
+        with self.assertRaises(inputs.Refused):
+            inputs.verify(self.folder, ['data.zip'])
+
+    def test_new_pin_does_not_invalidate_existing_legacy_manifest(self):
+        (self.folder / 'legacy.zip').write_bytes(b'legacy')
+        old = inputs.build(self.folder, [{'name': 'legacy.zip', 'pinned': self.pin}], 'CC0')
+        self.assertNotIn('download_pin', old['files'][0])
+        self.receipt()
+        verified, _ = inputs.verify(self.folder, ['legacy.zip'])
+        self.assertEqual(verified, old)
+        # New-mode builds still require first-download evidence for each pin-only file.
+        with self.assertRaises(inputs.Refused):
+            inputs.build(self.folder, [{'name': 'legacy.zip', 'pinned': self.pin}], 'CC0')
+
+    def test_retry_syncs_existing_marker_after_directory_sync_failure(self):
+        import os
+        original = os.fsync
+        def fail_directory(fd):
+            if os.fstat(fd).st_ino == (self.folder / '.download-pins').stat().st_ino:
+                raise OSError('synthetic directory sync failure')
+            return original(fd)
+        with unittest.mock.patch.object(inputs.os, 'fsync', side_effect=fail_directory):
+            with self.assertRaises(OSError):
+                inputs.mark_pin_mode(self.folder)
+        self.assertTrue((self.folder / '.download-pins/.mode.json').exists())
+        with unittest.mock.patch.object(inputs.os, 'fsync', wraps=original) as sync:
+            inputs.mark_pin_mode(self.folder)
+            self.assertGreaterEqual(sync.call_count, 2)
+
+    def test_new_source_pin_syncs_all_ancestors_on_first_write_and_retry(self):
+        import os
+        import stat
+        source = self.folder / 'collection/new-source'
+        marker = source / '.download-pins/.mode.json'
+        real_open, real_sync = os.open, os.fsync
+        opened, synced = {}, []
+        def open_path(path, flags, *args, **kwargs):
+            fd = real_open(path, flags, *args, **kwargs)
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                opened[fd] = Path(path)
+            return fd
+        def sync(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                synced.append(opened[fd])
+            real_sync(fd)
+        with unittest.mock.patch.object(inputs.os, 'open', side_effect=open_path), unittest.mock.patch.object(inputs.os, 'fsync', side_effect=sync):
+            for attempt in range(2):
+                synced.clear()
+                inputs.mark_pin_mode(source)
+                expected = [marker.parent, *marker.parent.parents]
+                self.assertEqual(synced[-len(expected):], expected, attempt)
+
+    def test_source_parent_sync_failure_preserves_marker_and_refuses_retry(self):
+        import os
+        source = self.folder / 'collection/new-source'
+        marker = source / '.download-pins/.mode.json'
+        real_sync = os.fsync
+        def fail_parent(fd):
+            if os.fstat(fd).st_ino == source.parent.stat().st_ino:
+                raise OSError('synthetic source parent sync failure')
+            real_sync(fd)
+        with unittest.mock.patch.object(inputs.os, 'fsync', side_effect=fail_parent):
+            with self.assertRaisesRegex(OSError, 'source parent sync failure'):
+                inputs.mark_pin_mode(source)
+            original = marker.read_bytes()
+            with self.assertRaisesRegex(OSError, 'source parent sync failure'):
+                inputs.mark_pin_mode(source)
+            self.assertEqual(marker.read_bytes(), original)
+        inputs.mark_pin_mode(source)
+        self.assertEqual(marker.read_bytes(), original)
+
+    def test_archive_receipt_accepts_null_file_path(self):
+        self.url = 'https://github.com/fictional/corpus/archive/' + self.commit + '.zip'
+        self.receipt()
+        inputs.build(self.folder, [{'name': 'data.zip', 'pinned': self.pin}], 'CC0')
+        inputs.verify(self.folder, ['data.zip'])
+
+    def test_huggingface_cache_redirect_retains_exact_identity(self):
+        pin = 'huggingface: fictional/corpus, ' + self.commit
+        url = 'https://huggingface.co/datasets/fictional/corpus/resolve/' + self.commit + '/data.csv'
+        cache = 'https://huggingface.co/api/resolve-cache/datasets/fictional/corpus/' + self.commit + '/data.csv'
+        artifact = inputs.pin_artifact(pin, url)
+        inputs.pin_redirect(artifact, pin, url, cache)
+        for mismatch in (cache.replace('fictional/corpus', 'fictional/other'), cache.replace(self.commit, 'b' * 40), cache.replace('data.csv', 'other.csv')):
+            with self.subTest(mismatch=mismatch), self.assertRaises(inputs.Refused):
+                inputs.pin_redirect(artifact, pin, url, mismatch)
+
+    def test_provider_redirects_stay_bound_to_artifact(self):
+        archive = 'https://github.com/fictional/corpus/archive/' + self.commit + '.zip'
+        artifact = inputs.pin_artifact(self.pin, archive)
+        inputs.pin_redirect(artifact, self.pin, archive, 'https://codeload.github.com/fictional/corpus/zip/' + self.commit)
+        with self.assertRaises(inputs.Refused):
+            inputs.pin_redirect(artifact, self.pin, archive, 'https://example.com/data.zip')
+        hp = 'huggingface: fictional/corpus, ' + self.commit
+        hu = 'https://huggingface.co/datasets/fictional/corpus/resolve/' + self.commit + '/data.zip'
+        ha = inputs.pin_artifact(hp, hu)
+        inputs.pin_redirect(ha, hp, hu, 'https://cdn-lfs.huggingface.co/opaque')
+        with self.assertRaises(inputs.Refused):
+            inputs.pin_artifact(hp, 'https://cdn-lfs.huggingface.co/opaque')
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -168,3 +168,69 @@ export function countsCsv(weeks: WeekCounts[]): string {
 function sastDate(iso: string): string {
   return new Date(Date.parse(iso) + 2 * 3_600_000).toISOString().slice(0, 10);
 }
+
+export type DayCounts = Omit<WeekCounts, "weekStart" | "kinds"> & { dayStart: string };
+
+// Inclusive SAST calendar days from one tenant-scoped snapshot, including empty days. The route validates dates
+// and the 730-day span before calling; the SQL half-open interval excludes both neighbouring calendar days.
+export async function dailyCounts(
+  db: D1Database,
+  orgId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<DayCounts[]> {
+  const start = Date.parse(`${fromDate}T00:00:00+02:00`);
+  const end = Date.parse(`${toDate}T00:00:00+02:00`) + DAY_MS;
+  const days: DayCounts[] = Array.from({ length: Math.round((end - start) / DAY_MS) }, (_, i) => ({
+    dayStart: sastDate(new Date(start + i * DAY_MS).toISOString()),
+    checked: 0,
+    malicious: 0,
+    suspicious: 0,
+    safe: 0,
+    unfinished: 0,
+    medianSecondsToVerdict: null,
+  }));
+  const { results } = await db
+    .prepare(
+      `SELECT c.id, c.created_at, c.verdict, c.status, v.created_at AS decided_at
+     FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
+     WHERE c.org_id = ? AND c.created_at >= ? AND c.created_at < ?`,
+    )
+    .bind(orgId, new Date(start).toISOString(), new Date(end).toISOString())
+    .all<Row>();
+  const times: number[][] = days.map(() => []);
+  for (const row of results) {
+    const arrived = Date.parse(row.created_at);
+    const index = Math.floor((arrived - start) / DAY_MS);
+    const day = days[index];
+    if (!day) continue;
+    day.checked++;
+    const decided = row.status === "done" || row.status === "partial";
+    if (decided && (row.verdict === "malicious" || row.verdict === "suspicious" || row.verdict === "safe"))
+      day[row.verdict]++;
+    else day.unfinished++;
+    const seconds = row.decided_at ? (Date.parse(row.decided_at) - arrived) / 1000 : null;
+    if (seconds !== null && seconds >= 0) times[index]?.push(seconds);
+  }
+  days.forEach((day, i) => {
+    const m = median(times[i] ?? []);
+    day.medianSecondsToVerdict = m === null ? null : Math.round(m);
+  });
+  return days;
+}
+
+export function dailyCountsCsv(days: DayCounts[]): string {
+  const header = "day_start,checked,malicious,suspicious,safe,unfinished,median_seconds_to_verdict";
+  const lines = days.map((day) =>
+    [
+      day.dayStart,
+      day.checked,
+      day.malicious,
+      day.suspicious,
+      day.safe,
+      day.unfinished,
+      day.medianSecondsToVerdict ?? "",
+    ].join(","),
+  );
+  return `${[header, ...lines].join("\r\n")}\r\n`;
+}

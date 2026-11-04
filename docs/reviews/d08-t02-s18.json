@@ -1,0 +1,159 @@
+{
+  "ref": "D08 T02 \u00a718",
+  "title": "Recoverable PDF corpus publication",
+  "implementation_sha": "abea9b56546091cac5ddc08d03d7ee1e33ee1232",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T02-s18.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "Test checkpoint: taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts and node eval/forensics/score.ts --check eval/RESULTS.md pass; failed/truncated writes and process termination preserve a verified generation, restart recovers, and successful regeneration reads back with identical hashes. Typecheck, lint and build pass. -> 26 forensic and 10 dataset documentation tests pass; report check/typecheck/lint/build/publication pass; legacy upgrade regression red before repair and green after; existing lint/build warnings retained."
+  ],
+  "reconciliation": {
+    "report": "docs/reviews/08-eval/D08-T02-s18.md",
+    "verdict": "complete",
+    "candidate": "abea9b56546091cac5ddc08d03d7ee1e33ee1232",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "bc93956e8a74441c278ac08cf60c53672b4105dc",
+    "binding": {
+      "candidate": "abea9b56546091cac5ddc08d03d7ee1e33ee1232",
+      "completion_candidate": "b1560b732543219b63fba47aebea93e84bacaa12",
+      "completion_digest": "e64c1256d7d032d4",
+      "contract_path": "todo/08-eval/TODO-02-runner-and-results.md",
+      "contract_sha256": "91293be1bc95aed9ea46f09e594f4cfe13b4aa496516c542620c493282f8171c",
+      "disposition_blob": "fb007f1184d17baa526f78461077e3c295b160c9",
+      "disposition_commit": "d1149facc510a326048ee1022ae66d4ec18e4b8a",
+      "disposition_path": "docs/reviews/08-eval/D08-T02-s18-disposition.md",
+      "plan_candidate": "580f4b4b12eee125c46aaf42aa8d60c5eb5a7d36",
+      "plan_contract_sha256": "91293be1bc95aed9ea46f09e594f4cfe13b4aa496516c542620c493282f8171c",
+      "predecessor_candidate": "d7e3d125ba1df127287cd9a0294aa2ae1111d97e",
+      "predecessor_digest": "d017f3421b44019e",
+      "prefix_bytes": 12102,
+      "prefix_sha256": "1c3844011b41b14e1c83df73a45594a3298c9b19b8e788a77139612d10731b9c",
+      "report": "docs/reviews/08-eval/D08-T02-s18.md",
+      "version": 2
+    },
+    "digest": "c79fca10c88a27a1"
+  },
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T02-s18.md",
+    "verdict": "gaps",
+    "candidate": "b1560b732543219b63fba47aebea93e84bacaa12",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T02-s18.md",
+    "candidate": "580f4b4b12eee125c46aaf42aa8d60c5eb5a7d36",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

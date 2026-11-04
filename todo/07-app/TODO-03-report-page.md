@@ -97,8 +97,8 @@ track: day-2
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its | §5 | [ ] |
 | 52 | §52 | Report address from a | §48, D01 T03 §6 | [ ] |
-| 53 | §53 | One-action copy of the | §19 | [ ] |
-| 54 | §54 | All stored headers read in place | §19 | [ ] |
+| 53 | §53 | One-action copy of headers | §19, §54 | [x] |
+| 54 | §54 | All stored headers read in place | §19 | [x] |
 | 55 | §55 | A deadline on the full-size viewer's request | §8 | [x] |
 
 > **Moved at the gate merge (coordinator, 2026-11-02):** the section filed from D04 T02 §6's completion review as §53 of this file (walkthrough refusal and reuse cards) is now D07 T09 §7, because this file reached its 55-section cap when both lanes filed into it. The `- Filed: D07 T03 §53` lines in `docs/reviews/04-agent/D04-T02-s6.md` name its first address; its permanent address is D07 T09 §7.
@@ -1802,7 +1802,9 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
 
-## 53. One-action copy of the
+## 53. One-action copy of headers
+
+> **Started:** 2026-11-04T07:25:18.068914+00:00
 
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
 
@@ -1813,42 +1815,61 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
 **Job:** a reader copies every stored header in one action and pastes it elsewhere
-**Treatment:** to be decided: a "Copy headers" button in the headers tab's footer beside the download, with its outcome announced and the text left selectable when the clipboard refuses
+**Treatment:** a "Copy headers" button in the headers tab's footer beside the download, with its outcome announced and the text left selectable when the clipboard refuses
 **Chrome:** the preview dialog's footer (§19), the shared `Button`
 
 **Build order:**
 
 1. Record the decision, then build the control. Done when: the operator's choice is in `design/SPEC.md` M3 and the headers tab copies its text in one keyboard-operable action.
 
-- [ ] Ask the operator (through the coordinator): add a "Copy headers" action to the preview's headers tab, or leave selection by hand; record the answer and its date in `design/SPEC.md` M3 and the board. Done when: the decision line is in the SPEC.
-- [ ] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it writes the displayed header text to the clipboard, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
-- [ ] Commit: `web: copy the complete headers in one action`
+- [x] Record the existing operator approval of 2026-11-02 in `design/SPEC.md` M3 and the `Report-MessagePreview` board, export its reference and update coverage. Done when: the decision line and copy states are in the SPEC and `python3 design/tools/check-design.py` passes. Cheaper substitute: an unrecorded control outside the approved design.
+- [x] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it retrieves every remaining bounded header slice supplied by §54 under the same access rule before writing the complete text to the clipboard, without requiring manual slice loading, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium and proves exact equality for stored headers longer than 200 KB, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
+- [x] Keep the action hidden on the message tab and unavailable while headers load or are missing, empty or failed; guard asynchronous clipboard completion against tab changes and closing in `openOriginal`. Done when: browser tests prove no stale success or selection reaches another tab or a closed dialog, including phone width in both themes, and explicitly assert loading, missing, empty, failed reload after success, and recovery states. Cheaper substitute: copying a cached prior response during a new request.
+- [x] Commit: `web: copy the complete headers in one action`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` passes with the headers copied and the refusal handled.
 
+**Plan self-review disposition (2026-11-04):** P1 accepted: complete copying depends on the bounded header retrieval in §54; added the dependency and long-header equality proof. P2 accepted: unavailable and recovery states now have explicit assertions. Section parked before implementation until §54 ships; no approval or stamp claimed.
+
+> **Verified:** 2026-11-04 | §53 | 3fe752082eaaa537fa5464ecf155bf4c1e791ede
+> **Review:** `docs/reviews/d07-t03-s53.json`
+
 ## 54. All stored headers read in place
 
-Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the preview cuts the headers at the same 200 KB as the body and sends the reader to the download for the rest, so a message with a very long received chain or large authentication fields cannot be investigated wholly in place, where Microsoft Defender for Office 365's email entity page documents the entire header. Reading past the approved initial limit changes how the approved preview behaves, so the operator decides it.
+> **Started:** 2026-11-04T11:35:08.148103+00:00
+
+Filed 2026-11-01 from §19's completion review: the headers preview stops after 200 KB and requires a download for the rest. This section lets a reader investigate every stored header in the existing dialog without changing the body preview or raw download.
 
 **Phase:** 7
-**Operator decision 2026-11-02:** Bounded 'Show the next part' slices in place past the 200 KB preview, each slice bounded, to the end of the stored headers.
+**Operator decision 2026-11-02:** Bounded "Show the next part" slices in place past the 200 KB preview, each slice bounded, to the end of the stored headers.
+**Coordinator release 2026-11-04:** APP-INDEPENDENT-RELEASE authorizes this section then §53 independently of the root-owned deployment gate; app owns `openOriginal` and the header route, console retains its separate `casesFailure` hunk. New wording outside the existing approval is decided by coordinator before writing that surface.
 
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M3 (the original message preview), a "Show the rest" control added once approved
+**Fidelity:** `design/SPEC.md` M3, `Report-MessagePreview`, the approved "Show the next part" action
 **Job:** a reader reads every stored header without downloading the message
-**Treatment:** to be decided: the first 200 KB as now, then a "Show the next part" action loading the following slice, announced, each slice bounded
-**Chrome:** the preview dialog (§19)
+**Treatment:** the first 200 KB as now, then keyboard-operable "Show the next part" appends the next bounded slice and announces the result; incomplete, retry, changed-source and complete states are explicit
+**Chrome:** the existing preview dialog (§19), header region and footer; shared button styles, existing tokens
 
 **Build order:**
 
-1. Record the decision, then load the rest in bounded slices. Done when: the operator's choice is in `design/SPEC.md` M3 and a message whose headers pass the limit can be read to its end in the dialog.
+1. Record the existing approval and coordinator's exact new-state wording in `design/SPEC.md` M3 and the matching board/coverage. Done when: `python3 design/tools/check-design.py` passes for the approved source and reference export, with no new media capture or generation implied.
+2. Implement the bounded header contract at `src/web/pages/artefacts.tsx`, then its consumer in `src/web/client/app.ts` `openOriginal`. Done when: every slice is authorized and the headers joined in the dialog equal the complete stored serialization.
 
-- [ ] Ask the operator (through the coordinator): keep the 200 KB limit with the download as the way to the rest, or add progressive loading of the remaining headers; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
-- [ ] Give the artefact route's `view=headers` an `offset` and return the next slice (still cut at a whole character, still under the report's access rule), and add the "Show the next part" action to the headers tab. Done when: `test/web/message-preview.test.ts` reads a header list over the limit in slices whose join equals the stored headers, and `test/node/message-preview-browser.test.tsx` loads the next slice by keyboard with the outcome announced and a superseded slice dropped.
-- [ ] Commit: `web: read every stored header in place`
+- [x] Record the approved progression in M3 and `design/mockups/source/Report-MessagePreview.dc.html`, with coverage/reference updates through the existing design tools. Keep the message tab's limit, inert text, header forgery warning, download/no-script fallback, Close/Escape and focus restoration. Done when: design checks pass and the browser fixture proves both tabs retain these behaviors.
+- [x] Extend only the raw artefact's `view=headers` response with absolute UTF-8 byte `offset`, `nextOffset` (null at EOF) and `revision` (SHA-256 of the complete serialized header bytes actually read, null for absent text). Omitted offset is zero. Each text slice is at most 200 * 1024 bytes, ends at a whole code point, and nonterminal nextOffset strictly advances by its encoded length. Join existing `${name}: ${value}` entries with the existing newline, preserving order, duplicate names, folded values and literal hostile text. Never claim wire-byte fidelity or bounded R2 reads: this is the stored parsed header list; raw .eml remains separate. Done when: Worker tests join three or more slices to the exact full expected string/bytes, including two-, three- and four-byte boundaries and exact-limit/EOF cases, without a new replacement character or omitted/repeated byte.
+- [x] Validate one canonical decimal safe-integer offset and a single lowercase 64-hex revision; nonzero offset requires the matching revision. Reject negative/fraction/exponent/whitespace/duplicate/unsafe offsets, positions inside a UTF-8 continuation sequence and beyond EOF with 400; exact EOF is an empty terminal slice. A changed revision returns 409 with a distinct `x-artefact-state: changed` marker and no mixed text. Missing and empty sources remain distinct terminal states at zero. Reject pagination on message preview rather than silently ignoring it, while leaving non-preview downloads unchanged. Parse these view parameters separately from the signed capability and strip them before existing strict `o,e,s` verification and return URLs; do not loosen shared verification. Authenticate before source-specific boundary checks. Done when: the invalid matrix, valid signed-link nonzero slice and duplicate/tampered/expired capability tests fail if these checks are removed.
+- [x] Reuse the current route's membership/capability, case/key ownership, retention, renewed-cookie and privacy-header gates for every slice; never fetch raw message body for preview. Do not bypass access to read a remainder. Done when: tests revoke membership, expire a capability, remove raw storage, fail a read and replace stored headers between slices, proving each refusal is explicit, no cross-tenant text escapes and existing download/message tests pass.
+- [x] Add one next-part action to the headers view only. Validate response part, field types, byte length, requested offset, monotonic nextOffset and unchanged revision before appending. One pending operation per dialog sequence; double activation cannot duplicate a request. Preserve the loaded prefix and scroll position while reading or retrying a temporary failed remainder, mark it incomplete and retry the same offset without duplicates. Source change offers restart at zero; access loss/gone uses existing refusal states. EOF ends requests with a complete announcement and predictable keyboard focus. Done when: browser tests activate every part by keyboard, join the exact expected text, exercise error/retry/EOF/null/empty states and refuse malformed or nonprogressing responses without a loop.
+- [x] Extend cancellation ownership to delayed fetch, JSON parsing and announcements: tab changes, fresh reload, timeout, close and reopen invalidate the prior operation, including a return to the same tab. Keep the existing 15-second deadline and no-store/manual-redirect fetch behavior. Done when: held slice, delayed body and delayed announcement tests release old work after each transition and find no stale text, cursor, state, success or focus change; 360/1280 px in light/dark pass keyboard/focus and accessibility checks.
+- [x] Commit: `web: read every stored header in place`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/message-preview.test.ts` and `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` pass with long headers read in slices.
+
+**Boundary:** §53 owns automatic full retrieval for "Copy headers", actual clipboard readback and denied-clipboard selection; this section supplies and verifies the bounded retrieval contract it consumes. No paid model calls, live data mutation, casesFailure changes or product deployment belongs to this section.
+
+> **Verified:** 2026-11-04 | §54 | 365e8ae9661b018df92cce1432e924de7cc29104
+> **Review:** `docs/reviews/d07-t03-s54.json`
 
 ## 55. A deadline on the full-size viewer's request
 

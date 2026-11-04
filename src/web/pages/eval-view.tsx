@@ -3,7 +3,8 @@
 // in real use (counts only). It is a public page on the app's host (the site's `/eval` redirects here) in the public
 // shell. Nothing here is a message, a sender or a subject. A figure no run measures says "not measured", never a number:
 // the analysis time is not the forward-to-reply time, so that target is never shown met from this run.
-import type { AblationRow, HistoryRow, ProductionCounts, PublishedReport } from "../../eval/report";
+import type { AblationRow as BaseAblationRow, HistoryRow, ProductionCounts, PublishedReport } from "../../eval/report";
+
 import { AppShell } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -61,8 +62,10 @@ export const MODES: Record<string, { off: string; replacedBy: string }> = {
   "ablate:no-screening": { off: "Loupe page screening", replacedBy: "Muse Spark screens every page" },
 };
 
+type AblationRow = BaseAblationRow & { baselineRunId?: string };
+
 export type EvalView =
-  | { kind: "empty"; counts: ProductionCounts; history: HistoryRow[] }
+  | { kind: "empty"; counts: ProductionCounts; history: HistoryRow[]; ablations?: AblationRow[] }
   | {
       kind: "report";
       report: PublishedReport;
@@ -125,8 +128,8 @@ function Hero(props: { report: PublishedReport | null }) {
         </>
       ) : (
         <p class="text-18 text-ink-2 max-w-[760px]">
-          No test run has been published yet. The figures below fill in when the first complete run is published; until
-          then they say Not measured.
+          No headline test run has been published yet. Headline figures stay Not measured until a complete full run is
+          published. Experiment comparisons appear separately below.
         </p>
       )}
     </header>
@@ -365,7 +368,7 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                       "text-left weight-text-strong sticky left-0 bg-surface w-evidence-figure max-w-evidence-figure md:w-sidebar md:max-w-sidebar wrap-anywhere",
                     )}
                   >
-                    Nothing (full pipeline)
+                    Nothing (headline full pipeline)
                   </th>
                   <td class={TD}>None</td>
                   <td class={cx(TD, NUM)}>{pct(r?.main.detection.rate ?? null)}</td>
@@ -385,6 +388,9 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                         )}
                       >
                         {words.off}
+                        {row.baselineRunId ? (
+                          <span class="block text-12 text-muted">Compared with full run {row.baselineRunId}</span>
+                        ) : null}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
                       <td class={cx(TD, NUM)}>{points(row.detectionDelta)}</td>
@@ -410,6 +416,9 @@ function Ablation(props: { report: PublishedReport | null; rows: AblationRow[] }
                         )}
                       >
                         {words.off}
+                        {row.baselineRunId ? (
+                          <span class="block text-12 text-muted">Compared with full run {row.baselineRunId}</span>
+                        ) : null}
                       </th>
                       <td class={TD}>{words.replacedBy}</td>
                       <td class={TD} colspan={4}>
@@ -580,7 +589,7 @@ export function EvalPage(props: { view: EvalView }) {
           <Tiles report={report} />
           <Tables report={report} />
         </div>
-        <Ablation report={report} rows={view.kind === "report" ? view.ablations : []} />
+        <Ablation report={report} rows={view.ablations ?? []} />
         <div class="flex flex-col gap-40 w-full max-w-[1120px] mx-auto px-16 py-40 md:px-32 md:py-56">
           <History rows={view.history} />
           <RealUse counts={view.counts} />

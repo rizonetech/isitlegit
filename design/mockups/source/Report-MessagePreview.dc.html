@@ -36,24 +36,25 @@ NimbusMail Support</pre></div></div>
   <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">Complete headers</p>
     <div role="dialog" aria-modal="true" aria-labelledby="mp-title" style="width: 880px; background: #FFFFFF; border-radius: 16px; border: 1px solid #E3E2E6; box-shadow: 0 8px 40px rgba(24, 21, 25, 0.25); display: flex; flex-direction: column; overflow: hidden">
   <header style="display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
-    <div style="display: flex; flex-direction: column; gap: 4px"><h3 id="mp-title" style="font-size: 18px">Original message</h3><p class="small muted">Every header, in the order received.</p></div>
+    <div style="display: flex; flex-direction: column; gap: 4px"><h3 id="mp-title" style="font-size: 18px">Original message</h3><p class="small muted">Every header as stored, in the order received. A result written into a header may be forged; the authentication check says which results were the receiving server's.</p></div>
     <button class="btn btn-ghost btn-sm" aria-label="Close the original message">Close <span class="mono" style="font-size: 12px; color: #4D4953">Esc</span></button>
   </header>
   <div role="tablist" aria-label="Original message" style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid #E3E2E6"><span style="padding: 8px 14px; border-bottom: 3px solid transparent; font-weight: 500; font-size: 14px">Message</span><span style="padding: 8px 14px; border-bottom: 3px solid #CC2E00; font-weight: 700; font-size: 14px">Complete headers</span></div>
-  <div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 12px"><div tabindex="0" role="region" aria-label="The complete headers, scrollable" style="overflow: auto; background: #F8F8F9; border: 1px solid #E3E2E6; border-radius: 10px; padding: 16px 20px; height: 260px; box-sizing: border-box"><pre class="mono" style="margin: 0; font-size: 12px; line-height: 1.55; white-space: pre-wrap">Authentication-Results: mx.karoocouriers.example;
+  <div style="padding: 20px 24px; display: flex; flex-direction: column; gap: 12px"><p class="small">More headers are available. Choose Show the next part to read them here.</p><div tabindex="0" role="region" aria-label="The complete headers, scrollable" style="overflow: auto; background: #F8F8F9; border: 1px solid #E3E2E6; border-radius: 10px; padding: 16px 20px; height: 260px; box-sizing: border-box"><pre class="mono" style="margin: 0; font-size: 12px; line-height: 1.55; white-space: pre-wrap">Authentication-Results: mx.karoocouriers.example;
  spf=fail smtp.mailfrom=nimbusmai1-login.example;
  dkim=none; dmarc=fail header.from=nimbusmail.example
 Received: from mail.nimbusmai1-login.example (203.0.113.9)
  by mx.karoocouriers.example; Sun, 26 Oct 2026 16:38:02 +0200
 From: NimbusMail Support &lt;support@nimbusmail.example&gt;
 Reply-To: help@nimbusmai1-login.example
-Subject: Your password expires today</pre></div></div>
-  <footer style="padding: 14px 24px; border-top: 1px solid #E3E2E6; display: flex; justify-content: space-between; align-items: center"><p class="small muted">The authentication results are the receiving server's own.</p><a href="#" class="small" style="font-weight: 600">Download the original (.eml)</a></footer>
+Subject: Your password expires today</pre></div><button class="btn btn-ghost btn-sm">Show the next part</button></div>
+  <footer style="padding: 14px 24px; border-top: 1px solid #E3E2E6; display: flex; justify-content: space-between; align-items: center"><p class="small muted">Shown exactly as stored.</p><div style="display: flex; gap: 12px; align-items: center"><button class="btn btn-ghost btn-sm">Copy headers</button><a href="#" class="small" style="font-weight: 600">Download the original (.eml)</a></div></footer>
 </div></section>
   <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">A long or hostile message</p>
     <div class="card card-pad" style="width: 880px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px"><p class="small"><strong>Showing the first 200 KB as plain text.</strong> The message is longer, or holds markup, scripts or hidden text, which are shown as text and never run. Download the original to read the rest.</p></div></section>
   <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">The original is no longer stored</p>
     <div class="card card-pad" style="width: 880px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px"><p class="small"><strong>The original message is no longer stored.</strong> Originals are kept for 30 days. The findings above still stand, and the headers they cite are kept with them.</p></div></section>
+<section class="card card-pad" style="display: flex; flex-direction: column; gap: 8px"><h3>Copy headers states</h3><p class="small">Headers copied</p><p class="small">Clipboard access was refused. The complete headers are selected; copy the selected text.</p><p class="small">The headers could not be copied. The complete headers are selected; copy the selected text.</p><p class="small">The headers could not be copied. Select the text to copy it.</p><button class="btn btn-ghost btn-sm" disabled>Copy headers</button><p class="small muted">Unavailable while loading or copying, or when headers are missing, empty or failed. Hidden on Message.</p></section>
 </div>
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2260}}'>

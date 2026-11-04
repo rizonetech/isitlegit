@@ -67,12 +67,23 @@ track: day-0
 | 26 | §26 | Uncoordinated lane: no run guard | §19 | [ ] |
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [x] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
-| 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
+| 29 | §29 | Stamp recovery after a killed process | §28 | [x] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
 | 32 | §32 | Wake dispatched after each | §27 | [x] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 | 34 | §34 | Codex unattended continuation and session ownership | §19 | [ ] |
+| 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
+| 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
+| 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
+| 38 | §38 | Exact evidence-bound reconciliation exceptions | §37 | [x] |
+| 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
+| 40 | §40 | Email recovery fixtures on reviewed ablation integration | D01 T03 §17, D04 T01 §17 | [x] |
+| 41 | §41 | Accurate continuation stop reasons for completed owners | §19 | [x] |
+| 42 | §42 | Synthetic review pin authorization isolation | §38 | [x] |
+| 43 | §43 | Upload refusal matches reviewed admission | D01 T03 §17 | [x] |
+| 44 | §45 | Batched CI with complete project test shards | -- | [x] |
+| 45 | §46 | Explicit withdrawn work in the live plan | -- | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -400,11 +411,15 @@ The reference repositories open with a brand image (Recto's `design/brand/github
 
 ## 9. Red CI refused when a section starts
 
+> **Started:** 2026-11-04T07:23:51+00:00
+
 Filed 2026-10-27 from the D00 T01 §4 completion review (gap 3, missing out of scope). The rule that a red `main` comes before any new row lives in the `process-phase` skill and the heartbeat prompt: an agent that skips reading `scripts/ci_status.py` can still claim a row while CI is red. This section makes the refusal mechanical at the point a section starts.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
+
+**Plan corrections (2026-11-04):** The CI helper has a five-second total deadline; timeout terminates its process tree and reports unknown. Ordinary resolve remains read-only and returns one JSON object with existing fields, matching process/JSON exit codes and CI metadata; human diagnostics go to stderr. Exit 0 with no decisive run, invalid helper configuration, malformed output, missing gh and timeout are unknown warnings, never represented as green. Existing reference, verified and lane refusals retain their codes and skip CI. A non-whitespace single-line `--allow-red` reason (at most 500 characters) explicitly authorizes resolve to persist an adjacent CI-override note with read-back, preserving an existing Started timestamp or creating one if absent. Repeating the same reason is idempotent. Persistence failure keeps the red refusal (exit 5); no override is granted without the record. Tests cover those branches, JSON compatibility, no ordinary filesystem edits and a hanging child process.
 
 **Build order:**
 
@@ -1008,6 +1023,8 @@ Reported 2026-10-30 by the checks lane for D02 T03 §4. `stamp` refuses a plan r
 
 ## 29. Stamp recovery after a killed process
 
+> **Started:** 2026-11-04T11:05Z (plan preparation only; implementation follows genuine plan review)
+
 Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there). `stamp` writes three files (the receipt, the TODO file, the regenerated plan), each temp-then-replace, and rolls back on an exception or interrupt (`scripts/lib/todo_graph.py` `stamp`, the `except BaseException` block). A process killed outright (SIGKILL, a closed terminal, a crashed session) runs no rollback: the receipt can exist while the TODO file is unstamped, and a second `stamp` refuses with `receipt already exists`, so the writer has to find and delete the receipt by hand. The fix lets the stamp recover its own half-written state without weakening any check.
 
 **Phase:** 7
@@ -1018,11 +1035,17 @@ Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there).
 
 1. Recover a half-written stamp on the next run. Done when: after a stamp killed between its receipt write and its TODO write, the same `stamp` command completes, and a different stamp for that section still refuses.
 
-- [ ] In `stamp` (`scripts/lib/todo_graph.py`), when the receipt already exists and the section is still unstamped in its TODO file, compare the existing receipt with the one this call builds (every field but none rewritten) and, when they are equal, carry on to the TODO and plan writes; refuse as now when they differ, naming the receipt and the first differing field. Done when: `tests/scripts/test_todo_graph.py` kills a stamp after its receipt write (a child process with a hook that exits hard) and the rerun stamps, while a rerun with another `--check` refuses.
-- [ ] Make `validate` name the state: an orphan receipt (a receipt whose section is unstamped) refuses with the recovery command (`stamp` again with the same arguments, or delete the receipt). Done when: the test reads that refusal text.
-- [ ] Commit: `tools: a stamp killed mid-write recovers on the next run`
+- [x] In `stamp` (`scripts/lib/todo_graph.py`), when the receipt already exists and the section is still unstamped in its TODO file, compare the existing receipt with the one this call builds (every field but none rewritten) and, when they are equal, carry on to the TODO and plan writes; refuse as now when they differ, naming the receipt and the first differing field. Done when: `tests/scripts/test_todo_graph.py` kills a stamp after its receipt write (a child process with a hook that exits hard) and the rerun stamps, while a rerun with another `--check` refuses.
+- [x] Make `validate` name the state: an orphan receipt (a receipt whose section is unstamped) refuses with the recovery command (`stamp` again with the same original arguments and the receipt's explicit original `--date`; preserve the existing receipt). Done when: the test reads that refusal text and a next-day CLI retry using the printed original date succeeds.
+- [x] Preserve pre-existing receipt bytes during recovery and every subsequent failure; rerun all original review and safety validation before equality permits continuation. Keep orphan diagnostics in the explicit validate command so recovery itself can enter. Done when: regression tests cover recovery write failure, mismatched checks/date/SHA, invalid evidence and normal rollback, with no pre-existing receipt overwritten or removed.
+- [x] Compare receipt values recursively with exact JSON types and identical fields, reporting the first nested difference. Done when: boolean/integer/float substitutions, missing or extra fields and nested changes refuse, while formatting-only differences recover with original bytes preserved.
+- [x] Document and prove the second interrupted boundary: if TODO metadata was written before the process died, validate the real receipt and run existing `plan --sync` to repair the projection. Done when: a child hard exit after TODO replacement leaves the original receipt and one Verified/Review block intact, and supported plan synchronization restores a current projection without another stamp.
+- [x] Commit: `tools: a stamp killed mid-write recovers on the next run`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` passes, including the killed-stamp rerun and the differing-rerun refusal.
+
+> **Verified:** 2026-11-04 | §29 | c3f1e0ed45d12a6a344b9c60599159c141b71d07
+> **Review:** `docs/reviews/d00-t01-s29.json`
 
 ## 30. Plan candidate check before the review runs
 
@@ -1150,6 +1173,319 @@ Filed 2026-11-04 by the coordinator. The operator requests unattended coordinato
 - [ ] Commit: `tools: add guarded Codex unattended continuation`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes, including stopped owners never receiving a timer wake and successful queueing never counting as acknowledged execution.
+
+## 35. Bounded completion reconciliation with preserved evidence
+
+> **Started:** 2026-11-04T09:30:42.569781+00:00
+
+Filed 2026-11-04 by the coordinator at the operator's request to repair the review process immediately. Completion currently fails for optional out-of-scope improvements and has no supported way to verify actual repairs. The owning layer is review policy, dispatcher and graph receipt validation. This section creates the supported route; it does not approve any blocked product section. Original review bytes, candidates and pins remain immutable. Plan review corrections (2026-11-04): preserve a returned reconciliation through recording failure without invoking a second returned pass, and expose reconciliation status through both existing listing formats.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Define the scope rule and bounded follow-up contract. Done when: requirements from the section, governing design, safety contract and real regressions still block completion; a genuinely additional improvement is explicitly separated and assigned without falsely marking it implemented.
+2. Add one explicit reconciliation pass for a Codex chain whose original completion returned gaps. Done when: the dispatcher verifies the original plan/one round/one completion chain, binds the follow-up to the original completion digest and exact candidate, and records an append-only result under its own heading rather than replacing the failed completion.
+3. Validate reconciliation at stamp and on every later receipt validation. Done when: only a genuine complete reconciliation permits the exact verified candidate to stamp; malformed, stale, mismatched, missing or still-gaps evidence refuses, including historical chains with no reconciliation.
+4. Prove backward compatibility, refusal behavior and recovery. Done when: old valid receipts still validate, old failed completions remain failed without explicit reconciliation, failed calls may retry but a second returned reconciliation is refused, and preservation is verified byte-for-byte.
+
+- [x] Update the current Codex policy, workflow skill and review prompt at their owning files. Done when: completion distinguishes blocking obligations from additional suggestions, all real in-scope defects remain mandatory, and the exception is one explicit reconciliation rather than another ordinary round or completion loop. Cheaper substitute: coordinator manually declares old gaps complete, rejected because no actual verified evidence would support the stamp.
+- [x] Implement explicit `--kind reconciliation` in `scripts/review-dispatch.py`. Done when: only an existing Codex three-pass chain ending in gaps qualifies; same-candidate scope reconciliation or descendant repair verification is supported, with original digest and candidate binding, a committed disposition document addressing every original finding, and an explicit authorization in the committed reconciliation pin. Original chain pins remain unchanged and verifiable; the later reconciliation records its own authorized pin. The reviewer verifies unchanged original obligations and rejects contract narrowing, and failed/unreadable/nonterminal replies are never treated as approval. A returned result whose findings write fails is reported as unrecorded and cannot stamp. Retain durable pending-call/result state; a supported recovery replays the same recorded response, never calls the reviewer again. If result persistence itself fails, fail closed and retain the unresolved-call marker for explicit recovery rather than assuming no review returned. Both text and JSON `--list-rounds` expose original completion, reconciliation candidate/verdict/binding and pending or blocked status. The reviewer examines original obligations and all repairs, including new regressions; it cannot excuse a safety breach as out of scope. Cheaper substitute: permit repeated completion calls, rejected because that loses the bounded workflow and original verdict identity.
+- [x] Extend `scripts/lib/todo_graph.py` and the CLI receipt path to accept and replay the explicit reconciliation evidence. Done when: successful stamps retain the original failed completion plus the real reconciliation, validate its binding, exact candidate, ancestry, schedule/pin and chronological order, and reject forged, changed, incomplete, wrong-section or unrelated-candidate evidence. The original plan and single round remain required. No legacy receipt is rewritten. Cheaper substitute: interpret every old gaps verdict as nonblocking, rejected because real defects would ship unverified.
+- [x] Add regression and integration tests in the existing dispatcher and graph suites. Done when: tests cover optional-only same-candidate reconciliation, repaired descendant acceptance, genuine remaining gap refusal, duplicate returned pass refusal, outage retry, altered original evidence, candidate/pin mismatch, missing disposition evidence, narrowed contract, wrong section, invalid ancestry and unchanged legacy valid/failed chains. Also inject findings-write and result-persistence failures, prove original bytes survive and stamping refuses unrecorded results, recover the same result without another reviewer call, and test text/JSON listing for pending, successful and still-gaps reconciliation. Demonstrate relevant failures before implementation and passing gates afterward. Cheaper substitute: test only a fake complete parser response, rejected because it does not prove dispatch-to-stamp enforcement.
+- [x] Document exact commands, bounded policy transition and rollback in `docs/todo-workflow.md`, `todo/README.md` and the Codex workflow skill. Done when: lanes can use the supported tool without inventing receipts; existing failed chains opt in explicitly with original records preserved, old pins remain verifiable, and a returned reconciliation with gaps stays blocked pending a new explicit decision. Cheaper substitute: ad hoc handover permission, rejected because machines and future sessions would disagree.
+- [x] Commit: `tools: reconcile completion gaps without replacing review evidence`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including genuine dispatcher-to-stamp reconciliation acceptance and refusal with original review bytes unchanged, while old receipts continue to validate.
+
+> **Verified:** 2026-11-04 | §35 | 5168772014556768c0e9c92bbb01e09bfee8e11f
+> **Review:** `docs/reviews/d00-t01-s35.json`
+
+## 36. Two-pass Codex review with a combined final gate
+
+> **Started:** 2026-11-04T09:57:21.824036+00:00
+
+Filed 2026-11-04 from the operator's explicit correction: normal review is a plan pass followed by one combined adversarial, completeness, consistency and integration pass. Preserve existing review history and the bounded repair verification delivered by §35. This changes review orchestration, never product safety or evidence requirements. Operator REVIEW-18 explicitly retains quality and proof that every agreed requirement is completed and correctly implemented in the second pass; there is no third normal pass. Plan corrections (2026-11-04): the combined result needs durable same-response recovery, actual reviewer invocation coverage and updates to every governing three-pass instruction. Already-returned reviews remain truthful records; no synthetic regular round is created to satisfy an older schema.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Version the new Codex policy as `codex-two-pass-v1` in the committed reviewer pin and dispatcher, with a separate combined schedule. Done when: newly opted-in chains accept one plan and one combined completion, refuse a separate ordinary round, and historical three-pass chains retain their original interpretation.
+2. Make the combined completion cover all required lenses. Done when: adversarial, integration, source-defect, plan-delivery, consistency, record, quality and optimization checks (plus design when Surface is yes) plus every Done when and frozen obligation are included in its pinned schedule and prompt; a real gap still refuses stamping.
+3. Update receipt validation for a genuinely two-pass chain. Done when: receipts record zero implementation rounds and validate the actual plan and exact combined completion with their committed pins, rather than inventing a round or accepting an arbitrary empty review list.
+4. Carry bounded reconciliation and active plan transitions forward. Done when: a gaps result may use §35's one explicit reconciliation, and a genuine legacy plan with no round/completion attempts can transition explicitly under the new committed policy while retaining its original digest/candidate/pin. Chains with implementation reviews already performed retain the legacy route unless separately authorized; no history is erased.
+
+- [x] Extend `scripts/review-dispatch.py` and `.conclave/reviewers.toml` with a versioned two-pass authorization and combined completion schedule. Done when: ordinary round dispatch is refused for new chains before a reviewer runs, completion requires exactly one genuine plan and no prior returned completion, and legacy pins still produce their old route. Persist a pending-call identity before normal combined completion, durably retain its response before findings write, and recover that same result without another reviewer invocation; unresolved outcomes refuse, known non-returned outages can retry, and the CLI exposes supported recovery and pending state. Cheaper substitute: silently omit a required round, rejected because tooling and receipts would disagree.
+- [x] Extend `scripts/lib/todo_graph.py` and `scripts/todo-graph.py` to stamp and replay valid zero-round receipts only under the explicit two-pass policy. Done when: source-bound plan and exact complete combined review are mandatory; missing, stale, mixed, unauthorized or forged evidence refuses; existing three-pass receipts remain unchanged. Cheaper substitute: accept every empty reviews list, rejected because it removes mandatory review evidence.
+- [x] Support an explicit legacy-plan-only transition and two-pass reconciliation. Done when: transition explicitly binds the original plan prefix digest, candidate and pin, proves no intervening round/completion attempt was discarded, retains identical binding across known-outage retries, preserves the plan-before-build gate, and a combined gaps result remains blocked until the one genuine §35 verification completes. Cheaper substitute: relabel the old plan or invent a clean round, rejected because it falsifies history.
+- [x] Update `AGENTS.md`, `.agents/skills/codex-lane-workflow/SKILL.md`, `docs/todo-workflow.md`, `todo/README.md`, `docs/codex-lanes.md`, `docs/manifesto.md` and review prompts together. Done when: users and lanes see two normal passes, explicit historical transition and bounded repair verification, with exact tested commands and no claim that unresolved gaps are approved. Cheaper substitute: inbox-only instruction, rejected because a resumed lane would read contradictory policy.
+- [x] Add failing-first regression and CLI-to-stamp tests in `scripts/tests/test_review_dispatch.py` and `tests/scripts/test_todo_graph.py`. Done when: genuine two-pass acceptance, no-plan refusal, prohibited extra round, gaps refusal, exact-candidate enforcement, authorized legacy-plan transition, attempted transition after a round, tampered transition identity, malformed pin, bounded reconciliation, zero-round receipt replay and unchanged legacy chains are covered. Capture the actual reviewer invocation and prove every required lens, explicit completion/quality/frozen obligations and conditional design coverage arrives. Missing or malformed combined authorization refuses before invocation. Inject interrupted calls and response/findings write failures; prove same-result recovery, unresolved-call refusal and known-outage retry with no duplicate returned review. Cheaper substitute: count two headings, rejected because it would accept fabricated or stale review evidence.
+- [x] Commit: `tools: combine Codex implementation checks into one final review`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including an actual two-pass dispatch-to-stamp flow, refusal of unauthorized empty-round receipts and preserved historical chains.
+
+> **Verified:** 2026-11-04 | §36 | e4401838e1a23986f2536fc6d71d4811b883c8b7
+> **Review:** `docs/reviews/d00-t01-s36.json`
+
+## 37. Durable ancestry for review journals
+
+> **Started:** 2026-11-04T11:41:59.879745+00:00 (plan preparation only; no implementation yet)
+
+Filed 2026-11-04 from LOUPE-JOURNAL-ANCESTRY. The shared `scripts/review-dispatch.py` publisher `_durable_json` synchronizes a journal file and its immediate directory but not newly created ancestor entries. A machine crash can therefore lose a calling marker and permit a duplicate uncertain review. The section lock can create those directories before the publisher, so existence is not evidence of durable ancestry. Fix the owning journal publisher without changing review policy, candidates, original records or acceptance obligations.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Persist every parent directory link before a successful journal publication returns. Done when: POSIX publication synchronizes the file and each ancestor directory through the filesystem root, including directories created earlier by the section lock, before invoking a reviewer.
+2. Fail closed and retain evidence across every publication failure. Done when: ancestor open/fsync failure prevents invocation, existing calling/returned/recorded state is preserved, uncertain calls cannot silently retry, and returned-response recovery invokes no new reviewer.
+
+- [x] Repair `_durable_json` in `scripts/review-dispatch.py` for initial calling, returned, recorded and archived retry publications. Keep exclusive marker creation, file fsync, atomic replacement and descriptor cleanup. Done when: tests observe leaf-to-root directory synchronization before mocked completion and reconciliation reviewer invocation, including initially absent and lock-created parent directories. Cheaper substitute: assume an existing directory is durable, rejected because the lock may have just created it.
+- [x] Add failing-first regressions in `scripts/tests/test_review_dispatch.py` for ancestor open/fsync failure, retained calling markers, returned-response persistence/recovery and archived retry evidence. Done when: failures propagate, the reviewer is not invoked before durability succeeds, no response or uncertain marker is deleted, and supported recovery does not duplicate a returned review.
+- [x] Document the POSIX durability guarantee and existing Windows directory-sync exception in `docs/todo-workflow.md`. Done when: the instructions distinguish tested POSIX behavior from unproven Windows crash durability, with no new native heartbeat or review-acceptance claim.
+- [x] Commit: `tools: persist review journal ancestor directories`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch` passes, including fresh completion/reconciliation ancestry, failure refusal, preserved evidence and no duplicate invocation during recovery.
+
+> **Verified:** 2026-11-04 | §37 | 794d8a9e8a185d47819aa58e02e8d7a2c75f29f4
+> **Review:** `docs/reviews/d00-t01-s37.json`
+
+## 38. Exact evidence-bound reconciliation exceptions
+
+> **Started:** 2026-11-04T12:08:24.146401+00:00 (plan preparation only; implementation follows genuine plan review)
+
+Filed 2026-11-04 by coordinator authorization, plan preparation only. D08 T02 §6 cannot enter its first reconciliation because a necessary corpus relocation and additive status paragraphs change its exact original contract. D01 T03 §15 has two genuine returned reconciliation gaps and a later parser repair; existing versions 1 and 2 correctly refuse another returned reconciliation. This section owns one narrow exception capability in the shared review controller, not acceptance of either product section. Preserve original plans, findings, pins, failed verdicts and journals. §37 must be stamped before implementation or review of this section begins. Filing this plan activates no authorization.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Bounded policy:** Exactly two exception kinds: `contract-amendment` for `docs/reviews/08-eval/D08-T02-s6.md` with zero preceding returned reconciliations, and `exhausted-chain-successor` for `docs/reviews/01-intake/D01-T03-s15.md` with exactly two preceding returned gaps. No generic cap, additional normal review, version 3 successor or retry of a returned result. Other reports/kinds require a separately reviewed policy change. Exception gaps remain unstamped.
+
+**Authorization schema:** A new committed pin map binds the exact canonical report to an immutable authorization document Git blob. Its strict versioned fields name kind, report, original plan/completion candidates and completion digest, original/accepted contract SHA-256 hashes, full preceding findings prefix byte count/SHA-256, ordered predecessor candidate/digest/binding-version identities, repair-base candidate, and committed disposition path/blob. Version 3 bindings retain existing original identities and bind the authorization document's committed path, commit and blob. All identities must be reachable and verified from committed Git data. Use the existing contract extractor, without generic normalization. Compute actual hashes at the separate authorization boundary; never invent them in this plan.
+
+**Exact intended cases:** Eval original completion is `ef1c3e960e8c1dcb6dc9edae252380fb394e084c`. Its sole approved contract delta is `eval/sets/pdf-forensics/manifest.json` to `eval/forensics/sets/pdf-forensics/manifest.json` plus its two existing additive completion/CI status paragraphs; the entire accepted contract hash governs. Verify all original population, fixture hash, label, target, coverage, recovery and report obligations. Voice must retain equal original/accepted contract hashes, ordered failed digests `281af4d55783cda5` and `e20dca3cfcb30a4e`, authentic candidates/pins, and repair-base ancestry at `972b649d403c048fa3c7587860e3dc5dfa137f47`. Its review covers the entire original whole-expression obligation and both failed reconciliations, not only recent examples. Actual lane authorization entries require separate explicit coordinator decisions after tooling verification; this section does not activate them.
+
+**Build order:**
+
+1. Add strict dormant authorization and binding schemas. Done when: malformed, uncommitted or wrong-report exceptions refuse before invocation and historical versions 1/2 remain unchanged.
+2. Integrate binding through invocation, durable recovery and receipt validation. Done when: only one genuinely complete exact exception can stamp, retaining every prior failure and preventing duplicate uncertain/returned calls.
+3. Prove the lifecycle and document reversal. Done when: both positive end-to-end fixtures and all negative cases pass without real product authorizations or review calls.
+
+- [x] Extend pin loading and authorization parsing in `scripts/review-dispatch.py` with exact keys/types, canonical report restrictions and committed-document provenance. Done when: the two synthetic authorized fixtures load; absent authorization, unknown keys/kinds, another report/section, uncommitted bytes, wrong blob or mismatched disposition refuses before invocation. Cheaper substitute: a global round-cap switch, rejected because it authorizes unrelated retries.
+- [x] Add version 3 construction/validation in `scripts/review-dispatch.py`, leaving version 1/2 validators and equality/caps intact. Done when: all original pins/identities and full findings prefix validate, predecessors pass their historical validators, candidates descend from original completion/every predecessor/repair base, eval matches its exact authorized contract hash, and voice requires equal original/accepted hashes. Cheaper substitute: strip status paragraphs or rewrite paths before comparing, rejected because narrowed obligations could be hidden.
+- [x] Enforce exact series eligibility in `scripts/review-dispatch.py`. Done when: eval requires zero returned predecessors, voice requires exactly two returned gaps in order, and successful/missing/reordered/extra predecessors or an already-returned version 3 pass refuse; returned gaps cannot stamp. Cheaper substitute: treat version 3 as a larger cap, rejected because it enables further successors.
+- [x] Integrate explicit authorization identity into findings append, durable pending/results, retry archives, invocation prompts and supported same-result recovery in `scripts/review-dispatch.py`. Done when: mocked actual invocation includes original obligations and all findings, known non-returned outage retries preserve identical bindings, unresolved calls refuse, publication failures retain evidence, and recovery appends the same persisted result without another call. Retain §37 ancestry durability. Cheaper substitute: delete calling state or repeat a returned review, rejected because uncertain identity is lost.
+- [x] Integrate version 3 into `scripts/lib/todo_graph.py`, `scripts/todo-graph.py` where needed, and receipt read-back. Done when: genuinely complete exact exceptions produce separate immutable exception evidence beside original gaps, validate replays identical checks, changed candidate/contract/prefix/authorization cannot stamp, and no normal round or ordinary review-count change is invented. Cheaper substitute: manually mark the original row complete, rejected because no verified receipt supports it.
+- [x] Add failing-first regression and CLI-to-stamp/read-back fixtures in `scripts/tests/test_review_dispatch.py` and `tests/scripts/test_todo_graph.py`. Done when: both exact kinds succeed only with genuine complete results; one-byte prefix mutation/truncation, missing/reordered predecessor, wrong digest, changed obligation/target/manifest field, unrelated candidate, stale authorization, altered disposition, successful predecessor, third predecessor, repeated exception, unresolved call and returned gaps all refuse. Preserve full existing version 1/2 tests. Prove known-outage retry keeps identity, result-write failure recovers with zero new calls, and later authorization removal prevents new calls while historical complete receipts validate under recorded pins/documents. Cheaper substitute: parser-only tests, rejected because recording, recovery and stamping have separate acceptance paths.
+- [x] Update `AGENTS.md`, `.agents/skills/codex-lane-workflow/SKILL.md`, `docs/todo-workflow.md` and `todo/README.md` at implementation. Done when: instructions name the two exact exceptions, genuine completion gate, dormant setup, failed-result handling, receipt evidence and historical validation; reversal removes only new-call authorization, preserves all history, and never implies broader caps, product-safety changes or acceptance. Cheaper substitute: undocumented pin entries, rejected because lanes could confuse permission with proof.
+- [x] Commit: `tools: bind exact reconciliation exceptions to preserved evidence`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes with both authorized dispatch-to-stamp/read-back flows, negative identity/contract/series cases, durable same-result recovery and unchanged historical acceptance/refusal tests.
+
+> **Verified:** 2026-11-04 | §38 | 853a5586c27b72a7a449da780612dcb8c13c17ac
+> **Review:** `docs/reviews/d00-t01-s38.json`
+
+## 39. Controlled failure proof for the composed detection harness
+
+> **Started:** 2026-11-04T12:32:08.118215+00:00 (plan preparation only; no implementation yet)
+
+Filed 2026-11-04 by the coordinator for the necessary integration of stamped D02 T05 §7 measurement (`22cdba7d`, implementation `2b168d3a`) and stamped D02 T05 §12 detector correction (`5b40363e`, implementation `40b407d0`). Both approved implementations are inputs, not new product scope. The composed Node suite actually returns 13 passes and one failure at `test/node/eval-hidden-text.test.ts:182`: the failure-exit test injects 40 false flags but relies on the historical translated attacks still producing misses. The corrected detector produces zero misses. The owning layer is the integration test's controlled failure input, not the detector, measurement thresholds or historical evidence. Existing review receipts and candidate ancestry remain unchanged.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Preserved inputs:** Preserve `eval/hidden-text/corpus.json`, `observations.json` and `results.md` byte-for-byte against `505de4b799416c1f2e39abe3e805e97ef00e0240`; retain all original 28 misses, the 205/205 denominators and the failed 5% baseline target. Keep all production source and existing frozen detector tests unchanged from the composed inputs.
+
+**Build order:**
+
+1. Retain the actual failing-before result from the exact composed harness. Done when: the Node suite fails specifically because measured misses are zero while the other 13 tests pass, before any test repair.
+2. Give the failure-exit test its own explicit missed attack. Done when: one selected sparse attack keeps its ID, label and metadata but uses ordinary benign text via the existing `changed()` helper, which recomputes its payload hash; the real detector and CLI still run, and all 40 deliberately flagged sparse controls remain.
+3. Prove the composed candidate without overwriting prior evidence. Done when: the repaired harness and unchanged detector gates pass; any fresh unchanged-corpus measurement writes to a separate external directory and identifies this exact source candidate.
+
+- [x] Repair only the controlled rows and assertions in `test/node/eval-hidden-text.test.ts`. Done when: the failure-exit case asserts exit 1, 410 retained observations, 205 attacks, 205 controls, 40 false flags, no reader errors and the selected benign attack ID in the missed set, retaining the positive miss assertion. Cheaper substitute: remove the miss assertion or tolerate zero misses, rejected because it removes the promised failure accounting proof.
+- [x] Verify the new miss is causal through the real harness. Done when: removing the controlled benign-attack mutation makes the miss assertion fail again, restoring it passes, and the full 14-test suite remains green. No replacement matcher, detector stub or production special case is introduced.
+- [x] Run affected integration gates and preserve immutable evidence. Done when: the Node harness, six D02 T05 §12 check suites, typecheck, dry build, scoped lint, publication scan, TODO validation and plan checks pass; original corpus, observations and results still match `505de4b7`, all imported canonical findings and receipts retain exact bytes, and a separate corrected observation set makes no production or generalization claim.
+- [x] Commit: `test: control missed attack in detection failure proof`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts` passes all 14 tests and fails when the explicit missed-attack mutation is removed; `pnpm exec vitest run test/checks/translated-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts test/checks/invisible-unicode.test.ts test/checks/document-instructions.test.ts test/checks/ai-instructions-shapes.test.ts` passes without changing the frozen suites.
+
+**Implementation evidence (2026-11-04):** Original composed harness: 13 passes and one failure because misses were zero. Controlled miss repair: 14 passes; removing the benign-attack mutation fails the missed-ID assertion, restoring it passes all 14. Six unchanged detector suites: 96 passes. Typecheck, dry build, scoped Biome, publication scan and TODO validation pass. Baseline corpus, observations and results retain exact `505de4b7` bytes; all imported review records remain exact. A separate unchanged-corpus rerun passes with no misses or false flags; it is synthetic component evidence only.
+
+> **Verified:** 2026-11-04 | §39 | 6df0678fc5317320ca7b1e241ea2e88ccf3902db
+> **Review:** `docs/reviews/d00-t01-s39.json`
+
+## 40. Email recovery fixtures on reviewed ablation integration
+
+> **Started:** 2026-11-04T12:55:38.104234+00:00 (plan preparation only; no fixture repair before genuine plan review)
+
+Filed 2026-11-04 by coordinator authorization. The isolated integration composes reviewed admission D01 T03 §17 (stamp `034398c6`, implementation `3937ea1a`) and consumer D04 T01 §17 (stamp `4f376bd4`, implementation `a6a30c33`) with the existing release baseline. Exactly 23 reviewed source/test paths, the original reports/receipts and scoped TODO sections are imported. Their original contract and evidence remain unchanged. A separate post-stamp test correction `bc92181d` is not approved by those receipts and is not imported before this plan review. This section owns only the email test fixture compatibility repair and its integration proof, never an intake behavior change.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Measured failing baseline:** `taskset -c 0,1 pnpm exec vitest run test/intake/email.test.ts` returned 36 passes and two failures in 44.91 seconds. Red log: `/tmp/ablation-email-red.log`. The takeover case throws missing media type at `store.ts:298`; the sweep retains `stopped-orphan:pending` rather than treating existing bytes as absent. No fixture repair has been applied.
+
+**Preserved inputs:** Preserve all 23 admission/consumer source and test paths byte-for-byte at `a6a30c33`, original review records at `4f376bd4`, current upload payment-document entitlement, frozen floor/citation/injection tests and the existing 13-file verification manifest. No gateway, verification wiring, diagnostic, URL or voice-parser changes. The independently authorized verdict-lifetime correction requires a separate successor candidate and is outside this section.
+
+**Build order:**
+
+1. Reproduce the exact old email fixture failure on the composed baseline before changing tests. Done when: the captured targeted run distinguishes an existing object with missing media metadata from genuinely absent raw storage and records actual failures rather than assumed results.
+2. Repair only `test/intake/email.test.ts` using the separately accounted-for `bc92181d` correction. Done when: both RawMissing fixtures omit the stored object, preserving their existing missing-file assertions; added valid/invalid metadata cases prove retained identity and fail-closed recovery through actual intake.
+3. Verify the integration and preserve its evidence. Done when: affected tests and local gates pass, all reviewed source bytes and historical receipts remain exact, and no CI/deployment or live ablation claim is inferred from local tests.
+
+- [x] Correct the two RawMissing fixtures in `test/intake/email.test.ts` to represent truly absent R2 storage. Done when: red failures become green without changing production admission/store behavior, removing missing-file assertions or weakening error handling. Cheaper substitute: expect missing for a retained object, rejected because it contradicts the approved recovery contract.
+- [x] Add valid-MIME and missing-MIME orphan object cases through `handleEmail`. Done when: valid `message/rfc822` metadata recovers the same case, completes its claim and starts its Workflow, then reads through the real store to assert original bytes, message/rfc822 MIME and the same case-owned artefact row; missing metadata refuses with no Workflow, retains pending claim, received case and object, and never records RawMissing or creates another case. Cheaper substitute: mock recovery, rejected because the R2/D1/claim boundary must be exercised.
+- [x] Verify email/store/upload/ablation-upload, case-experiment/consumer/Workflow, vision/standalone-image, logo-tools and walkthrough-trigger suites plus unchanged floor/citations/injection tests; run typecheck, dry build, scoped lint, local migration0095, publication and TODO gates. Done when: measured results are recorded against the exact candidate, original receipts and all 23 reviewed paths remain byte-exact, and broader CI remains the coordinator release gate. Cheaper substitute: email-only green, rejected because shared admission and Workflow consumers must compose.
+- [x] Commit: `test: reconcile email recovery fixtures with reviewed admission`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts test/intake/store.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts` passes, including both genuine missing-raw cases and valid/invalid orphan metadata cases; the valid-MIME case reads the original bytes/MIME and case-owned artefact row through the store, and a temporary causal mutation that skips row restoration fails these assertions even with a Workflow created; the affected consumer and frozen safety suites pass with reviewed production source unchanged.
+
+> **Verified:** 2026-11-04 | §40 | 2ce00d58b6cf1e3d6dd45ffa875959070e1048d8
+> **Review:** `docs/reviews/d00-t01-s40.json`
+
+## 41. Accurate continuation stop reasons for completed owners
+
+> **Started:** 2026-11-04T13:30:59.829563+00:00 (plan preparation only; implementation follows genuine plan review)
+
+Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owners correctly refuse further work, but the hook describes them as paused. Fix the reason emitted by the ownership controller; do not bypass its stop or reactivate a completed assignment automatically.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add failing regression tests for hook output from complete, paused and stalled owner states and an explicit pause marker. Done when: the old generic reason fails the complete/stalled assertions while existing refusal checks still pass.
+2. Correct only the controller's stop/deny reason selection, retaining exact ownership, generation, trust and explicit-activation guards. Done when: each stopped state reports its real cause without allowing tools or changing ownership.
+3. Verify every hook still refuses stopped owners, reports the actual reason and leaves ownership unchanged; document explicit new-assignment activation separately from resuming completed work. Done when: lifecycle and launcher tests pass and the documented activation command matches the existing CLI.
+
+- [x] `scripts/codex_continuation.py` distinguishes completed work, operator pause and stalled ownership in Stop/UserPromptSubmit refusal and PreToolUse denial. Done when: `tests/scripts/test_codex_continuation.py` fails against the old generic paused message and passes with the correct state-specific text. Cheaper substitute: rewrite terminal output after the hook, rejected because the controller owns the reason.
+- [x] Preserve every stop and exclusive-owner guard, including pause markers, generation mismatch, trust checks and completed-owner restart refusal. Done when: regression tests assert unchanged denial/continue=false behavior, no automatic activation, no queued wake or changed owner/generation; existing lifecycle tests pass. Cheaper substitute: allow tools after completion, rejected because it would restart completed tasks.
+- [x] Update `docs/codex-lanes.md` to explain truthful complete/paused/stalled status and the existing explicit activation path for a newly assigned scope. Done when: documentation names the actual supported command and does not claim a native heartbeat or automatic reassignment.
+- [x] Commit: `fix: report actual stopped continuation owner state`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes; removing the state-specific reason branch fails completed and stalled output regressions while stop enforcement remains unchanged.
+
+> **Verified:** 2026-11-04 | §41 | 67f9d7be2578ad6f556ca039da020fc769c1023f
+> **Review:** `docs/reviews/d00-t01-s41.json`
+
+## 42. Synthetic review pin authorization isolation
+
+> **Started:** 2026-11-04T13:26:44.368859+00:00 (plan preparation only; no implementation before genuine plan review)
+
+Filed 2026-11-04 by coordinator authorization after checks EXCEPTION38-SETUP-AUDIT. `Reconciliation.setUp` copies the repository pin into a new synthetic Git repository and removes inherited reconciliation extensions, but leaves externally scoped reconciliation exceptions. `ExactExceptions.setup_case` builds its own voice predecessor chain before publishing its own exception authorization. With exact live pin `3bcbc096`, the fixture accidentally selects the real voice exception and correctly fails because its authorization commit is absent from the synthetic repository. Production reachability enforcement is correct. This section owns synthetic test fixture input isolation only.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Measured failing baseline:** With REPO_PIN patched only in memory to a temporary file holding exact `3bcbc096:.conclave/reviewers.toml` bytes, the unchanged ExactExceptions class ran 12 tests with two errors in 5.386 seconds. `/tmp/review-fixture-isolation-red.log` records refusal of unreachable authorization commit efaf2a704eefbe34c67f56a131b9ef3db4279b85. Live pin SHA-256: 1db41fdae178d778734be12c1c6a0c0c1b8475c94bcec1f8445a1c57d6050c9f. The checkout pin was never replaced.
+
+**Preserved inputs:** No changes to production dispatcher, graph, CLI, repository pin, live authorizations, original findings/receipts or acceptance guards. Preserve reviewer routes, models, efforts, schedules and all existing test assertions. Each synthetic chain must retain its own genuinely committed fixture pin and authorization evidence; no approval or reachability mock replaces them.
+
+**Build order:**
+
+1. Reproduce live-authorization leakage using a temporary pin only. Done when: the two actual setup errors are recorded without modifying production or lane checkouts.
+2. Isolate inherited external authorization in the owning base fixture before its first synthetic commit. Done when: only inherited reconciliation_extensions and reconciliation_exceptions configuration is removed, existing fixture-specific policy adaptation is preserved, and fixture methods subsequently install their own measured identities normally.
+3. Prove both positive lifecycle behavior and unchanged refusal guards. Done when: a deterministic preexisting-live-authorization regression and original exception/reconciliation/graph suites pass without altering production validation.
+
+- [x] Repair base pin preparation in `scripts/tests/test_review_dispatch.py` so inherited external extension and exception tables do not enter synthetic Git history. Done when: both exception kinds construct their own predecessor chains under local pins, normal policy/routes/schedule content remains equivalent, and no live repository pin bytes are changed. Cheaper substitute: suppress the unreachable-commit error, rejected because it would weaken production evidence validation.
+- [x] Add a deterministic regression with a temporary seed pin containing preexisting externally scoped voice exception and extension entries, using nonexistent external commit/blob identities. Done when: it verifies those entries are absent before fixture-owned authorization, retains unrelated pin settings, creates and commits its own ordered failed predecessor chain, authorizes the exact local exception and successfully validates its genuine fixture result; the test fails on the pre-fix setup. Cheaper substitute: test a pin without live entries, rejected because it misses the observed integration failure.
+- [x] Run the original ExactExceptions class with exact temporary `3bcbc096` pin bytes, plus complete dispatcher and graph suites. Done when: the original two errors disappear, existing wrong-pin/blob/report, lost predecessor, altered contract, unresolved-call and repeated-exception refusals remain covered, temporary repositories are cleaned and production pin/source hashes remain unchanged. Cheaper substitute: skip the two failing cases, rejected because they exercise required predecessor safety.
+- [x] Commit: `test: isolate external review authorizations from synthetic pins`
+
+**Test checkpoint:** `python3 -m unittest scripts.tests.test_review_dispatch tests.scripts.test_todo_graph` passes, including the new live-authorization seed regression; the original ExactExceptions 12-test class also passes with REPO_PIN temporarily pointing to exact `3bcbc096` pin bytes and the real production pin untouched.
+
+> **Verified:** 2026-11-04 | §42 | d862b720d9ce8c74788b9947357ede1b9c08f9c8
+> **Review:** `docs/reviews/d00-t01-s42.json`
+
+## 43. Upload refusal matches reviewed admission
+
+> **Started:** 2026-11-04T13:52:17.334819+00:00 (plan preparation only; no test repair before genuine plan review)
+
+Filed 2026-11-04 by coordinator authorization after exact candidate `6c3f582a4a2ffb6d526374abf8e9ebe77dc2db78` CI41839458039 Worker shard3 failed job126606845208. The one failing test at `test/web/upload-page.test.ts:248` expects the old multipart refusal without the optional ablate field. Reviewed D01 T03 §17 admission intentionally permits one textual ablate field with strict eval authorization and attribution. `src/intake/upload.ts:102` emits the updated refusal, and the web page correctly renders that complete API error with HTTP400. This section repairs only the stale test expectation, never upload behavior, user wording or a security gate.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Preserved inputs:** Keep every product source, approved refusal string, status assertion, exact field validation, eval authorization, existing test assertion and original review receipt unchanged except the obsolete expected string. Preserve the running gate and all failed CI evidence. Section42 is reserved independently; do not renumber any section.
+
+**Build order:**
+
+1. Run the exact current upload-page regression before editing. Done when: the test fails because the expected API refusal lacks ablate, while observed status remains400; retain the unfiltered log outside the repository.
+2. Correct the exact expected refusal in `test/web/upload-page.test.ts` to the reviewed API wording. Done when: the original400 and full-string assertion remain, the previously failing test passes, and omitting ablate from the expectation still fails on the unchanged implementation.
+3. Verify upload-page and API admission together. Done when: targeted upload-page, upload and ablation-upload tests pass, including malformed multipart and ordinary-org ablation refusal without created work, full typecheck passes, and a source-diff audit proves product bytes unchanged.
+
+- [x] Reproduce the named CI regression on the exact integrated source, retaining expected and actual refusal text and HTTP400. Done when: a failing-first log identifies the same assertion rather than an unrelated setup failure. Cheaper substitute: infer failure from reading the test, rejected because the exact local reproduction is required.
+- [x] Change only the stale literal to include the reviewed optional ablate field. Done when: exact message and HTTP400 remain asserted; no regex, shortened substring, removed test or weakened source validation. Cheaper substitute: assert only status, rejected because the page must display the complete API refusal.
+- [x] Run `test/web/upload-page.test.ts`, `test/intake/upload.test.ts` and `test/intake/ablation-upload.test.ts` plus full typecheck and publication check. Done when: all pass with only the expected test literal changed, prior security assertions intact and no product-source diff.
+- [x] Commit: `test: align upload-page refusal with reviewed ablation fields`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project worker test/web/upload-page.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts` passes; the unchanged old expected message fails the original upload-page assertion while HTTP400 and all malformed/unauthorized admission checks remain enforced.
+
+> **Verified:** 2026-11-04 | §43 | 9a8f7bd2d4a17b9323c625e05fed4d7730221e2b
+> **Review:** `docs/reviews/d00-t01-s43.json`
+
+## 45. Batched CI with complete project test shards
+
+> **Started:** 2026-11-04T16:04:07.365695+00:00 (plan preparation only; implementation follows genuine plan review)
+
+Operator CI-BATCHING-OPERATOR-DECISION authorizes batching independent ready reviewed deliveries before one full exact-candidate gate, rather than full CI on every lane commit and again on main promotion. Measured run41851983274 on de606 had a 885-second project job (866.516 seconds for 1,387 tests), while the slowest browser job took558 seconds. All12 jobs started within five seconds; no queue bottleneck is inferred. Main run41860041096 repeats that same SHA. Read-only discovery reproduced1,387 tests across52 module suites with no failed imports. This section owns workflow scheduling, complete project-test partitioning and exact-candidate CI observation, not test removal or relaxed promotion.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Preserved inputs:** Every existing gate, action pin, read-only token, dependency/environment requirement, job timeout and failure behavior remains. Worker/browser/kit suites retain their existing commands. No deployment, cancellation, branch protection mutation or paid operation. Actual branch protection API returned unprotected and rulesets empty; do not claim platform enforcement. Full CI must pass on the exact batch SHA before main moves to it.
+
+**Build order:**
+
+1. Prove the collection and scheduling contract before changing workflow behavior. Done when: offline tests reject missing/duplicate shard coverage, broken fixtures, failed imports, ignored failures and unauthorized triggers, and exact-SHA status tests reject incomplete or mismatched evidence.
+2. Implement isolated project shards and batched triggers at their owning layers. Done when: four runner jobs execute the complete discovery multiset once, full CI starts for coordinator-gate pushes, PRs and explicit dispatch, and ordinary lane/main pushes do not repeat it.
+3. Verify source and collection equivalence and document rollout. Done when: targeted regressions pass, real discovery on the baseline and composed candidate is accounted for including new tests, exact-source local gates pass, and runtime improvement remains unclaimed until observed CI.
+
+- [x] Add a stdlib `scripts/ci_unittest_shard.py` runner and focused tests. Done when: deterministic whole-module-suite partitioning retains original module/class fixture semantics and the exact discovery multiset; all four shards are required, invalid arguments and discovery/import failures refuse, skips stay skips and test/fixture failures return nonzero. Provide offline collection listing plus useful shard count/duration output, with no subprocess test execution during collection. Cheaper substitute: shell filename lists silently miss new files and can change collection semantics.
+- [x] Change `.github/workflows/ci.yml` to four project shards with fail-fast false and existing environment/setup/15-minute job limit; retain all other gate commands/timeouts and noncancellable gate-run concurrency. Trigger full CI only on coordinator-gate pushes, pull requests and workflow_dispatch without path filters. Extend `tests/scripts/test_ci_workflow.py` to reject dropped/extra shards, excludes, ignored failures, wrong commands and trigger broadening/narrowing. Cheaper substitute: increase the timeout or skip slow tests, rejected because it does not improve throughput safely.
+- [x] Add explicit exact-SHA gate observation to `scripts/ci_status.py` with fake-gh regressions. Done when: a full40-character requested SHA is checked against coordinator-gate CI runs and every required job including all shards; only a latest matching completed successful run with exactly the required successful job set is green. Wrong SHA, missing/duplicate/skipped/cancelled/failed/in-progress jobs, newer pending/failed run, missing run or unreadable API cannot pass; no fallback to older green or unrelated main history. Preserve existing history-reporting mode as history, not promotion proof. Cheaper substitute: a successful workflow label or latest main run can describe a different candidate.
+- [x] Document batched ready-reviewed integration and exact-SHA verification in `docs/codex-lanes.md`, including safe-boundary workflow rollout to older lanes, no hard10/20 minimum delay, no duplicate main full run, and no promotion before the exact gate passes. Preserve review/stamp authority and all historical receipts. Run targeted shard/workflow/status regressions, offline actual discovery multiset audit and publication; use full CI later for actual throughput measurement, never run the whole suite locally just to estimate speed.
+- [x] Commit: `ci: batch reviewed gates and shard complete project tests`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_ci_unittest_shard tests.scripts.test_ci_workflow tests.scripts.test_ci_status` passes; four offline collection lists equal the unsharded discovery multiset exactly, and mutation tests reject a dropped shard or false exact-SHA green without running the whole project suite locally.
+
+> **Verified:** 2026-11-04 | §45 | f4b37d489b638d91362add9e2bb351d9d0b55d96
+> **Review:** `docs/reviews/d00-t01-s45.json`
+
+## 46. Explicit withdrawn work in the live plan
+
+> **Started:** 2026-11-04T16:37:01.717246+00:00 (plan preparation only; no implementation before genuine plan review)
+
+Operator requests truthful plan progress after explicitly withdrawing three unverified submission sections. Arbitrary prose currently leaves them ready/manual and active totals misleading. Coordinator approves only unverified-section withdrawal metadata; stamped retirement is outside this scope. Canonical withdrawal documents remain with the documentation owner until release.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Parse one explicit dated operator withdrawal marker without rewriting the original section or review history. Done when: malformed or duplicate markers and withdrawal of stamped work refuse.
+2. Project and query withdrawal distinctly from verified work. Done when: withdrawn sections are absent from active ready/manual/blocked totals but remain visible with their dated reason; dependent requirements remain blocked.
+
+- [x] Add strict optional `**Withdrawn:** YYYY-MM-DD | operator | reason` metadata to unverified sections only in `scripts/lib/todo_graph.py`; validate a real calendar date and nonempty single-line reason, refuse duplicates/malformed markers/stamped withdrawal, and expose it without manufacturing receipt/checkmark/completion. Preserve every original checklist, contract, review attempt and stamp validator. Arbitrary prose has no effect. Done when: parser and receipt-preservation regressions distinguish exact authorized metadata from ordinary text and reject forged completed withdrawal.
+- [x] Add distinct withdrawn disposition/status to resolve/classify/query plan and visible generated plan rows. Exclude withdrawn sections and their checklist items from active progress denominators, ready/blocked/manual work; report the separate withdrawal count while keeping all historical rows visible. Done when: fixture queries/rendering show Withdrawn rather than verified, and active totals reconcile without ticking anything. Preserve unchanged output where no withdrawals exist where practical.
+- [x] Keep direct and transitive dependents blocked: withdrawn is never settled and stamp refuses both withdrawn work and an unmet withdrawn dependency. Done when: failing-first tests cover ready/manual/stats, CLI resolve/query plan, projections, dependency chains and refusal without writing receipts. No implicit dependency deletion, normalization of old review evidence or broad waiver.
+- [x] Document marker, unverified-only boundary, reversal through explicit operator correction/removing metadata, preserved obligations and separate dependency decisions in `todo/README.md`; leave canonical user-withdrawal rows to their owner. Run focused graph/CLI regressions and normal validation/projection hooks, without a local full product suite.
+- [x] Commit: `todo: represent explicit withdrawn work without claiming delivery`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_withdrawal` passes with parser, plan, query, blocked-dependency and no-receipt regressions; removing withdrawal handling makes the new tests fail and no historical stamp is weakened.
+
+> **Verified:** 2026-11-04 | §46 | ea5f271b0e9698eb2177f064e5506a66df17bb82
+> **Review:** `docs/reviews/d00-t01-s46.json`
 
 ## Verification
 

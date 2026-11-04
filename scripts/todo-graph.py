@@ -10,7 +10,7 @@
                                                              # (todo/lanes.json); --all the whole plan, --phase N one phase
     python scripts/todo-graph.py resolve 'D02 T01 §1'        # exit 0 ready, 1 no such section,
                                                              # 2 no reference in input, 3 verified,
-                                                             # 4 waiting (or another lane's); a pasted plan row works too
+                                                             # 4 waiting (or another lane's), 5 withdrawn; a pasted plan row works too
     python scripts/todo-graph.py classify 'D02 T01 §1' ...   # dispositions as JSON
     python scripts/todo-graph.py stamp 'D02 T01 §1' --sha <40-char commit> \
         --plan '<findings file>' \
@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from todo_graph import (ROOT, Refused, adjacency_report, atomic, claimable, current_lane,  # noqa: E402
                         deferrals, disposition, extract_ref, graph, lane_info, lane_of, lane_query, lanes, manual_rows,
                         ordered, plan_candidate, plan_config, projections,
-                        require, review_rounds, settled, stamp, suspects, unstamp)
+                        require, review_rounds, settled, stamp, suspects, unstamp, validate_orphan_receipts)
 
 
 def review_round(value):
@@ -56,7 +56,9 @@ def final_review(value):
 
 
 def plan_status(row, rows):
-    """A section's state for readers of `query plan`: verified, deferred (its file is not active), ready or blocked."""
+    """A section's state for readers of `query plan`: verified, withdrawn, deferred (inactive file), ready or blocked."""
+    if getattr(row, "withdrawn", None):
+        return "withdrawn"
     if row.done:
         return "verified"
     if row.status != "active":
@@ -185,7 +187,8 @@ def main():
             result = {"title": config["title"], "acceptance": config["acceptance"],
                       "phases": {str(n): name for n, name in sorted(config["phases"].items())},
                       "sections": [{"ref": r.ref, "path": r.path, "title": r.title, "phase": r.phase,
-                                    "status": plan_status(r, rows), "depends": r.depends} for r in ordered(rows)]}
+                                    "status": plan_status(r, rows), "depends": r.depends,
+                                    **({"withdrawn": r.withdrawn} if r.withdrawn else {})} for r in ordered(rows)]}
         else:
             result = review_rounds()
         print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -203,6 +206,7 @@ def main():
         lines.append("```")
         print("\n".join(lines))
     else:
+        validate_orphan_receipts(ROOT, rows)
         print(f"valid: {len(rows)} sections")
     return 0
 

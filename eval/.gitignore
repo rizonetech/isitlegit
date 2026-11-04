@@ -1,0 +1,3 @@
+# Local kernel-lock inode and interrupted atomic publication temporary files.
+.RESULTS.md.lock
+RESULTS.md.*.tmp

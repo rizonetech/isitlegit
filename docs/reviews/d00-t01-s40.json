@@ -1,0 +1,129 @@
+{
+  "ref": "D00 T01 \u00a740",
+  "title": "Email recovery fixtures on reviewed ablation integration",
+  "implementation_sha": "2ce00d58b6cf1e3d6dd45ffa875959070e1048d8",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "pnpm exec vitest run test/intake/email.test.ts test/intake/store.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts -> passed within 266 tests across 14 affected files; /tmp/ablation-integration-green.log",
+    "Causal skipped-row restoration mutation fails real store readback despite Workflow creation; /tmp/ablation-readback-mutation-red.log; production restored byte-exact",
+    "Typecheck, dry build, migration0095, scoped lint, publication, TODO validation and plan current passed; logs in D00-T01-s40-implementation.md"
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s40.md",
+    "verdict": "complete",
+    "candidate": "2ce00d58b6cf1e3d6dd45ffa875959070e1048d8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s40.md",
+    "candidate": "65989d0c573e30762c0d889a0ef6aa0557f8960e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

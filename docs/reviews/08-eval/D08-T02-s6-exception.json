@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "contract-amendment",
+  "report": "docs/reviews/08-eval/D08-T02-s6.md",
+  "plan_candidate": "353dd9e298f2c38b9904f5283e77ea60d7d63f89",
+  "completion_candidate": "ef1c3e960e8c1dcb6dc9edae252380fb394e084c",
+  "completion_digest": "1aaa5eb7f19091f8",
+  "original_contract_sha256": "44e48dd1ad7bb707876f87320b18da916c707fd06d9a6588ca71457c220cabee",
+  "accepted_contract_sha256": "a00edd9e91ef6a0a6fd0ab33928499ceb3f4de79d3fefafba8abcb48f12fcc51",
+  "prefix_bytes": 9375,
+  "prefix_sha256": "a889972e3f8c9c86cbec7a6139d4e3d7f8d48562a7a403e7cc54768b17377b16",
+  "predecessors": [],
+  "repair_base_candidate": "abea9b56546091cac5ddc08d03d7ee1e33ee1232",
+  "disposition_path": "docs/reviews/08-eval/D08-T02-s6-disposition.md",
+  "disposition_blob": "848b33dbccd49d4850c6677cd75ce3b4bfa18fb3",
+  "disposition_commit": "92a1b93a52a46d1901316d8013c1975a57861811"
+}

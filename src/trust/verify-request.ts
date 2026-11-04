@@ -302,6 +302,8 @@ export async function requestVerification(
       text: `An invoice claims to be from your business and asks for ${row.currency} ${amount} to an account ending ${row.account_last3}. These details do not match the account registered with IsItLegit.\n\nAre these the payment details your business authorised for this invoice? Reply yes or no by ${deadline} SAST. Do not send your bank account number.\n\nThis request does not confirm that the invoice is genuine. The checker should still phone you on a known number before paying.`,
     },
   );
+  if (result.status === "failed" && result.storageFailure)
+    throw new Error(`verification mail ${result.storageFailure} storage failed`);
   if (result.status === "sent" || (result.status === "duplicate" && result.previous === "sent")) {
     const sent = await confirmed(db, row);
     if (!sent) throw new Error("verification delivery could not be read back");

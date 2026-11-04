@@ -1,0 +1,6 @@
+{
+  "extends": "../test/tsconfig.json",
+  "compilerOptions": { "types": ["node", "@cloudflare/vitest-plugin/types"], "allowImportingTsExtensions": true },
+  "include": ["./links*.ts", "../test/checks/link-quality.test.ts", "../worker-configuration.d.ts", "../src/types/*.d.ts"],
+  "exclude": []
+}

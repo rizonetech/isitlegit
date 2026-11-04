@@ -65,6 +65,12 @@ Every `## N.` body section has exactly one row (`Order`, `§N`, `Deliverable`, `
 
 Never a bare number, and never a cross-TODO reference without a section. Cross-references in `-> XREF:` lines are bidirectional at file level: if this file points at `D03 T01 §4`, that TODO file must point back at a section in this file. The validator refuses one-sided XREFs and XREFs that name no real section.
 
+### Explicit operator withdrawal
+
+An unverified section may record exactly one standalone `**Withdrawn:** YYYY-MM-DD | operator | reason` line after an explicit operator withdrawal. Use a real calendar date and a nonempty, single-line reason without pipe characters. Indented, quoted, duplicate or malformed fields refuse validation. Ordinary prose and fenced code examples never withdraw work. This field is not permitted on verified sections and does not retire a stamp.
+
+Keep the original section, checklist, Implementation Order checkbox and historical review records unchanged. Withdrawal is a separate disposition, never delivery: `resolve` and `classify` return 5, `query plan` reports `withdrawn` and its metadata, and the generated plan displays `Withdrawn` with the dated reason. Active ready, blocked, manual, section and checklist totals exclude withdrawn rows; stats and the plan report a separate withdrawn count when present. Direct and transitive dependents remain blocked until their actual requirements are delivered or an explicit dependency scope correction is recorded. A withdrawn section cannot be stamped and no receipt is created. Only a later explicit operator correction removes the marker, restoring the section's ordinary unmet obligations without claiming completion.
+
 ### What every section declares
 
 - `**Phase:**` from the closed list: 0 to 7 or 99 (Manual, operator only). The phase drives plan ordering; changing one is a scope decision. The project names its phases, the plan's title and its acceptance bar in `todo/plan.json` (`{"title": ..., "acceptance": ... or null, "phases": {"0": "<name>", ...}}`); `validate` and `plan` refuse unknown keys or phase numbers.
@@ -169,3 +175,9 @@ python -m unittest tests.scripts.test_todo_graph   # the tooling's own tests
 - One line per paragraph and per list item in Markdown prose; no em dashes or en dashes in new text; keep Markdown table description cells at or under 88 characters so they do not wrap in raw `.md` view.
 - A defect noticed outside the current work is filed in `todo/findings.md` with `file:line`, not fixed on the side inside someone else's commit; scheduling it means writing a section through `add-todo`.
 - Questions that need a person are not TODO rows without a Need: the section names `owner-decision` or `third-party` and records the answer before the Need is removed.
+
+### Exact exception receipts (D00 T01 §38)
+
+Version 3 is an explicit exception binding inside the separate `reconciliation` receipt record, beside the unchanged original completion gaps. It adds the authorization document path, commit and Git blob, exact exception kind and accepted contract hash while retaining all original candidate, contract, prefix and disposition fields. It is permitted only for the two report/kind pairs documented in `docs/todo-workflow.md`, following a separate coordinator decision and committed pin entry. No live authorization is installed by the capability itself.
+
+Receipt replay verifies the original chain, every preceding failed reconciliation, exact full prefix, committed authorization and disposition, candidate ancestry, contract hashes, recorded reviewer pin, schedule and chronology. A successful predecessor, missing/reordered/extra evidence, changed obligation, returned exception gaps or repeated exception cannot stamp. Historical versions 1 and 2 retain their existing rules and receipts. Revocation removes new-call authorization only and preserves all historical documents and pins.

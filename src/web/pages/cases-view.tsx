@@ -25,6 +25,7 @@ import { MonitorIcon as SearchIcon } from "../components/icons";
 import { Select } from "../components/Select";
 import { EmptyState } from "../components/States";
 import { VerdictBadge } from "../components/Verdict";
+import { type CalendarDraft, calendarDraft } from "./cases-calendar";
 import { shownState } from "./report-view";
 import { STEP_COUNT } from "./welcome-view";
 
@@ -173,6 +174,17 @@ const RESULTS = {
   // period's state beside the date range (D07 T04 §8), which a range disables.
   "hx-select-oob": "#case-count,#case-stats,#case-period-state,#case-range-state,#case-checker-state",
   "hx-indicator": "#case-loading",
+} as const;
+
+// Calendar actions replace one owned panel, including editable dates, only after every read succeeds.
+const CALENDAR_PANEL = {
+  ...RESULTS,
+  "hx-get": "/cases",
+  "hx-include": "#case-filters",
+  "hx-trigger": "click",
+  "hx-target": "#case-panel",
+  "hx-select": "#case-panel",
+  "hx-select-oob": "unset",
 } as const;
 
 function Pill(props: { item: ListedCase }) {
@@ -438,8 +450,14 @@ const SEARCH = cx(
   FIELD_FOCUS,
 );
 
-function Filters(props: { filters: CaseFilters; members?: { id: string; label: string }[] }) {
+function Filters(props: {
+  filters: CaseFilters;
+  now: Date;
+  calendar?: CalendarDraft | undefined;
+  members?: { id: string; label: string }[];
+}) {
   const { filters } = props;
+  const calendar = props.calendar ?? calendarDraft(props.now);
   const members = props.members ?? [];
   const unavailable = filters.checker !== "" && !members.some((m) => m.id === filters.checker);
   return (
@@ -450,7 +468,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
       id="case-filters"
       // A control's change applies it; Enter in the search box searches at once (the form's submit, kept by htmx). The
       // search box's own change on leaving it is no change: its typing has already searched.
-      hx-trigger="change[target.name!='q'], submit"
+      hx-trigger="change[target.name!='q' && !target.name.startsWith('calendar_')], submit"
       {...RESULTS}
       class="flex flex-wrap items-center gap-12"
     >
@@ -577,12 +595,83 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
           </span>
         ) : null}
       </span>
-      {/* Only without JavaScript: htmx applies each change as it is made. */}
-      <noscript>
-        <Button type="submit" variant="dark">
-          Apply
+      <Button type="submit" variant="dark">
+        Apply filters
+      </Button>
+      <fieldset class="flex flex-wrap items-center gap-12 min-w-0 basis-full" aria-describedby="case-calendar-hint">
+        <legend class="type-small weight-text-strong">Calendar period</legend>
+        <label for="case-calendar-year" class="type-small weight-text-strong">
+          Year
+        </label>
+        <input
+          id="case-calendar-year"
+          name="calendar_year"
+          type="text"
+          inputmode="numeric"
+          maxlength={4}
+          value={calendar.year}
+          class={INLINE_INPUT}
+        />
+        <label for="case-calendar-month" class="type-small weight-text-strong">
+          Month
+        </label>
+        <Select id="case-calendar-month" name="calendar_month">
+          {!/^(?:[1-9]|1[0-2])$/.test(calendar.month) ? (
+            <option value={calendar.month} selected>
+              Choose a month
+            </option>
+          ) : null}
+          {[
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+          ].map((name, index) => (
+            <option value={index + 1} selected={calendar.month === String(index + 1)}>
+              {name}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" name="calendar" value="month" {...CALENDAR_PANEL}>
+          Show month
         </Button>
-      </noscript>
+        <label for="case-calendar-quarter" class="type-small weight-text-strong">
+          Quarter
+        </label>
+        <Select id="case-calendar-quarter" name="calendar_quarter" class="max-w-full min-w-0">
+          {!/^[1-4]$/.test(calendar.quarter) ? (
+            <option value={calendar.quarter} selected>
+              Choose a quarter
+            </option>
+          ) : null}
+          {["Q1 (January to March)", "Q2 (April to June)", "Q3 (July to September)", "Q4 (October to December)"].map(
+            (name, index) => (
+              <option value={index + 1} selected={calendar.quarter === String(index + 1)}>
+                {name}
+              </option>
+            ),
+          )}
+        </Select>
+        <Button type="submit" name="calendar" value="quarter" {...CALENDAR_PANEL}>
+          Show quarter
+        </Button>
+        <p id="case-calendar-hint" class="type-small text-muted basis-full">
+          Choose a year and month or quarter, then show its cases. This fills From and To with SAST dates.
+        </p>
+        {calendar.invalid ? (
+          <p role="alert" class="type-small text-mal basis-full">
+            Choose a valid year and month or quarter.
+          </p>
+        ) : null}
+      </fieldset>
       <p id="case-loading" role="status" class="hidden [&.htmx-request]:inline type-small text-muted">
         Loading cases
       </p>
@@ -642,6 +731,14 @@ const HOW_TO = [
   ["Outlook desktop", "Select the email, then Home, More, Forward as attachment."],
   ["Outlook on the web", "Open the email, then More actions, Forward as attachment."],
   ["Gmail", "Tick the email in your inbox, then More at the top, Forward as attachment."],
+  [
+    "Apple Mail on iPhone",
+    "Reply, then Forward sends an ordinary forward. For the original email, open the same mailbox in Mail on a Mac, select the message, then choose Message, Forward As Attachment.",
+  ],
+  [
+    "Gmail on a phone",
+    "For the original email, use Gmail on a computer. Tick the message in your inbox, then choose More, Forward as attachment. You can also open the message, choose More, Download message, and upload the saved .eml file.",
+  ],
 ] as const;
 
 function FirstRun(props: { domains: string[]; addresses: string[] }) {
@@ -675,6 +772,21 @@ function FirstRun(props: { domains: string[]; addresses: string[] }) {
           </li>
         ))}
       </ul>
+      <div class="flex flex-col gap-8">
+        <h2 class="text-14 weight-heading">Checking from your phone?</h2>
+        <p class="text-13 text-muted">
+          Already have the original .eml or .msg file? Upload it from your phone. You can also check a screenshot or a
+          PDF you already have, but those do not include the original email headers. An ordinary forward also leaves
+          those checks unavailable. Use a computer and the steps above when you need the original email checked.
+        </p>
+        <a href="/upload" class={cx("text-orange-text underline underline-offset-4", FOCUS)}>
+          Upload a file
+        </a>
+        <p class="text-13 text-muted">
+          Choose a file and select your saved file. The check starts automatically, or with Check this file if that
+          button is shown.
+        </p>
+      </div>
       <AcceptedSenders {...props} />
     </EmptyState>
   );
@@ -751,17 +863,26 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
               <input type="hidden" name="org" value={props.orgId} />
               <label class="flex flex-col gap-4">
                 <span class="text-muted">From</span>
-                <input id="case-export-from" type="date" name="from" class={INLINE_INPUT} />
+                <input id="case-export-from" type="date" name="from" required class={INLINE_INPUT} />
               </label>
               <label class="flex flex-col gap-4">
                 <span class="text-muted">To</span>
-                <input id="case-export-to" type="date" name="to" class={INLINE_INPUT} />
+                <input id="case-export-to" type="date" name="to" required class={INLINE_INPUT} />
               </label>
               <button type="submit" class={cx("underline underline-offset-4 text-orange-text", FOCUS)}>
                 Export period
               </button>
+              <button
+                type="submit"
+                name="exact"
+                value="1"
+                class={cx("underline underline-offset-4 text-orange-text", FOCUS)}
+              >
+                Daily counts CSV
+              </button>
             </form>
-            <p class="text-muted mt-4">Whole weeks that overlap your dates.</p>
+            <p class="text-muted mt-4">Export period: whole weeks that overlap your dates.</p>
+            <p class="text-muted mt-4">Daily counts: one row per selected SAST day, including days with no cases.</p>
             <p class="mt-4 flex gap-12">
               <a
                 href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${monthRange().from}&to=${monthRange().to}`}
@@ -806,6 +927,7 @@ export function CasesPage(props: {
   senders: { domains: string[]; addresses: string[] };
   stats: WeeklyStats;
   now: Date;
+  calendar?: CalendarDraft | undefined;
   // How far the setup list is (D07 T08 §2), null when it is finished or could not be read.
   setup?: { done: number; hidden: boolean } | null;
   // The query asked for was longer than the search keeps (D07 T04 §14).
@@ -849,24 +971,30 @@ export function CasesPage(props: {
               )}
             </p>
           )}
-          {list.total === 0 ? (
-            <FirstRun {...senders} />
-          ) : (
-            <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
-              <StatsPanel stats={stats} orgId={shell.organization.id} />
-              <Filters filters={filters} members={props.members ?? []} />
-              <p id="case-count" role="status" class="sr-only">
-                {countStatus(list, filters, notices, checkerName)}
-              </p>
-              <Results
-                list={list}
-                filters={filters}
-                now={now}
-                notices={notices}
-                {...(checkerName ? { checkerName } : {})}
-              />
-            </div>
-          )}
+          <div
+            id="case-panel"
+            class="flex flex-col gap-24"
+            hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}
+          >
+            {list.total === 0 && !props.calendar ? (
+              <FirstRun {...senders} />
+            ) : (
+              <div class="flex flex-col gap-24">
+                <StatsPanel stats={stats} orgId={shell.organization.id} />
+                <Filters filters={filters} members={props.members ?? []} now={now} calendar={props.calendar} />
+                <p id="case-count" role="status" class="sr-only">
+                  {countStatus(list, filters, notices, checkerName)}
+                </p>
+                <Results
+                  list={list}
+                  filters={filters}
+                  now={now}
+                  notices={notices}
+                  {...(checkerName ? { checkerName } : {})}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </AppShell>
     </Document>

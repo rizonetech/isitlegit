@@ -6,3 +6,8 @@ packages:
 # Remotion bundles the compositions with esbuild, whose install script fetches its platform binary.
 allowBuilds:
   esbuild: true
+
+# Remotion runtime consumers pin vulnerable Zod4.5.4; keep every media resolution patched.
+# GHSA-mrhx-c7xc-m3w5, coordinator MEDIA-ZOD-SECURITY, 2026-11-04.
+overrides:
+  zod: 4.6.7

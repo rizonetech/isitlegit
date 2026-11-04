@@ -440,6 +440,94 @@ describe("delivery apart from coverage", () => {
     );
   });
 
+  it("distinguishes inconclusive authentication kinds without changing conclusive results", () => {
+    const render = (method: string, state: string, results: unknown[], raw: unknown[] = [], trusted = true) =>
+      live({
+        status: "running",
+        verdict: null,
+        progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+        coverage: [outcome(`auth.${method}`, "ran")],
+        evidence: [
+          {
+            id: "E1",
+            check: `auth.${method}`,
+            severity: "low",
+            summary: "Stored method summary.",
+            detail: { state, results },
+            artefacts: [],
+          },
+          {
+            id: "E2",
+            check: "auth.results",
+            severity: "info",
+            summary: "Stored receiver results.",
+            detail: { trusted, results: raw },
+            artefacts: [],
+          },
+        ],
+      });
+    for (const method of ["spf", "dkim", "dmarc"]) {
+      for (const [result, label, sentence] of [
+        [
+          "temperror",
+          "Temporary error",
+          "The receiving mail system recorded a temporary error when this message arrived.",
+        ],
+        [
+          "permerror",
+          "Configuration error",
+          "This authentication check could not finish because of a configuration error.",
+        ],
+        ["neutral", "No conclusion", "This check does not confirm whether the sender is genuine."],
+      ]) {
+        const html = render(method, "inconclusive", [{ result }]);
+        expect(html).toContain(label);
+        expect(html).toContain(sentence);
+      }
+      for (const results of [
+        [{ result: "neutral" }, { result: "temperror" }, { result: "permerror" }],
+        [{ result: "permerror" }, { result: "temperror" }, { result: "neutral" }],
+      ]) {
+        const html = render(method, "inconclusive", results);
+        expect(html).toContain("Configuration error");
+        expect(html).not.toContain("Temporary error");
+        expect(html).not.toContain("No conclusion");
+      }
+      for (const [state, word] of [
+        ["passed", "Passed"],
+        ["failed", "Failed"],
+        ["unavailable", "Not reported"],
+      ]) {
+        const html = render(method, state ?? "", [{ result: "permerror" }]);
+        expect(html).toContain(word);
+        expect(html).toContain("Stored method summary.");
+        expect(html).not.toContain("Configuration error");
+      }
+      for (const results of [[], [null, "permerror", { result: 7 }], [{ result: "unknown" }]]) {
+        const html = render(method, "inconclusive", results);
+        expect(html).toContain("Could not be checked");
+        expect(html).toContain("Stored method summary.");
+      }
+      expect(render(method, "inconclusive", [{ result: "permerror" }], [], false)).not.toContain("Configuration error");
+    }
+    expect(render("spf", "inconclusive", [{ result: "neutral" }, { result: "temperror" }])).toContain(
+      "Temporary error",
+    );
+    const dmarc = render(
+      "dmarc",
+      "inconclusive",
+      [{ result: "fail" }],
+      [{ method: "dmarc", result: "fail", props: { action: "permerror" } }],
+    );
+    expect(dmarc).toContain("Configuration error");
+    for (const raw of [
+      [{ method: "spf", result: "fail", props: { action: "permerror" } }],
+      [{ method: "dmarc", result: "pass", props: { action: "permerror" } }],
+      [{ method: "dmarc", result: "fail", props: { action: "oreject" } }],
+    ])
+      expect(render("dmarc", "inconclusive", [{ result: "fail" }], raw)).toContain("Could not be checked");
+  });
+
   it("says why no authentication results were trusted, from the stored explanation (D07 T03 §37)", () => {
     const running = {
       status: "running" as const,
@@ -1430,6 +1518,46 @@ describe("the status poll", () => {
     html = await (await poll(id, cookie)).text();
     expect(html).not.toContain("What the receiving mail system recorded");
   });
+
+  it.each(["temperror", "permerror"] as const)(
+    "reads the stored DMARC %s action through the status route",
+    async (action) => {
+      const { cookie, id } = await setup();
+      await event(id, "admit", "done");
+      await event(id, "checks", "started");
+      await saveEvidence(
+        db,
+        id,
+        [
+          {
+            check: "auth.results",
+            severity: "info",
+            summary: "Receiver recorded a DMARC error.",
+            detail: { trusted: true, results: [{ method: "dmarc", result: "fail", props: { action } }] },
+            artefacts: [],
+          },
+          {
+            check: "auth.dmarc",
+            severity: "low",
+            summary: "DMARC could not be evaluated.",
+            detail: { state: "inconclusive", results: [{ result: "fail", comment: null }] },
+            artefacts: [],
+          },
+        ],
+        undefined,
+        undefined,
+        [{ check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 }],
+      );
+      const html = await (await poll(id, cookie)).text();
+      expect(html).toContain(action === "temperror" ? "Temporary error" : "Configuration error");
+      expect(html).toContain(
+        action === "temperror"
+          ? "The receiving mail system recorded a temporary error when this message arrived."
+          : "This authentication check could not finish because of a configuration error.",
+      );
+      expect(html).not.toContain("Try again later");
+    },
+  );
 
   // D07 T09 §1, §19: from the producer's early save alone (D01 T01 §23), while the slower checks still run,
   // reading back full supporting details and missing-reason markers on both initial page load and status polling.

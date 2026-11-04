@@ -243,6 +243,35 @@ def field(body, name, required=True):
     return values[0].strip() if values else ""
 
 
+def withdrawal(body):
+    """Only the explicit operator field withdraws unverified work; prose is not authority."""
+    lines = []
+    fence = None
+    for line in body.splitlines():
+        if fence is not None:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + r"{" + str(fence[1]) + r",}[ \t]*", line):
+                fence = None
+            continue
+        opening = re.fullmatch(r" {0,3}(`{3,}|~{3,})(.*)", line)
+        if opening and not (opening[1][0] == "`" and "`" in opening[2]):
+            fence = (opening[1][0], len(opening[1]))
+            continue
+        # Recognize malformed quote/list prefixes too, then require the exact standalone field below.
+        if re.match(r"^(?:[ \t>+*0-9().-]|\[[^\]\r\n]*\])*\*\*Withdrawn:\*\*", line):
+            lines.append(line)
+    require(len(lines) <= 1, "duplicate Withdrawn field")
+    if not lines:
+        return None
+    match = re.fullmatch(r"\*\*Withdrawn:\*\* (\d{4}-\d{2}-\d{2}) \| operator \| ([^|\r\n]+)", lines[0])
+    require(match is not None and match[2].strip() == match[2] and bool(match[2].strip()),
+            "invalid Withdrawn field: expected YYYY-MM-DD | operator | reason")
+    try:
+        datetime.date.fromisoformat(match[1])
+    except ValueError:
+        raise Refused("invalid Withdrawn calendar date") from None
+    return {"date": match[1], "authority": "operator", "reason": match[2]}
+
+
 @dataclass
 class Section:
     ref: str
@@ -257,9 +286,11 @@ class Section:
     body: str
     receipt: str
     order: int = 0
+    withdrawn: dict | None = None
 
     def public(self):
-        return {k: v for k, v in asdict(self).items() if k != "body"}
+        return {k: v for k, v in asdict(self).items()
+                if k != "body" and not (k == "withdrawn" and v is None)}
 
 
 def front_matter(text, relative):
@@ -1457,7 +1488,8 @@ def graph(root=ROOT):
                 f"once each and in that order: {relative}")
         for h in headings:
             n = int(h[1])
-            section_body = body[h.end():].split("\n## ", 1)[0].strip()
+            raw_section_body = body[h.end():].split("\n## ", 1)[0]
+            section_body = raw_section_body.strip()
             ref = f"D{d} T{t} §{n}"
             require(ref not in sections, f"duplicate address: {ref}")
             deliverable, title = rows[n][3].strip(), h[2].strip()
@@ -1518,6 +1550,8 @@ def graph(root=ROOT):
             require(bool(freeze_check) == (frozen == "true"),
                     f"Freeze check must match frozen frontmatter: {ref}")
             done = rows[n][5] == "x"
+            withdrawn = withdrawal(raw_section_body)
+            require(not (withdrawn and done), f"Withdrawn is only valid on an unverified section: {ref}")
             stamp_line = field(section_body, "Verified", False)
             receipt = field(section_body, "Review", False).strip("`")
             require(done == bool(stamp_line) == bool(receipt),
@@ -1534,7 +1568,7 @@ def graph(root=ROOT):
                 if "completion" in data:
                     filed_gaps[ref] = data["completion"]["filed"]
             sections[ref] = Section(ref, relative, n, h[2], int(phase), deps, needs, done,
-                                    front["status"], section_body, receipt, int(rows[n][1]))
+                                    front["status"], section_body, receipt, int(rows[n][1]), withdrawn)
             files[relative][2].append(ref)
     for relative, (front, file_deps, refs, xrefs, adjacency) in files.items():
         require(len(set(file_deps)) == len(file_deps), f"duplicate file dependencies: {relative}")
@@ -1640,14 +1674,16 @@ def settled(ref, rows):
         if current in seen:
             continue
         seen.add(current)
-        if not rows[current].done:
+        if not rows[current].done or getattr(rows[current], "withdrawn", None):
             return False
         stack.extend(rows[current].depends)
     return True
 
 
 def disposition(row, rows):
-    """0 ready, 3 already verified, 4 waiting (inactive file, open or suspect prerequisite, or a person to answer)."""
+    """0 ready, 3 verified, 4 waiting, 5 explicitly withdrawn (never delivered)."""
+    if getattr(row, "withdrawn", None):
+        return 5
     if row.done:
         return 3
     if row.status != "active" or set(row.needs) & WAITING \
@@ -1779,9 +1815,13 @@ def lane_query(kind, rows, config, here, everything=False, phase=None):
     if kind == "blocked":
         return [r.public() for r in scope if disposition(r, rows) == 4]
     require(kind == "stats", f"no lane query {kind!r}")
+    withdrawn = sum(bool(r.withdrawn) for r in scope)
+    scope = [r for r in scope if not r.withdrawn]
     result = {"lane": "all" if everything else here, "total": len(scope), "verified": sum(r.done for r in scope),
               "ready": sum(disposition(r, rows) == 0 for r in scope),
               "blocked": sum(disposition(r, rows) == 4 for r in scope)}
+    if withdrawn:
+        result["withdrawn"] = withdrawn
     if phase is not None:
         result["phase"] = phase
     return result
@@ -1791,7 +1831,7 @@ def manual_rows(rows, config):
     """The coordinator's manual list (`query manual`; docs/specs/2026-10-30-four-lanes-design.md, Manual work): every
     lane's open rows that wait on the operator or on a paid or attended environment, each with its lane."""
     return [{**r.public(), "lane": lane_of(r, config), "disposition": disposition(r, rows)}
-            for r in ordered(rows) if not r.done and set(r.needs) & MANUAL_NEEDS]
+            for r in ordered(rows) if not r.done and not r.withdrawn and set(r.needs) & MANUAL_NEEDS]
 
 
 def lane_info(root=ROOT, config=None, here=None):
@@ -1861,13 +1901,18 @@ def projection(root=ROOT):
     checks = {row.ref: re.findall(r"^- \[([ x])\] (.+)$", row.body, re.M) for row in rows}
     for phase in sorted({row.phase for row in rows}):
         phase_rows = [row for row in rows if row.phase == phase]
-        item_count = sum(len(checks[row.ref]) for row in phase_rows)
+        active_rows = [row for row in phase_rows if not row.withdrawn]
+        withdrawn_count = len(phase_rows) - len(active_rows)
+        item_count = sum(len(checks[row.ref]) for row in active_rows)
         name = config["phases"].get(phase)
         title = f"Phase {phase}: {name}" if name else f"Phase {phase}"
-        lines += [f"### {title}", "", f"Sections: {len(phase_rows)} | Checklist items: {item_count}", ""]
+        counts = f"Sections: {len(active_rows)} | Checklist items: {item_count}"
+        if withdrawn_count:
+            counts += f" | Withdrawn: {withdrawn_count}"
+        lines += [f"### {title}", "", counts, ""]
         table = markdown_table(
             ["Status", "Reference", "Deliverable", "Needs", "Items"],
-            [[f"[{'x' if row.done else ' '}]", row.ref, row.title,
+            [["Withdrawn" if row.withdrawn else f"[{'x' if row.done else ' '}]", row.ref, row.title,
               ", ".join(row.needs) or "none", str(len(checks[row.ref]))] for row in phase_rows],
         )
         # Every row is padded to the widest cell, so one long title wraps the whole table: name the widest section.
@@ -1877,12 +1922,19 @@ def projection(root=ROOT):
                 f"chars); shorten the heading and Deliverable of {widest.ref} (title {len(widest.title)} chars)")
         lines += table
         lines.append("")
-    total_items = sum(len(items) for items in checks.values())
-    completed_items = sum(state == "x" for items in checks.values() for state, _ in items)
+        for row in phase_rows:
+            if row.withdrawn:
+                detail = row.withdrawn
+                lines += [f"Withdrawn {row.ref}: {detail['date']} | {detail['authority']} | {detail['reason']}", ""]
+    active_rows = [row for row in rows if not row.withdrawn]
+    total_items = sum(len(checks[row.ref]) for row in active_rows)
+    completed_items = sum(state == "x" for row in active_rows for state, _ in checks[row.ref])
     ready = sum(disposition(r, all_rows) == 0 for r in rows)
-    lines += [f"Progress: {sum(r.done for r in rows)}/{len(rows)} verified sections, "
+    lines += [f"Progress: {sum(r.done for r in active_rows)}/{len(active_rows)} verified sections, "
               f"{ready} ready to run now.", "",
               f"Checklist: {completed_items}/{total_items} items completed (includes Commit items).", ""]
+    if len(rows) != len(active_rows):
+        lines += [f"Withdrawn: {len(rows) - len(active_rows)} sections (not verified or delivered).", ""]
     return "\n".join(lines)
 
 
@@ -1960,6 +2012,70 @@ def review_rounds(root=ROOT):
                         "stopped_low_severity": sum("stopped-low-severity" in s["verdicts"] for s in sections)}}
 
 
+def strict_receipt(path):
+    """Read recovery evidence without JSON's duplicate-key or nonfinite-number coercions."""
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            require(key not in result, f"duplicate receipt field {key}: {path}")
+            result[key] = value
+        return result
+    def constant(value):
+        raise Refused(f"invalid JSON constant {value} in receipt: {path}")
+    require(path.is_file() and not path.is_symlink(), f"receipt is not a regular file: {path}")
+    try:
+        return json.loads(path.read_bytes().decode('utf-8'), object_pairs_hook=pairs, parse_constant=constant)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise Refused(f"unreadable receipt {path}: {exc}") from None
+
+
+def receipt_difference(left, right, field='$'):
+    """Return the first field that differs, including exact JSON types and object membership."""
+    if type(left) is not type(right):
+        return field
+    if isinstance(left, dict):
+        for key in sorted(set(left) | set(right)):
+            child = key if field == '$' else field + '.' + key
+            if key not in left or key not in right:
+                return child
+            difference = receipt_difference(left[key], right[key], child)
+            if difference is not None:
+                return difference
+    elif isinstance(left, list):
+        for i in range(max(len(left), len(right))):
+            child = f'{field}[{i}]'
+            if i >= len(left) or i >= len(right):
+                return child
+            difference = receipt_difference(left[i], right[i], child)
+            if difference is not None:
+                return difference
+    elif left != right:
+        return field
+    return None
+
+
+def validate_orphan_receipts(root, rows):
+    """Explicit validation diagnoses interrupted writes; graph readers remain available for recovery."""
+    root = Path(root)
+    for path in sorted((root / 'docs/reviews').glob('d*-t*-s*.json')):
+        match = re.fullmatch(r'd(\d{2})-t(\d{2})-s([1-9]\d*)\.json', path.name)
+        if match is None:
+            continue  # Revoked receipts and supporting registries are historical evidence.
+        ref = f'D{match[1]} T{match[2]} §{match[3]}'
+        if ref in rows and rows[ref].done:
+            continue
+        relative = path.relative_to(root).as_posix()
+        try:
+            data = strict_receipt(path)
+        except Refused as exc:
+            raise Refused(f'orphan receipt {relative}: {exc}; preserve it and recover the same original stamp arguments and original explicit --date') from None
+        original_date = data.get('date') if isinstance(data, dict) else None
+        require(isinstance(original_date, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', original_date),
+                f'orphan receipt {relative}: original date is invalid; preserve it and recover the original stamp arguments')
+        raise Refused(f"orphan receipt {relative}: section {ref} is unstamped; preserve the existing receipt and rerun "
+                      f"python3 scripts/todo-graph.py stamp '{ref}' <same original arguments> --date {original_date}")
+
+
 def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=None, completion=None, plan=None,
           final=None, reconciliation=None):
     """Close a section: write its receipt, tick its row and checklist, add the Verified and Review lines. The receipt
@@ -1970,6 +2086,7 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     rows = graph(root)
     require(ref in rows, "unresolved section: " + ref)
     row = rows[ref]
+    require(not row.withdrawn, f"withdrawn section cannot be stamped: {ref}")
     require(not row.done, f"already verified: {ref}")
     require(all(settled(d, rows) for d in row.depends),
             f"open prerequisite, or one resting on a reopened section: {ref}")
@@ -2042,7 +2159,11 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     receipt_data_ok(data, ref, sha, root=root, surface=field(row.body, "Surface") == "yes",
                     risk=field(row.body, "Risk", False) or "full", todo=row.path, body=row.body)
     receipt_path = root / receipt
-    require(not receipt_path.exists(), f"receipt already exists: {receipt}")
+    recovering = receipt_path.exists() or receipt_path.is_symlink()
+    if recovering:
+        previous = strict_receipt(receipt_path)
+        difference = receipt_difference(previous, data)
+        require(difference is None, f"receipt already exists and differs at {difference}: {receipt}; preserve the existing receipt")
     path = root / row.path
     original_bytes = path.read_bytes()
     original = read_text(path)
@@ -2062,13 +2183,15 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     plan_path = root / PLAN
     original_plan_bytes = plan_path.read_bytes() if plan_path.is_file() else None
     try:
-        atomic(receipt_path, json.dumps(data, indent=2) + "\n")
+        if not recovering:
+            atomic(receipt_path, json.dumps(data, indent=2) + "\n")
         atomic(path, text)
         graph(root)
         if sync_plan or original_plan_bytes is not None:
             projections(root, sync=True)
     except BaseException:  # an interrupt between writes must roll back as an error does
-        receipt_path.unlink(missing_ok=True)
+        if not recovering:
+            receipt_path.unlink(missing_ok=True)
         try:
             if not path.is_file() or path.read_bytes() != original_bytes:
                 atomic(path, original_bytes)

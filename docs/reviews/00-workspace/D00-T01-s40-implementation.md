@@ -1,0 +1,13 @@
+# D00 T01 §40 implementation evidence
+
+2026-11-04. Genuine plan at65989d0c returned P2 e6ea2e3a0cdf7ce9; corrected contract and pre-code disposition committed a8a52b1e. Only implementation source change is test/intake/email.test.ts: separately accounted-for bc92181d fixture correction plus real store read-back of original bytes, MIME, raw key, byte count and case-owned artefact identity after actual handleEmail recovery. The shared ran helper is unchanged.
+
+Original red: `taskset -c 0,1 pnpm exec vitest run test/intake/email.test.ts`, 36 passed and two failed, 44.91 seconds, `/tmp/ablation-email-red.log`. Both old missing-file fixtures had actually stored objects without MIME.
+
+Causal read-back red: temporarily omit only the mail putRaw call inside recoverIntakeObject, then run `taskset -c 0,1 pnpm exec vitest run test/intake/email.test.ts -t 'preserves an orphan mail'`. One failed, one passed, 38 skipped, 22.93 seconds, `/tmp/ablation-readback-mutation-red.log`. Valid-MIME recovery passed duplicate result, Workflow existence and done claim assertions but failed the new non-null store read-back at line467. Restored production file byte-for-byte before green verification. No mutation remains.
+
+Green checkpoint: `taskset -c 0,1 pnpm exec vitest run test/intake/email.test.ts test/intake/store.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts test/pipeline/case-experiments.test.ts test/pipeline/ablation-consumers.test.ts test/pipeline/analysis-workflow.test.ts test/vision/step.test.ts test/vision/standalone-image.test.ts test/agent/logo-tools.test.ts test/walkthrough/trigger.test.ts test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts`, 14 files and 266 tests passed in347.46 seconds, `/tmp/ablation-integration-green.log`.
+
+Additional gates passed: pnpm typecheck (`/tmp/ablation-typecheck.log`), pnpm build dry-run (`/tmp/ablation-build.log`), pnpm db:migrate:local including0095 (`/tmp/ablation-migrations.log`), scoped Biome (`/tmp/ablation-lint.log`), publication scan (`/tmp/ablation-publication.log`), TODO validate611 (`/tmp/ablation-final-validate.log`) and plan current (`/tmp/ablation-final-plan.log`). Logs retain runtime warnings; no live model or production invocation is claimed.
+
+Preservation checks: all23 imported source/test paths remain exacta6a30c33, four original reports/receipts exact4f376bd4, frozen floor/citation/injection files exact95b3206b. Upload entitlement is retained. No verification manifest or gateway, URL, voice-parser or verification-wiring edit. Existing ancestor stamps remain original evidence, not approval of this fixture repair. Completion review and coordinator CI/release gates remain separate.

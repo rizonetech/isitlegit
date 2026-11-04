@@ -1,0 +1,135 @@
+{
+  "ref": "D07 T05 \u00a74",
+  "title": "Find organisations by domain or ID",
+  "implementation_sha": "d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T05-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "Test checkpoint: pnpm exec vitest run test/web/admin-page.test.ts passes and fails if a domain search returns no row. Original exact-candidate run: 19 tests passed; two added regressions failed before implementation. No product source changes since candidate.",
+    "Original exact-candidate targeted Chromium overview passed at360/1280 in both themes with axe; typecheck, Biome, dry build, design and publication passed. Genuine bounded reconciliation complete at2026-11-04T11:09:16Z preserves original7125findings bytes and unchanged approved contract. No fresh runtime, CI or deployment claim."
+  ],
+  "reconciliation": {
+    "report": "docs/reviews/07-app/D07-T05-s4.md",
+    "verdict": "complete",
+    "candidate": "d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "e46165fa04230623e480f729a98b1893e0a236ed",
+    "binding": {
+      "candidate": "d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074",
+      "completion_candidate": "d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074",
+      "completion_digest": "910406e39308d4a1",
+      "contract_path": "todo/07-app/TODO-05-admin-console.md",
+      "contract_sha256": "992e6e995704e065c4de0bddfff93c821ef48c11632d37edede9e5e25ef59029",
+      "disposition_blob": "c66eca57bf688dce10fcf4c204247e7c0d569484",
+      "disposition_commit": "63cbcd9053058ca3ab8bc30ff83378c779f3afe1",
+      "disposition_path": "docs/reviews/07-app/D07-T05-s4-disposition.md",
+      "plan_candidate": "5435fe7cccbd07661f752612d6ee098c5ad37883",
+      "plan_contract_sha256": "6c61a61368e2b1bd423d5f8a9ad8b22e1c9df04e3b5ffe1339a9f29f1163524c",
+      "prefix_bytes": 7125,
+      "prefix_sha256": "f9ec8293d8366583d8ce4914a1b4dc034919e165355f15d10845b130e539d05b",
+      "report": "docs/reviews/07-app/D07-T05-s4.md",
+      "version": 1
+    },
+    "digest": "0c1f80d780db9495"
+  },
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T05-s4.md",
+    "verdict": "gaps",
+    "candidate": "d0c7b2fd1aeb31ac5bd34ddd3bf02f3422a29074",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T05-s4.md",
+    "candidate": "5435fe7cccbd07661f752612d6ee098c5ad37883",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

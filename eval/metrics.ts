@@ -19,6 +19,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { type ComponentRecords, checkComponentRows, parseComponentFile, providerFigures } from "./components.ts";
+import { experimentSelection, verifyExperimentPublication } from "./experiment-metrics.ts";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
@@ -99,7 +100,7 @@ export type Report = {
   };
 };
 
-const rate = (hits: number, n: number): Rate => ({ n, hits, rate: n === 0 ? null : hits / n });
+export const rate = (hits: number, n: number): Rate => ({ n, hits, rate: n === 0 ? null : hits / n });
 const flagged = (v: string | null) => v === "suspicious" || v === "malicious";
 
 // The median (the mean of the two middle values for an even count) and the nearest-rank p95.
@@ -533,6 +534,7 @@ export const USAGE = [
   "usage: pnpm eval:metrics --check <RESULTS.md> [--records <dir>]   (exit 0 figures match their records, 3 refused)",
   "       pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
   "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
+  "       pnpm eval:metrics --run <arm replay id> --experiment <saved manifest.json> [--json | --publish]",
   "       pnpm eval:metrics --run <run id> --publish   (store a complete report for the public page; a full run also writes eval/results-summary.json)",
   "       pnpm eval:metrics --compare <replay run id> [--json]   (compare a replay with its source run: same population, per-scope deltas, changed verdicts)",
   "       pnpm eval:metrics --republish-summary   (rebuild eval/results-summary.json from the latest published full report)",
@@ -542,7 +544,7 @@ export type Outcome = { code: number; stdout: string; stderr: string };
 
 export async function runMetrics(args: {
   argv: string[];
-  db?: Pick<Db, "readRun">;
+  db?: Pick<Db, "readRun" | "caseExperiment" | "modelUse">;
   pub?: PublishDb;
   root?: string;
   now?: () => Date;
@@ -558,6 +560,7 @@ export async function runMetrics(args: {
     stdout: "",
     stderr: `eval:metrics: ${message}\n${USAGE}\n`,
   });
+  let experiment: string | null = null;
   let id: string | null = null;
   let json = false;
   let from: string | null = null;
@@ -570,7 +573,10 @@ export async function runMetrics(args: {
   for (let i = 0; i < args.argv.length; i++) {
     const a = args.argv[i];
     if (a === "--json") json = true;
-    else if (a === "--compare") {
+    else if (a === "--experiment") {
+      experiment = args.argv[++i] ?? null;
+      if (!experiment) return refuse("--experiment needs a saved manifest");
+    } else if (a === "--compare") {
       compare = args.argv[++i] ?? null;
       if (!compare || !/^[a-z0-9-]{8,64}$/.test(compare)) return refuse("--compare needs a replay run id");
     } else if (a === "--publish") publish = true;
@@ -593,6 +599,7 @@ export async function runMetrics(args: {
       if (!id || !/^[a-z0-9-]{8,64}$/.test(id)) return refuse("--run needs a run id");
     } else return refuse(`unknown option ${a}`);
   }
+  if (experiment && (compare || republish || checkFile)) return refuse("--experiment requires --run");
   const root = args.root ?? ROOT;
   const done = (o: { code: number; message: string }): Outcome =>
     o.code === 0
@@ -705,9 +712,16 @@ export async function runMetrics(args: {
     const checked = checkStored(stored, id);
     if (typeof checked === "string") return refuse(`the stored run is damaged: ${checked}`);
   }
-  let selection: ReturnType<typeof selectSamples>;
+  if (stored.run.mode.startsWith("ablate:") && !experiment)
+    return refuse("ablation scoring requires --experiment with the original saved manifest");
+  let experimentData: ReturnType<typeof experimentSelection> | undefined;
+  let selection: Pick<ReturnType<typeof selectSamples>, "samples" | "setVersion">;
   try {
-    selection = selectSamples(setsDir ?? join(args.root ?? ROOT, "eval/sets"), stored.run.sets, stored.run.sampleLimit);
+    const dir = setsDir ?? join(root, "eval/sets");
+    if (experiment) {
+      experimentData = experimentSelection(experiment, dir, stored);
+      selection = experimentData;
+    } else selection = selectSamples(dir, stored.run.sets, stored.run.sampleLimit);
   } catch (error) {
     const reason = error instanceof SetRefused ? error.message : (error as Error).message;
     return refuse(`the sets cannot be read: ${reason}`);
@@ -728,12 +742,30 @@ export async function runMetrics(args: {
     if (!args.pub) return { code: 1, stdout: "", stderr: "eval:metrics: no database to publish to\n" };
     if (!args.verify)
       return refuse("publication needs its cases reconciled: pass a verifier, or publish from the live command");
-    const reconciled = await args.verify(id);
-    if (!reconciled.ok)
-      return refuse(`run ${id} is not published: its cases do not reconcile (${reconciled.problems.join("; ")})`);
+    let experimentPublication: { baselineRunId: string } | undefined;
+    if (experimentData) {
+      if (!args.db) return refuse("experiment publication requires database access");
+      try {
+        experimentPublication = await verifyExperimentPublication(
+          experimentData.manifest,
+          experimentData.samples,
+          stored,
+          args.db,
+          args.verify,
+        );
+      } catch (error) {
+        return refuse((error as Error).message);
+      }
+    }
+    if (!experimentPublication) {
+      const reconciled = await args.verify(id);
+      if (!reconciled.ok)
+        return refuse(`run ${id} is not published: its cases do not reconcile (${reconciled.problems.join("; ")})`);
+    }
     return done(
       await publishRun({
         report,
+        ...(experimentPublication ? { experiment: experimentPublication } : {}),
         db: args.pub,
         root,
         now: args.now ?? (() => new Date()),

@@ -60,12 +60,12 @@ track: day-6
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
 | 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
-| 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [ ] |
+| 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [x] |
 | 31 | §31 | Saved Cases views | §8 | [ ] |
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
-| 34 | §34 | Exact calendar-period counts export | §19 | [ ] |
-| 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [ ] |
+| 34 | §34 | Exact calendar-period counts export | §19 | [x] |
+| 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [x] |
 | 36 | §36 | Choose a departed person in the team history | §23 | [ ] |
 
 ## 1. Cases list with filters and search
@@ -407,7 +407,7 @@ A member looking for a check from a known week picks its dates instead of paging
 - [x] Drive the date controls in `test/node/cases-browser.test.tsx`: keyboard entry and clearing, automatic application on change, the no-JavaScript Apply, page reset to 1, paging inside a range, Back and reload read-back, a delayed earlier change never overwriting a newer one, and a failed request recovering with the range kept; the added controls join the phone and desktop, both-theme accessibility scans. Done when: each scenario passes in Chromium. Cheaper substitute: requesting the address directly, which never exercises the inputs.
 - [x] Commit: `web: a chosen date range in the cases list`
 
-> **Deferred:** calendar month and quarter shortcuts for the list -> XREF: D07 T04 §30
+> **Resolved:** calendar month and quarter shortcuts for the list (verified a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee on 2026-11-04) -> XREF: D07 T04 §30
 > **Deferred:** saved named Cases views -> XREF: D07 T04 §31
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
@@ -794,7 +794,7 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 - [x] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week for the weeks overlapping the range, the window anchored to the range's end. Done when: the test reads October 2026's rows only (the weeks beginning 28 September to 26 October), and a reversed, over-limit, missing or unreadable date is refused with the HTML 400 page. Cheaper substitute: filtering the 12-week rows.
 - [x] Commit: `web: chosen period for the counts export`
 
-> **Deferred:** exact calendar-date totals -> XREF: D07 T04 §34
+> **Resolved:** exact calendar-date totals -> XREF: D07 T04 §34. Verified 2026-11-04 at `e00c997f`: inclusive SAST daily CSV alongside the preserved whole-week export.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
@@ -1153,6 +1153,12 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 ## 30. Calendar month and quarter ranges in the Cases list
 
+> **Started:** 2026-11-04T11:10:10.909143+00:00
+
+**Coordinator approval 2026-11-04T11:08:20.176294+00:00 (CONSOLE-CALENDAR-APPROVAL):** Approves the exact companion at355fa403 and its single M1 bullet, including default Apply filters and every recovery state. Console may incorporate only that bullet, retaining other SPEC bytes. This supersedes only the separate board-update prerequisite below; no board update is claimed. The approved companion remains byte-exact, with its earlier proposed/pending wording preserved as historical preparation status. Reviewed tooling63cbcd90 supplies plan LOW and combined completion MEDIUM. Shared-client changes still require concrete escalation.
+
+**Coordinator preparation authority 2026-11-04 (ACTIVITY-27-console):** Prepare the exact M1 companion and section plan now; return controls, states and proposed SPEC hunk before implementation. `docs/specs/2026-11-04-cases-calendar-ranges-design.md` records the proposed Year/Month/Quarter controls, explicit apply actions, canonical SAST dates through `casesHref`, preservation of current filters and custom dates, invalid/pending/empty/no-script states and proof owed. Coordinator retains shared SPEC incorporation and supplies the verified review-policy transition. This preparation neither approves a board change nor changes earlier review history; no new ordinary round or product implementation is authorized at this boundary.
+
 A member looking at one month's checks picks the month instead of typing its first and last days. Filed 2026-11-02 from D07 T04 §8's completion review (out-of-scope G6): the approved treatment is two date inputs, so a named-period choice is a design change first.
 
 **Phase:** 7
@@ -1165,14 +1171,19 @@ A member looking at one month's checks picks the month instead of typing its fir
 
 **Build order:**
 
-1. Record the named periods and control in `design/SPEC.md` M1 with the operator's approval. Done when: the SPEC names them.
+1. Incorporate the coordinator-approved exact named-period bullet in `design/SPEC.md` M1. Done when: the SPEC names the controls and states from the approved companion; no separate board update is required by the dated scoped decision.
 2. Fill §8's range from the chosen period. Done when: `test/web/cases-page.test.ts` reads a month's cases only.
 
-- [ ] Record the Month and Quarter choice in `design/SPEC.md` M1 and on the board with the operator's approval. Done when: M1 names the control and its states. Cheaper substitute: more fixed day counts, which never name a calendar month.
-- [ ] Add the named-period choice to `Filters` in `src/web/pages/cases-view.tsx`: choosing a month or quarter sets `from` and `to` to its SAST calendar bounds through `casesHref`, and the active range of §8 shows it. Done when: the page test reads October 2026's cases only after the choice, with the dates in the address. Cheaper substitute: a second date filter beside §8's, which can disagree with the range it fills.
-- [ ] Commit: `web: calendar month and quarter ranges in the cases list`
+- [x] Record the coordinator-approved Month and Quarter choice in `design/SPEC.md` M1 through the exact companion bullet. Done when: M1 names the control and its states. Cheaper substitute: more fixed day counts, which never name a calendar month.
+- [x] Add the named-period choice to `Filters` in `src/web/pages/cases-view.tsx`: choosing a month or quarter sets `from` and `to` to its SAST calendar bounds through `casesHref`, and the active range of §8 shows it. Done when: the page test reads October 2026's cases only after the choice, with the dates in the address. Cheaper substitute: a second date filter beside §8's, which can disagree with the range it fills.
+- [x] Normalize explicit calendar submissions in the authenticated Cases route, preserving the existing filter contract and rejecting invalid selected values without applying a fallback range. Done when: page tests cover ordinary and htmx canonical addresses, SAST boundary fixtures, leap February, Q4, selected-action validation, pagination reset, current search/verdict/channel/checker/period retention and tenant isolation; an adjacent out-of-range case causes failure.
+- [x] Verify the companion's interaction states in `test/node/cases-browser.test.tsx`. Done when: labelled controls work by keyboard at phone and desktop widths in both themes and with scripts off; draft changes and implicit submit cannot unexpectedly apply a calendar range; pending search preserves current filters; custom dates, Clear dates, invalid correction, empty results and canonical history/reload remain usable. For both Show month and Show quarter, inject network and server failures, assert the displayed list and every filter remain, then use Try again and verify the original calendar action and filters reach the canonical range. Escalate any required shared-client change before editing that path. Source: Codex plan self-review P2, verified shared responseError navigation discrepancy; coordinator source authority requested before implementation.
+- [x] Commit: `web: calendar month and quarter ranges in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the named month is listed.
+
+> **Verified:** 2026-11-04 | §30 | a5844f603ebaac287be4fa3d8d1acb25cfa7a7ee
+> **Review:** `docs/reviews/d07-t04-s30.json`
 
 ## 31. Saved Cases views
 
@@ -1246,12 +1257,16 @@ An owner adding a TXT record is shown the guide for their actual DNS host first,
 
 ## 34. Exact calendar-period counts export
 
+> **Started:** 2026-11-04T08:54:12.733199+00:00
+
 An owner exports counts clipped to the exact calendar dates chosen, not whole overlapping weeks. Filed 2026-11-03 from D07 T04 §19's plan review (P3): §19's approved whole-week export cannot give exact calendar-month or quarter totals.
+
+**Coordinator decision 2026-11-04:** `exact-counts-surface-approved` authorizes the second Daily counts CSV submit button in the existing From/To form, name=exact/value=1, native required dates and existing refusal paths. `docs/specs/2026-11-04-exact-counts-export-design.md` records the scoped contract; coordinator owns its M1 SPEC incorporation, required before completion. No shared SPEC edits by console.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the clipped export
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, and the coordinator-approved `docs/specs/2026-11-04-exact-counts-export-design.md`; shared SPEC incorporation is required before completion
 **Job:** an owner hands finance a month's exact numbers
 **Treatment:** one row per day inside the chosen dates, the whole-week export beside it unchanged
 **Chrome:** §19's export controls
@@ -1261,22 +1276,31 @@ An owner exports counts clipped to the exact calendar dates chosen, not whole ov
 1. Record the clipped export and its day rows in `design/SPEC.md` M1. Done when: the SPEC names both.
 2. Clip the counts to the dates. Done when: `test/web/stats.test.ts` reads only the chosen dates' rows.
 
-- [ ] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
-- [ ] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
-- [ ] Commit: `web: exact calendar-period counts export`
+- [x] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
+- [x] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
+- [x] Add the Daily counts CSV submit button and labelled required inputs to the existing form in `src/web/pages/cases-view.tsx`, preserving weekly actions and date read-back after redraw. Done when: `test/node/cases-browser.test.tsx` downloads daily counts by keyboard at 360 px in both themes, preserves dates and weekly exports, and reports no overflow or missing accessible names. Cheaper substitute: an unbound link or a second independent date-state control. Source: coordinator exact-counts surface approval.
+- [x] Prove exact SAST bounds, zeros, state/median totals, same-day/leap-day/maximum-span cases, privacy and tenant/refusal behaviour in `test/web/stats.test.ts`. Done when: adjacent dates and other organisations never enter rows, each day's counts reconcile, and invalid or unauthorised requests never download a CSV. Cheaper substitute: checking only a happy-path month total. Source: approved companion contract.
+- [x] Commit: `web: exact calendar-period counts export`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a case outside the chosen dates is exported.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/stats.test.ts` and `pnpm exec vitest run test/node/cases-browser.test.tsx -t "daily counts|exports a chosen period"` pass and fail if a case outside the selected dates is exported or the daily submitter loses its mode, keyboard path or chosen dates. The 360 px both-theme proof and actual M1 SPEC incorporation are required before completion.
+
+> **Verified:** 2026-11-04 | §34 | e00c997f81fd67b61b150265c77d7e930310f55f
+> **Review:** `docs/reviews/d07-t04-s34.json`
 
 ## 35. Phone forwarding guidance on the Cases page
 
+> **Started:** 2026-11-04T09:19:08.030238+00:00
+
 The Cases first-run page tells a member on a phone how to forward mail from desktop Outlook, Outlook on the web and Gmail (`HOW_TO` in `src/web/pages/cases-view.tsx`), but not from a phone mail app, and it does not say when uploading the file instead is the better route (D07 T01 §14 completion review, 2026-11-02). A member whose only device is a phone is left to guess the step this page exists to teach.
+
+**Coordinator scope correction 2026-11-04:** research/plan approved at11:09SAST. Official sources establish desktop original-message paths, not mobile original-file export. The companion `docs/specs/2026-11-04-phone-forwarding-guidance-design.md` proposes honest Apple Mail/Gmail desktop fallbacks and upload of an already saved original file or clearly limited screenshot/PDF. Exact wording approval and coordinator-owned M1 incorporation are required; no invented mobile save command.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 (Cases, first-run state), board `Cases-Empty`
 **Job:** a member on a phone forwards a suspicious email as an attachment, or uploads it, without guessing
-**Treatment:** the first-run how-to tiles name the phone mail apps' forward-as-attachment steps and when to upload instead
+**Treatment:** the first-run how-to tiles name verified desktop fallbacks for phone apps and when an already saved file can be uploaded, with original-header limits
 **Chrome:** `EmptyState` (§8 of D07 T01) on the Cases page (D07 T04 §1)
 
 **Build order:**
@@ -1284,12 +1308,19 @@ The Cases first-run page tells a member on a phone how to forward mail from desk
 1. Name the phone steps in `design/SPEC.md` M1. Done when: M1 names the phone mail app steps and the upload choice, and `python3 design/tools/check-design.py` passes.
 2. Draw the phone guidance in the first-run how-to tiles (`src/web/pages/cases-view.tsx`). Done when: `test/node/cases-browser.test.tsx` reads the phone steps and the upload choice at 360 px in both themes.
 
-- [ ] Add the phone mail app steps (Apple Mail and Gmail on a phone: forward as attachment where the app offers it, save and upload where it does not) and the when-to-upload line to `design/SPEC.md` M1. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
-- [ ] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
-- [ ] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes reads the phone steps and the upload choice, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
-- [ ] Commit: `web: phone forwarding guidance on the Cases page`
+- [x] Obtain coordinator approval and incorporation of the exact source-backed companion wording into `design/SPEC.md` M1, naming Apple Mail/Gmail desktop fallbacks and existing-file upload limits. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
+- [x] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
+- [x] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes with scripts on and off reads the phone fallback steps, original-header limits and upload choice, follows Upload a file by keyboard to the rendered upload form, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
+- [x] Commit: `web: phone forwarding guidance on the Cases page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/cases-browser.test.tsx` passes with the phone guidance read at 360 px in both themes.
+
+**Implementation evidence 2026-11-04:** coordinator approved exact companion wording at09:44:41UTC; shared M1 incorporation remains pending before completion. Both new phone browser tests failed before implementation on the missing phone tile; final full Cases checkpoint passed44/44, including exact copy, unchanged desktop steps, no horizontal overflow, keyboard navigation to rendered UploadPage, script on/off, and both themes at360px. Existing accessibility states passed360px/1280px both themes. Separate upload chosen-file and no-script baseline tests passed2/2; these are fixture-backed Chromium proofs, not physical-device or live-delivery evidence. Typecheck, Biome on changed code, dry build, publication scan and design check passed. Logs: `/tmp/console-phone-before.log`, `/tmp/console-phone-browser.log`, `/tmp/console-phone-upload-baseline.log`, `/tmp/console-phone-types.log`, `/tmp/console-phone-build.log`, `/tmp/console-phone-publication.log`.
+
+**M1 incorporation 2026-11-04:** coordinator explicitly authorized the exact approved phone-guidance line from `ac75ff1959e5f77a367cee67dc2f7f65bbbc4c73` at09:55:45UTC. Imported that line only; companion source-backed limits and exact wording match the coordinator bytes. Implementation committed as `07ccc0db`; single self-review returned no findings, noting only this now-incorporated prerequisite.
+
+> **Verified:** 2026-11-04 | §35 | b537091a5429b5ed4818213e61865d3c05877a8b
+> **Review:** `docs/reviews/d07-t04-s35.json`
 
 ## 36. Choose a departed person in the team history
 

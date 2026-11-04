@@ -518,6 +518,55 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await context.close();
   });
 
+  it("keeps each inconclusive authentication label readable in both themes and widths", async () => {
+    const methods = ["spf", "dkim", "dmarc"];
+    const results = ["temperror", "permerror", "neutral"];
+    const state: Live = {
+      status: "running",
+      verdict: null,
+      progress: RUNNING_3,
+      coverage: methods.map((method) => ({ check: `auth.${method}`, outcome: "ran", reason: null, findings: 1 })),
+      evidence: methods.map((method, index) => ({
+        id: `E${index + 1}`,
+        check: `auth.${method}`,
+        severity: "low",
+        summary: "Stored authentication result.",
+        detail: { state: "inconclusive", results: [{ result: results[index] }] },
+        artefacts: [],
+      })),
+    };
+    for (const theme of ["light", "dark"] as const) {
+      for (const width of [360, 1280]) {
+        const { p, context } = await open(state, [state], width, theme);
+        try {
+          const card = p.locator("section[aria-labelledby='early-auth-title']");
+          for (const text of [
+            "Temporary error",
+            "Configuration error",
+            "No conclusion",
+            "The receiving mail system recorded a temporary error when this message arrived.",
+            "This authentication check could not finish because of a configuration error.",
+            "This check does not confirm whether the sender is genuine.",
+          ]) {
+            expect(await card.getByText(text, { exact: true }).isVisible()).toBe(true);
+          }
+          expect(
+            await card.evaluate((section) =>
+              [...section.querySelectorAll("li, p, span, strong")].some(
+                (el) => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth + 1,
+              ),
+            ),
+          ).toBe(false);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          await p.addScriptTag({ path: AXE });
+          expect(problems(await scan(p))).toEqual([]);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  });
+
   // D07 T09 §1: the card lands on the first poll after the auth outcomes are stored, not a poll later.
   it("shows the early card on the first poll after the auth outcomes land", async () => {
     const { p, context } = await open(running(RUNNING_3), [EARLY_UNSIGNED], 360, "light");

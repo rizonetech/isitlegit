@@ -15,8 +15,10 @@ import {
   searchTooLong,
 } from "../../src/db/case-filters";
 import { searchTerms, searchText } from "../../src/db/search-fold";
-import { CasesPage } from "../../src/web/pages/cases-view";
+import { calendarRequest } from "../../src/web/pages/cases-calendar";
+import { CasesPage, casesHref } from "../../src/web/pages/cases-view";
 import { errorPage } from "../../src/web/pages/errors";
+import { UploadPage } from "../../src/web/pages/upload-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 import { member } from "./shell-fixtures";
@@ -127,7 +129,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
   const htmx = req.headers["hx-request"] === "true";
   if (url.pathname === "/cases") {
     state.seen.push({ path: `${url.pathname}${url.search}`, htmx });
-    const filters = filtersFrom(url.searchParams);
+    let filters = filtersFrom(url.searchParams);
     await new Promise((done) => setTimeout(done, state.delay({ ...filters, pageAsked: url.searchParams.has("page") })));
     state.answered.push(`${url.pathname}${url.search}`);
     // As src/auth/gate.ts answers: a browser page to sign in, anything else 401.
@@ -140,13 +142,18 @@ async function answer(req: IncomingMessage): Promise<Response> {
         : Response.json({ error: "sign in first" }, { status: 401 });
     if (state.fail === "removed" || state.removed) return errorPage(403, "", { email: "thandi@karoo.example" });
     // As the route answers a results request once the organisation has no cases left.
-    if (htmx && ORGS[state.org].cases.length === 0)
+    if (htmx && ORGS[state.org].cases.length === 0 && !url.searchParams.has("calendar"))
       return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     // As the route answers a results request drawn for another organisation than the active one.
     const drawnFor = req.headers["x-cases-org"];
     if (htmx && drawnFor && drawnFor !== state.org)
       return new Response(null, { status: 204, headers: { "hx-redirect": `${url.pathname}${url.search}` } });
     if (state.fail === "outage") return errorPage(500, "", { retry: `${url.pathname}${url.search}` });
+    const calendar = calendarRequest(url.searchParams);
+    if (calendar?.range) {
+      filters = { ...filters, ...calendar.range, page: 1 };
+      if (!htmx) return new Response(null, { status: 303, headers: { location: casesHref(filters) } });
+    }
     const org = ORGS[state.org];
     // The no-verdict panel for the accessibility scans.
     const asked = url.searchParams.get("stats");
@@ -171,6 +178,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
           senders={{ domains: ["karoocouriers.example"], addresses: [] }}
           stats={stats}
           now={NOW}
+          calendar={calendar?.draft}
           searchLong={searchTooLong(url.searchParams.get("q"))}
           datesIgnored={ignoredDates(url.searchParams)}
           members={[
@@ -179,7 +187,14 @@ async function answer(req: IncomingMessage): Promise<Response> {
           ]}
         />,
       ),
-      { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
+      {
+        status: calendar?.draft.invalid && !htmx ? 400 : 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "private, no-store",
+          ...(calendar && htmx ? { "hx-push-url": calendar.range ? casesHref(filters) : "false" } : {}),
+        },
+      },
     );
   }
   // The export as src/web/pages/cases.tsx answers it: the gate's sign-in, the 403 page, the 503 page, the active
@@ -203,9 +218,15 @@ async function answer(req: IncomingMessage): Promise<Response> {
         "content-type": "text/csv; charset=utf-8",
         "content-disposition":
           from && to
-            ? `attachment; filename="isitlegit-counts-${from}-to-${to}.csv"`
+            ? `attachment; filename="isitlegit-${url.searchParams.get("exact") === "1" ? "daily-counts" : "counts"}-${from}-to-${to}.csv"`
             : 'attachment; filename="isitlegit-weekly-counts.csv"',
       },
+    });
+  }
+  if (url.pathname === "/upload") {
+    const { children: _, ...shell } = member({ organization: { id: state.org, name: ORGS[state.org].name } });
+    return new Response(String(<UploadPage shell={shell} org={state.org} usage={{ used: 0, limit: 100 }} />), {
+      headers: { "content-type": "text/html; charset=utf-8" },
     });
   }
   if (url.pathname === "/signin")
@@ -352,7 +373,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
   it("filters by dates through Apply without JavaScript, with the checker kept (D07 T04 §10)", async () => {
     const { p, context } = await open("/cases", { js: false });
     await p.locator("#case-checker").selectOption("thandi");
-    await p.getByRole("button", { name: "Apply" }).click();
+    await p.getByRole("button", { name: "Apply filters" }).click();
     await expect.poll(() => p.url()).toContain("checker=thandi");
     expect(await ids(p)).toEqual(expected("A", { checker: "thandi" }));
     await context.close();
@@ -450,7 +471,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     const { p, context } = await open("/cases", { js: false });
     await p.locator("#case-from").fill("2026-10-30");
     await p.locator("#case-to").fill("2026-10-30");
-    await p.getByRole("button", { name: "Apply" }).click();
+    await p.getByRole("button", { name: "Apply filters" }).click();
     await expect.poll(() => p.url()).toContain("from=2026-10-30");
     expect(await ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
     await p.goto(`${origin}/cases?from=2026-10-30&to=2026-10-29`);
@@ -741,7 +762,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     const { p, context } = await open("/cases", { js: false });
     const apply = async (q: string) => {
       await p.locator("#case-search").fill(q);
-      await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply" }).click()]);
+      await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply filters" }).click()]);
     };
     await apply("remittance A4");
     expect(await ids(p)).toEqual([A4]);
@@ -772,11 +793,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     expect(await p.locator("[data-search-cut]").count()).toBe(1);
     expect(await p.locator("#case-count").textContent()).toContain("Searching the first 8 search terms.");
     await p.locator("#case-search").fill("remittance 4471");
-    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply" }).click()]);
+    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply filters" }).click()]);
     expect(await p.locator("[data-search-cut]").count()).toBe(0);
     expect(await ids(p)).toEqual(expected("A", { q: "remittance 4471" }));
     await p.locator("#case-search").fill('"advice 4471"');
-    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply" }).click()]);
+    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply filters" }).click()]);
     expect(await ids(p)).toEqual(expected("A", { q: '"advice 4471"' }));
     await context.close();
   });
@@ -865,6 +886,46 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("exports daily counts by keyboard at phone width in both themes and retains required dates", async () => {
+    const context = await browser.newContext({ viewport: { width: 360, height: 900 } });
+    const p = await context.newPage();
+    try {
+      for (const theme of ["light", "dark"] as const) {
+        await p.goto(`${origin}/cases`, { waitUntil: "load" });
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        const daily = p.getByRole("button", { name: "Daily counts CSV", exact: true });
+        expect(await daily.isVisible()).toBe(true);
+        await p.locator("#case-export-from").fill("");
+        await p.locator("#case-export-to").fill("");
+        await daily.click();
+        expect(await p.locator("#case-export-from").evaluate((el) => el === document.activeElement)).toBe(true);
+        expect(
+          await p.locator("#case-export-from").evaluate((el) => (el as HTMLInputElement).validity.valueMissing),
+        ).toBe(true);
+        await p.locator("#case-export-from").fill("2026-10-01");
+        await daily.click();
+        expect(await p.locator("#case-export-to").evaluate((el) => el === document.activeElement)).toBe(true);
+        await p.locator("#case-export-to").fill("2026-10-31");
+        // Real tab order from the date input through the existing weekly submitter to daily.
+        for (let i = 0; i < 12 && !(await daily.evaluate((el) => el === document.activeElement)); i++)
+          await p.keyboard.press("Tab");
+        expect(await daily.evaluate((el) => el === document.activeElement)).toBe(true);
+        const download = p.waitForEvent("download");
+        await p.keyboard.press("Enter");
+        expect((await download).suggestedFilename()).toBe("isitlegit-daily-counts-2026-10-01-to-2026-10-31.csv");
+        await segment(p, "Safe").click();
+        await expect.poll(() => p.locator("#case-export-from").inputValue()).toBe("2026-10-01");
+        await expect.poll(() => p.locator("#case-export-to").inputValue()).toBe("2026-10-31");
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+        const weekly = p.waitForEvent("download");
+        await p.getByRole("button", { name: "Export period", exact: true }).click();
+        expect((await weekly).suggestedFilename()).toBe("isitlegit-counts-2026-10-01-to-2026-10-31.csv");
+      }
+    } finally {
+      await context.close();
+    }
+  });
+
   it("reads the threat kinds line at phone width in both themes (D07 T04 §18)", async () => {
     state.stats = {
       ...STATS,
@@ -926,7 +987,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
   it("filters without JavaScript through Apply", async () => {
     const { p, context } = await open("/cases", { js: false });
     await p.locator("#case-channel").selectOption("upload");
-    await p.getByRole("button", { name: "Apply" }).click();
+    await p.getByRole("button", { name: "Apply filters" }).click();
     await expect.poll(() => p.url()).toContain("channel=upload");
     expect(await ids(p)).toEqual(expected("A", { channel: "upload" }));
     await context.close();
@@ -1024,4 +1085,326 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
       }
       await context.close();
     });
+
+  for (const js of [true, false])
+    it(`shows phone forwarding guidance and opens upload by keyboard with scripts ${js ? "on" : "off"}`, async () => {
+      state.org = "E";
+      const { p, context } = await open("/cases", { width: 360, js });
+      try {
+        for (const theme of ["light", "dark"] as const) {
+          await p.goto(`${origin}/cases`, { waitUntil: "load" });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          for (const title of ["Apple Mail on iPhone", "Gmail on a phone", "Checking from your phone?"])
+            expect(await p.getByText(title, { exact: true }).isVisible()).toBe(true);
+          for (const text of [
+            "Select the email, then Home, More, Forward as attachment.",
+            "Open the email, then More actions, Forward as attachment.",
+            "Tick the email in your inbox, then More at the top, Forward as attachment.",
+          ])
+            expect(await p.getByText(text, { exact: true }).isVisible()).toBe(true);
+          for (const text of [
+            "Reply, then Forward sends an ordinary forward. For the original email, open the same mailbox in Mail on a Mac, select the message, then choose Message, Forward As Attachment.",
+            "For the original email, use Gmail on a computer. Tick the message in your inbox, then choose More, Forward as attachment. You can also open the message, choose More, Download message, and upload the saved .eml file.",
+            "Already have the original .eml or .msg file? Upload it from your phone. You can also check a screenshot or a PDF you already have, but those do not include the original email headers. An ordinary forward also leaves those checks unavailable. Use a computer and the steps above when you need the original email checked.",
+            "Choose a file and select your saved file. The check starts automatically, or with Check this file if that button is shown.",
+          ])
+            expect(await p.getByText(text, { exact: true }).isVisible()).toBe(true);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+          const upload = p.getByRole("link", { name: "Upload a file", exact: true });
+          for (let i = 0; i < 60 && !(await upload.evaluate((el) => el === document.activeElement)); i++)
+            await p.keyboard.press("Tab");
+          expect(await upload.evaluate((el) => el === document.activeElement)).toBe(true);
+          await p.keyboard.press("Enter");
+          await p.waitForURL(`${origin}/upload`);
+          expect(await p.getByRole("heading", { name: "Check a file", exact: true }).isVisible()).toBe(true);
+          expect(await p.locator("#upload-file").getAttribute("type")).toBe("file");
+          expect(
+            await p.locator("#upload-file").evaluate((el) => Boolean((el as HTMLInputElement).labels?.length)),
+          ).toBe(true);
+          expect(await p.getByRole("button", { name: "Check this file", exact: true }).isVisible()).toBe(!js);
+        }
+      } finally {
+        await context.close();
+      }
+    });
+});
+
+describe.skipIf(!chromiumPath() && !process.env.CI)("calendar ranges in Chromium", { timeout: 120_000 }, () => {
+  it("applies explicit calendar choices with scripts on/off, keeps custom dates and supports keyboard", async () => {
+    for (const width of [360, 1280])
+      for (const js of [true, false])
+        for (const theme of ["light", "dark"]) {
+          const { p, context } = await open("/cases?period=90&from=2026-10-29&to=2026-10-30&q=Remittance", {
+            width,
+            js,
+          });
+          await p.locator("html").evaluate((el, value) => el.setAttribute("data-theme", value), theme);
+          const before = state.seen.length;
+          await p.getByLabel("Year", { exact: true }).fill("2026");
+          await p.getByLabel("Month", { exact: true }).selectOption("10");
+          await p.getByLabel("Quarter", { exact: true }).selectOption("4");
+          await p.getByLabel("Year", { exact: true }).press("Tab");
+          expect(state.seen.length).toBe(before);
+          await p.getByRole("button", { name: "Show month", exact: true }).focus();
+          await p.keyboard.press("Enter");
+          await expect.poll(() => p.url()).toContain("from=2026-10-01");
+          expect(new URL(p.url()).searchParams.get("to")).toBe("2026-10-31");
+          expect(new URL(p.url()).searchParams.get("q")).toBe("Remittance");
+          expect(p.url()).not.toContain("calendar");
+          await p.reload();
+          expect(await p.locator("#case-from").inputValue()).toBe("2026-10-01");
+          expect(await p.locator("#case-to").inputValue()).toBe("2026-10-31");
+          await p.getByRole("button", { name: "Show quarter", exact: true }).click();
+          await p.waitForURL((url) => url.searchParams.get("to") === "2026-12-31", { waitUntil: "load" });
+          await p.locator("#case-to").waitFor();
+          await p.goBack();
+          await expect.poll(() => p.url()).toContain("to=2026-10-31");
+          await p.getByLabel("Year", { exact: true }).fill("2028");
+          const submitted = p.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return (
+              url.pathname === "/cases" &&
+              url.searchParams.get("calendar_year") === "2028" &&
+              !url.searchParams.has("calendar")
+            );
+          });
+          await p.getByLabel("Year", { exact: true }).press("Enter");
+          const submittedResponse = await submitted;
+          await submittedResponse.finished();
+          expect(submittedResponse.status()).toBe(200);
+          expect(new URL(submittedResponse.url()).searchParams.get("from")).toBe("2026-10-01");
+          expect(new URL(submittedResponse.url()).searchParams.get("to")).toBe("2026-10-31");
+          await expect.poll(() => new URL(p.url()).searchParams.get("from")).toBe("2026-10-01");
+          expect(await p.locator("#case-from").inputValue()).toBe("2026-10-01");
+          await p.locator("#case-from").fill("2026-10-30");
+          await p.getByRole("button", { name: "Apply filters", exact: true }).click();
+          await expect.poll(() => new URL(p.url()).searchParams.get("from")).toBe("2026-10-30");
+          expect(await p.locator("#case-to").inputValue()).toBe("2026-10-31");
+          expect(await p.locator("body").evaluate((el) => el.scrollWidth <= innerWidth)).toBe(true);
+          await p.getByRole("link", { name: "Clear dates", exact: true }).click();
+          await expect.poll(() => p.locator("#case-period").isDisabled()).toBe(false);
+          expect(new URL(p.url()).searchParams.get("period")).toBe("90");
+          await context.close();
+        }
+  });
+
+  it("retains month and quarter selections on network and server failures and retries the same request", async () => {
+    for (const action of ["month", "quarter"])
+      for (const failure of ["network", "server"]) {
+        const { p, context } = await open(
+          "/cases?period=90&q=Remittance&verdict=safe&channel=email&checker=thandi&from=2026-10-29&to=2026-10-30",
+        );
+        const original = await ids(p);
+        const address = p.url();
+        await p.getByLabel("Year", { exact: true }).fill("2026");
+        await p.getByLabel("Month", { exact: true }).selectOption("10");
+        await p.getByLabel("Quarter", { exact: true }).selectOption("4");
+        await p.route("**/cases?**", async (route) => {
+          if (new URL(route.request().url()).searchParams.get("calendar") !== action) return route.continue();
+          if (failure === "network") return route.abort("failed");
+          return route.fulfill({ status: 500, contentType: "text/html", body: "Unavailable" });
+        });
+        await p.getByRole("button", { name: `Show ${action}`, exact: true }).click();
+        await expect.poll(() => p.locator("#case-filter-error").count(), { message: `${action} ${failure}` }).toBe(1);
+        expect(p.url()).toBe(address);
+        expect(await ids(p)).toEqual(original);
+        expect(await p.locator("#case-from").inputValue()).toBe("2026-10-29");
+        const retry = await p.getByRole("link", { name: "Try again", exact: true }).getAttribute("href");
+        expect(new URL(retry ?? "", origin).searchParams.get("calendar")).toBe(action);
+        await p.unroute("**/cases?**");
+        await p.getByRole("link", { name: "Try again", exact: true }).click();
+        await expect.poll(() => p.url()).toContain("from=2026-10-01");
+        const query = new URL(p.url()).searchParams;
+        expect(query.get("to")).toBe(action === "month" ? "2026-10-31" : "2026-12-31");
+        for (const [key, value] of Object.entries({
+          q: "Remittance",
+          verdict: "safe",
+          channel: "email",
+          checker: "thandi",
+          period: "90",
+        }))
+          expect(query.get(key)).toBe(value);
+        expect(query.has("calendar")).toBe(false);
+        await context.close();
+      }
+  });
+
+  it("updates one complete calendar panel without a second results request", async () => {
+    const { p, context } = await open("/cases?period=90");
+    await p.evaluate(() => {
+      (window as unknown as { calendarDocument: boolean }).calendarDocument = true;
+    });
+    const before = state.seen.length;
+    state.stats = { ...STATS, thisWeek: { ...STATS.thisWeek, checked: 321 } };
+    await p.getByRole("button", { name: "Show quarter", exact: true }).click();
+    await expect.poll(() => p.locator("#case-to").inputValue()).toBe("2026-12-31");
+    expect(await p.locator("#case-stats").textContent()).toContain("321");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-01", to: "2026-12-31", period: "90" }));
+    expect(state.seen.slice(before)).toHaveLength(1);
+    expect(state.seen[before]?.htmx).toBe(true);
+    expect(await p.evaluate(() => (window as unknown as { calendarDocument: boolean }).calendarDocument)).toBe(true);
+    await context.close();
+  });
+
+  it("keeps invalid and zero-total calendar panels through outages and retries without navigation", async () => {
+    for (const invalid of [false, true]) {
+      const { p, context } = await open("/cases?from=2026-10-29&to=2026-10-30&period=90");
+      const saved = ORGS.A.cases;
+      const address = p.url();
+      const original = await ids(p);
+      try {
+        ORGS.A.cases = [];
+        await p.getByLabel("Year", { exact: true }).fill(invalid ? "bad" : "2026");
+        state.fail = "outage";
+        await p.getByRole("button", { name: "Show month", exact: true }).click();
+        await expect.poll(() => p.locator("#case-filter-error").count()).toBe(1);
+        expect(await ids(p)).toEqual(original);
+        expect(p.url()).toBe(address);
+        expect(await p.getByLabel("Year", { exact: true }).inputValue()).toBe(invalid ? "bad" : "2026");
+        state.fail = null;
+        const before = state.seen.length;
+        await p.getByRole("link", { name: "Try again", exact: true }).click();
+        await expect.poll(() => p.locator("#case-filter-error").count()).toBe(0);
+        expect(state.seen.slice(before)).toHaveLength(1);
+        expect(await ids(p)).toEqual([]);
+        expect(await p.locator("#case-filters").count()).toBe(1);
+        expect(await p.locator("#case-stats").count()).toBe(1);
+        expect(await p.locator("#case-from").inputValue()).toBe(invalid ? "2026-10-29" : "2026-10-01");
+        if (invalid) {
+          expect(p.url()).toBe(address);
+          expect(await p.getByRole("alert").textContent()).toContain("Choose a valid year");
+          await p.getByLabel("Year", { exact: true }).fill("2026");
+          await p.getByRole("button", { name: "Show quarter", exact: true }).click();
+          await expect.poll(() => p.locator("#case-to").inputValue()).toBe("2026-12-31");
+        } else expect(p.url()).toContain("from=2026-10-01");
+      } finally {
+        ORGS.A.cases = saved;
+        state.fail = null;
+        await context.close();
+      }
+    }
+  });
+
+  it("automatically recovers calendar transport loss and keeps Back history and later filtering", async () => {
+    for (const action of ["month", "quarter"]) {
+      const { p, context } = await open("/cases?from=2026-10-29&to=2026-10-30&period=90");
+      let attempts = 0;
+      await p.route("**/cases?**", async (route) => {
+        if (new URL(route.request().url()).searchParams.get("calendar") !== action) return route.continue();
+        attempts++;
+        if (attempts === 1) return route.abort("failed");
+        expect(route.request().headers()["x-cases-org"]).toBe("A");
+        expect(route.request().headers()["hx-request"]).toBe("true");
+        return route.continue();
+      });
+      await p.getByRole("button", { name: `Show ${action}`, exact: true }).click();
+      await expect.poll(() => p.locator("#case-from").inputValue()).toBe("2026-10-01");
+      expect(attempts).toBe(2);
+      expect(new URL(p.url()).searchParams.get("to")).toBe(action === "month" ? "2026-10-31" : "2026-12-31");
+      expect(await p.locator("#case-filter-error").count()).toBe(0);
+      await p.goBack();
+      await expect.poll(() => p.locator("#case-from").inputValue()).toBe("2026-10-29");
+      await p.locator("#case-search").fill("Remittance");
+      await expect
+        .poll(() => ids(p))
+        .toEqual(expected("A", { q: "Remittance", from: "2026-10-29", to: "2026-10-30", period: "90" }));
+      await context.close();
+    }
+  });
+
+  it("does not apply a slow calendar recovery over a newer ordinary filter request", async () => {
+    const { p, context } = await open();
+    let attempts = 0;
+    let recoveryFinished = false;
+    await p.route("**/cases?**", async (route) => {
+      if (!new URL(route.request().url()).searchParams.has("calendar")) return route.continue();
+      attempts++;
+      if (attempts === 1) return route.abort("failed");
+      const response = await route.fetch();
+      await new Promise((done) => setTimeout(done, 750));
+      await route.fulfill({ response }).catch(() => {});
+      recoveryFinished = true;
+    });
+    await p.getByRole("button", { name: "Show month", exact: true }).click();
+    await expect.poll(() => attempts).toBe(2);
+    await p.locator("#case-search").fill("Statement");
+    await expect.poll(() => new URL(p.url()).searchParams.get("q")).toBe("Statement");
+    await expect.poll(() => recoveryFinished).toBe(true);
+    expect(new URL(p.url()).searchParams.get("from") ?? "").toBe("");
+    expect(await p.locator("#case-from").inputValue()).toBe("");
+    expect(await ids(p)).toEqual(expected("A", { q: "Statement" }));
+    await context.close();
+  });
+
+  it("submits custom From and To on Enter without applying differing calendar drafts", async () => {
+    for (const js of [true, false])
+      for (const field of ["from", "to"] as const) {
+        const { p, context } = await open("/cases?from=2026-10-29&to=2026-10-31&period=90", { js });
+        await p.getByLabel("Year", { exact: true }).fill("2028");
+        await p.getByLabel("Month", { exact: true }).selectOption("2");
+        await p.getByLabel("Quarter", { exact: true }).selectOption("1");
+        const matchesDates = (url: URL) =>
+          url.pathname === "/cases" &&
+          url.searchParams.get(field) === "2026-10-30" &&
+          !url.searchParams.has("calendar");
+        // Playwright fill emits change for date inputs. Complete that automatic request before watching Enter.
+        const changed = js ? p.waitForResponse((response) => matchesDates(new URL(response.url()))) : null;
+        await p.locator(`#case-${field}`).fill("2026-10-30");
+        if (changed) {
+          const automatic = await changed;
+          await automatic.finished();
+          await expect.poll(() => new URL(p.url()).searchParams.get(field)).toBe("2026-10-30");
+        }
+        // Request-start observation cannot accept a response belonging to the earlier fill-triggered request.
+        const submitted = p.waitForRequest((request) => matchesDates(new URL(request.url())), { timeout: 5000 });
+        await p.locator(`#case-${field}`).press("Enter");
+        const request = await submitted;
+        const response = await request.response();
+        if (!response) throw new Error("Enter submission returned no response");
+        await response.finished();
+        expect(response.status()).toBe(200);
+        const params = new URL(response.url()).searchParams;
+        const from = field === "from" ? "2026-10-30" : "2026-10-29";
+        const to = field === "to" ? "2026-10-30" : "2026-10-31";
+        expect(params.get("from")).toBe(from);
+        expect(params.get("to")).toBe(to);
+        expect(params.get("calendar_year")).toBe("2028");
+        await expect.poll(() => ids(p)).toEqual(expected("A", { from, to, period: "90" }));
+        await context.close();
+      }
+  });
+
+  it("navigates calendar authentication and membership refusals rather than retaining inaccessible data", async () => {
+    for (const failure of ["session", "removed"] as const) {
+      const { p, context } = await open();
+      state.fail = failure;
+      await p.getByRole("button", { name: "Show month", exact: true }).click();
+      if (failure === "session") await expect.poll(() => p.url()).toContain("/signin");
+      else await expect.poll(() => p.locator("body").textContent()).toContain("not a member");
+      expect(await p.locator("#case-filter-error").count()).toBe(0);
+      state.fail = null;
+      await context.close();
+    }
+  });
+
+  it("keeps latest search through calendar navigation and corrects invalid selections", async () => {
+    const { p, context } = await open();
+    state.delay = (f) => (f.q === "Statement" ? 500 : 0);
+    await p.locator("#case-search").fill("Statement");
+    await expect.poll(() => state.seen.some((r) => r.path.includes("q=Statement"))).toBe(true);
+    await p.locator("#case-search").fill("Remittance");
+    await p.getByRole("button", { name: "Show month", exact: true }).click();
+    await expect.poll(() => p.url()).toContain("from=2026-10-01");
+    expect(new URL(p.url()).searchParams.get("q")).toBe("Remittance");
+    await slowAnswerArrived(p, "q=Statement");
+    expect(new URL(p.url()).searchParams.get("q")).toBe("Remittance");
+    await p.getByLabel("Year", { exact: true }).fill("bad");
+    await p.getByRole("button", { name: "Show month", exact: true }).click();
+    await expect.poll(() => p.getByRole("alert").textContent()).toContain("Choose a valid year");
+    expect(await p.locator("#case-from").inputValue()).toBe("2026-10-01");
+    await p.getByLabel("Year", { exact: true }).fill("2026");
+    await p.getByRole("button", { name: "Show month", exact: true }).click();
+    await expect.poll(() => p.url()).not.toContain("calendar");
+    await context.close();
+  });
 });

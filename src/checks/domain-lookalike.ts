@@ -10,7 +10,7 @@ import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
 import { DEMO_SUFFIX_OF_CHECKS, registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
-import { addedWords, distance, labelSkeleton, MAX_LABEL_CHARACTERS, unicodeLabel } from "./lookalike";
+import { addedWords, distance, foldAccents, labelSkeleton, MAX_LABEL_CHARACTERS, unicodeLabel } from "./lookalike";
 import { counted } from "./outcome-summary";
 import { type CheckRegistry, MAX_OUTCOME_SUMMARY } from "./registry";
 import { mailbox } from "./sender";
@@ -18,7 +18,7 @@ import { mailbox } from "./sender";
 type Header = CaseView["headers"][number];
 type Field = "From" | "Reply-To" | "Return-Path";
 export type TargetKind = "own" | "supplier" | "brand";
-export type Technique = "skeleton" | "different-tld" | "added-word" | "edit";
+export type Technique = "skeleton" | "different-tld" | "added-word" | "edit" | "accent-fold";
 
 // A registrable domain split as compared: its label (the registrable domain without its suffix) and its suffix.
 // Exported for the impersonation monitor (D05 T04 §1), whose candidates must be split exactly as this check splits.
@@ -102,10 +102,13 @@ export function techniqueOf(candidate: Split, target: Split): Technique | null {
     const d = distance(a, b);
     if (d >= 1 && d <= 2) return "edit";
   }
+  // D02 T03 §5, docs/evals/lookalikes.md: exact folded equality adds the three-accent cases;
+  // retain existing technique precedence and do not expand edit distance or fold the skeleton.
+  if (skeletonA !== null && labelSkeleton(b) !== null && foldAccents(a) === foldAccents(b)) return "accent-fold";
   return null;
 }
 
-const RANK: Record<Technique, number> = { skeleton: 0, "different-tld": 1, "added-word": 2, edit: 3 };
+const RANK: Record<Technique, number> = { skeleton: 0, "different-tld": 1, "added-word": 2, edit: 3, "accent-fold": 4 };
 const KIND_RANK: Record<TargetKind, number> = { own: 0, supplier: 1, brand: 2 };
 
 // At most this many lookalike items, the strongest first, and one counting the rest, so the check stays well under the
@@ -325,6 +328,7 @@ const DESCRIBED: Record<Technique, string> = {
   "different-tld": "the same name under another ending",
   "added-word": "the name with a word added",
   edit: "one or two characters changed",
+  "accent-fold": "the same name with different accents",
 };
 
 // The non-exempt candidate domains the check actually compares (within MAX_COMPARED, with a comparable label),

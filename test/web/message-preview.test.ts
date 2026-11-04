@@ -10,7 +10,7 @@ import { call, signIn } from "../auth/helpers";
 // The original message read in place (D07 T03 §19): `?view=message` and `?view=headers` on a case's raw message key, under
 // the report's own access rule, answer JSON text only. The message part is the parsed plain-text body as sent, falling
 // back to the visible text only for a message with no plain part; the headers part is the stored list in order; a part
-// never written is null; both are cut to 200,000 characters; a deleted message is the route's marked 410.
+// never written is null; message previews are cut to 204800 UTF-8 bytes; a deleted message is the route's marked 410.
 const db = (env as unknown as Env).DB;
 const bucket = (env as unknown as Env).ARTEFACTS;
 const SECRET = (env as unknown as Env).REPORT_LINK_SECRET;
@@ -63,9 +63,191 @@ async function caseWith(orgId: string, summary: Summary | null, visible: string 
 const address = (id: string, part: string, extra = "") =>
   `/a/${id}/${encodeURIComponent(rawKey(id))}?view=${part}${extra}`;
 const read = async (res: Response) =>
-  (await res.json()) as { part: string; text: string | null; truncated: boolean; source: string | null };
+  (await res.json()) as {
+    part: string;
+    text: string | null;
+    truncated: boolean;
+    source: string | null;
+    offset: number;
+    nextOffset: number | null;
+    revision: string | null;
+  };
 
 describe("the original message view", () => {
+  it("retrieves bounded header slices with exact UTF-8 joins and revision-bound cursors", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const headers = [
+      { name: "Received", value: "a".repeat(204787) + "é漢😀".repeat(60000) },
+      { name: "Received", value: "folded\r\n value" },
+      { name: "Subject", value: HOSTILE },
+    ];
+    const expected = headers.map((h) => `${h.name}: ${h.value}`).join("\n");
+    const id = await caseWith(orgId, { text: "Body", headers });
+    const bytes = new TextEncoder();
+    let offset = 0;
+    let revision: string | null = null;
+    let joined = "";
+    let slices = 0;
+    do {
+      const response = await call(address(id, "headers", offset ? `&offset=${offset}&revision=${revision}` : ""), {
+        headers: { cookie },
+      });
+      expect(response.status).toBe(200);
+      const data = await read(response);
+      expect(data.offset).toBe(offset);
+      expect(data.revision).toMatch(/^[a-f0-9]{64}$/);
+      if (revision) expect(data.revision).toBe(revision);
+      revision = data.revision;
+      expect(bytes.encode(data.text ?? "").length).toBeLessThanOrEqual(204800);
+      expect(data.text).not.toContain("\ufffd");
+      joined += data.text;
+      slices++;
+      if (data.nextOffset === null) {
+        expect(data.truncated).toBe(false);
+        break;
+      }
+      expect(data.nextOffset).toBe(offset + bytes.encode(data.text ?? "").length);
+      expect(data.nextOffset).toBeGreaterThan(offset);
+      offset = data.nextOffset;
+      expect(slices).toBeLessThan(10);
+    } while (slices < 10);
+    expect(slices).toBeGreaterThanOrEqual(3);
+    expect(joined).toBe(expected);
+    expect(bytes.encode(joined)).toEqual(bytes.encode(expected));
+    const eof = await read(
+      await call(address(id, "headers", `&offset=${bytes.encode(expected).length}&revision=${revision}`), {
+        headers: { cookie },
+      }),
+    );
+    expect(eof.text).toBe("");
+    expect(eof.nextOffset).toBeNull();
+    for (const cursor of [
+      "-1",
+      "1.5",
+      "1e2",
+      "%200",
+      "00",
+      "9007199254740992",
+      "204800",
+      String(bytes.encode(expected).length + 1),
+      "0&offset=0",
+    ]) {
+      expect(
+        (await call(address(id, "headers", `&offset=${cursor}&revision=${revision}`), { headers: { cookie } })).status,
+      ).toBe(400);
+    }
+    expect((await call(address(id, "headers", "&offset=10"), { headers: { cookie } })).status).toBe(400);
+    expect((await call(address(id, "message", "&offset=0"), { headers: { cookie } })).status).toBe(400);
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost");
+    expect(
+      (await call(address(id, "headers", `&${link.searchParams}&offset=${offset}&revision=${revision}`))).status,
+    ).toBe(200);
+    expect((await call(`/a/${id}/${encodeURIComponent(rawKey(id))}?${link.searchParams}&offset=0`)).status).toBe(404);
+    // Simulate a backing-object replacement outside the immutable storage API.
+    await bucket.put(`raw/${id}/parsed.json`, JSON.stringify({ headers: [{ name: "Changed", value: "new" }] }));
+    const changed = await call(address(id, "headers", `&offset=${offset}&revision=${revision}`), {
+      headers: { cookie },
+    });
+    expect(changed.status).toBe(409);
+    expect(changed.headers.get("x-artefact-state")).toBe("changed");
+  });
+
+  it("preserves a stored byte-order-mark character at terminal and nonterminal slice starts", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    for (const tail of ["tail", `${"z".repeat(204800)}end`]) {
+      const expected = `X: ${"a".repeat(204797)}\uFEFF${tail}`;
+      const id = await caseWith(orgId, { text: "Body", headers: [{ name: "X", value: expected.slice(3) }] });
+      const first = await read(await call(address(id, "headers"), { headers: { cookie } }));
+      expect(first.nextOffset).toBe(204800);
+      const second = await read(
+        await call(address(id, "headers", `&offset=${first.nextOffset}&revision=${first.revision}`), {
+          headers: { cookie },
+        }),
+      );
+      expect(second.text?.startsWith("\uFEFF")).toBe(true);
+      let joined = (first.text ?? "") + second.text;
+      if (second.nextOffset !== null) {
+        expect(second.nextOffset).toBe(204800 + new TextEncoder().encode(second.text ?? "").length);
+        const third = await read(
+          await call(address(id, "headers", `&offset=${second.nextOffset}&revision=${second.revision}`), {
+            headers: { cookie },
+          }),
+        );
+        expect(third.nextOffset).toBeNull();
+        joined += third.text;
+      }
+      expect(joined).toBe(expected);
+      expect(new TextEncoder().encode(joined)).toEqual(new TextEncoder().encode(expected));
+    }
+  });
+
+  it("rechecks membership, signed capability, expiry, raw availability and read failures for later slices", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const id = await caseWith(orgId, { text: "Body", headers: [{ name: "X", value: "a".repeat(410000) }] });
+    const first = await read(await call(address(id, "headers"), { headers: { cookie } }));
+    const cursor = `&offset=${first.nextOffset}&revision=${first.revision}`;
+    const other = await member(await org());
+    expect((await call(address(id, "headers", cursor), { headers: { cookie: other } })).status).toBe(404);
+    expect((await call(address(id, "headers", cursor))).status).toBe(303);
+    await db.prepare('DELETE FROM "member" WHERE "organizationId" = ?').bind(orgId).run();
+    expect((await call(address(id, "headers", cursor), { headers: { cookie } })).status).toBe(404);
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost");
+    const signed = `&${link.searchParams}`;
+    expect((await call(address(id, "headers", signed + cursor))).status).toBe(200);
+    expect((await call(address(id, "headers", `${signed}&o=${orgId}${cursor}`))).status).toBe(404);
+    expect((await call(address(id, "headers", `${signed}&extra=1${cursor}`))).status).toBe(404);
+    const expired = new URL(await signReportLink(SECRET, id, orgId, Date.now() - 8 * 86400000), "http://localhost");
+    const refused = await call(address(id, "headers", `&${expired.searchParams}${cursor}`));
+    expect(refused.status).toBe(410);
+    expect(refused.headers.get("x-artefact-state")).toBe("link-expired");
+    const get = bucket.get.bind(bucket);
+    const spy = vi.spyOn(bucket, "get").mockImplementation(((key: string) => {
+      if (key.endsWith("/parsed.json")) throw new Error("synthetic read outage");
+      return get(key);
+    }) as typeof bucket.get);
+    try {
+      const outage = await call(address(id, "headers", signed + cursor));
+      expect(outage.status).toBe(503);
+      expect(outage.headers.get("x-artefact-state")).toBe("unavailable");
+    } finally {
+      spy.mockRestore();
+    }
+    await bucket.delete(rawKey(id));
+    const gone = await call(address(id, "headers", signed + cursor));
+    expect(gone.status).toBe(410);
+    expect(gone.headers.get("x-artefact-state")).toBe("gone");
+  });
+
+  it("handles exact byte boundaries, empty and missing headers without accepting malformed revisions", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    for (const tail of ["é", "漢", "😀"]) {
+      const prefix = "X: ";
+      const text = "a".repeat(204800 - prefix.length - new TextEncoder().encode(tail).length) + tail;
+      const id = await caseWith(orgId, { text: "", headers: [{ name: "X", value: text }] });
+      const data = await read(await call(address(id, "headers"), { headers: { cookie } }));
+      expect(data.text).toBe(prefix + text);
+      expect(data.nextOffset).toBeNull();
+      expect(data.truncated).toBe(false);
+      for (const malformed of ["A".repeat(64), "a".repeat(63), `${data.revision}&revision=${data.revision}`])
+        expect((await call(address(id, "headers", `&revision=${malformed}`), { headers: { cookie } })).status).toBe(
+          400,
+        );
+    }
+    const empty = await caseWith(orgId, { text: "", headers: [] });
+    const missing = await caseWith(orgId, null);
+    for (const id of [empty, missing]) {
+      const data = await read(await call(address(id, "headers"), { headers: { cookie } }));
+      expect(data.text).toBe(id === empty ? "" : null);
+      expect(data.offset).toBe(0);
+      expect(data.nextOffset).toBeNull();
+      if (id === missing) expect(data.revision).toBeNull();
+    }
+  });
+
   it("reads the plain text as sent and the headers in order for a member, as JSON text only", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
