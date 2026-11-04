@@ -680,6 +680,63 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
       });
     }
 
+    // 5c. Walkthrough page screenshot whose form submits to an official FNB URL resolves against walkthrough.chain's page URL (mismatch), never walkthrough.credential_target's submission URL
+    const { caseId: walkPageCase, orgId: walkPageOrg } = await seedCase();
+    const walkShot = await putArtefact(store, walkPageCase, "page", "walkthrough-w1-1.png", PNG_1X1, "image/png");
+    await addEvidence(env.DB, walkPageCase, "walkthrough", [
+      {
+        check: "walkthrough.credential_target",
+        severity: "info",
+        summary: "The sign-in form sends the test credentials to FNB's own fnb.co.za.",
+        detail: {
+          url: "https://www.fnb.co.za/login",
+          domain: "fnb.co.za",
+          method: "POST",
+          fields: ["username", "password"],
+          state: "delivered",
+        },
+        artefacts: [walkShot.key],
+      },
+      {
+        check: "walkthrough.chain",
+        severity: "info",
+        summary: "The walk visited 1 page, ending at fnb-verify-alert.com.",
+        detail: {
+          pages: [{ seq: 1, url: "https://fnb-verify-alert.com/login", withheld: false }],
+          visited: 1,
+          outcome: "finished",
+        },
+        artefacts: [walkShot.key],
+      },
+    ]);
+    const walkPageDeps = verdictToolDeps(metaEnv, env.DB, store, walkPageCase, walkPageOrg, bundled, null, {
+      launch: stubBrowser(),
+      metaFetch,
+    });
+    const walkPageExec = createToolExecutor(
+      { db: env.DB, caseId: walkPageCase, urls: [], brands: bundled },
+      walkPageDeps,
+    );
+    const walkSeg = await walkPageExec.call("segment_logos", {
+      artefact_key: walkShot.key,
+      concept: "logo",
+    });
+    expect(walkSeg.status).toBe("ok");
+    const walkCropKey = walkSeg.status === "ok" ? walkSeg.evidence[0]?.artefacts[0] : undefined;
+    const walkCmp = await walkPageExec.call("compare_logo", { crop_key: walkCropKey, brand: "FNB" });
+    expect(walkCmp.status).toBe("ok");
+    if (walkCmp.status === "ok") {
+      expect(walkCmp.evidence[0]).toMatchObject({
+        check: "agent.compare_logo",
+        severity: "high",
+        detail: {
+          brand: "FNB",
+          same_brand: true,
+          domain: "mismatch",
+        },
+      });
+    }
+
     // 6. Shared Meta budget accounting in model_spend across segment_logos and compare_logo
     const spendRows = await env.DB.prepare(
       "SELECT caller, model, owner, case_id, step, state FROM model_spend WHERE case_id = ? ORDER BY at",

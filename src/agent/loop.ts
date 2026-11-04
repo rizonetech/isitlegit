@@ -497,28 +497,43 @@ async function resolveLogoDomainJudgement(
     }
   }
   if (sourceKey.startsWith(`art/${caseId}/page/`)) {
+    let pageUrl: string | null = null;
     for (const item of caseEvidence) {
-      if (
-        (item.check.startsWith("link.") || item.check.startsWith("walkthrough.")) &&
-        item.artefacts.includes(sourceKey)
-      ) {
-        const pageUrl =
-          typeof item.detail.final === "string"
-            ? item.detail.final
-            : typeof item.detail.url === "string"
-              ? item.detail.url
-              : typeof item.detail.href === "string"
-                ? item.detail.href
-                : null;
-        if (pageUrl) {
-          try {
-            const host = new URL(pageUrl).hostname.toLowerCase();
-            const match = brandForDomain(table, host);
-            return match && match.brand.name === brandName && match.official ? "official" : "mismatch";
-          } catch {
-            return "unjudged";
-          }
+      if (!item.artefacts.includes(sourceKey)) continue;
+      if (item.check === "walkthrough.chain" && Array.isArray(item.detail.pages)) {
+        const keptPages = item.detail.pages.filter(
+          (p): p is { url: string; withheld?: boolean } =>
+            Boolean(p) &&
+            typeof p === "object" &&
+            !(p as { withheld?: boolean }).withheld &&
+            typeof (p as { url?: unknown }).url === "string",
+        );
+        const idx = item.artefacts.indexOf(sourceKey);
+        if (idx >= 0 && keptPages[idx]?.url) {
+          pageUrl = keptPages[idx].url;
+          break;
         }
+      } else if (item.check === "walkthrough.hidden_text" && typeof item.detail.page === "string") {
+        pageUrl = item.detail.page;
+        break;
+      } else if (item.check.startsWith("link.")) {
+        if (item.detail.frame !== true && typeof item.detail.page === "string") {
+          pageUrl = item.detail.page;
+          break;
+        }
+        if (typeof item.detail.final === "string") {
+          pageUrl = item.detail.final;
+          break;
+        }
+      }
+    }
+    if (pageUrl) {
+      try {
+        const host = new URL(pageUrl).hostname.toLowerCase();
+        const match = brandForDomain(table, host);
+        return match && match.brand.name === brandName && match.official ? "official" : "mismatch";
+      } catch {
+        return "unjudged";
       }
     }
     return "unjudged";
