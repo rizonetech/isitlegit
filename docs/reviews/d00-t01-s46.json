@@ -1,0 +1,154 @@
+{
+  "ref": "D00 T01 \u00a746",
+  "title": "Explicit withdrawn work in the live plan",
+  "implementation_sha": "ea5f271b0e9698eb2177f064e5506a66df17bb82",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_todo_withdrawal -> 11 tests pass; focused Graph, QueryPlan, Lanes, LaneDomains, PlanTable plus withdrawal -> 79 tests pass; failing-first regressions preserved; publication and normal graph hooks pass"
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "reconciliation": {
+    "report": "docs/reviews/00-workspace/D00-T01-s46.md",
+    "verdict": "complete",
+    "candidate": "ea5f271b0e9698eb2177f064e5506a66df17bb82",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "56c0b364a7ee27dae73a2652dc53923fc4f1d914",
+    "binding": {
+      "candidate": "ea5f271b0e9698eb2177f064e5506a66df17bb82",
+      "completion_candidate": "3e84885929db6eb45969bafe5aa79caee05b3ffe",
+      "completion_digest": "7d89399bcb28120d",
+      "contract_path": "todo/00-workspace/TODO-01-repo-and-scaffold.md",
+      "contract_sha256": "5a0aa3a8cfcc58e0e2dda00207b68f2deffdba7a811ee31ec2a011a2c532da10",
+      "disposition_blob": "4c61b896ec150278bd801b43f91b0d38a759e5a3",
+      "disposition_commit": "ea5f271b0e9698eb2177f064e5506a66df17bb82",
+      "disposition_path": "docs/reviews/00-workspace/D00-T01-s46-successor-disposition.md",
+      "plan_candidate": "dc7c0f9d442009a1645f4c54ca4cfd9fb2c03d06",
+      "plan_contract_sha256": "5a0aa3a8cfcc58e0e2dda00207b68f2deffdba7a811ee31ec2a011a2c532da10",
+      "predecessor_candidate": "d59b475c533a6977b53bf06fc7fa486c282e786c",
+      "predecessor_digest": "c4dcf0d7141bf003",
+      "prefix_bytes": 7547,
+      "prefix_sha256": "48aeccc26b14982ff7e2dd885ec89dab9dc06c00a0d07e9e7917f95d0b73b963",
+      "report": "docs/reviews/00-workspace/D00-T01-s46.md",
+      "version": 2
+    },
+    "digest": "06b073c0e48a2097"
+  },
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s46.md",
+    "verdict": "gaps",
+    "candidate": "3e84885929db6eb45969bafe5aa79caee05b3ffe",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s46.md",
+    "candidate": "dc7c0f9d442009a1645f4c54ca4cfd9fb2c03d06",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
