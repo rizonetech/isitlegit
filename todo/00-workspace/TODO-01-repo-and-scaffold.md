@@ -400,6 +400,8 @@ The reference repositories open with a brand image (Recto's `design/brand/github
 
 ## 9. Red CI refused when a section starts
 
+> **Started:** 2026-11-04T07:23:51+00:00
+
 Filed 2026-10-27 from the D00 T01 §4 completion review (gap 3, missing out of scope). The rule that a red `main` comes before any new row lives in the `process-phase` skill and the heartbeat prompt: an agent that skips reading `scripts/ci_status.py` can still claim a row while CI is red. This section makes the refusal mechanical at the point a section starts.
 
 **Phase:** 7
