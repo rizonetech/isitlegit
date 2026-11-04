@@ -134,11 +134,18 @@ describe("standalone image selection bounds", () => {
     expect(calls).toEqual({ launch: 1, model: 0 });
   });
 
-  it.each(["foreign", "missing", "mime", "size", "pixels", "webp-inner-pixels"])(
+  it.each(["foreign", "missing", "mime", "size", "pixels", "webp-inner-pixels", "animated-png"])(
     "states %s coverage before decoding or model calls",
     async (kind) => {
       let bytes: Uint8Array = RED_PNG;
       let mime = "image/png";
+      if (kind === "animated-png")
+        bytes = Uint8Array.from(
+          atob(
+            "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAAAAAACAAAAAgAAAAAAAAAAAAEACgAA6FTcAAAAABZJREFUeJxj/M/AwMDAwMTAwMDAwAAADR0BA2rCm+kAAAAaZmNUTAAAAAEAAAACAAAAAgAAAAAAAAAAAAEACgAAcyc21AAAABpmZEFUAAAAAnicY2Rg+M/AwMDEwMDAwMAAAAsfAQM5oA0PAAAAAElFTkSuQmCC",
+          ),
+          (c) => c.charCodeAt(0),
+        );
       if (kind === "mime") mime = "image/jpeg";
       if (kind === "size") bytes = new Uint8Array(LIMITS.perResourceBytes + 1);
       if (kind === "pixels") {
@@ -172,6 +179,7 @@ describe("standalone image selection bounds", () => {
       const { d, calls } = deps(f.id);
       const result = await visionStep(d, f.id);
       expect(result.outcome).toBe("not_checked");
+      if (kind === "animated-png") expect(result).toEqual({ outcome: "not_checked", reason: "image-animated" });
       expect(calls).toEqual({ launch: 0, model: 0 });
       expect((await readEvidence(env.DB, f.id)).find((e) => e.check === "vision.not_checked")?.detail).toMatchObject({
         checked: false,

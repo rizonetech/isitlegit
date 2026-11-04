@@ -346,6 +346,15 @@ async function standaloneImage(
   if (!read || !("body" in read)) return { kind: "invalid", reason: "image-missing" };
   if (read.body.length > LIMITS.perResourceBytes) return { kind: "invalid", reason: "image-size-bound" };
   if (!wholeImage(stored.mediaType, read.body)) return { kind: "invalid", reason: "image-malformed" };
+  if (stored.mediaType === "image/png") {
+    // wholeImage has already validated every chunk boundary and CRC. An APNG cannot
+    // stand in for one static picture, even when the browser would decode its first frame.
+    const chunks = new DataView(read.body.buffer, read.body.byteOffset, read.body.byteLength);
+    for (let at = 8; at + 12 <= read.body.length; at += 12 + chunks.getUint32(at)) {
+      const name = String.fromCharCode(...read.body.subarray(at + 4, at + 8));
+      if (["acTL", "fcTL", "fdAT"].includes(name)) return { kind: "invalid", reason: "image-animated" };
+    }
+  }
   if (!boundedImagePixels(stored.mediaType, read.body)) return { kind: "invalid", reason: "image-pixel-bound" };
   return { kind: "image", stored, body: read.body };
 }
