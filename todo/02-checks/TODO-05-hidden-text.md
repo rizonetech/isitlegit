@@ -221,6 +221,8 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 ## 7. Hidden instructions measured on a corpus
 
+> **Started:** 2026-11-04T10:41Z
+
 Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the hidden-text checks are proven on chosen fixtures, not measured: how often an instruction hidden by invisible characters, an encoded subject or a document's text gets through, how often legitimate multilingual mail is flagged, and what the checks cost. Microsoft's Prompt Shields with Spotlighting is the comparator named.
 
 **Measurement contract (2026-11-04, LANES-19):** Offline deterministic synthetic data only, no paid or live comparator. Own `eval/hidden-text/`, `scripts/eval-hidden-text.ts` and a new section-specific Node test. At least 200 attacks and 200 controls cover eight named languages, sparse invisible characters, Unicode tag runs, encoded/folded subjects and document text. Language labels describe the surrounding business text; English steering payloads and translated steering payloads are distinguished, and repeated templates are disclosed rather than treated as independent real-world samples. Cases retain stable IDs, expected labels, technique, language, source fixture and payload hash. Targets fixed before execution: attack miss rate at most 5%, control false-flag rate at most 2%, p50 at most 10 ms and p95 at most 50 ms per case on the recorded local Node runtime. These are component targets, not end-to-end verdict or delivery claims.
