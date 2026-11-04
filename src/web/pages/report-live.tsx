@@ -179,13 +179,16 @@ const propRecord = (v: unknown): Record<string, string> => {
 const COMPAUTH_REASONS: Record<string, string> = {
   "000": "explicit authentication failed",
   "001": "implicit authentication failed",
-  "002": "sender domain requires explicit authentication",
-  "010": "authentication failed and sender history did not match",
+  "002": "spoofed mail blocked by organisation policy",
+  "010": "DMARC failed with reject or quarantine policy for an organisation accepted domain",
   "100": "explicit authentication passed",
-  "101": "implicit authentication passed",
-  "109": "authentication passed via trusted ARC chain",
-  "110": "sender allowed by organisation policy",
-  "130": "trusted ARC seal passed",
+  "101": "DKIM signed by the From domain",
+  "109": "authentication would pass despite no DMARC record",
+  "130": "trusted ARC seal overrode a DMARC failure",
+};
+const spfPropDomain = (value: string | undefined): string => {
+  const v = (value ?? "").trim().toLowerCase().replace(/^<|>$/g, "");
+  return v.includes("@") ? v.slice(v.lastIndexOf("@") + 1) : v;
 };
 function joinWhy(comment: string | null, reason: string | null, needsReason: boolean): string | null {
   const parts: string[] = [];
@@ -216,7 +219,9 @@ function methodDiagnosticLines(
       const helo = props["smtp.helo"];
       const ip = props["client-ip"];
       const reason = props.reason ?? null;
-      const isHelo = r.helo === true || (singleHelo && !mailfrom && !helo);
+      const mailfromDomain = spfPropDomain(mailfrom);
+      const heloDomain = spfPropDomain(helo);
+      const isHelo = mailfromDomain ? false : heloDomain ? true : singleHelo;
       if (res === "none" && !id && !mailfrom && !helo && !ip && !comment && !reason) continue;
       const who = [
         id ? (isHelo ? `${id} (HELO)` : id) : "no domain named",

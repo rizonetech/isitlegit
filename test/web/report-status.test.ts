@@ -1,7 +1,13 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { jsx } from "hono/jsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { registerAuthChecks } from "../../src/checks/auth";
+import { registerAuthResultsCheck } from "../../src/checks/auth-results";
+import { bundled } from "../../src/checks/brands";
+import type { CaseView } from "../../src/checks/case-view";
 import { saveEvidence } from "../../src/checks/evidence";
+import { CheckRegistry } from "../../src/checks/registry";
+import { runChecksWithOutcomes } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { admitDelivery, RetryDelivery } from "../../src/intake/admit";
 import { putAttachment, type Store } from "../../src/intake/store";
@@ -543,18 +549,16 @@ describe("delivery apart from coverage", () => {
           summary: "SPF failed for bounce.sender.example, as your receiving system recorded.",
           detail: {
             state: "failed",
-            helo: false,
+            helo: true,
             results: [
               {
                 result: "fail",
                 identifier: "bounce.sender.example",
-                helo: false,
                 comment: "domain does not designate 198.51.100.42 as permitted sender",
               },
               {
                 result: "pass",
                 identifier: "helo.sender.example",
-                helo: true,
                 comment: null,
               },
             ],
@@ -688,6 +692,164 @@ describe("delivery apart from coverage", () => {
     expect(missingReasons).toContain("Result: fail · action oreject · reason not recorded");
     expect(missingReasons).toContain(
       "Composite authentication (compauth): fail · reason 999 (reason code not documented)",
+    );
+
+    // Every documented Microsoft compauth code renders its exact documented explanation, and unknown codes stay marked.
+    for (const [res, code, expected] of [
+      ["fail", "000", "reason 000 (explicit authentication failed)"],
+      ["fail", "001", "reason 001 (implicit authentication failed)"],
+      ["fail", "002", "reason 002 (spoofed mail blocked by organisation policy)"],
+      ["fail", "010", "reason 010 (DMARC failed with reject or quarantine policy for an organisation accepted domain)"],
+      ["pass", "100", "reason 100 (explicit authentication passed)"],
+      ["pass", "101", "reason 101 (DKIM signed by the From domain)"],
+      ["pass", "109", "reason 109 (authentication would pass despite no DMARC record)"],
+      ["pass", "130", "reason 130 (trusted ARC seal overrode a DMARC failure)"],
+      ["none", "905", "reason 905 (reason code not documented)"],
+    ] as const) {
+      const html = live({
+        ...running,
+        coverage: [
+          outcome("auth.results", "ran"),
+          outcome("auth.spf", "ran"),
+          outcome("auth.dkim", "ran"),
+          outcome("auth.dmarc", "ran"),
+        ],
+        evidence: [
+          {
+            id: "E1",
+            check: "auth.results",
+            severity: "info" as const,
+            summary: "Microsoft 365 recorded authentication results.",
+            detail: {
+              trusted: true,
+              receiver: "microsoft",
+              authservId: "mx.outlook.com",
+              results: [{ method: "compauth", result: res, props: { reason: code } }],
+            },
+            artefacts: [],
+          },
+          {
+            id: "E2",
+            check: "auth.spf",
+            severity: "info" as const,
+            summary: "SPF passed.",
+            detail: { state: "passed", results: [{ result: "pass", identifier: "sender.example", comment: null }] },
+            artefacts: [],
+          },
+          {
+            id: "E3",
+            check: "auth.dkim",
+            severity: "info" as const,
+            summary: "DKIM passed.",
+            detail: { state: "passed", results: [{ result: "pass", identifier: "sender.example", comment: null }] },
+            artefacts: [],
+          },
+          {
+            id: "E4",
+            check: "auth.dmarc",
+            severity: "info" as const,
+            summary: "DMARC passed.",
+            detail: {
+              state: "passed",
+              from: "sender.example",
+              policy: null,
+              results: [{ result: "pass", comment: null }],
+            },
+            artefacts: [],
+          },
+        ],
+      });
+      expect(html).toContain(`Composite authentication (compauth): ${res} · ${expected}`);
+    }
+  });
+
+  it("renders actual producer output for HELO-only and mixed SPF results alongside compauth 010 and 109 (D07 T09 §19)", async () => {
+    const running = {
+      status: "running" as const,
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+    };
+    const reg = new CheckRegistry();
+    registerAuthResultsCheck(reg);
+    registerAuthChecks(reg);
+    const makeView = (authHeader: string): CaseView => ({
+      tenant: {
+        orgId: "org-auth",
+        channel: "email",
+        receivers: [{ kind: "microsoft", pattern: "*.outlook.com" }],
+        headersAvailable: true,
+        trusted: { own: [], suppliers: [] },
+      },
+      raw: "raw/case-auth/message.eml",
+      brands: bundled,
+      senderHistory: null,
+      domainAges: null,
+      attachmentHeads: null,
+      hiddenText: null,
+      htmlAttachments: null,
+      attachmentRisks: null,
+      instructions: null,
+      invisibleText: null,
+      links: null,
+      expansions: null,
+      source: { kind: "message", path: "rfc822", otherOriginals: 0 },
+      headers: [
+        {
+          name: "Received",
+          value: "from AM6PR01.eurprd01.prod.outlook.com by AM6PR02.eurprd01.prod.outlook.com with HTTPS",
+        },
+        { name: "Authentication-Results", value: authHeader },
+        {
+          name: "Received",
+          value: "from mail.sender.example (198.51.100.42) by AM5EUR01FT001.mail.protection.outlook.com with ESMTP",
+        },
+        { name: "From", value: "billing@sender.example" },
+      ],
+      text: null,
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+    });
+
+    // 1. Real producer output for a single HELO-only SPF result with stored smtp.helo and compauth=pass reason=109.
+    const heloOnlyRun = await runChecksWithOutcomes(
+      makeView(
+        "spf=pass (sender IP is 198.51.100.42) smtp.helo=helo.sender.example; dkim=none; dmarc=bestguesspass action=none header.from=sender.example; compauth=pass reason=109",
+      ),
+      reg,
+    );
+    const heloOnlyHtml = live({
+      ...running,
+      coverage: heloOnlyRun.outcomes.map((o) => outcome(o.check, o.outcome)),
+      evidence: heloOnlyRun.items.map((e, i) => ({ ...e, id: `E${i + 1}` })),
+    });
+    expect(heloOnlyHtml).toContain(
+      "helo.sender.example (HELO), smtp.helo=helo.sender.example: pass · sender IP is 198.51.100.42",
+    );
+    expect(heloOnlyHtml).toContain(
+      "Composite authentication (compauth): pass · reason 109 (authentication would pass despite no DMARC record)",
+    );
+
+    // 2. Real producer output for mixed MAIL FROM + HELO SPF results and compauth=fail reason=010.
+    const mixedRun = await runChecksWithOutcomes(
+      makeView(
+        "spf=fail (sender IP is 198.51.100.42) smtp.mailfrom=spoof@bounce.sender.example; spf=pass smtp.helo=helo.sender.example; dkim=pass header.d=sender.example header.i=@sender.example header.s=s1; dmarc=fail action=oreject header.from=sender.example; compauth=fail reason=010",
+      ),
+      reg,
+    );
+    const mixedHtml = live({
+      ...running,
+      coverage: mixedRun.outcomes.map((o) => outcome(o.check, o.outcome)),
+      evidence: mixedRun.items.map((e, i) => ({ ...e, id: `E${i + 1}` })),
+    });
+    expect(mixedHtml).toContain(
+      "bounce.sender.example, smtp.mailfrom=spoof@bounce.sender.example: fail · sender IP is 198.51.100.42",
+    );
+    expect(mixedHtml).not.toContain("bounce.sender.example (HELO)");
+    expect(mixedHtml).toContain("helo.sender.example (HELO), smtp.helo=helo.sender.example: pass");
+    expect(mixedHtml).toContain(
+      "Composite authentication (compauth): fail · reason 010 (DMARC failed with reject or quarantine policy for an organisation accepted domain)",
     );
   });
 });
