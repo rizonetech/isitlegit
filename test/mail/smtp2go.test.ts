@@ -430,7 +430,12 @@ describe("sendMail", () => {
     };
     const stranger = message({ to: "nobody@example.com", sendKey: "reply:unrecorded" });
     const outcome = await sendMail({ ...deps(stub), db: failing as unknown as D1Database }, stranger);
-    expect(outcome).toEqual({ status: "refused", reason: expect.stringMatching(/could not be recorded/) });
+    expect(outcome).toEqual({
+      status: "failed",
+      reason: expect.stringMatching(/could not be recorded/),
+      storageFailure: "refusal",
+      attempts: 0,
+    });
     expect(calls).toHaveLength(0);
     // Storage back: the same refusal is recorded, once.
     expect(await sendMail(deps(stub), stranger)).toMatchObject({ status: "refused" });

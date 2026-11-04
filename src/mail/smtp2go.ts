@@ -39,7 +39,7 @@ export type MailMessage = {
 };
 export type SendOutcome =
   | { status: "sent"; providerId: string; attempts: number }
-  | { status: "failed"; reason: string; attempts: number; storageFailure?: "allowlist" | "claim" }
+  | { status: "failed"; reason: string; attempts: number; storageFailure?: "allowlist" | "claim" | "refusal" }
   | { status: "uncertain"; reason: string; attempts: number }
   | { status: "duplicate"; previous: "sent" | "uncertain" | "refused"; providerId: string | null }
   // The recipient is not on the allowlist (src/mail/allowlist.ts): nothing was sent, now or ever, under this key.
@@ -182,8 +182,13 @@ export async function sendMail(deps: MailDeps, message: MailMessage): Promise<Se
         .bind(ulid(), message.sendKey, message.caseId ?? null, message.kind, toHash, at, at)
         .run();
     } catch {
-      // Refused either way; only the record of it is missing, and asking again records it.
-      return { status: "refused", reason: "the recipient is not on the allowlist (the refusal could not be recorded)" };
+      // The recipient remains denied, but callers must retry the missing durable refusal.
+      return {
+        status: "failed",
+        reason: "the recipient is not on the allowlist (the refusal could not be recorded)",
+        storageFailure: "refusal",
+        attempts: 0,
+      };
     }
     return { status: "refused", reason: "the recipient is not on the allowlist" };
   }
