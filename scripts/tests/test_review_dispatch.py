@@ -1,5 +1,6 @@
 """scripts/review-dispatch.py: the one route, read-only invocation, refusals and records, with fake reviewer CLIs."""
 import importlib.util
+import contextlib
 import hashlib
 import json
 import os
@@ -2475,6 +2476,138 @@ class TwoPass(unittest.TestCase):
             self.module.validate_codex_chain(self.root,self.report.read_text())
         self.report.write_bytes(retained)
         self.assertEqual(self.module.validate_reconciliation_binding(self.root,self.report.read_text(),entry),binding)
+
+
+@unittest.skipIf(os.name == 'nt', 'POSIX directory fsync guarantee')
+class JournalDurability(unittest.TestCase):
+    def fixture(self, kind):
+        fixture = TwoPass() if kind == 'completion' else Reconciliation()
+        fixture.setUp()
+        self.addCleanup(fixture.doCleanups)
+        if kind == 'completion':
+            fixture.plan()
+        fixture.module.ROOT = fixture.root
+        return fixture
+
+    def runner(self, fixture, kind, reply=None):
+        args, pin, result = (fixture.runner(reply or 'COMPLETION: complete') if kind == 'completion'
+                             else fixture.run_reconciliation(reply or 'RECONCILIATION: complete'))
+        return args, pin, result
+
+    def observe(self, module, events, fail_open=None, fail_sync=None):
+        import stat
+        real_open, real_sync = os.open, os.fsync
+        directories = {}
+        def opened(path, flags, *args, **kwargs):
+            if fail_open is not None and Path(path) == fail_open:
+                raise OSError('ancestor open failed')
+            fd = real_open(path, flags, *args, **kwargs)
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                directories[fd] = Path(path).resolve()
+            return fd
+        def synced(fd):
+            if stat.S_ISDIR(os.fstat(fd).st_mode):
+                directory = directories[fd]
+                events.append(directory)
+                if fail_sync is not None:
+                    fail_sync(directory)
+            return real_sync(fd)
+        stack = contextlib.ExitStack()
+        stack.enter_context(unittest.mock.patch.object(module.os,'open',side_effect=opened))
+        stack.enter_context(unittest.mock.patch.object(module.os,'fsync',side_effect=synced))
+        return stack
+
+    def test_absent_and_lock_created_ancestors_persist_before_both_review_kinds(self):
+        for kind in ('completion','reconciliation'):
+            with self.subTest(kind=kind):
+                f = self.fixture(kind)
+                args,pin,result = self.runner(f,kind)
+                self.assertFalse((f.root / 'build').exists())
+                leaf = f.module.reconciliation_pending_path(f.root,f.report.relative_to(f.root).as_posix(),kind).parent
+                expected = [leaf, *leaf.parents]
+                events = []
+                def reviewer(*unused):
+                    self.assertEqual(events,expected)
+                    self.assertTrue((f.root / 'build/review-reconciliation').is_dir())
+                    return result
+                with self.observe(f.module,events), unittest.mock.patch.object(f.module,'review',side_effect=reviewer) as invoke:
+                    f.module.run_reconciliation(args,pin,f.pin,kind)
+                self.assertEqual(invoke.call_count,1)
+                self.assertEqual(events,expected * 3)  # calling, returned, recorded
+
+    def test_ancestor_open_and_sync_failure_prevent_invocation_and_keep_calling(self):
+        for kind in ('completion','reconciliation'):
+            for failure in ('open','sync'):
+                with self.subTest(kind=kind,failure=failure):
+                    f = self.fixture(kind)
+                    args,pin,result = self.runner(f,kind)
+                    ancestor = f.root / 'build'
+                    def fail(directory):
+                        if directory == ancestor:
+                            raise OSError('ancestor fsync failed')
+                    with self.observe(f.module,[],fail_open=ancestor if failure == 'open' else None,
+                                      fail_sync=fail if failure == 'sync' else None), unittest.mock.patch.object(f.module,'review',return_value=result) as invoke:
+                        with self.assertRaises(OSError):
+                            f.module.run_reconciliation(args,pin,f.pin,kind)
+                        invoke.assert_not_called()
+                    report = f.report.relative_to(f.root).as_posix()
+                    pending = f.module.reconciliation_pending(f.root,report,kind)
+                    self.assertEqual(pending['phase'],'calling')
+                    with unittest.mock.patch.object(f.module,'review') as invoke:
+                        with self.assertRaises(f.module.Refused):
+                            f.module.run_reconciliation(args,pin,f.pin,kind)
+                        invoke.assert_not_called()
+
+    def test_returned_and_recorded_ancestor_failure_recovers_without_second_invocation(self):
+        for kind in ('completion','reconciliation'):
+            for phase in ('returned','recorded'):
+                with self.subTest(kind=kind,phase=phase):
+                    f = self.fixture(kind)
+                    args,pin,result = self.runner(f,kind)
+                    report = f.report.relative_to(f.root).as_posix()
+                    path = f.module.reconciliation_pending_path(f.root,report,kind)
+                    def fail(directory):
+                        if directory == f.root / 'build' and json.loads(path.read_text())['phase'] == phase:
+                            raise OSError('ancestor publication failed')
+                    with self.observe(f.module,[],fail_sync=fail), unittest.mock.patch.object(f.module,'review',return_value=result) as invoke:
+                        with self.assertRaises(f.module.Refused):
+                            f.module.run_reconciliation(args,pin,f.pin,kind)
+                        self.assertEqual(invoke.call_count,1)
+                    state = f.module.reconciliation_pending(f.root,report,kind)
+                    self.assertEqual(state['phase'],phase)
+                    self.assertEqual(state['result']['review'],result['review'])
+                    with unittest.mock.patch.object(f.module,'review') as invoke:
+                        recovered = f.module.recover_reconciliation(f.root,f.report,kind)
+                        self.assertTrue(recovered['recorded'])
+                        invoke.assert_not_called()
+                    found = (f.module.read_completions(f.report.read_text()) if kind == 'completion'
+                             else f.module.read_reconciliations(f.report.read_text()))
+                    self.assertEqual(len(found),1)
+
+    def test_archive_ancestor_failure_preserves_prior_journal_and_does_not_invoke(self):
+        for kind in ('completion','reconciliation'):
+            with self.subTest(kind=kind):
+                f = self.fixture(kind)
+                args,pin,result = self.runner(f,kind,'No terminal verdict')
+                with unittest.mock.patch.object(f.module,'review',return_value=result):
+                    f.module.run_reconciliation(args,pin,f.pin,kind)
+                path = f.module.reconciliation_pending_path(f.root,f.report.relative_to(f.root).as_posix(),kind)
+                previous = path.read_bytes()
+                args,pin,result = self.runner(f,kind)
+                def fail(directory):
+                    if directory == f.root / 'build' and list(path.parent.glob('*.archive')):
+                        raise OSError('archive ancestor sync failed')
+                with self.observe(f.module,[],fail_sync=fail), unittest.mock.patch.object(f.module,'review',return_value=result) as invoke:
+                    with self.assertRaises(OSError):
+                        f.module.run_reconciliation(args,pin,f.pin,kind)
+                    invoke.assert_not_called()
+                self.assertEqual(path.read_bytes(),previous)
+                archives = list(path.parent.glob('*.archive'))
+                self.assertEqual(len(archives),1)
+                self.assertEqual(archives[0].read_bytes(),previous)
+                with unittest.mock.patch.object(f.module,'review',return_value=result) as invoke:
+                    f.module.run_reconciliation(args,pin,f.pin,kind)
+                    self.assertEqual(invoke.call_count,1)
 
 
 if __name__ == "__main__":
