@@ -24,6 +24,7 @@ import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { scheduledMonitor } from "./monitor/workflow";
 import { sweepRetries } from "./pipeline/retry";
+import { refreshVerificationEvidence } from "./pipeline/verification-request";
 import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
@@ -389,5 +390,11 @@ export async function scheduledReconcile(
     }
   }
   log(JSON.stringify({ event: "mail-reconcile", ...outcome }));
+  try {
+    const refreshed = await refreshVerificationEvidence(env.DB);
+    log(JSON.stringify({ event: "verification-refresh", state: refreshed.failed ? "degraded" : "ok", ...refreshed }));
+  } catch {
+    log(JSON.stringify({ event: "verification-refresh", state: "degraded" }));
+  }
   return outcome;
 }
