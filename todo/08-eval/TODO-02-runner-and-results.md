@@ -484,26 +484,24 @@ Filed 2026-11-03 from §13's completion review (G4, out-of-scope there): a chang
 
 ## 15. Paired evidence view
 
-Filed 2026-11-03 from §14's completion review (G4, out-of-scope there): the comparison names both reports, but aligning their evidence to explain a verdict change is still manual. This section adds one paired view, designed with the console owner (D07 T04 §2), that opens both cases' evidence together for a changed sample.
+Filed 2026-11-03 from §14 completion review G4: comparing reports manually hides which evidence changed. Coordinator `eval-decisions-0950` authorizes the section's CLI-only rescoping option for this delivery window. Reason: prioritize factual paired analysis and existing authorized report links without introducing an undesigned member surface. Reversal cost: separately design and test a paired member page later. No console or design-source change is needed for this CLI-only scope.
 
 **Phase:** 6
-**Needs:** cloudflare
-**Surface:** yes
-**Fidelity:** `design/SPEC.md` (the paired view's entry is this section's first item, agreed with the D07 T04 §2 owner; no board yet)
-**Job:** an operator investigating a changed verdict sees both cases' evidence together and learns which evidence moved the verdict
-**Treatment:** tokens only, both reports in the member shell, phone width holds
-**Chrome:** the member shell of D07 T04 §2; the paired view is its content, not a new frame
+**Needs:** none
+**Surface:** no
 
 **Build order:**
 
-1. Agree the paired view's surface with the console owner and record it in `design/SPEC.md` before any page work. Done when: the SPEC names the view, its route and its states, or the section is re-scoped to a CLI-only diff with the reason recorded.
-2. Show both cases' evidence together with the verdict change. Done when: a changed sample opens one view naming both verdicts and each side's evidence, and an unavailable side leaves the other readable with its reason.
+1. Add a read-only paired evidence command on the existing source/replay comparison contract. Done when: one changed sample resolves both persisted case IDs with existing eval membership checks and per-side unavailable reasons.
+2. Align allowed evidence content and verdicts in text/JSON. Done when: the available side remains readable, denied content never enters output, and changed/missing evidence is explicit without invented causal claims.
 
-- [ ] Record the agreed surface in `design/SPEC.md` with its route, controls and states (empty, one-side-missing, denied), agreed with the D07 T04 §2 owner through the coordinator. Done when: the SPEC entry exists and names the section that builds it. Cheaper substitute: none (an undesigned surface is a defect).
-- [ ] Build the paired view at the agreed route: both cases' verdicts and evidence side by side, the changed sample named, an unavailable or denied side explained while the other stays readable. Done when: browser tests open the view for a stored changed pair and for a one-side-missing pair. Cheaper substitute: none (two separate reports are today's manual path).
-- [ ] Commit: `eval: paired evidence view`
+- [ ] Implement `eval/paired-evidence.ts` as `node eval/paired-evidence.ts --replay <run-id> --sample <set-qualified-id> [--json]`, reusing `pairForCompare` and `compareRuns` from `eval/metrics.ts`. Done when: source/replay population and sample binding are verified before evidence is fetched, unknown/unchanged samples refuse honestly, and IDs are read from stored results rather than accepted from caller-supplied case IDs. Cheaper substitute: two independent report links still require manual alignment.
+- [ ] Require an authenticated `EVAL_SESSION_COOKIE` and exact eval-organisation membership using existing `liveApi`/`liveDb` primitives before evidence access. Add a read-only D1 adapter scoped by org/case and the case's current analysis run, returning only evidence ID, check, severity and public summary plus the verdict and report route. Done when: missing, denied and unavailable sides have explicit reasons; denied verdict/evidence does not appear even if present in comparison input; raw detail JSON, registered bank details, artifacts and signed URLs are never dumped. A case retried after the recorded measurement is marked stale/unavailable rather than pairing new evidence with the old verdict. Cheaper substitute: database access alone grants no report membership.
+- [ ] Render both permitted verdicts, labelled source/replay report routes, evidence grouped by check with side-specific IDs, and added/removed/changed public summaries. Done when: both-side, missing-side, denied-side, stale-side, empty and read-error outputs are deterministic in text and JSON, an available side remains readable, and the text states membership is required and evidence changes do not prove why a model changed its verdict. Cheaper substitute: matching Evidence IDs across independent cases falsely treats them as global IDs.
+- [ ] Add `test/node/eval-paired-evidence.test.ts` exercising the command with injected clients plus its real SQL against SQLite. Done when: mismatched samples, cross-org denial, stale analysis, failed reads and no-secret output regressions fail if checks are removed, and existing metrics comparison tests remain green. Cheaper substitute: checking only prebuilt strings cannot prove access controls or persistence.
+- [ ] Commit: `eval: compare paired verdict evidence in the CLI`
 
-**Test checkpoint:** the agreed surface's browser tests pass, and `pnpm exec vitest run test/node/eval-metrics.test.ts` still passes.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-paired-evidence.test.ts test/node/eval-metrics.test.ts` passes, including real command dispatch, SQL read-back and denied-side redaction; typecheck, lint and build pass. No live comparative claim is made from stubbed cases.
 
 ## 16. Blinded comprehension comparison
 
@@ -537,6 +535,8 @@ Coordinator `critical-path-contract` (2026-11-04) assigns eval the remaining run
 **Surface:** no
 
 **Locked integration contract 2026-11-04:** Checks D01 T03 §17 and D04 T01 §17 own the implementation behind migration `0095_case_experiments.sql`, which is not yet merged here. Wire is strict JSON `ablate` with explicit full plus separate replayRunId, never the crossed scalar proposal. Preflight `GET /api/upload/ablation-capabilities` must validate `{version:1,commit,durableContext:true,uploadArms,screening:false}` and every requested upload arm before the baseline spends; absence, disabled eval organisation, schema outage or mismatched deployment refuses. The persisted case binding additionally has immutable `upload_key` and nullable `active_upload_key`; only definitively unstarted RawMissing settlement releases the latter. Unknown dispatch outcome keeps identity; retained successful cases remain idempotent after 24 hours. Resume must reconcile the active binding, never measure failed RawMissing history or silently select a new arm identity. The local experiment manifest persists exact selection, caps and stable IDs before dispatch; an ambiguous insert/upload is reconciled using the same IDs. Missing capabilities or attribution must never fall back to ordinary uploads. No live execution is authorized by this offline section alone.
+
+**Plan corrections 2026-11-04 (actual Codex plan self-review at original `ef1c3e96`, later a84 amendments disclosed):** All three returned gaps are accepted before implementation. (1) CLI new-run arguments are `--cap-usd <per-arm-cap> [--flags <comma-list>] [--seed <seed>] [--set <comma-list>]`; it prints the generated experiment ID and recovery command before dispatch. Recovery is `node eval/ablate-run.ts --resume <experiment-id>`, reading `build/eval-ablation/<experiment-id>/manifest.json`. Resume refuses cap/flags/seed/set overrides, keeps stored caps, selected IDs, completed arms and replay IDs, and checks deployment/population before spending. (2) Defaults are the four upload-supported flags, excluding no-screening; reports explicitly state Loupe screening is not measured by uploads. Explicit no-screening requests refuse before any baseline or arm upload. (3) Real entrypoint/injected-client tests must cover lost upload responses after durable acceptance, ambiguous run insert, definitive RawMissing active-binding release and same-arm replacement, unknown dispatch retaining its binding, and duplicate recovery after24hours. Assert no failed historical case enters metrics, no unresolved dispatch produces a second paid case, and no missing capability/attribution falls back to ordinary uploads. Local orchestration is exclusive per experiment and saves stable identity before any dispatch; failed writes cannot trigger a fresh identity on restart.
 
 **Build order:**
 

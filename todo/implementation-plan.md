@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 110 | Checklist items: 693
+Sections: 110 | Checklist items: 695
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -376,7 +376,7 @@ Sections: 110 | Checklist items: 693
 | [x]    | D08 T02 §12 | Eval replay after deploy                     | cloudflare            | 8     |
 | [x]    | D08 T02 §13 | Source-versus-replay comparison              | cloudflare            | 4     |
 | [x]    | D08 T02 §14 | Paired-evidence investigation                | cloudflare            | 3     |
-| [ ]    | D08 T02 §15 | Paired evidence view                         | cloudflare            | 3     |
+| [ ]    | D08 T02 §15 | Paired evidence view                         | none                  | 5     |
 | [ ]    | D08 T02 §16 | Blinded comprehension comparison             | cloudflare            | 4     |
 | [ ]    | D08 T02 §17 | Per-case ablation orchestration repair       | none                  | 8     |
 | [ ]    | D08 T02 §18 | Recoverable PDF corpus publication           | none                  | 5     |
@@ -679,4 +679,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 413/601 verified sections, 117 ready to run now.
 
-Checklist: 3049/3712 items completed (includes Commit items).
+Checklist: 3049/3714 items completed (includes Commit items).
