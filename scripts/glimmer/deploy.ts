@@ -12,7 +12,8 @@
 //
 // Live merge: the fine-tuned model itself is the deployment's `baseModel`, with the `default` deployment shape, so
 // Fireworks picks a shape that can merge it (https://docs.fireworks.ai/fine-tuning/deploying-loras); inference then
-// names the model with no `#` suffix. The admin key ("IsItLegit Fireworks Admin") comes through conclave-op, is sent only
+// uses the exact `model#deployment` route verified by the paired and modality probes. The model-only route returned
+// HTTP 404 for this private artifact. The admin key ("IsItLegit Fireworks Admin") comes through conclave-op, is sent only
 // in the Authorization header and is never printed. Every change is read back, and a read-back that does not show
 // minimum 0, the maximum asked for and a 5-minute scale-to-zero window fails the command.
 import { execFileSync } from "node:child_process";

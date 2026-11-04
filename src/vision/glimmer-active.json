@@ -1,5 +1,8 @@
 {
-  "version": "1.0",
-  "deployment": "isitlegit-loupe",
-  "previous": null
+  "version": "1.1",
+  "deployment": "isitlegit-loupe-1-1",
+  "previous": {
+    "version": "1.0",
+    "deployment": "isitlegit-loupe"
+  }
 }
