@@ -1,6 +1,6 @@
 # Try IsItLegit
 
-Use the hosted app. You need an email inbox and the invite code provided in the private judging instructions. You do not need API keys, a Cloudflare account or a local installation.
+Use the hosted app. You need an email inbox. Use the demo invitation code provided in our submission. You do not need API keys, a Cloudflare account or a local installation.
 
 1. **Create your account:** open [app.isitlegit.co.za/signup](https://app.isitlegit.co.za/signup). Enter **Invite code**, your work email and organisation name, read the privacy notice and consent if you agree, then choose **Create account**. Already registered? [Sign in](https://app.isitlegit.co.za/signin) with the same email instead.
 2. **Open your sign-in email:** look for **Your IsItLegit sign-in link** from `signin@isitlegit.co.za`. Open the link and choose **Sign in to IsItLegit**. If you opened it in a different browser, choose **Sign in in this browser instead**. Links expire after 15 minutes and work once.

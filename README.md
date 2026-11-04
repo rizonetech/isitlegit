@@ -39,7 +39,7 @@
 
 ## Getting started
 
-**Judges: [try the hosted app in five steps](docs/judge-getting-started.md).** Use the invite supplied in your private judging instructions; no API keys or local setup are needed. Start with a synthetic invoice case, then inspect its evidence and model trace.
+**Judges: [try the hosted app in five steps](docs/judge-getting-started.md).** Use the demo invitation code provided in our submission. No API keys or local setup are needed. Start with a synthetic invoice case, then inspect its evidence and model trace.
 
 ## Contents
 
