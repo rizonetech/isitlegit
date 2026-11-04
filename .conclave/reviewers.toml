@@ -117,10 +117,12 @@ effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 mode = "off"
 
+# Operator EFFORT-22, 2026-11-04: repair verification uses medium; plan remains low.
 [schedule.reconciliation]
-effort = "low"
+effort = "medium"
 lenses = ["adversarial", "integration", "plan-delivery", "record"]
 
+# Operator EFFORT-22, 2026-11-04: combined quality and completion uses medium.
 [schedule.combined]
-effort = "low"
+effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]

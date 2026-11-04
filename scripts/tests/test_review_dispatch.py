@@ -1847,7 +1847,7 @@ class Reconciliation(unittest.TestCase):
         prompt.write_text('Verify every original gap and repair.\n')
         args = SimpleNamespace(writer='codex',record=str(self.report),disposition=str(self.disposition),
                                candidate=self.sha,prompt=str(prompt),timeout=30,surface=False)
-        result = {**self.entry,'review':reply,'lenses':['adversarial','integration','plan-delivery','record']}
+        result = {**self.entry,'effort':pin['schedule']['reconciliation']['effort'],'review':reply,'lenses':['adversarial','integration','plan-delivery','record']}
         return args, pin, result
 
     def test_write_failure_recovers_same_result_without_second_call(self):
@@ -2052,10 +2052,11 @@ class TwoPass(unittest.TestCase):
         self.legacy_entry = dict(self.entry)
         self.legacy_pin = self.pin
         self.report.unlink()
+        self.combined_effort = tomllib.loads(REPO_PIN.read_text())["schedule"]["combined"]["effort"]
         self.new_pin_text = (self.root / '.conclave/reviewers.toml').read_text()
         if 'self_review_policy' not in self.new_pin_text:
             self.new_pin_text = self.new_pin_text.replace('self_review = ["codex"]', 'self_review = ["codex"]\nself_review_policy = "codex-two-pass-v1"\nplan_transition = ["codex-self-review"]')
-            self.new_pin_text += '\n[schedule.combined]\neffort = "low"\nlenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]\n'
+            self.new_pin_text += '\n[schedule.combined]\neffort = "' + self.combined_effort + '"\nlenses = ["adversarial", "integration", "source-defect", "plan-delivery", "consistency", "record", "quality", "optimization", "design"]\n'
         (self.root / '.conclave/reviewers.toml').write_text(self.new_pin_text)
         self.todo.write_text('# Test\n\n## 1. Example\n\n**Surface:** no\n\n- [ ] Preserve data.\n')
         self.sha = self.commit()
@@ -2070,7 +2071,7 @@ class TwoPass(unittest.TestCase):
 
     def complete(self, transition=False, verdict='complete'):
         binding = self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=transition)
-        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'COMPLETION: '+verdict},'2026-11-04T01:02:00Z',self.sha)
+        self.module.record_completion(self.report,{**self.entry,'effort':self.combined_effort,'binding':binding,'review':'COMPLETION: '+verdict},'2026-11-04T01:02:00Z',self.sha)
         return self.module.validate_codex_chain(self.root,self.report.read_text())
 
     def test_new_policy_two_pass_chain_has_no_round(self):
@@ -2108,7 +2109,7 @@ class TwoPass(unittest.TestCase):
         args = SimpleNamespace(writer='codex', record=str(self.report), candidate=self.sha,
                                prompt=str(prompt), timeout=30, surface=False, transition_plan=transition)
         pin = self.module.load_pin(self.root / '.conclave/reviewers.toml')
-        result = {**self.entry, 'review':reply, 'lenses':self.module.COMBINED_LENSES[:-1]}
+        result = {**self.entry, 'effort':self.combined_effort, 'review':reply, 'lenses':self.module.COMBINED_LENSES[:-1]}
         return args, pin, result
 
     def test_normal_completion_recovers_same_response_after_write_failure(self):
@@ -2207,6 +2208,8 @@ class TwoPass(unittest.TestCase):
                 result=subprocess.run(argv,cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
                 self.assertEqual(result.returncode,0,result.stderr)
                 invocation=json.loads(log.read_text().splitlines()[0])
+                self.assertEqual(json.loads(result.stdout)['effort'],self.combined_effort)
+                self.assertIn('model_reasoning_effort=' + self.combined_effort,invocation['argv'])
                 for lens in self.module.COMBINED_LENSES[:-1]:
                     self.assertIn('`'+lens+'`:',invocation['stdin'])
                 self.assertEqual('`design`:' in invocation['stdin'],surface=='yes')
@@ -2280,6 +2283,65 @@ class TwoPass(unittest.TestCase):
         malformed={**entry,'binding':{**entry['binding'],'transition':{**entry['binding']['transition'],'version':True}}}
         with self.assertRaises(self.module.Refused):
             self.module.validate_completion_binding(self.root,self.report.read_text(),malformed)
+
+    def test_committed_legacy_attempt_restored_away_refuses_dispatch_and_replay(self):
+        self.plan(legacy=True)
+        plan_only = self.report.read_bytes()
+        binding = self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+        self.module.record(self.report,{**self.legacy_entry,'reviewer':None,'review':None},'2026-11-04T01:01:00Z')
+        self.commit()
+        self.report.write_bytes(plan_only)
+        self.commit()
+        argv,env,log=self.cli_fixture()
+        result=subprocess.run([*argv,'--transition-plan'],cwd=self.root,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,2,result.stderr)
+        self.assertFalse(log.exists(),'a reviewer ran after a committed attempt was removed')
+        self.module.record_completion(self.report,{**self.entry,'binding':binding,'review':'COMPLETION: complete'},'2026-11-04T01:02:00Z',self.sha)
+        with self.assertRaises(self.module.Refused):
+            self.module.validate_codex_chain(self.root,self.report.read_text())
+
+    def test_removed_attempt_on_incoming_merge_parent_refuses(self):
+        self.plan(legacy=True)
+        base=self.git('rev-parse','HEAD')
+        plan_only=self.report.read_bytes()
+        self.git('checkout','-b','incoming-attempt')
+        self.module.record_completion(self.report,{**self.legacy_entry,'reviewer':None,'review':None},'2026-11-04T01:01:00Z',self.sha)
+        self.commit()
+        self.report.write_bytes(plan_only)
+        incoming=self.commit()
+        self.git('checkout',base)
+        (self.root/'main-only.txt').write_text('diverge\n')
+        self.commit()
+        self.git('merge','--no-commit','--no-ff',incoming)
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+
+    def test_restored_modern_attempt_cannot_start_a_new_transition(self):
+        self.plan(legacy=True)
+        plan_only=self.report.read_bytes()
+        self.complete(transition=True)
+        self.commit()
+        self.report.write_bytes(plan_only)
+        self.commit()
+        with self.assertRaises(self.module.Refused):
+            self.module.make_completion_binding(self.root,self.report,self.sha,transition_plan=True)
+
+    def test_retained_committed_transition_outage_can_retry_and_replay(self):
+        self.plan(legacy=True)
+        args,pin,result=self.runner('No verdict',transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        self.commit()
+        args,pin,result=self.runner(transition=True)
+        with unittest.mock.patch.object(self.module,'review',return_value=result):
+            self.module.run_completion(args,pin,self.pin)
+        self.commit()
+        self.assertIsNotNone(self.module.validate_codex_chain(self.root,self.report.read_text())['transition'])
+
+    def test_different_original_plan_history_does_not_block_transition(self):
+        # setUp committed an older complete legacy chain with a different plan candidate.
+        self.plan(legacy=True)
+        self.assertIsNotNone(self.complete(transition=True)['transition'])
 
 
 if __name__ == "__main__":

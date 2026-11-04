@@ -1397,6 +1397,78 @@ def _completion_transition(plan, prefix):
             "prefix_bytes": len(prefix), "prefix_sha256": hashlib.sha256(prefix).hexdigest()}
 
 
+_COMPLETION_HISTORY = {}
+
+
+def _transition_record_identity(entry):
+    """Identify a sealed attempt independently of its position and subsequent writer notes."""
+    return json.dumps({key: value for key, value in entry.items() if key not in ("offset", "notes")},
+                      sort_keys=True, separators=(",", ":"))
+
+
+def _transition_plan_identity(entry):
+    return (entry.get("writer"), entry.get("policy"), entry.get("candidate"), entry.get("pin"),
+            entry.get("run"), entry.get("reviewer"), entry.get("model"), entry.get("cli"),
+            digest(raw_lines(entry.get("review") or "")))
+
+
+def _transition_history(root, report):
+    tips = _reconcile_git(root, "rev-parse", *_reconcile_tips(root)).decode().split()
+    key = (str(Path(root).resolve()), tuple(tips), report)
+    if key not in _COMPLETION_HISTORY:
+        commits = _reconcile_git(root, "log", "--format=%H", "--full-history", "-m", *tips, "--", report).decode().split()
+        versions, seen = [], set()
+        for commit in dict.fromkeys(commits):
+            listed = _reconcile_git(root, "ls-tree", commit, "--", report).decode().strip()
+            if not listed:
+                continue  # A deletion has no findings bytes; the prior versions are still examined.
+            header = listed.split("\t", 1)[0].split()
+            _reconcile_require(len(header) == 3 and header[1] == "blob", "historical findings are not a blob")
+            blob = header[2]
+            if blob in seen:
+                continue
+            seen.add(blob)
+            raw = _reconcile_git(root, "cat-file", "blob", blob)
+            try:
+                versions.append((commit, raw.decode("utf-8")))
+            except UnicodeDecodeError:
+                raise Refused("cannot verify non-UTF-8 findings history: " + commit) from None
+        _COMPLETION_HISTORY[key] = versions
+    return _COMPLETION_HISTORY[key]
+
+
+def validate_plan_transition_history(root, report, plan, prefix, current_text):
+    """A restored file cannot erase an implementation-review attempt from the same original plan chain."""
+    report = _reconcile_path(root, report)
+    expected_plan = _transition_plan_identity(plan)
+    expected_transition = _completion_transition(plan, prefix)
+    current = read_findings(current_text)
+    _reconcile_require(current is not None, "cannot verify transition against unreadable findings")
+    retained = {key: {_transition_record_identity(entry) for entry in current[key]}
+                for key in ("completions", "reconciliations")}
+    for commit, historical_text in _transition_history(root, report):
+        historical, bad_heading = _read_findings(historical_text)
+        if historical is None:
+            # Preserve fail-closed behavior when a same-chain version is truncated or malformed after its plan.
+            prior = read_findings("\n".join(raw_lines(historical_text)[:bad_heading])) if bad_heading is not None else None
+            same_plan = prior is not None and any(_transition_plan_identity(e) == expected_plan for e in prior["plans"])
+            _reconcile_require(not same_plan, "same-chain findings history is unreadable at " + commit)
+            continue
+        if not any(_transition_plan_identity(entry) == expected_plan for entry in historical["plans"]):
+            continue
+        _reconcile_require(not historical["rounds"] and not historical["finals"],
+                           "legacy plan has a committed implementation-review attempt at " + commit)
+        for entry in historical["completions"]:
+            _reconcile_require(entry.get("policy") == "codex-two-pass-v1" and isinstance(entry.get("binding"), dict)
+                               and entry["binding"].get("transition") == expected_transition,
+                               "legacy plan has a committed completion attempt at " + commit)
+            _reconcile_require(_transition_record_identity(entry) in retained["completions"],
+                               "a committed combined completion attempt was removed at " + commit)
+        for entry in historical["reconciliations"]:
+            _reconcile_require(bool(historical["completions"]) and _transition_record_identity(entry) in retained["reconciliations"],
+                               "a committed reconciliation attempt was removed at " + commit)
+
+
 def make_completion_binding(root, record_path, candidate, transition_plan=False):
     root = Path(root).resolve()
     report, contract_path, number = _completion_location(root, record_path)
@@ -1422,6 +1494,7 @@ def make_completion_binding(root, record_path, candidate, transition_plan=False)
     _reconcile_require(plan.get("policy") in SELF_REVIEW_POLICIES, "unsupported plan policy")
     if old:
         _reconcile_require(transition_plan and pin.get("plan_transition") == ["codex-self-review"], "legacy plan transition must be explicit and authorized")
+        validate_plan_transition_history(root, report, plan, prefix, text)
     else:
         _reconcile_require(not transition_plan and plan["pin"] == pin_id, "new-policy plan and completion must share one pin")
     _reconcile_require(len({e.get("pin") for e in attempts}) == 1 and len({e.get("policy") for e in attempts}) == 1, "plan attempts changed policy or pin")
@@ -1475,6 +1548,7 @@ def validate_completion_binding(root, text, entry):
                        and digest(raw_lines(plan["review"])) == binding["plan_digest"], "plan identity changed")
     if plan["policy"] == "codex-self-review":
         _reconcile_require(pin.get("plan_transition") == ["codex-self-review"] and binding["transition"] == _completion_transition(plan, raw[:size]), "missing or tampered explicit plan transition")
+        validate_plan_transition_history(root, binding["report"], plan, raw[:size], text)
     else:
         _reconcile_require(plan["policy"] == "codex-two-pass-v1" and plan["pin"] == entry["pin"] and binding["transition"] is None, "two-pass pin mismatch")
     _, contract_path, number = _completion_location(root, binding["report"])
