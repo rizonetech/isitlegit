@@ -35,6 +35,7 @@ track: day-6
 | 3 | §3 | Service health tiles on | §2 | [ ] |
 | 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
 | 5 | §5 | Filter the organisations | §2 | [ ] |
+| 6 | §6 | Independent gateway relay revision review | §2 | [ ] |
 
 ## 1. Access application and JWT verification
 
@@ -156,6 +157,8 @@ The overview search matches the organisation name only (D07 T05 §2), so the ope
 - [ ] Match name, verified domain and organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` reads the org back from each of the three. Cheaper substitute: matching the name twice.
 - [ ] Export the same matches from the CSV. Done when: the CSV test reads the domain- and ID-matched rows only. Cheaper substitute: exporting the unfiltered table.
 - [ ] Name the searched text in the empty state. Done when: the no-match test reads the searched domain or ID with its Clear search link.
+- [ ] Prove verified-only, unique matches in `test/web/admin-page.test.ts` with pending domains, several matching verified domains, unrelated organisations and domainless name/ID matches. Done when: HTML and CSV contain the exact matching organisation identities once and reject pending-only matches; literal wildcard searches stay literal. Cheaper substitute: positive-only substring assertions. Source: Codex plan self-review P2-1.
+- [ ] Describe name, verified-domain and ID search in `src/web/pages/admin-view.tsx` and use field-neutral no-match wording. Done when: the rendered search explains all three fields and Clear search restores every organisation. Cheaper substitute: keeping name-only wording after changing matching. Source: Codex plan self-review P2-2.
 - [ ] Commit: `admin: find organisations by domain or ID`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a domain search returns no row.
@@ -186,6 +189,34 @@ The organisations table is fixed in alphabetical order (D07 T05 §2), so the ope
 - [ ] Commit: `admin: filter the organisations table by need`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if the filter reads every row.
+
+## 6. Independent gateway relay revision review
+
+Coordinator assignment 2026-11-04: platform review surface for D02 T02 §10. Requires its stamped storage contract merged and coordinator approval of `docs/specs/2026-11-04-gateway-relay-surfaces-design.md`; add the resolving dependency at that boundary.
+
+**Phase:** 7
+**Needs:** third-party
+**Surface:** yes
+**Fidelity:** `docs/specs/2026-11-04-gateway-relay-surfaces-design.md` platform review; existing `design/SPEC.md` X1 admin chrome, pending scoped treatment approval
+**Job:** an independent platform reviewer approves or rejects exactly the verified proposal they examined
+**Treatment:** pending revision list, immutable detail, independent source record and explicit approve/reject actions
+**Chrome:** existing Access-protected admin shell
+
+**Build order:**
+
+1. Approve the treatment in `docs/specs/2026-11-04-gateway-relay-surfaces-design.md` and import the checks contract. Done when: approval and dependency are recorded.
+2. Build `src/web/pages/admin-gateway-ranges.tsx`. Done when: only independently authenticated platform review can decide the exact current revision.
+3. Prove persisted decisions and conflicts. Done when: route and browser tests refuse stale approval and tenant self-approval.
+
+- [ ] Record scoped treatment approval in `docs/specs/2026-11-04-gateway-relay-surfaces-design.md`. Done when: every review state is approved before implementation. Cheaper substitute: unreviewed controls. Source: coordinator delivery decision 2026-11-04.
+- [ ] List pending revisions and render immutable details in `src/web/pages/admin-gateway-ranges.tsx`. Done when: the selected organisation, binding, CIDRs and revision equal stored data. Cheaper substitute: approving a mutable latest pointer. Source: gateway relay ranges design.
+- [ ] Implement approval/rejection through the checks API in `src/web/pages/admin-gateway-ranges.tsx`. Done when: independent source metadata and safe rejection reasons persist, and authenticated tenant self-approval fails. Cheaper substitute: trusting a tenant-provided source. Source: gateway relay ranges design.
+- [ ] Implement stale, removed-claim, changed-binding, read-failure and retry states in `src/web/pages/admin-gateway-ranges.tsx`. Done when: conflict reload never silently approves a new revision and retries retain their idempotency key. Cheaper substitute: last-write-wins approval. Source: scoped surface contract.
+- [ ] Test decisions through `test/web/admin-gateway-ranges.test.ts`. Done when: missing Access, tenant identity, stale revisions and deleted claims are refused and valid decisions have one stored audit entry.
+- [ ] Test the review controls in `test/node/admin-gateway-ranges-browser.test.tsx`. Done when: keyboard users at 360 px in both themes approve/reject and recover from conflict with stored read-back.
+- [ ] Commit: `admin: independently review gateway relay revisions`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-gateway-ranges.test.ts test/node/admin-gateway-ranges-browser.test.tsx` passes and fails if a stale revision or tenant self-approval is accepted.
 
 ## Verification
 

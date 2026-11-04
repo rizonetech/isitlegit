@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 222 | Checklist items: 994
+Sections: 226 | Checklist items: 1021
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -522,6 +522,8 @@ Sections: 222 | Checklist items: 994
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction                    | meta-api             | 3     |
 | [x]    | D06 T02 §3  | Standalone document path with the fixed                     | none                 | 5     |
 | [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth                  | meta-api             | 5     |
+| [ ]    | D06 T02 §8  | Native PDF forensic detection and coverage repair           | none                 | 5     |
+| [ ]    | D06 T02 §9  | PNG encoding at the doctored fixture producer               | none                 | 6     |
 | [x]    | D07 T01 §4  | Design change comparison                                    | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                           | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                            | attended             | 3     |
@@ -585,9 +587,11 @@ Sections: 222 | Checklist items: 994
 | [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 3     |
 | [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
+| [ ]    | D07 T04 §37 | Gateway relay range settings                                | third-party          | 7     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
-| [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 4     |
+| [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
 | [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
+| [ ]    | D07 T05 §6  | Independent gateway relay revision review                   | third-party          | 7     |
 | [x]    | D07 T06 §11 | Already paid: what to do now                                | none                 | 7     |
 | [x]    | D07 T06 §12 | Pricing terms: VAT and commitment                           | none                 | 7     |
 | [ ]    | D07 T06 §13 | On-site invite request                                      | none                 | 2     |
@@ -674,6 +678,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 414/598 verified sections, 115 ready to run now.
+Progress: 414/602 verified sections, 117 ready to run now.
 
-Checklist: 3035/3695 items completed (includes Commit items).
+Checklist: 3035/3722 items completed (includes Commit items).

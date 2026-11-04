@@ -39,6 +39,8 @@ track: day-5
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 | 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
+| 8 | §8 | Native PDF forensic detection and coverage repair | §1, §5, §6 | [ ] |
+| 9 | §9 | PNG encoding at the doctored fixture producer | §4 | [ ] |
 
 ## 1. PDF forensics
 
@@ -249,6 +251,53 @@ The §4 set shares one sparse template and confounds document type with edit typ
 - [ ] Commit: `eval: diverse doctored pairs with verified truth`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/make-doctored.test.ts` passes and the labels name all nine combinations.
+
+## 8. Native PDF forensic detection and coverage repair
+
+Coordinator assignment 2026-11-04, from eval D08 T02 §6: reported 3/7 detections, 0/7 false positives and 13/14 complete; proof-of-payment 1/5, Ghostscript 0/4, missing invoice dates. These are coordinator-supplied measurements pending exact artifact verification. This owns detector/parser repairs, not raster encoding or a relaxed evaluation threshold.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Reproduce the exact native-PDF misses in `test/invoice/forensics-generated.test.ts`. Done when: source bytes, labels and current outcomes match the eval report.
+2. Repair owning extraction or detector paths in `src/invoice/`. Done when: regressions pass without changing the independent-evidence severity rule.
+3. Return measured results to eval. Done when: denominators, per-file coverage and unresolved targets remain explicit.
+
+- [ ] Record the exact labelled native-PDF baseline in `docs/pdf-forensics-repair.md`. Done when: artifact hashes and per-file expected/observed evidence reproduce the reported misses. Cheaper substitute: treating a coordinator summary as new measurement. Source: D08 T02 §6 evaluation and coordinator decision.
+- [ ] Add falsifiable regressions to `test/invoice/forensics-generated.test.ts` for the missed POP/Ghostscript evidence and invoice date coverage. Done when: each fails against the baseline for the named cause.
+- [ ] Repair extraction and evidence production in the owning `src/invoice/pdf*.ts` or `src/invoice/forensics.ts` path identified by reproduction. Done when: genuine files stay non-detections, missing data reports partial coverage and independent evidence groups retain their severity contract. Cheaper substitute: promoting medium evidence alone or excluding missed native PDFs. Source: design spec 4.9 and existing PDF forensic contract.
+- [ ] Record repaired metrics and remaining limits in `docs/pdf-forensics-repair.md`. Done when: eval can rerun the exact candidates with unchanged labels and honest denominators. Cheaper substitute: reporting unit-test success as target attainment.
+- [ ] Commit: `invoice: repair native PDF forensic coverage`
+
+**Test checkpoint:** `pnpm exec vitest run test/invoice/forensics-generated.test.ts test/invoice/pdf-filters.test.ts` passes, the reproduced defects fail before repair, and medium evidence alone never becomes a detection.
+
+## 9. PNG encoding at the doctored fixture producer
+
+> **Started:** 2026-11-04T07:31:43.896386+00:00
+
+Coordinator scoped authority 2026-11-04: own the narrow shared producer `scripts/fixtures/make-doctored.ts`, targeted tests and existing payment-document artifacts. Nineteen provider WebP images were stored under PNG names. Preserve original provenance and original bytes through git history and an external backup, normalize losslessly without new model calls, and record every hash change. Native-PDF detection remains §8.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add a regression for non-PNG provider bytes in `test/node/make-doctored.test.ts`. Done when: the existing producer fails the real-PNG assertion.
+2. Normalize accepted provider bytes in `scripts/fixtures/make-doctored.ts`. Done when: newly saved PNG fixtures decode with the same pixels as the provider image and restart preserves provenance.
+3. Repair the existing corpus through the same normalization. Done when: every renamed-format artifact has recorded before/after hashes, formats and pixel equivalence.
+
+- [ ] Add producer regressions to `test/node/make-doctored.test.ts` for WebP input, invalid/truncated image data, unchanged output and restart provenance. Done when: real PNG bytes are required and invalid input cannot become a mislabeled completed image.
+- [ ] Encode accepted provider images with explicit PNG output in `scripts/fixtures/make-doctored.ts`. Done when: PNG signature and full decoding pass before publication, with original model/code attribution retained. Cheaper substitute: changing MIME claims or filenames without fixing the producer. Source: coordinator scoped-repair-authority.
+- [ ] Add an explicit offline normalization operation in `scripts/fixtures/make-doctored.ts` using the same encoder. Done when: it validates decoded-pixel equivalence, records original/current SHA-256 and format, handles already-PNG input idempotently and never calls a model. Cheaper substitute: silently replacing artifact bytes. Source: coordinator scoped-repair-authority.
+- [ ] Normalize the 19 affected `test/fixtures/payment-docs/` images and add `normalization.json` evidence. Done when: actual formats are PNG, dimensions and decoded pixels are unchanged, and existing labels/sidecar provenance remain byte-exact. Cheaper substitute: regenerating model images or relabelling ground truth. Source: coordinator scoped-repair-authority.
+- [ ] Record verification and notify eval in `docs/payment-fixture-normalization.md`. Done when: the exact corrected candidate and changed hashes are available, with no claim that raster normalization improves native-PDF detection. Cheaper substitute: reusing stale evaluation receipts.
+- [ ] Commit: `fixtures: encode doctored payment images as PNG`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/make-doctored.test.ts` passes, fails on non-PNG saved output before the fix, and the corpus normalization record proves all 19 repairs without pixel changes.
 
 ## Verification
 
