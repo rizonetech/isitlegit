@@ -927,6 +927,12 @@ function signed(v: number | null, unit: string, digits = 1): string {
   return v === null ? "not measured" : `${v >= 0 ? "+" : ""}${v.toFixed(digits)}${unit}`;
 }
 
+// POSIX single-quote escaping keeps sample names as data when an operator follows this command.
+export function pairedEvidenceCommand(replayId: string, sample: string): string {
+  const word = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  return `node eval/paired-evidence.ts --replay ${word(replayId)} --sample ${word(sample)}`;
+}
+
 export function comparisonText(c: RunComparison): string {
   const scope = (name: string, d: ScopeDelta) => [
     `${name}:`,
@@ -946,7 +952,7 @@ export function comparisonText(c: RunComparison): string {
     `changed verdicts: ${c.changed.length} (main: ${counts("main")}${c.challenge ? `; challenge: ${counts("challenge")}` : ""})`,
     ...c.changed.map((x) => {
       const report = (id: string | null) => (id ? `https://app.isitlegit.co.za/cases/${id}` : "none recorded");
-      return `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}; source report: ${report(x.sourceCaseId)}; replay report: ${report(x.replayCaseId)}`;
+      return `  ${x.sample} [${x.scope}, ${x.label}, ${x.change}]: ${x.sourceVerdict ?? "none"} -> ${x.replayVerdict ?? "none"}; source report: ${report(x.sourceCaseId)}; replay report: ${report(x.replayCaseId)}; paired command: ${pairedEvidenceCommand(c.replayId, x.sample)}`;
     }),
     "paired evidence: each report opens under eval-organisation membership. If a report will not open, check the membership first: a missing case and a case outside the organisation answer the same 404, so the address cannot tell them apart. The other side still opens on its own; a side with no case recorded has no paired evidence. On a failed read, rerun the comparison: it stores nothing.",
   ].join("\n");
