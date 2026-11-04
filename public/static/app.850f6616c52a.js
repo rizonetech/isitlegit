@@ -1017,15 +1017,16 @@ const evidenceLoaded = (img                  ) => {
   if (!status) return;
   status.textContent = img.dataset.evidenceRetried === "true" ? "The screenshot loaded." : "";
 };
+const previewClassifying = new WeakMap                          ();
 const evidenceError = (img                  ) => {
-  if (img.dataset.evidenceClassifying === "true") return;
-  img.dataset.evidenceClassifying = "true";
+  const attempt = previewAttempts.get(img) ?? 0;
+  if (previewClassifying.get(img) === attempt) return;
+  previewClassifying.set(img, attempt);
   const deadlineMs = Number(img.closest             ("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
   const attr = img.getAttribute("src") || "";
   const src = img.currentSrc || attr;
-  const attempt = previewAttempts.get(img) ?? 0;
   void classifyFailure(src, deadlineMs).then((kind) => {
-    delete img.dataset.evidenceClassifying;
+    if (previewClassifying.get(img) === attempt) previewClassifying.delete(img);
     // A classification for an attempt the reader has since retried (a retry reuses the same address, so the
     // attempt identity, not the URL, decides), or one that has since loaded, is stale.
     if ((previewAttempts.get(img) ?? 0) !== attempt || (img.getAttribute("src") || "") !== attr || img.naturalWidth > 0)
