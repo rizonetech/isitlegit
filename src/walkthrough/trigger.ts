@@ -116,7 +116,7 @@ export type StepDeps = {
   table: BrandTable;
   revision: string | null;
   walkId: () => string;
-  // The case's ablation flag (D04 T02 §9), read through `ablateFlagFor` by the caller; absent when the caller
+  // The case's ablation flag (D04 T02 §9), read through `caseAblateFlagFor` by the caller; absent when the caller
   // has no flag store, which reads as no ablation.
   ablateFlag?: () => Promise<AblateFlag | null>;
 };
@@ -191,7 +191,7 @@ export async function walkthroughStep(deps: StepDeps, caseId: string): Promise<S
   // contribution being measured away. The case states the ablation instead: one info item naming it, without
   // `checked: false`, so the verdict does not read the walk as coverage it could not get. A failed write
   // propagates, so the result is claimed only once the marker is stored.
-  if ((await deps.ablateFlag?.().catch(() => null)) === "no-walkthrough") {
+  if ((await deps.ablateFlag?.()) === "no-walkthrough") {
     await addEvidence(deps.db, caseId, "walkthrough", [
       {
         check: "walkthrough.ablated",

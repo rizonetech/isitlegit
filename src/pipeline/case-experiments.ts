@@ -1,5 +1,5 @@
 // D01 T03 §17: immutable attribution admitted before raw storage or Workflow creation.
-import { CaseExperiment, ExperimentId, ExperimentInput, UPLOAD_EXPERIMENT_ARMS } from "./ablate";
+import { type AblateFlag, CaseExperiment, ExperimentId, ExperimentInput, UPLOAD_EXPERIMENT_ARMS } from "./ablate";
 
 export class ExperimentRefused extends Error {
   override name = "ExperimentRefused";
@@ -155,4 +155,17 @@ export async function experimentCapabilities(env: ExperimentEnv, orgId: string) 
     uploadArms: [...UPLOAD_EXPERIMENT_ARMS],
     screening: false as const,
   };
+}
+
+// Case consumers never consult mutable organisation KV. Resolve again on every Workflow entry,
+// including resumes, so a different deployed candidate cannot reuse cached experimental work.
+export async function caseAblateFlagFor(
+  env: Pick<Env, "DB" | "COMMIT_SHA">,
+  caseId: string,
+): Promise<AblateFlag | null> {
+  const value = await readCaseExperiment(env.DB, caseId);
+  if (!value) return null;
+  if (value.deployment !== env.COMMIT_SHA)
+    throw new ExperimentRefused(409, "The experiment deployment does not match this service.");
+  return value.arm === "full" ? null : value.arm;
 }

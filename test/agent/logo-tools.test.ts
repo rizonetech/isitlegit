@@ -8,8 +8,10 @@ import { addEvidence, readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import { artefactsOf, putArtefact, putParsed, type Store } from "../../src/intake/store";
+import { caseAblateFlagFor } from "../../src/pipeline/case-experiments";
 import { LOGO_INDEX_KEY } from "../../src/vision/logo-reference";
 import { SEGMENT_CONCEPTS } from "../../src/vision/sam";
+import { bindExperiment } from "../fixtures/ablation";
 
 // 1x1 PNG raster bytes
 const PNG_1X1 = Uint8Array.from(
@@ -753,7 +755,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     expect(spendRows.results.some((r) => r.model === "muse-spark-1.3")).toBe(true);
   });
 
-  it("honours no-sam ablation for both segment_logos and compare_logo and restores operation when cleared", async () => {
+  it("honours immutable no-sam for both tools and retains real calls in a full neighbour", async () => {
     const { caseId, orgId } = await seedCase();
     const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
     await seedFnbReferenceLogos();
@@ -808,12 +810,13 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
         caseId,
         urls: [],
         brands: bundled,
-        ablateFlag: async () => (await env.CACHE.get(`ablate:${orgId}`)) as "no-sam" | null,
+        ablateFlag: () => caseAblateFlagFor(env, caseId),
       },
       deps,
     );
 
-    await env.CACHE.put(`ablate:${orgId}`, "no-sam");
+    await bindExperiment(caseId, "no-sam");
+    await env.CACHE.put(`ablate:${orgId}`, "full");
     const segAblated = await executor.call("segment_logos", { artefact_key: render.key, concept: "logo" });
     expect(segAblated.status).toBe("ok");
     if (segAblated.status === "ok") {
@@ -826,11 +829,42 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     }
     expect(modelCalls).toBe(0);
 
-    // Clearing the flag restores real SAM and comparison calls
-    await env.CACHE.delete(`ablate:${orgId}`);
-    const segLive = await executor.call("segment_logos", { artefact_key: render.key, concept: "logo" });
+    // A separate full case uses both models even while its organisation KV says no-sam.
+    const full = await seedCase();
+    await bindExperiment(full.caseId, "full");
+    await env.CACHE.put(`ablate:${full.orgId}`, "no-sam");
+    const fullRender = await putArtefact(
+      store,
+      full.caseId,
+      "render",
+      "email.png",
+      new Uint8Array([...PNG_1X1, 2]),
+      "image/png",
+    );
+    const fullCrop = await putArtefact(
+      store,
+      full.caseId,
+      "crop",
+      "email-logo-1.png",
+      new Uint8Array([...PNG_1X1, 3]),
+      "image/png",
+    );
+    const fullExecutor = createToolExecutor(
+      {
+        db: env.DB,
+        caseId: full.caseId,
+        urls: [],
+        brands: bundled,
+        ablateFlag: () => caseAblateFlagFor(env, full.caseId),
+      },
+      verdictToolDeps(metaEnv, env.DB, store, full.caseId, full.orgId, bundled, null, {
+        launch: stubBrowser(),
+        metaFetch,
+      }),
+    );
+    const segLive = await fullExecutor.call("segment_logos", { artefact_key: fullRender.key, concept: "logo" });
     expect(segLive.status).toBe("ok");
-    const cmpLive = await executor.call("compare_logo", { crop_key: crop.key, brand: "FNB" });
+    const cmpLive = await fullExecutor.call("compare_logo", { crop_key: fullCrop.key, brand: "FNB" });
     expect(cmpLive.status).toBe("ok");
     expect(modelCalls).toBe(2);
   });

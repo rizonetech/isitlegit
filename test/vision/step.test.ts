@@ -6,8 +6,9 @@ import { readEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus } from "../../src/db/cases";
 import { artefactsOf, parsedKey, putAttachment, type Store } from "../../src/intake/store";
 import { d1Budget } from "../../src/meta/budget";
-import { ablateFlagFor, ablateKey } from "../../src/pipeline/ablate";
+import { ablateKey } from "../../src/pipeline/ablate";
 import { type VisionDeps, visionStep } from "../../src/vision/step";
+import { bindExperiment } from "../fixtures/ablation";
 import { storeMail } from "../fixtures/vision/emails";
 
 // D03 T02 §3: the vision step's own bounds. A launch that never answers and one that refuses both end
@@ -56,6 +57,26 @@ describe("visionStep bounds", () => {
     expect(out2.outcome).toBe("not_checked");
     expect((await readEvidence(env.DB, refused)).some((e) => e.check === "vision.not_checked")).toBe(true);
   }, 60_000);
+
+  it("fails attribution reads before launching a browser or model", async () => {
+    const id = await newCase();
+    let launches = 0;
+    await expect(
+      visionStep(
+        {
+          ...deps(id, async () => {
+            launches++;
+            throw new Error("must not launch");
+          }),
+          ablateFlag: async () => {
+            throw new Error("attribution unavailable");
+          },
+        },
+        id,
+      ),
+    ).rejects.toThrow("attribution unavailable");
+    expect(launches).toBe(0);
+  });
 
   it("propagates a storage failure instead of returning an unstated not_checked", async () => {
     // When even the failure statement cannot be written, the step throws: the case must end partial,
@@ -409,13 +430,8 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
       losses: [],
     });
 
-    // Other flags and a throwing reader still segment as normal.
-    for (const reader of [
-      async () => "no-screening" as const,
-      async () => {
-        throw new Error("kv down");
-      },
-    ]) {
+    // Other arms retain normal segmentation.
+    for (const reader of [async () => "no-screening" as const]) {
       calls.length = 0;
       const otherCase = await mailCase("org-no-sam-replay", `other-${Math.random()}`);
       await visionStep(
@@ -431,7 +447,7 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
     }
   }, 240_000);
 
-  it("wires ablate:<orgId> through AnalysisWorkflow with org isolation and restores segmentation when cleared", async () => {
+  it("wires immutable case arms through AnalysisWorkflow and ignores mutable organisation KV", async () => {
     const kv = (env as unknown as Env).CACHE;
     const orgFlagged = "org-workflow-no-sam-a";
     const orgUnflagged = "org-workflow-no-sam-b";
@@ -484,12 +500,11 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
 
     await kv.put(ablateKey(orgFlagged), "no-sam");
     try {
-      expect(await ablateFlagFor(kv, orgFlagged)).toBe("no-sam");
-      expect(await ablateFlagFor(kv, orgUnflagged)).toBeNull();
-
       // 1. Flagged organisation's Workflow run skips SAM and records ablated: "no-sam".
       seenByCase.length = 0;
       const caseFlagged = await mailCase(orgFlagged, "wf-flagged");
+      await bindExperiment(caseFlagged, "no-sam");
+      await kv.put(ablateKey(orgFlagged), "full");
       await runWorkflowVision(orgFlagged, caseFlagged);
       expect(seenByCase).not.toContain("sam-3.1");
       expect(seenByCase).not.toContain("logo_grounding");
@@ -510,10 +525,11 @@ describe("visionStep no-sam ablation (D03 T03 §6)", () => {
       const evUnflagged = await readEvidence(env.DB, caseUnflagged);
       expect(evUnflagged.find((e) => e.check === "vision.coverage")).toBeUndefined();
 
-      // 3. Clearing ablate:<orgFlagged> restores segmentation on the next Workflow run.
-      await kv.delete(ablateKey(orgFlagged));
+      // 3. A full case in the same organisation segments even when KV requests no-sam.
+      await kv.put(ablateKey(orgFlagged), "no-sam");
       seenByCase.length = 0;
       const caseRestored = await mailCase(orgFlagged, "wf-restored");
+      await bindExperiment(caseRestored, "full");
       await runWorkflowVision(orgFlagged, caseRestored);
       expect(seenByCase).toContain("sam-3.1");
       expect((await artefactsOf(store, caseRestored, "crop")).length).toBeGreaterThan(0);

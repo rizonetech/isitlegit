@@ -139,7 +139,7 @@ describe("immutable per-case ablation admission", () => {
       version: 1,
       commit: COMMIT,
       durableContext: true,
-      uploadArms: ["full"],
+      uploadArms: ["full", "no-agent-reasoning", "no-walkthrough", "no-sam", "no-transcribe"],
       screening: false,
     });
     const one = (await (await upload(m.cookie, m.workerEnv)).json()) as { caseId: string };

@@ -1,13 +1,7 @@
 import { z } from "zod";
 
-// The ablation flags (eval D08 T02 §3; the coordinator's 2026-11-02 assignment): eval's runner
-// measures each model's contribution by running flagged arms, and the flag names and semantics
-// are eval's contract (`ABLATE_FLAGS` in eval/ablate.ts on the eval lane). A flagged case's
-// steps read their flag here and skip their model contribution, storing the same evidence shape
-// with the step marked ablated. The flag itself lives in the CACHE KV under `ablate:<orgId>`,
-// holding one flag name, which the eval runner sets for an arm and clears after it; an absent
-// key, a value that is not one of the four, or a KV that cannot answer all read as no ablation,
-// so a flag can only ever remove a model contribution, never break a case.
+// Shared arm names match eval/ablate.ts. Uploaded-case consumers resolve immutable D1
+// attribution through case-experiments.ts; the legacy KV reader remains for monitor migration.
 export const ABLATE_FLAGS = [
   "no-agent-reasoning",
   "no-walkthrough",
@@ -19,7 +13,7 @@ export type AblateFlag = (typeof ABLATE_FLAGS)[number];
 
 export const ablateKey = (orgId: string) => `ablate:${orgId}`;
 
-// The flag set for a case's organisation, or null when it is not ablated.
+// Legacy monitor flag, replaced by the labelled monitor contract in D04 T01 §18.
 export async function ablateFlagFor(kv: KVNamespace, orgId: string | null): Promise<AblateFlag | null> {
   if (!orgId) return null;
   let value: unknown;
@@ -33,7 +27,7 @@ export async function ablateFlagFor(kv: KVNamespace, orgId: string | null): Prom
     : null;
 }
 
-// The eval upload contract is independent of the legacy KV reader above. Consumers migrate in D04 T01 §17.
+// Strict immutable eval upload attribution.
 export const ExperimentId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 export const ExperimentArm = z.enum(["full", ...ABLATE_FLAGS]);
 export const ExperimentInput = z.strictObject({
@@ -45,5 +39,11 @@ export const ExperimentInput = z.strictObject({
 export type ExperimentInput = z.infer<typeof ExperimentInput>;
 export const CaseExperiment = ExperimentInput.extend({ replayRunId: ExperimentId });
 export type CaseExperiment = z.infer<typeof CaseExperiment>;
-// Only implemented upload consumers are advertised; D04 T01 §17 expands this with its tested hooks.
-export const UPLOAD_EXPERIMENT_ARMS: readonly z.infer<typeof ExperimentArm>[] = ["full"];
+// Installed uploaded-case consumers; monitor screening has its own separate trigger.
+export const UPLOAD_EXPERIMENT_ARMS: readonly z.infer<typeof ExperimentArm>[] = [
+  "full",
+  "no-agent-reasoning",
+  "no-walkthrough",
+  "no-sam",
+  "no-transcribe",
+];

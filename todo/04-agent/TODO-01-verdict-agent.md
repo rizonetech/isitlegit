@@ -541,6 +541,8 @@ Coordinator critical-path assignment 2026-11-04. Replace organisation KV flags w
 
 **Implementation boundary 2026-11-04:** D01 T03 §17 is stamped at implementation3937ea1a, stamp034398c6. Main integration5ff038ea adds a standalone non-payment-document vision fallback; both primary and fallback vision calls, verdict tool calls and cached voice read paths must use the same immutable arm. Resolve context outside cached Workflow step results on every entry/resume, before model-dependent work; unknown context is never caught as a normal arm. Durable helpers may live in src/pipeline/case-experiments.ts. Update historical KV-driven case tests to seed immutable case bindings while retaining their floor/action/call-count assertions; ordinary cases must ignore KV. Monitor KV migration stays in §18.
 
+**Coordinator disposition 2026-11-04 10:53 SAST:** `standalone-image-fallback-authority` approves narrow `src/vision/step.ts` input selection after the failing-first real Workflow regression found image uploads classified `other` produce `render-input-missing` and zero retained reading. Feed only the case-owned standalone image into existing reading/SAM paths, with supported MIME validated against bytes, size/decode/pixel/count/deadline guards and explicit invalid/missing/oversized coverage. Keep email/PDF paths, floor/citations, tenant/run isolation, accounting and late-write fences. Prove full versus no-sam and negative ownership/MIME/bounds. Include this expanded source diff in the pending single round and final completion. Reversal is isolated source revert without data rewrite.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
