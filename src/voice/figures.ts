@@ -28,8 +28,11 @@ const NUMBER_START = new RegExp(
   `^(?:(?:[\\p{Pd}\\p{Sm}]|(?:minus|negative)\\b)\\s*)*(?:[0-9$€£]|${CURRENCY_COMPONENT}|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
   "iu",
 );
+// Keep standalone rejection and whole-compound consumption on the same unit vocabulary.
+const UNSUPPORTED_UNITS = String.raw`(?:cents?|pence|penn(?:y|ies)|percent|per\s+cent)`;
+const UNSUPPORTED_SUFFIX = new RegExp(`^\\s*(?:%|${UNSUPPORTED_UNITS}\\b)`, "i");
 const NUMBER_TERM = new RegExp(
-  `^(?:${NUMBER_WORDS}|and|minus|negative|a|rands?|dollars?|euros?|pounds?|cents?|pence)\\b`,
+  `^(?:${NUMBER_WORDS}|and|minus|negative|a|rands?|dollars?|euros?|pounds?|${UNSUPPORTED_UNITS})\\b`,
   "iu",
 );
 function compositeEnd(transcript: string, end: number): number | null {
@@ -132,11 +135,7 @@ export function figuresOf(transcript: string): Figure[] {
     if (/(?:^|[^\p{L}\p{N}_])(?:minus|negative)$/iu.test(transcript.slice(Math.max(0, wordEnd - 10), wordEnd)))
       continue;
     if (/[\p{Pd}\p{Sm}]/u.test(transcript[wordEnd - 1] ?? "")) continue;
-    if (
-      MAGNITUDE.test(transcript.slice(end)) ||
-      /^\s*(?:%|percent\b|per\s+cent\b|cents?\b|pence\b|penn(?:y|ies)\b)/i.test(transcript.slice(end))
-    )
-      continue;
+    if (MAGNITUDE.test(transcript.slice(end)) || UNSUPPORTED_SUFFIX.test(transcript.slice(end))) continue;
     const raw = transcript.slice(start, end);
     // Bounds reject the entire run, never shorten its digits. A quote remains available
     // for unsupported forms; these are deterministic numeric readings, not bank validation.

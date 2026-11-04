@@ -243,3 +243,28 @@ it.each([
 ])("successor regression: adjacent currency codes stay inside the rejected compound for %s", async (transcript) => {
   expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
 });
+
+it.each(["Please pay GBP100 and 50 pennies and GBP20 today", "Please pay GBP100 and fifty pennies & GBP20 today"])(
+  "exception regression: minor-unit compounds retain only the quote for %s",
+  async (transcript) => {
+    expect(await persisted(transcript, transcript)).toMatchObject({
+      paymentQuote: transcript,
+      paymentFigures: { items: [] },
+    });
+  },
+);
+
+it.each(["cent", "cents", "pence", "penny", "pennies", "percent", "per cent"])(
+  "compound unit vocabulary stays consistent for %s",
+  async (unit) => {
+    for (const component of ["50", "fifty"]) {
+      for (const join of ["and", "&"]) {
+        const transcript = `Please pay GBP100 ${join} ${component} ${unit} ${join} GBP20 today`;
+        expect(await persisted(transcript, transcript), transcript).toMatchObject({
+          paymentQuote: transcript,
+          paymentFigures: { items: [] },
+        });
+      }
+    }
+  },
+);
