@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
+import { DEPLOYED_GPU, DEPLOYED_GPU_COUNT, MAX_WARMUP_SECONDS, TAIL_MINUTES } from "../../src/vision/glimmer-caps.ts";
 import type { Exec } from "../../src/vision/glimmer-minutes.ts";
 import { ACCOUNT, API, configureNetwork } from "../fireworks-check.ts";
 import {
@@ -232,7 +232,7 @@ export async function executeSlot(version: string, dataset: string, output: stri
     const ask = askLoupe(inferenceKey, target, {
       requestMs: REQUEST_MS,
       deadlineAt: runUntil,
-      maxWaitMs: 60_000,
+      maxWaitMs: MAX_WARMUP_SECONDS * 1000,
       now,
       sleep,
       fetcher: async (endpoint, init) => {
