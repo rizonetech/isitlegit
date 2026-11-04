@@ -410,7 +410,7 @@ Sections: 113 | Checklist items: 705
 
 ### Phase 7: After the event
 
-Sections: 225 | Checklist items: 1013
+Sections: 226 | Checklist items: 1019
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -462,6 +462,7 @@ Sections: 225 | Checklist items: 1013
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
 | [x]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
 | [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
+| [x]    | D02 T05 §12 | Translated instruction phrases                              | none                 | 6     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                                      | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports                 | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated                | none                 | 4     |
@@ -682,6 +683,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 432/606 verified sections, 110 ready to run now.
+Progress: 433/607 verified sections, 110 ready to run now.
 
-Checklist: 3131/3739 items completed (includes Commit items).
+Checklist: 3137/3745 items completed (includes Commit items).

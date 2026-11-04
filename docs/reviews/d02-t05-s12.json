@@ -1,0 +1,127 @@
+{
+  "ref": "D02 T05 \u00a712",
+  "title": "Translated instruction phrases",
+  "implementation_sha": "40b407d0c82d1c09a3588e9ea7d08e8e30c9bd83",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "pnpm exec vitest run test/checks/translated-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts test/checks/invisible-unicode.test.ts test/checks/document-instructions.test.ts test/checks/ai-instructions-shapes.test.ts passes and fails if a measured translated directive is missed, an ordinary control is flagged or source/evidence boundaries are lost. -> 89/89 full checkpoint, final translated37/37 after dense Persian repair, initial22failures and two Unicode negative-boundary failures plus one dense-form failure; frozen files unchanged; full typecheck/drybuild and final affected types/Biome/publication pass. Root exact40b407d0+22cdba7d composed same410case corpus:0misses/205attacks,0falseflags/205controls,0errors,p50 0.3666ms,p95 4.0242ms; original28misses preserved, sourceDirty=true from untracked exactharness. Source/local/synthetic proof only, no deployment or generalization."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T05-s12.md",
+    "verdict": "complete",
+    "candidate": "40b407d0c82d1c09a3588e9ea7d08e8e30c9bd83",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T05-s12.md",
+    "candidate": "972b649d403c048fa3c7587860e3dc5dfa137f47",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

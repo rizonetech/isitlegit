@@ -44,6 +44,7 @@ track: day-2
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 | 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [x] |
 | 11 | §11 | Whole decoded run kept in the finding | §3 | [x] |
+| 12 | §12 | Translated instruction phrases | §2, §4, §5 | [x] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -355,6 +356,35 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 
 > **Verified:** 2026-11-02 | §11 | 8715af32b7f116eacf9eb00420b2a587fb3da02f
 > **Review:** `docs/reviews/d02-t05-s11.json`
+
+## 12. Translated instruction phrases
+
+> **Started:** 2026-11-04T11:46:31.818439+00:00
+
+Coordinator REVIEW-ROLLOUT-36 assigns the production correction exposed by detection-eval candidate `505de4b7`: 28 of 205 attacks missed against the unchanged maximum miss rate of 5%, with zero false flags. Checks independently reproduced all 28 misses using the exact immutable corpus and runtime bridge against its current production source. All misses carry translated prior-instruction override directives in Afrikaans, isiZulu, French, Spanish, German, Hindi or Persian through sparse invisible text, encoded subjects or DOCX. The corpus and its original observations remain detection-eval's, and §7 remains exclusively assigned to that lane. This section owns detection and regression proof, not measured corpus publication or a claim of universal language support.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** Existing `test/checks/ai-instructions.test.ts`, `test/checks/sparse-invisible.test.ts`, `test/checks/invisible-unicode.test.ts`, `test/checks/document-instructions.test.ts` and `test/checks/ai-instructions-shapes.test.ts` pass unchanged; retain deterministic evidence severity, original source excerpts, bounded streaming and untrusted-input delimiting.
+
+**Build order:**
+
+1. Add failing regressions to `test/checks/translated-instructions.test.ts` from the measured directives and contrastive ordinary text. Done when: the current production phrase stream misses each of the seven directives and controls remain unflagged.
+2. Extend the structural instruction patterns in `src/checks/instruction-phrases.ts`. Done when: all translated overrides are detected across supported input normalization paths without matching isolated business vocabulary.
+3. Verify evidence/removal behavior and transfer the exact correction candidate to detection-eval. Done when: local targeted regressions pass and the owner can rerun the unchanged corpus against a documented exact candidate without replacing original observations.
+
+- [x] Add `test/checks/translated-instructions.test.ts` with the seven measured translated directives and near-miss ordinary controls, plus supported case/spacing and whole-word boundaries. Done when: each directive produces a named production phrase match while unrelated instructions, invoices and partial embedded words remain unflagged. Cheaper substitute: asserting only a nonempty regex list or teaching the test a replacement matcher.
+- [x] Extend `PATTERNS` in `src/checks/instruction-phrases.ts` for bounded translated prior-instruction override shapes, using Unicode-aware boundaries and existing normalization instead of corpus IDs or source-specific special cases. Done when: the measured seven directives and structurally equivalent spacing/case inputs are detected by the same matcher used for body, subject and document text. Cheaper substitute: keyword-only flags, exact case-ID filtering or an output-layer verdict adjustment.
+- [x] Exercise `PhraseStream` in `test/checks/translated-instructions.test.ts` at every split through each directive and with sparse ignorables, including Hindi/Persian marks. Done when: matching and negative prefix/suffix controls are stable across every UTF-16 split, including letters, combining marks and meaningful joiners; fix the owning PhraseStream pending-word scan so a chunk ending at Hindi करें cannot match before a subsequent गी extends the word to करेंगी, preserving existing carry/pending/match bounds and valid ordinary joiners. Cheaper substitute: matching only complete decoded strings.
+- [x] Verify `withoutInstructions` and the evidence consumer in `test/checks/translated-instructions.test.ts` using original source text and encoded-subject/document paths where the shared reader is consumed. Done when: matched instructions retain their original evidence location and are removed from model-facing text through the existing owning sanitization path, while nonmatching content stays unchanged. Cheaper substitute: reporting a detection without exercising downstream evidence or relying on a new output filter.
+- [x] Record the exact source/test candidate and affected gate results in `docs/reviews/02-checks/D02-T05-s12.md` for detection-eval's unchanged corpus rerun. Done when: the original 28 misses, 205-attack denominator and 5% maximum remain recorded as prior failures, and any new measured result belongs to a separate owner-produced observation. Cheaper substitute: replacing failed observations or claiming the corpus target passed from unit tests alone.
+- [x] Commit: `checks: detect translated prior-instruction overrides`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/translated-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts test/checks/invisible-unicode.test.ts test/checks/document-instructions.test.ts test/checks/ai-instructions-shapes.test.ts` passes and fails if a measured translated directive is missed, an ordinary control is flagged or source/evidence boundaries are lost.
+
+> **Verified:** 2026-11-04 | §12 | 40b407d0c82d1c09a3588e9ea7d08e8e30c9bd83
+> **Review:** `docs/reviews/d02-t05-s12.json`
 
 ## Verification
 
