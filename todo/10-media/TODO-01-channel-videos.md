@@ -89,7 +89,7 @@ Remotion is free for individuals and for companies of up to three people; a larg
 - [x] Record the line `Remotion licence: <free (up to 3 people) | company licence, <reference>>, confirmed YYYY-MM-DD` under this section. Done when: the line is written. Cheaper substitute: assuming the free tier from the hackathon team size fails, since the licence counts the company.
 - [x] Commit: `todo: record the Remotion licence basis (D10 T01 §2)`
 
-**Test checkpoint:** `grep -cE '^Remotion licence: (free \(up to 3 people\)|company licence, [^,]+), .*confirmed 20[0-9]{2}-[0-9]{2}-[0-9]{2}$' todo/10-media/TODO-01-channel-videos.md` prints `1` (a placeholder, an undated line or a company licence with no reference prints `0`), and `grep -c 'Remotion 4.0.539' media/README.md` prints `1` (the licence basis carried into the media folder's Licences list).
+**Test checkpoint:** `grep -cE '^Remotion licence: (free \(up to 3 people\)|company licence, [A-Z0-9][A-Z0-9-]{5,}), .*confirmed 20[0-9]{2}-[0-9]{2}-[0-9]{2}$' todo/10-media/TODO-01-channel-videos.md` prints `1` (a placeholder, an undated line, or a company licence whose reference is not an order number of six or more capitals and digits, such as `<reference>` or `pending`, prints `0`), and `grep -c 'Remotion 4.0.539' media/README.md` prints `1` (the licence basis carried into the media folder's Licences list).
 
 Remotion licence: free (up to 3 people), Rizonetech has 3 people, confirmed 2026-10-30
 
