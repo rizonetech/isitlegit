@@ -8,7 +8,7 @@ import { z } from "zod";
 import { rate, TARGETS, type TargetState } from "../metrics.ts";
 
 export const ROOT = resolve(import.meta.dirname, "../..");
-export const MANIFEST = "eval/sets/pdf-forensics/manifest.json";
+export const MANIFEST = "eval/forensics/sets/pdf-forensics/manifest.json";
 const pathSchema = z
   .string()
   .regex(/^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$/)

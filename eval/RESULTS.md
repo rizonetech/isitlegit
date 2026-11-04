@@ -29,7 +29,7 @@ No attack succeeded in either arm on this run (an earlier run under a scorer tha
 
 ## PDF forensics (D08 T02 section 6)
 
-Manifest SHA-256: 8b443a0db771e2054fdaecf2cdbe23ddc32f8c9f38de9c04554fbd29ac41c31d. 14 native PDFs; 40 raster files inventoried separately as unsupported and excluded from PDF denominators.
+Manifest SHA-256: b8313d57d45d74a7ba149d132a61f10b892906f49dc9c49c4473b317697a688b. 14 native PDFs; 40 raster files inventoried separately as unsupported and excluded from PDF denominators.
 
 Component only: high or critical forensic evidence counts as verdict-level detection, matching src/agent/floor.ts. Any-finding counts include medium evidence and are reported separately. Partial/unavailable PDFs stay in their labelled denominators and make the affected group's targets incomplete. No model or production accuracy is measured.
 
@@ -49,12 +49,12 @@ Missed proof-of-payment and Ghostscript targets, plus missing invoice date cover
 
 | Document | Label | Verdict-level flag | Findings | Coverage |
 | --- | --- | --- | --- | --- |
-| eval/sets/pdf-forensics/proof-of-payment-genuine.pdf | genuine | false | none | complete |
-| eval/sets/pdf-forensics/proof-of-payment-doctored.pdf | doctored | true | document.forensics.revisions:high, document.forensics.fonts:high | complete |
-| eval/sets/pdf-forensics/bank-letter-genuine.pdf | genuine | false | none | complete |
-| eval/sets/pdf-forensics/bank-letter-doctored.pdf | doctored | true | document.forensics.revisions:high, document.forensics.fonts:high | complete |
-| eval/sets/pdf-forensics/invoice-genuine.pdf | genuine | false | none | complete |
-| eval/sets/pdf-forensics/invoice-doctored.pdf | doctored | true | document.forensics.revisions:high, document.forensics.fonts:high | complete |
+| eval/forensics/sets/pdf-forensics/proof-of-payment-genuine.pdf | genuine | false | none | complete |
+| eval/forensics/sets/pdf-forensics/proof-of-payment-doctored.pdf | doctored | true | document.forensics.revisions:high, document.forensics.fonts:high | complete |
+| eval/forensics/sets/pdf-forensics/bank-letter-genuine.pdf | genuine | false | none | complete |
+| eval/forensics/sets/pdf-forensics/bank-letter-doctored.pdf | doctored | true | document.forensics.revisions:high, document.forensics.fonts:high | complete |
+| eval/forensics/sets/pdf-forensics/invoice-genuine.pdf | genuine | false | none | complete |
+| eval/forensics/sets/pdf-forensics/invoice-doctored.pdf | doctored | true | document.forensics.revisions:high, document.forensics.fonts:high | complete |
 | test/fixtures/pdf-forensics/chromium-invoice.pdf | genuine | false | none | dates: unavailable: the document states no payment date |
 | test/fixtures/pdf-forensics/chromium-pop.pdf | genuine | false | document.forensics.producer:medium | complete |
 | test/fixtures/pdf-forensics/gs-edited-pop.pdf | doctored | false | document.forensics.revisions:medium | complete |

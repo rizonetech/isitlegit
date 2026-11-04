@@ -18,7 +18,7 @@ import { pathToFileURL } from "node:url";
 import { bytesAt, loadManifest, parseManifest, validateManifest } from "./score.ts";
 
 export const ROOT = resolve(import.meta.dirname, "../..");
-export const SET = "eval/sets/pdf-forensics";
+export const SET = "eval/forensics/sets/pdf-forensics";
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 type Operations = {

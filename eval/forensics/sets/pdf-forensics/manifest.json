@@ -2,7 +2,7 @@
   "version": 1,
   "documents": [
     {
-      "path": "eval/sets/pdf-forensics/proof-of-payment-genuine.pdf",
+      "path": "eval/forensics/sets/pdf-forensics/proof-of-payment-genuine.pdf",
       "type": "proof-of-payment",
       "generator": "project-pdf-writer",
       "label": "genuine",
@@ -10,7 +10,7 @@
       "sha256": "7c2e924d9dee421b02eb7b1ade3c158d81262eb018c39607c409e0f301425ff3"
     },
     {
-      "path": "eval/sets/pdf-forensics/proof-of-payment-doctored.pdf",
+      "path": "eval/forensics/sets/pdf-forensics/proof-of-payment-doctored.pdf",
       "type": "proof-of-payment",
       "generator": "project-pdf-writer",
       "label": "doctored",
@@ -18,7 +18,7 @@
       "sha256": "ab306eb16e0bdc6d98af60b737e0403bc12e529f110ab984b6d836af3c464528"
     },
     {
-      "path": "eval/sets/pdf-forensics/bank-letter-genuine.pdf",
+      "path": "eval/forensics/sets/pdf-forensics/bank-letter-genuine.pdf",
       "type": "bank-letter",
       "generator": "project-pdf-writer",
       "label": "genuine",
@@ -26,7 +26,7 @@
       "sha256": "7a3bc6337fcb22259e02e39d721b7103dffdecd06bd7bfc44d36e5ade16f4af7"
     },
     {
-      "path": "eval/sets/pdf-forensics/bank-letter-doctored.pdf",
+      "path": "eval/forensics/sets/pdf-forensics/bank-letter-doctored.pdf",
       "type": "bank-letter",
       "generator": "project-pdf-writer",
       "label": "doctored",
@@ -34,7 +34,7 @@
       "sha256": "10be6664bf65213f7ca8a008a41fcd96fee1e65491873e23187f45585e072338"
     },
     {
-      "path": "eval/sets/pdf-forensics/invoice-genuine.pdf",
+      "path": "eval/forensics/sets/pdf-forensics/invoice-genuine.pdf",
       "type": "invoice",
       "generator": "project-pdf-writer",
       "label": "genuine",
@@ -42,7 +42,7 @@
       "sha256": "07cd50c89193209a2f1c9a63785edf21ee96f7339aaca120333c9f5d490b47c2"
     },
     {
-      "path": "eval/sets/pdf-forensics/invoice-doctored.pdf",
+      "path": "eval/forensics/sets/pdf-forensics/invoice-doctored.pdf",
       "type": "invoice",
       "generator": "project-pdf-writer",
       "label": "doctored",

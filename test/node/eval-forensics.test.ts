@@ -17,6 +17,7 @@ import {
   ROOT,
   render,
 } from "../../eval/forensics/score.ts";
+import { loadSets } from "../../eval/load.ts";
 import { rate } from "../../eval/metrics.ts";
 
 const { analysePdf, FORENSIC_KINDS } = await loadForensics();
@@ -47,6 +48,15 @@ const row = (label: Document["label"], flagged: boolean, complete = true): Obser
 });
 
 describe("PDF forensic measurement", () => {
+  it("regenerates component PDFs without polluting mail intake datasets", async () => {
+    const root = temp();
+    for (const path of ["eval/sets/synthetic-sa", "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const before = loadSets(join(root, "eval/sets"));
+    await build(root);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    expect(loadSets(join(root, "eval/sets"))).toEqual(before);
+  });
   it("preserves a verified corpus on failed generation and recovers an interrupted publication", async () => {
     const root = temp();
     for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
@@ -74,11 +84,11 @@ describe("PDF forensic measurement", () => {
     expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
     expect(loadManifest(root).documents).toHaveLength(14);
     // A process killed after saving the old corpus leaves the backup to the next invocation.
-    renameSync(join(root, SET), join(root, "eval/sets/.pdf-forensics-previous"));
+    renameSync(join(root, SET), join(root, "eval/forensics/sets/.pdf-forensics-previous"));
     await build(root);
     expect(loadManifest(root).documents).toHaveLength(14);
     expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
-    expect(existsSync(join(root, "eval/sets/.pdf-forensics-previous/manifest.json"))).toBe(true);
+    expect(existsSync(join(root, "eval/forensics/sets/.pdf-forensics-previous/manifest.json"))).toBe(true);
   });
 
   it.each(["truncated-pdf", "invalid-manifest", "truncated-manifest"])(
@@ -100,7 +110,7 @@ describe("PDF forensic measurement", () => {
         }),
       ).rejects.toThrow();
       for (const [name, bytes] of before) expect(readFileSync(join(root, SET, name))).toEqual(bytes);
-      expect(readdirSync(join(root, "eval/sets")).filter((name) => name.includes("stage-"))).toEqual([]);
+      expect(readdirSync(join(root, "eval/forensics/sets")).filter((name) => name.includes("stage-"))).toEqual([]);
     },
   );
 
