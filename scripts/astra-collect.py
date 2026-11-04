@@ -40,6 +40,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BRIEF = ROOT / "docs" / "glimmer" / "astra-collection-brief.md"
 FETCH = ROOT / "scripts" / "glimmer" / "fetch.py"
+FETCH_INPUTS = FETCH.with_name("inputs.py")
 MODEL = "gpt-6-astra"
 # The operator's Codex config defaults to `max`; research at `high` is this section's choice, changed here alone.
 EFFORT = "high"
@@ -344,9 +345,13 @@ def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
     # The brief's downloader, placed where Astra starts (it writes nothing outside that folder), so every download
     # resumes and is verified by the same code (D03 T04 §16).
     try:
-        placed = raw / f".fetch.py.{os.getpid()}.tmp"
-        placed.write_bytes(FETCH.read_bytes())
-        os.replace(placed, raw / ".fetch.py")
+        for source, name in ((FETCH_INPUTS, ".fetch-inputs.py"), (FETCH, ".fetch.py")):
+            placed = raw / f"{name}.{os.getpid()}.tmp"
+            try:
+                placed.write_bytes(source.read_bytes())
+                os.replace(placed, raw / name)
+            finally:
+                placed.unlink(missing_ok=True)
     except OSError as error:
         return refuse(f"cannot place the downloader: {error.strerror or error}")
 

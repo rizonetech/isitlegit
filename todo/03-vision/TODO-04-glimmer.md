@@ -77,7 +77,7 @@ track: day-6
 | 39 | §39 | A stratified grouped split as the baseline | §31 | [x] |
 | 40 | §40 | A failed settlement returns its burst | §1 | [x] |
 | 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
-| 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
+| 42 | §42 | A pinned download mode for fetch.py | §27 | [x] |
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 | 44 | §44 | Five new sources for Loupe 1.1 | §27 | [x] |
 | 45 | §45 | The Loupe 1.1 dataset | §44, §46 | [ ] |
@@ -86,6 +86,8 @@ track: day-6
 | 48 | §48 | Confidence escalation from Loupe to Spark | §1 | [x] |
 | 49 | §49 | Every screened page captured and labelled | §48 | [x] |
 | 50 | §50 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
+| 51 | §51 | Immutable training and evaluation evidence audit | §13, §32 | [x] |
+| 52 | §52 | Immutable checkpoint readiness handoff | §11, §13 | [x] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1038,7 +1040,7 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 **Needs:** none
 **Surface:** no
 
-> **Deferred:** the pinned download mode (the downloader takes our SHA-256 at first download of an immutable pin) -> XREF: D03 T04 §42
+> **Resolved:** the pinned download mode (the downloader takes our SHA-256 at first download of an immutable pin) -> XREF: D03 T04 §42. Resolved 2026-11-04 on candidate `68487d6678657ab850d27a46c73ee581aeebdd80`, verified by successor `51d62cc05a18a536`; immutable identity, preserved first-digest receipts and directory ancestry durability are covered.
 > **Deferred:** a dependency-driven rebuild of a version from its recorded inputs -> XREF: D03 T04 §43
 
 **Build order:**
@@ -1451,24 +1453,35 @@ Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief
 
 ## 42. A pinned download mode for fetch.py
 
+> **Started:** 2026-11-04T08:55:05.702849Z
+
 Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
 
 **Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
+**Resumed 2026-11-04:** coordinator directs ready offline work while §51 and §52 await shared review-policy resolution. This new Codex plan precedes pinned-mode implementation; it neither recollects data nor changes the active trainer or frozen datasets. The historical pause remains above as history.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
-**Risk:** light
 
 **Build order:**
 
-1. Add the mode and prove it admits only pins. Done when: its tests pass.
+1. Define and implement pinned download admission at the existing fetch and input-validation layer. Done when: immutable pins can admit first bytes with recorded SHA-256, and later changed bytes or pin identities refuse.
+2. Integrate standalone collection and prove both command modes. Done when: the copied downloader and its validation helper work outside the repository, and the second-sweep brief accurately documents admission and recovery.
 
-- [ ] Add a pinned mode to `scripts/glimmer/fetch.py` (`--pin <immutable ref>` in place of `--sha256`/`--md5`): the file is fetched to the partial as now, its SHA-256 is taken from the bytes at the end, and the file is published only when the pin passes `check_pin()`. Done when: `tests/scripts/test_glimmer_fetch.py` publishes a pinned file with no published digest, records our SHA-256 beside it, and refuses a moving branch name and a rerun whose bytes differ from the SHA-256 first recorded. Cheaper substitute: trusting the first download without recording its digest lets a later run swap the file.
-- [ ] Teach `docs/glimmer/astra-collection-brief-2.md` and `scripts/astra-collect.py` the pinned download line. Done when: `test/node/astra-brief.test.ts` fails the brief without it, and a source with an immutable pin and no digest is no longer sent to `REJECTED-2.md` for that reason alone.
-- [ ] Commit: `glimmer: a pinned download mode for sources with no published digest`
+- [x] Add `--pin <immutable ref>` to `scripts/glimmer/fetch.py` as an alternative to exactly one published SHA-256 or MD5, including per-file manifest entries. Validate through `check_pin()` and accept only supported, verifiable immutable-reference syntax; reject empty, moving, unsupported or mixed verification modes before any download. Bind supported GitHub/Hugging Face pins to a canonical artifact identity (provider, repository, commit, archive format or exact file path), identical for the source URL and every mirror. Define permitted provider redirect endpoints and reject unrelated redirects before first-digest admission. Done when: single-file and manifest fixtures accept commit-pinned sources, reject moving or unrelated URL/pin combinations, different-file mirrors and unrelated redirects while accepting documented provider redirects, and retain all existing digest-mode refusals. Cheaper substitute: a valid commit string beside an unrelated moving URL proves nothing about the downloaded bytes.
+- [x] Record first-download pin identity and SHA-256 beside the file under a hidden per-source pin-receipt folder in `scripts/glimmer/fetch.py`, using the existing destination lock. Stage the receipt durably and read it back before file publication; retries verify its identity and digest rather than replacing it. Done when: interrupted receipt or file publication recovers without accepting unrecorded bytes, concurrent fetches cannot establish different first digests, and an existing file without a pin receipt is refused rather than retrospectively certified. Cheaper substitute: computing a hash without retaining its pin binding lets later runs silently replace the source.
+- [x] Require first-download evidence in `scripts/glimmer/inputs.py` when building or verifying manifests for the new pinned-download mode. Preserve a source-level mode marker with the receipts so missing receipts cannot fall back to legacy pin-only admission; validate receipt pin, canonical file identity, size and original SHA-256 against current bytes. Done when: download then file mutation refuses manifest creation, receipt deletion or mismatch refuses, and historical receipt-free input manifests retain their existing contract without being relabelled as new-mode proof. Cheaper substitute: rehashing current bytes at manifest creation silently replaces the first-download digest.
+- [x] Preserve the existing transfer guarantees in `scripts/glimmer/fetch.py` for pinned mode: source/free-space limits, partial resume, connection/attempt bounds, segmented and mirror downloads, cancellation and changed-byte refusal. Done when: the recorded first SHA-256 governs every later retry and resume, a changed pin never reuses another pin's partial, and no first-download record is written for an incomplete transfer. Cheaper substitute: a separate unbounded downloader would bypass the ingestion contract.
+- [x] Place the shared pin validator with `.fetch.py` in `scripts/astra-collect.py` and document pinned single-file and manifest commands in `docs/glimmer/astra-collection-brief-2.md`. Done when: the standalone copied downloader imports the exact owning validator, missing helpers refuse safely, and a supported immutable pin with no published digest is not rejected for that absence alone; unsupported or unpinned sources still are; cleanup after a collected-file mismatch preserves the pin receipts and mode marker, and cleanup followed by recollection cannot reset the first-digest identity. Cheaper substitute: duplicating validation in the copied script lets collection and conversion disagree.
+- [x] Add synthetic local-server and fault-injection coverage in `tests/scripts/test_glimmer_fetch.py`, collector placement coverage in `tests/scripts/test_astra_collect.py`, and brief deletion/refusal assertions in `test/node/astra-brief.test.ts`. Done when: tests cover successful first fetch, unchanged rerun, changed content, conflicting pin, missing/failed receipt, concurrent publication, partial restart, mismatch then cleanup then rerun, mutation before manifest creation, single/manifest parity and copied-script operation (including helper-placement failure) without external network or client data. Cheaper substitute: testing pin syntax alone cannot prove the downloaded file stays bound to the recorded bytes.
+- [x] Commit: `glimmer: a pinned download mode for sources with no published digest`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the pinned cases.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_glimmer_inputs tests.scripts.test_astra_collect` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass with pinned cases and existing digest-mode recovery guarantees intact.
+
+> **Verified:** 2026-11-04 | §42 | 68487d6678657ab850d27a46c73ee581aeebdd80
+> **Review:** `docs/reviews/d03-t04-s42.json`
 
 ## 43. One command to rebuild a Loupe version
 
@@ -1671,6 +1684,63 @@ Operator, 2026-11-02: this is a competition, so the only gate for Loupe 1.1 is t
 - [ ] Commit: `glimmer: promote Loupe 1.1 on a better-than-1.0 gate`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_version_gate` passes, and fails if an equal or worse candidate promotes.
+
+## 51. Immutable training and evaluation evidence audit
+
+> **Started:** 2026-11-04T07:28:17.354402Z
+
+Coordinator-authorized new Codex audit/repair scope, 2026-11-04 09:21 SAST. This section audits the interrupted 1.1 publication and defines truthful checkpoint evidence before §50 can promote; it does not retroactively approve §45 or §50. Historical receipts and Started lines stay unchanged. The live trainer and its input are never replaced, stopped or restarted. Owning layer: offline artifact validation in `scripts/glimmer/checkpoint-audit.py`; incomplete evidence remains incomplete rather than being reconstructed from current mutable source pages. The coordinator permits quiescent detached exact-candidate review checkouts while training continues to append progress in the original checkout.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Implement a read-only artifact audit with explicit evidence states. Done when: fixtures distinguish verified, incomplete and conflicting evidence without rewriting the input artifacts.
+2. Verify the real 1.1 artifacts and record the precise unresolved evidence. Done when: a hash-bound audit receipt exists outside the repository and the handover names the next required action without claiming promotion readiness.
+
+- [x] Add `scripts/glimmer/checkpoint-audit.py` to stream SHA-256 and line counts for both training and evaluation JSONL and their metadata, requiring valid JSON objects, matching line counts, unique metadata page identifiers and matching recorded summary digests. Validate metadata against the paired serialized image digest and assistant answer label; page identity that cannot be bound to recoverable line content stays incomplete. Done when: malformed, truncated, duplicate, count-mismatched and hash-mismatched fixtures refuse with a named evidence issue. Cheaper substitute: trusting the summary alone cannot detect a changed training file.
+- [x] Audit required provenance in `scripts/glimmer/checkpoint-audit.py`: freeze identity, recorded floors, split-balance report, hard-negative counts, protected held-out membership and reference artifacts, checking the current builder's actual formats. Done when: missing evidence is classified incomplete, inconsistent evidence is conflicting, and no absent field is synthesized from today's store; consistent evidence of an unmet split-balance requirement or a hard-negative floor failure also blocks verification with a named issue and nonzero exit. Cheaper substitute: rebuilding summary fields from mutable source pages would falsely certify the original build. Source: §45's publication contract and coordinator checkpoint-review-decision.
+- [x] Bind trainer input to the audited dataset in `scripts/glimmer/checkpoint-audit.py` using a supplied input path and its measured digest together with the historical run selection.json dataset_sha, file_sha and selected line count, binding the receipt to that run, without trusting path equality or hardlink identity alone. Done when: equal bytes at another path pass identity only when the historical selection matches; current matching files that disagree with selection refuse, missing selection stays incomplete, and the audit never changes training, checkpoint or dataset files. Cheaper substitute: a PID and a filename cannot prove which bytes trained the candidate.
+- [x] Report comparison readiness against the existing 1.0 evaluation in `scripts/glimmer/checkpoint-audit.py`, checking both evaluation digests and training/evaluation metadata page overlap on each version. Done when: different evaluation files and detected overlap explicitly block comparison; a matching digest is never represented as proof of template or near-duplicate isolation without the original held-out provenance. Cheaper substitute: comparing ordinary per-version metrics on different files manufactures a quality gain. Source: §50's same-held-out contract.
+- [x] Write an optional new audit receipt with `scripts/glimmer/checkpoint-audit.py --receipt`, binding issues and measured file digests to the auditor commit and timestamp, atomically publishing only to an absent external-store destination and reading it back. Done when: retries cannot overwrite another receipt, a failed audit still records its issues with a nonzero exit, and the default audit writes nothing. Cheaper substitute: overwriting earlier evidence destroys the audit trail.
+- [x] Add synthetic regression fixtures in `tests/scripts/test_checkpoint_audit.py` for the listed refusal paths, valid evidence, swapped metadata, mismatched answer labels, consistent-but-unmet floor reports, missing or conflicting historical selection, concurrent receipt refusal, and unchanged input bytes. Done when: tests prove defects fail before their repair and no fixture contains client data or invokes a provider. Cheaper substitute: testing only a valid summary misses interrupted publication.
+- [x] Run the audit on both real versions and the active trainer input, writing only its external receipt and a concise result in `docs/glimmer/checkpoint-audit.md`. Done when: the report names verified facts and unresolved provenance separately; §45 and §50 remain unstamped if their original proof is missing, and immutable checkpoint export/common-held-out evaluation proceeds only under a separately reviewed scope. Cheaper substitute: passing unit tests does not establish live artifact provenance.
+- [x] Commit: `glimmer: audit immutable checkpoint input evidence`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_checkpoint_audit` passes, rejects missing or conflicting evidence and leaves all audited inputs unchanged; a real external audit receipt records the measured 1.1 artifact state without manufactured provenance.
+
+> **Verified:** 2026-11-04 | §51 | 4ab063321afb6e2636990bebe9d9f205b1f270b5
+> **Review:** `docs/reviews/d03-t04-s51.json`
+
+## 52. Immutable checkpoint readiness handoff
+
+> **Started:** 2026-11-04T08:33:00.488298Z
+
+Coordinator checkpoint-review-decision and operator CHECKPOINT-04 authorize this separate Codex scope. Prepare an intermediate checkpoint for testing around measured 60 percent while the existing trainer continues; no percentage implies availability, a passing evaluation, promotion or rollout. This section owns read-only checkpoint discovery and an immutable identity handoff, not provider export, paid inference, the evaluation harness or production. The eval lane owns comparable evaluation coordination. Missing dataset provenance stays missing. Historical §50 evidence is preserved.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Validate a snapshot of provider checkpoints against the recorded training-session history and local checkpoint consumption. Done when: only an explicitly promotable provider identity with matching local provenance is offered as an available candidate.
+2. Record an immutable readiness handoff with data bindings and explicit evaluation blockers. Done when: the eval lane receives exact identities and cannot mistake candidate availability for evaluation authorization.
+
+- [x] Add read-only checkpoint discovery in `scripts/glimmer/checkpoint-readiness.py`, using the installed Fireworks SDK and the existing owner vault entry only for an explicitly requested live listing, and an injected listing for offline tests. Done when: it only lists checkpoints, never exports a model, creates a deployment, calls inference, closes a session or modifies the trainer; credentials and raw provider errors are never printed; successful empty listing, unavailable credentials, permission denial, timeout and malformed response have distinct sanitized states, exit codes and retry guidance, and failed discovery never reports confirmed absence. Cheaper substitute: inferring a checkpoint from the current training step invents provider availability. Source: CHECKPOINT-04 and `train_serverless.py` session history.
+- [x] Validate candidate identity in `scripts/glimmer/checkpoint-readiness.py` against `serverless.json` session history and `cookbook/dataloader.json`, requiring explicit provider `promotable: true`, a unique fully qualified name in the owning account/session and a matching local step with recorded examples consumed. Done when: ambiguous, missing, foreign-session, resume-only or malformed candidates refuse, and the output distinguishes an available checkpoint from the current training percentage; serverless.json and cookbook/dataloader.json are snapshotted and rechecked after discovery, with an explicit concurrent-change refusal and no candidate if either changed. Cheaper substitute: selecting the newest local resume checkpoint cannot establish exportability.
+- [x] Bind handoff data in `scripts/glimmer/checkpoint-readiness.py` to a supplied immutable audit receipt, historical `selection.json` and the actual trainer-input digest, retaining the audit status and every comparison blocker. Done when: a changed selection, changed input or mismatched run refuses; a provider-available checkpoint with incomplete evaluation evidence is explicitly not ready for paid comparison. Cheaper substitute: a checkpoint name without its input identity cannot support a reproducible comparison.
+- [x] Publish an optional absent-only receipt in `scripts/glimmer/checkpoint-readiness.py` beneath the external store's `runs/checkpoint-readiness/`, with schema version, observation time, source file digests, exact checkpoint/session/run identity, consumed examples and remaining evidence requirements. Done when: temporary write, atomic no-replace publication and read-back are verified; retries never overwrite evidence, default operation writes nothing, and interruption leaves original training and dataset files unchanged. Cheaper substitute: a mutable latest pointer loses which candidate was handed to eval.
+- [x] Add synthetic tests in `tests/scripts/test_checkpoint_readiness.py` for provider-only versus local-only candidates, explicit promotability, resumed session ownership, conflicting consumption, malformed provider responses, changed input, missing/failed audit, concurrent receipt publication and no trainer mutation. Done when: tests exercise real refusal branches without provider calls or credentials, including updates between snapshot reads and distinct provider failures; successful ordinary and earlier-session end-to-end fixtures assert identity, consumption and receipt read-back, while an available candidate with incomplete audit evidence retains every blocker and denies paid-comparison readiness. Implementation fixes have before/after regression evidence. Cheaper substitute: testing only a matching checkpoint misses the unsafe cross-session selection.
+- [x] Record a real read-only discovery and its limitations in `docs/glimmer/checkpoint-readiness.md`, sending the actual handoff to the eval lane and coordinator. Done when: the report identifies the available checkpoint or concrete absence, trainer input and source hashes, explicit common-held-out blockers and next permitted action; it contains no inferred evaluation result, rollout authorization or promised completion time. Cheaper substitute: reporting a percentage alone provides none of the identities an evaluation can consume.
+- [x] Commit: `glimmer: record immutable checkpoint readiness`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_checkpoint_readiness` passes, refuses unsupported identities and preserves trainer files; an external read-only discovery receipt records actual provider availability without treating it as promotion approval.
+
+> **Verified:** 2026-11-04 | §52 | bfb0197ead48ce14d30dfb0e11110b66b7310ec6
+> **Review:** `docs/reviews/d03-t04-s52.json`
 
 ## Verification
 

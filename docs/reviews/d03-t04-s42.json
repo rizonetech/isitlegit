@@ -1,0 +1,159 @@
+{
+  "ref": "D03 T04 \u00a742",
+  "title": "A pinned download mode for fetch.py",
+  "implementation_sha": "68487d6678657ab850d27a46c73ee581aeebdd80",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s42.md",
+      "verdict": "fixed"
+    }
+  ],
+  "checks": [
+    "`python3 -m unittest tests.scripts.test_glimmer_fetch tests.scripts.test_glimmer_inputs tests.scripts.test_astra_collect` and `pnpm exec vitest run test/node/astra-brief.test.ts` pass with pinned cases and existing digest-mode recovery guarantees intact. -> Full three-module gate included in 307 passing Python tests; after ancestor repair, 81 affected inputs/PinnedFetch/collector tests pass, two regressions fail before and pass after. Eight brief tests pass. 158 dispatcher tests pass with one skip after verified journal repair. Actual successor verifies original and predecessor findings on the exact candidate."
+  ],
+  "reconciliation": {
+    "report": "docs/reviews/03-vision/D03-T04-s42.md",
+    "verdict": "complete",
+    "candidate": "68487d6678657ab850d27a46c73ee581aeebdd80",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "f3335c6dddef36cacf5adda9c7c99e6d6045f996",
+    "binding": {
+      "candidate": "68487d6678657ab850d27a46c73ee581aeebdd80",
+      "completion_candidate": "648c764510a0ba016325e876302d8add0cdffcf7",
+      "completion_digest": "f63f65f6d67547f2",
+      "contract_path": "todo/03-vision/TODO-04-glimmer.md",
+      "contract_sha256": "b4f97a598bf3e96d27b65d3312e271623877578c2aeacd71389f4057fa26414f",
+      "disposition_blob": "e64fafda61a0efb32a07cdcfac1857e9f50c6f53",
+      "disposition_commit": "68487d6678657ab850d27a46c73ee581aeebdd80",
+      "disposition_path": "docs/reviews/03-vision/D03-T04-s42-disposition.md",
+      "plan_candidate": "0b0af98b5e864269265bbb85bc21994f0b6a5924",
+      "plan_contract_sha256": "2ead6953d1e52454c03815cc4372040b9acb61cc415cd29f45ec7aaa1f273712",
+      "predecessor_candidate": "f5e5ea11caa3ba2113e92b3ccb05fac9e36eaee8",
+      "predecessor_digest": "6cf1f4977c1d5e6c",
+      "prefix_bytes": 20112,
+      "prefix_sha256": "6666af1c6a8be85d253edfac68907b2ec477c3c174c9ae0a7fc9440ad5410f9c",
+      "report": "docs/reviews/03-vision/D03-T04-s42.md",
+      "version": 2
+    },
+    "digest": "51d62cc05a18a536"
+  },
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s42.md",
+    "verdict": "gaps",
+    "candidate": "648c764510a0ba016325e876302d8add0cdffcf7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s42.md",
+    "candidate": "0b0af98b5e864269265bbb85bc21994f0b6a5924",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
