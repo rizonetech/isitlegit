@@ -10,15 +10,19 @@ The manifest digest is SHA-256 of UTF-8 `JSON.stringify({seed,sets,setVersions,d
 
 Only a signed-in member of the exact configured `EVAL_ORG_ID` can submit any ablation metadata. A non-eval organisation gets 403; malformed fields get 400; a deployment or immutable identity conflict gets 409. These refusals create no case, file or Workflow. Existing daily limits, replay deduplication and model budget accounting still apply. No flag or experiment identity comes from a model or organisation-wide KV.
 
+## Capability preflight
+
+`GET /api/upload/ablation-capabilities` uses the existing authenticated upload router and is restricted to the configured eval organisation. It returns `{version:1,commit,durableContext:true,uploadArms,screening:false}` only after probing all attribution tables; missing schema or an outage returns 503. Intake alone advertises `full`; D04 T01 §17 adds its four flags only when its consumers are installed and tested. `no-screening` is never advertised for uploads. The runner requires the exact deployment, version, durable context and every requested upload arm before the first paid upload, baseline included. The monitor experiment has a separate capability/trigger under §18.
+
 ## Durable identity
 
 Migration `0095_case_experiments.sql` adds three tables without rebuilding cases:
 
 - `eval_experiments(org_id, experiment_id, manifest_digest, deployment)`: immutable manifest binding, primary key organisation and experiment ID.
 - `eval_experiment_arms(org_id, experiment_id, arm, replay_run_id)`: one immutable replay ID per experiment/arm and one binding per organisation/replay ID.
-- `case_experiments(case_id, org_id, experiment_id, arm, replay_run_id)`: one immutable attribution per case, foreign keys to its arm and case.
+- `case_experiments(case_id, org_id, experiment_id, arm, replay_run_id, upload_key)`: one immutable attribution per case, foreign keys to its arm and case, and a unique organisation/replay/upload-key tuple. The upload key is the existing hash of bytes/name/media type, not raw content.
 
-Deletion follows organisation/case retention through foreign keys. Updates cannot change identity. The normal intake claim remains keyed by organisation, replay ID and upload content/name/type identity, so the same arm/sample retry returns the same case and different arm replay IDs produce fresh cases. A reused replay ID with different experiment, flag, digest or deployment is refused, not treated as a duplicate. Conflicting concurrent reservations have one winner and one explicit conflict.
+Deletion follows organisation/case retention through foreign keys. Updates cannot change identity. The normal intake claim remains keyed by organisation, replay ID and upload content/name/type identity, so the same arm/sample retry returns the same case and different arm replay IDs produce fresh cases. A reused replay ID with different experiment, flag, digest or deployment is refused, not treated as a duplicate. While its case is retained, an experimental sample remains idempotent after the normal 24-hour intake claim expires, by its durable upload-key binding; ordinary replay expiry is unchanged. Conflicting concurrent reservations have one winner and one explicit conflict.
 
 Bind the experiment and arm before any case admission. Persist case attribution before storing its raw file and before starting its Workflow. If attribution persistence fails, no raw file is written and existing intake recovery settles the case as an incomplete admission. A stored file therefore implies durable experiment attribution; a sweep can start from case ID alone. Retry, sweep and Workflow resume never reread a caller-supplied or KV flag.
 

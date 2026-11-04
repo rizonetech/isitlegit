@@ -290,11 +290,11 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 111 | Checklist items: 698
+Sections: 111 | Checklist items: 699
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
-| [ ]    | D01 T03 §17 | Immutable per-case ablation admission        | none                  | 7     |
+| [ ]    | D01 T03 §17 | Immutable per-case ablation admission        | none                  | 8     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail      | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
@@ -681,4 +681,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 412/603 verified sections, 116 ready to run now.
 
-Checklist: 3028/3725 items completed (includes Commit items).
+Checklist: 3028/3726 items completed (includes Commit items).
