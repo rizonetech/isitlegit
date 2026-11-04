@@ -114,6 +114,8 @@ The 3-minute script from spec 5, updated for the decisions (fictional mail provi
 
 ## 4. Remotion title cards and animation
 
+**Corrected 2026-11-04 (operator review):** the cut was rebuilt: the operator's on-camera intro runs picture in picture, scene lengths follow the narration (2:44), captions sit under the browser window and the Meta model is named in its title bar, the X-ray overlays and the standalone X-ray reel are dropped, and nothing unbacked is shown (`pnpm judge:demo`, the Hugging Face adapter, the website seal and the verify page are left out until live). `docs/demo-script.md` records the cut; renders go to `media/out2/`.
+
 Title cards, the animated architecture diagram and the model-trace highlight cards in Remotion 4.x (`media/`), rendered to MP4 for the demo video (plan Day 8).
 
 **Corrected 2026-10-31 (coordinator, 21fc5c8d):** the section moved to the media lane and lives in the existing `media/` Remotion root, not a new `video/` workspace package: `media/` already pins `remotion` and `@remotion/cli` 4.0.539 and holds the brand kit, fact pinning and voice pipeline, so a second install would duplicate them.

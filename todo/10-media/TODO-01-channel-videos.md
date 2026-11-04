@@ -205,6 +205,8 @@ The operator uploads the approved video 03 to @DerickPayneDev as public, in the 
 
 ## 8. Video 04: judge getting-started guide
 
+**Corrected 2026-11-04 (operator review):** the guide covers the live web path only. `pnpm judge:demo` is not on main (D09 T02 §13 is open), so the video no longer shows or names it, and the Hugging Face link is dropped while the repository answers 401. The X-ray overlays are removed from every video: they covered the product and showed figures the service cannot back. Renders now go to `media/out2/` (git-ignored).
+
 A 60 to 90 second Judge Getting-Started walkthrough video rendered in Remotion (`media/out/04-judge-getting-started.mp4`) and embedded at the top of `README.md` and #2 in the `IsItLegit` YouTube playlist, walking judges through both zero-friction paths: (1) the 60-second live web path (`isitlegit.co.za` / `app.isitlegit.co.za` with the pre-populated Fynbos Freight demo org, forwarding/uploading an email, invoice or voice note, opening `?trace=1` `#model-trace` to inspect `muse-spark-1.3`, `muse-wonder-1.0`, `sam-3.1`, `Loupe`, and `muse-voice-transcribe-1.0`, and checking `/eval` and `huggingface.co/rizonetech/isitlegit-loupe`), and (2) the zero-account local replay path (`pnpm judge:demo`, answering Yash Khare's 2026-11-03 guidance with recorded pairs and clear provenance labels).
 
 **Phase:** 6
