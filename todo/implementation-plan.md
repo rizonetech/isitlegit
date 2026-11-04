@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 229 | Checklist items: 1041
+Sections: 229 | Checklist items: 1043
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -580,7 +580,7 @@ Sections: 229 | Checklist items: 1041
 | [x]    | D07 T04 §27 | Add a single address and verify it by code                  | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page                         | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page                         | none                 | 5     |
-| [ ]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 3     |
+| [ ]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list         | none                 | 5     |
 | [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
@@ -683,4 +683,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 425/605 verified sections, 114 ready to run now.
 
-Checklist: 3111/3742 items completed (includes Commit items).
+Checklist: 3111/3744 items completed (includes Commit items).
