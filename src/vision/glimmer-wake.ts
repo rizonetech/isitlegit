@@ -106,7 +106,7 @@ async function ask(ctx: WakeCtx, ms: number, burst: Burst): Promise<Answer> {
   return askOnce(ctx, ms);
 }
 
-function retryDelay(value: string | null, now: number): number | undefined {
+export function retryDelay(value: string | null, now: number): number | undefined {
   if (!value || value.length > 128) return undefined;
   const seconds = /^\d+$/.test(value.trim()) ? Number(value.trim()) : null;
   if (seconds !== null) return Math.min(Number.MAX_SAFE_INTEGER, seconds * 1000);
@@ -120,7 +120,7 @@ function retryDelay(value: string | null, now: number): number | undefined {
   return Number.isFinite(time) ? Math.max(0, time - now) : undefined;
 }
 
-async function probeBody(response: Response): Promise<string> {
+export async function probeBody(response: Response): Promise<string> {
   if (!response.body) return "";
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
