@@ -1,0 +1,3 @@
+interface:
+  display_name: "Codex lane workflow"
+  short_description: "Coordinate IsItLegit lanes and self-review section delivery"
