@@ -65,6 +65,12 @@ Every `## N.` body section has exactly one row (`Order`, `§N`, `Deliverable`, `
 
 Never a bare number, and never a cross-TODO reference without a section. Cross-references in `-> XREF:` lines are bidirectional at file level: if this file points at `D03 T01 §4`, that TODO file must point back at a section in this file. The validator refuses one-sided XREFs and XREFs that name no real section.
 
+### Explicit operator withdrawal
+
+An unverified section may record exactly one standalone `**Withdrawn:** YYYY-MM-DD | operator | reason` line after an explicit operator withdrawal. Use a real calendar date and a nonempty, single-line reason without pipe characters. Indented, quoted, duplicate or malformed fields refuse validation. Ordinary prose never withdraws work. This field is not permitted on verified sections and does not retire a stamp.
+
+Keep the original section, checklist, Implementation Order checkbox and historical review records unchanged. Withdrawal is a separate disposition, never delivery: `resolve` and `classify` return 5, `query plan` reports `withdrawn` and its metadata, and the generated plan displays `Withdrawn` with the dated reason. Active ready, blocked, manual, section and checklist totals exclude withdrawn rows; stats and the plan report a separate withdrawn count when present. Direct and transitive dependents remain blocked until their actual requirements are delivered or an explicit dependency scope correction is recorded. A withdrawn section cannot be stamped and no receipt is created. Only a later explicit operator correction removes the marker, restoring the section's ordinary unmet obligations without claiming completion.
+
 ### What every section declares
 
 - `**Phase:**` from the closed list: 0 to 7 or 99 (Manual, operator only). The phase drives plan ordering; changing one is a scope decision. The project names its phases, the plan's title and its acceptance bar in `todo/plan.json` (`{"title": ..., "acceptance": ... or null, "phases": {"0": "<name>", ...}}`); `validate` and `plan` refuse unknown keys or phase numbers.
