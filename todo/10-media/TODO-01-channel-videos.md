@@ -72,7 +72,7 @@ The self-contained Remotion package every video renders from: its own pnpm root 
 - [x] Let `collect-stats.py` take the repository root as an optional argument for the test. Done when: the test runs without touching the real tree. Cheaper substitute: a test that reads the live repository fails as soon as a section ships. (`8f7df4f3`)
 - [x] Commit: `media: test the stats collector` (`8f7df4f3`)
 
-**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm run stats && pnpm exec tsc -p .` exits 0 (the compositions import the generated, git-ignored `media/src/data/stats.json`, so a clean checkout runs the collector before the type check).
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm run stats && pnpm exec tsc -p . && pnpm test:kit && pnpm preflight` exits 0 (the compositions import the generated, git-ignored `media/src/data/stats.json`, so a clean checkout runs the collector before the type check).
 
 ## 2. Remotion licence basis
 

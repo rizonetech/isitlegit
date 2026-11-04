@@ -95,6 +95,19 @@ def lines_of_code(repo: Path) -> int:
     return sum(len((repo / f).read_text(errors="ignore").splitlines()) for f in files if f.endswith((".ts", ".tsx")))
 
 
+def inputs(repo: Path) -> dict:
+    """What the figures were read from, so two runs labelled with the same commit can be told apart: HEAD in full, the
+    commit each counted branch pointed at (the pace reads them, and a fetch moves them without moving HEAD), and every
+    uncommitted change under todo/ and docs/reviews/ (the counts read the working tree)."""
+    status = subprocess.run(["git", "status", "--porcelain", "-z", "--no-renames", "--untracked-files=all", "--", "todo",
+                             "docs/reviews"], cwd=repo, check=True, capture_output=True, text=True).stdout
+    return {
+        "head": git(repo, "rev-parse", "HEAD"),
+        "refs": {ref: git(repo, "rev-parse", ref) for ref in refs(repo)},
+        "uncommitted": sorted(entry[3:] for entry in status.split("\0") if entry),
+    }
+
+
 def collect(repo: Path) -> dict:
     """The on-screen numbers for the checkout at `repo`."""
     rows = [line for f in (repo / "todo").rglob("TODO-*.md") if "templates" not in f.parts for line in order_rows(f.read_text())]
@@ -112,6 +125,7 @@ def collect(repo: Path) -> dict:
         "lines": lines_of_code(repo),
         "domains": domains(repo),
         "pace": pace(repo),
+        "inputs": inputs(repo),
     }
 
 

@@ -1,11 +1,13 @@
 """Tests for collect-stats.py: the counting rules the videos' numbers rest on (D10 T01 §1)."""
 
+import errno
 import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 SPEC = importlib.util.spec_from_file_location("collect_stats", Path(__file__).with_name("collect-stats.py"))
@@ -91,6 +93,39 @@ class CollectStatsTest(unittest.TestCase):
         stats.write({"sections": 2}, out)
         self.assertEqual(json.loads(out.read_text()), {"sections": 2})
         self.assertEqual([p.name for p in out.parent.iterdir()], ["stats.json"])
+
+    def test_inputs_name_head_the_counted_refs_and_uncommitted_edits(self):
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo, check=True, capture_output=True, text=True).stdout.strip()
+        clean = stats.collect(self.repo)["inputs"]
+        self.assertEqual(clean["head"], head)
+        self.assertEqual(list(clean["refs"].values()), [head])
+        self.assertEqual(clean["uncommitted"], [])
+        with (self.repo / "todo" / "02-y" / "TODO-01-y.md").open("a") as fh:
+            fh.write("| 2 | §2 | Uncommitted row | -- | [ ] |\n")
+        dirty = stats.collect(self.repo)
+        self.assertEqual(dirty["inputs"]["uncommitted"], ["todo/02-y/TODO-01-y.md"])
+        self.assertEqual(dirty["inputs"]["head"], head)
+
+    def test_disk_full_and_refused_replace_keep_the_previous_file(self):
+        out = self.repo / "out" / "stats.json"
+        out.parent.mkdir()
+        out.write_text('{"sections": 1}\n')
+        full = OSError(errno.ENOSPC, "No space left on device")
+        for target, error in (("json.dump", full), ("os.replace", PermissionError(errno.EACCES, "Permission denied"))):
+            with self.subTest(target), mock.patch.object(getattr(stats, target.split(".")[0]), target.split(".")[1], side_effect=error):
+                with self.assertRaises(OSError):
+                    stats.write({"sections": 2}, out)
+                self.assertEqual(out.read_bytes(), b'{"sections": 1}\n')
+                self.assertEqual([p.name for p in out.parent.iterdir()], ["stats.json"])
+
+    def test_cli_exits_non_zero_when_it_cannot_write(self):
+        out = self.repo / "out" / "stats.json"
+        out.mkdir(parents=True)
+        done = subprocess.run([sys.executable, str(Path(__file__).with_name("collect-stats.py")), str(self.repo), str(out)],
+                              capture_output=True, text=True)
+        self.assertNotEqual(done.returncode, 0)
+        self.assertEqual(done.stdout, "")
+        self.assertEqual(list(out.parent.iterdir()), [out])
 
     def test_write_failure_keeps_the_previous_file_and_leaves_no_temporary(self):
         out = self.repo / "out" / "stats.json"

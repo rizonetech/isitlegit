@@ -33,20 +33,20 @@ This folder belongs to the media lane (branch `claude/trusting-pasteur-umwvqz`, 
 
 ## Render
 
-Needs Node 22 or newer and Python 3.11 or newer. From `media/`:
+Needs Node 22 or newer, pnpm, and Python 3.11 or newer with numpy (`python3 -m pip install --user numpy`, or `sudo apt install python3-numpy`), which `tools/master.py` uses to master each render's sound. Every render that masters its sound runs `pnpm preflight` (`tools/preflight.py`) first, so a missing numpy or an old Python stops it before the first frame with the command that installs it. From `media/`:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm render:01   # out/01-how-isitlegit-is-built.mp4, about 11.5 min, 1920 x 1080
-pnpm render:02   # out/02-isitlegit-technical-deep-dive.mp4, about 11 min, 1920 x 1080
-pnpm render:03   # out/03-loupe-1-0.mp4, 132 s, 1920 x 1080 (runs check:facts first)
-pnpm render:logo # out/isitlegit-logo-animation-1080p.mp4, 8 s, 1920 x 1080, with the original clip's sound
+pnpm render:01   # out2/01-how-isitlegit-is-built.mp4, about 11.5 min, 1920 x 1080
+pnpm render:02   # out2/02-isitlegit-technical-deep-dive.mp4, about 11 min, 1920 x 1080
+pnpm render:03   # out2/03-loupe-1-0.mp4, 132 s, 1920 x 1080 (runs check:facts first)
+pnpm render:logo # out2/isitlegit-logo-animation-1080p.mp4, 8 s, 1920 x 1080, with the original clip's sound
 pnpm studio      # preview and scrub in the browser
 ```
 
 Each render first runs `tools/collect-stats.py`, which writes the on-screen numbers to `src/data/stats.json` (git-ignored). Set `REMOTION_BROWSER` to an installed Chrome when Remotion cannot download its own; in the cloud session that is `/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell`. Videos 01 and 02 are storyboards in `data/storyboards/`, rendered by the scene kit in `src/kit/` (chapter, bullets, table, flow, code, stats, chart, lanes and callout scenes, each timed by its reading length); video 03 and the logo are hand-built in `src/videos/`. The shared brand layer is `src/brand.tsx`, and `remotion.config.ts` serves `design/` as the public folder.
 
-Figures come from `data/dev-facts.json` (video 01), `data/tech-facts.json` (video 02) and `data/loupe-facts.json` (video 03), each pinned to a commit and an exact quote (or a counted pattern) in its source. `pnpm check:facts` proves them with `git show` (a fact may name its own `commit` when a later rewrite of its source dropped the line), so each pinned commit must be fetched (`git fetch origin glimmer-screener` for video 03), and refuses a storyboard that names an undefined fact; a render stops when any figure no longer matches. Videos 01 to 03 are narrated in the operator's ElevenLabs voice once `tools/voiceover.py` has made their clips from `data/narration/` ([voiceover/README.md](voiceover/README.md)); `tools/sound.py` makes the music bed and effects from `data/sound.json`. Every render runs `tools/voice-index.py` first, and a video without clips or sound renders without them. Renders go to `out/raw/` and are then normalised to -14 LUFS into `out/`; `RENDER_CONCURRENCY=3` keeps a long render light on the shared machine. Tests: `python3 -m unittest discover -s media/tools`.
+Figures come from `data/dev-facts.json` (video 01), `data/tech-facts.json` (video 02) and `data/loupe-facts.json` (video 03), each pinned to a commit and an exact quote (or a counted pattern) in its source. `pnpm check:facts` proves them with `git show` (a fact may name its own `commit` when a later rewrite of its source dropped the line), so each pinned commit must be fetched (`git fetch origin glimmer-screener` for video 03), and refuses a storyboard that names an undefined fact; a render stops when any figure no longer matches. Videos 01 to 03 are narrated in the operator's ElevenLabs voice once `tools/voiceover.py` has made their clips from `data/narration/` ([voiceover/README.md](voiceover/README.md)); `tools/sound.py` makes the music bed and effects from `data/sound.json`. Every render runs `tools/voice-index.py` first, and a video without clips or sound renders without them. Renders go to `out2/raw/` and are then mastered to -14 LUFS into `out2/` (thumbnails and captures stay in `out/`). Every render uses two threads unless `RENDER_CONCURRENCY` names another whole number from 1 to 8 (`remotion.config.ts`; the scripts pass no `--concurrency`, so the setting holds for all of them, and `RENDER_CONCURRENCY=1` is the lightest on the shared machine). Tests, from `media/`: `python3 -m unittest discover -s tools`, `pnpm test:kit` and `pnpm test:capture`.
 
 ## Demo capture
 
