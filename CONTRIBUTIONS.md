@@ -37,3 +37,5 @@ Changes made to this tooling during the event (the IsItLegit environment needs, 
 ## Third-party code and data
 
 None vendored yet. Each dependency enters through the section that adds it and is listed in [`NOTICE.md`](NOTICE.md); public phishing corpora used for evaluation are listed with their licences in `eval/DATASETS.md` when the eval harness lands.
+
+Loupe is a project-specific LoRA fine-tune of the pre-existing Muse Glimmer 30B base model, trained and hosted through Fireworks AI. Loupe 1.1 completed 72,375 training examples in 4,524 optimizer steps; these are training workload counts, not independent evaluation results or separately authored instructions. The Worker calls the provider for inference; training does not run inside Cloudflare Workers. No Hugging Face model release is claimed. Version and measurement evidence is separated in [Loupe release status](docs/glimmer/release-status.md).
