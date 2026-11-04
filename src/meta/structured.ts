@@ -5,7 +5,8 @@
 // structured-output.md: its strict subset and limits) is refused before any call, so nothing is reserved or sent for it.
 // A paid answer that fails is marked on its call's record (D03 T01 §3), its usage and cost kept.
 import { z } from "zod";
-import { DEFAULT_DEADLINE_MS, type MetaContext, metaResponses, type ResponsesParams } from "./client.ts";
+import { DEFAULT_DEADLINE_MS, type MetaContext, ModelError, metaResponses, type ResponsesParams } from "./client.ts";
+import { BudgetExceeded, BudgetUnavailable } from "./guard";
 import {
   type DiagnosticCallback,
   DiagnosticSegment,
@@ -264,6 +265,33 @@ export type StructuredContext = MetaContext & {
   maxAttempts?: number;
   onValidationDiagnostic?: DiagnosticCallback;
   validationAttemptOffset?: 0 | 1;
+  // Internal owning adapter, never deserialized from a request or model result. The adapter proves cached call linkage.
+  continuation?: StructuredContinuation;
+};
+
+export type StructuredContinuation = {
+  deployment: string;
+  operationId: string;
+  phase: "screen" | "second-look";
+  deadline: number;
+  ordinal?: 1 | 2;
+  assertOwner(owner: MetaContext["owner"]): Promise<void>;
+  execute<S extends z.ZodType>(
+    ordinal: 1 | 2,
+    digest: string,
+    schema: S,
+    send: (handle: { attemptId: string }) => Promise<z.infer<S>>,
+  ): Promise<z.infer<S>>;
+  verify(
+    call: { callId: string; reservationId: string },
+    ordinal: 1 | 2,
+    kind: "valid" | "rejected",
+    snapshot: unknown,
+    failure?: string,
+  ): Promise<boolean>;
+  failure(value: { kind: "capacity" | "unknown" | "failed"; status?: number; retryAfterMs?: number }): Error;
+  blocked(): Error;
+  pending(error: unknown): boolean;
 };
 
 export async function structured<S extends z.ZodType>(
@@ -276,6 +304,7 @@ export async function structured<S extends z.ZodType>(
   const json = formatSchema(schema);
   const known = names(json);
   const format = { type: "json_schema" as const, name, schema: json, strict: true };
+  if (ctx.continuation) return continuedStructured(schema, request, ctx, format);
   // One deadline over the first answer and its repair (completion review): the repair gets what is left, and none
   // starts once it is spent.
   const deadline = Date.now() + (ctx.deadlineMs ?? DEFAULT_DEADLINE_MS);
@@ -375,15 +404,136 @@ export async function structured<S extends z.ZodType>(
           : `Meta's answer did not match the schema: ${problems}`,
       );
     await mark(answer.callId, "invalid");
-    input = [
-      ...(typeof input === "string" ? [{ role: "user" as const, content: input }] : (input ?? [])),
-      {
-        role: "developer" as const,
-        content: `Your previous answer did not match the required schema: ${problems}. Answer again, matching it exactly.`,
-      },
-    ] as ResponsesParams["input"];
+    input = repairInput(input, problems);
   }
   throw new ModelOutputError("invalid", `Meta's answer did not match the schema: ${problems}`, calls);
+}
+
+// Both ordinary and durable repair use the same owning prompt construction. Persisted repair state carries
+// no original answer or arbitrary validator property name; its trusted instruction is deliberately generic.
+function repairInput(input: ResponsesParams["input"], problems: string): ResponsesParams["input"] {
+  return [
+    ...(typeof input === "string" ? [{ role: "user" as const, content: input }] : (input ?? [])),
+    {
+      role: "developer" as const,
+      content: `Your previous answer did not match the required schema: ${problems}. Answer again, matching it exactly.`,
+    },
+  ] as ResponsesParams["input"];
+}
+
+async function continuedStructured<S extends z.ZodType>(
+  schema: S,
+  request: StructuredRequest,
+  ctx: StructuredContext,
+  format: unknown,
+): Promise<{ value: z.infer<S>; logId: string | null; callId: string; attempts: number }> {
+  const { continuation: c, ...ordinary } = ctx;
+  if (!c) throw new ModelOutputError("schema", "missing structured continuation");
+  await c.assertOwner(ctx.owner);
+  const start = c.ordinal ?? 1;
+  z.union([z.literal(1), z.literal(2)]).parse(start);
+  const limit = Math.min(3 - start, Math.max(1, ctx.maxAttempts ?? 2));
+  const Call = z.strictObject({
+    callId: z.uuid(),
+    logId: z.string().max(80).nullable(),
+    reservationId: z.string().regex(NAME),
+  });
+  const Outcome = z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("valid"), value: z.unknown(), call: Call }),
+    z.strictObject({
+      kind: z.literal("rejected"),
+      failure: z.enum(["invalid", "incomplete", "refused", "failed"]),
+      call: Call,
+    }),
+  ]);
+  const digest = Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(
+          JSON.stringify({ request, format, owner: ctx.owner, deployment: c.deployment, start, limit }),
+        ),
+      ),
+    ),
+    (byte) => byte.toString(16).padStart(2, "0"),
+  ).join("");
+  let input = request.input;
+  const calls: OutputCall[] = [];
+  for (let offset = 0; offset < limit; offset++) {
+    const ordinal = (start + offset) as 1 | 2;
+    const rawOutcome = await c.execute(ordinal, digest, Outcome, async ({ attemptId }) => {
+      // One reservation ID is known before transport; a crash cannot lose its charge linkage.
+      const budget = {
+        ...ctx.budget,
+        reserve: (
+          model: Parameters<typeof ctx.budget.reserve>[0],
+          estimate: number,
+          transportOrdinal: number,
+          _id?: string,
+          call?: Parameters<typeof ctx.budget.reserve>[4],
+        ) => ctx.budget.reserve(model, estimate, transportOrdinal, attemptId, call),
+      };
+      try {
+        const value = await structured(
+          schema,
+          { ...request, ...(input === undefined ? {} : { input }) },
+          {
+            ...ordinary,
+            budget,
+            maxAttempts: 1,
+            transportAttempts: 1,
+            validationAttemptOffset: (ordinal - 1) as 0 | 1,
+            expired: () => Date.now() >= c.deadline || Boolean(ctx.expired?.()),
+            deadlineMs: Math.min(ctx.deadlineMs ?? DEFAULT_DEADLINE_MS, Math.max(1, c.deadline - Date.now())),
+          },
+        );
+        return {
+          kind: "valid" as const,
+          value: value.value,
+          call: { callId: value.callId, logId: value.logId, reservationId: attemptId },
+        };
+      } catch (error) {
+        if (error instanceof ModelOutputError && error.kind !== "schema" && error.calls.length === 1) {
+          const call = error.calls[0];
+          if (!call) throw c.failure({ kind: "unknown" });
+          return { kind: "rejected" as const, failure: error.kind, call: { ...call, reservationId: attemptId } };
+        }
+        if (error instanceof ModelError && error.details.status === 429) {
+          const delay = error.details.retryAfterMs;
+          throw c.failure({
+            kind: "capacity",
+            status: 429,
+            ...(delay !== undefined && Number.isSafeInteger(delay) && delay >= 0 ? { retryAfterMs: delay } : {}),
+          });
+        }
+        if (
+          error instanceof BudgetExceeded ||
+          error instanceof BudgetUnavailable ||
+          (error instanceof ModelOutputError && error.kind === "schema")
+        )
+          throw c.failure({ kind: "failed" });
+        // A generic5xx/timeout may follow a paid send. Preserve its reservation and require reconciliation.
+        throw c.failure({ kind: "unknown" });
+      }
+    });
+    const outcome = Outcome.parse(rawOutcome);
+    // The cache alone cannot attest a paid answer. Match the actual runtime ledger and the exact transport claim.
+    const call = outcome.call;
+    if (
+      !(await c.verify(call, ordinal, outcome.kind, outcome, outcome.kind === "rejected" ? outcome.failure : undefined))
+    )
+      throw c.blocked();
+    calls.push({ callId: call.callId, logId: call.logId });
+    if (outcome.kind === "valid") {
+      const value = schema.parse(outcome.value);
+      if (unknownProperty(outcome.value, formatSchema(schema)) || stripped(outcome.value, value)) throw c.blocked();
+      return { value, callId: call.callId, logId: call.logId, attempts: calls.length };
+    }
+    if (outcome.failure !== "invalid" || offset + 1 === limit)
+      throw new ModelOutputError(outcome.failure, "Meta's structured answer did not complete validation", calls);
+    input = repairInput(input, "the answer did not match the required schema");
+  }
+  throw new ModelOutputError("invalid", "Meta's structured answer did not complete validation", calls);
 }
 
 // Follow trusted schema structure, never arbitrary names from a model or a validator message.

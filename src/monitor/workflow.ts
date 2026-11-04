@@ -20,6 +20,7 @@ import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
+import { ExperimentParams, runExperimentWorkflow } from "./ablation-workflow";
 import { ctCandidates } from "./ct";
 import { findingsFromInvestigations } from "./findings";
 import { monitorPipeline, type PipelineDeps } from "./pipeline";
@@ -36,7 +37,7 @@ import {
 import { secondLook } from "./second-look";
 import { type Cdp, collectEvidence } from "./signals";
 
-export type MonitorParams = { orgId: string; day: string; runId?: string };
+export type MonitorParams = { orgId: string; day: string; runId?: string } | ExperimentParams;
 const DOH = "https://cloudflare-dns.com/dns-query";
 const LOOKUP_MS = 5_000;
 const CAPTURE_MS = 20_000;
@@ -463,6 +464,11 @@ export async function runMonitor(
 
 export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
+    if ("experimentRunId" in event.payload) {
+      const params = ExperimentParams.parse(event.payload);
+      if (event.instanceId !== params.experimentRunId) throw new Error("monitor experiment identity mismatch");
+      return runExperimentWorkflow(this.env, step, params);
+    }
     const runId = event.payload.runId ?? `monitor-${event.payload.orgId}-${event.payload.day}`;
     const since = new Date(Date.parse(event.payload.day) - 7 * 24 * 60 * 60_000).toISOString();
     return runMonitor(
