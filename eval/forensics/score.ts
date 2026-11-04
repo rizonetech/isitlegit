@@ -64,7 +64,7 @@ export async function loadForensics(): Promise<{
 }
 
 const hash = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
-function bytesAt(root: string, path: string, expected: string): Uint8Array {
+export function bytesAt(root: string, path: string, expected: string): Uint8Array {
   try {
     const file = realpathSync(resolve(root, path));
     const rel = relative(realpathSync(root), file);
@@ -79,6 +79,10 @@ function bytesAt(root: string, path: string, expected: string): Uint8Array {
 
 export function loadManifest(root = ROOT, path = MANIFEST): Manifest {
   const raw = JSON.parse(readFileSync(resolve(root, path), "utf8")) as unknown;
+  return validateManifest(raw, (file, expected) => bytesAt(root, file, expected), path);
+}
+
+export function parseManifest(raw: unknown, path = MANIFEST): Manifest {
   const parsed = manifestSchema.safeParse(raw);
   if (!parsed.success) {
     const input = raw as { documents?: { path?: string }[] };
@@ -92,7 +96,18 @@ export function loadManifest(root = ROOT, path = MANIFEST): Manifest {
   for (const d of [...parsed.data.documents, ...parsed.data.unsupported]) {
     if (seen.has(d.path)) throw new Error(`${d.path}: duplicate document`);
     seen.add(d.path);
-    const bytes = bytesAt(root, d.path, d.sha256);
+  }
+  return parsed.data;
+}
+
+export function validateManifest(
+  raw: unknown,
+  read: (path: string, expected: string) => Uint8Array,
+  path = MANIFEST,
+): Manifest {
+  const manifest = parseManifest(raw, path);
+  for (const d of [...manifest.documents, ...manifest.unsupported]) {
+    const bytes = read(d.path, d.sha256);
     const native = "label" in d;
     if (
       native
@@ -110,7 +125,7 @@ export function loadManifest(root = ROOT, path = MANIFEST): Manifest {
     )
       throw new Error(`${d.path}: content does not match declared ${native ? "PDF" : "raster image"} format`);
   }
-  return parsed.data;
+  return manifest;
 }
 
 export async function observe(manifest: Manifest, root = ROOT, analyse?: Analyse): Promise<Observation[]> {

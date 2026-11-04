@@ -1,9 +1,10 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { build, SET } from "../../eval/forensics/build.ts";
 import {
   checkReport,
   type Document,
@@ -46,6 +47,140 @@ const row = (label: Document["label"], flagged: boolean, complete = true): Obser
 });
 
 describe("PDF forensic measurement", () => {
+  it("preserves a verified corpus on failed generation and recovers an interrupted publication", async () => {
+    const root = temp();
+    for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const prior = readFileSync(join(root, SET, "manifest.json"));
+    let writes = 0;
+    await expect(
+      build(root, {
+        write: (path, bytes) => {
+          if (++writes === 2) throw new Error("disk full");
+          writeFileSync(path, bytes);
+        },
+      }),
+    ).rejects.toThrow("disk full");
+    expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    await expect(
+      build(root, {
+        rename: (from, to) => {
+          if (from.includes(".pdf-forensics-stage-")) throw new Error("publication interrupted");
+          renameSync(from, to);
+        },
+      }),
+    ).rejects.toThrow("publication interrupted");
+    expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    // A process killed after saving the old corpus leaves the backup to the next invocation.
+    renameSync(join(root, SET), join(root, "eval/sets/.pdf-forensics-previous"));
+    await build(root);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
+    expect(existsSync(join(root, "eval/sets/.pdf-forensics-previous/manifest.json"))).toBe(true);
+  });
+
+  it.each(["truncated-pdf", "invalid-manifest", "truncated-manifest"])(
+    "rejects staged %s without changing prior bytes",
+    async (fault) => {
+      const root = temp();
+      for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+        cpSync(join(ROOT, path), join(root, path), { recursive: true });
+      const before = readdirSync(join(root, SET)).map((name) => [name, readFileSync(join(root, SET, name))] as const);
+      await expect(
+        build(root, {
+          write: (path, bytes) => {
+            if (fault === "truncated-pdf" && path.endsWith(".pdf")) writeFileSync(path, "%PDF-");
+            else if (fault === "invalid-manifest" && path.endsWith("manifest.json"))
+              writeFileSync(path, '{"version":2}');
+            else if (fault === "truncated-manifest" && path.endsWith("manifest.json")) writeFileSync(path, "{");
+            else writeFileSync(path, bytes);
+          },
+        }),
+      ).rejects.toThrow();
+      for (const [name, bytes] of before) expect(readFileSync(join(root, SET, name))).toEqual(bytes);
+      expect(readdirSync(join(root, "eval/sets")).filter((name) => name.includes("stage-"))).toEqual([]);
+    },
+  );
+
+  it.each(["write", "saved", "promoted"])("recovers after actual process termination at %s", async (boundary) => {
+    const root = temp();
+    for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const prior = readFileSync(join(root, SET, "manifest.json"));
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
+      import {build} from ${JSON.stringify(join(ROOT, "eval/forensics/build.ts"))};
+      import {writeFileSync,renameSync} from 'node:fs';
+      await build(${JSON.stringify(root)}, {
+        write(path,bytes) { writeFileSync(path,bytes); if (${JSON.stringify(boundary)} === 'write') process.kill(process.pid, 'SIGKILL'); },
+        rename(from,to) { renameSync(from,to); if ((${JSON.stringify(boundary)} === 'saved' && to.endsWith('.pdf-forensics-previous')) || (${JSON.stringify(boundary)} === 'promoted' && from.includes('.pdf-forensics-stage-'))) process.kill(process.pid, 'SIGKILL'); }
+      });
+    `,
+      ],
+      { encoding: "utf8", timeout: 10000 },
+    );
+    expect(result.signal, result.stderr).toBe("SIGKILL");
+    await build(root);
+    expect(loadManifest(root).documents).toHaveLength(14);
+    expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
+    await build(root);
+    expect(readFileSync(join(root, SET, "manifest.json"))).toEqual(prior);
+  });
+
+  it("refuses a second writer while an actual builder owns publication", async () => {
+    const root = temp();
+    for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const child = spawn(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
+      import {build} from ${JSON.stringify(join(ROOT, "eval/forensics/build.ts"))};
+      await build(${JSON.stringify(root)}, {write() { process.stdout.write('held'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0); }});
+    `,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("exit", () => reject(new Error("builder exited before holding lock")));
+        child.stdout.once("data", () => resolve());
+      });
+      await expect(build(root)).rejects.toThrow("already running");
+      expect(loadManifest(root).documents).toHaveLength(14);
+    } finally {
+      child.kill("SIGKILL");
+      await closed;
+    }
+    await build(root);
+    expect(loadManifest(root).documents).toHaveLength(14);
+  });
+
+  it("regenerates pins when legitimate external fixture bytes change", async () => {
+    const root = temp();
+    for (const path of [SET, "test/fixtures/pdf-forensics", "test/fixtures/payment-docs"])
+      cpSync(join(ROOT, path), join(root, path), { recursive: true });
+    const external = loadManifest(root).unsupported[0];
+    if (!external) throw new Error("missing raster fixture");
+    writeFileSync(
+      join(root, external.path),
+      Buffer.concat([readFileSync(join(root, external.path)), Buffer.from("changed")]),
+    );
+    expect(() => loadManifest(root)).toThrow("sha256 mismatch");
+    await build(root);
+    expect(loadManifest(root).unsupported[0]?.sha256).not.toBe(external.sha256);
+  });
+
   it("counts genuine findings as false positives and reuses main metric arithmetic", () => {
     const g = group([row("genuine", true), row("genuine", false), row("doctored", true), row("doctored", false)]);
     expect(g.falsePositives).toEqual(rate(1, 2));

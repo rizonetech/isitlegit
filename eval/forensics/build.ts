@@ -1,20 +1,110 @@
 // Synthetic native PDF pairs supplement the existing generator fixtures, never rasterize PNGs into fake PDF coverage.
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { register } from "node:module";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+
+import { bytesAt, loadManifest, parseManifest, validateManifest } from "./score.ts";
 
 export const ROOT = resolve(import.meta.dirname, "../..");
 export const SET = "eval/sets/pdf-forensics";
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
-export async function build(root = ROOT) {
+type Operations = {
+  write?: (path: string, bytes: string | Uint8Array) => void;
+  rename?: (from: string, to: string) => void;
+};
+
+// The kernel releases flock when the holder exits, including parent death (stdin EOF).
+// This offline WSL/Linux generator requires util-linux flock; missing support fails closed.
+async function lock(path: string): Promise<() => Promise<void>> {
+  const holder = spawn(
+    "flock",
+    ["-w", "2", "-E", "73", path, process.execPath, "-e", 'process.stdout.write("locked\\n"); process.stdin.resume();'],
+    { stdio: ["pipe", "pipe", "pipe"] },
+  );
+  const closed = new Promise<void>((resolve) => holder.once("close", () => resolve()));
+  await new Promise<void>((resolve, reject) => {
+    holder.once("error", reject);
+    holder.once("exit", (code) =>
+      reject(new Error(code === 73 ? "PDF corpus builder already running" : `PDF corpus lock failed (${code})`)),
+    );
+    holder.stdout.once("data", () => resolve());
+  });
+  return async () => {
+    holder.stdin.end();
+    await closed;
+  };
+}
+
+export async function build(root = ROOT, operations: Operations = {}) {
+  const out = join(root, SET);
+  const parent = dirname(out);
+  mkdirSync(parent, { recursive: true });
+  const unlock = await lock(join(parent, ".pdf-forensics.lock"));
+  let stage: string | undefined;
+  try {
+    const previous = join(parent, ".pdf-forensics-previous");
+    // Recover before generation; never remove the only usable generation.
+    if (!existsSync(out) && existsSync(previous)) renameSync(previous, out);
+    if (existsSync(out)) {
+      const prior = parseManifest(JSON.parse(readFileSync(join(out, "manifest.json"), "utf8")));
+      // External fixture inputs may have legitimately changed since the prior build.
+      // Preserve and verify the bytes owned by this generation; the new stage checks every current input.
+      for (const document of prior.documents.filter((d) => d.path.startsWith(`${SET}/`))) {
+        const bytes = bytesAt(out, basename(document.path), document.sha256);
+        if (Buffer.from(bytes).subarray(0, 5).toString() !== "%PDF-") throw new Error("prior corpus is not PDF");
+      }
+    }
+    for (const name of readdirSync(parent)) {
+      if (name.startsWith(".pdf-forensics-stage-")) rmSync(join(parent, name), { recursive: true, force: true });
+    }
+    stage = mkdtempSync(join(parent, ".pdf-forensics-stage-"));
+    await generate(root, stage, operations.write ?? writeFileSync);
+    const staged = JSON.parse(readFileSync(join(stage, "manifest.json"), "utf8")) as unknown;
+    const stagedPath = stage;
+    validateManifest(staged, (path, expected) =>
+      path.startsWith(`${SET}/`) ? bytesAt(stagedPath, basename(path), expected) : bytesAt(root, path, expected),
+    );
+    const rename = operations.rename ?? renameSync;
+    if (existsSync(out)) {
+      rmSync(previous, { recursive: true, force: true });
+      rename(out, previous);
+    }
+    try {
+      rename(stage, out);
+      loadManifest(root);
+    } catch (error) {
+      if (existsSync(previous)) {
+        if (existsSync(out)) rmSync(out, { recursive: true, force: true });
+        renameSync(previous, out);
+      }
+      throw error;
+    }
+  } finally {
+    try {
+      if (stage) rmSync(stage, { recursive: true, force: true });
+    } finally {
+      await unlock();
+    }
+  }
+}
+
+async function generate(root: string, out: string, write: NonNullable<Operations["write"]>) {
   register("../../scripts/lib/ts-resolve.mjs", import.meta.url);
   const { makeDoc, HELVETICA, TIMES } = await import("../../test/invoice/forensics-fixtures.ts");
   const { appendUpdate, contentOf } = await import("../../test/invoice/pdf-writer.ts");
-  const out = join(root, SET);
-  mkdirSync(out, { recursive: true });
   const documents: object[] = [];
   for (const [type, heading] of [
     ["proof-of-payment", "Proof of Payment"],
@@ -54,7 +144,7 @@ export async function build(root = ROOT) {
       ["doctored", doctored],
     ] as const) {
       const path = `${SET}/${type}-${label}.pdf`;
-      writeFileSync(join(root, path), bytes);
+      write(join(out, basename(path)), bytes);
       documents.push({
         path,
         type,
@@ -98,7 +188,7 @@ export async function build(root = ROOT) {
       const path = `test/fixtures/payment-docs/${name}`;
       return { path, sha256: hash(readFileSync(join(root, path))), reason: "Raster image, not a native PDF" };
     });
-  writeFileSync(join(out, "manifest.json"), `${JSON.stringify({ version: 1, documents, unsupported }, null, 2)}\n`);
+  write(join(out, "manifest.json"), `${JSON.stringify({ version: 1, documents, unsupported }, null, 2)}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await build();
