@@ -680,7 +680,7 @@ Evidence 2026-11-03 23:55 SAST (per-surface outcome): `src/web/styles/app.css` (
 
 **Test checkpoint:** `taskset -c 8 pnpm exec vitest run test/node/polish-browser.test.tsx test/node/gallery.test.tsx test/node/no-raw-colours.test.ts && taskset -c 8 env A11Y=1 pnpm exec vitest run --project a11y test/node/a11y.test.tsx` passes (`polish-browser.test.tsx` verifying both `app.css` and `site.css` in light and dark themes, production HTMX/live loading transitions, and the recorded per-surface evidence in §17, and `a11y.test.tsx` verifying zero axe violations across all gallery states in both themes at 360 and 1280 px).
 
-> **Verified:** 2026-11-04 | §17 | f879c01a5db0fe449517f57b036c1c0e67dd5d95
+> **Verified:** 2026-11-04 | §17 | c0cbefa1782fd7253ee5ea684bee48f943d5ea89
 > **Review:** `docs/reviews/d07-t01-s17.json`
 
 ## Verification

@@ -155,21 +155,20 @@ function OrgSwitcher(props: { organization: Organization; others: Organization[]
     return (
       <p class="flex items-center gap-12 min-h-48 px-12 py-8 text-15 weight-text-strong text-ink">
         <OrgBadge name={organization.name} />
-        {/* biome-ignore lint/a11y/useSemanticElements lint/a11y/useFocusableInteractive: Hono JSX uses lowercase tabindex on inline reveal span inside <p> */}
-        <span
-          tabindex={0}
-          role="button"
+        <button
+          type="button"
           aria-expanded="false"
           data-org-reveal
           class={cx(
             NAME,
-            "rounded-small cursor-pointer [&[aria-expanded=true]]:whitespace-normal [&[aria-expanded=true]]:overflow-visible [&[aria-expanded=true]]:text-clip [&[aria-expanded=true]]:wrap-anywhere",
+            "text-left rounded-small cursor-pointer [&[aria-expanded=true]]:whitespace-normal [&[aria-expanded=true]]:overflow-visible [&[aria-expanded=true]]:text-clip [&[aria-expanded=true]]:wrap-anywhere",
             FOCUS,
           )}
           title={organization.name}
         >
           {organization.name}
-        </span>
+        </button>
+        <span class="sr-only">{organization.name}</span>
       </p>
     );
   return (

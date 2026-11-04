@@ -1,7 +1,7 @@
 {
   "ref": "D07 T01 \u00a717",
   "title": "Premium polish sweep over every surface",
-  "implementation_sha": "f879c01a5db0fe449517f57b036c1c0e67dd5d95",
+  "implementation_sha": "c0cbefa1782fd7253ee5ea684bee48f943d5ea89",
   "date": "2026-11-04",
   "reviews": [
     {
@@ -21,7 +21,7 @@
     }
   ],
   "checks": [
-    "taskset -c 8 pnpm vitest run test/node/polish-browser.test.tsx test/node/cases-browser.test.tsx test/node/gallery.test.tsx test/node/no-raw-colours.test.ts -> 67 passed",
+    "taskset -c 8 pnpm vitest run test/node/polish-browser.test.tsx test/node/cases-browser.test.tsx test/node/gallery.test.tsx test/node/no-raw-colours.test.ts test/node/shell.test.tsx -> 82 passed",
     "taskset -c 8 env A11Y=1 pnpm vitest run --project a11y test/node/a11y.test.tsx -> 18 passed"
   ],
   "completion": {
