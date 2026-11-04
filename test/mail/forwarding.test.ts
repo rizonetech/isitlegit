@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { scheduledForwarding } from "../../src/index";
 import {
+  ALERTS_PER_RUN,
   checkForwarding,
   type ForwardingDeps,
   GRAPHQL_URL,
@@ -997,5 +998,26 @@ describe("early refusal alert before attribution (D01 T02 §15)", () => {
     await checkForwarding(prodDeps(wPartial.fetcher, at(26)));
     expect(wPartial.sends).toHaveLength(4);
     expect(wPartial.sends[2]?.text).toContain("hello@isitlegit.co.za");
+  });
+
+  it("bounds early-alert delivery to ALERTS_PER_RUN per scan and processes the remaining clusters on the next scan", async () => {
+    const totalClusters = ALERTS_PER_RUN + 5;
+    const reports = Array.from({ length: totalClusters }, (_, i) =>
+      report({
+        messageId: `<ndr-cap-${i}@x>`,
+        sessionId: `s-cap-${i}`,
+        subject: `Undeliverable: Invoice cap-${i}`,
+        datetime: new Date(at(0.1).getTime() + i * 1000).toISOString(),
+      }),
+    );
+    const w = world([reports, []]);
+    const firstRun = await checkForwarding(prodDeps(w.fetcher, at(5)));
+    expect(firstRun).toMatchObject({ state: "ok", alerted: ALERTS_PER_RUN });
+    expect(w.sends).toHaveLength(ALERTS_PER_RUN * OPERATORS.length);
+
+    // Remaining 5 clusters stay waiting and send their early alerts on the next scan.
+    const secondRun = await checkForwarding(prodDeps(w.fetcher, at(10)));
+    expect(secondRun).toMatchObject({ state: "ok", alerted: 5 });
+    expect(w.sends).toHaveLength(totalClusters * OPERATORS.length);
   });
 });

@@ -483,7 +483,7 @@ describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
       const reply = buildReply({ ...base, report: { status: "partial", failedStep, errorClass } });
       for (const body of [reply.text, reply.html]) {
         expect(body).toContain(
-          "Open the report and retry the check there, or forward the message again in a few minutes. Until it is checked, do not pay, click or reply.",
+          "Open the report, sign in if asked, and select Retry the check there, or forward the message again in a few minutes. Until it is checked, do not pay, click or reply.",
         );
       }
       expect(reply.text).toContain(URL_);
@@ -497,7 +497,7 @@ describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
     });
     for (const body of [unreadable.text, unreadable.html]) {
       expect(body).toContain("save it as .eml first");
-      expect(body).not.toContain("retry the check there");
+      expect(body).not.toContain("Retry the check there");
     }
 
     // 3. Unmendable failures (UNMENDABLE on the report: RawMissing, CorruptAudio, AudioTooLong, UnsupportedAudio)
@@ -508,7 +508,7 @@ describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
         report: { status: "partial", failedStep: "transcribe", errorClass },
       });
       for (const body of [unmendable.text, unmendable.html]) {
-        expect(body, errorClass).not.toContain("retry the check there");
+        expect(body, errorClass).not.toContain("Retry the check there");
         expect(body, errorClass).toContain("forward the message again");
       }
     }
@@ -520,7 +520,7 @@ describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
     });
     for (const body of [dayCap.text, dayCap.html]) {
       expect(body).toContain("Forward the message again tomorrow.");
-      expect(body).not.toContain("retry the check there");
+      expect(body).not.toContain("Retry the check there");
     }
     const totalCap = buildReply({
       ...base,
@@ -528,7 +528,7 @@ describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
     });
     for (const body of [totalCap.text, totalCap.html]) {
       expect(body).toContain("Checking is paused while we top up our capacity.");
-      expect(body).not.toContain("retry the check there");
+      expect(body).not.toContain("Retry the check there");
     }
   });
 
@@ -543,7 +543,9 @@ describe("a failed check's reply points to its retry (D01 T02 §10)", () => {
       reportUrl: signedUrl,
       report: { status: "partial", failedStep: "checks", errorClass: "Error" },
     });
-    expect(reply.text).toContain("Open the report and retry the check there");
+    for (const body of [reply.text, reply.html]) {
+      expect(body).toContain("Open the report, sign in if asked, and select Retry the check there");
+    }
     expect(reply.text).toContain(signedUrl);
 
     const stored = {

@@ -44,10 +44,10 @@ const CARRY = 400;
 const MAX_PENDING = 4_096;
 const REMOVED = "[removed: text written to steer an AI]";
 
-// Who an instruction is addressed to. `AI_NAMED` leaves out what also names a person ("assistant" alone, "Claude",
-// "Gemini"), for the forms that would read as ordinary mail to one (completion review: "Dear assistant, please book
-// the meeting room").
-const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security|helpful|harmless|obedient|compliant) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat\s*bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
+// Who an instruction is addressed to. `AI_NAMED` leaves out what also names a person ("assistant" alone, "helpful
+// assistant", "Claude", "Gemini"), for the forms that would read as ordinary mail to one (completion review: "Dear
+// assistant, please book the meeting room").
+const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat\s*bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
 const VERDICT = `(?:safe|legitimate|legit|genuine|clean|trusted|benign|harmless|not (?:spam|phishing|malicious|a scam|suspicious))`;
 const MESSAGE = `(?:e-?mail|message|mail|invoice|attachment|document|request|payment request)`;
 const VERB = `(?:classify|mark|label|flag|treat|rate|consider|ignore|approve|whitelist|summari[sz]e)`;
@@ -63,9 +63,12 @@ export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
       /\b(?:ignore|disregard|forget|override|bypass)\s+(?:(?:all|any|the|your|of)\s+){0,4}(?:previous|prior|earlier|above|preceding|original|system)\s+(?:instructions?|prompts?|rules|directions|guidelines|context)\b/gi,
   },
   {
+    // Role assignment: an unambiguous AI name, or an ambiguous assistant role ("helpful/harmless/obedient/compliant
+    // assistant") when paired with a persona switch ("you are now", "act as", ...) and a steering directive (`VERB`),
+    // so ordinary human-assistant mail ("You are a helpful assistant to our warehouse manager") stays unflagged.
     name: "role-for-ai",
     pattern: phrase(
-      String.raw`\b(?:from now on[, ]+)?(?:you are|you're|act as|pretend to be|role-?play as|behave as)(?:\s+now)?\s+(?:an?\s+|the\s+)?${AI_NAMED}\b`,
+      String.raw`\b(?:from now on[, ]+)?(?:you are|you're|act as|pretend to be|role-?play as|behave as)(?:\s+now)?\s+(?:an?\s+|the\s+)?${AI_NAMED}\b|\b(?:(?:from now on[, ]+)?(?:you are|you're)\s+now|(?:from now on[, ]+)?(?:act|behave|role-?play)\s+as|pretend to be)\s+(?:an?\s+|the\s+)?(?:helpful|harmless|obedient|compliant)\s+assistant(?:\s*[.!;:,]\s*(?:(?:you\s+)?(?:must|should|will|shall|always|never)\s+|(?:please\s+)?)?${VERB}\b|\s+(?:that|who|and)\s+(?:(?:must|should|always|never)\s+)?${VERB}\b)`,
     ),
   },
   {

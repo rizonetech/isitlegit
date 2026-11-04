@@ -250,7 +250,7 @@ export function failureAdvice(failedStep?: string | null, errorClass?: string | 
     return "Today's checking capacity is used up. Forward the message again tomorrow. Until it is checked, do not pay, click or reply.";
   if (budget)
     return "Checking is paused while we top up our capacity. Forward the message again later; until it is checked, do not pay, click or reply.";
-  return "Open the report and retry the check there, or forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
+  return "Open the report, sign in if asked, and select Retry the check there, or forward the message again in a few minutes. Until it is checked, do not pay, click or reply.";
 }
 
 // One forward's grouped reply (D01 T01 §12; design/SPEC.md N1's grouped variant, not drawn): one block per

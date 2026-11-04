@@ -273,13 +273,17 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
       deps.operators.length,
       deps.earlyAlert ?? true,
     );
-  if (deps.earlyAlert ?? true) await sendEarlyAlerts(deps, outcome);
-  const pending = await db
-    .prepare(
-      "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
-    )
-    .bind(ALERTS_PER_RUN)
-    .all<Incident>();
+  let remainingAlerts = ALERTS_PER_RUN;
+  if (deps.earlyAlert ?? true) remainingAlerts -= await sendEarlyAlerts(deps, outcome, remainingAlerts);
+  const pending =
+    remainingAlerts > 0
+      ? await db
+          .prepare(
+            "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
+          )
+          .bind(remainingAlerts)
+          .all<Incident>()
+      : { results: [] };
   for (const incident of pending.results) {
     const alerted = await alert(deps, incident);
     if (alerted === "sent") outcome.alerted++;
@@ -522,16 +526,42 @@ export function earlyAlertText(
 
 // Early refusal alerts (D01 T02 §15): for each waiting refusal cluster not yet settled in this scan, send one early
 // alert naming the destination domain and refusal time (no alias), deduplicated across same-scan and later-scan notices
-// of the same cluster.
-async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome): Promise<void> {
+// of the same cluster, bounded by the per-run alert budget (ALERTS_PER_RUN) with batch state reads.
+async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome, maxAlerts: number): Promise<number> {
+  if (maxAlerts <= 0 || deps.operators.length === 0) return 0;
   const db = deps.db;
   const waiting = await db
     .prepare(
       "SELECT key, subject_hash, destination_domain, occurred_at, detected_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
     )
     .all<Waiting>();
+  if (!waiting.results.length) return 0;
+  const firstOccurred = waiting.results[0]?.occurred_at ?? "";
+  const lastOccurred = waiting.results[waiting.results.length - 1]?.occurred_at ?? firstOccurred;
+  const [settledRows, earlySendRows] = await Promise.all([
+    db
+      .prepare(
+        "SELECT key, subject_hash, destination_domain, occurred_at FROM forward_incidents WHERE kind = 'refused' AND alert <> 'waiting' AND julianday(occurred_at) BETWEEN julianday(?) - ? AND julianday(?) + ?",
+      )
+      .bind(firstOccurred, NOTICE_SPREAD_MS / 86400000, lastOccurred, NOTICE_SPREAD_MS / 86400000)
+      .all<{ key: string; subject_hash: string; destination_domain: string | null; occurred_at: string }>(),
+    db
+      .prepare(
+        "SELECT send_key, status FROM mail_sends WHERE send_key >= 'forward-early:' AND send_key < 'forward-early;'",
+      )
+      .all<{ send_key: string; status: string }>(),
+  ]);
+  const earlyStatuses = new Map<string, string[]>();
+  for (const row of earlySendRows.results) {
+    const key = row.send_key.split(":")[1];
+    if (!key) continue;
+    const list = earlyStatuses.get(key);
+    if (list) list.push(row.status);
+    else earlyStatuses.set(key, [row.status]);
+  }
   const done = new Set<string>();
   const gap = (a: string, b: string) => Math.abs(Date.parse(b) - Date.parse(a));
+  const candidates: { first: Waiting; cluster: Waiting[]; earlyKey: string; tried: number }[] = [];
   for (const first of waiting.results) {
     if (done.has(first.key)) continue;
     const cluster = [first];
@@ -545,37 +575,37 @@ async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome)
     }
     for (const member of cluster) done.add(member.key);
     const last = cluster[cluster.length - 1] as Waiting;
+    const firstMs = Date.parse(first.occurred_at) - NOTICE_SPREAD_MS;
+    const lastMs = Date.parse(last.occurred_at) + NOTICE_SPREAD_MS;
     // If a sibling refusal within NOTICE_SPREAD_MS was already settled, this notice belongs to it and needs no new
     // early alert of its own.
-    const sibling = await db
-      .prepare(
-        "SELECT key FROM forward_incidents WHERE kind = 'refused' AND key <> ? AND alert <> 'waiting' AND subject_hash = ? AND destination_domain IS ? AND julianday(occurred_at) BETWEEN julianday(?) - ? AND julianday(?) + ? ORDER BY occurred_at LIMIT 1",
-      )
-      .bind(
-        first.key,
-        first.subject_hash,
-        first.destination_domain,
-        first.occurred_at,
-        NOTICE_SPREAD_MS / 86400000,
-        last.occurred_at,
-        NOTICE_SPREAD_MS / 86400000,
-      )
-      .first<{ key: string }>();
-    if (sibling) continue;
+    const hasSettledSibling = settledRows.results.some(
+      (s) =>
+        s.key !== first.key &&
+        s.subject_hash === first.subject_hash &&
+        s.destination_domain === first.destination_domain &&
+        Date.parse(s.occurred_at) >= firstMs &&
+        Date.parse(s.occurred_at) <= lastMs,
+    );
+    if (hasSettledSibling) continue;
     // Reuse any member key that already initiated an early alert in mail_sends (so an earlier-timestamped notice read
     // in a later scan shares the cluster's existing early-alert key).
     let earlyKey = first.key;
     for (const member of cluster) {
-      const existing = await db
-        .prepare("SELECT 1 FROM mail_sends WHERE send_key >= ? AND send_key < ? LIMIT 1")
-        .bind(`forward-early:${member.key}:`, `forward-early:${member.key};`)
-        .first();
-      if (existing) {
+      if (earlyStatuses.has(member.key)) {
         earlyKey = member.key;
         break;
       }
     }
-    if (deps.operators.length > 0 && (await isEarlyAlertTerminal(db, earlyKey, deps.operators.length))) continue;
+    const statuses = earlyStatuses.get(earlyKey) ?? [];
+    if (statuses.length === deps.operators.length && statuses.every((s) => s === "sent" || s === "refused")) continue;
+    candidates.push({ first, cluster, earlyKey, tried: statuses.length > 0 ? 1 : 0 });
+  }
+  // Untried clusters go before retrying ones so a failing early send cannot starve new refusals.
+  candidates.sort((a, b) => a.tried - b.tried);
+  let attempted = 0;
+  for (const { first, cluster, earlyKey } of candidates.slice(0, maxAlerts)) {
+    attempted++;
     const { subject, text } = earlyAlertText({ ...first, key: earlyKey }, cluster.length);
     const outcomes: SendOutcome[] = [];
     for (const [n, to] of deps.operators.entries())
@@ -598,15 +628,7 @@ async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome)
       );
     }
   }
-}
-
-async function isEarlyAlertTerminal(db: D1Database, key: string, operatorCount: number): Promise<boolean> {
-  const sends = await db
-    .prepare("SELECT status FROM mail_sends WHERE send_key >= ? AND send_key < ?")
-    .bind(`forward-early:${key}:`, `forward-early:${key};`)
-    .all<{ status: string }>();
-  const rows = sends.results;
-  return rows.length === operatorCount && rows.every((r) => r.status === "sent" || r.status === "refused");
+  return attempted;
 }
 
 type Incident = {

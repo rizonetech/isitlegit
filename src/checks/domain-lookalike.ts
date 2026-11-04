@@ -327,8 +327,9 @@ const DESCRIBED: Record<Technique, string> = {
   edit: "one or two characters changed",
 };
 
-// The non-exempt candidate domains the check actually compares (within MAX_COMPARED, with a comparable label).
-export function comparedDomains(view: Readonly<CaseView>): string[] {
+// The non-exempt candidate domains the check actually compares (within MAX_COMPARED, with a comparable label),
+// and how many candidate domains were skipped because they are trusted or reserved.
+export function comparedDomains(view: Readonly<CaseView>): { compared: string[]; exemptSkipped: number } {
   const exempt = new Set<string>();
   const addExempt = (domain: string) => {
     const ascii = asciiDomain(domain);
@@ -339,12 +340,16 @@ export function comparedDomains(view: Readonly<CaseView>): string[] {
   for (const d of view.tenant.trusted.suppliers) addExempt(d);
   for (const brand of view.brands.brands) for (const d of brand.domains) addExempt(d);
   const compared: string[] = [];
+  let exemptSkipped = 0;
   for (const entry of candidatesOf(view).slice(0, MAX_COMPARED)) {
-    if (exempt.has(entry.domain)) continue;
+    if (exempt.has(entry.domain)) {
+      exemptSkipped++;
+      continue;
+    }
     const candidate = split(entry.domain);
     if (candidate && comparable(candidate)) compared.push(entry.domain);
   }
-  return compared;
+  return { compared, exemptSkipped };
 }
 
 // The lookalike domains found, an overflow card's count included, and whether any domain went uncompared (D02 T01 §7;
@@ -355,9 +360,12 @@ export function lookalikeSummary(view: Readonly<CaseView>, items: readonly Evide
     .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
   const unread = items.some((i) => i.detail.compared === false);
   if (!found) {
-    const compared = comparedDomains(view);
-    if (!compared.length)
-      return unread ? "no lookalike among the domains compared, some not compared" : "no lookalike of a known name";
+    const { compared, exemptSkipped } = comparedDomains(view);
+    if (!compared.length) {
+      if (unread) return "no lookalike among the domains compared, some not compared";
+      if (exemptSkipped > 0) return "trusted or reserved domains only, none compared";
+      return "no lookalike of a known name";
+    }
     const lead = `no lookalike among ${counted(compared.length, "domain", "domains")}${unread ? " compared" : ""}, from `;
     const tail = unread ? ", some not compared" : "";
     const budget = Math.min(60, MAX_OUTCOME_SUMMARY - Array.from(lead).length - Array.from(tail).length);

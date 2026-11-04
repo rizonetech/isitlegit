@@ -659,7 +659,11 @@ describe("lookalike clean summary names the domains compared (D02 T03 §12)", ()
 
     // Exempt-only and zero-comparison cases (OWN is fynbosfreight.co.za in view()).
     const exemptOnly = view([h("From", "billing@fynbosfreight.co.za")]);
-    expect(lookalikeSummary(exemptOnly, lookalikeEvidence(exemptOnly))).toBe("no lookalike of a known name");
+    expect(lookalikeSummary(exemptOnly, lookalikeEvidence(exemptOnly))).toBe(
+      "trusted or reserved domains only, none compared",
+    );
+    const noCandidates = untrustedView([]);
+    expect(lookalikeSummary(noCandidates, lookalikeEvidence(noCandidates))).toBe("no lookalike of a known name");
     const uncomparedOnly = untrustedView([h("From", "x@\u05d0\u05d1\u05d2\u05d3.co.za")]);
     expect(lookalikeSummary(uncomparedOnly, lookalikeEvidence(uncomparedOnly))).toBe(
       "no lookalike among the domains compared, some not compared",
