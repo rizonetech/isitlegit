@@ -3,10 +3,17 @@
 // run stated as its own outcome, and no full account number anywhere in the evidence.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { fixedActionsFor } from "../../src/agent/loop";
+import { ruleVerdict } from "../../src/agent/rule-verdict";
+import type { Evidence } from "../../src/checks/evidence";
+import { ulid } from "../../src/db/ulid";
+import { putVisible, type Store, visibleKey } from "../../src/intake/store";
+import { bankChangeAction, fixedActionOf } from "../../src/invoice/fixed-actions";
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
-import { invoiceRules, type Reading } from "../../src/invoice/rules";
+import { invoiceRules, type Reading, visibleTextOf } from "../../src/invoice/rules";
 import { InvoiceFields } from "../../src/invoice/schema";
-import { addAccount, bankKeys } from "../../src/trust/bank";
+import { buildReply } from "../../src/mail/reply";
+import { addAccount, bankKeys, MATCHES_PER_HOUR, matchBankAccount } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
 import LABELS from "../fixtures/invoices/labels.json";
 import { invoicePdfs } from "../fixtures/invoices/load";
@@ -97,6 +104,31 @@ describe("the bank-change rules", () => {
     });
     expect(JSON.stringify(items)).not.toContain(TAMPERED);
     expect(items[0]?.summary).toContain("phoning the supplier");
+    const evidence: Evidence[] = items.map((item, idx) => ({ id: `E${idx + 1}`, ...item }));
+    const actions = fixedActionsFor(evidence);
+    expect(actions).toEqual([bankChangeAction("+27 21 555 0100")]);
+    expect(fixedActionOf(actions[0] ?? "")).toBe("bank-change");
+    const rules = ruleVerdict(evidence, { headersAvailable: true });
+    const reply = buildReply({
+      parentSubject: "Fwd: Invoice INV-1042",
+      headersAvailable: true,
+      otherOriginals: 0,
+      reportUrl: "https://isitlegit.test/r/01HZRULESCASE00000000000A?o=org&e=1&s=sig",
+      design: { appUrl: "https://isitlegit.test", evidence },
+      report: {
+        status: "ready",
+        view: {
+          ...rules,
+          actions: [...actions, ...rules.actions.filter((a) => !actions.includes(a))],
+          meaning: null,
+          source: "rules",
+          floorApplied: null,
+          ablated: null,
+        },
+      },
+    });
+    expect(reply.text).toContain(bankChangeAction("+27 21 555 0100"));
+    expect(reply.html).toContain("+27 21 555 0100");
   });
 
   it("resolves the supplier by domain when the printed name differs from the ledger's", async () => {
@@ -116,6 +148,80 @@ describe("the bank-change rules", () => {
     expect(language.map((i) => i.check)).toEqual(["invoice.change_language"]);
     const afrikaans = await run(org, [reading()], "Neem kennis: nuwe bankbesonderhede volg.");
     expect(afrikaans.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    // Negated statements, fraud-warning footers, and non-banking account updates do not trigger change-language.
+    expect(await run(org, [reading()], "Please note we have not changed banks this year.")).toEqual([]);
+    expect(
+      await run(org, [reading()], "Warning: never accept new banking details by email without calling us."),
+    ).toEqual([]);
+    expect(await run(org, [reading()], "Ons het nie nuwe bankbesonderhede nie.")).toEqual([]);
+    expect(await run(org, [reading()], "We have updated account contact information.")).toEqual([]);
+    // An affirmative bank-change request paired with a negation of the old account, "change of bank", or fraud context still triggers.
+    const withOldAccountNegation = await run(
+      org,
+      [reading()],
+      "Please use our new banking details and do not use the old account.",
+    );
+    expect(withOldAccountNegation.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    const changeOfBank = await run(org, [reading()], "Please note our change of bank effective today.");
+    expect(changeOfBank.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    const preventFraud = await run(org, [reading()], "To prevent fraud please use our new banking details.");
+    expect(preventFraud.map((i) => i.check)).toEqual(["invoice.change_language"]);
+    // Linear-time boundary check over large body text with repeated negated phrases.
+    const t0 = performance.now();
+    expect(await run(org, [reading()], `${"a".repeat(100_000)}. never accept new banking details`)).toEqual([]);
+    expect(performance.now() - t0).toBeLessThan(200);
+  });
+
+  it("binds change-language findings to invoice attachments and each invoice's own supplier", async () => {
+    const org = await makeOrg();
+    const karoo = await ledgerSupplier(org);
+    const { id: hadeda } = await addSupplier(db, org, "owner", {
+      name: "Hadeda Couriers",
+      domains: ["hadeda.example"],
+      phone: "+27 11 555 0199",
+      notes: null,
+    });
+    await addSupplierAccount(db, await keys(), org, "owner", hadeda, {
+      number: "62004417731",
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Hadeda Couriers (Pty) Ltd",
+    });
+    // Non-invoice-only mail receives no invoice change-language finding.
+    const nonInvoice = reading({ is_invoice: false }, "cases/c/brochure.pdf");
+    expect(await run(org, [nonInvoice], "Please note we have new banking details.")).toEqual([]);
+    // Non-invoice first attachment followed by an invoice attributes the finding to the invoice and its supplier.
+    const mixed = await run(
+      org,
+      [nonInvoice, reading({}, "cases/c/karoo.pdf")],
+      "Please note we have new banking details.",
+    );
+    expect(mixed).toHaveLength(1);
+    expect(mixed[0]).toMatchObject({
+      check: "invoice.change_language",
+      artefacts: ["cases/c/karoo.pdf"],
+      detail: { attachment: "cases/c/karoo.pdf", supplier_id: karoo, phone: "+27 21 555 0100" },
+    });
+    // Two invoice attachments from different suppliers bind each finding to its own document, supplier and phone.
+    const twoInvoices = await run(
+      org,
+      [
+        reading({}, "cases/c/karoo.pdf"),
+        reading(
+          {
+            supplier_name: "Hadeda Couriers",
+            supplier_domain: "hadeda.example",
+            account_number: "62004417731",
+          },
+          "cases/c/hadeda.pdf",
+        ),
+      ],
+      "Please note we have new banking details.",
+    );
+    expect(twoInvoices.map((i) => [i.detail.attachment, i.detail.supplier_id, i.detail.phone])).toEqual([
+      ["cases/c/karoo.pdf", karoo, "+27 21 555 0100"],
+      ["cases/c/hadeda.pdf", hadeda, "+27 11 555 0199"],
+    ]);
   });
 
   it("runs the domain and language rules for an invoice with no usable account", async () => {
@@ -129,18 +235,40 @@ describe("the bank-change rules", () => {
     expect(items.map((i) => i.check).sort()).toEqual(["invoice.change_language", "invoice.supplier_domain_changed"]);
   });
 
-  it("states a comparison that cannot run, never as a mismatch", async () => {
+  it("states a comparison that cannot run across all refusal kinds with plain member-facing summaries", async () => {
     const org = await makeOrg();
     await ledgerSupplier(org, false);
-    const items = await run(org, [reading()]);
-    expect(items.map((i) => [i.check, i.detail.reason, i.detail.comparison])).toEqual([
+    const noBaseline = await run(org, [reading()]);
+    expect(noBaseline.map((i) => [i.check, i.detail.reason, i.detail.comparison])).toEqual([
       ["invoice.comparison_unavailable", "no-baseline", "ledger"],
     ]);
-  });
+    expect(noBaseline[0]?.summary).toContain("no recorded account is on file");
+    expect(noBaseline[0]?.summary).not.toContain("no-baseline");
 
-  it("compares against the registry for a protected supplier and carries the closed-loop trigger", async () => {
-    const org = await makeOrg();
-    const supplierId = await ledgerSupplier(org);
+    // Ambiguous supplier in the ledger: two suppliers share the same domain.
+    const orgAmbiguous = await makeOrg();
+    await addSupplier(db, orgAmbiguous, "owner", {
+      name: "Karoo North",
+      domains: ["karooparts.co.za"],
+      phone: null,
+      notes: null,
+    });
+    await addSupplier(db, orgAmbiguous, "owner", {
+      name: "Karoo South",
+      domains: ["karooparts.co.za"],
+      phone: null,
+      notes: null,
+    });
+    const ambiguous = await run(orgAmbiguous, [reading({ supplier_name: "Karoo Group" })]);
+    expect(ambiguous.map((i) => [i.check, i.detail.reason, i.detail.comparison])).toEqual([
+      ["invoice.comparison_unavailable", "supplier-ambiguous", "ledger"],
+    ]);
+    expect(ambiguous[0]?.summary).toContain("more than one supplier record fits");
+    expect(ambiguous[0]?.summary).not.toContain("supplier-ambiguous");
+
+    // Key mismatch on ledger and registry comparisons, plus registry rate-limiting.
+    const orgKeys = await makeOrg();
+    await ledgerSupplier(orgKeys, true);
     const protectedOrg = await protectableOrg("karooparts.co.za", "money@karooparts.co.za");
     await setIdentity(db, protectedOrg, "owner", {
       displayNames: ["Karoo Parts"],
@@ -153,31 +281,129 @@ describe("the bank-change rules", () => {
       bankName: "Kestrel Bank (fictional)",
       holder: "Karoo Parts (Pty) Ltd",
     });
-    // The ledger holds the tampered number too, so only the registry can disagree.
-    const items = await invoiceRules(
-      { db, keys: await keys() },
+    const otherKeys = await bankKeys({
+      BANK_KEY: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
+      BANK_MATCH_KEY: btoa(String.fromCharCode(...new Uint8Array(32).fill(8))),
+    });
+    const keyRefused = await invoiceRules(
+      { db, keys: otherKeys },
       {
-        caseId: "01HZRULESCASE00000000000A",
-        orgId: org,
-        readings: [
-          {
-            artefactKey: "cases/c/invoice.pdf",
-            fields: fields({ account_number: TAMPERED }),
-            account: { number: TAMPERED, branchCode: "250655" },
-          },
-        ],
+        caseId: "01HZRULESCASE00000000000B",
+        orgId: orgKeys,
+        readings: [reading()],
         visibleText: "Invoice attached.",
       },
     );
-    const registry = items.filter((i) => i.detail.against === "registry");
-    expect(registry.map((i) => i.check)).toEqual(["invoice.bank_changed"]);
-    expect(registry[0]?.detail).toMatchObject({
+    expect(keyRefused.map((i) => [i.check, i.detail.reason, i.detail.comparison])).toEqual([
+      ["invoice.comparison_unavailable", "keys", "ledger"],
+      ["invoice.comparison_unavailable", "keys", "registry"],
+    ]);
+    expect(keyRefused[0]?.summary).not.toContain("(keys)");
+
+    // Exhaust the hourly registry rate limit for orgKeys and verify rate-limited is stated on the registry comparison.
+    for (let i = 0; i < MATCHES_PER_HOUR; i++) {
+      await matchBankAccount(db, await keys(), { orgId: orgKeys }, protectedOrg, {
+        number: NUMBER,
+        branchCode: "250655",
+      });
+    }
+    const rateLimited = await run(orgKeys, [reading()]);
+    expect(rateLimited.map((i) => [i.check, i.detail.reason, i.detail.comparison])).toEqual([
+      ["invoice.comparison_unavailable", "rate-limited", "registry"],
+    ]);
+    expect(rateLimited[0]?.summary).toContain("hourly limit");
+    expect(rateLimited[0]?.summary).not.toContain("rate-limited");
+  });
+
+  it("propagates identity and visible-text storage failures instead of silently dropping coverage", async () => {
+    const org = await makeOrg();
+    const protectedOrg = await protectableOrg("karooparts.co.za", "money@karooparts.co.za");
+    await setIdentity(db, protectedOrg, "owner", {
+      displayNames: ["Karoo Parts"],
+      financeContact: "money@karooparts.co.za",
+      protected: true,
+    });
+    const failingIdentityDb = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "prepare") {
+          return (sql: string) => {
+            if (sql.includes("FROM identities")) {
+              throw new Error("identities table unavailable");
+            }
+            return target.prepare(sql);
+          };
+        }
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(
+      invoiceRules(
+        { db: failingIdentityDb, keys: await keys() },
+        {
+          caseId: "01HZRULESCASE00000000000I",
+          orgId: org,
+          readings: [reading({ account_number: TAMPERED })],
+          visibleText: "Invoice attached.",
+        },
+      ),
+    ).rejects.toThrow(/identities table unavailable/);
+
+    const store: Store = { db, bucket: env.ARTEFACTS };
+    const caseId = ulid();
+    await db
+      .prepare(
+        "INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'running', '2026-11-02T00:00:00Z', '2026-11-02T00:00:00Z')",
+      )
+      .bind(caseId, org)
+      .run();
+    await putVisible(store, caseId, "Please note we have new banking details.");
+    await env.ARTEFACTS.delete(visibleKey(caseId));
+    await expect(visibleTextOf(store, caseId)).rejects.toThrow(/missing from storage/);
+  });
+
+  it("compares against the registry and ledger independently in both mismatch directions and carries the closed-loop trigger", async () => {
+    const org = await makeOrg();
+    const supplierId = await ledgerSupplier(org, false);
+    // Seed the ledger with TAMPERED so when the invoice carries TAMPERED, the ledger matches while the registry mismatches.
+    await addSupplierAccount(db, await keys(), org, "owner", supplierId, {
+      number: TAMPERED,
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Karoo Parts (Pty) Ltd",
+    });
+    const protectedOrg = await protectableOrg("karooparts.co.za", "money@karooparts.co.za");
+    await setIdentity(db, protectedOrg, "owner", {
+      displayNames: ["Karoo Parts"],
+      financeContact: "money@karooparts.co.za",
+      protected: true,
+    });
+    await addAccount(db, await keys(), protectedOrg, "owner", {
+      number: NUMBER,
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Karoo Parts (Pty) Ltd",
+    });
+    const registryOnly = await run(org, [reading({ account_number: TAMPERED })]);
+    expect(registryOnly.map((i) => [i.check, i.detail.against])).toEqual([["invoice.bank_changed", "registry"]]);
+    expect(registryOnly[0]?.detail).toMatchObject({
       protected_org_id: protectedOrg,
       registry_match: false,
       supplier_id: supplierId,
     });
-    expect(JSON.stringify(items)).not.toContain(TAMPERED);
-    // The genuine number matches both baselines: no finding at all.
+    expect(JSON.stringify(registryOnly)).not.toContain(TAMPERED);
+
+    // Opposite direction: invoice carries NUMBER (matches registry, mismatches ledger's TAMPERED).
+    const ledgerOnly = await run(org, [reading({ account_number: NUMBER })]);
+    expect(ledgerOnly.map((i) => [i.check, i.detail.against])).toEqual([["invoice.bank_changed", "ledger"]]);
+
+    // When the ledger also has NUMBER, the genuine number matches both baselines: no finding at all.
+    await addSupplierAccount(db, await keys(), org, "owner", supplierId, {
+      number: NUMBER,
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Karoo Parts (Pty) Ltd",
+    });
     expect(await run(org, [reading()])).toEqual([]);
   });
 

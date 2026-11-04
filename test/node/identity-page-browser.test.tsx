@@ -277,7 +277,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
               el.getAttribute("title") ||
               ""
             ).trim();
-            return { name, inMain: !!el.closest("main"), outline: getComputedStyle(el).outlineStyle };
+            const s = getComputedStyle(el);
+            const isField =
+              el.tagName === "TEXTAREA" ||
+              el.tagName === "SELECT" ||
+              (el.tagName === "INPUT" &&
+                !["checkbox", "radio", "file", "button", "submit"].includes((el as HTMLInputElement).type));
+            return {
+              name,
+              inMain: !!el.closest("main"),
+              outline: isField ? `${s.borderTopStyle} ${s.borderTopColor}` : s.outlineStyle,
+            };
           });
           if (!here) continue;
           if (here.inMain) {

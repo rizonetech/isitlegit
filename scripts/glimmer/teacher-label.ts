@@ -419,7 +419,12 @@ export function candidates(
       for (const queue of queues) if (queue[i]) out.push(queue[i] as StoredPage);
     return out;
   };
-  return [...interleave(ordered.filter((p) => p.south_africa)), ...interleave(ordered.filter((p) => !p.south_africa))];
+  const sa = ordered.filter((p) => p.south_africa);
+  return [
+    ...interleave(sa.filter((p) => p.origin === "samples")),
+    ...interleave(sa.filter((p) => p.origin !== "samples")),
+    ...interleave(ordered.filter((p) => !p.south_africa)),
+  ];
 }
 
 export type TeacherResult = {
@@ -491,7 +496,7 @@ export async function teach(options: {
     damaged: [],
   };
   // Once the collection is frozen (§18), only its pages can enter the version, so only they are worth a check (§10).
-  const frozenFile = freezeFile(store.dir);
+  const frozenFile = existsSync(freezeFile(store.dir, "1.1")) ? freezeFile(store.dir, "1.1") : freezeFile(store.dir);
   const frozen = existsSync(frozenFile)
     ? new Set((JSON.parse(readFileSync(frozenFile, "utf-8")) as { pages: string[] }).pages)
     : null;

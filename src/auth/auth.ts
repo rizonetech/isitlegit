@@ -18,6 +18,7 @@
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "better-auth/api";
 import { ConfigError } from "../config";
+import { seedJudgePack } from "../demo/judges";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { inviteEmail, signinEmail } from "../mail/templates/auth-mail";
@@ -47,6 +48,9 @@ export type AuthEnv = {
   APP_URL: string;
   SMTP2GO_API_KEY?: string;
   OPERATOR_EMAIL?: string;
+  ARTEFACTS?: R2Bucket;
+  ANALYSIS?: Env["ANALYSIS"];
+  FIXTURES_PREFIX?: string;
 };
 
 const encoder = new TextEncoder();
@@ -175,7 +179,26 @@ export function authOptions(
     ...schema,
     // Invite-code signup (D07 T02 §4, src/auth/signup.ts) beside the table-shaping plugins; it adds no table of Better
     // Auth's own (its tables are migration 0013).
-    plugins: [...schema.plugins, inviteSignup(() => mail().db, sendFirstLink)],
+    plugins: [
+      ...schema.plugins,
+      inviteSignup(
+        () => mail().db,
+        sendFirstLink,
+        env.ARTEFACTS && env.ANALYSIS
+          ? (orgId, userId) =>
+              seedJudgePack(
+                {
+                  DB: mail().db,
+                  ARTEFACTS: env.ARTEFACTS as R2Bucket,
+                  ANALYSIS: env.ANALYSIS as Env["ANALYSIS"],
+                  ...(env.FIXTURES_PREFIX ? { FIXTURES_PREFIX: env.FIXTURES_PREFIX } : {}),
+                },
+                orgId,
+                userId,
+              ).then(() => {})
+          : undefined,
+      ),
+    ],
     // Every user creation passes here with its source: the signup endpoint (`admin`) has redeemed a code; a magic link
     // makes an account only for a pending invitee, a demo alias or the operator (the addresses the recipient
     // allowlist admits for sign-in mail, D01 T02 §2, less members, who already have one). Nothing else makes one.

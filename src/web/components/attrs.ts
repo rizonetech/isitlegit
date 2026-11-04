@@ -18,12 +18,22 @@ export function passThrough(props: Record<string, unknown>, disabled = false): P
 export const isDisabled = (props: Record<string, unknown>) =>
   props.disabled === true || props["aria-disabled"] === true || props["aria-disabled"] === "true";
 
-// The focus indicator of every control: a solid 2 px outline 2 px outside it in `orange-text`, 4.7:1 or more against
-// every background the boards place controls on, in both themes (a SPEC deviation, design/SPEC.md 1).
+// The focus indicator of controls without a recolourable border of their own (buttons, links, checkboxes, radios, file
+// inputs and disclosures): a solid 2 px outline 2 px outside the control in `orange-text`, 4.74:1 or more against every
+// background the boards place controls on, in both themes (a SPEC deviation, design/SPEC.md 1).
 export const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
 // The same ring on the dark admin sidebar, where `orange-text` measures 3.41:1 and `orange-on-dark` 6.17:1 or more.
 export const FOCUS_ON_DARK =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-on-dark";
+
+// One-border focus for text-like controls (`input`, `textarea`, `select`, D07 T01 §16; design/SPEC.md 1): the 1 px
+// border switches to `orange-text` (`orange-on-dark` on dark surfaces) on `:focus` and `:focus-visible` with no
+// separate outline ring in normal colour mode, and a 2 px outline restored under operating-system forced colours. An
+// invalid control shows `mal` at rest and switches to the focus colour while focused so focus entry is visible.
+export const FIELD_FOCUS =
+  "aria-invalid:border-mal focus:outline-none focus-visible:outline-none focus:border-orange-text focus-visible:border-orange-text aria-invalid:focus:border-orange-text aria-invalid:focus-visible:border-orange-text forced-colors:focus:outline-solid forced-colors:focus:outline-2 forced-colors:focus:outline-offset-2 forced-colors:focus-visible:outline-solid forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-offset-2";
+export const FIELD_FOCUS_ON_DARK =
+  "aria-invalid:border-mal focus:outline-none focus-visible:outline-none focus:border-orange-on-dark focus-visible:border-orange-on-dark aria-invalid:focus:border-orange-on-dark aria-invalid:focus-visible:border-orange-on-dark forced-colors:focus:outline-solid forced-colors:focus:outline-2 forced-colors:focus:outline-offset-2 forced-colors:focus-visible:outline-solid forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-offset-2";
 
 // A string with something in it, or undefined: a blank name is no name.
 export const nonBlank = (value: unknown) => (typeof value === "string" && value.trim() ? value : undefined);

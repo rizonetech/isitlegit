@@ -9,7 +9,7 @@
 // findings, and a sibling attachment's failure suppresses nothing here.
 import { hasFeature } from "../auth/plans";
 import type { EvidenceDraft } from "../checks/evidence";
-import { readVisible, type Store } from "../intake/store";
+import { readArtefact, type Store, visibleKey } from "../intake/store";
 import { type BankKeys, matchBankAccount } from "../trust/bank";
 import { IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "../trust/errors";
 import { getIdentity } from "../trust/identity";
@@ -28,11 +28,14 @@ export type RulesDeps = { db: D1Database; keys: BankKeys };
 
 const CHANGE_PHRASES = [
   "new banking details",
+  "new bank details",
   "changed banks",
   "changed bank",
   "change of bank",
   "new bank account",
-  "updated account",
+  "updated bank account",
+  "updated banking details",
+  "updated bank details",
   "bank details have changed",
   "banking details have changed",
   "nuwe bankbesonderhede",
@@ -40,10 +43,59 @@ const CHANGE_PHRASES = [
   "nuwe bankrekening",
 ];
 
+const DIRECT_NEGATION_BEFORE =
+  /(?:^|\s)(?:not|never|no|haven't|hasn't|don't|do\s+not|cannot|can't|will\s+not|won't|would\s+not|nie|nooit|moenie|geen)(?:\s+(?:accept|trust|use|pay|follow|act\s+on|rely\s+on|send|request|issue|notify\s+of|have|had|made|announced|aanvaar|gebruik|betaal|stuur|vra|hê|gehad))?(?:\s+(?:any|our|their|the|a|an|enige|ons|die))?\s*$/u;
+
+const DIRECT_NEGATION_AFTER =
+  /^\s+(?:are|is|were|was|will|would|should|can|could|must|may|have|has|het|sal|moet)\s+(?:not|never|no|unchanged|nie|nooit|onveranderd)\b/u;
+
+const SENTENCE_DELIMITERS = ".!?;:\r\n";
+
+export function hasBankChangeLanguage(visibleText: string | null): boolean {
+  if (!visibleText) return false;
+  const text = visibleText.toLowerCase();
+  for (const phrase of CHANGE_PHRASES) {
+    let from = 0;
+    while (from < text.length) {
+      const idx = text.indexOf(phrase, from);
+      if (idx === -1) break;
+      const windowStart = Math.max(0, idx - 80);
+      let sentenceStart = windowStart;
+      for (let i = idx - 1; i >= windowStart; i--) {
+        if (SENTENCE_DELIMITERS.includes(text[i] ?? "")) {
+          sentenceStart = i + 1;
+          break;
+        }
+      }
+      const before = text.slice(sentenceStart, idx);
+      const after = text.slice(idx + phrase.length, idx + phrase.length + 40);
+      if (!DIRECT_NEGATION_BEFORE.test(before) && !DIRECT_NEGATION_AFTER.test(after)) {
+        return true;
+      }
+      from = idx + phrase.length;
+    }
+  }
+  return false;
+}
+
+function unavailableSummary(reason: string, comparison: string): string {
+  const source = comparison === "registry" ? "registered-account" : "supplier-ledger";
+  if (reason === "no-baseline") {
+    return `The ${source} bank comparison could not run because no recorded account is on file yet; confirm payment details by phoning the supplier on a known number.`;
+  }
+  if (reason === "supplier-ambiguous") {
+    return `The ${source} bank comparison could not run because more than one supplier record fits; confirm payment details by phoning the supplier on a known number.`;
+  }
+  if (reason === "rate-limited") {
+    return `The ${source} bank comparison is temporarily at its hourly limit and could not run; confirm payment details by phoning the supplier on a known number.`;
+  }
+  return `The ${source} bank comparison could not be read right now; confirm payment details by phoning the supplier on a known number.`;
+}
+
 const unavailable = (reason: string, comparison: string, artefactKey: string): EvidenceDraft => ({
   check: "invoice.comparison_unavailable",
   severity: "info",
-  summary: `A bank comparison could not run (${reason})`.slice(0, 200),
+  summary: unavailableSummary(reason, comparison).slice(0, 200),
   detail: { checked: false, reason, comparison, attachment: artefactKey },
   artefacts: [artefactKey],
 });
@@ -67,7 +119,7 @@ async function protectedOrgOf(db: D1Database, caseOrgId: string, domain: string 
     .all<{ org_id: string }>();
   for (const r of rows.results) {
     if (r.org_id === caseOrgId) continue;
-    const identity = await getIdentity(db, r.org_id).catch(() => null);
+    const identity = await getIdentity(db, r.org_id);
     if (identity?.effective.on) return r.org_id;
   }
   return null;
@@ -80,9 +132,8 @@ export async function invoiceRules(
   const { db, keys } = deps;
   if (!(await hasFeature(db, input.orgId, "bank-change"))) return [];
   const items: EvidenceDraft[] = [];
-  const visible = input.visibleText?.toLowerCase() ?? null;
-  const languageHit = visible !== null && CHANGE_PHRASES.some((p) => visible.includes(p));
-  let firstSupplier: Supplier | null = null;
+  const languageHit = hasBankChangeLanguage(input.visibleText);
+  const invoiceReadings: { reading: Reading; supplier: Supplier | null }[] = [];
   for (const reading of input.readings) {
     const { fields, account, artefactKey } = reading;
     if (!fields.is_invoice) continue;
@@ -105,7 +156,7 @@ export async function invoiceRules(
       if (reason === null) throw error;
       items.push(unavailable(reason, "ledger", artefactKey));
     }
-    if (supplier && !firstSupplier) firstSupplier = supplier;
+    invoiceReadings.push({ reading, supplier });
     if (supplier && account) {
       try {
         const { match } = await matchSupplierAccount(db, keys, input.orgId, supplier.id, account);
@@ -183,31 +234,35 @@ export async function invoiceRules(
       }
     }
   }
-  if (languageHit && input.readings.length > 0) {
-    const first = input.readings[0] as Reading;
-    items.push({
-      check: "invoice.change_language",
-      severity: "critical",
-      summary:
-        "This message says the supplier's bank details have changed. Confirm by phoning the supplier on the number in your records, never one from this email.".slice(
-          0,
-          200,
-        ),
-      detail: {
-        attachment: first.artefactKey,
-        amount_cents: first.fields.amount_cents,
-        currency: first.fields.currency,
-        account_last3: first.account ? first.account.number.slice(-3) : null,
-        supplier_id: firstSupplier?.id ?? null,
-        phone: firstSupplier?.phone ?? null,
-      },
-      artefacts: [first.artefactKey],
-    });
+  if (languageHit) {
+    for (const { reading, supplier } of invoiceReadings) {
+      items.push({
+        check: "invoice.change_language",
+        severity: "critical",
+        summary:
+          "This message says the supplier's bank details have changed. Confirm by phoning the supplier on the number in your records, never one from this email.".slice(
+            0,
+            200,
+          ),
+        detail: {
+          attachment: reading.artefactKey,
+          amount_cents: reading.fields.amount_cents,
+          currency: reading.fields.currency,
+          account_last3: reading.account ? reading.account.number.slice(-3) : null,
+          supplier_id: supplier?.id ?? null,
+          phone: supplier?.phone ?? null,
+        },
+        artefacts: [reading.artefactKey],
+      });
+    }
   }
   return items;
 }
 
 // The case's visible text, for the language rule: what the member read, never a model's summary.
 export async function visibleTextOf(store: Store, caseId: string): Promise<string | null> {
-  return readVisible(store, caseId).catch(() => null);
+  const read = await readArtefact(store, caseId, visibleKey(caseId));
+  if (!read) return null;
+  if ("missing" in read) throw new Error(`visible text artefact ${visibleKey(caseId)} is missing from storage`);
+  return new TextDecoder().decode(read.body);
 }

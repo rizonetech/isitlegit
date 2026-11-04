@@ -716,7 +716,45 @@ def main(argv=None, now=None):
             chosen_tokens = check_resume(run_dir, dataset_sha, train_file)["tokens"]
             check_cap_left(run_dir, cap, chosen_tokens)
         elif not args.measure:
-            tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
+            import training.renderer.muse_glimmer as _mg
+            orig_itc = getattr(_mg, "image_to_chunk", None)
+            orig_enc = getattr(renderer, "_encode", None)
+            if orig_itc is not None:
+                import base64 as _b64, io as _io
+                from PIL import Image as _Image
+                from fireworks.training import sdk as _sdk
+                def _fast_itc(image_or_str, image_processor):
+                    if isinstance(image_or_str, str) and image_or_str.startswith("data:image/") and hasattr(
+                            image_processor, "get_number_of_image_patches"):
+                        b64 = image_or_str.split(",", 1)[1]
+                        try:
+                            with _Image.open(_io.BytesIO(_b64.b64decode(b64[:4096]))) as im:
+                                w, h = im.size
+                        except Exception:
+                            with _Image.open(_io.BytesIO(_b64.b64decode(b64))) as im:
+                                w, h = im.size
+                        tok = image_processor.get_number_of_image_patches(h, w, images_kwargs={}) // image_processor.merge_size**2
+                        return _sdk.types.ImageChunk(data=b"x", format="jpeg", expected_tokens=tok)
+                    return orig_itc(image_or_str, image_processor)
+                _mg.image_to_chunk = _fast_itc
+            if orig_enc is not None:
+                _enc_cache = {}
+                def _cached_enc(text):
+                    if len(text) < 2048:
+                        res = _enc_cache.get(text)
+                        if res is None:
+                            res = orig_enc(text)
+                            _enc_cache[text] = res
+                        return res
+                    return orig_enc(text)
+                renderer._encode = _cached_enc
+            try:
+                tokens = [line_tokens(line, renderer, TrainOnWhat.LAST_ASSISTANT_MESSAGE) for line in iter_lines(train_file)]
+            finally:
+                if orig_itc is not None:
+                    _mg.image_to_chunk = orig_itc
+                if orig_enc is not None:
+                    renderer._encode = orig_enc
             groups = read_groups(train_file, len(tokens))
             chosen = choose(groups, tokens, now, args.lines_per_second, cap, args.seed)
             if not chosen:

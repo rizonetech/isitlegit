@@ -3,6 +3,7 @@ import { Button, type ButtonVariant } from "../../src/web/components/Button";
 import { Checkbox } from "../../src/web/components/Checkbox";
 import { Field } from "../../src/web/components/Field";
 import { Pill, type PillVariant } from "../../src/web/components/Pill";
+import { Select } from "../../src/web/components/Select";
 
 // The shared controls (D07 T01 §6) render the board's structure with token classes, refuse what the SPEC forbids, and
 // pass through the attributes forms and htmx need. Browser behaviour (focus, keyboard, hover, submission) is
@@ -306,6 +307,94 @@ describe("Field", () => {
     const ids = [...markup.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).toEqual(["first-hint", "first", "first-error", "second-hint", "second", "second-error"]);
+  });
+
+  it("uses one-border focus with forced-colours outline fallback on both input and textarea", () => {
+    const input = tag(html(<Field id="email" name="email" label="Email" />), "input");
+    const textarea = tag(html(<Field id="notes" name="notes" label="Notes" rows={3} />), "textarea");
+    for (const control of [input, textarea]) {
+      for (const cls of [
+        "focus:outline-none",
+        "focus-visible:outline-none",
+        "focus:border-orange-text",
+        "focus-visible:border-orange-text",
+        "aria-invalid:border-mal",
+        "aria-invalid:focus:border-orange-text",
+        "aria-invalid:focus-visible:border-orange-text",
+        "forced-colors:focus:outline-solid",
+        "forced-colors:focus:outline-2",
+        "forced-colors:focus:outline-offset-2",
+      ])
+        expect(control).toContain(cls);
+    }
+  });
+});
+
+describe("Select", () => {
+  it("renders a native select with appearance-none, one-border focus and an inset ChevronIcon inside a relative wrapper", () => {
+    const markup = html(
+      <Select
+        id="verdict"
+        name="verdict"
+        class="w-auto"
+        required
+        form="filter-form"
+        aria-label="Verdict"
+        data-filter="v"
+        hx-get="/cases"
+      >
+        <option value="">All verdicts</option>
+        <option value="malicious">Malicious</option>
+      </Select>,
+    );
+    expect(markup.startsWith('<span class="relative inline-flex items-center max-w-full min-w-0 w-auto">')).toBe(true);
+    const select = tag(markup, "select");
+    for (const part of [
+      'id="verdict"',
+      'name="verdict"',
+      "required",
+      'form="filter-form"',
+      'aria-label="Verdict"',
+      'data-filter="v"',
+      'hx-get="/cases"',
+      "appearance-none",
+      "pl-16 pr-40",
+      "w-full",
+      "focus:outline-none",
+      "focus-visible:outline-none",
+      "focus:border-orange-text",
+      "focus-visible:border-orange-text",
+      "forced-colors:focus:outline-solid",
+    ])
+      expect(select).toContain(part);
+    const svg = tag(markup, "svg");
+    expect(svg).toContain('aria-hidden="true"');
+    expect(svg).toContain(
+      "pointer-events-none absolute right-12 top-1/2 -translate-y-1/2 text-muted peer-disabled:opacity-50",
+    );
+  });
+
+  it("disables the select, dims the chevron via peer-disabled, and drops htmx attributes in both spellings", () => {
+    const off = tag(
+      html(
+        <Select id="role" name="role" disabled hx-post="/role" data-hx-get="/role">
+          <option value="owner">Owner</option>
+        </Select>,
+      ),
+      "select",
+    );
+    expect(off).toMatch(/\sdisabled[\s=>]/);
+    expect(off).not.toMatch(/\s(data-)?hx-/);
+    const ariaOff = tag(
+      html(
+        <Select id="role2" name="role2" aria-disabled="true" hx-post="/role">
+          <option value="owner">Owner</option>
+        </Select>,
+      ),
+      "select",
+    );
+    expect(ariaOff).toMatch(/\sdisabled[\s=>]/);
+    expect(ariaOff).not.toMatch(/\shx-/);
   });
 });
 
