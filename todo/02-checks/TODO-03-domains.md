@@ -171,13 +171,15 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 
 > **Started:** 2026-11-04T15:20:15Z
 
-**Coordinator correction 2026-11-04:** All benign names are fictional synthetic businesses, never real client names. Keep the UTS #39 skeleton and all existing domain eligibility, trust exclusions, severity and evidence rules unchanged. Compare normalized eligible labels, retain the right-to-left exclusion owned by §6, and use exact accent-folded equality rather than increasing edit-distance tolerance. Measure the existing techniques, folding equality and folding plus skeleton on the same committed positive and benign populations against a separately implemented, source-digest-pinned UTS #39 reference comparator reading the vendored Unicode table. Record comparator scope and limitations honestly. Test Unicode, decomposed and A-label forms, target accents, unchanged and invalid labels, and full check evidence with no benign matches. The coordinator owns the shared DATASETS.md entry, requested as an exact hunk.
+**Plan clarification 2026-11-04 (including the coordinator synthetic-data correction):** All benign names are fictional synthetic businesses, never real client names. Keep the UTS #39 skeleton and all existing domain eligibility, trust exclusions, severity and evidence rules unchanged. Compare normalized eligible labels, retain the right-to-left exclusion owned by §6, and use exact accent-folded equality rather than increasing edit-distance tolerance. Measure the existing techniques, folding equality and folding plus skeleton on the same committed positive and benign populations against a separately implemented, source-digest-pinned UTS #39 reference comparator reading the vendored Unicode table. Record comparator scope and limitations honestly. Test Unicode, decomposed and A-label forms, target accents, unchanged and invalid labels, and full check evidence with no benign matches. The coordinator owns the shared DATASETS.md entry, requested as an exact hunk.
 
 The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have different skeletons, distance 3, no added word), as it should, so a name with several accented letters escapes §1's primitives. Browsers compare protected names with the accents set aside; this adds that as a separate technique beside the skeleton, never a change to it, and measures what it catches against what it wrongly flags. Filed 2026-10-29 from D02 T03 §1's completion review (Part 2, items 3 and 4): no measured comparison of detection, false positives or timing exists for the lookalike primitives yet, and this section makes one.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
+
+**Plan-review correction 2026-11-04:** Freeze the corpus before measurement: at least 20 fictional fixture target names, one variant per target in each of seven families (one/two/three accents, swapped, doubled, confusable, added word), and at least 60 independently named fictional benign businesses. Labels are assigned by generation intent, never by detector results; do not filter or remove flagged benign cases. Score every candidate against every protected target, report candidate-level positives and false flags with explicit denominators and per-family counts, and report pair-operation timing separately. Keep source inventories, seed and digests reproducible. Prove comparator digest mismatch fails, and test missing/stale generator outputs without changing committed fixtures.
 
 **Build order:**
 
@@ -190,7 +192,7 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 - [ ] Add accent folding to §2's comparison only at the threshold the measurement chose, citing it. Done when: §2's check flags `fýnbósfreíght` against `fynbosfreight` and none of the benign set.
 - [ ] Commit: `checks: accent-insensitive lookalikes, measured`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts` passes and `docs/evals/lookalikes.md` holds the measured table.
+**Test checkpoint:** `pnpm exec vitest run test/checks/lookalike.test.ts test/checks/domain-lookalike.test.ts test/node/lookalikes.test.ts`, `node scripts/fixtures/make-lookalikes.ts --check` and `node scripts/measure-lookalikes.ts` pass. The accent-only integration regression fails before the fix; stored evidence read-back proves technique, target, severity and provenance. Eligibility, trusted-domain exclusions and right-to-left refusals remain tested. Comparator digest mismatch fails explicitly. `docs/evals/lookalikes.md` records measured tables and reproducible commands.
 
 ## 6. Right-to-left lookalike labels
 
