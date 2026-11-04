@@ -14,7 +14,7 @@
     "render:04": "pnpm run preflight && pnpm run stats && pnpm run capture:index && python3 tools/voice-index.py 04 demo && remotion render src/index.ts JudgeGuide out2/raw/04-judge-getting-started.mp4 --offthreadvideo-cache-size-in-bytes=536870912 && python3 tools/master.py out2/raw/04-judge-getting-started.mp4 out2/04-judge-getting-started.mp4",
     "render:teaser": "pnpm run preflight && pnpm run stats && pnpm run capture:index && python3 tools/voice-index.py demo && remotion render src/index.ts XTeaser out2/raw/x-teaser-45s.mp4 --offthreadvideo-cache-size-in-bytes=536870912 && python3 tools/master.py out2/raw/x-teaser-45s.mp4 out2/x-teaser-45s.mp4",
     "render:logo": "pnpm run stats && pnpm run voice && pnpm run capture:index && remotion render src/index.ts LogoReveal out2/isitlegit-logo-animation-1080p.mp4",
-    "thumbs": "pnpm run stats && pnpm run voice && pnpm run capture:index && for v in 01 02 03; do remotion still src/index.ts Thumbnail$v out/thumbnail-$v.jpg --frame=45 --image-format=jpeg --jpeg-quality=90; done",
+    "thumbs": "pnpm run stats && pnpm run voice && pnpm run capture:index && for v in 01 02 03; do remotion still src/index.ts Thumbnail$v out/thumbnail-$v.jpg --frame=45 --image-format=jpeg --jpeg-quality=90 || exit $?; done",
     "capture:demo": "node capture/run.ts",
     "test:capture": "node --test capture/mail.test.ts capture/beats.test.ts capture/index.test.ts",
     "test:kit": "node --test src/kit/fonts.test.ts",
