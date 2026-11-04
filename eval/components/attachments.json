@@ -1,1 +1,346 @@
-{"valid":27,"identified":27,"disguised":3,"disguisedCaught":3,"damaged":3,"damagedReadAsValid":1,"p50Ms":0.153,"p95Ms":3.532}
+{
+ "valid": 27,
+ "identified": 27,
+ "disguised": 3,
+ "disguisedCaught": 3,
+ "damaged": 3,
+ "damagedReadAsValid": 1,
+ "mismatchCaught": 3,
+ "damagedArchiveCaught": 3,
+ "p50Ms": 3.293,
+ "p95Ms": 55.479,
+ "observations": [
+  {
+   "name": "pdf",
+   "category": "valid",
+   "expected": "pdf",
+   "sniffed": "pdf",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "zip",
+   "category": "valid",
+   "expected": "zip",
+   "sniffed": "zip",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "docx",
+   "category": "valid",
+   "expected": "docx",
+   "sniffed": "docx",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "xlsx",
+   "category": "valid",
+   "expected": "xlsx",
+   "sniffed": "xlsx",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "pptx",
+   "category": "valid",
+   "expected": "pptx",
+   "sniffed": "pptx",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "ole",
+   "category": "valid",
+   "expected": "ole",
+   "sniffed": "ole",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "pe",
+   "category": "valid",
+   "expected": "pe",
+   "sniffed": "pe",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "elf",
+   "category": "valid",
+   "expected": "elf",
+   "sniffed": "elf",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "macho",
+   "category": "valid",
+   "expected": "macho",
+   "sniffed": "macho",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "rar",
+   "category": "valid",
+   "expected": "rar",
+   "sniffed": "rar",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "7z",
+   "category": "valid",
+   "expected": "7z",
+   "sniffed": "7z",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "iso",
+   "category": "valid",
+   "expected": "iso",
+   "sniffed": "iso",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "png",
+   "category": "valid",
+   "expected": "png",
+   "sniffed": "png",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "jpeg",
+   "category": "valid",
+   "expected": "jpeg",
+   "sniffed": "jpeg",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "gif",
+   "category": "valid",
+   "expected": "gif",
+   "sniffed": "gif",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "webp",
+   "category": "valid",
+   "expected": "webp",
+   "sniffed": "webp",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "html",
+   "category": "valid",
+   "expected": "html",
+   "sniffed": "html",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "svg",
+   "category": "valid",
+   "expected": "svg",
+   "sniffed": "svg",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "lnk",
+   "category": "valid",
+   "expected": "lnk",
+   "sniffed": "lnk",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "script",
+   "category": "valid",
+   "expected": "script",
+   "sniffed": "script",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "text",
+   "category": "valid",
+   "expected": "text",
+   "sniffed": "text",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "rtf",
+   "category": "valid",
+   "expected": "rtf",
+   "sniffed": "rtf",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "odf",
+   "category": "valid",
+   "expected": "odf",
+   "sniffed": "odf",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "m4a",
+   "category": "valid",
+   "expected": "m4a",
+   "sniffed": "m4a",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "ogg",
+   "category": "valid",
+   "expected": "ogg",
+   "sniffed": "ogg",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "wav",
+   "category": "valid",
+   "expected": "wav",
+   "sniffed": "wav",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "mp3",
+   "category": "valid",
+   "expected": "mp3",
+   "sniffed": "mp3",
+   "matched": true,
+   "status": "ok"
+  },
+  {
+   "name": "invoice.pdf (pe bytes)",
+   "category": "disguised",
+   "expected": "pe",
+   "sniffed": "pe",
+   "matched": true,
+   "mismatchFlagged": true,
+   "status": "ok"
+  },
+  {
+   "name": "statement.docx (zip bytes)",
+   "category": "disguised",
+   "expected": "zip",
+   "sniffed": "zip",
+   "matched": true,
+   "mismatchFlagged": true,
+   "status": "ok"
+  },
+  {
+   "name": "photo.png (html bytes)",
+   "category": "disguised",
+   "expected": "html",
+   "sniffed": "html",
+   "matched": true,
+   "mismatchFlagged": true,
+   "status": "ok"
+  },
+  {
+   "name": "truncated pdf",
+   "category": "damaged",
+   "expected": "pdf",
+   "sniffed": "text",
+   "matched": false,
+   "riskNotChecked": null,
+   "status": "ok"
+  },
+  {
+   "name": "truncated zip",
+   "category": "damaged",
+   "expected": "zip",
+   "sniffed": "zip",
+   "matched": true,
+   "riskNotChecked": "it is too short to be a ZIP archive",
+   "status": "ok"
+  },
+  {
+   "name": "truncated png",
+   "category": "damaged",
+   "expected": "png",
+   "sniffed": null,
+   "matched": false,
+   "riskNotChecked": null,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-1",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 55.479,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-2",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 5.326,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-3",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 2.416,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-4",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 2.872,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-5",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 3.293,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-6",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 7.004,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-7",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 5.136,
+   "status": "ok"
+  },
+  {
+   "name": "batch-20-rep-8",
+   "category": "batch-check",
+   "matched": true,
+   "ms": 2.35,
+   "status": "ok"
+  }
+ ],
+ "provenance": {
+  "collector": "eval/attachments.ts#measureAttachmentChecks",
+  "timingBoundary": "attachmentRisksOf (R2 range reads + archive inspection) + typeMismatchEvidence + macroEvidence + encryptedArchiveEvidence + executableEvidence over MAX_SNIFFED = 20 attachments",
+  "repetitions": 8,
+  "inputDescription": "27 valid format samples, 3 disguised samples, 3 damaged truncated packages, plus 8 batch runs of 20 attachments"
+ }
+}

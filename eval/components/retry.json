@@ -1,27 +1,67 @@
 [
  {
-  "kind": "interrupted-settle",
-  "ms": 300000.864,
-  "completed": true
+  "kind": "retry",
+  "ms": 21.009,
+  "completed": true,
+  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
+ },
+ {
+  "kind": "retry",
+  "ms": 3.572,
+  "completed": true,
+  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
+ },
+ {
+  "kind": "retry",
+  "ms": 2.093,
+  "completed": true,
+  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
+ },
+ {
+  "kind": "retry",
+  "ms": 1.982,
+  "completed": true,
+  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
+ },
+ {
+  "kind": "retry",
+  "ms": 1.642,
+  "completed": true,
+  "provenance": "retryCase -> admit -> addEvidence -> ruleBasedVerdict -> cases.status='done' on node:sqlite D1"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 300000.462,
-  "completed": true
+  "ms": 1.419,
+  "completed": true,
+  "leaseWindowMs": 300000,
+  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 300000.469,
-  "completed": true
+  "ms": 0.682,
+  "completed": true,
+  "leaseWindowMs": 300000,
+  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 300000.407,
-  "completed": true
+  "ms": 0.776,
+  "completed": true,
+  "leaseWindowMs": 300000,
+  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
  },
  {
   "kind": "interrupted-settle",
-  "ms": 300000.278,
-  "completed": true
+  "ms": 0.616,
+  "completed": true,
+  "leaseWindowMs": 300000,
+  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
+ },
+ {
+  "kind": "interrupted-settle",
+  "ms": 0.676,
+  "completed": true,
+  "leaseWindowMs": 300000,
+  "provenance": "retryCase(start_unknown) + sweepRetries rollback after RETRY_SETTLE_MS lease window"
  }
 ]

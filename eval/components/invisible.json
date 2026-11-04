@@ -1,1 +1,95 @@
-{"payloads":4,"detected":4,"controls":4,"falsePositives":0,"p50Ms":0.122,"p95Ms":1.032,"peakMb":43.4}
+{
+ "payloads": 6,
+ "detected": 6,
+ "controls": 5,
+ "falsePositives": 0,
+ "p50Ms": 0.335,
+ "p95Ms": 0.888,
+ "peakMb": 11.3,
+ "largeMessageMs": 132.456,
+ "observations": [
+  {
+   "name": "tag-word",
+   "kind": "payload",
+   "detected": true,
+   "ms": 0.888,
+   "status": "ok"
+  },
+  {
+   "name": "tag-sentence",
+   "kind": "payload",
+   "detected": true,
+   "ms": 0.403,
+   "status": "ok"
+  },
+  {
+   "name": "ignorable-run",
+   "kind": "payload",
+   "detected": true,
+   "ms": 0.283,
+   "status": "ok"
+  },
+  {
+   "name": "mixed-run",
+   "kind": "payload",
+   "detected": true,
+   "ms": 0.082,
+   "status": "ok"
+  },
+  {
+   "name": "malformed-flag-run",
+   "kind": "payload",
+   "detected": true,
+   "ms": 0.78,
+   "status": "ok"
+  },
+  {
+   "name": "chunk-boundary-tag",
+   "kind": "payload",
+   "detected": true,
+   "ms": 0.248,
+   "status": "ok"
+  },
+  {
+   "name": "emoji-zwj",
+   "kind": "control",
+   "detected": false,
+   "ms": 0.346,
+   "status": "ok"
+  },
+  {
+   "name": "emoji-selector",
+   "kind": "control",
+   "detected": false,
+   "ms": 0.335,
+   "status": "ok"
+  },
+  {
+   "name": "multilingual",
+   "kind": "control",
+   "detected": false,
+   "ms": 0.411,
+   "status": "ok"
+  },
+  {
+   "name": "plain",
+   "kind": "control",
+   "detected": false,
+   "ms": 0.122,
+   "status": "ok"
+  },
+  {
+   "name": "rgi-subdivision-flag",
+   "kind": "control",
+   "detected": false,
+   "ms": 0.126,
+   "status": "ok"
+  }
+ ],
+ "provenance": {
+  "collector": "eval/invisible.ts#scoreInvisible",
+  "timingBoundary": "invisibleRuns / streaming RunReader per sample + 1 MiB message streamed in 16 KiB chunks",
+  "repetitions": 11,
+  "inputDescription": "6 payloads (including malformed flag run and surrogate-split chunk boundary) + 5 controls (emoji, multilingual, RGI flag) + 1 MiB streaming message"
+ }
+}

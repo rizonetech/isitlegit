@@ -5,14 +5,15 @@
 | Component | Measurement |
 | --- | --- |
 | Result cache | not measured (0 rows), hit median not measured ms (p95 not measured ms), miss median not measured ms (p95 not measured ms), avoided not measured |
+| Reputation providers | not measured (0 rows; per-provider checked/unchecked rates populate from reputation_results) |
 | Walkthrough cost | median not measured over 0 completed (0 attempted or failed) |
 | Deterministic floor | not measured (0 rows; pre-floor verdict persistence pending D04 agent owner) |
 | Comparator Microsoft Defender for Office 365 | absent (not measured; no licensed comparator tenant available, no figures invented) |
-| Intake time | small median 9.507 ms, p95 34.719 ms (5 of 5 completed); near-25MiB median 95.738 ms, p95 98.584 ms (3 of 3 completed) |
-| Retry latency | retry not measured (0 of 0 completed; target median < 60000 ms, p95 < 180000 ms); interrupted settle median 300000.462 ms, p95 300000.864 ms (5 of 5 completed) |
-| content.ai_instructions | detected 2 of 4 steering texts, false positives 0 of 4 genuine texts, p50 5.211 ms, p95 22.06 ms |
-| Attachment identification | identified 27 of 27 valid, disguised caught 3 of 3, damaged read as valid 1 of 3, p50 0.153 ms, p95 3.532 ms |
-| Invisible characters | detected 4 of 4 payloads, false positives 0 of 4 controls, p50 0.122 ms, p95 1.032 ms, peak 43.4 MB |
+| Intake time | small median 7.523 ms, p95 24.463 ms (5 of 5 completed); near-25MiB median 91.097 ms, p95 118.799 ms (3 of 3 completed) |
+| Retry latency | retry median 2.093 ms, p95 21.009 ms (5 of 5 completed, target met); interrupted settle sweep median 0.682 ms, p95 1.419 ms after 300000 ms lease (5 of 5 completed) |
+| content.ai_instructions | detected 2 of 4 steering texts, false positives 0 of 4 genuine texts, p50 24.472 ms, p95 159.198 ms |
+| Attachment identification | identified 27 of 27 valid, disguised caught 3 of 3, damaged read as valid 1 of 3, mismatch caught 3 of 3, damaged archive caught 3 of 3, p50 3.293 ms, p95 55.479 ms |
+| Invisible characters | detected 6 of 6 payloads, false positives 0 of 5 controls, p50 0.335 ms, p95 0.888 ms, peak 11.3 MB |
 
 ## 2026-11-02: what the untrusted blocks buy (D04 T01 §6, from D03 T01 §6)
 

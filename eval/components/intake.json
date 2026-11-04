@@ -2,49 +2,65 @@
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 34.719,
-  "status": "ok"
+  "ms": 24.463,
+  "status": "ok",
+  "sampleId": "<bench-small-1@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 9.507,
-  "status": "ok"
+  "ms": 7.523,
+  "status": "ok",
+  "sampleId": "<bench-small-2@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 4.516,
-  "status": "ok"
+  "ms": 5.218,
+  "status": "ok",
+  "sampleId": "<bench-small-3@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 14.066,
-  "status": "ok"
+  "ms": 13.757,
+  "status": "ok",
+  "sampleId": "<bench-small-4@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "small",
   "bytes": 4096,
-  "ms": 9.255,
-  "status": "ok"
+  "ms": 4.669,
+  "status": "ok",
+  "sampleId": "<bench-small-5@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "near-25mib",
   "bytes": 25165824,
-  "ms": 82.165,
-  "status": "ok"
+  "ms": 118.799,
+  "status": "ok",
+  "sampleId": "<bench-near-25mib-6@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "near-25mib",
   "bytes": 25165824,
-  "ms": 98.584,
-  "status": "ok"
+  "ms": 88.901,
+  "status": "ok",
+  "sampleId": "<bench-near-25mib-7@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  },
  {
   "band": "near-25mib",
   "bytes": 25165824,
-  "ms": 95.738,
-  "status": "ok"
+  "ms": 91.097,
+  "status": "ok",
+  "sampleId": "<bench-near-25mib-8@bench.co.za>",
+  "provenance": "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1"
  }
 ]

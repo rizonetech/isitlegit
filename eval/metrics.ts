@@ -18,7 +18,12 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { type ComponentRecords, checkComponentRows, providerFigures } from "./components.ts";
+import {
+  type ComponentRecords,
+  checkComponentRows,
+  parseComponentFile,
+  providerFigures,
+} from "./components.ts";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
@@ -244,12 +249,19 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
     }));
   });
   const walked = results.filter(
-    (r) => selected.has(r.sample) && selected.get(r.sample)?.set !== CHALLENGE && r.walkthrough,
+    (r) => selected.has(r.sample) && selected.get(r.sample)?.set !== CHALLENGE && r.walkthrough === true,
   );
   const walkedCosts = walked.map((r) => r.costUsd).sort((a, b) => a - b);
+  const walkedMid = Math.floor(walkedCosts.length / 2);
+  const walkedMedian =
+    walkedCosts.length === 0
+      ? null
+      : walkedCosts.length % 2
+        ? (walkedCosts[walkedMid] as number)
+        : ((walkedCosts[walkedMid - 1] as number) + (walkedCosts[walkedMid] as number)) / 2;
   const components = {
     providers: providerFigures(providerRecords),
-    walkthroughMedianCostUsd: walkedCosts.length ? (walkedCosts[Math.floor(walkedCosts.length / 2)] as number) : null,
+    walkthroughMedianCostUsd: walkedMedian,
     walkthroughCompleted: walked.length,
   };
   const targets: Target[] = [
@@ -651,7 +663,9 @@ export async function runMetrics(args: {
       const file = join(dir, `${name}.json`);
       if (existsSync(file)) {
         try {
-          records[name] = JSON.parse(readFileSync(file, "utf-8"));
+          const parsed = parseComponentFile(name, JSON.parse(readFileSync(file, "utf-8")));
+          if (!parsed.ok) return refuse(`${file}: ${parsed.error}`);
+          (records as Record<string, unknown>)[name] = parsed.value;
         } catch {
           return refuse(`${file}: malformed records`);
         }

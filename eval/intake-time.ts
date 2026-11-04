@@ -24,6 +24,20 @@ export async function load(url, context, nextLoad) {
       );
     return { format: "module-typescript", shortCircuit: true, source: raw };
   }
+  if (url.endsWith("src/checks/attachment-risk.ts")) {
+    const raw = readFileSync(fileURLToPath(url), "utf8").replace(
+      "  constructor(\\n    private bucket: R2Bucket,\\n    private key: string,\\n    private size: number,\\n  ) {}",
+      "  bucket: R2Bucket;\\n  key: string;\\n  size: number;\\n  constructor(bucket: R2Bucket, key: string, size: number) {\\n    this.bucket = bucket;\\n    this.key = key;\\n    this.size = size;\\n  }",
+    );
+    return { format: "module-typescript", shortCircuit: true, source: raw };
+  }
+  if (url.endsWith("src/checks/links.ts")) {
+    const raw = readFileSync(fileURLToPath(url), "utf8").replace(
+      "  constructor(private readonly emit: (url: string) => void) {}",
+      "  private readonly emit: (url: string) => void;\\n  constructor(emit: (url: string) => void) { this.emit = emit; }",
+    );
+    return { format: "module-typescript", shortCircuit: true, source: raw };
+  }
   return nextLoad(url, context);
 }
 `)}`;
@@ -153,6 +167,8 @@ export async function scoreIntakeTime(opts?: {
   smallCount?: number;
   largeCount?: number;
   largeBytes?: number;
+  outPath?: string;
+  failAt?: number;
 }): Promise<IntakeRecord[]> {
   ensureTsResolve();
   const { handleEmail } = await import("../src/intake/email.ts");
@@ -193,6 +209,11 @@ export async function scoreIntakeTime(opts?: {
   } as unknown as Env;
 
   const records: IntakeRecord[] = [];
+  const persist = () => {
+    if (opts?.outPath) {
+      writeFileSync(opts.outPath, `${JSON.stringify(records, null, 1)}\n`);
+    }
+  };
   const specs: { band: "small" | "near-25mib"; bytes: number; count: number }[] = [
     { band: "small", bytes: 4 * 1024, count: smallCount },
     { band: "near-25mib", bytes: largeBytes, count: largeCount },
@@ -200,39 +221,56 @@ export async function scoreIntakeTime(opts?: {
   let seq = 0;
   for (const spec of specs) {
     for (let i = 0; i < spec.count; i++) {
-      seq++;
+      const idx = seq++;
       const messageId = `<bench-${spec.band}-${seq}@${domain}>`;
       const rawBytes = buildForwardBytes(from, messageId, spec.bytes);
-      const headers = new Headers({ "Message-ID": messageId });
-      const forwardable = {
-        from,
-        to: "check@isitlegit.co.za",
-        headers,
-        raw: new Response(rawBytes).body as ReadableStream<Uint8Array>,
-        rawSize: rawBytes.byteLength,
-        setReject: () => {},
-        forward: async () => ({ messageId: "" }),
-        reply: async () => ({ messageId: "" }),
-      } as unknown as ForwardableEmailMessage;
-      workflowStartedAt = 0;
-      const t0 = performance.now();
-      const out = await handleEmail(forwardable, env, new Date(), () => {});
-      const tEnd = workflowStartedAt > 0 ? workflowStartedAt : performance.now();
-      if (out.kind === "admitted") {
-        records.push({
-          band: spec.band,
-          bytes: rawBytes.byteLength,
-          ms: Number((tEnd - t0).toFixed(3)),
-          status: "ok",
-        });
-      } else {
+      try {
+        if (opts?.failAt === idx) throw new Error("simulated intake interruption");
+        const headers = new Headers({ "Message-ID": messageId });
+        const forwardable = {
+          from,
+          to: "check@isitlegit.co.za",
+          headers,
+          raw: new Response(rawBytes).body as ReadableStream<Uint8Array>,
+          rawSize: rawBytes.byteLength,
+          setReject: () => {},
+          forward: async () => ({ messageId: "" }),
+          reply: async () => ({ messageId: "" }),
+        } as unknown as ForwardableEmailMessage;
+        workflowStartedAt = 0;
+        const t0 = performance.now();
+        const out = await handleEmail(forwardable, env, new Date(), () => {});
+        const tEnd = workflowStartedAt > 0 ? workflowStartedAt : performance.now();
+        if (out.kind === "admitted") {
+          records.push({
+            band: spec.band,
+            bytes: rawBytes.byteLength,
+            ms: Number((tEnd - t0).toFixed(3)),
+            status: "ok",
+            sampleId: messageId,
+            provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
+          });
+        } else {
+          records.push({
+            band: spec.band,
+            bytes: rawBytes.byteLength,
+            ms: null,
+            status: "failed",
+            sampleId: messageId,
+            provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
+          });
+        }
+      } catch {
         records.push({
           band: spec.band,
           bytes: rawBytes.byteLength,
           ms: null,
           status: "failed",
+          sampleId: messageId,
+          provenance: "handleEmail delivery-to-ANALYSIS.create on node:sqlite D1",
         });
       }
+      persist();
       // Clear large raw objects between iterations so RSS stays bounded.
       objects.clear();
     }
@@ -241,8 +279,7 @@ export async function scoreIntakeTime(opts?: {
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
-  const records = await scoreIntakeTime();
   const outPath = join(ROOT, "eval/components/intake.json");
-  writeFileSync(outPath, `${JSON.stringify(records, null, 1)}\n`);
+  const records = await scoreIntakeTime({ outPath });
   console.log(`wrote ${records.length} intake records to ${outPath}`);
 }
