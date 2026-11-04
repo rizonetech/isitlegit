@@ -1494,10 +1494,7 @@ function openOriginal(opener                   ) {
   nextPart.type = "button";
   nextPart.hidden = true;
   panel.append(note, region, nextPart);
-  const foot = make(
-    "div",
-    "flex flex-col gap-12 border-t border-line bg-surface p-16 md:flex-row md:items-center md:justify-between",
-  );
+  const foot = make("div", "flex flex-col gap-12 border-t border-line bg-surface p-16");
   const footLine = make("p", "type-small text-muted m-0");
   const download = make(
     "a",
@@ -1512,7 +1509,12 @@ function openOriginal(opener                   ) {
   copyHeaders.disabled = true;
   const actions = make("div", "flex flex-wrap items-center gap-12");
   actions.append(copyHeaders, download);
-  foot.append(footLine, actions);
+  const footControls = make("div", "flex flex-col gap-12 md:flex-row md:items-center md:justify-between");
+  footControls.append(footLine, actions);
+  const copyOutcome = make("p", "type-small m-0 text-muted wrap-anywhere");
+  copyOutcome.setAttribute("data-original-copy-outcome", "");
+  copyOutcome.hidden = true;
+  foot.append(footControls, copyOutcome);
   const live = make("p", "sr-only");
   live.setAttribute("role", "status");
   dialog.setAttribute("aria-labelledby", title.id);
@@ -1534,6 +1536,11 @@ function openOriginal(opener                   ) {
     announcement = setTimeout(() => {
       if (dialog.isConnected && generation === ownGeneration) live.textContent = words;
     }, 30);
+  };
+  const sayCopy = (words        ) => {
+    copyOutcome.textContent = words;
+    copyOutcome.hidden = false;
+    say(words);
   };
   const settle = (words        ) => {
     status.textContent = "";
@@ -1593,6 +1600,8 @@ function openOriginal(opener                   ) {
   const show = async (part              , again = false, append = false, forCopy = false) => {
     if (append && (nextOffset === null || nextPart.disabled || current !== "headers")) return;
     if (!forCopy) copying = null;
+    copyOutcome.hidden = true;
+    copyOutcome.textContent = "";
     loading = true;
     copyHeaders.disabled = true;
     copyHeaders.hidden = part !== "headers";
@@ -1775,6 +1784,8 @@ function openOriginal(opener                   ) {
   };
   copyHeaders.addEventListener("click", async () => {
     if (copyHeaders.disabled || current !== "headers") return;
+    copyOutcome.hidden = true;
+    copyOutcome.textContent = "";
     const mine = {};
     const heldFocus = document.activeElement === copyHeaders;
     copying = mine;
@@ -1789,7 +1800,7 @@ function openOriginal(opener                   ) {
       try {
         if (!navigator.clipboard || !window.isSecureContext) throw new Error("Clipboard unavailable");
         await navigator.clipboard.writeText(text);
-        if (active()) say("Headers copied");
+        if (active()) sayCopy("Headers copied");
       } catch (error) {
         if (!active()) return;
         let selected = false;
@@ -1809,7 +1820,7 @@ function openOriginal(opener                   ) {
         } catch {
           // Selection is a separate capability; never claim it succeeded without verifying the complete range.
         }
-        say(
+        sayCopy(
           selected
             ? error instanceof DOMException && error.name === "NotAllowedError"
               ? "Clipboard access was refused. The complete headers are selected; copy the selected text."

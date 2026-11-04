@@ -1141,3 +1141,69 @@ describe.skipIf(!chromiumPath())("header copy failure and ownership", () => {
     }
   });
 });
+
+describe.skipIf(!chromiumPath())("visible header copy outcomes", () => {
+  for (const width of [360, 1280])
+    for (const theme of ["light", "dark"] as const)
+      it(`renders every approved outcome at ${width}px in ${theme}`, async () => {
+        reset();
+        const { p, context } = await open(width, theme);
+        try {
+          await headersLink(p).click();
+          const d = dialog(p);
+          const copy = d.getByRole("button", { name: "Copy headers", exact: true });
+          for (const result of ["success", "denied", "other", "selection"] as const) {
+            await d.getByRole("tab", { name: "Complete headers", exact: true }).click();
+            await expect.poll(() => copy.isEnabled()).toBe(true);
+            await p.evaluate((kind) => {
+              navigator.clipboard.writeText = async () => {
+                if (kind === "success") return;
+                if (kind === "denied") throw new DOMException("Test denial", "NotAllowedError");
+                throw new Error("Test write failure");
+              };
+              if (kind === "selection") window.getSelection = () => null;
+            }, result);
+            await copy.click();
+            const expected =
+              result === "success"
+                ? "Headers copied"
+                : result === "denied"
+                  ? "Clipboard access was refused. The complete headers are selected; copy the selected text."
+                  : result === "other"
+                    ? "The headers could not be copied. The complete headers are selected; copy the selected text."
+                    : "The headers could not be copied. Select the text to copy it.";
+            await expect.poll(() => live(p).textContent()).toBe(expected);
+            const outcome = d.locator("[data-original-copy-outcome]");
+            expect(await outcome.count()).toBe(1);
+            expect(await outcome.textContent()).toBe(expected);
+            expect(await outcome.isVisible()).toBe(true);
+            expect(
+              await outcome.evaluate((el) => {
+                const box = el.getBoundingClientRect();
+                const style = getComputedStyle(el);
+                const hit = document.elementFromPoint(box.x + 8, box.y + 8);
+                return (
+                  box.width > 100 &&
+                  box.height >= 14 &&
+                  box.x >= 0 &&
+                  box.right <= innerWidth &&
+                  box.y >= 0 &&
+                  box.bottom <= innerHeight &&
+                  style.clip === "auto" &&
+                  style.clipPath === "none" &&
+                  style.opacity === "1" &&
+                  (hit === el || el.contains(hit))
+                );
+              }),
+            ).toBe(true);
+            await p.addScriptTag({ path: AXE });
+            expect(await originalAccessibility(p)).toEqual([]);
+            await d.getByRole("tab", { name: "Message", exact: true }).click();
+            expect(await outcome.isHidden()).toBe(true);
+            expect(await outcome.textContent()).toBe("");
+          }
+        } finally {
+          await context.close();
+        }
+      });
+});
