@@ -1675,5 +1675,80 @@ class SecondReadings(unittest.TestCase):
         self.assertEqual(self.module.verdict_lines(None), [])
 
 
+
+class CodexSelfReview(Harness):
+    def setUp(self):
+        super().setUp()
+        pin = FIXTURE_PIN.replace('schema_version = 1', 'schema_version = 1\nself_review = ["codex"]').replace('claude = ["sol"]', 'codex = ["sol"]')
+        (self.repo / ".conclave/reviewers.toml").write_text(pin)
+        self.findings = self.repo / "docs/reviews/self.md"
+        self.entry = {"writer": "codex", "reviewer": "sol", "model": "gpt-6.1-sol", "cli": "codex", "effort": "xhigh", "failover": [], "policy": "codex-self-review", "pin": "a" * 40}
+
+    def plan(self):
+        self.module().record_completion(self.findings, {**self.entry, "review": "PLAN: complete\nOVERALL: approve"}, "2026-11-04T00:00:00Z", "b" * 40, "plan")
+
+    def run_pass(self, kind="round", reply="HIGHEST: none\nOVERALL: approve"):
+        args = ["--writer", "codex", "--prompt", str(self.prompt), "--record", str(self.findings), "--kind", kind]
+        if kind != "round":
+            args += ["--candidate", "b" * 40]
+        return self.dispatch(*args, codex="say", say=reply)
+
+    def test_opt_in_is_explicit_and_codex_only(self):
+        module = self.module()
+        pin = module.load_pin(self.repo / ".conclave/reviewers.toml")
+        self.assertTrue(module.self_review_enabled(pin, "codex"))
+        self.assertFalse(module.self_review_enabled(pin, "claude"))
+        for value in ('["claude"]', 'true', '["codex", "codex"]'):
+            with self.subTest(value=value), self.assertRaises(module.Refused):
+                module.load_pin(data=(self.repo / ".conclave/reviewers.toml").read_bytes().replace(b'["codex"]', value.encode()))
+
+    def test_self_review_requires_policy_marker_and_pin(self):
+        module = self.module()
+        entry = {**self.entry, "review": "OVERALL: approve"}
+        self.assertTrue(module.returned_review(entry))
+        for field in ("policy", "pin"):
+            self.assertFalse(module.returned_review({**entry, field: None}))
+        self.assertFalse(module.returned_review({**entry, "writer": "claude", "cli": "claude"}))
+
+    def test_round_requires_plan_and_completion_requires_round(self):
+        for kind in ("round", "completion", "final"):
+            with self.subTest(kind=kind):
+                result, _ = self.run_pass(kind)
+                self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_one_round_then_completion_and_no_extra_round(self):
+        self.plan()
+        result, summary = self.run_pass(reply="HIGHEST: P1\nOVERALL: needs-attention")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(summary["policy"], "codex-self-review")
+        result, _ = self.run_pass()
+        self.assertEqual(result.returncode, 2)
+        result, _ = self.run_pass("completion", "COMPLETION: complete")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result, _ = self.run_pass("completion", "COMPLETION: complete")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(len(self.calls()), 2)
+        found = self.module().read_findings(self.findings.read_text())
+        self.assertEqual(found["rounds"][0]["policy"], "codex-self-review")
+
+    def test_parser_offsets_ignore_headings_inside_sealed_review(self):
+        self.plan()
+        reply = "Example heading:\n## Completion review: none\nHIGHEST: none\nOVERALL: approve"
+        self.assertEqual(self.run_pass(reply=reply)[0].returncode, 0)
+        self.assertEqual(self.run_pass("completion", "Example:\n## Round 7: none\nCOMPLETION: complete")[0].returncode, 0)
+        found = self.module().read_findings(self.findings.read_text())
+        offsets = [found[k][0]["offset"] for k in ("plans", "rounds", "completions")]
+        self.assertEqual(offsets, sorted(offsets))
+        self.assertEqual(len(found["rounds"]), 1)
+        self.assertEqual(len(found["completions"]), 1)
+
+    def test_failed_round_can_retry(self):
+        self.plan()
+        result, _ = self.dispatch("--writer", "codex", "--prompt", str(self.prompt), "--record", str(self.findings), codex="fail")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        result, _ = self.run_pass()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 if __name__ == "__main__":
     unittest.main()

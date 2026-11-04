@@ -67,7 +67,7 @@ The principles become concrete in these standards. Each is checkable, and review
 
 - Tests prove behaviour and are shown to fail when the behaviour breaks. Every fix ships with the regression test that would have caught it.
 - Dependencies are few, pinned to exact versions, licensed for our use and recorded in `NOTICE.md`. Each one must earn its place.
-- Every change is reviewed independently before it ships, and every review finding is verified against the code rather than accepted or dismissed on trust.
+- Every change is reviewed before it ships, and every review finding is verified against the code rather than accepted or dismissed on trust. For Codex work, the operator decision of 4 November 2026 uses plan self-review, one implementation self-review round and a final completion self-review; other writers keep independent review.
 - Reversible decisions are made quickly; irreversible ones (data models, public interfaces, anything a customer depends on) are made deliberately and recorded with their reasoning.
 - The repository is documentation in its own right: a newcomer can understand what the product does, why each decision was made and how to verify it, from the files alone.
 

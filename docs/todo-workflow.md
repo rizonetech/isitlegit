@@ -35,3 +35,7 @@ python3 scripts/todo-graph.py query plan      # plan title, phase names and ever
 ```
 
 Report only commands actually run, and distinguish static evidence, test output and review proof.
+
+## Codex delivery policy (4 November 2026)
+
+Codex follows `.agents/skills/codex-lane-workflow/SKILL.md`: plan self-review, implementation and gates, exactly one implementation self-review round, repairs and gates, final completion self-review, then stamp and continue. The dispatcher and stamp validate the explicit Codex policy in the committed reviewer pin and preserve historical receipts. This overrides the older Claude skill review order for Codex only. The completion is the last review and must approve the exact implementation candidate with no unresolved gaps. An outage permits retry; it never permits a stamp. Existing section ownership, prerequisite checks, Test checkpoints, frozen tests, CI and deployment gates continue to apply.
