@@ -74,7 +74,36 @@ export const save = (file: string, value: unknown) => {
   fsyncSync(directory);
   closeSync(directory);
 };
+export function disableSettledTimer(lease: Lease, disable: (unit: string) => void): void {
+  assert.equal(lease.phase, "settled");
+  assert(lease.zeroAt && Number.isFinite(Date.parse(lease.zeroAt)), "verified zero receipt required");
+  const mapping: Record<string, { target: string; unit: string }> = {
+    "OPERATOR-LOUPE11-WARM-HOUR-20261104": { target: TARGET, unit: "isitlegit-loupe-warm-restore.timer" },
+    "OPERATOR-LOUPE11-BASE-CONTROL-20261104": {
+      target: "isitlegit-untuned-control-20261104",
+      unit: "isitlegit-loupe-base-cleanup.timer",
+    },
+  };
+  const owned = mapping[lease.decision];
+  assert(owned);
+  assert.equal(lease.deployment, owned.target);
+  disable(owned.unit);
+}
+export async function finishTimer(lease: Lease): Promise<void> {
+  assert((await findBurst(wranglerExec(), lease.wake.id))?.settled, "ledger settlement receipt required");
+  disableSettledTimer(lease, (unit) => {
+    execFileSync("systemctl", ["--user", "disable", "--now", unit]);
+  });
+}
 async function main(mode: string, file: string) {
+  if (mode === "restore") {
+    const recorded = JSON.parse(readFileSync(file, "utf8")) as Lease;
+    if (recorded.phase === "settled") {
+      await finishTimer(recorded);
+      return;
+    }
+    if (Date.now() < Date.parse(recorded.restoreAt)) return;
+  }
   configureNetwork();
   const key = readKey("IsItLegit Fireworks Admin");
   const call = async (method = "GET", body?: unknown): Promise<Deployment> => {
@@ -179,6 +208,7 @@ async function main(mode: string, file: string) {
     lease.zeroAt = zeroAt.toISOString();
     lease.phase = "settled";
     save(file, lease);
+    await finishTimer(lease);
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkReadBack, type Deployment } from "../../scripts/glimmer/deploy.ts";
-import { type Lease, save, validateWarm } from "../../scripts/glimmer/warm-lease.ts";
+import { disableSettledTimer, type Lease, save, validateWarm } from "../../scripts/glimmer/warm-lease.ts";
 
 const start = Date.parse("2026-11-04T22:00:00Z");
 const lease = {
@@ -60,4 +60,20 @@ it("does not overwrite another writer staging file", () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+it("disables only the settled lease own timer after zero evidence", () => {
+  const calls: string[] = [];
+  const stop = (unit: string) => calls.push(unit);
+  expect(() => disableSettledTimer({ ...lease, phase: "restored" }, stop)).toThrow();
+  expect(() => disableSettledTimer({ ...lease, phase: "settled" }, stop)).toThrow();
+  expect(calls).toEqual([]);
+  disableSettledTimer({ ...lease, phase: "settled", zeroAt: new Date(start + 60 * 60000).toISOString() }, stop);
+  expect(calls).toEqual(["isitlegit-loupe-warm-restore.timer"]);
+  expect(() =>
+    disableSettledTimer(
+      { ...lease, phase: "settled", zeroAt: new Date(start).toISOString(), deployment: "other" },
+      stop,
+    ),
+  ).toThrow();
 });

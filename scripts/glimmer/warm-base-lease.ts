@@ -8,7 +8,7 @@ import { findBurst } from "../../src/vision/glimmer-minutes.ts";
 import { API, configureNetwork } from "../fireworks-check.ts";
 import { checkPriced, type Deployment, readKey, reserveWake, settleWake, touchWake } from "./deploy.ts";
 import { wranglerExec } from "./runtime-ledger.ts";
-import { type Lease, save } from "./warm-lease.ts";
+import { finishTimer, type Lease, save } from "./warm-lease.ts";
 export const BASE_TARGET = "isitlegit-untuned-control-20261104";
 export const BASE_MODEL = "accounts/fireworks/models/muse-glimmer-30b";
 export function validateBase(read: Deployment, lease: Lease, now = Date.now()) {
@@ -33,6 +33,14 @@ export function validateBase(read: Deployment, lease: Lease, now = Date.now()) {
   checkPriced(read, BASE_TARGET);
 }
 async function main(mode: string, file: string, parentFile?: string) {
+  if (mode === "cleanup") {
+    const recorded = JSON.parse(readFileSync(file, "utf8")) as Lease;
+    if (recorded.phase === "settled") {
+      await finishTimer(recorded);
+      return;
+    }
+    if (Date.now() < Date.parse(recorded.restoreAt)) return;
+  }
   configureNetwork();
   const key = readKey("IsItLegit Fireworks Admin");
   const call = async (method = "GET", body?: unknown): Promise<Deployment | null> => {
@@ -151,6 +159,7 @@ async function main(mode: string, file: string, parentFile?: string) {
     lease.phase = "settled";
     lease.zeroAt = zeroAt.toISOString();
     save(file, lease);
+    await finishTimer(lease);
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
