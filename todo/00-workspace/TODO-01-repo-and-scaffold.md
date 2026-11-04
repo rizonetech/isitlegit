@@ -1126,6 +1126,8 @@ Filed 2026-11-01 by the coordinator after the lanes moved from Claude Code to Mu
 
 ## 34. Codex unattended continuation and session ownership
 
+> **Started:** 2026-11-04T02:46:11.718214+00:00
+
 Filed 2026-11-04 by the coordinator. The operator requests unattended coordinator and lane sessions with no blocking questions, a verified heartbeat and Stop hook, and respect for explicit stops. The owning layer is shared Codex session lifecycle tooling. The installed runtime exposes Stop and Interrupt hooks but no native recurring-job API. A narrowly scoped host timer is an explicitly named workaround for the absent native scheduler; it must not be described as a native Codex job.
 
 **Phase:** 7
