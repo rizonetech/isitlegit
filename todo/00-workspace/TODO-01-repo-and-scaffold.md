@@ -76,7 +76,7 @@ track: day-0
 | 35 | §35 | Bounded completion reconciliation with preserved evidence | -- | [x] |
 | 36 | §36 | Two-pass Codex review with a combined final gate | §35 | [x] |
 | 37 | §37 | Durable ancestry for review journals | §35, §36 | [x] |
-| 38 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [ ] |
+| 38 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1275,6 +1275,9 @@ Filed 2026-11-04 by the coordinator for the necessary integration of stamped D02
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts` passes all 14 tests and fails when the explicit missed-attack mutation is removed; `pnpm exec vitest run test/checks/translated-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts test/checks/invisible-unicode.test.ts test/checks/document-instructions.test.ts test/checks/ai-instructions-shapes.test.ts` passes without changing the frozen suites.
 
 **Implementation evidence (2026-11-04):** Original composed harness: 13 passes and one failure because misses were zero. Controlled miss repair: 14 passes; removing the benign-attack mutation fails the missed-ID assertion, restoring it passes all 14. Six unchanged detector suites: 96 passes. Typecheck, dry build, scoped Biome, publication scan and TODO validation pass. Baseline corpus, observations and results retain exact `505de4b7` bytes; all imported review records remain exact. A separate unchanged-corpus rerun passes with no misses or false flags; it is synthetic component evidence only.
+
+> **Verified:** 2026-11-04 | §39 | 6df0678fc5317320ca7b1e241ea2e88ccf3902db
+> **Review:** `docs/reviews/d00-t01-s39.json`
 
 ## Verification
 

@@ -1,0 +1,127 @@
+{
+  "ref": "D00 T01 \u00a739",
+  "title": "Controlled failure proof for the composed detection harness",
+  "implementation_sha": "6df0678fc5317320ca7b1e241ea2e88ccf3902db",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts passes all 14 tests and fails when the explicit missed-attack mutation is removed; pnpm exec vitest run test/checks/translated-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts test/checks/invisible-unicode.test.ts test/checks/document-instructions.test.ts test/checks/ai-instructions-shapes.test.ts passes without changing the frozen suites. -> 14 Node tests and 96 Worker tests pass; actual before 13 pass/1 fail, controlled mutation removal fails missed-ID assertion, restored 14 pass; typecheck, dry build, scoped Biome, publication, graph validation and normal hooks pass; exact final source clean corpus rerun 205 attacks/205 controls, zero misses/false flags/errors; baseline three files remain exact 505de4b7 and imported review records unchanged."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s39.md",
+    "verdict": "complete",
+    "candidate": "6df0678fc5317320ca7b1e241ea2e88ccf3902db",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s39.md",
+    "candidate": "8971953a54891ea8c5de4af2c82b1333f8b1bd2c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
