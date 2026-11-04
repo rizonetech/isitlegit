@@ -7,14 +7,68 @@
 //     node scripts/glimmer/deploy.ts promote <version>     the gate, the new deployment, a probe, then the active file
 //     node scripts/glimmer/deploy.ts rollback              back to the recorded previous deployment, by the same checks
 //
-// Nothing changes until every check has passed: the gate (against the previous version read from the verified active
-// file), a new deployment that reads back its contract and answers one valid completion through the shared minutes
-// ledger. The active file is written last, read back, and restored when that read-back disagrees.
+// Normal promotion requires the statistical gate against the verified active version. The exact operator-authorized
+// submission/demo release below records that gate separately and requires a strict page smoke instead of a permission
+// probe. Both paths verify deployment settings and preserve rollback. The active file is written last and read back.
+
 import { spawnSync } from "node:child_process";
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
+import { z } from "zod";
 import { type Active, deploymentFor, modelNameOf, targetOf } from "../../src/vision/glimmer-caps.ts";
+import { BrandFreePageAnswer } from "../../src/vision/page-screen.ts";
 import { checkPriced, checkReadBack, type Deployment } from "./deploy.ts";
+
+// Explicit operator release authorization is operational only. It never qualifies the independent-held-out gate.
+export const OPERATIONAL_RELEASE_AUTHORIZATION = Object.freeze({
+  decision: "OPERATOR-LOUPE11-OPERATIONAL-20261104",
+  purpose: "submission-demo",
+  version: "1.1",
+  deployment: "isitlegit-loupe-1-1",
+  previousVersion: "1.0",
+  previousDeployment: "isitlegit-loupe",
+  trainingJob: "ts-db85d8de82174aa6824b775ca6e40075",
+  finalStep: 4524,
+  outputModelSha256: "3a3d2ecf8ee9330cbe3b674bf848803712c7d4240a37053dfa8ae8a3b7f5935c",
+} as const);
+const OperationalAuthorization = z.strictObject(
+  Object.fromEntries(Object.entries(OPERATIONAL_RELEASE_AUTHORIZATION).map(([key, value]) => [key, z.literal(value)])),
+);
+const OperationalSmokeSchema = z.strictObject({
+  version: z.literal("1.1"),
+  deployment: z.literal("isitlegit-loupe-1-1"),
+  model: z.literal(
+    "accounts/rizonetech/models/isitlegit-loupe-1-1#accounts/rizonetech/deployments/isitlegit-loupe-1-1",
+  ),
+  outputModelSha256: z.literal(OPERATIONAL_RELEASE_AUTHORIZATION.outputModelSha256),
+  promptSha256: z.literal("c0de39473966340136e2ef543ae4c8141b1b612e32cbae3eb23864e6b38e0232"),
+  providerRequestId: z
+    .string()
+    .min(1)
+    .max(300)
+    .refine((value) => value.trim() === value && value.trim().length > 0),
+  reservationId: z
+    .string()
+    .min(1)
+    .max(300)
+    .refine((value) => value.trim() === value && value.trim().length > 0),
+  observedAt: z.iso.datetime(),
+  answer: BrandFreePageAnswer,
+});
+export type OperationalSmoke = z.infer<typeof OperationalSmokeSchema>;
+export type OperationalRelease = {
+  authorization: unknown;
+  // The caller performs a genuine strict synthetic-page inference, with accounted provider/ledger identities.
+  // A one-token permission completion is not a page-screening answer and cannot pass this contract.
+  smoke(version: string, deployment: string): Promise<unknown>;
+};
+export type OperationalReleaseEvidence = {
+  mode: "operator-authorized-operational";
+  authorization: typeof OPERATIONAL_RELEASE_AUTHORIZATION;
+  statisticalGate: Gate;
+  statisticalQualification: false;
+  smoke?: OperationalSmoke;
+};
 
 export type Gate = { verdict: "promote" | "keep" | "missing"; detail: string };
 export type Client = {
@@ -24,6 +78,7 @@ export type Client = {
 };
 export type Purpose = "promotion" | "rollback";
 export type Deps = {
+  operationalRelease?: OperationalRelease;
   activeFile: string;
   stateFile: string;
   gate(version: string, previous: string): Gate;
@@ -59,6 +114,7 @@ export type Promoted =
       production: "not switched until the Worker is deployed";
       next: string;
       timings: Timings;
+      releaseEvidence?: OperationalReleaseEvidence;
       journal?: string;
     }
   | { outcome: "refused"; detail: string; serving: string; next?: string }
@@ -114,6 +170,7 @@ type State = {
   previous: Active;
   at: string;
   detail?: string;
+  releaseEvidence?: OperationalReleaseEvidence;
 };
 const readState = (file: string): State | null => {
   if (!existsSync(file)) return null;
@@ -215,13 +272,38 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
       serving,
       next: WORKER_NEXT,
     };
+  if (deps.operationalRelease) {
+    if (
+      !OperationalAuthorization.safeParse(deps.operationalRelease.authorization).success ||
+      typeof deps.operationalRelease.smoke !== "function" ||
+      version !== "1.1" ||
+      active.version !== "1.0" ||
+      active.deployment !== "isitlegit-loupe"
+    ) {
+      return {
+        outcome: "refused",
+        detail: "operational release authorization does not match the exact allowed artifact and previous deployment",
+        serving,
+      };
+    }
+  }
   // Every refusal that needs no change comes first: the verified record, then the gate.
   const disagreement = await verifyRecorded(deps, active);
   if (disagreement)
     return { outcome: "refused", detail: `the active record disagrees with the deployment: ${disagreement}`, serving };
   const gate = deps.gate(version, active.version);
-  if (gate.verdict !== "promote") return { outcome: "refused", detail: `the gate: ${gate.detail}`, serving };
+  if (!deps.operationalRelease && gate.verdict !== "promote")
+    return { outcome: "refused", detail: `the gate: ${gate.detail}`, serving };
 
+  const releaseEvidence: OperationalReleaseEvidence | undefined = deps.operationalRelease
+    ? {
+        mode: "operator-authorized-operational",
+        authorization: OPERATIONAL_RELEASE_AUTHORIZATION,
+        statisticalGate: gate,
+        statisticalQualification: false,
+      }
+    : undefined;
+  const evidence = () => (releaseEvidence ? { releaseEvidence } : {});
   const target: Active = {
     version,
     deployment: deploymentFor(version),
@@ -230,10 +312,10 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
   const now = clock(deps);
   const start = now();
   const at = new Date(start).toISOString();
-  const opened = journal(deps, { status: "promoting", target, previous: active, at });
+  const opened = journal(deps, { status: "promoting", target, previous: active, at, ...evidence() });
   if (opened) return { outcome: "refused", detail: `${opened}; nothing was changed`, serving };
   const fail = (outcome: "refused" | "failed", detail: string): Promoted => {
-    const lost = journal(deps, { status: "failed", target, previous: active, at, detail });
+    const lost = journal(deps, { status: "failed", target, previous: active, at, detail, ...evidence() });
     return outcome === "failed"
       ? { outcome, detail, serving, ...(lost ? { journal: lost } : {}) }
       : { outcome, detail: lost ? `${detail}; ${lost}` : detail, serving };
@@ -246,8 +328,22 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
     const ready = await client.waitReady();
     checkReadBack(ready, 1);
     checkPriced(ready, target.deployment);
+    if (deps.operationalRelease && (ready.state !== "READY" || ready.baseModel !== modelNameOf(version))) {
+      throw new Error("refused: operational deployment does not serve the exact authorized model in READY state");
+    }
     prepared = now();
-    await deps.probe(version, target.deployment, "promotion");
+    if (deps.operationalRelease && releaseEvidence) {
+      const smoke = OperationalSmokeSchema.parse(await deps.operationalRelease.smoke(version, target.deployment));
+      const observedAt = Date.parse(smoke.observedAt);
+      if (observedAt < start || observedAt > now())
+        throw new Error("operational smoke is not from this promotion attempt");
+      releaseEvidence.smoke = smoke;
+      // Persist the genuine smoke and unresolved statistical qualification before changing the selector.
+      const lost = journal(deps, { status: "promoting", target, previous: active, at, ...evidence() });
+      if (lost) throw new Error(lost);
+    } else {
+      await deps.probe(version, target.deployment, "promotion");
+    }
     probed = now();
   } catch (error) {
     const detail = (error as Error).message;
@@ -259,7 +355,7 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
     return switched;
   }
   // The switch has happened: a record that cannot be written is reported alongside it, never instead of it.
-  const lost = journal(deps, { status: "promoted", target, previous: active, at });
+  const lost = journal(deps, { status: "promoted", target, previous: active, at, ...evidence() });
   return {
     outcome: "promoted",
     version,
@@ -269,6 +365,7 @@ export async function promote(version: string, deps: Deps): Promise<Promoted> {
     production: "not switched until the Worker is deployed",
     next: WORKER_NEXT,
     timings: timings({ start, prepared, probed, switched: now() }),
+    ...evidence(),
     ...(lost ? { journal: lost } : {}),
   };
 }
