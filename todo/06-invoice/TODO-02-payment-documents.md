@@ -34,7 +34,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
 | 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [x] |
-| 3 | §3 | Standalone document path with the fixed | §2, D01 T03 §1, D07 T03 §30 | [ ] |
+| 3 | §3 | Standalone document path with the fixed | §2, D01 T03 §1, D07 T03 §30 | [x] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [x] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
@@ -137,6 +137,9 @@ A document case skips the mail checks and runs forensics, extraction and matchin
 - [x] Commit: `invoice: standalone payment document path`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/document-path.test.ts` passes and fails if a POP case lacks the limit statement.
+
+> **Verified:** 2026-11-04 | §3 | 348f8346f2f35dad2c382c387ea8259b52d8836d
+> **Review:** `docs/reviews/d06-t02-s3.json`
 
 ## 4. Muse Image doctored document pairs
 

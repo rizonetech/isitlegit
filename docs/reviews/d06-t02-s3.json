@@ -1,0 +1,120 @@
+{
+  "ref": "D06 T02 \u00a73",
+  "title": "Standalone document path with the fixed",
+  "implementation_sha": "348f8346f2f35dad2c382c387ea8259b52d8836d",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/06-invoice/D06-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/06-invoice/D06-T02-s3.md",
+      "verdict": "stopped-at-3"
+    }
+  ],
+  "checks": [
+    "taskset -c 9 pnpm exec vitest run test/invoice/document-path.test.ts -> 7 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T02-s3.md",
+    "verdict": "completed",
+    "candidate": "d7748b83eb1584570f1c0a86eec841e32cffd69a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 3,
+  "cap_outcome": "Round 3 P1 finding (standalone-packaged non-payment document skipping visionStep and mail checks) fixed in af114bcd through 21a7d26e and verified in test/invoice/document-path.test.ts; nothing left over",
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T02-s3.md",
+    "candidate": "168097447121a6d141ff745f073caac351f301fa",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
