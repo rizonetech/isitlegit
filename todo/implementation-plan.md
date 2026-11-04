@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 223 | Checklist items: 995
+Sections: 224 | Checklist items: 1002
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -420,6 +420,7 @@ Sections: 223 | Checklist items: 995
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                            | operator             | 2     |
 | [x]    | D00 T01 §32 | Wake dispatched after each                                  | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days                 | none                 | 8     |
+| [ ]    | D00 T01 §34 | Codex unattended continuation and session ownership         | none                 | 7     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                            | attended             | 6     |
 | [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward                    | none                 | 4     |
 | [x]    | D01 T01 §12 | Several originals in one forward                            | none                 | 5     |
@@ -675,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 421/599 verified sections, 115 ready to run now.
+Progress: 421/600 verified sections, 116 ready to run now.
 
-Checklist: 3083/3696 items completed (includes Commit items).
+Checklist: 3083/3703 items completed (includes Commit items).
