@@ -1,6 +1,7 @@
 import type React from "react";
-import { AbsoluteFill, continueRender, delayRender, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, cancelRender, continueRender, delayRender, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import tokens from "../../design/tokens/colors.json";
+import { loadFonts } from "./kit/fonts";
 
 // Light theme tokens from design/tokens/colors.json, unchanged; the videos match the logo animation's light ground.
 // The theme comes from design/tokens/colors.json unchanged: dark by default (operator, 2026-10-30), light when
@@ -13,15 +14,18 @@ export const CARD = DARK ? c["dark-raised"] : c.surface;
 export const CODE_BG = DARK ? c.surface : c.dark;
 
 // Exo for headings, Exo 2 for body (design/brand/README.md "Type"), from design/fonts via --public-dir ../design.
+// A font that fails to load cancels the render naming its file (src/kit/fonts.ts), never a silent serif fallback.
 const fontsReady = delayRender("fonts");
-Promise.all(
+loadFonts(
   [
     ["Exo", "fonts/Exo[wght].ttf"],
     ["Exo 2", "fonts/Exo2[wght].ttf"],
-  ].map(([family, file]) =>
+  ],
+  (family, file) =>
     new FontFace(family, `url("${staticFile(file)}")`, { weight: "100 900" }).load().then((f) => document.fonts.add(f)),
-  ),
-).then(() => continueRender(fontsReady));
+  () => continueRender(fontsReady),
+  (err) => cancelRender(err),
+);
 
 export const head: React.CSSProperties = { fontFamily: '"Exo", sans-serif', fontWeight: 700, color: c.ink, letterSpacing: -0.5 };
 export const body: React.CSSProperties = { fontFamily: '"Exo 2", sans-serif', fontWeight: 500, color: c["ink-2"] };
