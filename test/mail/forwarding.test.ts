@@ -1020,4 +1020,68 @@ describe("early refusal alert before attribution (D01 T02 §15)", () => {
     expect(secondRun).toMatchObject({ state: "ok", alerted: 5 });
     expect(w.sends).toHaveLength(totalClusters * OPERATORS.length);
   });
+
+  it("deduplicates overlapping scans seeing different slices of the same refusal cluster via atomic cluster key claim, and shares ALERTS_PER_RUN fairly with pending alerts (round 1)", async () => {
+    // 1. Interleaved scan: Scan A reads laterNotice and pauses before its early-alert claim; Scan B reads both report()
+    // and laterNotice, claims the cluster key, and sends. When Scan A resumes, its atomic UPDATE adopts Scan B's claimed
+    // cluster key and deduplicates.
+    const laterNotice = report({
+      sessionId: "s-r2",
+      messageId: "<ndr-2@x>",
+      datetime: new Date(at(0.2).getTime() + 2000).toISOString(),
+    });
+    const wOverlap = world([[laterNotice], [report()], []]);
+    let scanBTriggered = false;
+    const interleavedDb = new Proxy(db, {
+      get(target, name) {
+        if (name === "batch")
+          return async (statements: D1PreparedStatement[]) => {
+            if (!scanBTriggered) {
+              scanBTriggered = true;
+              // Run Scan B with the normal db while Scan A is paused right before its cluster-claim batch.
+              await checkForwarding(prodDeps(wOverlap.fetcher, at(2)));
+            }
+            return target.batch(statements);
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+
+    await checkForwarding(prodDeps(wOverlap.fetcher, at(1), { db: interleavedDb }));
+    // Only 1 early alert (2 operator emails) went across both overlapping scans.
+    expect(wOverlap.sends).toHaveLength(2);
+
+    // 2. Fair budget sharing under sustained early traffic alongside pending attributed/Worker alerts.
+    await db.batch([
+      db.prepare("DELETE FROM forward_scan"),
+      db.prepare("DELETE FROM forward_seen"),
+      db.prepare("DELETE FROM forward_incidents"),
+      db.prepare("DELETE FROM forward_notices"),
+      db.prepare("DELETE FROM mail_sends"),
+    ]);
+    const earlyReports = Array.from({ length: ALERTS_PER_RUN }, (_, i) =>
+      report({
+        messageId: `<ndr-fair-${i}@x>`,
+        sessionId: `s-fair-${i}`,
+        subject: `Undeliverable: Fair ${i}`,
+        datetime: new Date(at(184).getTime() + i * 1000).toISOString(),
+      }),
+    );
+    const pendingWorkers = Array.from({ length: 10 }, (_, i) =>
+      worker("deliveryFailed", {
+        messageId: `<w-fair-${i}@x>`,
+        sessionId: `sw-fair-${i}`,
+        subject: `Worker Fair ${i}`,
+        datetime: new Date(at(0).getTime() + i * 1000).toISOString(),
+      }),
+    );
+    const wFair = world([[...pendingWorkers, ...earlyReports], []]);
+    const fairRun = await checkForwarding(prodDeps(wFair.fetcher, at(185)));
+    expect(fairRun).toMatchObject({ state: "ok", alerted: ALERTS_PER_RUN });
+    const earlySent = wFair.sends.filter((s) => s.key.startsWith("forward-early:")).length / OPERATORS.length;
+    const pendingSent = wFair.sends.filter((s) => s.key.startsWith("forward-failure:")).length / OPERATORS.length;
+    expect(pendingSent).toBe(10);
+    expect(earlySent).toBe(ALERTS_PER_RUN - 10);
+  });
 });

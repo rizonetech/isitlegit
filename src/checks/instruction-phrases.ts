@@ -64,11 +64,12 @@ export const PATTERNS: readonly { name: string; pattern: RegExp }[] = [
   },
   {
     // Role assignment: an unambiguous AI name, or an ambiguous assistant role ("helpful/harmless/obedient/compliant
-    // assistant") when paired with a persona switch ("you are now", "act as", ...) and a steering directive (`VERB`),
-    // so ordinary human-assistant mail ("You are a helpful assistant to our warehouse manager") stays unflagged.
+    // assistant") when paired with a persona switch ("from now on, you are", "you are now", "act as", ...) and a
+    // steering directive (`VERB`), so ordinary human-assistant mail ("You are a helpful assistant to our warehouse
+    // manager") stays unflagged.
     name: "role-for-ai",
     pattern: phrase(
-      String.raw`\b(?:from now on[, ]+)?(?:you are|you're|act as|pretend to be|role-?play as|behave as)(?:\s+now)?\s+(?:an?\s+|the\s+)?${AI_NAMED}\b|\b(?:(?:from now on[, ]+)?(?:you are|you're)\s+now|(?:from now on[, ]+)?(?:act|behave|role-?play)\s+as|pretend to be)\s+(?:an?\s+|the\s+)?(?:helpful|harmless|obedient|compliant)\s+assistant(?:\s*[.!;:,]\s*(?:(?:you\s+)?(?:must|should|will|shall|always|never)\s+|(?:please\s+)?)?${VERB}\b|\s+(?:that|who|and)\s+(?:(?:must|should|always|never)\s+)?${VERB}\b)`,
+      String.raw`\b(?:from now on[, ]+)?(?:you are|you're|act as|pretend to be|role-?play as|behave as)(?:\s+now)?\s+(?:an?\s+|the\s+)?${AI_NAMED}\b|\b(?:from now on[, ]+(?:you are|you're)(?:\s+now)?|(?:you are|you're)\s+now|(?:from now on[, ]+)?(?:act|behave|role-?play)\s+as|pretend to be)\s+(?:an?\s+|the\s+)?(?:helpful|harmless|obedient|compliant)\s+assistant(?:\s*[.!;:,]\s*(?:(?:you\s+)?(?:must|should|will|shall|always|never)\s+|(?:please\s+)?)?${VERB}\b|\s+(?:that|who|and)\s+(?:(?:must|should|always|never)\s+)?${VERB}\b)`,
     ),
   },
   {

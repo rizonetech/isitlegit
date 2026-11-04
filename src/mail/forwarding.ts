@@ -273,18 +273,21 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
       deps.operators.length,
       deps.earlyAlert ?? true,
     );
-  let remainingAlerts = ALERTS_PER_RUN;
-  if (deps.earlyAlert ?? true) remainingAlerts -= await sendEarlyAlerts(deps, outcome, remainingAlerts);
-  const pending =
-    remainingAlerts > 0
-      ? await db
-          .prepare(
-            "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
-          )
-          .bind(remainingAlerts)
-          .all<Incident>()
-      : { results: [] };
-  for (const incident of pending.results) {
+  const pendingRows = (
+    await db
+      .prepare(
+        "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
+      )
+      .bind(ALERTS_PER_RUN)
+      .all<Incident>()
+  ).results;
+  // Share ALERTS_PER_RUN fairly between early alerts and pending attributed/Worker alerts so neither class can starve
+  // the other under sustained load, while giving any unused capacity of one class to the other.
+  const earlyBudget =
+    (deps.earlyAlert ?? true) ? Math.max(Math.floor(ALERTS_PER_RUN / 2), ALERTS_PER_RUN - pendingRows.length) : 0;
+  const earlyAttempted = earlyBudget > 0 ? await sendEarlyAlerts(deps, outcome, earlyBudget) : 0;
+  const pendingBudget = Math.max(0, ALERTS_PER_RUN - earlyAttempted);
+  for (const incident of pendingRows.slice(0, pendingBudget)) {
     const alerted = await alert(deps, incident);
     if (alerted === "sent") outcome.alerted++;
     if (alerted === "pending") {
@@ -381,6 +384,7 @@ type Waiting = {
   destination_domain: string | null;
   occurred_at: string;
   detected_at: string;
+  reason: string | null;
 };
 async function resolveRefusals(
   db: D1Database,
@@ -393,7 +397,7 @@ async function resolveRefusals(
   let folded = 0;
   const waiting = await db
     .prepare(
-      "SELECT key, subject_hash, destination_domain, occurred_at, detected_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
+      "SELECT key, subject_hash, destination_domain, occurred_at, detected_at, reason FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
     )
     .all<Waiting>();
   // A cluster starts from its earliest waiting notice and takes in every waiting notice beside it, read in whatever
@@ -454,19 +458,20 @@ async function resolveRefusals(
     const only = !sibling && found.length === 1 ? found[0] : undefined;
     // When no forward was found after the grace, attribution adds nothing to an early alert that was already confirmed
     // delivered (D01 T02 §15: "or none when the first already said all").
+    const candidateKeys = [...new Set(cluster.flatMap((m) => (m.reason ? [m.key, m.reason] : [m.key])))];
+    const claimedEarlyKey = cluster.find((m) => m.reason)?.reason ?? null;
     const earlyDelivered =
       earlyAlert && !found.length && !sibling && operatorCount > 0
-        ? await isEarlyAlertDelivered(
-            db,
-            cluster.map((m) => m.key),
-            operatorCount,
-          )
+        ? await isEarlyAlertDelivered(db, candidateKeys, operatorCount)
         : false;
     const resolution =
       sibling && !found.length
         ? foldInto(sibling.key, cluster)
         : [
             ...foldInto(first.key, cluster.slice(1)),
+            ...(claimedEarlyKey && !first.reason
+              ? [db.prepare("UPDATE forward_incidents SET reason = ? WHERE key = ?").bind(claimedEarlyKey, first.key)]
+              : []),
             only
               ? db
                   .prepare(
@@ -532,7 +537,7 @@ async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome,
   const db = deps.db;
   const waiting = await db
     .prepare(
-      "SELECT key, subject_hash, destination_domain, occurred_at, detected_at FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
+      "SELECT key, subject_hash, destination_domain, occurred_at, detected_at, reason FROM forward_incidents WHERE kind = 'refused' AND alert = 'waiting' ORDER BY occurred_at, key",
     )
     .all<Waiting>();
   if (!waiting.results.length) return 0;
@@ -588,9 +593,8 @@ async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome,
         Date.parse(s.occurred_at) <= lastMs,
     );
     if (hasSettledSibling) continue;
-    // Reuse any member key that already initiated an early alert in mail_sends (so an earlier-timestamped notice read
-    // in a later scan shares the cluster's existing early-alert key).
-    let earlyKey = first.key;
+    // Reuse any persisted cluster early-alert key (`reason` on kind = 'refused') or any member key already in mail_sends.
+    let earlyKey = cluster.find((m) => m.reason)?.reason ?? first.key;
     for (const member of cluster) {
       if (earlyStatuses.has(member.key)) {
         earlyKey = member.key;
@@ -604,7 +608,31 @@ async function sendEarlyAlerts(deps: ForwardingDeps, outcome: ForwardingOutcome,
   // Untried clusters go before retrying ones so a failing early send cannot starve new refusals.
   candidates.sort((a, b) => a.tried - b.tried);
   let attempted = 0;
-  for (const { first, cluster, earlyKey } of candidates.slice(0, maxAlerts)) {
+  for (const { first, cluster, earlyKey: initialKey } of candidates.slice(0, maxAlerts)) {
+    const last = cluster[cluster.length - 1] as Waiting;
+    // Atomically persist a shared cluster earlyKey across all waiting notices in the NOTICE_SPREAD_MS window so two
+    // overlapping scans seeing different slices of the same refusal cluster agree on one earlyKey before sending.
+    await db.batch(
+      cluster.map((m) =>
+        db
+          .prepare(
+            "UPDATE forward_incidents SET reason = COALESCE((SELECT reason FROM forward_incidents s WHERE s.kind = 'refused' AND s.subject_hash = forward_incidents.subject_hash AND s.destination_domain IS forward_incidents.destination_domain AND s.reason IS NOT NULL AND julianday(s.occurred_at) BETWEEN julianday(?) - ? AND julianday(?) + ? ORDER BY s.occurred_at, s.key LIMIT 1), ?) WHERE key = ? AND reason IS NULL",
+          )
+          .bind(
+            first.occurred_at,
+            NOTICE_SPREAD_MS / 86400000,
+            last.occurred_at,
+            NOTICE_SPREAD_MS / 86400000,
+            initialKey,
+            m.key,
+          ),
+      ),
+    );
+    const claimed = await db
+      .prepare("SELECT reason FROM forward_incidents WHERE key = ?")
+      .bind(first.key)
+      .first<{ reason: string | null }>();
+    const earlyKey = claimed?.reason ?? initialKey;
     attempted++;
     const { subject, text } = earlyAlertText({ ...first, key: earlyKey }, cluster.length);
     const outcomes: SendOutcome[] = [];
