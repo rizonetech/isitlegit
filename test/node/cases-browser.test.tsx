@@ -1161,7 +1161,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("calendar ranges in Chromium
           await p.goBack();
           await expect.poll(() => p.url()).toContain("to=2026-10-31");
           await p.getByLabel("Year", { exact: true }).fill("2028");
+          const submitted = p.waitForResponse((response) => {
+            const url = new URL(response.url());
+            return (
+              url.pathname === "/cases" &&
+              url.searchParams.get("calendar_year") === "2028" &&
+              !url.searchParams.has("calendar")
+            );
+          });
           await p.getByLabel("Year", { exact: true }).press("Enter");
+          const submittedResponse = await submitted;
+          await submittedResponse.finished();
+          expect(submittedResponse.status()).toBe(200);
+          expect(new URL(submittedResponse.url()).searchParams.get("from")).toBe("2026-10-01");
+          expect(new URL(submittedResponse.url()).searchParams.get("to")).toBe("2026-10-31");
           await expect.poll(() => new URL(p.url()).searchParams.get("from")).toBe("2026-10-01");
           expect(await p.locator("#case-from").inputValue()).toBe("2026-10-01");
           await p.locator("#case-from").fill("2026-10-30");
@@ -1213,6 +1226,37 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("calendar ranges in Chromium
         }))
           expect(query.get(key)).toBe(value);
         expect(query.has("calendar")).toBe(false);
+        await context.close();
+      }
+  });
+
+  it("submits custom From and To on Enter without applying differing calendar drafts", async () => {
+    for (const js of [true, false])
+      for (const field of ["from", "to"] as const) {
+        const { p, context } = await open("/cases?from=2026-10-29&to=2026-10-31&period=90", { js });
+        await p.getByLabel("Year", { exact: true }).fill("2028");
+        await p.getByLabel("Month", { exact: true }).selectOption("2");
+        await p.getByLabel("Quarter", { exact: true }).selectOption("1");
+        await p.locator(`#case-${field}`).fill("2026-10-30");
+        const responsePromise = p.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return (
+            url.pathname === "/cases" &&
+            url.searchParams.get(field) === "2026-10-30" &&
+            !url.searchParams.has("calendar")
+          );
+        });
+        await p.locator(`#case-${field}`).press("Enter");
+        const response = await responsePromise;
+        await response.finished();
+        expect(response.status()).toBe(200);
+        const params = new URL(response.url()).searchParams;
+        const from = field === "from" ? "2026-10-30" : "2026-10-29";
+        const to = field === "to" ? "2026-10-30" : "2026-10-31";
+        expect(params.get("from")).toBe(from);
+        expect(params.get("to")).toBe(to);
+        expect(params.get("calendar_year")).toBe("2028");
+        await expect.poll(() => ids(p)).toEqual(expected("A", { from, to, period: "90" }));
         await context.close();
       }
   });
