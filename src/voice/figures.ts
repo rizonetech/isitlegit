@@ -23,7 +23,7 @@ const POWERS: Record<string, number> = { hundred: 2, thousand: 3, million: 6, bi
 const NUMBER_WORDS =
   "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|half|quarter|dozen";
 const NUMBER_START = new RegExp(
-  `^(?:(?:[\\p{Pd}\\p{Sm}]|(?:minus|negative)\\b)\\s*)*(?:[0-9$€£]|(?:R|ZAR|USD|EUR|GBP)(?=\\s|[0-9])|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
+  `^(?:(?:[\\p{Pd}\\p{Sm}]|(?:minus|negative)\\b)\\s*)*(?:[0-9$€£]|(?:R|ZAR|USD|EUR|GBP)(?=\\s|[0-9\\p{Pd}\\p{Sm}])|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
   "iu",
 );
 const NUMBER_TERM = new RegExp(
@@ -36,7 +36,8 @@ function compositeEnd(transcript: string, end: number): number | null {
   let at = end + join[0].length;
   while (at < transcript.length) {
     const tail = transcript.slice(at);
-    const token = /^[\s\d.,/%:&$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? /^R(?=\s|\d)/i.exec(tail);
+    const token =
+      /^[\s\d.,/%:&$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? /^R(?=\s|[\d\p{Pd}\p{Sm}])/iu.exec(tail);
     if (!token) break;
     at += token[0].length;
   }

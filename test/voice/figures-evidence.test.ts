@@ -227,3 +227,10 @@ it.each([
 ])("reconciliation regression: signed later components reject the whole expression for %s", async (transcript) => {
   expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
 });
+
+it.each([
+  "Please pay R100 & R-50 thousand & 20 thousand today",
+  "Please pay R100 and ZAR-50 thousand and 20 thousand today",
+])("signed currency components also reject the whole expression for %s", async (transcript) => {
+  expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
+});
