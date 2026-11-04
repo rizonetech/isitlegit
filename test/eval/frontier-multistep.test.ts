@@ -2,6 +2,7 @@
 import { env } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
 import { expect, it } from "vitest";
+import { arrivalEvidence } from "../../eval/frontier/multistep-core";
 import index from "../../fixtures/nimbusmail-multistep/index.html";
 import login from "../../fixtures/nimbusmail-multistep/login.html";
 import lure from "../../fixtures/nimbusmail-multistep/lure.html";
@@ -32,6 +33,7 @@ it("reaches the credential page through actual driver actions with no provider t
       "/multistep/submitted": submitted,
     };
     const requests: string[] = [];
+    const walkBegan = Date.now();
     driver = await Driver.open(browser, {
       caseId,
       walkId: "fixture-only",
@@ -77,6 +79,16 @@ it("reaches the credential page through actual driver actions with no provider t
       .bind(caseId)
       .first<{ n: number }>();
     expect(actions?.n).toBe(3);
+    const rows = await env.DB.prepare(
+      "SELECT seq,at,screenshot_key FROM walkthrough_actions WHERE case_id=? AND walk_id=? AND kind='action' ORDER BY seq",
+    )
+      .bind(caseId, "fixture-only")
+      .all();
+    const arrivals = arrivalEvidence(rows.results, walkBegan);
+    const loginPage = trace.pages.find((page) => page.url.endsWith("/multistep/login") && page.asksPassword === true);
+    if (!loginPage?.screenshotKey) throw new Error("missing credential observation");
+    expect(arrivals.get(loginPage.screenshotKey)?.arrivedStep).toBe(3);
+    expect(arrivals.get(loginPage.screenshotKey)?.arrivedMs).toBeLessThanOrEqual(60000);
   } finally {
     await driver?.close();
     if (browser.connected) await browser.close();

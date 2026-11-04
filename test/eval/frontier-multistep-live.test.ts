@@ -2,7 +2,7 @@
 import { env } from "cloudflare:workers";
 import puppeteer, { type Browser } from "@cloudflare/puppeteer";
 import { describe, it } from "vitest";
-import { observedTransport, type Report, ReportSchema } from "../../eval/frontier/multistep-core";
+import { arrivalEvidence, observedTransport, type Report, ReportSchema } from "../../eval/frontier/multistep-core";
 import { ulid } from "../../src/db/ulid";
 import { canaryFor } from "../../src/walkthrough/canary";
 import { dohResolve } from "../../src/walkthrough/url-policy";
@@ -19,9 +19,11 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
     const capacity: Report["capacity"] = [];
     let browser: Browser | undefined, result: Awaited<ReturnType<typeof walk>> | undefined;
     const began = Date.now();
+    let walkBegan = began,
+      caseId = "";
     try {
-      const caseId = ulid(),
-        at = new Date().toISOString();
+      caseId = ulid();
+      const at = new Date().toISOString();
       await env.DB.prepare(
         "INSERT INTO cases(id,org_id,channel,created_at,updated_at) VALUES(?,'org-frontier','email',?,?)",
       )
@@ -30,6 +32,7 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
       const canary = await canaryFor(env.DB, caseId);
       if (!canary.ok) throw new Error("canary unavailable");
       browser = await puppeteer.launch(env.BROWSER);
+      walkBegan = Date.now();
       result = await walk(browser, {
         caseId,
         walkId: reservationId,
@@ -62,6 +65,16 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
           return "other";
         }
       };
+      const rows = caseId
+        ? (
+            await env.DB.prepare(
+              "SELECT seq,at,screenshot_key FROM walkthrough_actions WHERE case_id=? AND walk_id=? AND kind='action' ORDER BY seq",
+            )
+              .bind(caseId, reservationId)
+              .all()
+          ).results
+        : [];
+      const arrivals = arrivalEvidence(rows, walkBegan);
       const report = ReportSchema.parse({
         ordinal,
         reservationId,
@@ -72,6 +85,10 @@ describe.skipIf(input.MULTISTEP_LIVE !== "1")("bounded multi-step experiment", (
           stage: stage(page.url),
           seq: page.seq,
           asksPassword: page.asksPassword,
+          ...((page.screenshotKey ? arrivals.get(page.screenshotKey) : undefined) ?? {
+            arrivedStep: null,
+            arrivedMs: null,
+          }),
         })),
         attempts: budget.attempts(),
         capacity,

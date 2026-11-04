@@ -33,6 +33,8 @@ export const ReportSchema = z.strictObject({
         stage: z.enum(["start", "lure", "login", "submitted", "other"]),
         seq: z.number().int().nonnegative(),
         asksPassword: z.boolean().nullable(),
+        arrivedStep: z.number().int().nonnegative().max(100).nullable(),
+        arrivedMs: z.number().finite().nonnegative().nullable(),
       }),
     )
     .max(200),
@@ -54,8 +56,12 @@ export function scoreWalk(raw: unknown) {
   const stages = r.pages.filter((p, i) => i === 0 || p.stage !== r.pages[i - 1]?.stage);
   const reached =
     monotone &&
-    r.steps <= 8 &&
-    r.ms <= 60000 &&
+    stages[2]?.arrivedStep !== null &&
+    stages[2]?.arrivedStep !== undefined &&
+    stages[2].arrivedStep <= 8 &&
+    stages[2]?.arrivedMs !== null &&
+    stages[2]?.arrivedMs !== undefined &&
+    stages[2].arrivedMs <= 60000 &&
     stages[0]?.stage === "start" &&
     stages[1]?.stage === "lure" &&
     stages[2]?.stage === "login" &&
@@ -63,9 +69,30 @@ export function scoreWalk(raw: unknown) {
   const costUsd = r.attempts.reduce((n, a) => n + (a.actualUsd ?? a.estimateUsd), 0);
   return {
     reached,
+    arrivedStep: stages[2]?.stage === "login" ? (stages[2].arrivedStep ?? null) : null,
+    arrivedMs: stages[2]?.stage === "login" ? (stages[2].arrivedMs ?? null) : null,
     costUsd,
     certainty: r.attempts.some((a) => a.actualUsd === null) ? ("estimated" as const) : ("measured" as const),
   };
+}
+// Match the driver's durable action row to its screenshot. Final walk timing may include later submission work.
+export function arrivalEvidence(rawRows: unknown, walkBeganMs: number) {
+  const rows = z
+    .array(z.strictObject({ seq: z.number().int().positive(), at: z.string(), screenshot_key: z.string().nullable() }))
+    .max(100)
+    .parse(rawRows);
+  const arrivals = new Map<string, { arrivedStep: number; arrivedMs: number }>();
+  if (!Number.isFinite(walkBeganMs) || rows.some((row, index) => index > 0 && row.seq <= (rows[index - 1]?.seq ?? 0)))
+    throw new Refusal("invalid action chronology");
+  for (const [index, row] of rows.entries()) {
+    const elapsed = Date.parse(row.at) - walkBeganMs;
+    if (!Number.isFinite(elapsed) || elapsed < 0) throw new Refusal("invalid action timestamp");
+    if (row.screenshot_key) {
+      if (arrivals.has(row.screenshot_key)) throw new Refusal("duplicate screenshot observation");
+      arrivals.set(row.screenshot_key, { arrivedStep: index + 1, arrivedMs: elapsed });
+    }
+  }
+  return arrivals;
 }
 export function capacityDelay(failures: number, providerMs: number | null, random: number) {
   if (
@@ -323,6 +350,8 @@ export function scoreExperiment(s: State) {
   return {
     reached: s.slots.filter((slot) => slot.status === "complete" && slot.report && scoreWalk(slot.report).reached)
       .length,
+    arrivalSteps: s.slots.map((slot) => (slot.report ? scoreWalk(slot.report).arrivedStep : null)),
+    arrivalMs: s.slots.map((slot) => (slot.report ? scoreWalk(slot.report).arrivedMs : null)),
     total: 5,
     unknown: s.slots.filter((slot) => slot.status === "unknown").length,
     costUsd: usedUsd(s),
