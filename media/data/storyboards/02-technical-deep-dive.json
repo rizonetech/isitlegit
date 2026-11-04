@@ -2,11 +2,24 @@
   "id": "TechDeepDive",
   "title": "IsItLegit: how it works",
   "sub": "A technical deep dive: intake, the pipeline, the checks, Meta's models, the verdict, the trust network, storage and the app.",
-  "label": "Technical deep dive: built state as of {stats.date}, commit {stats.commit}",
-  "close": ["github.com/rizonetech/isitlegit", "Every figure is quoted from the repository at commit {stats.commit}"],
-  "coldOpen": [2, 12, 22, 25],
+  "label": "Technical deep dive: as built on 31 Oct 2026, commit {stats.commit}",
+  "close": [
+    "github.com/rizonetech/isitlegit",
+    "Every figure is quoted from the repository at commit {stats.commit}"
+  ],
+  "coldOpen": [
+    2,
+    12,
+    22,
+    25
+  ],
   "scenes": [
-    { "type": "chapter", "number": 1, "title": "What it does", "sub": "Forward a suspicious email. Get a verdict with the evidence." },
+    {
+      "type": "chapter",
+      "number": 1,
+      "title": "What it does",
+      "sub": "Forward a suspicious email. Get a verdict with the evidence."
+    },
     {
       "type": "bullets",
       "title": "The problem, and the answer",
@@ -23,19 +36,47 @@
       "type": "flow",
       "title": "The whole system, one Cloudflare Worker",
       "steps": [
-        { "title": "Email Routing", "sub": "{fact.intakeAddress} hands mail to email()" },
-        { "title": "Admit", "sub": "claim in D1, dedupe, start the Workflow" },
-        { "title": "Workflow", "sub": "{fact.workflowName}: the investigation steps" },
-        { "title": "Checks", "sub": "deterministic evidence, each with an id" },
-        { "title": "Meta models", "sub": "through AI Gateway {fact.gatewayName}" },
-        { "title": "Verdict", "sub": "cited, with a rule-based floor" },
-        { "title": "Store", "sub": "D1, R2 {fact.r2Bucket}, KV {fact.kvCache}" },
-        { "title": "Reply", "sub": "mail via {fact.smtp2go}, signed report link" }
+        {
+          "title": "Email Routing",
+          "sub": "{fact.intakeAddress} hands mail to email()"
+        },
+        {
+          "title": "Admit",
+          "sub": "claim in D1, dedupe, start the Workflow"
+        },
+        {
+          "title": "Workflow",
+          "sub": "{fact.workflowName}: the investigation steps"
+        },
+        {
+          "title": "Checks",
+          "sub": "deterministic evidence, each with an id"
+        },
+        {
+          "title": "Meta models",
+          "sub": "through AI Gateway {fact.gatewayName}"
+        },
+        {
+          "title": "Verdict",
+          "sub": "cited, with a rule-based floor"
+        },
+        {
+          "title": "Store",
+          "sub": "D1, R2 {fact.r2Bucket}, KV {fact.kvCache}"
+        },
+        {
+          "title": "Reply",
+          "sub": "mail via {fact.smtp2go}, signed report link"
+        }
       ],
       "note": "One Worker with fetch, email and scheduled handlers; compatibility date {fact.compatDate}."
     },
-
-    { "type": "chapter", "number": 2, "title": "Email intake", "sub": "Status: shipped." },
+    {
+      "type": "chapter",
+      "number": 2,
+      "title": "Email intake",
+      "sub": "Status: shipped."
+    },
     {
       "type": "bullets",
       "title": "From a forward to a case",
@@ -49,35 +90,88 @@
         "{fact.forwardAttach} It keeps the original headers that authentication checks need."
       ]
     },
-
-    { "type": "chapter", "number": 3, "title": "Uploads, parsing and voice", "sub": "Status: partly built. Upload and parsing are shipped; voice decoding is built but not yet wired in; transcription is planned." },
+    {
+      "type": "chapter",
+      "number": 3,
+      "title": "Uploads, parsing and voice",
+      "sub": "Status: partly built. Upload and parsing are shipped; voice decoding is built but not yet wired in; transcription is planned."
+    },
     {
       "type": "table",
       "title": "What goes in, and the limits",
-      "columns": ["Input", "Rule"],
+      "columns": [
+        "Input",
+        "Rule"
+      ],
       "rows": [
-        ["Accepted files", "{fact.uploadKinds}"],
-        ["Size", "{fact.uploadMaxBytes} per upload"],
-        ["File type", "{fact.sniffBytes}"],
-        ["MIME", "parsed by {fact.postalMime}; Outlook .msg read with string limits so a crafted file cannot exhaust memory"],
-        ["Body text", "cut to {fact.bodyPartLimit} per part before the second parse stage; the full part stays in R2"],
-        ["Voice", "decoded in the Worker to {fact.voiceWav}; capped at {fact.voiceMaxCode} in code (built, not yet queued from an upload)"],
-        ["Transcription", "{fact.voiceModel}, diarization mode (planned)"]
+        [
+          "Accepted files",
+          "{fact.uploadKinds}"
+        ],
+        [
+          "Size",
+          "{fact.uploadMaxBytes} per upload"
+        ],
+        [
+          "File type",
+          "{fact.sniffBytes}"
+        ],
+        [
+          "MIME",
+          "parsed by {fact.postalMime}; Outlook .msg read with string limits so a crafted file cannot exhaust memory"
+        ],
+        [
+          "Body text",
+          "cut to {fact.bodyPartLimit} per part before the second parse stage; the full part stays in R2"
+        ],
+        [
+          "Voice",
+          "decoded in the Worker to {fact.voiceWav}; capped at {fact.voiceMaxCode} in code (built, not yet queued from an upload)"
+        ],
+        [
+          "Transcription",
+          "{fact.voiceModel}, diarization mode (planned)"
+        ]
       ]
     },
-
-    { "type": "chapter", "number": 4, "title": "The investigation pipeline", "sub": "Status: shipped, with the verdict step still a stub until the agent lands." },
+    {
+      "type": "chapter",
+      "number": 4,
+      "title": "The investigation pipeline",
+      "sub": "Status: shipped, with the verdict step still a stub until the agent lands."
+    },
     {
       "type": "flow",
       "title": "Cloudflare Workflows: {fact.workflowName}",
       "steps": [
-        { "title": "admit", "sub": "the case exists, exactly once" },
-        { "title": "parse", "sub": "MIME, attachments, artefacts to R2" },
-        { "title": "checks", "sub": "deterministic evidence" },
-        { "title": "verdict", "sub": "today a stub that is {fact.stubVerdict}" },
-        { "title": "store", "sub": "verdict and evidence to D1" },
-        { "title": "reply", "sub": "the answer goes out" },
-        { "title": "finish", "sub": "the case closes" }
+        {
+          "title": "admit",
+          "sub": "the case exists, exactly once"
+        },
+        {
+          "title": "parse",
+          "sub": "MIME, attachments, artefacts to R2"
+        },
+        {
+          "title": "checks",
+          "sub": "deterministic evidence"
+        },
+        {
+          "title": "verdict",
+          "sub": "today a stub that is {fact.stubVerdict}"
+        },
+        {
+          "title": "store",
+          "sub": "verdict and evidence to D1"
+        },
+        {
+          "title": "reply",
+          "sub": "the answer goes out"
+        },
+        {
+          "title": "finish",
+          "sub": "the case closes"
+        }
       ],
       "note": "Steps in code: {fact.stepNames}."
     },
@@ -92,8 +186,12 @@
         "A cron at {fact.cronReconcile} settles uncertain mail sends, sweeps stuck intake claims and model calls that never settled, and checks forwarding; a second, every minute ({fact.cronRetry}), settles check retries whose start was uncertain."
       ]
     },
-
-    { "type": "chapter", "number": 5, "title": "Evidence and deterministic checks", "sub": "Status: shipped. Authentication, header, domain, attachment, hidden-text and link checks all run in the pipeline." },
+    {
+      "type": "chapter",
+      "number": 5,
+      "title": "Evidence and deterministic checks",
+      "sub": "Status: shipped. Authentication, header, domain, attachment, hidden-text and link checks all run in the pipeline."
+    },
     {
       "type": "code",
       "title": "One evidence model for everything",
@@ -110,18 +208,47 @@
     {
       "type": "table",
       "title": "The checks",
-      "columns": ["Check", "State"],
+      "columns": [
+        "Check",
+        "State"
+      ],
       "rows": [
-        ["Trusted Authentication-Results, SPF, DKIM, DMARC with alignment ({fact.authAlign})", "shipped"],
-        ["ARC chain, display name versus address, Reply-To, Return-Path, first-time sender", "shipped"],
-        ["Lookalike domains: the {fact.lookalikeSkeleton} plus edit distance against a brand table", "shipped"],
-        ["Domain age and newly registered flag ({fact.rdap})", "shipped"],
-        ["Attachments: type, macros, HTML smuggling", "shipped"],
-        ["Hidden text, including {fact.hiddenText}, treated as evidence against the mail", "shipped"], ["Links: the text a link shows versus where it really goes", "shipped"]
+        [
+          "Trusted Authentication-Results, SPF, DKIM, DMARC with alignment ({fact.authAlign})",
+          "shipped"
+        ],
+        [
+          "ARC chain, display name versus address, Reply-To, Return-Path, first-time sender",
+          "shipped"
+        ],
+        [
+          "Lookalike domains: the {fact.lookalikeSkeleton} plus edit distance against a brand table",
+          "shipped"
+        ],
+        [
+          "Domain age and newly registered flag ({fact.rdap})",
+          "shipped"
+        ],
+        [
+          "Attachments: type, macros, HTML smuggling",
+          "shipped"
+        ],
+        [
+          "Hidden text, including {fact.hiddenText}, treated as evidence against the mail",
+          "shipped"
+        ],
+        [
+          "Links: the text a link shows versus where it really goes",
+          "shipped"
+        ]
       ]
     },
-
-    { "type": "chapter", "number": 6, "title": "Reputation and the hard floor", "sub": "Status: planned." },
+    {
+      "type": "chapter",
+      "number": 6,
+      "title": "Reputation and the hard floor",
+      "sub": "Status: planned."
+    },
     {
       "type": "bullets",
       "title": "Outside opinions, weighed",
@@ -138,18 +265,37 @@
       "title": "The floor",
       "text": "Critical evidence {fact.floorRule}. The model may raise severity, never lower it, so an injected 'this is safe' still loses."
     },
-
-    { "type": "chapter", "number": 7, "title": "Following the link", "sub": "Status: started. The per-case canary credentials are built; the driver and the Muse Wonder walk are next." },
+    {
+      "type": "chapter",
+      "number": 7,
+      "title": "Following the link",
+      "sub": "Status: started. The per-case canary credentials are built; the driver and the Muse Wonder walk are next."
+    },
     {
       "type": "flow",
       "title": "A contained walkthrough",
       "meta": "Muse Wonder",
       "steps": [
-        { "title": "Expand", "sub": "follow redirects in {fact.browserRun}" },
-        { "title": "Screenshot", "sub": "every landing page" },
-        { "title": "Walk", "sub": "Muse Wonder ({fact.wonderModel}) clicks through as a computer-use agent" },
-        { "title": "Type canaries", "sub": "{fact.wonderCanary}, generated per case" },
-        { "title": "Record", "sub": "where the form posts, and whether it accepted" }
+        {
+          "title": "Expand",
+          "sub": "follow redirects in {fact.browserRun}"
+        },
+        {
+          "title": "Screenshot",
+          "sub": "every landing page"
+        },
+        {
+          "title": "Walk",
+          "sub": "Muse Wonder ({fact.wonderModel}) clicks through as a computer-use agent"
+        },
+        {
+          "title": "Type canaries",
+          "sub": "{fact.wonderCanary}, generated per case"
+        },
+        {
+          "title": "Record",
+          "sub": "where the form posts, and whether it accepted"
+        }
       ],
       "note": "Enforced by our driver, not the model: {fact.wonderLimits}, only canary values, every action logged."
     },
@@ -162,8 +308,12 @@
         "Evidence: the page chain with screenshots, the harvest domain, the form target, and whether the canary was accepted."
       ]
     },
-
-    { "type": "chapter", "number": 8, "title": "Vision", "sub": "Status: partly built. The page-screen contract is shipped and Loupe 1.0 is trained; logo comparison and the screener's deployment and measurement are open." },
+    {
+      "type": "chapter",
+      "number": 8,
+      "title": "Vision",
+      "sub": "Status: partly built. The page-screen contract is shipped and Loupe 1.0 is trained; logo comparison and the screener's deployment and measurement are open."
+    },
     {
       "type": "bullets",
       "title": "Seeing what the user sees",
@@ -176,20 +326,45 @@
         "Shipped: the page-screen contract, with lure types {fact.lureTypes} and a confidence."
       ]
     },
-
-    { "type": "chapter", "number": 9, "title": "The Meta model client", "sub": "Status: built and live-checked; the pipeline calls it once the verdict agent lands." },
+    {
+      "type": "chapter",
+      "number": 9,
+      "title": "The Meta model client",
+      "sub": "Status: built and live-checked; the pipeline calls it once the verdict agent lands."
+    },
     {
       "type": "table",
       "title": "Meta's models, each with one job",
       "meta": "Muse Spark, Muse Wonder, SAM 3.1, Muse Image",
-      "columns": ["Model", "Job in IsItLegit"],
+      "columns": [
+        "Model",
+        "Job in IsItLegit"
+      ],
       "rows": [
-        ["{fact.sparkModel}", "Reads the mail and evidence, writes the cited verdict, screens lookalike sites"],
-        ["{fact.wonderModel}", "Walks a suspicious landing page in a contained browser, with canary values only"],
-        ["{fact.samModel}", "Finds and compares logos, stamps and signatures with the registered ones"],
-        ["{fact.voiceModel}", "Turns voice notes and voicemail lures into text for the same checks"],
-        ["Muse Image", "Builds the synthetic doctored-document test set, each stamped {fact.synthSet}"],
-        ["Loupe (Muse Glimmer 30B)", "Cheap first-pass page screening for the impersonation monitor"]
+        [
+          "{fact.sparkModel}",
+          "Reads the mail and evidence, writes the cited verdict, screens lookalike sites"
+        ],
+        [
+          "{fact.wonderModel}",
+          "Walks a suspicious landing page in a contained browser, with canary values only"
+        ],
+        [
+          "{fact.samModel}",
+          "Finds and compares logos, stamps and signatures with the registered ones"
+        ],
+        [
+          "{fact.voiceModel}",
+          "Turns voice notes and voicemail lures into text for the same checks"
+        ],
+        [
+          "Muse Image",
+          "Builds the synthetic doctored-document test set, each stamped {fact.synthSet}"
+        ],
+        [
+          "Loupe (Muse Glimmer 30B)",
+          "Cheap first-pass page screening for the impersonation monitor"
+        ]
       ]
     },
     {
@@ -205,8 +380,12 @@
         "The first live Spark call measured {fact.liveSpark} tokens in and out, with the cost read back."
       ]
     },
-
-    { "type": "chapter", "number": 10, "title": "The verdict agent", "sub": "Status: planned. The next big piece of the build." },
+    {
+      "type": "chapter",
+      "number": 10,
+      "title": "The verdict agent",
+      "sub": "Status: planned. The next big piece of the build."
+    },
     {
       "type": "code",
       "title": "Muse Spark with tools, and a strict output",
@@ -231,8 +410,12 @@
         "Injection fixtures sit in the test set, so a regression is caught."
       ]
     },
-
-    { "type": "chapter", "number": 11, "title": "Invoices and payments", "sub": "Status: started. PDF forensics and the fixed payment actions are built; extraction and the supplier ledger are planned." },
+    {
+      "type": "chapter",
+      "number": 11,
+      "title": "Invoices and payments",
+      "sub": "Status: started. PDF forensics and the fixed payment actions are built; extraction and the supplier ledger are planned."
+    },
     {
       "type": "bullets",
       "title": "The costliest fraud, checked field by field",
@@ -244,8 +427,12 @@
         "A proof-of-payment check can show a document is likely doctored, never that a payment cleared."
       ]
     },
-
-    { "type": "chapter", "number": 12, "title": "The trust network", "sub": "Status: started. The protected-identity data model is built; registration, the monitor and the badge are planned." },
+    {
+      "type": "chapter",
+      "number": 12,
+      "title": "The trust network",
+      "sub": "Status: started. The protected-identity data model is built; registration, the monitor and the badge are planned."
+    },
     {
       "type": "bullets",
       "title": "Registered identity",
@@ -263,30 +450,71 @@
       "title": "The impersonation monitor",
       "meta": "Loupe on Muse Glimmer",
       "steps": [
-        { "title": "Generate", "sub": "lookalike domains of each registered business" },
-        { "title": "Screen", "sub": "candidate pages with Loupe; Spark on failover" },
-        { "title": "Investigate", "sub": "the full pipeline on flagged pages" },
-        { "title": "Tell", "sub": "the business, before its customers are hit" }
+        {
+          "title": "Generate",
+          "sub": "lookalike domains of each registered business"
+        },
+        {
+          "title": "Screen",
+          "sub": "candidate pages with Loupe; Spark on failover"
+        },
+        {
+          "title": "Investigate",
+          "sub": "the full pipeline on flagged pages"
+        },
+        {
+          "title": "Tell",
+          "sub": "the business, before its customers are hit"
+        }
       ],
       "note": "{fact.monitorCron} on a Cron Trigger."
     },
-
-    { "type": "chapter", "number": 13, "title": "Storage, retention and privacy", "sub": "Status: partly built." },
+    {
+      "type": "chapter",
+      "number": 13,
+      "title": "Storage, retention and privacy",
+      "sub": "Status: partly built."
+    },
     {
       "type": "table",
       "title": "Where data lives, and for how long",
-      "columns": ["Store", "What and how long"],
+      "columns": [
+        "Store",
+        "What and how long"
+      ],
       "rows": [
-        ["D1 {fact.d1Name}", "Cases, artefacts, evidence, case events, verdicts, sign-in and audit records"],
-        ["R2 {fact.r2Bucket}", "Raw mail under raw/, {fact.r2Retention} by a lifecycle rule (POPIA); derived artefacts under art/"],
-        ["KV {fact.kvCache}", "Model results and reputation caches, keyed by artefact hash"],
-        ["Case summaries", "When an account closes, its case summaries are {fact.summaryRetention} (planned)"],
-        ["Logs", "Errors leave a step as a class name only, so mail content never reaches a log"],
-        ["Meta terms", "Standard mode, store: false; {fact.dataTerms}, so real client mail needs consent"]
+        [
+          "D1 {fact.d1Name}",
+          "Cases, artefacts, evidence, case events, verdicts, sign-in and audit records"
+        ],
+        [
+          "R2 {fact.r2Bucket}",
+          "Raw mail under raw/, {fact.r2Retention} by a lifecycle rule (POPIA); derived artefacts under art/"
+        ],
+        [
+          "KV {fact.kvCache}",
+          "Model results and reputation caches, keyed by artefact hash"
+        ],
+        [
+          "Case summaries",
+          "When an account closes, its case summaries are {fact.summaryRetention} (planned)"
+        ],
+        [
+          "Logs",
+          "Errors leave a step as a class name only, so mail content never reaches a log"
+        ],
+        [
+          "Meta terms",
+          "Standard mode, store: false; {fact.dataTerms}, so real client mail needs consent"
+        ]
       ]
     },
-
-    { "type": "chapter", "number": 14, "title": "The app", "sub": "Status: partly built. Auth, tenancy, report links, the cases list and domain proof are shipped; the admin console and the site are planned." },
+    {
+      "type": "chapter",
+      "number": 14,
+      "title": "The app",
+      "sub": "Status: partly built. Auth, tenancy, report links, the cases list and domain proof are shipped; the admin console and the site are planned."
+    },
     {
       "type": "bullets",
       "title": "Accounts and tenancy",
@@ -313,13 +541,18 @@
         "The cases list filters every case the organisation has checked."
       ]
     },
-
-    { "type": "chapter", "number": 15, "title": "Proof and the stack", "sub": "How we will know it works, and what it is built with." },
+    {
+      "type": "chapter",
+      "number": 15,
+      "title": "Proof and the stack",
+      "sub": "How we will know it works, and what it is built with."
+    },
     {
       "type": "bullets",
       "title": "Evaluation (partly built)",
       "items": [
-        "Built: the labelled corpora and their loader. Next: the runner, the metrics and the ablation.", "Targets: {fact.evalTargets}.",
+        "Built: the labelled corpora and their loader. Next: the runner, the metrics and the ablation.",
+        "Targets: {fact.evalTargets}.",
         "A runner submits labelled samples through the real pipeline, not a mock.",
         "Ablation: the runner repeats the eval with {fact.ablation}, so every model's contribution is measured.",
         "A synthetic doctored-document set, each file stamped {fact.synthSet}, tests the invoice checks."
@@ -328,14 +561,35 @@
     {
       "type": "table",
       "title": "The stack, pinned",
-      "columns": ["Tool", "Version"],
+      "columns": [
+        "Tool",
+        "Version"
+      ],
       "rows": [
-        ["TypeScript", "{fact.ts}"],
-        ["Package manager", "{fact.pnpm}"],
-        ["Cloudflare CLI", "{fact.wrangler}"],
-        ["Tests", "{fact.vitestVer}, running inside workerd"],
-        ["Format and lint", "{fact.biome}"],
-        ["Worker compatibility date", "{fact.compatDate}"]
+        [
+          "TypeScript",
+          "{fact.ts}"
+        ],
+        [
+          "Package manager",
+          "{fact.pnpm}"
+        ],
+        [
+          "Cloudflare CLI",
+          "{fact.wrangler}"
+        ],
+        [
+          "Tests",
+          "{fact.vitestVer}, running inside workerd"
+        ],
+        [
+          "Format and lint",
+          "{fact.biome}"
+        ],
+        [
+          "Worker compatibility date",
+          "{fact.compatDate}"
+        ]
       ]
     },
     {

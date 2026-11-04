@@ -32,3 +32,5 @@ Client data, account and vault names, keys, budgets, and the model identifier of
 
 - Narration in the operator's ElevenLabs voice, one segment per scene in [data/narration/01.json](../data/narration/01.json); each scene stays up until its clip ends (operator, 2026-10-30, superseding text only).
 - Keep the reviewer model names (GPT-6 Astra, Muse Wonder) on screen, for authenticity (operator, 2026-10-30).
+
+Script approved: 01, 2026-11-03

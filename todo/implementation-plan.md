@@ -395,7 +395,7 @@ Sections: 108 | Checklist items: 680
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
 | [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
-| [ ]    | D10 T01 §2  | Remotion licence basis                       | operator              | 3     |
+| [x]    | D10 T01 §2  | Remotion licence basis                       | none                  | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
 | [ ]    | D10 T01 §6  | Video 03: Loupe 1.0 technical deep dive      | none                  | 10    |
@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 221 | Checklist items: 987
+Sections: 223 | Checklist items: 995
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -629,6 +629,8 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
+| [ ]    | D10 T01 §11 | Videos re-cut as the live gaps close                        | none                 | 6     |
+| [ ]    | D10 T01 §12 | P3 review leftovers from the media stamps                   | none                 | 2     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -673,6 +675,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 413/597 verified sections, 115 ready to run now.
+Progress: 414/599 verified sections, 116 ready to run now.
 
-Checklist: 3035/3688 items completed (includes Commit items).
+Checklist: 3064/3696 items completed (includes Commit items).

@@ -67,7 +67,7 @@ class VoiceIndexTest(unittest.TestCase):
         ts = (self.root / "voice.ts").read_text()
         self.assertIn('import v01_00 from "../../out/voice/01/00.mp3";', ts)
         # -25 LUFS measured, so 6 dB of gain brings each clip to the -19 LUFS reference.
-        self.assertIn('"01": [{ src: v01_00, seconds: 1.25, gain: 1.9953 }, { src: v01_01, seconds: 2.5, gain: 1.9953 }],', ts)
+        self.assertIn('"01": [{ src: v01_00, seconds: 1.25, gain: 1.122 }, { src: v01_01, seconds: 2.5, gain: 1.122 }],', ts)
         self.assertNotIn('"02"', ts)
 
     def test_a_video_name_with_a_dash_imports_as_a_valid_identifier(self):

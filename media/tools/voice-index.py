@@ -30,7 +30,7 @@ LOGO = MEDIA.parent / "design" / "brand" / "videos" / "logo_animation.mp4"
 FFMPEG = [str(MEDIA / "node_modules" / ".bin" / "remotion"), "ffmpeg"]
 # The level every file is brought to before the mix: low enough that narration peaks stay under full scale before
 # mastering lifts the whole video to -14 LUFS.
-REFERENCE = -19.0
+REFERENCE = -24.0
 SPEC = importlib.util.spec_from_file_location("voiceover", Path(__file__).with_name("voiceover.py"))
 vo = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(vo)

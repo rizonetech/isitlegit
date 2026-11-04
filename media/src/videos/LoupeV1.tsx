@@ -1,7 +1,8 @@
 import type React from "react";
-import { interpolate, Series, useCurrentFrame } from "remotion";
+import { AbsoluteFill, interpolate, Loop, OffthreadVideo, Series, useCurrentFrame } from "remotion";
 import data from "../../data/loupe-facts.json";
-import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, MetaBadge, mono, Scene, Tick, useIn } from "../brand";
+import { Backdrop, body, c, CARD, Card, CloseScene, Headline, head, MetaAttributionStrip, MetaBadge, mono, Scene, Tick, useIn } from "../brand";
+import { GENERATED } from "../data/demo-capture";
 import { ColdOpen, coldOpenFrames, hookFor } from "../kit/coldopen";
 import { CREDITS as END_CREDITS, Credits as EndCredits } from "../kit/credits";
 import { revealFrames } from "../kit/reveal";
@@ -58,12 +59,12 @@ const Job: React.FC = () => {
     <Scene label={LABEL}>
       <Headline text="One job: is this page a brand lure?" sub="A login or payment form wearing someone else's brand. Loupe answers first; Muse Spark takes over when it cannot." />
       <div style={{ ...mono, fontSize: 34, marginTop: 40 }}>
-        {v("screenPage")}(screenshot, text) <Status text="planned" />
+        {v("screenPage")}(screenshot, text) <Status text="shipped" done />
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 40 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 20, marginTop: 32 }}>
         <Box title="Screenshot + page text" sub="a rendered candidate page" />
         <Arrow p={a} />
-        <Box title="Loupe" sub={`${v("baseModel")} + LoRA`} on />
+        <Box title="Loupe 1.0 / 1.1" sub={`${v("baseModel")} + LoRA`} on />
         <div style={{ opacity: b, display: "flex", alignItems: "center", gap: 20 }}>
           <Arrow dashed p={b} />
           <Box title="Muse Spark" sub="failover" dashed />
@@ -314,7 +315,7 @@ const Gate: React.FC = () => {
   return (
     <Scene label={LABEL}>
       <div style={{ ...head, fontSize: 76 }}>
-        A version ships only if it is better. <Status text="from 1.1" />
+        A version ships only if it is better. <Status text="from 1.1" done />
       </div>
       <div style={{ ...body, fontSize: 36, marginTop: 20 }}>
         <span style={mono}>version-gate.py</span> prints promote, or keep the previous version and the first rule broken.
@@ -442,6 +443,13 @@ export const LoupeV1: React.FC = () => {
   return (
     <>
       <Backdrop />
+      {GENERATED.loop ? (
+        <AbsoluteFill>
+          <Loop durationInFrames={240}>
+            <OffthreadVideo src={GENERATED.loop} muted style={{ width: 1920, height: 1080, objectFit: "cover", opacity: 0.32 }} />
+          </Loop>
+        </AbsoluteFill>
+      ) : null}
       <Series>
         {hook ? (
           <Series.Sequence durationInFrames={cold}>
@@ -452,6 +460,7 @@ export const LoupeV1: React.FC = () => {
           <Series.Sequence key={part.key} durationInFrames={frames[i]}>
             {part}
             {META[i] ? <MetaBadge text={META[i]} /> : null}
+            {i === last ? <MetaAttributionStrip style={{ position: "absolute", left: 0, right: 0, bottom: 56 }} /> : null}
             {i === 0 ? <Sfx name="swell" /> : i < last ? <Sfx name="whoosh" /> : null}
             {i > 0 ? <Voice clip={clips?.[i]} /> : null}
           </Series.Sequence>

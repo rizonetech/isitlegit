@@ -1,7 +1,7 @@
 {
   "$comment": "Every figure video 01 shows, pinned to the commit below; proven by media/tools/check-facts.py. No model identifier of the writer, no client data, no account or vault names.",
-  "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0",
-  "asOf": "31 Oct 2026",
+  "commit": "f270f9603d888a43daa601222f5519e2305dadfd",
+  "asOf": "3 Nov 2026",
   "facts": {
     "track": {
       "value": "Startup track",
@@ -13,7 +13,8 @@
       "value": "30%",
       "status": "measured",
       "source": "docs/hackathon-criteria.md",
-      "quote": "| Impact | 30% | Real-world potential"
+      "quote": "| Impact | 30% | Real-world potential",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "wMeta": {
       "value": "25%",
@@ -31,7 +32,8 @@
       "value": "20%",
       "status": "measured",
       "source": "docs/hackathon-criteria.md",
-      "quote": "| Technical depth and execution | 20% |"
+      "quote": "| Technical depth and execution | 20% |",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "ownDeadline": {
       "value": "Wed 4 Nov 18:00 SAST",
@@ -61,7 +63,8 @@
       "value": "9",
       "status": "measured",
       "source": "todo/plan.json",
-      "count": "^\\s+\\\"\\d+\\\": \\\""
+      "count": "^\\s+\\\"\\d+\\\": \\\"",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "stampOnly": {
       "value": "only through stamp",
@@ -74,7 +77,7 @@
       "value": "full or light",
       "status": "measured",
       "source": "todo/README.md",
-      "quote": "`**Risk:**` `full` or `light`, optional, `full` when absent (D00 T01 §15)",
+      "quote": "`**Risk:**` `full` or `light`, optional, `full` when absent (D00 T01 \u00a715)",
       "label": true
     },
     "adjNine": {
@@ -184,7 +187,8 @@
       "value": "0052",
       "status": "measured",
       "source": "docs/coordinator.md",
-      "quote": "The next free number is 0052."
+      "quote": "The next free number is 0052.",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "stallBreaker": {
       "value": "3 blocks",
@@ -263,7 +267,8 @@
       "value": "6",
       "status": "measured",
       "source": ".github/workflows/ci.yml",
-      "count": "^    name:"
+      "count": "^    name:",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "stampPlanFlag": {
       "value": "--plan",
@@ -293,7 +298,8 @@
       "value": "9",
       "status": "measured",
       "source": "todo/lanes.json",
-      "count": "\"branch\":"
+      "count": "\"branch\":",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "lanesAddedA": {
       "value": "Three lanes added by the operator on 2026-10-31 to speed the build",
@@ -323,7 +329,8 @@
       "value": "leaves full suites to GitHub CI (three Worker shards, about 8 minutes)",
       "status": "measured",
       "source": "AGENTS.md",
-      "quote": "leaves full suites to GitHub CI (three Worker shards, about 8 minutes)"
+      "quote": "leaves full suites to GitHub CI (three Worker shards, about 8 minutes)",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "plainTerminal": {
       "value": "Every lane runs from a plain terminal",
@@ -341,7 +348,8 @@
       "value": "medium",
       "status": "measured",
       "source": ".conclave/reviewers.toml",
-      "quote": "# Every pass that ran at high runs at medium from 2026-10-31 11:35 SAST (operator: quicker, the build is behind)."
+      "quote": "# Every pass that ran at high runs at medium from 2026-10-31 11:35 SAST (operator: quicker, the build is behind).",
+      "commit": "9344c7c6c2e005ba71b0422aafcbbb0b2db42ba0"
     },
     "finalPolish": {
       "value": "when the plan reaches its polish and final stage",
