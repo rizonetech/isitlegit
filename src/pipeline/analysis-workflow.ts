@@ -583,7 +583,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
         ),
       );
       current = "verdict";
-      const { view } = await timed("verdict", () => verdict(this.env, db, store, caseId));
+      const { view } = await timed("verdict", () =>
+        verdict(this.env, db, store, caseId, (promise) => this.ctx.waitUntil(promise)),
+      );
       current = "store";
       await timed("store", async () => {
         must(await storeVerdict(db, orgId, caseId, view), "storing the verdict");
@@ -1425,6 +1427,7 @@ export async function verdict(
   db: D1Database,
   store: Store,
   caseId: string,
+  waitUntil?: (promise: Promise<unknown>) => void,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
   const ablateFlag = await caseAblateFlagFor(env, caseId);
   const outcomes = await readCheckOutcomes(db, caseId);
@@ -1494,7 +1497,7 @@ export async function verdict(
   const view = await runAgent(
     {
       db,
-      meta: { env, budget: d1Budget(db, { caller: "verdict-agent", caseId }) },
+      meta: { env, budget: d1Budget(db, { caller: "verdict-agent", caseId }), ...(waitUntil ? { waitUntil } : {}) },
       summary,
       headersAvailable,
       executor,
