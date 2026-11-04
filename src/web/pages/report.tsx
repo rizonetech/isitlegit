@@ -265,6 +265,7 @@ async function render(
           facts: {
             findings: evidence.filter((e) => e.check !== "not_checked").length,
             cited: verdict?.value ? cited(verdict.value) : null,
+            verdictSource: verdict?.value.source ?? null,
           },
         }
       : null;

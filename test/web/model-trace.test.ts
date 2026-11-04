@@ -157,8 +157,8 @@ describe("the model trace", () => {
     ]);
     await spend(id, { step: "verdict" });
     await finish(id);
-    expect(await page(`/r/${id}?trace=1`, cookie)).toContain("Weighed 2 findings");
-    // A different verdict, a different description.
+    expect(await page(`/r/${id}?trace=1`, cookie)).toContain("Rule-based verdict used");
+    // Another rules verdict also cannot confer model authorship.
     const other = await member();
     await saveEvidence(db, other.id, [
       { check: "sender.first_time", severity: "low", summary: "A", detail: {}, artefacts: [] },
@@ -166,8 +166,8 @@ describe("the model trace", () => {
     await spend(other.id, { step: "verdict" });
     await finish(other.id);
     const html = await page(`/r/${other.id}?trace=1`, other.cookie);
-    expect(html).toContain("Weighed 1 finding");
-    expect(html).not.toContain("Weighed 2 findings");
+    expect(html).toContain("Rule-based verdict used");
+    expect(html).not.toContain("wrote the verdict");
     // No walk stored: the walkthrough step says so, and claims nothing.
     const none = await member();
     await spend(none.id, { step: "walkthrough" });
@@ -179,9 +179,11 @@ describe("the model trace", () => {
   // findings were weighed; the wording that names the cited ids is the pure function's, for when a verdict stores them.
   it("names the cited evidence when a verdict stores it, and nothing it does not", () => {
     const call = { step: "verdict", outcome: "ok" } as Parameters<typeof whatItDid>[0];
-    expect(whatItDid(call, { findings: 3, cited: ["E1", "E2", "E3"] }, 0)).toBe("Weighed 3 findings, cited E1, E2, E3");
-    expect(whatItDid(call, { findings: 3, cited: [] }, 0)).toBe("Weighed 3 findings");
-    expect(whatItDid(call, { findings: 0, cited: null }, 0)).toBe("Result not stored");
+    expect(whatItDid(call, { findings: 3, cited: ["E1", "E2", "E3"], verdictSource: "agent" }, 0)).toBe(
+      "Weighed 3 findings, cited E1, E2, E3",
+    );
+    expect(whatItDid(call, { findings: 3, cited: [], verdictSource: "agent" }, 0)).toBe("Weighed 3 findings");
+    expect(whatItDid(call, { findings: 0, cited: null, verdictSource: "agent" }, 0)).toBe("Result not stored");
   });
 
   it("lists the agent's actions in order, a refused one said refused, with no typed text", async () => {

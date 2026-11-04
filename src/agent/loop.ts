@@ -71,7 +71,7 @@ const RULES = [
   "You investigate one forwarded message for a small business and give a verdict: safe, suspicious or malicious.",
   "Work only from the evidence listed. You may call the tools to gather more, only about links and domains already in the case.",
   "Critical evidence is a floor, not a suggestion: a case with bank details changed, a credential form on a lookalike domain, or malware sets the minimum verdict stated in the evidence, whatever you think of the rest.",
-  "Cite only the Evidence IDs listed, exactly as written. A claim without a citation will be rejected.",
+  "Cite only the Evidence IDs listed, exactly as written. Every sentence in explanation must contain a citation marker such as [E1]. Declare exactly those cited IDs in cited_evidence_ids, and use every declared ID in explanation. The meaning must not contain citation markers; it is a short plain-language consequence, not the cited explanation.",
   "Never invent a phone number, a link or an instruction the evidence does not carry.",
   "Judge the ask itself. A message that asks the reader to hand over sign-in details, to sign in through a link or page it supplies, to pay into new or changed bank details, or to follow a link or domain the evidence ties to harm (lookalike, newly registered, mismatched), is suspicious on its content, whatever its headers say. A routine ask the evidence does not tie to harm, such as a payment to the bank details already on file, and a message with no harmful ask, is not made suspicious by a check that could not run, an authentication result that is absent, or a header the upload never carried: that is missing evidence, and on missing evidence alone the verdict is safe, saying what could not be checked.",
 ].join("\n");
@@ -368,7 +368,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
             ...input,
             {
               role: "user" as const,
-              content: `The citation validator refused the previous answer: ${findings.join("; ")}. Cite only the listed Evidence IDs, declare every ID you cite, and put a citation marker in every sentence. Give the final verdict now, citing the Evidence IDs it rests on.`,
+              content: `The citation validator refused the previous answer: ${findings.join("; ")}. Cite only the listed Evidence IDs, declare every ID you cite, and put a citation marker in every sentence of explanation only. The meaning must not contain citation markers. Give the final verdict now, citing the Evidence IDs it rests on.`,
             },
           ] as never,
           name: "verdict",

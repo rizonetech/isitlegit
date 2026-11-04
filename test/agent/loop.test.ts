@@ -7,6 +7,7 @@ import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks
 import { createCase } from "../../src/db/cases";
 import { getVerdict, storeVerdict } from "../../src/db/verdicts";
 import { readArtefact, type Store } from "../../src/intake/store";
+import { saveDocumentEvidence } from "../../src/invoice/document-step";
 import { bankChangeAction, callBackAction, POP_ACTION } from "../../src/invoice/fixed-actions";
 import { importSuppliers, siteOf } from "../../src/invoice/ledger";
 import { checkImport } from "../../src/invoice/ledger-csv";
@@ -567,6 +568,11 @@ describe("caseSummary and finalisation edges", () => {
     expect(view.source).toBe("agent");
     expect(m.calls()).toBe(3);
     expect(m.sent[2]).toContain("cited E99 is not on the case");
+    for (const sent of [m.sent[1], m.sent[2]]) {
+      expect(sent).toContain("Every sentence in explanation must contain a citation marker");
+      expect(sent).toContain("meaning must not contain citation markers");
+    }
+    expect(m.sent[2]).not.toContain("put a citation marker in every sentence.");
     // The stored read-back: the agent's verdict, its confidence, and reasons citing only declared IDs.
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok).toBe(true);
@@ -577,6 +583,35 @@ describe("caseSummary and finalisation edges", () => {
       expect(stored.value.reasons.length).toBeGreaterThan(0);
       expect(stored.value.reasons.every((r) => r.evidenceIds.every((id) => id === "E1"))).toBe(true);
     }
+  });
+
+  it("still rejects citation markers in meaning and keeps the critical document floor on fallback", async () => {
+    const caseId = await newCase([]);
+    await saveDocumentEvidence(env.DB, caseId, [
+      draft("document.beneficiary_mismatch", "critical", "The invoice account differs from the supplier ledger.", {
+        against: "ledger",
+      }),
+    ]);
+    const m = model([
+      () => message("done"),
+      () => final({ ...ANSWER, explanation: "The account differs.", cited_evidence_ids: ["E1"] }),
+      () => final({ ...ANSWER, meaning: "The payment would go to different bank details [E1]." }),
+    ]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view).toMatchObject({ source: "rules", verdict: "malicious", floorApplied: null });
+    expect(view.reasons.some((r) => r.evidenceIds.includes("E1"))).toBe(true);
+    expect(m.calls()).toBe(3);
+    const diagnostic = await env.DB.prepare(
+      "SELECT diagnostic_json FROM model_validation_diagnostics WHERE case_id = ? AND phase = 'structured' AND attempt = 2",
+    )
+      .bind(caseId)
+      .first<{ diagnostic_json: string }>();
+    expect(JSON.parse(diagnostic?.diagnostic_json ?? "null")).toMatchObject({
+      phase: "structured",
+      attempt: 2,
+      remaining: 0,
+      issues: [{ category: "schema_invalid", path: ["meaning"] }],
+    });
   });
 
   it("shares the two-answer finalisation budget between schema repair and citation retry", async () => {

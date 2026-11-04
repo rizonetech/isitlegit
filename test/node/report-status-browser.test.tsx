@@ -89,7 +89,7 @@ const TRACE = {
     sends: [],
     total: { ms: 2600, unknownTime: 0, measuredUsd: 0.004, estimatedUsd: 0, estimatedCalls: 0 },
   },
-  facts: { findings: 1, cited: [] },
+  facts: { findings: 1, cited: [], verdictSource: "agent" },
   run: ID,
 } as unknown as NonNullable<Parameters<typeof ReportLive>[0]["trace"]>;
 const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
