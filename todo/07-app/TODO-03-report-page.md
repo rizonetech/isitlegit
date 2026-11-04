@@ -1804,6 +1804,8 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 
 ## 53. One-action copy of headers
 
+> **Started:** 2026-11-04T07:25:18.068914+00:00
+
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
 
 **Phase:** 7
