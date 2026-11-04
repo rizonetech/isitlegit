@@ -21,6 +21,7 @@ REPO = MEDIA.parent
 OUT = MEDIA / "src" / "data" / "stats.json"
 
 ROW = re.compile(r"^\| *\d+ *\| *§")
+HEADING = re.compile(r"^## ")
 ROUND = re.compile(r"^## Round \d+", re.M)
 FINAL = re.compile(r"^## Final review: (?!none)[a-z0-9-]+", re.M)
 
@@ -67,11 +68,23 @@ def pace(repo: Path) -> dict:
     return {"days": sorted(days.values(), key=lambda d: d["date"]), "hours": hours, "commits": len(log), "stamps": stamps, "first": first}
 
 
+def order_rows(text: str) -> list[str]:
+    """The rows of the file's Implementation Order table only: a `| N | §N |` row in any other table (a cross-reference
+    list, a section's own table) is not a section."""
+    rows, inside = [], False
+    for line in text.splitlines():
+        if HEADING.match(line):
+            inside = line.strip() == "## Implementation Order"
+        elif inside and ROW.match(line):
+            rows.append(line)
+    return rows
+
+
 def domains(repo: Path) -> list[dict]:
     """Sections and stamped sections per domain folder, in folder order."""
     out = []
     for folder in sorted(p for p in (repo / "todo").iterdir() if p.is_dir() and p.name != "templates"):
-        rows = [line for f in folder.glob("TODO-*.md") for line in f.read_text().splitlines() if ROW.match(line)]
+        rows = [line for f in folder.glob("TODO-*.md") for line in order_rows(f.read_text())]
         if rows:
             out.append({"domain": folder.name, "sections": len(rows), "stamped": sum("[x]" in line for line in rows)})
     return out
@@ -82,9 +95,22 @@ def lines_of_code(repo: Path) -> int:
     return sum(len((repo / f).read_text(errors="ignore").splitlines()) for f in files if f.endswith((".ts", ".tsx")))
 
 
+def inputs(repo: Path) -> dict:
+    """What the figures were read from, so two runs labelled with the same commit can be told apart: HEAD in full, the
+    commit each counted branch pointed at (the pace reads them, and a fetch moves them without moving HEAD), and every
+    uncommitted change under todo/ and docs/reviews/ (the counts read the working tree)."""
+    status = subprocess.run(["git", "status", "--porcelain", "-z", "--no-renames", "--untracked-files=all", "--", "todo",
+                             "docs/reviews"], cwd=repo, check=True, capture_output=True, text=True).stdout
+    return {
+        "head": git(repo, "rev-parse", "HEAD"),
+        "refs": {ref: git(repo, "rev-parse", ref) for ref in refs(repo)},
+        "uncommitted": sorted(entry[3:] for entry in status.split("\0") if entry),
+    }
+
+
 def collect(repo: Path) -> dict:
     """The on-screen numbers for the checkout at `repo`."""
-    rows = [line for f in (repo / "todo").rglob("TODO-*.md") if "templates" not in f.parts for line in f.read_text().splitlines() if ROW.match(line)]
+    rows = [line for f in (repo / "todo").rglob("TODO-*.md") if "templates" not in f.parts for line in order_rows(f.read_text())]
     receipts = [f.read_text() for f in (repo / "docs" / "reviews").rglob("*.md")]
     main = next((r for r in refs(repo) if r.endswith("main")), "HEAD")
     return {
@@ -99,25 +125,34 @@ def collect(repo: Path) -> dict:
         "lines": lines_of_code(repo),
         "domains": domains(repo),
         "pace": pace(repo),
+        "inputs": inputs(repo),
     }
 
 
 def write(stats: dict, out: Path) -> None:
-    """Replace `out` atomically, so a render never reads a half-written file."""
+    """Replace `out` atomically, so a render never reads a half-written file; on any failure the previous file stays
+    as it was and the temporary file is removed."""
     out.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=out.parent, prefix=".stats-", suffix=".json")
-    with os.fdopen(fd, "w") as fh:
-        json.dump(stats, fh, indent=2)
-        fh.write("\n")
-    os.replace(tmp, out)
+    try:
+        with os.fdopen(fd, "w") as fh:
+            json.dump(stats, fh, indent=2)
+            fh.write("\n")
+        os.replace(tmp, out)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
-def main() -> None:
-    repo = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else REPO
+def main(argv: list[str]) -> None:
+    """`collect-stats.py [repo] [out]`: the repository root (default: this checkout) and the JSON file to replace
+    (default: media/src/data/stats.json, which the compositions import)."""
+    repo = Path(argv[0]).resolve() if len(argv) > 0 else REPO
+    out = Path(argv[1]).resolve() if len(argv) > 1 else OUT
     stats = collect(repo)
-    write(stats, OUT)
+    write(stats, out)
     print(json.dumps(stats))
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

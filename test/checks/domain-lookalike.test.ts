@@ -376,6 +376,7 @@ describe("lookalikes in links and landing pages (D02 T03 §7)", () => {
   const withLinks = (base: CaseView, hosts: string[]): CaseView => ({
     ...base,
     links: { items: hosts.map(linkItem), more: 0, unread: [] },
+    expansions: { items: [], skipped: [] },
   });
   const lookalikes = (v: CaseView) =>
     lookalikeEvidence(v).filter((i) => i.severity === "high" || i.severity === "medium");
@@ -563,5 +564,135 @@ describe("lookalike provenance past the bound (D02 T03 §7, round 2)", () => {
     const hit = lookalikeEvidence(v).find((i) => i.detail.domain === "examplebank-secure.co.za");
     expect(hit?.detail.found).toHaveLength(5);
     expect(hit?.detail.foundMore).toBe(1);
+  });
+});
+
+describe("lookalike clean summary names the domains compared (D02 T03 §12)", () => {
+  const linkItem = (host: string) => ({
+    raw: `https://${host}/x`,
+    href: `https://${host}/x`,
+    host,
+    display: host,
+    kind: "text" as const,
+    part: "body",
+    anchor: null,
+  });
+  const withLinks = (base: CaseView, hosts: string[]): CaseView => ({
+    ...base,
+    links: { items: hosts.map(linkItem), more: 0, unread: [] },
+    expansions: { items: [], skipped: [] },
+  });
+  const untrustedView = (headers: { name: string; value: string }[]): CaseView => {
+    const v = view(headers, { suppliers: [] });
+    return { ...v, tenant: { ...v.tenant, trusted: { own: [], suppliers: [] } } };
+  };
+  const cleanFrom = (address: string) => untrustedView([h("From", `Accounts <${address}>`)]);
+
+  it("names the count and first compared domain for three domains, one domain, and a 63-character hostname cut inside 120 characters", async () => {
+    const { lookalikeSummary } = await import("../../src/checks/domain-lookalike");
+    const { runChecksWithOutcomes } = await import("../../src/checks/runner");
+    const { saveEvidence, readCheckOutcomes } = await import("../../src/checks/evidence");
+    const { checks: allChecks } = await import("../../src/checks/index");
+
+    // 1. Clean three-domain case (From + two links), read back from stored outcomes.
+    const three = withLinks(cleanFrom("billing@fynbosfreight.example"), ["karoo.example", "cederberg.example"]);
+    expect(lookalikeSummary(three, lookalikeEvidence(three))).toBe(
+      "no lookalike among 3 domains, from fynbosfreight.example",
+    );
+    const madeThree = await createCase(env.DB, {
+      orgId: "org-lookalike-s12",
+      channel: "email",
+      headersAvailable: true,
+    });
+    if (!madeThree.ok) throw new Error(madeThree.error.message);
+    const runThree = await runChecksWithOutcomes(three);
+    await saveEvidence(env.DB, madeThree.value.id, runThree.items, allChecks, undefined, runThree.outcomes);
+    const storedThree = (await readCheckOutcomes(env.DB, madeThree.value.id))?.find(
+      (o) => o.check === "domain.lookalike",
+    );
+    expect(storedThree?.summary).toBe("no lookalike among 3 domains, from fynbosfreight.example");
+
+    // 2. One-domain case in the singular, read back from stored outcomes.
+    const one = cleanFrom("billing@fynbosfreight.example");
+    expect(lookalikeSummary(one, lookalikeEvidence(one))).toBe(
+      "no lookalike among 1 domain, from fynbosfreight.example",
+    );
+    const madeOne = await createCase(env.DB, { orgId: "org-lookalike-s12", channel: "email", headersAvailable: true });
+    if (!madeOne.ok) throw new Error(madeOne.error.message);
+    const runOne = await runChecksWithOutcomes(one);
+    await saveEvidence(env.DB, madeOne.value.id, runOne.items, allChecks, undefined, runOne.outcomes);
+    const storedOne = (await readCheckOutcomes(env.DB, madeOne.value.id))?.find((o) => o.check === "domain.lookalike");
+    expect(storedOne?.summary).toBe("no lookalike among 1 domain, from fynbosfreight.example");
+
+    // 3. 63-character label under a long registrable domain cut inside the 120-character bound, both ordinary and partial.
+    const longHost = `${"a".repeat(63)}.${"b".repeat(60)}`;
+    const ordinaryLong = cleanFrom(`billing@${longHost}`);
+    const ordinarySummary = lookalikeSummary(ordinaryLong, lookalikeEvidence(ordinaryLong));
+    expect(ordinarySummary).toMatch(/^no lookalike among 1 domain, from a+…$/);
+    expect(Array.from(ordinarySummary).length).toBeLessThanOrEqual(120);
+
+    const partialLong = untrustedView([
+      h("From", `billing@${longHost}`),
+      h("Reply-To", "x@\u05d0\u05d1\u05d2\u05d3.co.za"),
+    ]);
+    const partialItems = lookalikeEvidence(partialLong);
+    const partialSummary = lookalikeSummary(partialLong, partialItems);
+    expect(partialSummary).toMatch(/^no lookalike among 1 domain compared, from a+…, some not compared$/);
+    expect(Array.from(partialSummary).length).toBeLessThanOrEqual(120);
+
+    // Stored outcome read-back for both ordinary and partial long summaries.
+    const made1 = await createCase(env.DB, { orgId: "org-lookalike-s12", channel: "email", headersAvailable: true });
+    if (!made1.ok) throw new Error(made1.error.message);
+    const run1 = await runChecksWithOutcomes(ordinaryLong);
+    await saveEvidence(env.DB, made1.value.id, run1.items, allChecks, undefined, run1.outcomes);
+    const stored1 = (await readCheckOutcomes(env.DB, made1.value.id))?.find((o) => o.check === "domain.lookalike");
+    expect(stored1?.summary).toBe(ordinarySummary);
+
+    const made2 = await createCase(env.DB, { orgId: "org-lookalike-s12", channel: "email", headersAvailable: true });
+    if (!made2.ok) throw new Error(made2.error.message);
+    const run2 = await runChecksWithOutcomes(partialLong);
+    await saveEvidence(env.DB, made2.value.id, run2.items, allChecks, undefined, run2.outcomes);
+    const stored2 = (await readCheckOutcomes(env.DB, made2.value.id))?.find((o) => o.check === "domain.lookalike");
+    expect(stored2?.summary).toBe(partialSummary);
+  });
+
+  it("keeps the uncompared wording after the count, skips uncompared or exempt domains first, and caps at MAX_COMPARED", async () => {
+    const { lookalikeSummary } = await import("../../src/checks/domain-lookalike");
+
+    // Skipped-first (right-to-left From, comparable Reply-To): names the compared domain, never the skipped one.
+    const skippedFirst = untrustedView([
+      h("From", "x@\u05d0\u05d1\u05d2\u05d3.co.za"),
+      h("Reply-To", "billing@fynbosfreight.example"),
+    ]);
+    expect(lookalikeSummary(skippedFirst, lookalikeEvidence(skippedFirst))).toBe(
+      "no lookalike among 1 domain compared, from fynbosfreight.example, some not compared",
+    );
+
+    // Exempt-first (trusted OWN From, comparable Reply-To): names the compared domain, never the exempt one.
+    const exemptFirst = view([h("From", "billing@fynbosfreight.co.za"), h("Reply-To", "accounts@plain.example")]);
+    expect(lookalikeSummary(exemptFirst, lookalikeEvidence(exemptFirst))).toBe(
+      "no lookalike among 1 domain, from plain.example",
+    );
+
+    // Over-cap (MAX_COMPARED + 2 domains): counts only the 100 compared domains.
+    const overCap = withLinks(
+      cleanFrom("billing@fynbosfreight.example"),
+      Array.from({ length: MAX_COMPARED + 1 }, (_, i) => `plain${i}.example`),
+    );
+    expect(lookalikeSummary(overCap, lookalikeEvidence(overCap))).toBe(
+      `no lookalike among ${MAX_COMPARED} domains compared, from fynbosfreight.example, some not compared`,
+    );
+
+    // Exempt-only and zero-comparison cases (OWN is fynbosfreight.co.za in view()).
+    const exemptOnly = view([h("From", "billing@fynbosfreight.co.za")]);
+    expect(lookalikeSummary(exemptOnly, lookalikeEvidence(exemptOnly))).toBe(
+      "trusted or reserved domains only, none compared",
+    );
+    const noCandidates = untrustedView([]);
+    expect(lookalikeSummary(noCandidates, lookalikeEvidence(noCandidates))).toBe("no lookalike of a known name");
+    const uncomparedOnly = untrustedView([h("From", "x@\u05d0\u05d1\u05d2\u05d3.co.za")]);
+    expect(lookalikeSummary(uncomparedOnly, lookalikeEvidence(uncomparedOnly))).toBe(
+      "no lookalike among the domains compared, some not compared",
+    );
   });
 });

@@ -369,7 +369,7 @@ Sections: 108 | Checklist items: 680
 | [ ]    | D08 T01 §8  | Pilot hold-out proof case                    | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents     | none                  | 7     |
 | [x]    | D08 T02 §7  | Live eval runs                               | meta-api, cloudflare  | 5     |
-| [ ]    | D08 T02 §8  | Component measurements                       | meta-api, cloudflare  | 9     |
+| [x]    | D08 T02 §8  | Component measurements                       | meta-api, cloudflare  | 9     |
 | [x]    | D08 T02 §9  | Admin eval runs page                         | none                  | 6     |
 | [x]    | D08 T02 §10 | Public run history                           | none                  | 5     |
 | [x]    | D08 T02 §11 | Baseline orchestration                       | cloudflare            | 6     |
@@ -394,7 +394,7 @@ Sections: 108 | Checklist items: 680
 | [ ]    | D09 T02 §5  | Final eval run and dashboard screenshot      | meta-api, cloudflare  | 3     |
 | [ ]    | D09 T02 §6  | Final README                                 | none                  | 6     |
 | [ ]    | D09 T02 §10 | Independent validation by an outsider        | attended              | 5     |
-| [ ]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
+| [x]    | D10 T01 §1  | Media package and stats collector            | none                  | 7     |
 | [x]    | D10 T01 §2  | Remotion licence basis                       | none                  | 3     |
 | [ ]    | D10 T01 §3  | Video 01: development process, long form     | none                  | 7     |
 | [ ]    | D10 T01 §4  | Video 02: technical deep dive, long form     | none                  | 7     |
@@ -433,7 +433,7 @@ Sections: 224 | Checklist items: 1004
 | [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation              | none                 | 5     |
 | [x]    | D01 T01 §23 | Auth outcomes stored before slower checks                   | none                 | 2     |
 | [x]    | D01 T01 §24 | Pipeline writes fenced across a case removal                | none                 | 3     |
-| [ ]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
+| [x]    | D01 T02 §10 | A failed check's reply points to its retry                  | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                                    | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution                      | none                 | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                            | operator             | 6     |
@@ -450,12 +450,12 @@ Sections: 224 | Checklist items: 1004
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured                     | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                              | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                                    | none                 | 3     |
-| [ ]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
+| [x]    | D02 T03 §12 | Lookalike clean summary names the domains compared          | none                 | 4     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured                       | none                 | 3     |
 | [ ]    | D02 T04 §10 | Attachment content                                          | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus                    | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text                    | none                 | 2     |
-| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
+| [x]    | D02 T05 §10 | Role and system-marker shapes the phrases miss              | none                 | 4     |
 | [x]    | D02 T05 §11 | Whole decoded run kept in the finding                       | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                                      | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports                 | none                 | 3     |
@@ -676,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 417/600 verified sections, 113 ready to run now.
+Progress: 422/600 verified sections, 114 ready to run now.
 
-Checklist: 3070/3705 items completed (includes Commit items).
+Checklist: 3087/3705 items completed (includes Commit items).

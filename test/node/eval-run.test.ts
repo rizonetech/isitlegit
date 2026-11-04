@@ -649,7 +649,7 @@ describe("the live database adapter (every migration applied to an in-memory dat
       costUsd: 0.05,
       critical: true,
       providers: [],
-      walkthrough: false,
+      walkthrough: null,
       createdAt: "2026-11-01T10:00:00.000Z",
       updatedAt: "2026-11-01T10:00:04.321Z",
     });

@@ -1,1 +1,72 @@
-{"injections":4,"detected":2,"genuine":4,"falsePositives":0}
+{
+ "injections": 4,
+ "detected": 2,
+ "genuine": 4,
+ "falsePositives": 0,
+ "p50Ms": 39.74,
+ "p95Ms": 320.783,
+ "observations": [
+  {
+   "name": "ignore-previous",
+   "kind": "injection",
+   "detected": true,
+   "checkStepMs": 320.783,
+   "status": "ok"
+  },
+  {
+   "name": "role-assign",
+   "kind": "injection",
+   "detected": false,
+   "checkStepMs": 39.74,
+   "status": "ok"
+  },
+  {
+   "name": "mark-safe",
+   "kind": "injection",
+   "detected": true,
+   "checkStepMs": 86.413,
+   "status": "ok"
+  },
+  {
+   "name": "system-marker",
+   "kind": "injection",
+   "detected": false,
+   "checkStepMs": 52.606,
+   "status": "ok"
+  },
+  {
+   "name": "invoice",
+   "kind": "genuine",
+   "detected": false,
+   "checkStepMs": 40.105,
+   "status": "ok"
+  },
+  {
+   "name": "meeting",
+   "kind": "genuine",
+   "detected": false,
+   "checkStepMs": 29.564,
+   "status": "ok"
+  },
+  {
+   "name": "safety",
+   "kind": "genuine",
+   "detected": false,
+   "checkStepMs": 19.048,
+   "status": "ok"
+  },
+  {
+   "name": "newsletter",
+   "kind": "genuine",
+   "detected": false,
+   "checkStepMs": 17.14,
+   "status": "ok"
+  }
+ ],
+ "provenance": {
+  "collector": "eval/ai-instructions.ts#measureAiInstructionsCheck",
+  "timingBoundary": "attachmentPhrases (R2 range read + TextDecoderStream over 10 text attachments) + aiInstructionEvidence",
+  "repetitions": 8,
+  "inputDescription": "4 steering texts + 4 genuine business texts, each replicated across MAX_TEXT_ATTACHMENTS = 10 text attachments"
+ }
+}

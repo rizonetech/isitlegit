@@ -737,6 +737,38 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
 
 type Execute = (s: Statement) => Promise<{ results?: Record<string, unknown>[]; meta?: { changes?: number } }>;
 
+export function canonicalReputationProvider(provider: string): string {
+  if (provider === "cloudflare") return "cloudflare-security-dns";
+  if (provider === "webrisk") return "google-web-risk";
+  return provider;
+}
+
+export function mergeCaseProviderRecords(
+  repRows: { provider: string; state: string }[],
+  evidenceProviders: string[],
+): { provider: string; checked: boolean; listed: boolean }[] {
+  const byProv = new Map<string, Set<string>>();
+  for (const r of repRows) {
+    if (!r.provider) continue;
+    const p = canonicalReputationProvider(r.provider);
+    const set = byProv.get(p) ?? new Set<string>();
+    set.add(r.state);
+    byProv.set(p, set);
+  }
+  for (const rawP of evidenceProviders) {
+    if (!rawP) continue;
+    const p = canonicalReputationProvider(rawP);
+    const set = byProv.get(p) ?? new Set<string>();
+    set.add("listed");
+    byProv.set(p, set);
+  }
+  return [...byProv.entries()].map(([provider, states]) => {
+    if (states.has("listed") || states.has("blocked")) return { provider, checked: true, listed: true };
+    if (states.has("clear") || states.has("not_listed")) return { provider, checked: true, listed: false };
+    return { provider, checked: false, listed: false };
+  });
+}
+
 export function liveDb(orgName: string, execute: Execute, now: () => Date = () => new Date()): Db {
   let org: string | null = null;
   const orgId = async () => {
@@ -784,22 +816,21 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
       // budget guard counts it; `case_events.cost_usd` is not written by the pipeline.
       const row = (
         await execute({
-          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical, (SELECT COALESCE(json_group_array(DISTINCT json_extract(detail_json, '$.provider')), '[]') FROM evidence WHERE case_id = ?1 AND "check" = 'reputation.listing') AS providers, EXISTS (SELECT 1 FROM walkthrough_actions WHERE case_id = ?1) AS walked FROM cases WHERE id = ?1 AND org_id = ?2`,
+          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical, (SELECT COALESCE(json_group_array(json_object('provider', provider, 'state', state)), '[]') FROM reputation_results WHERE case_id = ?1 AND provider IN ('google-web-risk', 'cloudflare')) AS rep_rows, (SELECT COALESCE(json_group_array(DISTINCT json_extract(detail_json, '$.provider')), '[]') FROM evidence WHERE case_id = ?1 AND "check" = 'reputation.listing') AS providers, (CASE WHEN EXISTS (SELECT 1 FROM walkthrough_actions WHERE case_id = ?1) AND NOT EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND "check" IN ('walkthrough.not_checked', 'walkthrough.ablated')) AND NOT EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND "check" = 'walkthrough.chain' AND json_extract(detail_json, '$.reused') IS NOT NULL) THEN 1 WHEN EXISTS (SELECT 1 FROM walkthrough_actions WHERE case_id = ?1) OR EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND "check" = 'walkthrough.not_checked') THEN 0 ELSE NULL END) AS walked FROM cases WHERE id = ?1 AND org_id = ?2`,
           params: [caseId, await orgId()],
         })
       ).results?.[0];
       if (!row) return null;
+      const repRows = JSON.parse(String(row.rep_rows ?? "[]")) as { provider: string; state: string }[];
+      const evidenceProviders = JSON.parse(String(row.providers ?? "[]")) as string[];
+      const providerRecords = mergeCaseProviderRecords(repRows, evidenceProviders);
       return {
         status: row.status as CaseState["status"],
         verdict: (row.verdict ?? null) as Verdict | null,
         costUsd: num(row.cost),
         critical: num(row.critical) === 1,
-        providers: (JSON.parse(String(row.providers ?? "[]")) as string[]).map((provider) => ({
-          provider,
-          checked: true,
-          listed: true,
-        })),
-        walkthrough: num(row.walked) === 1,
+        providers: providerRecords,
+        walkthrough: row.walked === null || row.walked === undefined ? null : num(row.walked) === 1,
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
       };

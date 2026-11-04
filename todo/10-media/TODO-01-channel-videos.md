@@ -38,7 +38,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Media package and stats collector | -- | [ ] |
+| 1 | §1 | Media package and stats collector | -- | [x] |
 | 2 | §2 | Remotion licence basis | -- | [x] |
 | 3 | §3 | Video 01: development process, long form | §1, §2 | [ ] |
 | 4 | §4 | Video 02: technical deep dive, long form | §1, §2 | [ ] |
@@ -72,7 +72,10 @@ The self-contained Remotion package every video renders from: its own pnpm root 
 - [x] Let `collect-stats.py` take the repository root as an optional argument for the test. Done when: the test runs without touching the real tree. Cheaper substitute: a test that reads the live repository fails as soon as a section ships. (`8f7df4f3`)
 - [x] Commit: `media: test the stats collector` (`8f7df4f3`)
 
-**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm exec tsc -p .` exits 0.
+**Test checkpoint:** `python3 -m unittest discover -s media/tools` passes, and `cd media && pnpm install --frozen-lockfile && pnpm run stats && pnpm run voice && pnpm run capture:index && pnpm exec tsc -p . && pnpm test:kit && pnpm preflight` exits 0 on a clean checkout (the compositions import three generated, git-ignored modules, `src/data/stats.json`, `src/data/voice.ts` and `src/data/demo-capture.ts`, so the three generators run before the type check, as they do before every render and the studio).
+
+> **Verified:** 2026-11-04 | §1 | 35be5447b7a8bd3fed66bc39937f3bfd01d85873
+> **Review:** `docs/reviews/d10-t01-s1.json`
 
 ## 2. Remotion licence basis
 
