@@ -148,6 +148,8 @@ type Dependencies = {
   targetSuffix?: string;
   // Explicit coordinator protocol: six modality probes on candidate1.1, at most $5 reserved.
   modalityProbe?: boolean;
+  // The first modality protocol tested the documented model-only route; replacement keeps the proven exact route.
+  modalityRouting?: "model-only" | "model-deployment";
 };
 export async function executeSlot(version: string, dataset: string, output: string, dependencies: Dependencies) {
   const { ledger, adminKey, inferenceKey } = dependencies;
@@ -159,7 +161,10 @@ export async function executeSlot(version: string, dataset: string, output: stri
   if (dependencies.modalityProbe) assert.equal(version, "1.1");
   const expectedPages = dependencies.modalityProbe ? 6 : 40;
   // Live-merge inference uses the fine-tuned model ID; #deployment is the documented multi-LoRA route.
-  const model = dependencies.modalityProbe ? modelOf(version) : diagnosticModel(version, dependencies.targetSuffix);
+  const model =
+    dependencies.modalityProbe && dependencies.modalityRouting !== "model-deployment"
+      ? modelOf(version)
+      : diagnosticModel(version, dependencies.targetSuffix);
   const url = `${API}/deployments/${deployment}`;
   const start = now();
   const runMs = dependencies.modalityProbe ? 17 * 60_000 : RUN_MS;

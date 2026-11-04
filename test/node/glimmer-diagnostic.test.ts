@@ -107,7 +107,7 @@ function fixture(mode = "ok") {
       const rows = db.prepare("SELECT * FROM glimmer_runtime").all();
       expect(rows.length).toBeGreaterThan(0);
       expect(rows[0]?.deployment).toBe("isitlegit-loupe-eval-1-1");
-      expect(rows[0]?.reserved_minutes).toBe(mode === "modality" ? 25 : RESERVE_MINUTES);
+      expect(rows[0]?.reserved_minutes).toBe(mode.startsWith("modality") ? 25 : RESERVE_MINUTES);
       expect(JSON.parse(String(init?.body)).deploymentShape).toContain("/versions/");
       if (mode === "creation-conflict") return new Response(null, { status: 409 });
       exists = true;
@@ -132,20 +132,21 @@ function fixture(mode = "ok") {
     events,
     dependencies: {
       ledger,
-      modalityProbe: mode === "modality",
+      modalityProbe: mode.startsWith("modality"),
+      modalityRouting: mode === "modality-exact" ? ("model-deployment" as const) : ("model-only" as const),
       adminKey: "test",
       inferenceKey: "test",
       fetcher,
       now: () => time,
       evidenceDir: output,
       run: async (o: Parameters<typeof import("../../scripts/glimmer/evaluate.ts").runAnswers>[0]) => {
-        expect(o.preflight?.(mode === "modality" ? 6 : 40)).toBeNull();
+        expect(o.preflight?.(mode.startsWith("modality") ? 6 : 40)).toBeNull();
         expect(o.preflight?.(39)).toBeTruthy();
         expect(o.concurrency).toBe(1);
         expect(o.retryErrors).toBe(false);
         await o.ask([], "page");
         if (mode === "run-failure") throw new Error("run failed");
-        const count = mode === "modality" ? 6 : 40;
+        const count = mode.startsWith("modality") ? 6 : 40;
         return { pages: count, skipped: 0, asked: count, answered: count, errors: 0 };
       },
     },
@@ -236,5 +237,12 @@ it("limits the explicit modality protocol to six pages and a five-dollar live-me
   await executeSlot("1.1", "unused", f.output, f.dependencies);
   expect(f.db.prepare("SELECT reserved_minutes FROM glimmer_runtime").get()?.reserved_minutes).toBe(25);
   expect((25 * DIAGNOSTIC_RATE) / 60).toBe(5);
+  f.db.close();
+});
+
+it("keeps the replacement six-page protocol on the established exact deployment route", async () => {
+  const f = fixture("modality-exact");
+  await executeSlot("1.1", "unused", f.output, f.dependencies);
+  expect(f.db.prepare("SELECT reserved_minutes FROM glimmer_runtime").get()?.reserved_minutes).toBe(25);
   f.db.close();
 });
