@@ -234,3 +234,12 @@ it.each([
 ])("signed currency components also reject the whole expression for %s", async (transcript) => {
   expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
 });
+
+it.each([
+  "Please pay R100 and ZAR50 today",
+  "Please pay R100 & USD50 thousand & EUR20 today",
+  "Please pay R100 and GBP50 today",
+  "Please pay R100 & ZAR50 & USD20 & EUR30 & GBP40 today",
+])("successor regression: adjacent currency codes stay inside the rejected compound for %s", async (transcript) => {
+  expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
+});

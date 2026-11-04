@@ -22,12 +22,14 @@ const POWERS: Record<string, number> = { hundred: 2, thousand: 3, million: 6, bi
 // not values: the original quote remains the only reading of such a compound.
 const NUMBER_WORDS =
   "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|half|quarter|dozen";
+const CURRENCY_COMPONENT = String.raw`(?:R|ZAR|USD|EUR|GBP)(?=\s|[0-9\p{Pd}\p{Sm}])`;
+const CURRENCY_TERM = new RegExp(`^${CURRENCY_COMPONENT}`, "iu");
 const NUMBER_START = new RegExp(
-  `^(?:(?:[\\p{Pd}\\p{Sm}]|(?:minus|negative)\\b)\\s*)*(?:[0-9$€£]|(?:R|ZAR|USD|EUR|GBP)(?=\\s|[0-9\\p{Pd}\\p{Sm}])|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
+  `^(?:(?:[\\p{Pd}\\p{Sm}]|(?:minus|negative)\\b)\\s*)*(?:[0-9$€£]|${CURRENCY_COMPONENT}|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
   "iu",
 );
 const NUMBER_TERM = new RegExp(
-  `^(?:${NUMBER_WORDS}|and|minus|negative|a|rands?|dollars?|euros?|pounds?|cents?|pence|ZAR|USD|EUR|GBP)\\b`,
+  `^(?:${NUMBER_WORDS}|and|minus|negative|a|rands?|dollars?|euros?|pounds?|cents?|pence)\\b`,
   "iu",
 );
 function compositeEnd(transcript: string, end: number): number | null {
@@ -36,8 +38,7 @@ function compositeEnd(transcript: string, end: number): number | null {
   let at = end + join[0].length;
   while (at < transcript.length) {
     const tail = transcript.slice(at);
-    const token =
-      /^[\s\d.,/%:&$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? /^R(?=\s|[\d\p{Pd}\p{Sm}])/iu.exec(tail);
+    const token = /^[\s\d.,/%:&$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? CURRENCY_TERM.exec(tail);
     if (!token) break;
     at += token[0].length;
   }
