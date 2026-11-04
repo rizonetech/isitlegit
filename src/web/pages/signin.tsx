@@ -148,6 +148,26 @@ export function PasskeyHelp() {
         <li>Your browser is older and cannot use a phone passkey: update it, or sign in with an email link.</li>
         <li>Bluetooth is off: turn it on on this device and on your phone, then try again.</li>
       </ul>
+      <p class="text-14 weight-text-strong">Phone and computer compatibility</p>
+      <p class="text-14 text-muted">
+        Google documents phone-passkey sign-in in current Chrome on Windows, macOS, Linux and ChromeOS, using a nearby
+        Android phone (Android 9 or later) or iPhone/iPad (iOS/iPadOS 16 or later). Keep Bluetooth on on both devices
+        and choose the QR code option. Other browser, password-manager and managed-device support varies. If the option
+        is missing, use an email link.
+      </p>
+      <p class="text-14 weight-text-strong">Two more things to check</p>
+      <ul class="text-14 text-muted flex flex-col gap-4">
+        <li>
+          A saved passkey may not have synced: check the password manager where you saved it. For a missing
+          iCloud-synced passkey on iPhone, open Settings, your name, iCloud, Passwords (Passwords and Keychain on iOS 17
+          or earlier), then turn on Sync this iPhone. A passkey kept only on another device needs that device or an
+          email link.
+        </li>
+        <li>
+          A private or incognito window can restrict passkeys on some browsers. Try a normal window, or use an email
+          link.
+        </li>
+      </ul>
     </div>
   );
 }

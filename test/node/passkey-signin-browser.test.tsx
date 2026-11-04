@@ -66,14 +66,18 @@ describe("the passkey prompt and its recoveries", () => {
     await context.close();
   });
 
-  it("names each stuck cause with its fix in the panel, and keeps them after a cancelled ceremony (D07 T02 s28)", async () => {
+  it("keeps compatibility and every recovery cause visible in both themes (D07 T02 s30)", async () => {
     const causes = [
       "Your phone has no screen lock: set up a PIN, fingerprint or face lock, then try again.",
       "Your browser is older and cannot use a phone passkey: update it, or sign in with an email link.",
       "Bluetooth is off: turn it on on this device and on your phone, then try again.",
+      "Google documents phone-passkey sign-in in current Chrome on Windows, macOS, Linux and ChromeOS, using a nearby Android phone (Android 9 or later) or iPhone/iPad (iOS/iPadOS 16 or later). Keep Bluetooth on on both devices and choose the QR code option. Other browser, password-manager and managed-device support varies. If the option is missing, use an email link.",
+      "A saved passkey may not have synced: check the password manager where you saved it. For a missing iCloud-synced passkey on iPhone, open Settings, your name, iCloud, Passwords (Passwords and Keychain on iOS 17 or earlier), then turn on Sync this iPhone. A passkey kept only on another device needs that device or an email link.",
+      "A private or incognito window can restrict passkeys on some browsers. Try a normal window, or use an email link.",
     ];
-    const { p, context } = await signinWith("/signin", { width: 360 });
-    stub.optionsDelayMs = 600;
+    const { p, context } = await signinWith("/signin", { width: 360, clock: true });
+    await p.clock.pauseAt(await p.evaluate(() => Date.now() + 1000));
+    stub.optionsHang = true;
     await press(p);
     for (const theme of ["light", "dark"] as const) {
       await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
@@ -86,25 +90,31 @@ describe("the passkey prompt and its recoveries", () => {
       }
       expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(360);
     }
-    stub.optionsDelayMs = 0;
+    await p.getByRole("button", { name: "Email me a link instead" }).focus();
+    await p.keyboard.press("Enter");
+    expect(await focusedType(p)).toBe("email");
     await context.close();
     // Cancelled (no passkey answers): the note stays on the sign-in page, and the email recovery works by keyboard.
     const cancelled = await signinWith("/signin", { none: true, width: 360 });
     await press(cancelled.p);
     await expect.poll(() => message(cancelled.p)).toContain("No passkey was used");
     expect(await cancelled.p.locator("[data-passkey-help]").isVisible()).toBe(true);
-    const help = (await cancelled.p.textContent("[data-passkey-help]"))?.replace(/\s+/g, " ") ?? "";
-    for (const cause of causes) expect(help).toContain(cause);
-    for (const cause of causes)
-      expect(await cancelled.p.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible()).toBe(true);
     // A refused ceremony leaves the same note visible.
     const refused = await signinWith("/signin", { width: 360 });
     stub.answers = [{ status: 401, code: "AUTHENTICATION_FAILED" }];
     await press(refused.p);
     await expect.poll(() => message(refused.p)).toContain("That passkey could not be checked");
     expect(await refused.p.locator("[data-passkey-help]").isVisible()).toBe(true);
-    for (const cause of causes)
-      expect(await refused.p.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible()).toBe(true);
+    for (const page of [cancelled.p, refused.p]) {
+      for (const theme of ["light", "dark"] as const) {
+        await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        for (const cause of causes)
+          expect(await page.locator("[data-passkey-help]").getByText(cause, { exact: true }).isVisible(), theme).toBe(
+            true,
+          );
+        expect(await page.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(360);
+      }
+    }
     await refused.context.close();
     await cancelled.p.getByLabel("Work email").fill("m@k.example");
     await cancelled.p.getByRole("button", { name: "Email me a sign-in link" }).focus();

@@ -192,6 +192,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the admin console in Chromi
         expect(await p.getByText("63", { exact: true }).count()).toBeGreaterThan(0);
         expect(await p.getByText("US$6.40 of 15.00").count()).toBe(1);
         expect(await p.getByText("Sign-in refused").count()).toBe(1);
+        expect(await p.getByText("Name, verified domain or organisation ID", { exact: true }).isVisible()).toBe(true);
+        expect(await p.getByLabel("Search organisations").getAttribute("aria-describedby")).toBe("org-search-help");
         expect(await p.getByText("Lookalike domains").count()).toBeGreaterThan(0);
         expect(await p.evaluate(() => document.documentElement.scrollWidth), `${theme} ${width}`).toBeLessThanOrEqual(
           width + 1,
@@ -206,6 +208,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the admin console in Chromi
       await p.getByLabel("Search organisations").fill("Nope");
       await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
       expect(await p.getByText("No organisations match").count()).toBe(1);
+      expect(await p.getByText("Nothing matches “Nope”.", { exact: true }).isVisible()).toBe(true);
+      await Promise.all([p.waitForNavigation(), p.getByRole("link", { name: "Clear search" }).click()]);
+      expect(await p.getByText("Karoo Couriers", { exact: true }).count()).toBeGreaterThan(0);
+      expect(await p.getByText("Plain Org", { exact: true }).count()).toBeGreaterThan(0);
       await ctx.close();
     }
   });

@@ -1,0 +1,140 @@
+{
+  "ref": "D07 T02 \u00a730",
+  "title": "Passkey compatibility and second-line causes",
+  "implementation_sha": "aec18fa1839ae193b1932126a3afefa6fada704b",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "pnpm exec vitest run test/node/passkey-signin-browser.test.tsx passes with the second-line causes named; run with taskset -c 2 -> 19 passed, 18.78s tests, 20.54s total; each added paragraph removal independently failed the regression",
+    "taskset -c 2 pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-a11y-browser.test.tsx --no-file-parallelism -> 21 passed; accessibility file 50.36s, historical timing target remains escalated",
+    "pnpm typecheck; pnpm lint; pnpm build; python3 scripts/check-publication.py -> passed, lint 23 pre-existing warnings and 2 infos, existing asset-route build warning; no CI/deployment claim",
+    "python3 design/tools/check-design.py after approved A1 incorporation -> 0 problems; original tested product source unchanged"
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "policy_transition": {
+    "from_policy": "codex-self-review",
+    "plan_candidate": "6bd37f55360b54d3f941143289c6a613e781d886",
+    "plan_digest": "5363a394b6e0de2b",
+    "plan_pin": "0bb45776a2b27198b4bb6e41128b2ff411cac1e7",
+    "prefix_bytes": 339,
+    "prefix_sha256": "0d5d557ba453e771f6057060f8810162c9d95be877574d17c66f5f63183f3fd6",
+    "to_policy": "codex-two-pass-v1",
+    "version": 1
+  },
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s30.md",
+    "verdict": "complete",
+    "candidate": "aec18fa1839ae193b1932126a3afefa6fada704b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s30.md",
+    "candidate": "6bd37f55360b54d3f941143289c6a613e781d886",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

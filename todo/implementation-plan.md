@@ -290,12 +290,13 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 111 | Checklist items: 697
+Sections: 112 | Checklist items: 701
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
 | [x]    | D00 T01 §35 | Bounded completion reconciliation with preserved evidence | none                  | 6     |
 | [x]    | D00 T01 §36 | Two-pass Codex review with a combined final gate          | none                  | 6     |
+| [x]    | D00 T01 §37 | Durable ancestry for review journals                      | none                  | 4     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover                          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst                     | none                  | 3     |
@@ -408,7 +409,7 @@ Sections: 111 | Checklist items: 697
 
 ### Phase 7: After the event
 
-Sections: 224 | Checklist items: 1007
+Sections: 225 | Checklist items: 1013
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -540,7 +541,7 @@ Sections: 224 | Checklist items: 1007
 | [ ]    | D07 T02 §27 | Close account control on the Account board                  | operator             | 4     |
 | [x]    | D07 T02 §28 | Passkey troubleshooting on the sign-in page                 | none                 | 5     |
 | [ ]    | D07 T02 §29 | Undo window after closing an organisation                   | operator             | 4     |
-| [ ]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
+| [x]    | D07 T02 §30 | Passkey compatibility and second-line causes                | none                 | 4     |
 | [x]    | D07 T03 §10 | Stored verdict sentence, reasons                            | none                 | 5     |
 | [ ]    | D07 T03 §11 | Follow-up question from                                     | none                 | 3     |
 | [x]    | D07 T03 §14 | Vision and brand cards                                      | none                 | 7     |
@@ -589,8 +590,9 @@ Sections: 224 | Checklist items: 1007
 | [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
-| [ ]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 4     |
+| [x]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
 | [ ]    | D07 T05 §5  | Filter the organisations                                    | none                 | 4     |
+| [ ]    | D07 T05 §7  | Admin typeahead design proposal                             | none                 | 4     |
 | [x]    | D07 T06 §11 | Already paid: what to do now                                | none                 | 7     |
 | [x]    | D07 T06 §12 | Pricing terms: VAT and commitment                           | none                 | 7     |
 | [ ]    | D07 T06 §13 | On-site invite request                                      | none                 | 2     |
@@ -679,6 +681,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 427/603 verified sections, 112 ready to run now.
+Progress: 430/605 verified sections, 111 ready to run now.
 
-Checklist: 3110/3725 items completed (includes Commit items).
+Checklist: 3124/3735 items completed (includes Commit items).
