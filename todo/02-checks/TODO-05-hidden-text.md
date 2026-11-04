@@ -236,6 +236,8 @@ The eval lane owns `eval/DATASETS.md`: detection-eval supplies an exact entry pa
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
 
+**Plan findings resolved (2026-11-04):** Detection means at least one production instruction match (high severity), or an invisible run at medium/high severity; low-only ignorable runs do not count. Record match patterns/locations and run kinds/severities for every case. Tests cover instruction-only, invisible-run-only, benign low-only and ordinary clean text. CLI exits 0 for valid passing measurements, 1 for target misses, 2 for invalid corpus or reader failures; measured target misses are escalated to the coordinator without changing production detection in this lane.
+
 **Build order:**
 
 1. Measure the hidden-text checks on a labelled corpus. Done when: a synthetic corpus of hidden instructions (sparse invisible characters, tag runs, encoded and folded subjects, document text) and legitimate multilingual and emoji mail is checked, and the misses, false flags and p50/p95 time per message are recorded in `eval/`, each above or below a target the corpus file states.
@@ -244,7 +246,7 @@ The eval lane owns `eval/DATASETS.md`: detection-eval supplies an exact entry pa
 - [ ] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
 - [ ] Commit: `eval: hidden instructions measured on a corpus`
 
-**Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results.
+**Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results; `pnpm exec vitest run --project node test/node/eval-hidden-text.test.ts` proves arithmetic, real detection, corpus rejection, reader failure and target-miss exit codes with retained readable observations.
 
 ## 8. Uploaded documents read for instructions
 
