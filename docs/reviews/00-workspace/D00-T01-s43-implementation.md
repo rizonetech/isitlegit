@@ -1,0 +1,7 @@
+# D00 T01 section43 implementation evidence
+
+Exact original gate6c3f582a4a2ffb6d526374abf8e9ebe77dc2db78 CI41839458039 shard3/job126606845208 failed one upload-page literal assertion, with1225passes and3skips. Its log remains at ~/isitlegit-data/handover/upload-refusal-repair/ci-source.log. The original API validation permits optional ablate alongside replayRunId under strict eval admission. The page correctly retained400 and displayed the complete API error; no source behavior change was warranted.
+
+Genuine LOW plan self-review of9ab35a46491f573c0c09217933821133800b9efc returned PLAN complete, digest789d40b18786f878. Local failing-first targeted run on unchanged test/source failed the exact old literal after the HTTP400 assertion passed (1failed/23skipped,17.55seconds), retained as red.log in that handover directory. Product source remains byte-identical throughout, so this is also the negative proof that the old literal fails against the implementation under test.
+
+The sole test-code delta adds `and ablate` to the full expected sentence in test/web/upload-page.test.ts. HTTP400, the complete message assertion and all other test lines remain unchanged. The three planned Worker files passed63tests in66.81seconds (green.log). Full typecheck, publication and scoped Biome passed (typecheck.log, publication.log, lint.log). Product source, public assets, design, scripts and pin compare byte-identical to6c3f582a. No model/provider call, live mutation, deployment or CI rerun occurred. This evidence is not a completion review or stamp.
