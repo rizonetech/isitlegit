@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 229 | Checklist items: 1039
+Sections: 229 | Checklist items: 1041
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -584,7 +584,7 @@ Sections: 229 | Checklist items: 1039
 | [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
-| [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 3     |
+| [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 5     |
 | [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
 | [ ]    | D07 T04 §37 | Gateway relay range settings                                | third-party          | 7     |
@@ -683,4 +683,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 423/605 verified sections, 116 ready to run now.
 
-Checklist: 3102/3740 items completed (includes Commit items).
+Checklist: 3102/3742 items completed (includes Commit items).
