@@ -80,6 +80,14 @@ export function consequenceFamilyOf(item: Pick<Evidence, "check" | "severity" | 
     return "malware";
   }
   if (item.check === "domain.lookalike" || item.detail.lookalike === true) {
+    const fields = item.detail.fields;
+    if (
+      Array.isArray(fields) &&
+      fields.length > 0 &&
+      fields.every((f) => typeof f === "string" && f.toLowerCase() === "return-path")
+    ) {
+      return null;
+    }
     return "lookalike";
   }
   return null;

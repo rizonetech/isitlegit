@@ -346,6 +346,20 @@ describe("ruleVerdict", () => {
     expect(voiceBankRequestOnly.verdict).toBe("malicious");
     expect(voiceBankRequestOnly.meaning).toBe(MEANINGS.malicious);
 
+    // Return-Path-only lookalike does not claim replying or following links reaches the lookalike domain
+    const returnPathOnlyLookalike = ruleVerdict(
+      [withDetail("domain.lookalike", "high", { domain: "fynb0s.co.za", fields: ["Return-Path"] })],
+      WITH_HEADERS,
+    );
+    expect(returnPathOnlyLookalike.verdict).toBe("suspicious");
+    expect(returnPathOnlyLookalike.meaning).toBe(MEANINGS.suspicious);
+
+    const fromLookalike = ruleVerdict(
+      [withDetail("domain.lookalike", "high", { domain: "fynb0s.co.za", fields: ["From"] })],
+      WITH_HEADERS,
+    );
+    expect(fromLookalike.meaning).toBe(FLOOR_CONSEQUENCES.lookalike);
+
     // 5. Unfloored rule verdicts and safe/partial/noted cases keep their fixed wordings
     const familyOnly = ruleVerdict([withDetail("sender.display_brand", "medium", {})], WITH_HEADERS);
     expect(familyOnly.verdict).toBe("suspicious");

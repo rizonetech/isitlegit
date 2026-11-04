@@ -7,7 +7,7 @@ import { bundled } from "../../src/checks/brands";
 import { addEvidence, readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
-import { artefactsOf, putArtefact, type Store } from "../../src/intake/store";
+import { artefactsOf, putArtefact, putParsed, type Store } from "../../src/intake/store";
 import { LOGO_INDEX_KEY } from "../../src/vision/logo-reference";
 import { SEGMENT_CONCEPTS } from "../../src/vision/sam";
 
@@ -107,6 +107,28 @@ const logoCompareResponse = (judgement: {
     {
       status: 200,
       headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+    },
+  );
+
+const groundingResponse = (boxes: { x_min: number; y_min: number; x_max: number; y_max: number }[]) =>
+  new Response(
+    JSON.stringify({
+      id: "resp_grounding_1",
+      object: "response",
+      status: "completed",
+      model: "muse-spark-1.3",
+      output: [
+        {
+          type: "message",
+          role: "assistant",
+          content: [{ type: "output_text", text: JSON.stringify({ boxes }) }],
+        },
+      ],
+      usage: { input_tokens: 40, output_tokens: 15 },
+    }),
+    {
+      status: 200,
+      headers: { "content-type": "application/json", "cf-aig-log-id": "log-g1", "x-request-id": "req-g1" },
     },
   );
 
@@ -460,13 +482,21 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
     await seedFnbReferenceLogos({ withIcon: true });
 
+    let groundingCalls = 0;
     let samCalls = 0;
     let compareCalls = 0;
     const metaFetch: typeof fetch = async (_input, init) => {
-      const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        model?: string;
+        text?: { format?: { name?: string } };
+      };
       if (body.model === "sam-3.1") {
         samCalls += 1;
         return samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.92 }]);
+      }
+      if (body.text?.format?.name === "logo_grounding") {
+        groundingCalls += 1;
+        return groundingResponse([{ x_min: 100, y_min: 100, x_max: 500, y_max: 400 }]);
       }
       compareCalls += 1;
       // First variant (wordmark) says false; second variant (icon) says true!
@@ -508,11 +538,16 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     const renderKey = shotRes.status === "ok" ? shotRes.evidence[0]?.artefacts[0] : undefined;
     expect(renderKey).toMatch(new RegExp(`^art/${caseId}/render/`));
 
-    // 2. segment_logos on that returned renderKey -> segments and stores crop + manifest
+    // 2. segment_logos on that returned renderKey -> uses selected grounding detector for "logo" and SAM for "stamp"
     const segRes = await executor.call("segment_logos", { artefact_key: renderKey, concept: "logo" });
     expect(segRes.status).toBe("ok");
     const cropKey = segRes.status === "ok" ? segRes.evidence[0]?.artefacts[0] : undefined;
     expect(cropKey).toMatch(new RegExp(`^art/${caseId}/crop/`));
+    expect(groundingCalls).toBe(1);
+    expect(samCalls).toBe(0);
+
+    const stampSegRes = await executor.call("segment_logos", { artefact_key: renderKey, concept: "stamp" });
+    expect(stampSegRes.status).toBe("ok");
     expect(samCalls).toBe(1);
 
     // 3. compare_logo on that returned cropKey with alias "First National Bank" -> canonical "FNB", mismatch domain (high), icon variant matched after wordmark non-match
@@ -589,6 +624,62 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     expect(persisted[0]?.check).toBe("agent.compare_logo");
     expect(persisted[0]?.detail.reference_key).toBe("ref/logos/2026-11-01/fnb-icon.png");
 
+    // 5b. Genuine FNB email render with an official sender and an unrelated tracking link resolves to "official" (info), never a false mismatch
+    const { caseId: genuineEmailCase, orgId: genuineEmailOrg } = await seedCase();
+    await putParsed(store, genuineEmailCase, {
+      headers: [{ name: "From", value: "FNB Alerts <alerts@fnb.co.za>" }],
+      text: "Visit https://click.tracker.example/open to view your statement.",
+      html: '<p>Visit <a href="https://click.tracker.example/open">statement</a></p>',
+      attachments: [],
+    });
+    await addEvidence(env.DB, genuineEmailCase, "walkthrough", [
+      {
+        check: "walkthrough.redirects",
+        severity: "info",
+        summary: "Link redirected through tracker.",
+        detail: {
+          href: "https://click.tracker.example/open",
+          finalUrl: "https://click.tracker.example/dest",
+        },
+        artefacts: [],
+      },
+    ]);
+    const genuineEmailRender = await putArtefact(
+      store,
+      genuineEmailCase,
+      "render",
+      "email-desktop.png",
+      PNG_1X1,
+      "image/png",
+    );
+    const genuineEmailDeps = verdictToolDeps(metaEnv, env.DB, store, genuineEmailCase, genuineEmailOrg, bundled, null, {
+      launch: stubBrowser(),
+      metaFetch,
+    });
+    const genuineEmailExec = createToolExecutor(
+      { db: env.DB, caseId: genuineEmailCase, urls: [], brands: bundled },
+      genuineEmailDeps,
+    );
+    const genuineSeg = await genuineEmailExec.call("segment_logos", {
+      artefact_key: genuineEmailRender.key,
+      concept: "logo",
+    });
+    expect(genuineSeg.status).toBe("ok");
+    const genuineCropKey = genuineSeg.status === "ok" ? genuineSeg.evidence[0]?.artefacts[0] : undefined;
+    const genuineCmp = await genuineEmailExec.call("compare_logo", { crop_key: genuineCropKey, brand: "FNB" });
+    expect(genuineCmp.status).toBe("ok");
+    if (genuineCmp.status === "ok") {
+      expect(genuineCmp.evidence[0]).toMatchObject({
+        check: "agent.compare_logo",
+        severity: "info",
+        detail: {
+          brand: "FNB",
+          same_brand: true,
+          domain: "official",
+        },
+      });
+    }
+
     // 6. Shared Meta budget accounting in model_spend across segment_logos and compare_logo
     const spendRows = await env.DB.prepare(
       "SELECT caller, model, owner, case_id, step, state FROM model_spend WHERE case_id = ? ORDER BY at",
@@ -629,8 +720,14 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     let modelCalls = 0;
     const metaFetch: typeof fetch = async (_input, init) => {
       modelCalls += 1;
-      const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        model?: string;
+        text?: { format?: { name?: string } };
+      };
       if (body.model === "sam-3.1") return samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.92 }]);
+      if (body.text?.format?.name === "logo_grounding") {
+        return groundingResponse([{ x_min: 100, y_min: 100, x_max: 500, y_max: 400 }]);
+      }
       return logoCompareResponse({
         same_brand: false,
         brand_seen: null,
@@ -710,7 +807,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     };
     const delayedDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser({ delayCropMs: 80 }),
-      metaFetch: async () => samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.9 }]),
+      metaFetch: async () => groundingResponse([{ x_min: 100, y_min: 100, x_max: 500, y_max: 400 }]),
     });
     const tightExecutor = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, delayedDeps, {
       budgetMs: 25,
@@ -725,7 +822,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     // 2. Crop failure produces status: "failed" with detail.checked: false, never a clearance
     const failCropDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser({ cropFail: true }),
-      metaFetch: async () => samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.9 }]),
+      metaFetch: async () => groundingResponse([{ x_min: 100, y_min: 100, x_max: 500, y_max: 400 }]),
     });
     const failCropExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, failCropDeps);
     const cropFailed = await failCropExec.call("segment_logos", { artefact_key: render.key, concept: "logo" });
@@ -785,7 +882,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     // 6. Empty segmentation stores empty crop manifest and returns count: 0, crops: []
     const emptySegDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser(),
-      metaFetch: async () => samStreamResponse([]),
+      metaFetch: async () => groundingResponse([]),
     });
     const emptySegExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, emptySegDeps);
     const emptySegRes = await emptySegExec.call("segment_logos", { artefact_key: render.key, concept: "logo" });
@@ -807,9 +904,9 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     const mixedCropDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser({ partialCropFail: true }),
       metaFetch: async () =>
-        samStreamResponse([
-          { x1: 10, y1: 10, x2: 70, y2: 37, c: 0.95 },
-          { x1: 100, y1: 100, x2: 180, y2: 140, c: 0.9 },
+        groundingResponse([
+          { x_min: 50, y_min: 50, x_max: 250, y_max: 200 },
+          { x_min: 400, y_min: 400, x_max: 700, y_max: 650 },
         ]),
     });
     const mixedCropExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, mixedCropDeps);
@@ -902,7 +999,7 @@ describe("D04 T01 §10: logo tools for the verdict agent", () => {
     // 9b. Stalled browser.close() after successful segmentation and crop storage still returns ok before the tool deadline
     const stalledCloseDeps = verdictToolDeps(delayedMetaEnv, env.DB, store, caseId, orgId, bundled, null, {
       launch: stubBrowser({ stallClose: true }),
-      metaFetch: async () => samStreamResponse([{ x1: 10, y1: 10, x2: 70, y2: 37, c: 0.91 }]),
+      metaFetch: async () => groundingResponse([{ x_min: 100, y_min: 100, x_max: 500, y_max: 400 }]),
     });
     const stalledCloseExec = createToolExecutor({ db: env.DB, caseId, urls: [], brands: bundled }, stalledCloseDeps, {
       budgetMs: 120,
