@@ -1031,14 +1031,35 @@ describe("early refusal alert before attribution (D01 T02 §15)", () => {
       datetime: new Date(at(0.2).getTime() + 2000).toISOString(),
     });
     const wOverlap = world([[laterNotice], [report()], []]);
+    let sawEarlySnapshot = false;
     let scanBTriggered = false;
     const interleavedDb = new Proxy(db, {
       get(target, name) {
+        if (name === "prepare")
+          return (query: string) => {
+            const stmt = target.prepare(query);
+            if (!query.includes("forward-early:")) return stmt;
+            return new Proxy(stmt, {
+              get(sTarget, sName) {
+                if (sName === "all")
+                  return async (...args: unknown[]) => {
+                    const out = await Reflect.apply(sTarget.all, sTarget, args);
+                    // Scan A has now completed its waiting and early-send status snapshot (with 0 existing sends).
+                    expect((out as { results: unknown[] }).results).toHaveLength(0);
+                    sawEarlySnapshot = true;
+                    return out;
+                  };
+                const sVal = Reflect.get(sTarget, sName);
+                return typeof sVal === "function" ? sVal.bind(sTarget) : sVal;
+              },
+            });
+          };
         if (name === "batch")
           return async (statements: D1PreparedStatement[]) => {
-            if (!scanBTriggered) {
+            if (sawEarlySnapshot && !scanBTriggered) {
               scanBTriggered = true;
-              // Run Scan B with the normal db while Scan A is paused right before its cluster-claim batch.
+              // Run Scan B with the normal db while Scan A is paused after its candidate/status snapshot, immediately
+              // before its cluster-claim batch.
               await checkForwarding(prodDeps(wOverlap.fetcher, at(2)));
             }
             return target.batch(statements);
@@ -1049,8 +1070,19 @@ describe("early refusal alert before attribution (D01 T02 §15)", () => {
     }) as D1Database;
 
     await checkForwarding(prodDeps(wOverlap.fetcher, at(1), { db: interleavedDb }));
-    // Only 1 early alert (2 operator emails) went across both overlapping scans.
+    expect(sawEarlySnapshot).toBe(true);
+    expect(scanBTriggered).toBe(true);
+    // Only 1 early alert (2 operator emails) went across both overlapping scans, and both rows share the claimed key.
     expect(wOverlap.sends).toHaveLength(2);
+    const claimedRows = (
+      await db.prepare("SELECT key, reason FROM forward_incidents ORDER BY occurred_at").all<{
+        key: string;
+        reason: string | null;
+      }>()
+    ).results;
+    expect(claimedRows).toHaveLength(2);
+    expect(claimedRows[0]?.reason).toBe(claimedRows[0]?.key);
+    expect(claimedRows[1]?.reason).toBe(claimedRows[0]?.key);
 
     // 2. Fair budget sharing under sustained early traffic alongside pending attributed/Worker alerts.
     await db.batch([
