@@ -80,6 +80,7 @@ track: day-0
 | 39 | §39 | Controlled failure proof for the composed detection harness | D02 T05 §7, D02 T05 §12 | [x] |
 | 40 | §40 | Email recovery fixtures on reviewed ablation integration | D01 T03 §17, D04 T01 §17 | [x] |
 | 41 | §41 | Accurate continuation stop reasons for completed owners | §19 | [ ] |
+| 42 | §43 | Upload refusal matches reviewed admission | D01 T03 §17 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1367,6 +1368,28 @@ Filed 2026-11-04 for operator LANES-34. Completed Access and detection-eval owne
 - [ ] Commit: `fix: report actual stopped continuation owner state`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_codex_continuation tests.scripts.test_codex_lanes` passes; removing the state-specific reason branch fails completed and stalled output regressions while stop enforcement remains unchanged.
+
+## 43. Upload refusal matches reviewed admission
+
+Filed 2026-11-04 by coordinator authorization after exact candidate `6c3f582a4a2ffb6d526374abf8e9ebe77dc2db78` CI41839458039 Worker shard3 failed job126606845208. The one failing test at `test/web/upload-page.test.ts:248` expects the old multipart refusal without the optional ablate field. Reviewed D01 T03 §17 admission intentionally permits one textual ablate field with strict eval authorization and attribution. `src/intake/upload.ts:102` emits the updated refusal, and the web page correctly renders that complete API error with HTTP400. This section repairs only the stale test expectation, never upload behavior, user wording or a security gate.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Preserved inputs:** Keep every product source, approved refusal string, status assertion, exact field validation, eval authorization, existing test assertion and original review receipt unchanged except the obsolete expected string. Preserve the running gate and all failed CI evidence. Section42 is reserved independently; do not renumber any section.
+
+**Build order:**
+
+1. Run the exact current upload-page regression before editing. Done when: the test fails because the expected API refusal lacks ablate, while observed status remains400; retain the unfiltered log outside the repository.
+2. Correct the exact expected refusal in `test/web/upload-page.test.ts` to the reviewed API wording. Done when: the original400 and full-string assertion remain, the previously failing test passes, and omitting ablate from the expectation still fails on the unchanged implementation.
+3. Verify upload-page and API admission together. Done when: targeted upload-page, upload and ablation-upload tests pass, including malformed multipart and ordinary-org ablation refusal without created work, full typecheck passes, and a source-diff audit proves product bytes unchanged.
+
+- [ ] Reproduce the named CI regression on the exact integrated source, retaining expected and actual refusal text and HTTP400. Done when: a failing-first log identifies the same assertion rather than an unrelated setup failure. Cheaper substitute: infer failure from reading the test, rejected because the exact local reproduction is required.
+- [ ] Change only the stale literal to include the reviewed optional ablate field. Done when: exact message and HTTP400 remain asserted; no regex, shortened substring, removed test or weakened source validation. Cheaper substitute: assert only status, rejected because the page must display the complete API refusal.
+- [ ] Run `test/web/upload-page.test.ts`, `test/intake/upload.test.ts` and `test/intake/ablation-upload.test.ts` plus full typecheck and publication check. Done when: all pass with only the expected test literal changed, prior security assertions intact and no product-source diff.
+- [ ] Commit: `test: align upload-page refusal with reviewed ablation fields`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project worker test/web/upload-page.test.ts test/intake/upload.test.ts test/intake/ablation-upload.test.ts` passes; the unchanged old expected message fails the original upload-page assertion while HTTP400 and all malformed/unauthorized admission checks remain enforced.
 
 ## Verification
 
