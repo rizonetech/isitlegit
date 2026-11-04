@@ -211,6 +211,8 @@ Run the full set, read the misses and false positives, fix the worst causes at t
 
 ## 6. PDF forensics rates on payment documents
 
+> **Started:** 2026-11-04T09:14:49.732465+02:00 (plan preparation only; implementation follows Codex plan self-review)
+
 The trust lane's PDF forensics (D06 T02 §1, `src/invoice/forensics.ts`: `analysePdf` and `forensicsEvidence`, checking `document.forensics.revisions`, producer, dates, fonts and overlay) measured for detection and false positives on payment documents, by document type (proof of payment, bank letter, invoice) and by generator, against design spec 4.9's targets (detection at least 95%, false positives at most 2%). Filed 2026-10-31 at the trust lane's request through the coordinator: their completion review had pointed it at D08 T01 §3, the synthetic mail set, which is not its home. The checks are deterministic, so this measures them directly on the documents, not through the deployed pipeline, and spends nothing.
 
 **Phase:** 6
