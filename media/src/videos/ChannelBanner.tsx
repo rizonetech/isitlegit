@@ -1,216 +1,93 @@
 import type React from "react";
 import { AbsoluteFill } from "remotion";
-import { body, c, CARD, head, mono } from "../brand";
 
 export const BANNER = { fps: 30, width: 2560, height: 1440 } as const;
 export const SAFE_ZONE = { width: 1546, height: 423 } as const;
 
 /**
- * Personal developer YouTube channel banner for @DerickPayneDev (D10 T01 §10).
- * 2560 x 1440 canvas with all typography, badges and marks strictly inside the
- * centred 1546 x 423 TV/desktop/mobile safe zone. Unrelated to IsItLegit so the
- * channel header is permanent across future engineering series.
+ * Personal developer YouTube channel banner for @DerickPayneDev (D10 T01 §10), its own identity, unrelated to IsItLegit:
+ * a graphite ground with a field of flowing lines in cyan and violet that fills the whole 2560 x 1440 canvas (what a TV
+ * shows), and every word inside the centred 1546 x 423 safe zone (what a phone shows). No box is drawn around the safe
+ * zone and no monogram stands in for a photo: the channel avatar already carries the face.
  */
-export const ChannelBanner: React.FC = () => {
-  const pills = [
-    "AI Engineering",
-    "Systems Architecture",
-    "Production Builds",
-  ];
-  const stack = [
-    "Multi-Agent Engineering",
-    "Model Fine-Tuning & Evals",
-    "Full-Stack Systems",
-  ];
+const INK = "#E9EEF5";
+const MUTED = "#8A96A8";
+const CYAN = "#3EE6D4";
+const VIOLET = "#8B7CFF";
+const GROUND = "#0B0E13";
 
-  return (
-    <AbsoluteFill
+// The line field: 46 curves, each a sum of two slow sines, drifting from left to right and gathering on the right,
+// drawn once as SVG so the PNG is sharp at any size. Deterministic, so every render is the same banner.
+const FIELD = Array.from({ length: 46 }, (_, i) => {
+  const t = i / 45;
+  const base = 120 + t * 1200;
+  const pts: string[] = [];
+  for (let x = -40; x <= 2600; x += 40) {
+    const u = Math.max(0, x / 2560);
+    const pull = Math.pow(u, 1.6) * (720 - base) * 0.55;
+    const y = base + pull + 46 * Math.sin(u * 5.2 + i * 0.37) + 22 * Math.sin(u * 13 + i * 1.1);
+    pts.push(`${x},${y.toFixed(1)}`);
+  }
+  return { d: `M${pts.join(" L")}`, t };
+});
+
+const font = (family: "Exo" | "Exo 2", weight: number): React.CSSProperties => ({ fontFamily: `"${family}", sans-serif`, fontWeight: weight });
+const mono: React.CSSProperties = { fontFamily: "ui-monospace, Menlo, Consolas, monospace" };
+
+export const ChannelBanner: React.FC = () => (
+  <AbsoluteFill style={{ background: GROUND, overflow: "hidden" }}>
+    <svg width={2560} height={1440} viewBox="0 0 2560 1440" style={{ position: "absolute", inset: 0 }} aria-hidden>
+      <defs>
+        <linearGradient id="field" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor={VIOLET} stopOpacity="0.05" />
+          <stop offset="0.55" stopColor={VIOLET} stopOpacity="0.32" />
+          <stop offset="1" stopColor={CYAN} stopOpacity="0.75" />
+        </linearGradient>
+        <radialGradient id="glow" cx="0.78" cy="0.5" r="0.45">
+          <stop offset="0" stopColor={CYAN} stopOpacity="0.16" />
+          <stop offset="1" stopColor={CYAN} stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.75">
+          <stop offset="0.55" stopColor={GROUND} stopOpacity="0" />
+          <stop offset="1" stopColor={GROUND} stopOpacity="0.95" />
+        </radialGradient>
+      </defs>
+      <rect width="2560" height="1440" fill="url(#glow)" />
+      {FIELD.map((l) => (
+        <path key={l.d.slice(0, 24)} d={l.d} fill="none" stroke="url(#field)" strokeWidth={l.t > 0.48 && l.t < 0.56 ? 2.6 : 1.3} />
+      ))}
+      <rect width="2560" height="1440" fill="url(#vignette)" />
+    </svg>
+    {/* Left side of the safe zone sits on darker ground, so the type always reads over the lines. */}
+    <AbsoluteFill style={{ background: `linear-gradient(90deg, ${GROUND} 0%, ${GROUND}f2 30%, ${GROUND}00 62%)` }} />
+
+    <div
       style={{
-        background: "#08090D",
+        position: "absolute",
+        left: (2560 - SAFE_ZONE.width) / 2,
+        top: (1440 - SAFE_ZONE.height) / 2,
+        width: SAFE_ZONE.width,
+        height: SAFE_ZONE.height,
+        display: "flex",
+        flexDirection: "column",
         justifyContent: "center",
-        alignItems: "center",
-        overflow: "hidden",
+        boxSizing: "border-box",
+        padding: "0 24px",
       }}
     >
-      {/* Full-canvas TV background ambience */}
-      <AbsoluteFill
-        style={{
-          background:
-            "radial-gradient(circle 1100px at 72% 46%, rgba(242, 104, 34, 0.18), transparent 70%), radial-gradient(circle 900px at 26% 54%, rgba(56, 189, 248, 0.12), transparent 68%)",
-        }}
-      />
-      <AbsoluteFill
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)",
-          backgroundSize: "64px 64px",
-        }}
-      />
-      <AbsoluteFill
-        style={{
-          background:
-            "radial-gradient(ellipse 82% 76% at 50% 50%, transparent 45%, rgba(4, 5, 8, 0.9) 100%)",
-        }}
-      />
-
-      {/* Centred 1546 x 423 safe zone for desktop, tablet and mobile headers */}
-      <div
-        style={{
-          width: SAFE_ZONE.width,
-          height: SAFE_ZONE.height,
-          boxSizing: "border-box",
-          padding: "36px 56px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: "rgba(15, 17, 23, 0.86)",
-          border: `2px solid ${c["line-strong"]}`,
-          borderRadius: 28,
-          boxShadow: "0 24px 80px rgba(0, 0, 0, 0.65)",
-        }}
-      >
-        {/* Left: Monogram + Name + Handle + Core Pillars */}
-        <div style={{ display: "flex", alignItems: "center", gap: 38 }}>
-          <div
-            style={{
-              width: 148,
-              height: 148,
-              borderRadius: 26,
-              background: "linear-gradient(135deg, #F26822 0%, #C2410C 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 12px 36px rgba(242, 104, 34, 0.32)",
-              border: "2px solid rgba(255, 255, 255, 0.18)",
-              flexShrink: 0,
-            }}
-          >
-            <span
-              style={{
-                ...head,
-                fontSize: 68,
-                fontWeight: 800,
-                color: "#FFFFFF",
-                letterSpacing: -2,
-              }}
-            >
-              DP
-            </span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-              <span
-                style={{
-                  ...head,
-                  fontSize: 66,
-                  fontWeight: 800,
-                  color: c.ink,
-                  lineHeight: 1,
-                  letterSpacing: -1.2,
-                }}
-              >
-                Derick Payne
-              </span>
-              <span
-                style={{
-                  ...mono,
-                  fontSize: 24,
-                  fontWeight: 600,
-                  color: c.orange,
-                  background: `${CARD}`,
-                  border: `1.5px solid ${c.orange}`,
-                  borderRadius: 999,
-                  padding: "6px 18px",
-                }}
-              >
-                @DerickPayneDev
-              </span>
-            </div>
-
-            <div
-              style={{
-                ...body,
-                fontSize: 30,
-                fontWeight: 600,
-                color: c["ink-2"],
-                letterSpacing: 0.2,
-              }}
-            >
-              {pills.join("  ·  ")}
-            </div>
-
-            <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-              {stack.map((item) => (
-                <div
-                  key={item}
-                  style={{
-                    ...mono,
-                    fontSize: 19,
-                    fontWeight: 500,
-                    color: c.muted,
-                    background: "rgba(255, 255, 255, 0.04)",
-                    border: `1px solid ${c.line}`,
-                    borderRadius: 10,
-                    padding: "6px 14px",
-                  }}
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right: Architectural telemetry card inside safe zone */}
-        <div
-          style={{
-            width: 340,
-            background: "rgba(9, 10, 15, 0.9)",
-            border: `1.5px solid ${c.line}`,
-            borderRadius: 20,
-            padding: "24px 28px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              ...mono,
-              fontSize: 17,
-              fontWeight: 700,
-              color: c.orange,
-              letterSpacing: 1.2,
-            }}
-          >
-            DEEP TECHNICAL LOGS
-          </div>
-          <div
-            style={{
-              ...body,
-              fontSize: 22,
-              lineHeight: 1.35,
-              color: c.ink,
-              fontWeight: 600,
-            }}
-          >
-            Real codebases, measured benchmarks and end-to-end builds.
-          </div>
-          <div
-            style={{
-              ...mono,
-              fontSize: 17,
-              color: c.muted,
-              borderTop: `1px solid ${c.line}`,
-              paddingTop: 10,
-            }}
-          >
-            rizonetech.com
-          </div>
-        </div>
+      <div style={{ ...mono, fontSize: 26, letterSpacing: 6, color: CYAN }}>@DERICKPAYNEDEV</div>
+      <div style={{ ...font("Exo", 800), fontSize: 132, lineHeight: 1, color: INK, letterSpacing: -3, marginTop: 18 }}>Derick Payne</div>
+      <div style={{ ...font("Exo 2", 500), fontSize: 40, lineHeight: 1.25, color: INK, marginTop: 26 }}>
+        I build production AI systems, <span style={{ color: CYAN }}>and show exactly how.</span>
       </div>
-    </AbsoluteFill>
-  );
-};
+      <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 30, ...mono, fontSize: 24, color: MUTED }}>
+        {["agents", "evals", "fine-tuning", "systems design", "shipping"].map((w, i) => (
+          <span key={w} style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            {i ? <span style={{ width: 6, height: 6, borderRadius: 3, background: VIOLET }} /> : null}
+            {w}
+          </span>
+        ))}
+      </div>
+    </div>
+  </AbsoluteFill>
+);
