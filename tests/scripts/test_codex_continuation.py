@@ -145,6 +145,16 @@ class Continuation(unittest.TestCase):
         with self.assertRaisesRegex(cc.Refusal, "trust"):
             self.registry.activate("main", self.session)
 
+    def test_linked_worktree_accepts_identical_trusted_shared_hooks(self):
+        lane = self.root.parent / "lane"
+        for root in [self.root, lane]:
+            (root / ".codex").mkdir(parents=True)
+            (root / ".codex/hooks.json").write_text('{"hooks": {}}')
+        self.registry.trusted(self.native, self.session, lane)
+        (lane / ".codex/hooks.json").write_text('{"hooks": {"Stop": []}}')
+        with self.assertRaises(cc.Refusal):
+            self.registry.trusted(self.native, self.session, lane)
+
     def test_interrupt_survives_late_stop_and_session_start(self):
         self.event("UserPromptSubmit", prompt="work")
         self.event("Interrupt")
