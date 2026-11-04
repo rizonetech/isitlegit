@@ -39,7 +39,7 @@ track: day-5
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 | 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
-| 8 | §8 | Native PDF forensic limits diagnosis | §1, §5, §6 | [ ] |
+| 8 | §8 | Native PDF forensic limits diagnosis | §1, §5, §6 | [x] |
 | 9 | §9 | PNG encoding at the doctored fixture producer | §4 | [x] |
 
 ## 1. PDF forensics
@@ -275,6 +275,9 @@ Coordinator scope correction `console-scope-ownership`, 2026-11-04 10:14 SAST: t
 - [x] Commit: `invoice: document native PDF forensic limits with regression proof`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/invoice/forensics-generated.test.ts test/invoice/pdf-filters.test.ts` passes; the single-signal promotion and missing-date-as-complete mutations fail, with production source restored afterward. The pinned eval scorer reproduces the unchanged 14-file baseline; local tests do not claim a measured production accuracy improvement.
+
+> **Verified:** 2026-11-04 | §8 | 270a2e5da923198b4a31a12acb2808e1906ccbc2
+> **Review:** `docs/reviews/d06-t02-s8.json`
 
 ## 9. PNG encoding at the doctored fixture producer
 
