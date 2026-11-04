@@ -2973,6 +2973,121 @@ class Repository(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
 
 
+
+
+
+class CodexSelfStamp(Stamp):
+    """The explicit Codex policy changes the order, never the evidence requirement."""
+    COMPLETION = Stamp.PLAN
+
+    def setUp(self):
+        super().setUp()
+        pin = UNIFORM_PIN.replace('schema_version = 1', 'schema_version = 1\nself_review = ["codex"]')
+        pin = pin.replace('claude = ["astra"]', 'codex = ["astra"]')
+        (self.root / tg.PIN).write_text(pin, encoding="utf-8")
+        self.pin = tg.review_dispatch().pin_blob(pin.encode())
+        self.commit("Codex policy before implementation")
+        self.tick_work()
+        self.sha = self.commit("implement section")
+        self.chain()
+
+    def chain(self, round_review="HIGHEST: none\nOVERALL: approve", completion="COMPLETION: complete"):
+        path = self.root / self.PLAN
+        path.write_text("# Self review\n\n", encoding="utf-8")
+        dispatch = tg.review_dispatch()
+        common = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "failover": [], "pin": self.pin}
+        dispatch.record_completion(path, {**common, "lenses": ["plan"],
+            "review": "PLAN: complete\nOVERALL: approve"}, "2026-11-04T10:00:00Z", self.start, "plan")
+        dispatch.record(path, {**common, "effort": "low", "lenses": ["adversarial"],
+            "review": round_review}, "2026-11-04T10:01:00Z")
+        dispatch.record_completion(path, {**common, "review": completion}, "2026-11-04T10:02:00Z", self.sha)
+        text = path.read_text().replace("- Writer: codex\n", "- Writer: codex\n- Policy: codex-self-review\n")
+        path.write_text(text, encoding="utf-8")
+
+    def stamp_self(self):
+        return self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-11-04")
+
+    def test_self_review_chain_stamps_and_revalidates(self):
+        self.stamp_self()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_completion_proves_the_single_round_fixes(self):
+        self.chain("P1: fixed before completion.\nHIGHEST: P1\nOVERALL: needs-attention")
+        self.reviews[0]["verdict"] = "fixed"
+        self.stamp_self()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_stale_completion_cannot_stamp(self):
+        self.sha = self.commit("later product change")
+        with self.assertRaisesRegex(tg.Refused, "exact stamped commit"):
+            self.stamp_self()
+
+    def test_completion_before_round_cannot_stamp(self):
+        path = self.root / self.PLAN
+        path.write_text(path.read_text().replace("10:02:00Z", "09:59:00Z"))
+        with self.assertRaisesRegex(tg.Refused, "plan, one round, then completion"):
+            self.stamp_self()
+
+    def test_policy_marker_cannot_authorize_an_old_pin(self):
+        old = tg.review_dispatch().pin_blob(UNIFORM_PIN.encode())
+        path = self.root / self.PLAN
+        path.write_text(path.read_text().replace(self.pin, old))
+        with self.assertRaisesRegex(tg.Refused, "does not authorize Codex self-review"):
+            self.stamp_self()
+
+    def test_second_returned_round_cannot_stamp(self):
+        path = self.root / self.PLAN
+        text = path.read_text()
+        start, end = text.index("## Round 1:"), text.index("## Completion review:")
+        extra = text[start:end].replace("## Round 1:", "## Round 2:")
+        path.write_text(text[:end] + extra + text[end:])
+        self.reviews.append({**self.reviews[0], "round": 2})
+        with self.assertRaisesRegex(tg.Refused, "over the 1-round cap"):
+            self.stamp_self()
+
+    def test_forged_reviewer_identity_cannot_stamp(self):
+        path = self.root / self.PLAN
+        path.write_text(path.read_text().replace("astra (`m`", "impostor (`m`"))
+        with self.assertRaisesRegex(tg.Refused, "identity does not match"):
+            self.stamp_self()
+
+    def test_mixed_policy_chain_cannot_stamp(self):
+        path = self.root / self.PLAN
+        text = path.read_text().replace("- Writer: codex\n- Policy: codex-self-review", "- Writer: claude", 1)
+        path.write_text(text)
+        with self.assertRaisesRegex(tg.Refused, "cannot mix review policies"):
+            self.stamp_self()
+
+    def test_failed_round_can_be_retried_before_the_single_returned_round(self):
+        path = self.root / self.PLAN
+        text = path.read_text()
+        failed = ("## Round 1: none\n\n- Writer: codex\n- Policy: codex-self-review\n"
+                  "- Run: 2026-11-04T10:00:30Z\n- Effort: low\n- Lenses: adversarial\n"
+                  f"- Pin: {self.pin}\n\nNo reviewer returned a review.\n\n")
+        text = text.replace("## Round 1:", "## Round 2:")
+        at = text.index("## Round 2:")
+        path.write_text(text[:at] + failed + text[at:])
+        self.reviews[0]["round"] = 2
+        receipt = self.stamp_self()
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual((data["round_cap"], data["rounds_spent"]), (1, 2))
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_quoted_headings_inside_sealed_reviews_do_not_change_order(self):
+        self.chain(completion="Quoted example:\n## Round 7: none\n\nCOMPLETION: complete")
+        self.stamp_self()
+
+    def test_self_completion_with_gaps_cannot_stamp(self):
+        self.chain(completion="COMPLETION: gaps")
+        with self.assertRaisesRegex(tg.Refused, "completion verdict complete"):
+            self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-11-04",
+                       completion={"report": self.COMPLETION, "verdict": "completed"})
+
+
+for _name in [n for n in vars(Stamp) if n.startswith("test_") and n not in vars(CodexSelfStamp)]:
+    setattr(CodexSelfStamp, _name, None)
+
+
 if __name__ == "__main__":
     unittest.main()
-
