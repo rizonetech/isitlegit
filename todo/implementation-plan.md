@@ -367,7 +367,7 @@ Sections: 110 | Checklist items: 695
 | [x]    | D08 T02 §4  | Eval dashboard with production counts        | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results      | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T01 §8  | Pilot hold-out proof case                    | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §6  | PDF forensics rates on payment documents     | none                  | 7     |
+| [x]    | D08 T02 §6  | PDF forensics rates on payment documents     | none                  | 7     |
 | [x]    | D08 T02 §7  | Live eval runs                               | meta-api, cloudflare  | 5     |
 | [x]    | D08 T02 §8  | Component measurements                       | meta-api, cloudflare  | 9     |
 | [x]    | D08 T02 §9  | Admin eval runs page                         | none                  | 6     |
@@ -679,6 +679,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 424/603 verified sections, 117 ready to run now.
+Progress: 425/603 verified sections, 116 ready to run now.
 
 Checklist: 3108/3725 items completed (includes Commit items).

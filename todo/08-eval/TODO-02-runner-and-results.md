@@ -36,7 +36,7 @@ track: day-6
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
 | 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
-| 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
+| 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [x] |
 | 7 | §7 | Live eval runs | §1 | [x] |
 | 8 | §8 | Component measurements | §2, §7 | [x] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
@@ -243,6 +243,9 @@ The trust lane's PDF forensics (D06 T02 §1, `src/invoice/forensics.ts`: `analys
 **Completion state 2026-11-04:** Final completion at `ef1c3e96` returned gaps for corpus publication recovery. D08 T02 §18 is the coordinator-authorized resolving storage repair, with its own current review chain. This section remains open and unstamped pending supported reconciliation; §18 does not close it or prove PDF targets. Detector and coverage follow-up remains solely D06 T02 §8.
 
 **CI integration repair 2026-11-04:** CI41805781547 and41809060857 correctly refused the native component corpus inside the mail-only sets directory. The generator, reader, tracked corpus and recovery paths now use `eval/forensics/sets/`; the original location above records the historical plan, superseded only for storage location. A new build-plus-mail-loader regression fails before relocation and passes after it;128affected tests, typecheck, lint, build, publication and regenerated report check pass. All six generated PDF hashes remain identical; remeasurement retains3/7detections,0/7false positives,13/14complete coverage. Original report archived unchanged under `eval/forensics/history/`. No loader filter, false mail labels, target claim, receipt rewrite or extra completion pass. §6 and§18 remain unstamped pending supported reconciliation.
+
+> **Verified:** 2026-11-04 | §6 | 1982b7e9e39c86923c7f410c38f1c5afdfd757a4
+> **Review:** `docs/reviews/d08-t02-s6.json`
 
 ## 7. Live eval runs
 
