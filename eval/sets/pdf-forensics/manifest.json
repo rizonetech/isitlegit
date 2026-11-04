@@ -1,0 +1,319 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "path": "eval/sets/pdf-forensics/proof-of-payment-genuine.pdf",
+      "type": "proof-of-payment",
+      "generator": "project-pdf-writer",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "7c2e924d9dee421b02eb7b1ade3c158d81262eb018c39607c409e0f301425ff3"
+    },
+    {
+      "path": "eval/sets/pdf-forensics/proof-of-payment-doctored.pdf",
+      "type": "proof-of-payment",
+      "generator": "project-pdf-writer",
+      "label": "doctored",
+      "edit": "incremental amount change with substituted font",
+      "sha256": "ab306eb16e0bdc6d98af60b737e0403bc12e529f110ab984b6d836af3c464528"
+    },
+    {
+      "path": "eval/sets/pdf-forensics/bank-letter-genuine.pdf",
+      "type": "bank-letter",
+      "generator": "project-pdf-writer",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "7a3bc6337fcb22259e02e39d721b7103dffdecd06bd7bfc44d36e5ade16f4af7"
+    },
+    {
+      "path": "eval/sets/pdf-forensics/bank-letter-doctored.pdf",
+      "type": "bank-letter",
+      "generator": "project-pdf-writer",
+      "label": "doctored",
+      "edit": "incremental amount change with substituted font",
+      "sha256": "10be6664bf65213f7ca8a008a41fcd96fee1e65491873e23187f45585e072338"
+    },
+    {
+      "path": "eval/sets/pdf-forensics/invoice-genuine.pdf",
+      "type": "invoice",
+      "generator": "project-pdf-writer",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "07cd50c89193209a2f1c9a63785edf21ee96f7339aaca120333c9f5d490b47c2"
+    },
+    {
+      "path": "eval/sets/pdf-forensics/invoice-doctored.pdf",
+      "type": "invoice",
+      "generator": "project-pdf-writer",
+      "label": "doctored",
+      "edit": "incremental amount change with substituted font",
+      "sha256": "87a9d27e32f6592836e5d21273781db25ca70fef28720b81333f18e0fc515f1c"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/chromium-invoice.pdf",
+      "type": "invoice",
+      "generator": "Chromium-Skia",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "2c47f6db63c5491003ff09312a18a7ac510a4e67cb91bed15b7eb474c1977b33"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/chromium-pop.pdf",
+      "type": "proof-of-payment",
+      "generator": "Chromium-Skia",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "12dea7e9e203bf7038e2bc67a1dc6397b4e99152cfd26116e714ebe95fe1b245"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/gs-edited-pop.pdf",
+      "type": "proof-of-payment",
+      "generator": "Ghostscript-10.06.0",
+      "label": "doctored",
+      "edit": "edited-pop",
+      "sha256": "8471cb6d535098aa6c37188da1c9b287584693041d503ccd180e8e03c742490a"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/gs-genuine-pop.pdf",
+      "type": "proof-of-payment",
+      "generator": "Ghostscript-10.06.0",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "0d7118a5165a7be8b6e56e2e0814dc0065328c06465a4aa783f10648771932a2"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/gs-logo.pdf",
+      "type": "proof-of-payment",
+      "generator": "Ghostscript-10.06.0",
+      "label": "genuine",
+      "edit": null,
+      "sha256": "a999f86a3a1be600053d9012bd13c1267e3648832e8228ce11d97fe79604f522"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/gs-modified-pop.pdf",
+      "type": "proof-of-payment",
+      "generator": "Ghostscript-10.06.0",
+      "label": "doctored",
+      "edit": "modified-pop",
+      "sha256": "acdf3a753c77d9ce0a4d35a59e8082d9cba5ebd50e5e6f1c0e8e377ba25faa56"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/gs-pasted-image.pdf",
+      "type": "proof-of-payment",
+      "generator": "Ghostscript-10.06.0",
+      "label": "doctored",
+      "edit": "pasted-image",
+      "sha256": "85e7bb146452e9db60526c898caf15dd45700916994ae6b12c02bb405b31d2b6"
+    },
+    {
+      "path": "test/fixtures/pdf-forensics/gs-substituted-font.pdf",
+      "type": "proof-of-payment",
+      "generator": "Ghostscript-10.06.0",
+      "label": "doctored",
+      "edit": "substituted-font",
+      "sha256": "709748665276c58553171ba9e979c33561f03e5370402c6d0e6c203fcc3c0383"
+    }
+  ],
+  "unsupported": [
+    {
+      "path": "test/fixtures/payment-docs/pair-01-doctored.png",
+      "sha256": "2c37a9b0404182d32982d7973f221251387bbf19fa793fc05877254c33f608f4",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-01-genuine.png",
+      "sha256": "92656c5dcd81bb0f722db32ac5dc2db1c3ea137f3c07b4b5c133127513c871e2",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-02-doctored.png",
+      "sha256": "b07d1796a0a41bc17633b33022e24d7bae86b1fba240d007665e71f61488c3e0",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-02-genuine.png",
+      "sha256": "a267ac0804899c63bd332d45feef02be93f5a58591f061015bc2aa23d3334fd5",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-03-doctored.png",
+      "sha256": "d7b15b7ad880751e4f47071c951a2d4c07c2f56999202863afbfbb4d673bca7e",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-03-genuine.png",
+      "sha256": "a5bc3c66ffefc32aad6fec739e646cfab793c7ce5dd14cf05376620695a1673e",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-04-doctored.png",
+      "sha256": "555eda6d11ea656684cd5c2159547e16a0b901e44d492d65d61c6db5f4c6e9cb",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-04-genuine.png",
+      "sha256": "57c871432449ff922001196a55d1a38b3f691663c36d23fbd8b45c3fc1c4b0c8",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-05-doctored.png",
+      "sha256": "d08f2da9fef66ec75321075b98cdc22387798eda24d9162b5e2231f52a8416b0",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-05-genuine.png",
+      "sha256": "5ed7dc30df26e5767b000f90df155adff8ed54555c7e9e26b3bacb7e720dd80c",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-06-doctored.png",
+      "sha256": "0f5eac7342148e183153e87d4d8dc6636d520e919b555e91bb2286f995eb1c97",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-06-genuine.png",
+      "sha256": "8c7a185a74797abbdb52412a7946c377705af149368c1161c06327f36f7d2d43",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-07-doctored.png",
+      "sha256": "aaed0241f1dda6d55b519e4ad76b0f440180fca8bb9e53f8be7939babfd9ff1d",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-07-genuine.png",
+      "sha256": "edd546d4ad0f5da063b9269419d68bda2d94d791b0b9092167b460aacafb6edd",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-08-doctored.png",
+      "sha256": "382820cb869f0eef0c94e4b28b95ad79b900b1eb724828b52992de89bae43cb9",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-08-genuine.png",
+      "sha256": "2bcba7730f57db7e3ead720147196cd037c24738a2e59940e502278325f375be",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-09-doctored.png",
+      "sha256": "375d0a3e721ed9f4d7f4fdac2fb7d8f1f03c71a0e31f358d453c05166f9e68ee",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-09-genuine.png",
+      "sha256": "31a5b783dd96910f51d3155ed0b0bf78244485740331d7834e154622657f124a",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-10-doctored.png",
+      "sha256": "1ac06e2905e1ce84c7a72c5b83582b853b03a68115865cb32a5a81f6b1883443",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-10-genuine.png",
+      "sha256": "a704e3bc8e997f8a578a40a2714acf44bee0f34d3826592f082ff406811015b8",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-11-doctored.png",
+      "sha256": "f8655807bdce79c0fc38efb7c2ae483443c81c244e637890bbcf57d5f405bf4e",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-11-genuine.png",
+      "sha256": "c85dc64123aef31337d68cffc50b148af318a7a7db587e1622dcaa9929350f24",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-12-doctored.png",
+      "sha256": "39f92b4f3658fe6235329baecbff514ad89ce5515cde682140d2af2584e78737",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-12-genuine.png",
+      "sha256": "8063fafd9baf03e751c98527abec97c6884e88b0550a3e1a389648f1bf909fc2",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-13-doctored.png",
+      "sha256": "dac64a72456cd8b8f816d79052031c3893a0179cc18e28ca39b8cf7c3727c7a5",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-13-genuine.png",
+      "sha256": "5f853d333ae2deb6718ce897a7348abd18ad68455d9bb7937bb867372bce7790",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-14-doctored.png",
+      "sha256": "f7877c42f643f10641d195b004c28958f9df901b1e13d98865dd305645436176",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-14-genuine.png",
+      "sha256": "7755bf63cb1942be214ccf2dfc8268d0eb76944bc13cea10cdb7587b02fd0fdf",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-15-doctored.png",
+      "sha256": "5f34f2db0d234d129e2d86b1408ccb8a3417302d78115a974875a417a1a3e5a0",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-15-genuine.png",
+      "sha256": "c69611ca8cfd2c4c0e74449b6845d325190b8804f2524e127318a442eb3ae94b",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-16-doctored.png",
+      "sha256": "45dba024adfc8c69f1d87b1afd725ad0d16187e6d497db5952e2482a858ce82a",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-16-genuine.png",
+      "sha256": "6486210534690dad31c01d7be1da390d4b1880498ea4127ce11233112d1ec89e",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-17-doctored.png",
+      "sha256": "da67219b740aee4e548ec52af505d6553f4979ec6c712147275eac2a208d3a51",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-17-genuine.png",
+      "sha256": "a87c9bd95057614fb6d4f4c42ad5e4fed9c53785ce1d0b16201e6139a3f0e9f9",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-18-doctored.png",
+      "sha256": "5460002881f0b3a0cf7dcaaa0e4d72ac746be615d18078f857bbad960d6fc995",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-18-genuine.png",
+      "sha256": "1d100d067cc7093a5b052ccb82e52c04b0382b2681952f2907e2cfff517399ce",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-19-doctored.png",
+      "sha256": "25189be65a7e379d23f70736f6ea14d05f934fa8c87eab59908c489ccebcd4a6",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-19-genuine.png",
+      "sha256": "8c362ed760d378e4420fade75b3607c445dc6df3ddec6ff6aa98ab57e73bdecb",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-20-doctored.png",
+      "sha256": "f9957e0554bac519ed243756177a3685bc0ce9d051601d8815ca72df0fb34315",
+      "reason": "Raster image, not a native PDF"
+    },
+    {
+      "path": "test/fixtures/payment-docs/pair-20-genuine.png",
+      "sha256": "e560ffa0c7f10c20bb8ffebe930d5bc7ce7b7562d33d528e7bb82d267e259d1e",
+      "reason": "Raster image, not a native PDF"
+    }
+  ]
+}

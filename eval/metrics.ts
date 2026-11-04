@@ -99,7 +99,7 @@ export type Report = {
   };
 };
 
-const rate = (hits: number, n: number): Rate => ({ n, hits, rate: n === 0 ? null : hits / n });
+export const rate = (hits: number, n: number): Rate => ({ n, hits, rate: n === 0 ? null : hits / n });
 const flagged = (v: string | null) => v === "suspicious" || v === "malicious";
 
 // The median (the mean of the two middle values for an even count) and the nearest-rank p95.
