@@ -427,13 +427,25 @@ export async function documentStep(deps: DocumentDeps, caseId: string, orgId: st
     }
     items.push(...analysed.items);
     if (analysed.fields?.type === "pop") items.push(popItem(artefact.key));
-    if (analysed.fields)
-      items.push(
-        ...(await beneficiaryEvidence(
-          { db: deps.db, keys: await deps.keys() },
-          { orgId, fields: analysed.fields, artefactKey: artefact.key },
-        )),
-      );
+    await write([...items, limitItem(artefact.key)]).catch(() => undefined);
+    if (analysed.fields) {
+      try {
+        items.push(
+          ...(await beneficiaryEvidence(
+            { db: deps.db, keys: await deps.keys() },
+            { orgId, fields: analysed.fields, artefactKey: artefact.key },
+          )),
+        );
+      } catch {
+        items.push({
+          check: "document.comparison_unavailable",
+          severity: "info",
+          summary: "A payment document beneficiary comparison could not run (error).",
+          detail: { checked: false, reason: "error", comparison: "ledger", attachment: artefact.key },
+          artefacts: [artefact.key],
+        });
+      }
+    }
     items.push(limitItem(artefact.key));
   }
   for (const artefact of artefacts.slice(MAX_DOCUMENTS))

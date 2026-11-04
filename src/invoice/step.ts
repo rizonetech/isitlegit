@@ -320,12 +320,24 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
 export async function recordInvoiceNotRun(store: Store, caseId: string, reason: string): Promise<void> {
   const attachments = await artefactsOf(store, caseId, "attachment");
   if (await isStandaloneCase(store, caseId, attachments)) {
+    const producers = await evidenceProducers(store.db, caseId).catch(() => []);
+    const docIds = new Set(producers.filter((p) => p.producer === "document").map((p) => p.id));
+    const existing = (await readEvidence(store.db, caseId).catch(() => []))
+      .filter(
+        (e) =>
+          docIds.has(e.id) &&
+          (e.check.startsWith("document.forensics.") ||
+            e.check === "document.type" ||
+            e.check === "document.layout_mismatch" ||
+            e.check === "document.proof_of_payment"),
+      )
+      .map(({ id: _id, ...draft }) => draft);
     const docAtts = attachments.filter((a) => a.mediaType === "application/pdf" || a.mediaType.startsWith("image/"));
     const docItems =
       docAtts.length > 0
         ? docAtts.flatMap((a) => [notCheckedDocument(reason, a.key), limitItem(a.key)])
         : [notCheckedDocument(reason, "case"), limitItem("case")];
-    await saveDocumentEvidence(store.db, caseId, docItems);
+    await saveDocumentEvidence(store.db, caseId, [...existing, ...docItems]);
     return;
   }
   const items = attachments.filter((a) => a.mediaType === "application/pdf").map((a) => notCheckedItem(reason, a.key));

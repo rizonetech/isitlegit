@@ -901,13 +901,37 @@ describe("the standalone document step (D06 T02 §3)", () => {
     expect(ev2.map((e) => e.check)).toContain("document.proof_of_payment");
     expect(ev2.map((e) => e.check)).toContain("document.limit");
 
-    // 3. `recordInvoiceNotRun` on a standalone document case writes `document.not_checked` + `document.limit`:
+    // 3. `recordInvoiceNotRun` on a standalone document case writes `document.not_checked` + `document.limit` while preserving already-persisted forensic/POP findings, and a beneficiary lookup error records `document.comparison_unavailable` without losing `document.forensics.*` or `document.proof_of_payment`:
     await recordInvoiceNotRun(store, emailedImg.caseId, "error");
     const evAfterFail = await readEvidence(db, emailedImg.caseId);
     expect(evAfterFail.filter((e) => e.check.startsWith("document.")).map((e) => e.check)).toEqual([
+      "document.type",
+      "document.proof_of_payment",
       "document.not_checked",
       "document.limit",
     ]);
+    const benFailCase = await caseWithDocument(org, {
+      channel: "upload",
+      sourceKind: "document",
+      bytes: generated["gs-edited-pop.pdf"],
+      filename: "ben-fail-pop.pdf",
+    });
+    const hBenFail = harness([() => answer(POP), () => answer({ layout_differences: [] })]);
+    await documentStep(
+      {
+        ...hBenFail.deps,
+        keys: async () => {
+          throw new Error("beneficiary lookup failed");
+        },
+      },
+      benFailCase.caseId,
+      org,
+    );
+    const evBenFail = await readEvidence(db, benFailCase.caseId);
+    expect(evBenFail.map((e) => e.check)).toContain("document.forensics.revisions");
+    expect(evBenFail.map((e) => e.check)).toContain("document.proof_of_payment");
+    expect(evBenFail.map((e) => e.check)).toContain("document.comparison_unavailable");
+    expect(evBenFail.map((e) => e.check)).toContain("document.limit");
 
     // 4. Non-standalone mail case with a doctored PDF attachment runs PDF forensics alongside invoice extraction, retains them on retry, and deduplicates checks-owned forensics:
     const regularMail = await caseWithDocument(org, {
