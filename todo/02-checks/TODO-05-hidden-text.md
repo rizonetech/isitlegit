@@ -42,7 +42,7 @@ track: day-2
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
-| 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [ ] |
+| 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [x] |
 | 11 | §11 | Whole decoded run kept in the finding | §3 | [x] |
 
 ## 1. Invisible text extraction from HTML
@@ -308,6 +308,9 @@ Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measuremen
 - [x] Commit: `checks: role and system-marker instruction shapes`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions-shapes.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a steering text is missed or a genuine text is flagged.
+
+> **Verified:** 2026-11-04 | §10 | 55ae27be71fd4a021f0f32d9c29391c3465ffc27
+> **Review:** `docs/reviews/d02-t05-s10.json`
 
 ## 11. Whole decoded run kept in the finding
 

@@ -44,7 +44,7 @@ track: day-1
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 | 9 | §9 | Forwarding failures proven live | §6 | [x] |
-| 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [ ] |
+| 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [x] |
 | 11 | §11 | Authentication results in the reply | §3 | [x] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
 | 13 | §13 | Destination trace linked | §9 | [ ] |
@@ -400,6 +400,9 @@ Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check
 - [x] Commit: `mail: a failed check's reply points to its retry`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
+
+> **Verified:** 2026-11-04 | §10 | 55ae27be71fd4a021f0f32d9c29391c3465ffc27
+> **Review:** `docs/reviews/d01-t02-s10.json`
 
 ## 11. Authentication results in the reply
 

@@ -45,7 +45,7 @@ track: day-2
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [x] |
 | 11 | §11 | Demo domains kept apart in the checks | §2 | [x] |
-| 12 | §12 | Lookalike clean summary names the domains compared | §7, D02 T01 §7 | [ ] |
+| 12 | §12 | Lookalike clean summary names the domains compared | §7, D02 T01 §7 | [x] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -358,6 +358,9 @@ Filed 2026-11-03 from D07 T03 §44's completion review (`docs/reviews/07-app/D07
 - [x] Commit: `checks: lookalike clean summary names the domains compared`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes, and fails if a clean summary names no domain when one was compared.
+
+> **Verified:** 2026-11-04 | §12 | 55ae27be71fd4a021f0f32d9c29391c3465ffc27
+> **Review:** `docs/reviews/d02-t03-s12.json`
 
 ## Verification
 
