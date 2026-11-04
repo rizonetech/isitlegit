@@ -1,0 +1,152 @@
+{
+  "ref": "D04 T02 \u00a711",
+  "title": "Bounded driver failure diagnostics",
+  "implementation_sha": "c748d40d9129983a17b449fa451e8cba43841304",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: pnpm exec vitest run test/walkthrough/driver-diagnostics.test.ts test/walkthrough/driver.test.ts test/walkthrough/wonder-loop.test.ts test/walkthrough/canary.test.ts test/walkthrough/url-policy.test.ts passes; full typecheck and dry build pass. Tests fail if diagnostics are missing, misattributed, unbounded or private, or if ordinary containment/terminal behavior changes. Deployment and any later diagnostic execution require coordinator gates. -> taskset -c 6,7: 86/86 tests pass, full pnpm typecheck and pnpm build pass; targeted Biome/publication pass. Initial17red plus3 containment red and2 handled-path red regressions; genuine first reconciliation complete on exactc748d40d9. No live probe/spend/deployment."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "reconciliation": {
+    "report": "docs/reviews/04-agent/D04-T02-s11.md",
+    "verdict": "complete",
+    "candidate": "c748d40d9129983a17b449fa451e8cba43841304",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "5aecf2ae1b3c3607b1db0e9784366e398a6c0bd9",
+    "binding": {
+      "candidate": "c748d40d9129983a17b449fa451e8cba43841304",
+      "completion_candidate": "934fbcbaad28c82ab2d9a75c000d263b933220f4",
+      "completion_digest": "fed421b359fdef52",
+      "contract_path": "todo/04-agent/TODO-02-walkthrough.md",
+      "contract_sha256": "8438d78cd66c3aea5f129eb2afd49728b10cbbac4d0e6660082329d5281dcc2f",
+      "disposition_blob": "66c6cc2d06a0e5992190288b04073b0246e3f906",
+      "disposition_commit": "c748d40d9129983a17b449fa451e8cba43841304",
+      "disposition_path": "docs/reviews/04-agent/D04-T02-s11-disposition.md",
+      "plan_candidate": "37ed0e88199d4a19c1dd426efe33832761d7d554",
+      "plan_contract_sha256": "8438d78cd66c3aea5f129eb2afd49728b10cbbac4d0e6660082329d5281dcc2f",
+      "prefix_bytes": 8437,
+      "prefix_sha256": "1ff5dfbbd9097056476de8e17e2ed61152dc5ab7e1b96fc93de8045139410b3c",
+      "report": "docs/reviews/04-agent/D04-T02-s11.md",
+      "version": 1
+    },
+    "digest": "0090b636a52ae663"
+  },
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s11.md",
+    "verdict": "gaps",
+    "candidate": "934fbcbaad28c82ab2d9a75c000d263b933220f4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s11.md",
+    "candidate": "37ed0e88199d4a19c1dd426efe33832761d7d554",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}

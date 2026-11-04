@@ -18,6 +18,7 @@ import { z } from "zod";
 import { type MetaContext, ModelError, metaResponses } from "../meta/client";
 import { BudgetExceeded, BudgetUnavailable } from "../meta/guard";
 import { untrustedInstructions } from "../meta/untrusted";
+import type { DriverDiagnostic } from "./diagnostics";
 import { Action, Driver, type Outcome as DriverOutcome, type OpenOptions, type WalkRecord } from "./driver";
 
 import { IMAGES_KEPT, MAX_OUTPUT_TOKENS, MODEL } from "./limits";
@@ -75,6 +76,7 @@ export type WalkOutcome =
 // `page`: where a finished walk stood when the model stopped, and which fields held a canary value (§5 reads it as
 // evidence; the live run's acceptance reads it).
 export type WalkResult = {
+  diagnostic?: DriverDiagnostic;
   outcome: WalkOutcome;
   reason?: string;
   steps: number;
@@ -182,6 +184,7 @@ export async function walk(browser: Browser, o: WalkOptions): Promise<WalkResult
     steps,
     ms: Date.now() - began,
     record: driver.trace(),
+    ...(driver.ended?.diagnostic ? { diagnostic: driver.ended.diagnostic } : {}),
   });
   // The driver already ended (a limit, a refused start, a failure): its outcome is the walk's.
   const ended = () => {
