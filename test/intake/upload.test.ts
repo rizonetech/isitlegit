@@ -450,7 +450,7 @@ describe("POST /api/upload", () => {
     expect(await caseStatus((unstored as { id: string }).id)).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
 
-    // R2 takes the file, then D1 cannot record its row: the file is not stored, so that case ends partial too.
+    // R2 takes the file, then D1 cannot record its row: retain the case and claim until recovery repairs the row.
     const written: string[] = [];
     const recordingBucket = new Proxy(env.ARTEFACTS, {
       get: (target, name) =>
@@ -479,8 +479,11 @@ describe("POST /api/upload", () => {
     expect(written.length).toBeGreaterThan(0);
     const failed = (await casesOf(orgId)).map((c) => (c as { id: string }).id);
     expect(failed).toHaveLength(2);
-    for (const id of failed) expect(await caseStatus(id), id).toBe("partial");
-    expect(await claimsOf(orgId)).toEqual([]);
+    const orphanId = failed.find((id) => id !== (unstored as { id: string }).id);
+    if (!orphanId) throw new Error("the orphaned intake case is missing");
+    expect(await caseStatus((unstored as { id: string }).id)).toBe("partial");
+    expect(await caseStatus(orphanId)).toBe("received");
+    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
 
     // The Workflow's creation fails and its state cannot be read: the claim stays pending with its case.
     const unknown = {
@@ -492,15 +495,19 @@ describe("POST /api/upload", () => {
     );
     const pending = (await casesOf(orgId)).find((c) => !failed.includes((c as { id: string }).id));
     expect(pending).toBeDefined();
-    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
+    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }, { state: "pending" }]);
     // Past the lease, the sweep finds the case stored with no Workflow and starts it (D01 T03 §12): the case, its file
     // and a done claim stay, and the case finishes.
     const later = new Date(Date.now() + 6 * 60_000);
     await sweepIntake(env as unknown as Env, later);
     expect((await casesOf(orgId)).map((c) => c.id)).toContain((pending as { id: string }).id);
-    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }, { state: "done" }]);
+    expect(
+      await db.prepare("SELECT r2_key FROM artefacts WHERE case_id=? AND kind='attachment'").bind(orphanId).first(),
+    ).not.toBeNull();
     expect(await objectsOf((pending as { id: string }).id)).toBeGreaterThan(0);
     await finished((pending as { id: string }).id);
+    await finished(orphanId);
     vi.restoreAllMocks();
   });
 });

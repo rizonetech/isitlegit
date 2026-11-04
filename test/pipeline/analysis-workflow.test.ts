@@ -36,6 +36,7 @@ import { recordEvent } from "../../src/pipeline/events";
 import { bankKeys } from "../../src/trust/bank";
 import { protectedIdentities, setIdentity } from "../../src/trust/identity";
 import { storeVoice } from "../../src/voice/step";
+import { bindExperiment } from "../fixtures/ablation";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
 
@@ -227,7 +228,7 @@ describe("AnalysisWorkflow", () => {
     ]);
   });
 
-  it("ablates the walkthrough for the case's own organisation flag, and walks again once cleared (D04 T02 §9)", async () => {
+  it("ablates the bound case walkthrough and retains an ordinary neighbour (D04 T02 §9)", async () => {
     const page = "https://phish-workflow.example/signin";
     const flagged = await caseWith(forwards["attached-rfc822"]);
     await saveEvidence(env.DB, flagged, [
@@ -239,7 +240,8 @@ describe("AnalysisWorkflow", () => {
         artefacts: [],
       },
     ]);
-    await env.CACHE.put(`ablate:${ORG}`, "no-walkthrough");
+    await bindExperiment(flagged, "no-walkthrough");
+    await env.CACHE.put(`ablate:${ORG}`, "no-sam");
     try {
       await run(flagged, async (m) => {
         await m.mockStepResult({ name: "checks" }, { evidence: 1 });
@@ -561,7 +563,7 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
       forward: { path: "rfc822", headersAvailable, otherOriginals: 0 },
     });
     await saveEvidence(env.DB, id, items);
-    if (flag) await env.CACHE.put(`ablate:${orgId}`, flag);
+    if (flag) await bindExperiment(id, flag);
     return { id, orgId };
   }
 
@@ -672,24 +674,23 @@ describe("the ablated verdict step (D04 T01 §14)", () => {
     expect(view.confidence).toBeLessThanOrEqual(0.5);
   });
 
-  it("restores the agent for the same organisation's next case when its flag is cleared (completion review)", async () => {
-    const orgId = `org-ablate-clear-${crypto.randomUUID().slice(0, 8)}`;
-    await env.CACHE.put(`ablate:${orgId}`, "no-agent-reasoning");
-    const first = await ablatedCase(null, [draft("intake.forward", "info", "Forwarded by the member.")]);
-    // Point the first case at the flagged organisation and read its verdict again under the flag.
-    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(orgId, first.id).run();
-    const flagged = await verdict(env, env.DB, store, first.id);
-    expect(flagged.view.ablated).toBe("no-agent-reasoning");
-    await env.CACHE.delete(`ablate:${orgId}`);
+  it("keeps the immutable arm when KV changes and leaves an ordinary neighbour unablated", async () => {
+    const first = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+    ]);
+    await env.CACHE.put(`ablate:${first.orgId}`, "no-sam");
+    expect((await verdict(env, env.DB, store, first.id)).view.ablated).toBe("no-agent-reasoning");
     const second = await ablatedCase(null, [draft("intake.forward", "info", "Forwarded by the member.")]);
-    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(orgId, second.id).run();
-    const cleared = await verdict(env, env.DB, store, second.id);
-    expect(cleared.view.ablated ?? null).toBeNull();
+    await env.DB.prepare("UPDATE cases SET org_id = ? WHERE id = ?").bind(first.orgId, second.id).run();
+    await env.CACHE.put(`ablate:${first.orgId}`, "no-agent-reasoning");
+    const ordinary = await verdict(env, env.DB, store, second.id);
+    expect(ordinary.view.ablated ?? null).toBeNull();
     expect((await events(second.id)).some((e) => e.step === "agent")).toBe(true);
+    await env.CACHE.delete(`ablate:${first.orgId}`);
   });
 
-  it("leaves the agent in place for the other three flags, and when the flag is cleared", async () => {
-    for (const flag of ["no-walkthrough", "no-sam", "no-screening", null]) {
+  it("leaves the agent eligible for every other arm and ordinary cases", async () => {
+    for (const flag of ["no-walkthrough", "no-sam", "no-transcribe", "no-screening", "full", null]) {
       const { id, orgId } = await ablatedCase(flag, [draft("intake.forward", "info", "Forwarded by the member.")]);
       const { view } = await verdict(env, env.DB, store, id);
       expect(view.ablated ?? null, flag ?? "cleared").toBeNull();
@@ -2608,7 +2609,7 @@ describe("several originals in one forward (D01 T01 §12)", () => {
     const stored = await storeVerdict(env.DB, ORG, caseId, view);
     expect(stored.ok).toBe(true);
     const readBack = await getVerdict(env.DB, caseId);
-    if (!readBack || !readBack.ok) throw new Error("expected stored verdict");
+    if (!readBack?.ok) throw new Error("expected stored verdict");
     expect(readBack.value.meaning).toBe(FLOOR_CONSEQUENCES.bank);
 
     // Reply consumer reads the stored consequence sentence as meaning

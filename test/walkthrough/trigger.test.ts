@@ -265,15 +265,16 @@ describe("the ablated walk (D04 T02 §9)", () => {
     expect(
       (await walkthroughStep(plain.d, await newCase([draft("link.credential_form", "high", urlFor())]))).outcome,
     ).toBe("walked");
-    // A reader that fails reads as no ablation, never as a failed case.
+    // Attribution failure cannot silently restore a removed model contribution.
     const failing = deps({
       ablateFlag: async () => {
         throw new Error("flag store down");
       },
     });
-    expect(
-      (await walkthroughStep(failing.d, await newCase([draft("link.credential_form", "high", urlFor())]))).outcome,
-    ).toBe("walked");
+    await expect(
+      walkthroughStep(failing.d, await newCase([draft("link.credential_form", "high", urlFor())])),
+    ).rejects.toThrow("flag store down");
+    expect(failing.calls).toEqual({ launch: 0, walk: 0, closed: 0 });
   });
 
   it("propagates a failed marker write instead of claiming ablated", async () => {

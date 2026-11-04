@@ -7,6 +7,7 @@
 // the opposite: when even the failure statement cannot be written, the step throws, so the case ends
 // partial instead of reaching a verdict with its missing coverage concealed.
 import type { Browser } from "@cloudflare/puppeteer";
+import { z } from "zod";
 import { brandTable, bundled, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { linksOf } from "../checks/links";
@@ -25,7 +26,7 @@ import {
 import { detectBoxes } from "./detector";
 import { compareLogo, logoMatchItem, logoNotComparedItem } from "./logo-compare";
 import { LogoReferenceError, referenceLogos } from "./logo-reference";
-import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
+import { MAX_IMAGE_PIXELS, PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import {
   ablatedSamCoverageItem,
   coverageItem,
@@ -35,7 +36,7 @@ import {
   readMail,
 } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
-import { type RenderDeps, renderEmail } from "./render";
+import { LIMITS, pngSize, type RenderDeps, renderEmail, wholeImage } from "./render";
 import { CROP_TIMEOUT_MS, cropBoxes, imageSize, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
@@ -241,7 +242,126 @@ export async function recordVisionNotRun(db: D1Database, caseId: string, reason:
   await writeVision(db, caseId, [notCheckedItem(reason)]);
 }
 
+// Only the original standalone image is eligible here, never arbitrary mail attachments.
+const ImageSource = z.object({
+  source: z.object({
+    kind: z.literal("image"),
+    key: z.string().min(1),
+    mediaType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+    bytes: z.number().int().nonnegative(),
+  }),
+});
+
+function boundedImagePixels(type: string, bytes: Uint8Array): boolean {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const valid = (w: number, h: number) => w > 0 && h > 0 && w * h <= MAX_IMAGE_PIXELS;
+  if (type === "image/png") {
+    const size = pngSize(bytes);
+    return !!size && valid(size.width, size.height);
+  }
+  if (type === "image/jpeg") {
+    let framed = false;
+    for (let at = 2; at + 4 <= bytes.length; ) {
+      const marker = bytes[at + 1] as number;
+      if (marker === 0xff) {
+        at++;
+        continue;
+      }
+      if (marker === 0xda) return framed;
+      const length = view.getUint16(at + 2);
+      if (length < 2 || at + 2 + length > bytes.length) return false;
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
+        if (at + 9 > bytes.length || !valid(view.getUint16(at + 7), view.getUint16(at + 5))) return false;
+        framed = true;
+      }
+      at += 2 + length;
+    }
+    return false;
+  }
+  // Inspect every WebP frame header before decoding, including a VP8X container's inner frame.
+  // Container contract: https://developers.google.com/speed/webp/docs/riff_container
+  const u24 = (at: number) => (bytes[at] ?? 0) + ((bytes[at + 1] ?? 0) << 8) + ((bytes[at + 2] ?? 0) << 16);
+  let frames = 0;
+  let canvas: { width: number; height: number } | null = null;
+  let at = 12;
+  while (at + 8 <= bytes.length) {
+    const chunk = String.fromCharCode(...bytes.subarray(at, at + 4));
+    const length = view.getUint32(at + 4, true);
+    const data = at + 8;
+    const end = data + length;
+    if (end > bytes.length || end + (length & 1) > bytes.length) return false;
+    if (chunk === "ANIM" || chunk === "ANMF") return false;
+    if (chunk === "VP8X") {
+      if (canvas || at !== 12 || length !== 10 || (bytes[data] ?? 0) & 2) return false;
+      canvas = { width: 1 + u24(data + 4), height: 1 + u24(data + 7) };
+      if (!valid(canvas.width, canvas.height)) return false;
+    } else if (chunk === "VP8 " || chunk === "VP8L") {
+      let width: number;
+      let height: number;
+      if (chunk === "VP8L") {
+        if (length < 5 || bytes[data] !== 0x2f) return false;
+        const bits = view.getUint32(data + 1, true);
+        width = (bits & 0x3fff) + 1;
+        height = ((bits >>> 14) & 0x3fff) + 1;
+      } else {
+        if (length < 10 || bytes[data + 3] !== 0x9d || bytes[data + 4] !== 1 || bytes[data + 5] !== 0x2a) return false;
+        width = view.getUint16(data + 6, true) & 0x3fff;
+        height = view.getUint16(data + 8, true) & 0x3fff;
+      }
+      if (!valid(width, height) || (canvas && (canvas.width !== width || canvas.height !== height))) return false;
+      frames++;
+      if (frames > 1) return false;
+    }
+    at = end + (length & 1);
+  }
+  return at === bytes.length && frames === 1;
+}
+
+async function standaloneImage(
+  store: Store,
+  caseId: string,
+): Promise<
+  { kind: "none" } | { kind: "invalid"; reason: string } | { kind: "image"; stored: Stored; body: Uint8Array }
+> {
+  const row = await store.db
+    .prepare("SELECT channel,source_kind FROM cases WHERE id=?")
+    .bind(caseId)
+    .first<{ channel: string; source_kind: string }>();
+  if (row?.channel !== "upload" || row.source_kind !== "image") return { kind: "none" };
+  const summary = await readArtefact(store, caseId, parsedKey(caseId));
+  if (!summary || !("body" in summary)) return { kind: "invalid", reason: "image-missing" };
+  let parsed: z.infer<typeof ImageSource>;
+  try {
+    parsed = ImageSource.parse(JSON.parse(new TextDecoder().decode(summary.body)));
+  } catch {
+    return { kind: "invalid", reason: "image-source-invalid" };
+  }
+  const source = parsed.source;
+  const stored = (await artefactsOf(store, caseId, "attachment")).find((a) => a.key === source.key);
+  if (!stored) return { kind: "invalid", reason: "image-missing" };
+  if (stored.mediaType !== source.mediaType || stored.bytes !== source.bytes)
+    return { kind: "invalid", reason: "image-source-invalid" };
+  if (stored.bytes > LIMITS.perResourceBytes) return { kind: "invalid", reason: "image-size-bound" };
+  const read = await readArtefact(store, caseId, stored.key);
+  if (!read || !("body" in read)) return { kind: "invalid", reason: "image-missing" };
+  if (read.body.length > LIMITS.perResourceBytes) return { kind: "invalid", reason: "image-size-bound" };
+  if (!wholeImage(stored.mediaType, read.body)) return { kind: "invalid", reason: "image-malformed" };
+  if (stored.mediaType === "image/png") {
+    // wholeImage has already validated every chunk boundary and CRC. An APNG cannot
+    // stand in for one static picture, even when the browser would decode its first frame.
+    const chunks = new DataView(read.body.buffer, read.body.byteOffset, read.body.byteLength);
+    for (let at = 8; at + 12 <= read.body.length; at += 12 + chunks.getUint32(at)) {
+      const name = String.fromCharCode(...read.body.subarray(at + 4, at + 8));
+      if (["acTL", "fcTL", "fdAT"].includes(name)) return { kind: "invalid", reason: "image-animated" };
+    }
+  }
+  if (!boundedImagePixels(stored.mediaType, read.body)) return { kind: "invalid", reason: "image-pixel-bound" };
+  return { kind: "image", stored, body: read.body };
+}
+
 export async function visionStep(deps: VisionDeps, caseId: string): Promise<VisionResult> {
+  const flag = await deps.ablateFlag?.();
+  deps = { ...deps, ablateFlag: async () => flag ?? null };
   const state = { expired: false };
   const deadlineAt = Date.now() + (deps.deadlineMs ?? VISION_DEADLINE_MS);
   const work = runVision(deps, caseId, () => state.expired, deadlineAt);
@@ -303,15 +423,35 @@ async function runVision(
   };
   let browser: Browser | undefined;
   try {
+    const standalone = await standaloneImage(deps.store, caseId);
+    if (expired()) return { outcome: "not_checked", reason: "timeout" };
+    if (standalone.kind === "invalid") return fail(notCheckedItem(standalone.reason), standalone.reason);
     browser = await deps.launch();
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
     const losses: string[] = [];
 
     // The email first, so its reading survives a PDF phase that exhausts its budget.
-    const render = await renderEmail(browser, deps.store, caseId, {
-      policy: deps.policy,
-      ...(deps.fetch ? { fetch: deps.fetch } : {}),
-    });
+    if (standalone.kind === "image") {
+      try {
+        const decoded = await imageSize(
+          browser,
+          standalone.body,
+          Math.max(1, Math.min(CROP_TIMEOUT_MS, deadlineAt - Date.now())),
+        );
+        if (decoded.width <= 0 || decoded.height <= 0 || decoded.width * decoded.height > MAX_IMAGE_PIXELS)
+          return fail(notCheckedItem("image-pixel-bound"), "image-pixel-bound");
+      } catch {
+        return fail(notCheckedItem("image-decode-failed"), "image-decode-failed");
+      }
+      if (expired()) return { outcome: "not_checked", reason: "timeout" };
+    }
+    const render =
+      standalone.kind === "image"
+        ? null
+        : await renderEmail(browser, deps.store, caseId, {
+            policy: deps.policy,
+            ...(deps.fetch ? { fetch: deps.fetch } : {}),
+          });
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
 
     // The PDF attachments, each rasterised on the shared browser inside the phase's shared budget: a
@@ -391,19 +531,27 @@ async function runVision(
     }
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
 
-    if (render.outcome === "failed" && !pages.length)
+    if (render?.outcome === "failed" && !pages.length)
       return fail(notCheckedItem(`render-${render.reason}`), `render-${render.reason}`);
-    if (render.outcome === "failed") losses.push("the email itself could not be rendered");
-    else if (!render.complete) losses.push("the rendered email lost content");
+    if (render?.outcome === "failed") losses.push("the email itself could not be rendered");
+    else if (render && !render.complete) losses.push("the rendered email lost content");
     if (pdfIncomplete) losses.push("a PDF attachment is partly unread");
 
     // The pictures to read, in order (the desktop render, then the pages): selected before any body is
     // buffered, and a selected body that cannot be read back is a stated loss, never a silent omission.
     const shot =
-      render.outcome === "rendered"
+      render?.outcome === "rendered"
         ? (render.shots.find((s) => s.name.startsWith("desktop")) ?? render.shots[0])
         : undefined;
-    const candidates: { key: string; sha256: string; name: string; promptLabel: string }[] = [];
+    const candidates: { key: string; sha256: string; name: string; promptLabel: string; mediaType?: string }[] = [];
+    if (standalone.kind === "image")
+      candidates.push({
+        key: standalone.stored.key,
+        sha256: standalone.stored.sha256,
+        name: "uploaded image",
+        promptLabel: "the standalone image uploaded for this case",
+        mediaType: standalone.stored.mediaType,
+      });
     if (shot)
       candidates.push({
         key: shot.key,
@@ -436,7 +584,7 @@ async function runVision(
         key: candidate.key,
         name: candidate.name,
         sha256: candidate.sha256,
-        dataUrl: `data:image/png;base64,${toBase64(read.body)}`,
+        dataUrl: `data:${candidate.mediaType ?? "image/png"};base64,${toBase64(read.body)}`,
       };
       images.push(image);
       sources.set(image.id, { name: candidate.name, bytes: read.body });
@@ -446,9 +594,9 @@ async function runVision(
     // SAM segmentation of the same pictures (D03 T03 §1), on this step's browser inside its
     // deadline: each kept box becomes a stored crop naming its source image, for §3's comparison.
     // A segmentation or crop failure is a stated coverage loss, never a case failure, and expired
-    // work stores nothing further. When `no-sam` is set for the case's organisation (D03 T03 §6),
+    // work stores nothing further. When `no-sam` is bound to the case (D03 T03 §6),
     // segmentation and logo comparison are skipped and the step's coverage records `ablated: "no-sam"`.
-    const samAblated = (await deps.ablateFlag?.().catch(() => null)) === "no-sam";
+    const samAblated = (await deps.ablateFlag?.()) === "no-sam";
     if (browser && !samAblated) {
       // The whole segmentation phase (streams, crops and storage) ends at segmentBy; everything
       // after it belongs to the reading.

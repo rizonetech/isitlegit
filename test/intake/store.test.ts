@@ -14,6 +14,7 @@ import {
   putVisible,
   rawKey,
   readArtefact,
+  recoverIntakeObject,
   type Store,
   StoreError,
   visibleKey,
@@ -582,5 +583,38 @@ describe("a case removed mid-write (D01 T01 §24)", () => {
     await expect(putRaw(removing(id), id, body)).rejects.toMatchObject({ code: "storage" });
     expect(await env.ARTEFACTS.head(key)).not.toBeNull();
     await env.ARTEFACTS.delete(key);
+  });
+});
+
+describe("intake object recovery", () => {
+  it("restores a raw mail row after the object committed, retaining bytes and identity", async () => {
+    const caseId = await newCase();
+    const failing = watched({ failInsert: 1 });
+    await expect(putRaw(failing.store, caseId, bytes("synthetic original mail"))).rejects.toThrow();
+    expect(await rows(caseId)).toHaveLength(0);
+    expect(await recoverIntakeObject(store, caseId)).toBe(true);
+    expect(await rows(caseId)).toHaveLength(1);
+    const read = await readArtefact(store, caseId, rawKey(caseId));
+    expect(read && "body" in read && new TextDecoder().decode(read.body)).toBe("synthetic original mail");
+  });
+  it("distinguishes an empty prefix from a failed or ambiguous listing", async () => {
+    const caseId = await newCase();
+    expect(await recoverIntakeObject(store, caseId)).toBe(false);
+    const unavailable = new Proxy(store.bucket, {
+      get(target, key) {
+        if (key === "list")
+          return async () => {
+            throw new Error("synthetic list outage");
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(recoverIntakeObject({ ...store, bucket: unavailable }, caseId)).rejects.toThrow(
+      "synthetic list outage",
+    );
+    await putRaw(store, caseId, bytes("mail"));
+    await putParsed(store, caseId, { text: "parsed" });
+    await expect(recoverIntakeObject(store, caseId)).rejects.toThrow("unambiguously");
   });
 });

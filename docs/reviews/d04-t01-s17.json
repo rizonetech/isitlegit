@@ -1,0 +1,110 @@
+{
+  "ref": "D04 T01 \u00a717",
+  "title": "Immutable per-case model ablation consumers",
+  "implementation_sha": "a6a30c332d034d413e95df437b71321d5c3571e4",
+  "date": "2026-11-04",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T01-s17.md",
+      "verdict": "fixed"
+    }
+  ],
+  "checks": [
+    "`pnpm exec vitest run test/pipeline/ablation-consumers.test.ts test/pipeline/ablate.test.ts test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes and fails if any removed model still runs or an ordinary case inherits another case's arm; `pnpm typecheck` passes. -> 54/54 passed before narrow APNG repair; affected consumer/vision/standalone repair gates26/26 passed afterward; pnpm-equivalent npm run typecheck exit0. Frozen files unchanged.",
+    "Targeted Workflow69/69, logo/walkthrough16/16, retained tools/voice/store23/23, image/consumer/vision/document32/32, capability12/12; typecheck, build dry-run, changed-file Biome and publication pass. Actual logs build/consumers-*. No live or CI claim."
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T01-s17.md",
+    "verdict": "complete",
+    "candidate": "a6a30c332d034d413e95df437b71321d5c3571e4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 1,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T01-s17.md",
+    "candidate": "fb9313be420508d50ea525375b1fb73d9bd0d3fa",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
