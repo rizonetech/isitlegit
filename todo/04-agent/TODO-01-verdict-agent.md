@@ -55,6 +55,7 @@ track: day-6
 | 16 | §16 | Message-specific consequence sentences | §2 | [x] |
 | 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [ ] |
 | 18 | §18 | Labelled screening experiment binding | D01 T03 §17 | [ ] |
+| 19 | §19 | Queued verification and guarded delivery refresh | §17 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -583,6 +584,30 @@ Coordinator explicitly assigns narrow screening flag wiring to checks. Loupe rem
 - [ ] Commit: `monitor: bind labelled screening ablations to immutable experiments`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/ablation-experiment.test.ts` passes with counted Loupe/Spark calls and persisted run/spend identity; `pnpm typecheck` passes. Live measurement remains eval-owned after deployment.
+
+## 19. Queued verification and guarded delivery refresh
+
+Coordinator assignments console-scope-ownership and verification-joint-integration, 4 November 2026. Resolves the real caller and publication integration for console D05 T03 §1. Checks exclusively owns the shared Workflow, registry, evidence-store guard and narrow scheduled refresh after reconcileUncertain. Console owns its service, migration0093 and tests. Contract input is docs/verification-request-contract.md at exact console commit9a6e9cac19a3a0059da7a859ed1dad5a3f7cb1d9; this is unreviewed integration input, not a completed prerequisite. Reply handling remains D05 T03 §2.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/citations.test.ts test/agent/injection.test.ts` passes unchanged; registered bank details and reply tokens never reach checker evidence, Workflow results or logs.
+
+**Build order:**
+
+1. At the clean boundary after §17, plan-review this scope, import only the pinned isolated service commit with git cherry-pick -x as coordinator authorized, and preserve service ownership/history. Done when: the imported contract, migration, service and test bytes match the pin and no unrelated console history is transferred.
+2. Add queued invocation and atomic validated evidence publication, then bounded scheduled refresh and successful-publication acknowledgment. Done when: real paths produce safe verification evidence and races cannot overwrite another run or an answered request.
+3. Test service and wiring together and transfer wiring-only commits back to console with git cherry-pick -x. Done when: both lanes compare service/wiring/migration/test hashes and review the same integrated behavior through their own genuine section-local round/completion chains. Neither section ships alone; coordinator owns joint CI/deployment.
+
+- [ ] Invoke requestVerification after persisted invoice rules for mail and standalone documents, before verdict, in a retryable queued step in `src/pipeline/analysis-workflow.ts`. Done when: actual current entitlement, registry-mismatch prerequisites and idempotent service semantics govern invocation; storage failures remain explicit, and safe step results contain no token/contact/registered account. Cheaper substitute: a helper with no queued caller does not verify anything. Source: pinned verification contract.
+- [ ] Admit the verification producer in `src/checks/registry.ts` and extend the owning `src/checks/evidence.ts` publication API with the minimal atomic guard. Done when: validated verification.* drafts publish only for the exact current case owner/run and unanswered request, including both deletion and insertion; a racing rerun or answer causes no replacement and cannot erase verification.answered. No invoice family alias or schema weakening. Cheaper substitute: asynchronous preflight is racy. Source: pinned verification contract.
+- [ ] Call refreshVerificationDeliveries with limit25 after reconcileUncertain in `src/index.ts`, publishing through that guard and acknowledging only successful publication. Done when: failed/skipped publication remains retryable, prior-run/answered rows cannot overwrite current evidence, processing is bounded and refresh never sends mail. Cheaper substitute: acknowledging selection loses delivery evidence on a write failure. Source: pinned verification contract.
+- [ ] Prove real integration in `test/pipeline/verification-request.test.ts`, `test/checks/evidence-producers.test.ts` and `test/checks/evidence.test.ts` alongside console's service tests. Done when: queued invocation, execution-time entitlement lapse, tenant/run/answer races, concurrent retries, failed publication retry, confirmed-delivery refresh, preserved severity floor, and private-result/log assertions fail when broken, with stubbed transport and no live mail/model spend. Cheaper substitute: service-only tests miss the caller and producer boundary.
+- [ ] Transfer wiring-only commits back to console and compare hashes before section reviews. Done when: any service finding returns to console, any wiring finding returns here, repairs transfer explicitly before matching candidate reviews, and each graph gate accepts its own real evidence without reciprocal dependency fabrication. Cheaper substitute: a single invented joint receipt proves neither section. Source: coordinator verification-joint-integration.
+- [ ] Commit: `pipeline: integrate guarded closed-loop verification requests`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/verification-request.test.ts test/trust/verify-request.test.ts test/checks/evidence-producers.test.ts test/checks/evidence.test.ts` passes with real queued/scheduled caller and atomic race assertions; `pnpm typecheck` passes. Joint release waits for both real section stamps and coordinator CI/deployment.
 
 ## Verification
 
