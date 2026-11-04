@@ -54,6 +54,7 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 - `09-launch/TODO-01-hardening.md`
 - `09-launch/TODO-02-submission.md`
 - `10-media/TODO-01-channel-videos.md`
+- `10-media/TODO-02-dependency-security.md`
 - `99-manual/TODO-01-day0-accounts.md`
 - `99-manual/TODO-02-event-operator.md`
 

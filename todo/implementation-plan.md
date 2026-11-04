@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 108 | Checklist items: 680
+Sections: 109 | Checklist items: 684
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -402,6 +402,7 @@ Sections: 108 | Checklist items: 680
 | [ ]    | D10 T01 §8  | Video 04: judge getting-started guide        | none                  | 2     |
 | [ ]    | D10 T01 §9  | X 45-second viral teaser clip                | none                  | 2     |
 | [ ]    | D10 T01 §10 | YouTube channel banner (@DerickPayneDev)     | none                  | 2     |
+| [ ]    | D10 T02 §1  | Patch vulnerable media Zod                   | none                  | 4     |
 
 ### Phase 7: After the event
 
@@ -676,6 +677,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 408/600 verified sections, 127 ready to run now.
+Progress: 408/601 verified sections, 128 ready to run now.
 
-Checklist: 3049/3704 items completed (includes Commit items).
+Checklist: 3049/3708 items completed (includes Commit items).
