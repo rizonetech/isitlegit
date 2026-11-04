@@ -72,27 +72,7 @@ const toBase64 = (bytes: Uint8Array) => {
 const isDocumentMediaType = (mediaType: string) => mediaType === "application/pdf" || mediaType.startsWith("image/");
 
 const MAX_EMPTY_HTML_CHARS = 4_096;
-const EMPTY_WRAPPER_TAGS = new Set([
-  "html",
-  "head",
-  "meta",
-  "body",
-  "div",
-  "p",
-  "span",
-  "br",
-  "hr",
-  "font",
-  "center",
-  "table",
-  "tbody",
-  "thead",
-  "tfoot",
-  "tr",
-  "td",
-  "th",
-  "style",
-]);
+const EMPTY_WRAPPER_TAGS = new Set(["html", "head", "body", "div", "p", "span", "br", "hr", "style"]);
 
 const hasHtmlContent = (html: string): boolean => {
   if (html.length > MAX_EMPTY_HTML_CHARS) return true;
@@ -119,16 +99,15 @@ const hasHtmlContent = (html: string): boolean => {
       if (close === -1) return true;
       const rawTag = lower.slice(i + 1, close).trim();
       const isClosing = rawTag.startsWith("/");
-      const tagBody = (isClosing ? rawTag.slice(1) : rawTag).trim();
-      const nameMatch = /^([a-z0-9-]+)/.exec(tagBody);
-      const tagName = nameMatch?.[1] ?? "";
-      if (!EMPTY_WRAPPER_TAGS.has(tagName)) return true;
-      if (/\b(href|src|srcdoc|action|background)\s*=/.test(tagBody) || /\bon[a-z]+\s*=/.test(tagBody)) {
-        return true;
-      }
-      if (tagName === "style" && !isClosing) {
+      const tagBody = (isClosing ? rawTag.slice(1) : rawTag).replace(/\/$/, "").trim();
+      if (!EMPTY_WRAPPER_TAGS.has(tagBody)) return true;
+      if (tagBody === "style" && !isClosing) {
         const closeStyle = lower.indexOf("</style>", close + 1);
         if (closeStyle === -1) return true;
+        const styleInner = lower.slice(close + 1, closeStyle);
+        if (/['"()\\@]|\b(url|content|attr|counter|counters)\b/.test(styleInner)) {
+          return true;
+        }
         i = closeStyle + 8;
         continue;
       }

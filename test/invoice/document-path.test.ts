@@ -275,6 +275,23 @@ describe("the standalone document step (D06 T02 §3)", () => {
         attachments: [{ mediaType: "application/pdf" }],
       }),
     ).toBe(false);
+    expect(
+      isStandaloneDocumentCase({
+        sourceKind: "email",
+        textBody: "",
+        htmlBody:
+          '<div style="width:600px;height:400px;background-image:url(https://attacker.example/lure.png)"></div>',
+        attachments: [{ mediaType: "application/pdf" }],
+      }),
+    ).toBe(false);
+    expect(
+      isStandaloneDocumentCase({
+        sourceKind: "email",
+        textBody: "",
+        htmlBody: '<style>div::before{content:"Pay urgent invoice"}</style><div></div>',
+        attachments: [{ mediaType: "application/pdf" }],
+      }),
+    ).toBe(false);
     const t0 = performance.now();
     expect(
       isStandaloneDocumentCase({
