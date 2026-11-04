@@ -1,8 +1,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Production document readers contain parameter properties; use Node's supported transform mode.
@@ -40,6 +40,16 @@ try {
   const options = new Map(Array.from({ length: args.length / 2 }, (_, i) => [args[i * 2], args[i * 2 + 1]]));
   const out = resolve(options.get("--out") ?? resolve(root, "eval/hidden-text"));
   const corpusPath = options.get("--corpus");
+  if (corpusPath && existsSync(out)) {
+    const input = resolve(corpusPath);
+    const inputPaths = new Set([realpathSync(input), resolve(realpathSync(dirname(input)), basename(input))]);
+    const directory = realpathSync(out);
+    for (const name of ["corpus.json", "observations.json", "results.md"]) {
+      const destination = resolve(directory, name);
+      if (inputPaths.has(destination) || (existsSync(destination) && inputPaths.has(realpathSync(destination))))
+        throw new Error(`Output ${name} overlaps supplied corpus; choose a separate output directory`);
+    }
+  }
   const cases = corpusPath ? JSON.parse(readFileSync(corpusPath, "utf8")) : generateCorpus();
   const corpusBytes = `${JSON.stringify(cases, null, 2)}\n`;
   const result = await evaluate(cases);

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -124,6 +124,34 @@ describe("hidden-text corpus measurement", () => {
     expect(run.summary.missed).toHaveLength(205);
     expect(run.observations.every((r) => r.flagged === null)).toBe(true);
   });
+  it.each(["corpus.json", "observations.json", "results.md"])(
+    "CLI refuses input overlapping %s before writing",
+    (name) => {
+      const dir = mkdtempSync(join(tmpdir(), "hidden-text-collision-"));
+      try {
+        const input = join(dir, name);
+        const bytes = JSON.stringify(corpus);
+        writeFileSync(input, bytes);
+        const alias = `${dir}-alias`;
+        symlinkSync(dir, alias, "dir");
+        try {
+          const child = spawnSync(
+            process.execPath,
+            [resolve("scripts/eval-hidden-text.ts"), "--corpus", input, "--out", alias],
+            { encoding: "utf8", timeout: 30000 },
+          );
+          expect(child.status).toBe(2);
+          expect(child.stderr).toContain("overlaps supplied corpus");
+          expect(readFileSync(input, "utf8")).toBe(bytes);
+          expect(readdirSync(dir)).toEqual([name]);
+        } finally {
+          rmSync(alias, { force: true });
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
   it("CLI exits zero for a valid passing measurement", () => {
     const rows = corpus.map((r) => {
       if (r.label === "control") return r;
