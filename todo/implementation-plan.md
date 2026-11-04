@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 123 | Checklist items: 767
+Sections: 124 | Checklist items: 772
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -392,6 +392,7 @@ Sections: 123 | Checklist items: 767
 | [ ]    | D08 T02 §15 | Paired evidence view                                      | cloudflare            | 3     |
 | [ ]    | D08 T02 §16 | Blinded comprehension comparison                          | cloudflare            | 4     |
 | [x]    | D08 T02 §17 | Per-case ablation orchestration repair                    | none                  | 8     |
+| [ ]    | D08 T02 §18 | Recoverable PDF corpus publication                        | none                  | 5     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video                         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost                     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls                        | meta-api, cloudflare  | 5     |
@@ -695,6 +696,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 450/619 verified sections, 106 ready to run now.
+Progress: 450/620 verified sections, 106 ready to run now.
 
-Checklist: 3235/3827 items completed (includes Commit items).
+Checklist: 3235/3832 items completed (includes Commit items).

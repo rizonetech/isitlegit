@@ -48,7 +48,8 @@ track: day-6
 | 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [ ] |
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [x] |
-| 18 | §19 | Machine-crash durability for generated corpora | -- | [ ] |
+| 18 | §18 | Recoverable PDF corpus publication | §2 | [ ] |
+| 19 | §19 | Machine-crash durability for generated corpora | §18 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -552,6 +553,31 @@ Coordinator `critical-path-contract` (2026-11-04) assigns eval the remaining run
 
 > **Verified:** 2026-11-04 | §17 | 8aee6996154b05ee04a3470d4b16eddcbf09eb52
 > **Review:** `docs/reviews/d08-t02-s17.json`
+
+## 18. Recoverable PDF corpus publication
+
+> **Started:** 2026-11-04T09:52:00+02:00 (current repair plan preparation only)
+
+Coordinator `eval-decisions-0950` authorizes this genuine scoped recovery repair following §6 final completion gaps at `ef1c3e96`. Existing state before this plan: `eval/forensics/build.ts` still directly overwrites final files; one uncommitted failure-injection regression has been written and observed failing because the existing builder ignores injected writes. No generator fix has been implemented. This plan reviews remaining implementation and verification, not retrospective work. Preserve §6's returned gaps receipt and incomplete state pending coordinator-supported reconciliation. D06 T02 §8 at console commit `20f4747f` remains the sole detector/coverage repair; this section changes no severity, label, target or measured count.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Stage and validate the complete generated corpus without modifying published artifacts. Done when: a failed write or invalid staged artifact leaves the previous manifest and every prior PDF byte intact.
+2. Publish with a recoverable previous corpus and explicit restart recovery. Done when: failure between directory renames restores the old directory, a killed process with only the saved previous directory recovers on retry, and successful output reads back through the production manifest validator.
+3. Verify failure and success through the real builder. Done when: fault injection exercises actual filesystem operations and deterministic regeneration preserves current measurement inputs.
+
+- [ ] Refactor `eval/forensics/build.ts` to write into a sibling staging directory and validate manifest schema, generated file formats/hashes and external fixture references before publication. Done when: failed generation, truncated writes and failed validation leave all published corpus bytes untouched; owned temporary artifacts are cleaned on ordinary failures. Cheaper substitute: overwriting final files individually cannot preserve a coherent generation.
+- [ ] Retain a recoverable prior directory during publication, restore it after failed promotion, and recover it on the next invocation after process interruption. Done when: every rename boundary has a tested recoverable state; a prior backup is removed only while a complete live generation exists, successful generation retains a verified previous version, and errors propagate with no success claim. Concurrent publication must refuse or serialize before mutation, with stale-owner recovery proven if a lock is used. Cheaper substitute: deleting old files before publishing risks data loss.
+- [ ] Extend the existing failure regression and add malformed/truncated staging and subprocess termination coverage in `test/node/eval-forensics.test.ts`. Done when: actual generation and read-back preserve prior PDF bytes and manifest on failure, restart recovers at publication boundaries, a second writer cannot corrupt the corpus, and two successful builds are deterministic. Cheaper substitute: testing only the injected callback misses publication behavior.
+- [ ] Recompute the forensic report against the unchanged corpus and record the original §6 gap disposition without altering its receipt or marking it complete. Done when: `node eval/forensics/score.ts --check eval/RESULTS.md` passes with 3/7 detections, 0/7 false positives and 13/14 complete coverage; current independent-evidence severity remains unchanged. Cheaper substitute: declaring detector targets met from a storage repair.
+- [ ] Commit: `eval: publish PDF corpora with recoverable generations`
+
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts` and `node eval/forensics/score.ts --check eval/RESULTS.md` pass; failed/truncated writes and process termination preserve a verified generation, restart recovers, and successful regeneration reads back with identical hashes. Typecheck, lint and build pass.
+
 
 ## 19. Machine-crash durability for generated corpora
 
