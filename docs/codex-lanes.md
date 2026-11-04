@@ -52,8 +52,45 @@ Write the durable inbox message first, then queue it to the recorded session. `-
 
 ## Continuation and ownership
 
-This setup launches attended terminal sessions. It does not install a daemon, recurring job or Stop hook and does not make an idle session resume automatically. The old Muse cron and Claude Stop hook do not become Codex jobs because their instructions are present in the repository. Do not record `lane heartbeat installed:` without a real native job and its verified ID.
+The operator requires unattended sessions from 4 November 2026: no blocking questions. Take authorized decisions, record assumptions and reversal costs, and continue independent ready work when one item is blocked. The launcher alone does not establish continuation coverage; the native hooks and host heartbeat below require separate verification. The old Muse cron and Claude Stop hook do not become Codex jobs because their instructions are present in the repository. Do not record `lane heartbeat installed:` without a real native job and its verified ID.
 
 While the coordinator is active, it checks handovers at section boundaries and wakes waiting sessions explicitly. If this Codex environment exposes a native recurring job tool, the session may install and verify its own idle-only heartbeat, record its ID, and cancel it when its run closes. Otherwise retain a clear Resume point and use the exact-session resume command when continuation is needed. Never acquire a campaign guard with a fabricated heartbeat ID, take another writer's guard or claim unattended coverage from a launcher dry run.
 
 Only the coordinator merges lanes into main, using the existing CI gate. Lanes retain their assigned test cores, targeted test scope, product safety contract, synthetic-data requirement and publication checks. A tool failure or unresolved review finding is a blocker to stamping, not an approval.
+
+## Guarded unattended continuation
+
+The owning implementation is `scripts/codex_continuation.py`, the native local protocol client is `scripts/codex_rpc.py`, and the project lifecycle definitions are `.codex/hooks.json`. The launcher reserves the lane before starting Codex. A second launch refuses while that reservation exists. An existing owner resumes by exact session UUID; a paused owner requires explicit activation first. Direct Codex launches outside this entrypoint are not covered by its launch reservation.
+
+The session activates its reservation using the claim printed in its launch prompt and its actual session ID:
+
+```bash
+python3 scripts/codex_continuation.py activate --lane checks --session SESSION_UUID --claim CLAIM_UUID
+python3 scripts/codex_continuation.py status
+```
+
+Activation verifies the native thread's worktree and all five loaded project hooks' enabled/trusted state. It does not edit the runtime's trust records. Review the exact `.codex/hooks.json` definitions in Codex's `/hooks` screen, trust them, and reload/resume the session so `hooks/list` for that thread reports them. This is a native runtime trust step, not a permission question to ask repeatedly. If it is unavailable during an unattended run, record the physical operator action once and keep runtime readiness incomplete. Never use `--dangerously-bypass-hook-trust` as a substitute. Tool hooks are a guardrail, not a security sandbox; the runtime's own turn serialization and review sandbox remain authoritative.
+
+The owner runs the following before acknowledging a conversational stop or finishing its authorized run. An actual native Interrupt invokes the pause behavior automatically. A paused or completed record survives process/timer restarts and never silently reactivates.
+
+```bash
+python3 scripts/codex_continuation.py pause --lane checks --session SESSION_UUID
+python3 scripts/codex_continuation.py complete --lane checks --session SESSION_UUID
+```
+
+`release --lane checks` removes a reservation only after the owner is paused/completed and the native thread is idle/not loaded (or an unbound launch process is gone). It cancels only the outstanding heartbeat queue item, never user messages. An authorized new activation advances the generation. An outstanding old-generation wake is refused, even if its queue message arrives late.
+
+WORKAROUND: the installed Codex runtime has no exposed native recurring scheduler. The coordinator installs one user-systemd host timer for this project. It inspects native thread status and wakes only registered idle owners with observed lifecycle events and a cleared wait. It never fabricates a native cron ID or acquires the Claude campaign guard. The timer's installed identity is `isitlegit-codex-heartbeat.timer`, with a five-minute cadence and a separate `isitlegit-codex-heartbeat.service` invocation. It runs only while this user's systemd manager and WSL host are running; it cannot wake a powered-off computer.
+
+```bash
+python3 scripts/codex_continuation.py install-timer
+systemctl --user status isitlegit-codex-heartbeat.timer
+python3 scripts/codex_continuation.py status
+python3 scripts/codex_continuation.py remove-timer
+```
+
+State and the latest observed timer tick live in `~/isitlegit-data/handover/codex-continuation/`. `heartbeat.json` is an observation, not proof that a model resumed. The owner record's `observed` events prove hook execution and `last_ack` correlates a wake UUID to the receiving turn. A queued submission is pending until that acknowledgment; ambiguous failures are not blindly retried, and a ten-minute outstanding wake stalls visibly. Test state can be isolated with `ISITLEGIT_CONTINUATION_DIR`; production handovers use the default directory.
+
+Waits are read from the owner's outbox, which must be updated after activation. `none` allows continuation; timezone-aware elapsed time waits and exact stamps in published `origin/main` clear automatically. The coordinator refreshes `origin/main` at merge boundaries. Operator and unknown waits stay parked. After verifying a coordinator-gate dependency, the coordinator may run `release-wait --lane checks --wait 'coordinator gate for D00 T01 §34'` for that exact wait. Three unchanged Stop continuations become a visible stall. Explicit completion disables all further automatic work.
+
+Runtime acceptance remains incomplete until each intended session records trusted Stop and Interrupt execution, a real timer tick and a correlated resumed turn. Code tests or an enabled timer cannot substitute for those observations. D00 T01 §34 remains unstamped while any of those checks is missing. Rollback pauses owners, removes this project's timer with `remove-timer`, and removes its hook configuration; it leaves other projects, training and rendering processes alone.
