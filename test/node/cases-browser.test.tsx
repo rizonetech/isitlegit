@@ -1343,17 +1343,24 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("calendar ranges in Chromium
         await p.getByLabel("Year", { exact: true }).fill("2028");
         await p.getByLabel("Month", { exact: true }).selectOption("2");
         await p.getByLabel("Quarter", { exact: true }).selectOption("1");
+        const matchesDates = (url: URL) =>
+          url.pathname === "/cases" &&
+          url.searchParams.get(field) === "2026-10-30" &&
+          !url.searchParams.has("calendar");
+        // Playwright fill emits change for date inputs. Complete that automatic request before watching Enter.
+        const changed = js ? p.waitForResponse((response) => matchesDates(new URL(response.url()))) : null;
         await p.locator(`#case-${field}`).fill("2026-10-30");
-        const responsePromise = p.waitForResponse((response) => {
-          const url = new URL(response.url());
-          return (
-            url.pathname === "/cases" &&
-            url.searchParams.get(field) === "2026-10-30" &&
-            !url.searchParams.has("calendar")
-          );
-        });
+        if (changed) {
+          const automatic = await changed;
+          await automatic.finished();
+          await expect.poll(() => new URL(p.url()).searchParams.get(field)).toBe("2026-10-30");
+        }
+        // Request-start observation cannot accept a response belonging to the earlier fill-triggered request.
+        const submitted = p.waitForRequest((request) => matchesDates(new URL(request.url())), { timeout: 5000 });
         await p.locator(`#case-${field}`).press("Enter");
-        const response = await responsePromise;
+        const request = await submitted;
+        const response = await request.response();
+        if (!response) throw new Error("Enter submission returned no response");
         await response.finished();
         expect(response.status()).toBe(200);
         const params = new URL(response.url()).searchParams;
