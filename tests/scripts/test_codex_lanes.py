@@ -145,7 +145,9 @@ class CodexLanes(unittest.TestCase):
                 mock.patch.object(self.module.shutil, "which", return_value="/bin/codex"), \
                 mock.patch.dict(self.module.os.environ, {"TODO_LANE": "eval",
                     "ISITLEGIT_CONTINUATION_DIR": str(Path(self.temp.name) / "continuation")}), \
+                mock.patch.object(self.module.os, "chdir") as chdir, \
                 mock.patch.object(self.module.os, "execvp") as launch:
+            launch.side_effect = lambda *args: chdir.assert_called_once_with(str(self.lane))
             self.module.main(["--root", str(self.root), "launch", "checks"])
             self.assertNotIn("TODO_LANE", self.module.os.environ)
             launch.assert_called_once()
