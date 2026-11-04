@@ -351,7 +351,9 @@ Walkthrough 2026-10-29, against the live domain, nothing changed, every step lis
 
 ## 10. Web Risk key restriction read from Google
 
-**Operator disposition (2026-11-04T16:31:21.247559+00:00): WITHDRAWN.** The operator explicitly accepts the existing checks as is; additional readback automation is unnecessary. No further implementation, review or provider call is scheduled for this section. The original scope and historical prerequisite evidence below are retained unchanged as an archive, not an active work instruction. This is an operator withdrawal, not verified delivery: no review approval or stamp is claimed, and the unchecked items remain unchecked because the graph has no withdrawal receipt route. The only new work was plan preparation committed at `39936ac8ee1dc50affaa6e88f304da8ddd1393cf`; no plan review or checker/test implementation began. The existing Web Risk checker is unchanged.
+**Withdrawn:** 2026-11-04 | operator | Accept existing checks as is; additional readback automation unnecessary.
+
+**Operator disposition (2026-11-04T16:31:21.247559+00:00): WITHDRAWN.** The operator explicitly accepts the existing checks as is; additional readback automation is unnecessary. No further implementation, review or provider call is scheduled for this section. The original scope and historical prerequisite evidence below are retained unchanged as an archive, not an active work instruction. This is an operator withdrawal, not verified delivery: no review approval or stamp is claimed, and the unchecked items remain unchecked because withdrawal is not verified delivery. The only new work was plan preparation committed at `39936ac8ee1dc50affaa6e88f304da8ddd1393cf`; no plan review or checker/test implementation began. The existing Web Risk checker is unchanged.
 
 > **Started:** 2026-11-04T16:28:36.613489+00:00 (plan preparation only; implementation after genuine plan self-review)
 
@@ -387,7 +389,9 @@ Transport preserves existing redirect refusal, bounded JSON response and whole-c
 
 ## 11. SMTP2GO key permissions and senders read back
 
-**Operator disposition (2026-11-04T16:31:21.247559+00:00): WITHDRAWN.** The operator explicitly accepts the existing checks as is; additional readback automation is unnecessary. No further implementation, review or provider call is scheduled for this section. The original scope and historical prerequisite evidence below are retained unchanged as an archive, not an active work instruction. This is an operator withdrawal, not verified delivery: no review approval or stamp is claimed, and the unchecked items remain unchecked because the graph has no withdrawal receipt route. No new plan, code, tests or review began. The existing SMTP2GO checker, approved permission groups and tracking settings are unchanged.
+**Withdrawn:** 2026-11-04 | operator | Accept existing checks as is; additional readback automation unnecessary.
+
+**Operator disposition (2026-11-04T16:31:21.247559+00:00): WITHDRAWN.** The operator explicitly accepts the existing checks as is; additional readback automation is unnecessary. No further implementation, review or provider call is scheduled for this section. The original scope and historical prerequisite evidence below are retained unchanged as an archive, not an active work instruction. This is an operator withdrawal, not verified delivery: no review approval or stamp is claimed, and the unchecked items remain unchecked because withdrawal is not verified delivery. No new plan, code, tests or review began. The existing SMTP2GO checker, approved permission groups and tracking settings are unchanged.
 
 D99 T01 §4's check proves the SMTP2GO key is live and refused two account endpoints, and `sendMail` refuses any sender outside isitlegit.co.za, but the key's complete saved permission set and its permitted sender domains are settings only an account-level key can read (SMTP2GO refuses the sending key `api_keys/view` with `ENDPOINT_PERMISSION_DENIED`, 2026-10-29). A key granted one extra permission, or allowed another verified domain in the account, would still pass. Filed from §4's completion review (gaps C1, C2 and E1, 2026-10-29).
 
