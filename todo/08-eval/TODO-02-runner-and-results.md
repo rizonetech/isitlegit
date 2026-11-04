@@ -48,7 +48,7 @@ track: day-6
 | 15 | §15 | Paired evidence view | §14, D07 T04 §2 | [x] |
 | 16 | §16 | Blinded comprehension comparison | §7 | [ ] |
 | 17 | §17 | Per-case ablation orchestration repair | §2, §12 | [x] |
-| 18 | §18 | Recoverable PDF corpus publication | §2 | [ ] |
+| 18 | §18 | Recoverable PDF corpus publication | §2 | [x] |
 | 19 | §19 | Machine-crash durability for generated corpora | §18 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -596,6 +596,9 @@ Coordinator `eval-decisions-0950` authorizes this genuine scoped recovery repair
 - [x] Commit: `eval: publish PDF corpora with recoverable generations`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run --project node test/node/eval-forensics.test.ts` and `node eval/forensics/score.ts --check eval/RESULTS.md` pass; failed/truncated writes and process termination preserve a verified generation, restart recovers, and successful regeneration reads back with identical hashes. Typecheck, lint and build pass.
+
+> **Verified:** 2026-11-04 | §18 | abea9b56546091cac5ddc08d03d7ee1e33ee1232
+> **Review:** `docs/reviews/d08-t02-s18.json`
 
 ## 19. Machine-crash durability for generated corpora
 
