@@ -2,9 +2,13 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  closeSync,
   existsSync,
+  fsyncSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -48,9 +52,95 @@ async function lock(path: string): Promise<() => Promise<void>> {
   };
 }
 
-// Keep legacy generations byte-for-byte, including incomplete staging and its original manifest paths.
-// Atomic moves make an interrupted relocation retryable without deleting the only recovery copy.
-function preserveLegacy(root: string, rename: NonNullable<Operations["rename"]>) {
+// File data precedes its directory entries. Synchronize ancestor names too, including
+// directories created before this invocation. See docs/eval/corpus-durability.md.
+function syncPath(path: string) {
+  const fd = openSync(path, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function syncAncestors(path: string, sync: typeof syncPath) {
+  for (;;) {
+    sync(path);
+    const parent = dirname(path);
+    if (parent === path) return;
+    path = parent;
+  }
+}
+
+function syncTree(path: string, sync: typeof syncPath) {
+  const entry = lstatSync(path);
+  if (entry.isDirectory()) {
+    for (const name of readdirSync(path)) syncTree(join(path, name), sync);
+  } else if (!entry.isFile()) {
+    throw new Error(`unsupported corpus storage entry: ${path}`);
+  }
+  sync(path);
+}
+
+// Validate owned bytes even when external input fixtures have legitimately changed.
+// Those external inputs are checked against the new manifest before publication.
+function generationValid(path: string): boolean {
+  if (!existsSync(path)) return false;
+  try {
+    if (!lstatSync(path).isDirectory()) return false;
+    const prior = parseManifest(JSON.parse(readFileSync(join(path, "manifest.json"), "utf8")));
+    const owned = prior.documents.filter((d) => d.path.startsWith(`${SET}/`));
+    if (!owned.length) return false;
+    for (const document of owned) {
+      if (document.path !== `${SET}/${basename(document.path)}`) return false;
+      const bytes = bytesAt(path, basename(document.path), document.sha256);
+      if (Buffer.from(bytes).subarray(0, 5).toString() !== "%PDF-") return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Both rename parents must persist, destination first for cross-directory moves.
+function move(from: string, to: string, rename: NonNullable<Operations["rename"]>, sync: typeof syncPath) {
+  rename(from, to);
+  sync(dirname(to));
+  if (dirname(from) !== dirname(to)) sync(dirname(from));
+}
+
+function archiveDamaged(path: string, sync: typeof syncPath) {
+  // Preserve readable damaged bytes too, rather than merely their volatile names.
+  syncTree(path, sync);
+  const archive = mkdtempSync(join(dirname(path), ".pdf-forensics-damaged-"));
+  syncAncestors(archive, sync);
+  move(path, join(archive, "generation"), renameSync, sync);
+}
+
+function recover(out: string, previous: string, sync: typeof syncPath) {
+  const liveValid = generationValid(out);
+  const savedValid = generationValid(previous);
+  if (liveValid) {
+    syncTree(out, sync);
+    syncAncestors(dirname(out), sync);
+    // Never silently delete an invalid saved generation on the next publication.
+    if (existsSync(previous) && !savedValid) archiveDamaged(previous, sync);
+    return;
+  }
+  if (!savedValid) {
+    if (existsSync(out) || existsSync(previous))
+      throw new Error("No verified PDF corpus generation; live and saved evidence preserved");
+    return;
+  }
+  syncTree(previous, sync);
+  syncAncestors(dirname(previous), sync);
+  if (existsSync(out)) archiveDamaged(out, sync);
+  move(previous, out, renameSync, sync);
+  if (!generationValid(out)) throw new Error("Recovered PDF corpus failed verification; evidence preserved");
+}
+
+// Keep legacy generations byte-for-byte, including incomplete staging and original paths.
+function preserveLegacy(root: string, rename: NonNullable<Operations["rename"]>, sync: typeof syncPath) {
   const oldParent = join(root, "eval/sets");
   const entries = readdirSync(oldParent, { withFileTypes: true }).filter(
     (entry) =>
@@ -63,7 +153,13 @@ function preserveLegacy(root: string, rename: NonNullable<Operations["rename"]>)
   const archive = join(root, "eval/forensics/legacy-publication");
   mkdirSync(archive, { recursive: true });
   const destination = mkdtempSync(join(archive, "generation-"));
-  for (const entry of entries) rename(join(oldParent, entry.name), join(destination, entry.name));
+  syncAncestors(destination, sync);
+  for (const entry of entries) {
+    const source = join(oldParent, entry.name);
+    syncTree(source, sync);
+    syncAncestors(oldParent, sync);
+    move(source, join(destination, entry.name), rename, sync);
+  }
 }
 
 export async function build(root = ROOT, operations: Operations = {}) {
@@ -72,29 +168,27 @@ export async function build(root = ROOT, operations: Operations = {}) {
   mkdirSync(parent, { recursive: true });
   const unlock = await lock(join(parent, ".pdf-forensics.lock"));
   let stage: string | undefined;
+  let preserveStage = false;
   let unlockLegacy: (() => Promise<void>) | undefined;
+  const sync = (path: string) => {
+    try {
+      syncPath(path);
+    } catch (error) {
+      preserveStage = true;
+      throw error;
+    }
+  };
   try {
+    syncAncestors(parent, sync);
     const oldParent = join(root, "eval/sets");
     if (existsSync(oldParent)) {
-      // Retain the old lock inode and hold it through publication so an old builder cannot race relocation.
+      // Retain the old lock inode and hold it through publication.
       unlockLegacy = await lock(join(oldParent, ".pdf-forensics.lock"));
-      preserveLegacy(root, operations.rename ?? renameSync);
+      preserveLegacy(root, operations.rename ?? renameSync, sync);
     }
     const previous = join(parent, ".pdf-forensics-previous");
-    // Recover before generation; never remove the only usable generation.
-    if (!existsSync(out) && existsSync(previous)) renameSync(previous, out);
-    if (existsSync(out)) {
-      const prior = parseManifest(JSON.parse(readFileSync(join(out, "manifest.json"), "utf8")));
-      // External fixture inputs may have legitimately changed since the prior build.
-      // Preserve and verify the bytes owned by this generation; the new stage checks every current input.
-      for (const document of prior.documents.filter((d) => d.path.startsWith(`${SET}/`))) {
-        const bytes = bytesAt(out, basename(document.path), document.sha256);
-        if (Buffer.from(bytes).subarray(0, 5).toString() !== "%PDF-") throw new Error("prior corpus is not PDF");
-      }
-    }
-    for (const name of readdirSync(parent)) {
-      if (name.startsWith(".pdf-forensics-stage-")) rmSync(join(parent, name), { recursive: true, force: true });
-    }
+    recover(out, previous, sync);
+    // Abandoned stages are diagnostic evidence, never candidates selected without validation.
     stage = mkdtempSync(join(parent, ".pdf-forensics-stage-"));
     await generate(root, stage, operations.write ?? writeFileSync);
     const staged = JSON.parse(readFileSync(join(stage, "manifest.json"), "utf8")) as unknown;
@@ -102,24 +196,28 @@ export async function build(root = ROOT, operations: Operations = {}) {
     validateManifest(staged, (path, expected) =>
       path.startsWith(`${SET}/`) ? bytesAt(stagedPath, basename(path), expected) : bytesAt(root, path, expected),
     );
+    syncTree(stage, sync);
+    sync(parent);
+    preserveStage = true;
     const rename = operations.rename ?? renameSync;
     if (existsSync(out)) {
+      // Recovery synchronized the live generation before removing a superseded valid backup.
       rmSync(previous, { recursive: true, force: true });
-      rename(out, previous);
+      sync(parent);
+      move(out, previous, rename, sync);
     }
     try {
-      rename(stage, out);
+      move(stage, out, rename, sync);
       loadManifest(root);
     } catch (error) {
-      if (existsSync(previous)) {
-        if (existsSync(out)) rmSync(out, { recursive: true, force: true });
-        renameSync(previous, out);
-      }
+      // A sync failure does not authorize deleting either recovery copy. A valid
+      // promoted generation stays in place; failed promotion restores the backup.
+      recover(out, previous, sync);
       throw error;
     }
   } finally {
     try {
-      if (stage) rmSync(stage, { recursive: true, force: true });
+      if (stage && !preserveStage) rmSync(stage, { recursive: true, force: true });
     } finally {
       try {
         if (unlockLegacy) await unlockLegacy();
