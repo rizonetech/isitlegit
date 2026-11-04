@@ -55,9 +55,11 @@ def timer_units(root, executable):
     def quote(value):
         return '"' + str(value).replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%') + '"'
     command = quote(executable) + " " + quote(root / "scripts/codex_continuation.py") + " tick"
+    health = quote(executable) + " " + quote(root / "scripts/codex_lane_health.py")
+    # Observe after successful or failed ticks; this host timer is not a native Codex job.
     # WORKAROUND: this Codex runtime exposes no native recurring-job API; systemd owns the host cadence.
     return ("[Unit]\nDescription=IsItLegit Codex host heartbeat\n[Service]\nType=oneshot\n"
-            f"ExecStart={command}\nTimeoutStartSec=90\n",
+            f"ExecStart={command}\nExecStopPost={health}\nTimeoutStartSec=90\nTimeoutStopSec=90\n",
             "[Unit]\nDescription=IsItLegit Codex five-minute host heartbeat\n[Timer]\n"
             "OnCalendar=*:0/5\nPersistent=true\nAccuracySec=1s\n[Install]\nWantedBy=timers.target\n")
 
