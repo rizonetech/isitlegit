@@ -418,7 +418,7 @@ Sections: 121 | Checklist items: 759
 
 ### Phase 7: After the event
 
-Sections: 227 | Checklist items: 1033
+Sections: 227 | Checklist items: 1035
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -597,8 +597,8 @@ Sections: 227 | Checklist items: 1033
 | [ ]    | D07 T04 §31 | Saved Cases views                                           | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                                | none                 | 3     |
 | [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                            | none                 | 3     |
-| [ ]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 3     |
-| [ ]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
+| [x]    | D07 T04 §34 | Exact calendar-period counts export                         | none                 | 5     |
+| [x]    | D07 T04 §35 | Phone forwarding guidance on the Cases page                 | none                 | 4     |
 | [ ]    | D07 T04 §36 | Choose a departed person in the team history                | third-party          | 3     |
 | [ ]    | D07 T05 §3  | Service health tiles on                                     | none                 | 4     |
 | [x]    | D07 T05 §4  | Find organisations by domain or ID                          | none                 | 6     |
@@ -692,6 +692,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 445/616 verified sections, 108 ready to run now.
+Progress: 447/616 verified sections, 106 ready to run now.
 
-Checklist: 3214/3813 items completed (includes Commit items).
+Checklist: 3223/3815 items completed (includes Commit items).

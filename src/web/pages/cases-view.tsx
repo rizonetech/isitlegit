@@ -731,6 +731,14 @@ const HOW_TO = [
   ["Outlook desktop", "Select the email, then Home, More, Forward as attachment."],
   ["Outlook on the web", "Open the email, then More actions, Forward as attachment."],
   ["Gmail", "Tick the email in your inbox, then More at the top, Forward as attachment."],
+  [
+    "Apple Mail on iPhone",
+    "Reply, then Forward sends an ordinary forward. For the original email, open the same mailbox in Mail on a Mac, select the message, then choose Message, Forward As Attachment.",
+  ],
+  [
+    "Gmail on a phone",
+    "For the original email, use Gmail on a computer. Tick the message in your inbox, then choose More, Forward as attachment. You can also open the message, choose More, Download message, and upload the saved .eml file.",
+  ],
 ] as const;
 
 function FirstRun(props: { domains: string[]; addresses: string[] }) {
@@ -764,6 +772,21 @@ function FirstRun(props: { domains: string[]; addresses: string[] }) {
           </li>
         ))}
       </ul>
+      <div class="flex flex-col gap-8">
+        <h2 class="text-14 weight-heading">Checking from your phone?</h2>
+        <p class="text-13 text-muted">
+          Already have the original .eml or .msg file? Upload it from your phone. You can also check a screenshot or a
+          PDF you already have, but those do not include the original email headers. An ordinary forward also leaves
+          those checks unavailable. Use a computer and the steps above when you need the original email checked.
+        </p>
+        <a href="/upload" class={cx("text-orange-text underline underline-offset-4", FOCUS)}>
+          Upload a file
+        </a>
+        <p class="text-13 text-muted">
+          Choose a file and select your saved file. The check starts automatically, or with Check this file if that
+          button is shown.
+        </p>
+      </div>
       <AcceptedSenders {...props} />
     </EmptyState>
   );
@@ -840,17 +863,26 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
               <input type="hidden" name="org" value={props.orgId} />
               <label class="flex flex-col gap-4">
                 <span class="text-muted">From</span>
-                <input id="case-export-from" type="date" name="from" class={INLINE_INPUT} />
+                <input id="case-export-from" type="date" name="from" required class={INLINE_INPUT} />
               </label>
               <label class="flex flex-col gap-4">
                 <span class="text-muted">To</span>
-                <input id="case-export-to" type="date" name="to" class={INLINE_INPUT} />
+                <input id="case-export-to" type="date" name="to" required class={INLINE_INPUT} />
               </label>
               <button type="submit" class={cx("underline underline-offset-4 text-orange-text", FOCUS)}>
                 Export period
               </button>
+              <button
+                type="submit"
+                name="exact"
+                value="1"
+                class={cx("underline underline-offset-4 text-orange-text", FOCUS)}
+              >
+                Daily counts CSV
+              </button>
             </form>
-            <p class="text-muted mt-4">Whole weeks that overlap your dates.</p>
+            <p class="text-muted mt-4">Export period: whole weeks that overlap your dates.</p>
+            <p class="text-muted mt-4">Daily counts: one row per selected SAST day, including days with no cases.</p>
             <p class="mt-4 flex gap-12">
               <a
                 href={`/cases/stats.csv?org=${encodeURIComponent(props.orgId)}&from=${monthRange().from}&to=${monthRange().to}`}

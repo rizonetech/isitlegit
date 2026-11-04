@@ -614,3 +614,75 @@ describe("the Friday weekly counts (D07 T04 §20)", () => {
     expect(sent).toHaveLength(0);
   });
 });
+
+describe("daily counts export (D07 T04 §34)", () => {
+  it("clips exact SAST milliseconds, fills zero days and reconciles states without tenant or content leakage", async () => {
+    const a = await org("Daily counts");
+    const b = await org("Other daily counts");
+    const first = "2026-09-30T22:00:00.000Z";
+    await made(a, { at: "2026-09-30T21:59:59.999Z", verdict: "malicious" });
+    await made(a, { at: first, verdict: "malicious", decidedAt: plus(first, 30) });
+    await made(a, { at: first, verdict: "safe", decidedAt: plus(first, 60) });
+    await made(a, { at: first, status: "partial", verdict: "suspicious", decidedAt: plus(first, 90) });
+    for (const status of ["received", "running", "partial"] as const)
+      await made(a, { at: first, status, verdict: null });
+    await made(a, { at: "2026-10-03T21:59:59.999Z", verdict: "safe" });
+    await made(a, { at: "2026-10-03T22:00:00.000Z", verdict: "malicious" });
+    await made(b, { at: first, verdict: "malicious" });
+    const { cookie } = await member(a);
+    const res = await get(`/cases/stats.csv?org=${a}&exact=1&from=2026-10-01&to=2026-10-03`, cookie);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toBe(
+      'attachment; filename="isitlegit-daily-counts-2026-10-01-to-2026-10-03.csv"',
+    );
+    expect(res.headers.get("cache-control")).toBe("private, no-store");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(await res.text()).toBe(
+      "day_start,checked,malicious,suspicious,safe,unfinished,median_seconds_to_verdict\r\n" +
+        "2026-10-01,6,1,1,1,3,60\r\n2026-10-02,0,0,0,0,0,\r\n2026-10-03,1,0,0,1,0,\r\n",
+    );
+    const stale = await get(`/cases/stats.csv?org=${b}&exact=1&from=2026-10-01&to=2026-10-03`, cookie);
+    expect(stale.status).toBe(303);
+    expect(stale.headers.get("content-disposition")).toBeNull();
+    const unsigned = await get(`/cases/stats.csv?org=${a}&exact=1&from=2026-10-01&to=2026-10-03`);
+    expect(unsigned.status).toBe(303);
+    expect(unsigned.headers.get("content-disposition")).toBeNull();
+  });
+
+  it("requires both real dates and returns recoverable HTML for invalid ranges", async () => {
+    const a = await org("Daily validation");
+    const { cookie } = await member(a);
+    for (const query of [
+      "",
+      "from=2026-10-01",
+      "to=2026-10-01",
+      "from=&to=",
+      "from=2026-02-29&to=2026-03-01",
+      "from=2026-10-03&to=2026-10-01",
+      "from=2024-01-01&to=2026-01-01",
+    ]) {
+      const res = await get(`/cases/stats.csv?org=${a}&exact=1&${query}`, cookie);
+      expect(res.status, query).toBe(400);
+      expect(res.headers.get("content-type")).toContain("text/html");
+      expect(res.headers.get("content-disposition")).toBeNull();
+      expect(await res.text()).toContain('href="/cases"');
+    }
+  });
+
+  it("supports leap and same days, maximum inclusive rows and future zero days", async () => {
+    const a = await org("Daily calendar");
+    const { cookie } = await member(a);
+    for (const [from, to, count] of [
+      ["2024-02-29", "2024-02-29", 1],
+      ["2024-01-01", "2025-12-31", 731],
+      ["2099-01-01", "2099-01-03", 3],
+    ] as const) {
+      const res = await get(`/cases/stats.csv?org=${a}&exact=1&from=${from}&to=${to}`, cookie);
+      expect(res.status).toBe(200);
+      const lines = (await res.text()).trimEnd().split("\r\n");
+      expect(lines).toHaveLength(count + 1);
+      expect(lines[1]).toBe(`${from},0,0,0,0,0,`);
+      expect(lines.at(-1)).toBe(`${to},0,0,0,0,0,`);
+    }
+  });
+});

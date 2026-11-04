@@ -64,8 +64,8 @@ track: day-6
 | 31 | §31 | Saved Cases views | §8 | [ ] |
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 | 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
-| 34 | §34 | Exact calendar-period counts export | §19 | [ ] |
-| 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [ ] |
+| 34 | §34 | Exact calendar-period counts export | §19 | [x] |
+| 35 | §35 | Phone forwarding guidance on the Cases page | §1 | [x] |
 | 36 | §36 | Choose a departed person in the team history | §23 | [ ] |
 
 ## 1. Cases list with filters and search
@@ -794,7 +794,7 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 - [x] Take `from` and `to` SAST dates in `GET /cases/stats.csv`, bounded to 2 years, one row per week for the weeks overlapping the range, the window anchored to the range's end. Done when: the test reads October 2026's rows only (the weeks beginning 28 September to 26 October), and a reversed, over-limit, missing or unreadable date is refused with the HTML 400 page. Cheaper substitute: filtering the 12-week rows.
 - [x] Commit: `web: chosen period for the counts export`
 
-> **Deferred:** exact calendar-date totals -> XREF: D07 T04 §34
+> **Resolved:** exact calendar-date totals -> XREF: D07 T04 §34. Verified 2026-11-04 at `e00c997f`: inclusive SAST daily CSV alongside the preserved whole-week export.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
@@ -1257,12 +1257,16 @@ An owner adding a TXT record is shown the guide for their actual DNS host first,
 
 ## 34. Exact calendar-period counts export
 
+> **Started:** 2026-11-04T08:54:12.733199+00:00
+
 An owner exports counts clipped to the exact calendar dates chosen, not whole overlapping weeks. Filed 2026-11-03 from D07 T04 §19's plan review (P3): §19's approved whole-week export cannot give exact calendar-month or quarter totals.
+
+**Coordinator decision 2026-11-04:** `exact-counts-surface-approved` authorizes the second Daily counts CSV submit button in the existing From/To form, name=exact/value=1, native required dates and existing refusal paths. `docs/specs/2026-11-04-exact-counts-export-design.md` records the scoped contract; coordinator owns its M1 SPEC incorporation, required before completion. No shared SPEC edits by console.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the clipped export
+**Fidelity:** `design/SPEC.md` M1 Cases, stats panel, and the coordinator-approved `docs/specs/2026-11-04-exact-counts-export-design.md`; shared SPEC incorporation is required before completion
 **Job:** an owner hands finance a month's exact numbers
 **Treatment:** one row per day inside the chosen dates, the whole-week export beside it unchanged
 **Chrome:** §19's export controls
@@ -1272,22 +1276,31 @@ An owner exports counts clipped to the exact calendar dates chosen, not whole ov
 1. Record the clipped export and its day rows in `design/SPEC.md` M1. Done when: the SPEC names both.
 2. Clip the counts to the dates. Done when: `test/web/stats.test.ts` reads only the chosen dates' rows.
 
-- [ ] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
-- [ ] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
-- [ ] Commit: `web: exact calendar-period counts export`
+- [x] Record the exact-period export, its day rows and its filename in `design/SPEC.md` M1 beside §19's whole-week export. Done when: the SPEC names them. Cheaper substitute: presenting whole weeks as a month's totals.
+- [x] Take `from` and `to` in `GET /cases/stats.csv` with `exact=1` and count arrivals by SAST day in `src/db/case-stats.ts`, one row per day in the range, the same validation and organisation binding as §19. Done when: the test reads the chosen dates only and a case on an adjacent day is absent. Cheaper substitute: trimming week rows by hand.
+- [x] Add the Daily counts CSV submit button and labelled required inputs to the existing form in `src/web/pages/cases-view.tsx`, preserving weekly actions and date read-back after redraw. Done when: `test/node/cases-browser.test.tsx` downloads daily counts by keyboard at 360 px in both themes, preserves dates and weekly exports, and reports no overflow or missing accessible names. Cheaper substitute: an unbound link or a second independent date-state control. Source: coordinator exact-counts surface approval.
+- [x] Prove exact SAST bounds, zeros, state/median totals, same-day/leap-day/maximum-span cases, privacy and tenant/refusal behaviour in `test/web/stats.test.ts`. Done when: adjacent dates and other organisations never enter rows, each day's counts reconcile, and invalid or unauthorised requests never download a CSV. Cheaper substitute: checking only a happy-path month total. Source: approved companion contract.
+- [x] Commit: `web: exact calendar-period counts export`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a case outside the chosen dates is exported.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/stats.test.ts` and `pnpm exec vitest run test/node/cases-browser.test.tsx -t "daily counts|exports a chosen period"` pass and fail if a case outside the selected dates is exported or the daily submitter loses its mode, keyboard path or chosen dates. The 360 px both-theme proof and actual M1 SPEC incorporation are required before completion.
+
+> **Verified:** 2026-11-04 | §34 | e00c997f81fd67b61b150265c77d7e930310f55f
+> **Review:** `docs/reviews/d07-t04-s34.json`
 
 ## 35. Phone forwarding guidance on the Cases page
 
+> **Started:** 2026-11-04T09:19:08.030238+00:00
+
 The Cases first-run page tells a member on a phone how to forward mail from desktop Outlook, Outlook on the web and Gmail (`HOW_TO` in `src/web/pages/cases-view.tsx`), but not from a phone mail app, and it does not say when uploading the file instead is the better route (D07 T01 §14 completion review, 2026-11-02). A member whose only device is a phone is left to guess the step this page exists to teach.
+
+**Coordinator scope correction 2026-11-04:** research/plan approved at11:09SAST. Official sources establish desktop original-message paths, not mobile original-file export. The companion `docs/specs/2026-11-04-phone-forwarding-guidance-design.md` proposes honest Apple Mail/Gmail desktop fallbacks and upload of an already saved original file or clearly limited screenshot/PDF. Exact wording approval and coordinator-owned M1 incorporation are required; no invented mobile save command.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 (Cases, first-run state), board `Cases-Empty`
 **Job:** a member on a phone forwards a suspicious email as an attachment, or uploads it, without guessing
-**Treatment:** the first-run how-to tiles name the phone mail apps' forward-as-attachment steps and when to upload instead
+**Treatment:** the first-run how-to tiles name verified desktop fallbacks for phone apps and when an already saved file can be uploaded, with original-header limits
 **Chrome:** `EmptyState` (§8 of D07 T01) on the Cases page (D07 T04 §1)
 
 **Build order:**
@@ -1295,12 +1308,19 @@ The Cases first-run page tells a member on a phone how to forward mail from desk
 1. Name the phone steps in `design/SPEC.md` M1. Done when: M1 names the phone mail app steps and the upload choice, and `python3 design/tools/check-design.py` passes.
 2. Draw the phone guidance in the first-run how-to tiles (`src/web/pages/cases-view.tsx`). Done when: `test/node/cases-browser.test.tsx` reads the phone steps and the upload choice at 360 px in both themes.
 
-- [ ] Add the phone mail app steps (Apple Mail and Gmail on a phone: forward as attachment where the app offers it, save and upload where it does not) and the when-to-upload line to `design/SPEC.md` M1. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
-- [ ] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
-- [ ] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes reads the phone steps and the upload choice, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
-- [ ] Commit: `web: phone forwarding guidance on the Cases page`
+- [x] Obtain coordinator approval and incorporation of the exact source-backed companion wording into `design/SPEC.md` M1, naming Apple Mail/Gmail desktop fallbacks and existing-file upload limits. Done when: M1 names each step and `python3 design/tools/check-design.py` passes. Cheaper substitute: leaving the desktop-only steps, which a phone member cannot follow.
+- [x] Draw the phone steps and the upload choice in the `HOW_TO` tiles of `FirstRun` (`src/web/pages/cases-view.tsx`), beside the desktop steps. Done when: the page at 360 px shows each phone step without overflow in both themes. Cheaper substitute: a help link away from the page the member is on.
+- [x] Prove it in `test/node/cases-browser.test.tsx`: the first-run page at 360 px in both themes with scripts on and off reads the phone fallback steps, original-header limits and upload choice, follows Upload a file by keyboard to the rendered upload form, and the desktop steps are unchanged. Done when: the test passes and fails with the phone tile removed.
+- [x] Commit: `web: phone forwarding guidance on the Cases page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/cases-browser.test.tsx` passes with the phone guidance read at 360 px in both themes.
+
+**Implementation evidence 2026-11-04:** coordinator approved exact companion wording at09:44:41UTC; shared M1 incorporation remains pending before completion. Both new phone browser tests failed before implementation on the missing phone tile; final full Cases checkpoint passed44/44, including exact copy, unchanged desktop steps, no horizontal overflow, keyboard navigation to rendered UploadPage, script on/off, and both themes at360px. Existing accessibility states passed360px/1280px both themes. Separate upload chosen-file and no-script baseline tests passed2/2; these are fixture-backed Chromium proofs, not physical-device or live-delivery evidence. Typecheck, Biome on changed code, dry build, publication scan and design check passed. Logs: `/tmp/console-phone-before.log`, `/tmp/console-phone-browser.log`, `/tmp/console-phone-upload-baseline.log`, `/tmp/console-phone-types.log`, `/tmp/console-phone-build.log`, `/tmp/console-phone-publication.log`.
+
+**M1 incorporation 2026-11-04:** coordinator explicitly authorized the exact approved phone-guidance line from `ac75ff1959e5f77a367cee67dc2f7f65bbbc4c73` at09:55:45UTC. Imported that line only; companion source-backed limits and exact wording match the coordinator bytes. Implementation committed as `07ccc0db`; single self-review returned no findings, noting only this now-incorporated prerequisite.
+
+> **Verified:** 2026-11-04 | §35 | b537091a5429b5ed4818213e61865d3c05877a8b
+> **Review:** `docs/reviews/d07-t04-s35.json`
 
 ## 36. Choose a departed person in the team history
 
