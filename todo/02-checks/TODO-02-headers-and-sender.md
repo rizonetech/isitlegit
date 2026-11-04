@@ -266,6 +266,8 @@ Filed 2026-10-30 from §5's completion review (out of scope): IsItLegit sees onl
 
 ## 9. Gateway relay ranges, decided
 
+> **Started:** 2026-11-04T07:14:39+00:00
+
 Filed 2026-10-31 from §6's completion review (Part 2 item 2, out of scope): §6 proves a gateway's relays from the addresses its sending domain publishes in SPF, so a gateway whose relay addresses are not in that SPF cannot be proven, where Microsoft 365's enhanced filtering and Google's inbound-gateway setting take the gateway's ranges as configured. Taking ranges from the organisation, or reading its provider's connector settings, changes who states the trust and what the product reads, so it is a design decision first.
 
 **Phase:** 7
