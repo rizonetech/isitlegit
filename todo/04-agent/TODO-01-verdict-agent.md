@@ -56,6 +56,7 @@ track: day-6
 | 17 | §17 | Immutable per-case model ablation consumers | D01 T03 §17 | [x] |
 | 18 | §18 | Labelled screening experiment binding | D01 T03 §17 | [ ] |
 | 19 | §19 | Queued verification and guarded delivery refresh | §17 | [ ] |
+| 20 | §20 | Bounded verdict validation diagnostics | §4, §5, D03 T01 §5 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -615,6 +616,31 @@ Coordinator assignments console-scope-ownership and verification-joint-integrati
 - [ ] Commit: `pipeline: integrate guarded closed-loop verification requests`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/verification-request.test.ts test/trust/verify-request.test.ts test/checks/evidence-producers.test.ts test/checks/evidence.test.ts` passes with real queued/scheduled caller and atomic race assertions; `pnpm typecheck` passes. Joint release waits for both real section stamps and coordinator CI/deployment.
+
+## 20. Bounded verdict validation diagnostics
+
+Coordinator JUDGE-VALIDATION-DIAGNOSTICS (4 November 2026) assigns this narrow source correction after D02 T05 §12 completion. The read-only judge diagnosis in `~/isitlegit-data/handover/app-release245-phishing-diagnosis.md` observed final output-invalid and a rule-based suspicious verdict for synthetic case01M6K6M9JQ43QBW4GNQQ8VH5AE. Earlier citation rejection is inferred from source/event ordering; the discarded original failure cannot be reconstructed. No capacity failure or floor breach is established. This section records future safe validation metadata, not model content, a forced severity or a new live run. Coordinator explicitly authorizes the diagnostic path in the D03 structured helper; other D03 work, gateway settings, judge acceptance and fixture infrastructure stay with their owners.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** Existing `test/agent/floor.test.ts`, `test/agent/citations.test.ts`, `test/agent/injection.test.ts`, `test/agent/loop.test.ts` and `test/meta/structured.test.ts` retain their acceptance assertions. Every invalid answer remains refused, the shared finalization budget remains two answers, evidence floors and rule fallback stay intact, and `cf-aig-collect-log-payload=false` remains unchanged.
+
+**Build order:**
+
+1. Define the bounded typed diagnostic contract and regression fixtures. Done when: only phase, static validation category/schema-known path, finalization attempt/remaining-answer budget and existing opaque call linkage can survive validation; hostile names/values cannot become diagnostics.
+2. Add owning structured-output and citation diagnostic production without changing acceptance. Done when: invalid JSON, unknown properties, schema failures and citation failures are distinguished by validator branches, not exception-message parsing, and normal answers/retry ceilings are unchanged.
+3. Persist safe records through a typed case/run-owned API and prove read-back. Done when: records are bounded, keyed to the existing call and current run, retry-safe, retained under case deletion and never claim successful persistence on a database failure.
+
+- [ ] Define strict bounded diagnostic schemas in `src/meta/validation-diagnostics.ts` and regression tests in `test/agent/validation-diagnostics.test.ts`. Done when: finite phase/category enums, at most four issue entries, schema-known paths of at most six static segments (arrays represented by a static wildcard), attempt1..2, remaining0..1 and validated opaque call IDs are accepted; arbitrary keys, messages, property names, citation values, prompts and credentials are rejected or omitted before persistence. Cheaper substitute: storing a shortened model response or a zod issue message. Source: coordinator diagnostic decision and frozen privacy contract.
+- [ ] Add an optional typed validation callback in `src/meta/structured.ts`, used by the verdict caller only. Done when: each paid rejected JSON/schema answer produces its safe diagnostic at the owning validation branch, exact known schema paths are derived from trusted schema structure, and existing output-failed accounting, deadline and maxAttempts behavior remain unchanged. Malicious property names must not reach callback, exceptions, persistence or logs through this addition. Cheaper substitute: infer a category from exception strings after the original detail is lost. Source: D03 T01 §5 structured-output contract and coordinator's narrow cross-lane authorization.
+- [ ] Produce citation categories in `src/agent/citations.ts` from the existing validator branches and connect them in `src/agent/loop.ts`. Done when: no_citations, unknown_evidence_id, undeclared_marker, unused_declared_id and sentence_without_marker are recorded without any citation value; existing trusted retry messages and validateCitations callers retain their behavior, and schema repair plus citation repair still consume at most two final answers. Cheaper substitute: parse free-form finding strings or increase retries to obtain a desired verdict. Source: design4.6 evidence-or-nothing rule.
+- [ ] Implement `src/agent/validation-diagnostics.ts` with reserved migration `src/db/migrations/0096_model_validation_diagnostics.sql` for `model_validation_diagnostics`. Done when: a strict validated record is atomically inserted under current case/run ownership, duplicate exact call/phase/attempt writes are idempotent, mismatched/stale ownership refuses, database failures are explicit and actual D1 read-back matches; case deletion cascades and rollback stops new writes while retaining safe audit history. Coordinator DIAGNOSTICS-MIGRATION-0096 reserves0096; reserved, not applied. Prove every foreign key and retention path without rebuilding cases or any parent table. No remote migration before a reviewed stamp and exact CI release. Cheaper substitute: bypass the event API to place arbitrary JSON in its error-class column or silently drop a failed diagnostic write. Source: repository migration ownership and diagnostic persistence decision.
+- [ ] Extend `test/agent/validation-diagnostics.test.ts`, `test/meta/structured.test.ts` and `test/agent/loop.test.ts` with failing-first synthetic cases. Done when: JSON/schema/citation categories, static paths, malicious nested property names, no raw content, persisted attempt/call linkage, duplicate/stale/write-failure behavior, invalid-then-valid success and exhausted fallback all fail if broken; normal verdicts/floors and gateway privacy assertions pass with no network/model spend. Cheaper substitute: testing only a standalone sanitizer while the real verdict caller still discards validation detail.
+- [ ] Record exact source candidate and local evidence in `docs/reviews/04-agent/D04-T01-s20.md`. Done when: the record distinguishes observed production metadata from the earlier citation inference, states that lost original detail remains unavailable, and claims neither a judge-pack fix nor a new live outcome. Cheaper substitute: relabel the original case or weaken its expected malicious result. Source: app-release245 diagnosis and coordinator ownership decision.
+- [ ] Commit: `agent: persist bounded validation diagnostics without model content`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/validation-diagnostics.test.ts test/agent/loop.test.ts test/agent/citations.test.ts test/agent/floor.test.ts test/agent/injection.test.ts test/meta/structured.test.ts` passes and fails if private model data reaches diagnostics, retry count exceeds two, invalid answers reach verdict storage or a diagnostic cannot be read back as its validated case/run/call record; `pnpm typecheck` passes.
 
 ## Verification
 
