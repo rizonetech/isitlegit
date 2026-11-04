@@ -199,3 +199,14 @@ it("bounds evidence by whole figures with explicit omissions", async () => {
   for (const item of figures.items) expect(transcript.slice(item.start, item.end)).toBe(item.raw);
   expect(new TextEncoder().encode(JSON.stringify(detail)).byteLength).toBeLessThanOrEqual(64 * 1024);
 });
+
+it.each([
+  "Please pay - R100 today",
+  "Please pay − 100.50 today",
+  "Please pay R100 and thirteen today",
+  "Please pay 100 million and 50 thousand today",
+  "Please pay R100 & 50 thousand today",
+  "Please pay negative 100 million and 50 thousand today",
+])("round-one regression: no partial signed/composite evidence for %s", async (transcript) => {
+  expect(await persisted(transcript, transcript)).toMatchObject({ paymentFigures: { items: [] } });
+});

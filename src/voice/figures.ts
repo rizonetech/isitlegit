@@ -17,6 +17,32 @@ const SUFFIX = /^\s*(rands?|dollars?|euros?|pounds?|ZAR|USD|EUR|GBP)(?=$|[^\p{L}
 const MAGNITUDE = /^\s+(hundred|thousand|million|billion|trillion)(?=$|[^\p{L}\p{N}_])/iu;
 const POWERS: Record<string, number> = { hundred: 2, thousand: 3, million: 6, billion: 9, trillion: 12 };
 
+// Unsupported English compound numbers are consumed as one rejected expression, so a
+// later numeric component cannot reappear as a separate amount. This recognizes boundaries,
+// not values: the original quote remains the only reading of such a compound.
+const NUMBER_WORDS =
+  "zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|trillion|half|quarter|dozen";
+const NUMBER_START = new RegExp(
+  `^(?:[0-9$€£]|(?:R|ZAR|USD|EUR|GBP)(?=\\s|[0-9])|(?:${NUMBER_WORDS})\\b|a\\s+(?:half|quarter|dozen|hundred|thousand)\\b)`,
+  "iu",
+);
+const NUMBER_TERM = new RegExp(
+  `^(?:${NUMBER_WORDS}|and|a|rands?|dollars?|euros?|pounds?|cents?|pence|ZAR|USD|EUR|GBP)\\b`,
+  "iu",
+);
+function compositeEnd(transcript: string, end: number): number | null {
+  const join = /^(?:\s+and\s+|\s*&\s*)/i.exec(transcript.slice(end));
+  if (!join || !NUMBER_START.test(transcript.slice(end + join[0].length))) return null;
+  let at = end + join[0].length;
+  while (at < transcript.length) {
+    const tail = transcript.slice(at);
+    const token = /^[\s\d.,/%:$€£\p{Pd}\p{Sm}]+/u.exec(tail) ?? NUMBER_TERM.exec(tail) ?? /^R(?=\s|\d)/i.exec(tail);
+    if (!token) break;
+    at += token[0].length;
+  }
+  return at;
+}
+
 // Ordinary decimal/grouping syntax, with an explicit whole-run rejection on ambiguity. A
 // single separator followed by three digits is grouping, never an inferred three-place decimal.
 function decimal(text: string): { value: string; marked: boolean } | null {
@@ -88,6 +114,11 @@ export function figuresOf(transcript: string): Figure[] {
     const suffix = SUFFIX.exec(transcript.slice(end));
     if (suffix) end += suffix[0].length;
     numbers.lastIndex = Math.max(scanEnd, end);
+    const compoundEnd = compositeEnd(transcript, end);
+    if (compoundEnd !== null) {
+      numbers.lastIndex = Math.max(numbers.lastIndex, compoundEnd);
+      continue;
+    }
     const before = transcript.slice(Math.max(0, start - 2), start);
     const lastBefore = [...before].at(-1) ?? "";
     const next = transcript.slice(end, end + 2);
@@ -98,12 +129,7 @@ export function figuresOf(transcript: string): Figure[] {
     while (wordEnd > 0 && SPACE.test(transcript[wordEnd - 1] ?? "")) wordEnd--;
     if (/(?:^|[^\p{L}\p{N}_])(?:minus|negative)$/iu.test(transcript.slice(Math.max(0, wordEnd - 10), wordEnd)))
       continue;
-    if (
-      /^\s+and\s+(?:\d|(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|half|a\s+half)\b)/i.test(
-        transcript.slice(end),
-      )
-    )
-      continue;
+    if (/[\p{Pd}\p{Sm}]/u.test(transcript[wordEnd - 1] ?? "")) continue;
     if (
       MAGNITUDE.test(transcript.slice(end)) ||
       /^\s*(?:%|percent\b|per\s+cent\b|cents?\b|pence\b|penn(?:y|ies)\b)/i.test(transcript.slice(end))
