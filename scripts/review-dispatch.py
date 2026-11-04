@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one independent review round with the reviewer pinned in .conclave/reviewers.toml.
+"""Run one review pass with the reviewer and policy pinned in .conclave/reviewers.toml.
 
     python3 scripts/review-dispatch.py --writer claude --prompt review-prompt.md --record docs/reviews/x.md
     python3 scripts/review-dispatch.py --kind completion --candidate <40-char SHA> --writer claude \
@@ -8,7 +8,9 @@
     python3 scripts/review-dispatch.py --list-rounds [--json] [--records <dir>]  recorded rounds; runs no reviewer
 
 `--writer` is the agent whose work is under review (claude, codex, gemini or muse); its route in the pin names exactly one
-reviewer, of a different model family, with no fallback. A reviewer that is not installed, exits non-zero, times out,
+reviewer, of a different model family by default, with no fallback. The explicit `self_review = ["codex"]`
+policy permits Codex self-review: plan, one implementation round, then completion. Each pass records its policy
+and pin; the stamp validates that committed policy and its exact candidate. A reviewer that is not installed, exits non-zero, times out,
 returns nothing, or ends its reply `OVERALL: blocked` (it could not reach the candidate, for example a sandbox that
 cannot read the repository) returned no review, and the reason is recorded under `failover`: exit 1, which never
 counts as approval, and no other reviewer runs. A review that finds problems is still a review (exit 0).
@@ -130,9 +132,11 @@ def load_pin(path=PIN, data=None):
     # `type(...) is int`: TOML true is Python True (an int subclass) and 1.0 == 1, so `!= 1` alone let both load.
     # The optional [schedule] is checked below; the refusal text stays the one the VS Code extension matches.
     if not {"schema_version", "reviewers", "routes"} <= set(pin) <= {"schema_version", "reviewers", "routes",
-                                                                     "schedule"} \
+                                                                     "schedule", "self_review"} \
             or type(pin["schema_version"]) is not int or pin["schema_version"] != 1:
         raise Refused("the reviewer pin needs exactly schema_version = 1, [reviewers.*] and [routes]")
+    if pin.get("self_review", []) not in ([], ["codex"]):
+        raise Refused("self_review must be [] or [\"codex\"]")
     reviewers = pin["reviewers"]
     if not isinstance(reviewers, dict) or not reviewers:
         raise Refused("the reviewer pin defines no reviewers")
@@ -161,9 +165,11 @@ def load_pin(path=PIN, data=None):
             raise Refused(f"route {writer!r} must list exactly one reviewer")
         if chain[0] not in reviewers:
             raise Refused(f"route {writer!r} must list a defined reviewer")
-        if FAMILY[reviewers[chain[0]]["cli"]] == WRITER_FAMILY[writer]:
+        if FAMILY[reviewers[chain[0]]["cli"]] == WRITER_FAMILY[writer] and not self_review_enabled(pin, writer):
             raise Refused(f"route {writer!r} names {chain[0]}, of the writer's own family; "
                           f"a review comes from a different family")
+    if self_review_enabled(pin, "codex") and ("codex" not in routes or reviewers[routes["codex"][0]]["cli"] != "codex"):
+        raise Refused("self_review needs a codex route to a codex reviewer")
     if "schedule" in pin:
         # The final reviewer must be usable by at least one writer (a family no writer and none of its round
         # reviewers belongs to); a writer it shares a family with is refused at dispatch time, and the stamp
@@ -310,15 +316,29 @@ def final_reply_ok(review):
         and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
 
 
+def self_review_enabled(pin, writer):
+    """The operator's explicit Codex self-review policy, never inferred from a route."""
+    return writer == "codex" and pin.get("self_review") == ["codex"]
+
+
+def reviewer_allowed(entry):
+    """Recognize review identity; stamp also verifies a self-review's committed pin and route."""
+    if not entry.get("reviewer") or entry.get("writer") not in WRITER_FAMILY:
+        return False
+    family = FAMILY.get(entry.get("cli"))
+    if family is None:
+        return False
+    if entry.get("policy") == "codex-self-review":
+        return entry["writer"] == "codex" and entry.get("cli") == "codex" and bool(entry.get("pin"))
+    return family != WRITER_FAMILY[entry["writer"]]
+
+
 def returned_review(entry):
-    """A recorded round that is a review: a reviewer of another model family than the writer ran and replied with the
-    prompt's final `OVERALL: approve` or `OVERALL: needs-attention` line. An outage, a self-review (a reviewer of the
-    writer's own family, or of no known family) and a reply without that line are recorded rounds, not reviews.
-    scripts/lib/todo_graph.py `stamp` uses this same predicate, so the schedule and the receipt count the same rounds."""
+    """A returned cross-family or explicitly marked Codex self-review with an OVERALL verdict.
+    The stamp verifies self-review authorization against the recorded committed pin. Outages and malformed replies
+    never advance the schedule; the stamp uses this same predicate to count rounds."""
     lines = verdict_lines(entry.get("review"))
-    return bool(entry.get("reviewer")) and entry.get("writer") in WRITER_FAMILY \
-        and FAMILY.get(entry.get("cli")) not in (None, WRITER_FAMILY[entry["writer"]]) \
-        and bool(lines) and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
+    return reviewer_allowed(entry) and bool(lines) and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
 
 
 def legacy_returned_review(entry):
@@ -729,13 +749,13 @@ def atomic_write(path, text):
 # past Python's digit limit raises). A review is at most MAX_OUTPUT_BYTES, so it has at most MAX_OUTPUT_BYTES + 1 lines,
 # and the count's width follows from that: whatever `record` writes, the reader reads.
 ROUND_HEADING = re.compile(r"^## Round ([0-9]{1,6}): (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
-ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Schedule|Pin|Lines|Digest|Skipped): (\S.*)$")
+ROUND_LINE = re.compile(r"^- (Writer|Run|Effort|Lenses|Schedule|Policy|Pin|Lines|Digest|Skipped): (\S.*)$")
 # The one-pass completion review, recorded beside the rounds and never counted as one. It always carries Lines, Digest
 # and the Candidate commit it reviewed; the writer's notes after it (its `- Filed:` lines) run to the next `## ` line.
 COMPLETION_HEADING = re.compile(r"^## Completion review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 PLAN_HEADING = re.compile(r"^## Plan review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
 FINAL_HEADING = re.compile(r"^## Final review: (none|([a-z0-9][a-z0-9-]*) \(`([^`]+)` via `([a-z]+)`\))$")
-COMPLETION_LINE = re.compile(r"^- (Writer|Run|Candidate|Effort|Lenses|Pin|Lines|Digest|Skipped): (\S.*)$")
+COMPLETION_LINE = re.compile(r"^- (Writer|Run|Candidate|Effort|Lenses|Policy|Pin|Lines|Digest|Skipped): (\S.*)$")
 # The one-pass reviews, by --kind: the heading each is recorded under and the key read_findings lists them under.
 PASSES = {"completion": ("## Completion review", COMPLETION_HEADING, "completions"),
           "plan": ("## Plan review", PLAN_HEADING, "plans"),
@@ -820,11 +840,11 @@ def _read_findings(text):
             return None, head
         if completion:
             entry = {"reviewer": heading.group(2), "model": heading.group(3), "cli": heading.group(4), "writer": None,
-                     "run": None, "candidate": None, "effort": None, "lenses": None, "pin": None, "skipped": []}
+                     "run": None, "candidate": None, "effort": None, "lenses": None, "pin": None, "policy": None, "skipped": []}
         else:
             entry = {"number": int(heading.group(1)), "reviewer": heading.group(3), "model": heading.group(4),
                      "cli": heading.group(5), "writer": None, "run": None, "effort": None, "lenses": None,
-                     "schedule": None, "pin": None, "skipped": []}
+                     "schedule": None, "pin": None, "policy": None, "skipped": []}
         count = sealed = None
         i += 2
         while i < len(lines) and lines[i] != "":
@@ -847,6 +867,8 @@ def _read_findings(text):
                     return None, head
                 sealed = value
             elif entry[key] is not None or (key == "candidate" and not CANDIDATE.fullmatch(value)):
+                return None, head
+            elif key == "policy" and value != "codex-self-review":
                 return None, head
             elif key == "schedule" and value not in SCHEDULES:
                 return None, head
@@ -876,6 +898,8 @@ def _read_findings(text):
             end = next((j for j in range(i, len(lines)) if lines[j].startswith(RESERVED)), len(lines))
             entry["review"] = "\n".join(lines[i:end])
             i = end
+        if entry.get("policy") == "codex-self-review":
+            entry["offset"] = head
         if completion:
             end = next((j for j in range(i, len(lines)) if lines[j].startswith("## ")), len(lines))
             entry["notes"] = [line for line in lines[i:end] if line.strip()]
@@ -995,19 +1019,18 @@ def metadata(result):
     if result.get("schedule") == "light":
         lines.append("- Schedule: light")
     # The pin the pass ran under; a pass recorded without the line is held to the stamped commit's pin, as before.
+    if result.get("policy"):
+        lines.append(f"- Policy: {result['policy']}")
     if result.get("pin"):
         lines.append(f"- Pin: {result['pin']}")
     return lines + [f"- Skipped: {f['reviewer']} ({f['reason']})" for f in result["failover"]]
 
 
 def returned_pass(entry, kind):
-    """A recorded pass the stamp would count: returned by a reviewer of another model family than its writer, and
-    closing with that pass's verdict lines (the stamp's own rule, in scripts/lib/todo_graph.py). A reply that
+    """A recorded pass with an allowed reviewer identity, closing with that pass's verdict lines (the stamp's own rule, in scripts/lib/todo_graph.py). A reply that
     never reached its verdict (a malformed or blocked answer) is sealed in the file but is not the one pass, so
     a fresh pass may still be recorded beside it."""
-    if not entry["reviewer"] or entry["writer"] not in WRITER_FAMILY:
-        return False
-    if FAMILY.get(entry["cli"]) in (None, WRITER_FAMILY[entry["writer"]]):
+    if not reviewer_allowed(entry):
         return False
     lines = verdict_lines(entry.get("review"))
     if kind == "plan":
@@ -1016,6 +1039,33 @@ def returned_pass(entry, kind):
     if kind == "completion":
         return bool(lines) and lines[-1] in ("COMPLETION: complete", "COMPLETION: gaps")
     return True
+
+
+def check_self_review_order(kind, record_path):
+    """Codex runs one plan pass, one implementation round, then a completion pass."""
+    if kind == "final":
+        raise Refused("Codex self-review ends with --kind completion, not a separate final review")
+    if not record_path:
+        raise Refused("Codex self-review needs --record to enforce its three-pass order")
+    existing = existing_findings(Path(record_path), kind)
+    found = read_findings(existing)
+    if found is None:
+        raise Unrecorded("the Codex self-review findings cannot be read back")
+    entries = [entry for group in found.values() for entry in group]
+    if any(entry.get("policy") != "codex-self-review" for entry in entries):
+        raise Refused("Codex self-review needs its own findings file, with no earlier review policy")
+    plans = [entry for entry in found["plans"] if returned_pass(entry, "plan")]
+    rounds = [entry for entry in found["rounds"] if returned_review(entry)]
+    completions = [entry for entry in found["completions"] if returned_pass(entry, "completion")]
+    if kind == "plan":
+        if plans or found["rounds"] or found["completions"]:
+            raise Refused("Codex self-review plan must run once, before implementation review")
+    elif len(plans) != 1:
+        raise Refused("Codex self-review needs exactly one returned plan review before implementation review")
+    elif kind == "round" and (rounds or found["completions"]):
+        raise Refused("Codex self-review allows exactly one returned implementation round before completion")
+    elif kind == "completion" and (len(rounds) != 1 or completions):
+        raise Refused("Codex self-review completion runs once, after exactly one returned implementation round")
 
 
 def record_completion(path, result, when, candidate, kind="completion"):
@@ -1109,7 +1159,8 @@ def main(argv=None):
             return 2
         clis = {cli: find_cli(cli) is not None for cli in CLIS}
         report = {"ok": True, "schema_version": pin["schema_version"], "reviewers": pin["reviewers"],
-                  "routes": pin["routes"], **({"schedule": pin["schedule"]} if "schedule" in pin else {}), "clis": clis}
+                  "routes": pin["routes"], "self_review": pin.get("self_review", []),
+                  **({"schedule": pin["schedule"]} if "schedule" in pin else {}), "clis": clis}
         print(json.dumps(report) if args.json else "ok")
         return 0
     if args.list_rounds:
@@ -1154,6 +1205,8 @@ def main(argv=None):
             pin_bytes = None  # load_pin reports a missing or unreadable pin in its own words
         pin = load_pin(args.pin, data=pin_bytes) if pin_bytes is not None else load_pin(args.pin)
         pin_id = pin_blob(pin_bytes)
+        if self_review_enabled(pin, args.writer):
+            check_self_review_order(args.kind, args.record)
         plan = None
         if "schedule" in pin:
             rounds = []
@@ -1214,6 +1267,8 @@ def main(argv=None):
     if one_pass:
         result.update(kind=args.kind, candidate=args.candidate)
     result["pin"] = pin_id
+    if self_review_enabled(pin, args.writer):
+        result["policy"] = "codex-self-review"
     if plan and plan["position"]:
         result.update(position=plan["position"], escalated=plan["escalated"], schedule=plan["schedule"])
         stop_after = pin["schedule"]["severity_stop_after"]
