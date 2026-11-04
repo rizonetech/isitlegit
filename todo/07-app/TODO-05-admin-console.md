@@ -36,7 +36,7 @@ track: day-6
 | 4 | §4 | Find organisations by domain or ID | §2 | [x] |
 | 5 | §5 | Filter the organisations | §2 | [ ] |
 | 6 | §6 | Independent gateway relay revision review | §2 | [ ] |
-| 7 | §7 | Admin typeahead design proposal | §4 | [ ] |
+| 7 | §7 | Admin typeahead design proposal | §4 | [x] |
 
 ## 1. Access application and JWT verification
 
@@ -237,12 +237,15 @@ Filed from D07 T05 §4 final completion's out-of-scope suggestion under coordina
 1. Assess the interaction proposal against the existing approved flow. Done when: a scoped proposal records measured costs, access constraints and recovery, and the coordinator records keep, defer or authorize-design.
 2. Record the resulting design boundary. Done when: any authorized future UI implementation has its own resolving section and approved treatment before code changes.
 
-- [ ] Capture the current Search/Enter contract and the original suggestion in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: existing domain/ID/name search, verified-domain privacy, CSV equivalence and neutral empty recovery are retained, and the 500 ms figure is explicitly unmeasured. Cheaper substitute: treating review prose as approved design. Source: `docs/reviews/07-app/D07-T05-s4.md` and coordinator scope decision.
-- [ ] Compare measured local submit-flow cost with a documented typeahead proposal in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: assumptions, request-load tradeoffs, cancellation/stale-response protection, keyboard/screen-reader behaviour, empty/error recovery and explicit-submit fallback are specified with reproducible evidence rather than an invented competitor claim. Cheaper substitute: adopting a latency number without measurement. Source: §4 completion suggestion.
-- [ ] Record coordinator keep/defer/authorize-design disposition and reversal cost in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: the proposal remains separate from X1 until approved, and any new implementation is filed with its design and tests before starting. Cheaper substitute: silently changing the approved surface or rewriting §4's receipt. Source: coordinator scope decision.
-- [ ] Commit: `design: record admin search interaction proposal decision`
+- [x] Capture the current Search/Enter contract and the original suggestion in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: existing domain/ID/name search, verified-domain privacy, CSV equivalence and neutral empty recovery are retained, and the 500 ms figure is explicitly unmeasured. Cheaper substitute: treating review prose as approved design. Source: `docs/reviews/07-app/D07-T05-s4.md` and coordinator scope decision.
+- [x] Compare measured local submit-flow cost with a documented typeahead proposal in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: assumptions, request-load tradeoffs, cancellation/stale-response protection, keyboard/screen-reader behaviour, empty/error recovery and explicit-submit fallback are specified with reproducible evidence rather than an invented competitor claim. Cheaper substitute: adopting a latency number without measurement. Source: §4 completion suggestion.
+- [x] Record coordinator keep/defer/authorize-design disposition and reversal cost in `docs/specs/2026-11-04-admin-search-interaction-proposal.md`. Done when: the proposal remains separate from X1 until approved, and any new implementation is filed with its design and tests before starting. Cheaper substitute: silently changing the approved surface or rewriting §4's receipt. Source: coordinator scope decision.
+- [x] Commit: `design: record admin search interaction proposal decision`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` passes, and the proposal records reproducible measurements or explicit unknowns plus a coordinator disposition; X1 and §4 review receipts remain unchanged unless a later supported policy decision authorizes their owning changes.
+
+> **Verified:** 2026-11-04 | §7 | f981e6abb1380c237d77aed9aa975f1bb22f65d7
+> **Review:** `docs/reviews/d07-t05-s7.json`
 
 ## Verification
 
