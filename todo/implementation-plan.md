@@ -263,7 +263,7 @@ Sections: 12 | Checklist items: 115
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
-| [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
+| [x]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
@@ -488,13 +488,13 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D03 T04 §47 | Twelve to seventeen thousand more training pages            | none                 | 5     |
 | [x]    | D04 T01 §6  | Prompt-injection fixture suite                              | none                 | 5     |
 | [x]    | D04 T01 §7  | Prompt Guard as a second classifier                         | cloudflare           | 4     |
-| [ ]    | D04 T01 §8  | Partial checks weigh on the verdict                         | none                 | 2     |
-| [ ]    | D04 T01 §10 | Logo tools for the agent                                    | none                 | 3     |
+| [x]    | D04 T01 §8  | Partial checks weigh on the verdict                         | none                 | 2     |
+| [x]    | D04 T01 §10 | Logo tools for the agent                                    | none                 | 3     |
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict                    | none                 | 4     |
 | [x]    | D04 T01 §12 | Bank-change action with the ledger phone                    | none                 | 5     |
 | [x]    | D04 T01 §13 | Floor record provenance and coverage state                  | none                 | 3     |
 | [x]    | D04 T01 §15 | Fixed action on every critical invoice item                 | none                 | 3     |
-| [ ]    | D04 T01 §16 | Message-specific consequence sentences                      | none                 | 5     |
+| [x]    | D04 T01 §16 | Message-specific consequence sentences                      | none                 | 5     |
 | [x]    | D04 T02 §7  | One URL policy with the                                     | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection                          | none                 | 3     |
 | [x]    | D05 T02 §2  | Claims found in a check                                     | meta-api             | 4     |
@@ -621,7 +621,7 @@ Sections: 221 | Checklist items: 987
 | [x]    | D07 T09 §11 | Outcome and reason beside each version                      | none                 | 4     |
 | [x]    | D07 T09 §12 | Detection data beside each version                          | none                 | 4     |
 | [ ]    | D07 T09 §13 | A fresh walk from a reused card                             | none                 | 4     |
-| [ ]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
+| [x]    | D07 T09 §14 | Abandoned preview response during a retry                   | none                 | 3     |
 | [ ]    | D07 T09 §15 | Detection data freshness beside the version                 | none                 | 4     |
 | [ ]    | D07 T09 §16 | Two activations for a signed-out member                     | owner-decision       | 4     |
 | [ ]    | D07 T09 §17 | Human and Defender attribution comparison                   | owner-decision       | 4     |
@@ -633,12 +633,12 @@ Sections: 221 | Checklist items: 987
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 8 | Checklist items: 39
+Sections: 8 | Checklist items: 40
 
 | Status | Reference   | Deliverable                                          | Needs                | Items |
 | ------ | ----------- | ---------------------------------------------------- | -------------------- | ----- |
 | [x]    | D07 T01 §16 | One-border focus and an inset combobox chevron       | none                 | 6     |
-| [ ]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 9     |
+| [x]    | D07 T01 §17 | Premium polish sweep over every surface              | none                 | 10    |
 | [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis    | meta-api             | 4     |
 | [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing           | cloudflare, meta-api | 4     |
 | [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording       | none                 | 4     |
@@ -673,6 +673,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 408/597 verified sections, 119 ready to run now.
+Progress: 414/597 verified sections, 114 ready to run now.
 
-Checklist: 3009/3687 items completed (includes Commit items).
+Checklist: 3035/3688 items completed (includes Commit items).

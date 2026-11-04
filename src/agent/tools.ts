@@ -12,9 +12,12 @@
 // the time left writes nothing.
 
 import { z } from "zod";
+import { type Brand, type BrandTable, bundled, getBrand } from "../checks/brands";
 import { addEvidence, type Evidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { findSupplier, matchSupplierAccount } from "../invoice/ledger";
+import type { AblateFlag } from "../pipeline/ablate";
 import type { BankKeys } from "../trust/bank";
+import { SEGMENT_CONCEPTS, type SegmentConcept } from "../vision/sam";
 
 export const MAX_TOOL_CALLS = 8;
 export const TOOL_BUDGET_MS = 90_000;
@@ -30,6 +33,14 @@ export const TOOL_SCHEMAS = {
     branch_code: z.string().min(1).max(32).optional(),
   }),
   walk_phishing_site: Url,
+  segment_logos: z.strictObject({
+    artefact_key: z.string().min(1).max(1024),
+    concept: z.enum(SEGMENT_CONCEPTS),
+  }),
+  compare_logo: z.strictObject({
+    crop_key: z.string().min(1).max(1024),
+    brand: z.string().min(1).max(200),
+  }),
 } as const;
 export type ToolName = keyof typeof TOOL_SCHEMAS;
 
@@ -41,6 +52,9 @@ const DESCRIPTIONS: Record<ToolName, string> = {
     "Check the case organisation's supplier ledger: whether the supplier is known, and whether a claimed bank account matches the recorded one (match or no match only).",
   walk_phishing_site:
     "Walk a phishing page already in the case with test credentials, or return the walk already stored for it.",
+  segment_logos:
+    "Find and crop logos, official stamps or seals, or handwritten signatures in a render or page artefact of this case.",
+  compare_logo: "Compare a logo crop artefact of this case against a known brand's reference logo.",
 };
 
 export type ToolDefinition = {
@@ -70,7 +84,9 @@ export function toolDefinitions(): ToolDefinition[] {
   });
 }
 
-// What one tool does, injected: drafts in the `agent` family for the first four; the walk returns evidence the
+export type ToolFence = { deadlineAt: number; expired: () => boolean };
+
+// What one tool does, injected: drafts in the `agent` family for the non-walk tools; the walk returns evidence the
 // walkthrough step already stored (its own producer), so a second walk never runs and nothing is rewritten.
 export type ToolDeps = {
   expand: (url: string) => Promise<EvidenceDraft[]>;
@@ -78,6 +94,8 @@ export type ToolDeps = {
   lookupDomain: (domain: string) => Promise<EvidenceDraft[]>;
   ledger: (args: { supplier: string; accountNumber?: string; branchCode?: string }) => Promise<EvidenceDraft[]>;
   walk: (url: string) => Promise<Evidence[]>;
+  segmentLogos?: (args: { artefactKey: string; concept: SegmentConcept }, fence: ToolFence) => Promise<EvidenceDraft[]>;
+  compareLogo?: (args: { cropKey: string; brand: Brand }, fence: ToolFence) => Promise<EvidenceDraft[]>;
 };
 
 export type ToolResult =
@@ -85,7 +103,13 @@ export type ToolResult =
   | { status: "refused"; tool: string; reason: string }
   | { status: "failed"; tool: string; reason: string; evidence: Evidence[] };
 
-export type ToolContext = { db: D1Database; caseId: string; urls: readonly string[] };
+export type ToolContext = {
+  db: D1Database;
+  caseId: string;
+  urls: readonly string[];
+  brands?: BrandTable;
+  ablateFlag?: () => Promise<AblateFlag | null> | AblateFlag | null;
+};
 
 // The case already holds a walk of another page: a refusal with its own name, never a second walk.
 class AlreadyWalked extends Error {
@@ -221,6 +245,73 @@ export function createToolExecutor(
       const domain = (value.domain as string).toLowerCase();
       if (!hosts.has(domain)) return { status: "refused", tool, reason: "domain_not_in_case" };
       work = () => deps.lookupDomain(domain);
+    } else if (tool === "segment_logos") {
+      const segArgs = parsed.data as z.infer<typeof TOOL_SCHEMAS.segment_logos>;
+      const artefactKey = segArgs.artefact_key;
+      const concept = segArgs.concept;
+      if (!artefactKey.startsWith(`art/${ctx.caseId}/render/`) && !artefactKey.startsWith(`art/${ctx.caseId}/page/`)) {
+        return { status: "refused", tool, reason: "artefact_not_in_case" };
+      }
+      const row = await ctx.db
+        .prepare("SELECT kind, media_type FROM artefacts WHERE case_id = ? AND r2_key = ?")
+        .bind(ctx.caseId, artefactKey)
+        .first<{ kind: string; media_type: string }>()
+        .catch(() => null);
+      if (!row || (row.kind !== "render" && row.kind !== "page")) {
+        return { status: "refused", tool, reason: "artefact_not_in_case" };
+      }
+      if (now() >= deadline) return { status: "refused", tool, reason: "time_cap" };
+      work = async () => {
+        const ablated = await Promise.resolve(ctx.ablateFlag?.()).catch(() => null);
+        if (ablated === "no-sam") {
+          return [
+            {
+              check: "agent.segment_logos",
+              severity: "info",
+              summary: "Logo segmentation was skipped under the no-sam ablation flag.",
+              detail: { checked: false, ablated: "no-sam", artefactKey, concept },
+              artefacts: [],
+            },
+          ];
+        }
+        if (!deps.segmentLogos) throw new Error("segment_logos is not configured");
+        return deps.segmentLogos({ artefactKey, concept }, { deadlineAt: deadline, expired: () => now() >= deadline });
+      };
+    } else if (tool === "compare_logo") {
+      const cmpArgs = parsed.data as z.infer<typeof TOOL_SCHEMAS.compare_logo>;
+      const cropKey = cmpArgs.crop_key;
+      if (!cropKey.startsWith(`art/${ctx.caseId}/crop/`) || /-manifest-\d+\.json$/.test(cropKey)) {
+        return { status: "refused", tool, reason: "artefact_not_in_case" };
+      }
+      const brand = getBrand(ctx.brands ?? bundled, cmpArgs.brand);
+      if (!brand) {
+        return { status: "refused", tool, reason: "unknown_brand" };
+      }
+      const row = await ctx.db
+        .prepare("SELECT kind, media_type FROM artefacts WHERE case_id = ? AND r2_key = ?")
+        .bind(ctx.caseId, cropKey)
+        .first<{ kind: string; media_type: string }>()
+        .catch(() => null);
+      if (row?.kind !== "crop" || !/^image\/(png|jpeg|webp)$/i.test(row.media_type)) {
+        return { status: "refused", tool, reason: "artefact_not_in_case" };
+      }
+      if (now() >= deadline) return { status: "refused", tool, reason: "time_cap" };
+      work = async () => {
+        const ablated = await Promise.resolve(ctx.ablateFlag?.()).catch(() => null);
+        if (ablated === "no-sam") {
+          return [
+            {
+              check: "agent.compare_logo",
+              severity: "info",
+              summary: `Logo comparison for ${brief(brand.name)} was skipped under the no-sam ablation flag.`,
+              detail: { checked: false, ablated: "no-sam", cropKey, brand: brand.name },
+              artefacts: [],
+            },
+          ];
+        }
+        if (!deps.compareLogo) throw new Error("compare_logo is not configured");
+        return deps.compareLogo({ cropKey, brand }, { deadlineAt: deadline, expired: () => now() >= deadline });
+      };
     } else {
       const ledgerArgs = parsed.data as z.infer<typeof TOOL_SCHEMAS.ledger_lookup>;
       work = () =>
@@ -246,7 +337,7 @@ export function createToolExecutor(
       const result = await Promise.race([operation(), late]);
       return result === "late" ? { status: "refused", tool, reason: "time_cap" } : result;
     } catch (error) {
-      if (error instanceof TimeCap) return { status: "refused", tool, reason: "time_cap" };
+      if (error instanceof TimeCap || now() >= deadline) return { status: "refused", tool, reason: "time_cap" };
       return failed(tool, error);
     } finally {
       clearTimeout(timer);

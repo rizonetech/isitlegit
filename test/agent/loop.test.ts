@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type AgentContext, fixedActionsFor, runAgent } from "../../src/agent/loop";
-import { ruleVerdict } from "../../src/agent/rule-verdict";
+import { FLOOR_CONSEQUENCES, ruleVerdict } from "../../src/agent/rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
@@ -708,5 +708,69 @@ describe("exhausted tools", () => {
     expect(view.headline).toBe("No warning signs were found, but some checks could not run");
     expect(view.confidence).toBeLessThanOrEqual(0.5);
     expect(deps.counts.expand).toBe(0);
+  });
+
+  it("stores the credential consequence sentence on a floored credential answer, the bank sentence on a floored payment answer, and keeps unfloored model wording (D04 T01 §16)", async () => {
+    const credCase = await newCase([
+      draft("link.credential_form", "high", "A sign-in form asks for a password.", { page: PAGE }),
+    ]);
+    const mCred = model([
+      () => message("done"),
+      () =>
+        final({
+          ...ANSWER,
+          verdict: "safe",
+          meaning: "Model says this sign-in link is fine.",
+          cited_evidence_ids: ["E1"],
+        }),
+    ]);
+    const credView = await runAgent(agent(credCase, mCred.fetchStub).ctx, credCase);
+    expect(credView.verdict).toBe("suspicious");
+    expect(credView.meaning).toBe(FLOOR_CONSEQUENCES.credential);
+    expect(await getVerdict(env.DB, credCase)).toMatchObject({
+      ok: true,
+      value: { meaning: FLOOR_CONSEQUENCES.credential },
+    });
+
+    const bankCase = await newCase([
+      draft("invoice.bank_changed", "critical", "The bank account differs from the supplier's record.", {}),
+    ]);
+    const mBank = model([
+      () => message("done"),
+      () =>
+        final({
+          ...ANSWER,
+          verdict: "suspicious",
+          meaning: "Model says check before paying.",
+          cited_evidence_ids: ["E1"],
+        }),
+    ]);
+    const bankView = await runAgent(agent(bankCase, mBank.fetchStub).ctx, bankCase);
+    expect(bankView.verdict).toBe("malicious");
+    expect(bankView.meaning).toBe(FLOOR_CONSEQUENCES.bank);
+    expect(bankView.meaning).not.toBe(credView.meaning);
+    expect(await getVerdict(env.DB, bankCase)).toMatchObject({
+      ok: true,
+      value: { meaning: FLOOR_CONSEQUENCES.bank },
+    });
+
+    // Unfloored answer at the floor keeps the model's own meaning wording
+    const unflooredCase = await newCase([
+      draft("invoice.bank_changed", "critical", "The bank account differs from the supplier's record.", {}),
+    ]);
+    const mUnfloored = model([
+      () => message("done"),
+      () =>
+        final({
+          ...ANSWER,
+          verdict: "malicious",
+          meaning: "The model's own unfloored malicious sentence.",
+          cited_evidence_ids: ["E1"],
+        }),
+    ]);
+    const unflooredView = await runAgent(agent(unflooredCase, mUnfloored.fetchStub).ctx, unflooredCase);
+    expect(unflooredView.verdict).toBe("malicious");
+    expect(unflooredView.floorApplied).toBeNull();
+    expect(unflooredView.meaning).toBe("The model's own unfloored malicious sentence.");
   });
 });

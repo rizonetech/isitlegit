@@ -50,7 +50,7 @@ track: day-2
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [x] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
-| 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
+| 14 | §14 | Abandoned preview response during a retry | §8 | [x] |
 | 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 | 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
@@ -442,6 +442,8 @@ Filed 2026-11-02 from D07 T09 §7's completion review (out-of-scope excellence i
 
 ## 14. Abandoned preview response during a retry
 
+> **Started:** 2026-11-03T23:57:00Z
+
 Filed 2026-11-02 from D07 T09 §8's round 5 (P3): §8's browser test releases each stalled response before Try again, so it does not prove that an abandoned response arriving while a retry is pending leaves the retry's loading state and deadline intact. §8 cancels the abandoned transfer, so the scenario needs a harness that can deliver the old response after the retry starts (separate routes for the two requests).
 
 **Phase:** 7
@@ -456,11 +458,16 @@ Filed 2026-11-02 from D07 T09 §8's round 5 (P3): §8's browser test releases ea
 
 1. Prove the abandoned arrival. Done when: the old response delivered during a held retry changes neither its loading state nor its deadline.
 
-- [ ] Extend the preview route control in `test/node/evidence-cards-browser.test.tsx` so the abandoned attempt's response and the retry's response are held and released separately. Done when: the test can release the abandoned response while the retry is still pending. Cheaper substitute: releasing both together, which §8's test already does and which proves nothing about the ordering.
-- [ ] Assert the retry's state in `test/node/evidence-cards-browser.test.tsx`: after the abandoned response arrives during the pending retry, the card still says it is loading again, no failure note appears early, and the retry is given up at its own deadline. Done when: the test fails if a late load or error from the abandoned attempt clears the retry's status or hides its preview. Cheaper substitute: asserting only the final state, which passes however the middle went.
-- [ ] Commit: `test: abandoned preview response during a retry`
+- [x] Extend the preview route control in `test/node/evidence-cards-browser.test.tsx` so the abandoned attempt's response and the retry's response are held and released separately for both a `200` image response and a `404` failure response, verifying that attempt 1 starts and times out before `Try again` starts attempt 2. Done when: the test can release the abandoned `200` or `404` response while the retry's own request is confirmed in flight and still held. Cheaper substitute: releasing both together, which §8's test already does and which proves nothing about the ordering.
+- [x] Assert the retry's state in `test/node/evidence-cards-browser.test.tsx`: after the abandoned `200` or `404` response arrives during the pending retry, and under handler-level stale `load`/`error`/classification delivery with a negative control proving the assertions fail when isolation is bypassed, the card still says it is loading again, no failure note or loaded image appears early, and the retry is given up at its own deadline. Done when: the test fails if a late load, error or classification from the abandoned attempt clears the retry's status, reveals a loaded image or hides its preview. Cheaper substitute: asserting only the final state, which passes however the middle went.
+- [x] Commit: `test: abandoned preview response during a retry`
+
+**Corrected 2026-11-04 (plan review):** the test exercises both a `200` PNG and a `404` abandoned response delivered while the retry's separate request is confirmed pending, verifies request ordering across the two attempts, and proves both browser-level response isolation and handler-level stale-event isolation (with a negative control demonstrating the assertions fail when the isolation guard is bypassed).
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the abandoned response delivered during a pending retry.
+
+> **Verified:** 2026-11-04 | §14 | 652433cd48ddebe26c1ab8ff10157954d89b7f6b
+> **Review:** `docs/reviews/d07-t09-s14.json`
 
 ## 15. Detection data freshness beside the version
 

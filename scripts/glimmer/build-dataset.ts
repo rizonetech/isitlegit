@@ -125,6 +125,7 @@ export const FLOORS: Floors = {
 };
 export const FLOORS_V1_1: Floors = {
   ...FLOORS,
+  sampleTraining: 0.25,
   splitBalance: true,
   hardNegatives: HARD_NEGATIVE_FLOORS,
 };
@@ -530,6 +531,7 @@ export function dedupe(
   const order = (a: Entry, b: Entry) =>
     Number(prefer.has(b.page.id)) - Number(prefer.has(a.page.id)) ||
     Number(verified(b)) - Number(verified(a)) ||
+    Number(sampleLure(b.page)) - Number(sampleLure(a.page)) ||
     a.page.id.localeCompare(b.page.id);
   const index = (entry: Entry, keys: number[], lo: number, hi: number, len: number) => {
     const idx = indexedEntries.length;
@@ -892,11 +894,13 @@ export function splitBalanceReport(
     poolTrainDenominator: number,
     poolEvalCount: number,
     poolEvalDenominator: number,
+    clampBand = false,
   ): SplitBalanceClassRow => {
+    const clamp = (s: number) => (clampBand ? Math.min(LURE_SHARE.max, Math.max(LURE_SHARE.min, s)) : s);
     const trainShare = ratio(trainCount, trainDenominator);
     const evalShare = ratio(evaluationCount, evaluationDenominator);
-    const trainTarget = hasPools ? ratio(poolTrainCount, poolTrainDenominator) : evalShare;
-    const evaluationTarget = hasPools ? ratio(poolEvalCount, poolEvalDenominator) : trainShare;
+    const trainTarget = hasPools ? clamp(ratio(poolTrainCount, poolTrainDenominator)) : evalShare;
+    const evaluationTarget = hasPools ? clamp(ratio(poolEvalCount, poolEvalDenominator)) : trainShare;
     const trainGap = Math.abs(trainShare - trainTarget);
     const evaluationGap = Math.abs(evalShare - evaluationTarget);
     const gap = hasPools ? Math.max(trainGap, evaluationGap) : Math.abs(trainShare - evalShare);
@@ -925,6 +929,7 @@ export function splitBalanceReport(
     trainPool.length,
     evalPoolLures.length,
     evalPool.length,
+    true,
   );
 
   const byType = Object.fromEntries(
@@ -936,7 +941,17 @@ export function splitBalanceReport(
         const peCount = evalPool.length - evalPoolLures.length;
         return [
           t,
-          makeRow(tCount, train.length, eCount, evaluation.length, ptCount, trainPool.length, peCount, evalPool.length),
+          makeRow(
+            tCount,
+            train.length,
+            eCount,
+            evaluation.length,
+            ptCount,
+            trainPool.length,
+            peCount,
+            evalPool.length,
+            true,
+          ),
         ];
       }
       // For the four lure-only types, denominator is lures on that side when both sides have lures (or when pools are
@@ -1206,6 +1221,9 @@ export function split(
   // floor-filling group selection steers evaluation's lure-type shares toward the pool targets.
   const admittedPool = entries.filter(admit);
   const admittedPoolLures = admittedPool.filter((e) => e.answer.lure);
+  const targetEvalLureShare = admittedPool.length
+    ? Math.min(LURE_SHARE.max, Math.max(LURE_SHARE.min, admittedPoolLures.length / admittedPool.length))
+    : 0.5;
   const targetTypeShares = Object.fromEntries(
     LURE_ONLY_TYPES.map((t) => [
       t,
@@ -1251,6 +1269,7 @@ export function split(
     const shownLures = shown.filter((e) => e.answer.lure);
     return {
       total: shown.length,
+      lureShare: shown.length ? shownLures.length / shown.length : 0,
       southAfrica: shown.filter((e) => e.page.south_africa).length,
       sampleLures: shown.filter((e) => sampleLure(e.page)).length,
       lureTypes: Object.fromEntries(LURE_TYPES.map((t) => [t, shown.filter((e) => e.answer.lure_type === t).length])),
@@ -1269,9 +1288,10 @@ export function split(
     const balanceShort =
       !!floors.splitBalance &&
       now.total >= floors.evaluation &&
-      LURE_ONLY_TYPES.some(
-        (t) => Math.abs((now.lureTypeShares[t] ?? 0) - (targetTypeShares[t] ?? 0)) > SPLIT_BALANCE_TOLERANCE,
-      );
+      (Math.abs(now.lureShare - targetEvalLureShare) > SPLIT_BALANCE_TOLERANCE ||
+        LURE_ONLY_TYPES.some(
+          (t) => Math.abs((now.lureTypeShares[t] ?? 0) - (targetTypeShares[t] ?? 0)) > SPLIT_BALANCE_TOLERANCE,
+        ));
     return (
       now.total < floors.evaluation ||
       now.southAfrica < floors.southAfrica ||
@@ -1290,8 +1310,16 @@ export function split(
     const now = counts();
     const share = floors.lureShare ?? LURE_SHARE;
     // Balancing cuts the larger side, so once one side is in excess only the other side adds to the published set.
-    const needsBenign = now.lures > (now.benign * share.max) / (1 - share.max);
-    const needsLures = now.benign > (now.lures * (1 - share.min)) / share.min;
+    const needsBenign =
+      now.lures > (now.benign * share.max) / (1 - share.max) ||
+      (!!floors.splitBalance && now.lureShare > targetEvalLureShare + SPLIT_BALANCE_TOLERANCE / 2);
+    const needsLures =
+      now.benign > (now.lures * (1 - share.min)) / share.min ||
+      (!!floors.splitBalance && now.lureShare < targetEvalLureShare - SPLIT_BALANCE_TOLERANCE / 2);
+    const hardFloorsMet =
+      now.southAfrica >= floors.southAfrica &&
+      now.sampleLures >= floors.sampleEvaluation &&
+      LURE_TYPES.every((t) => (now.lureTypes[t] ?? 0) >= floors.perLureType);
     const underTargetType = (t: string) =>
       !!floors.splitBalance &&
       LURE_ONLY_TYPES.includes(t as (typeof LURE_ONLY_TYPES)[number]) &&
@@ -1304,7 +1332,16 @@ export function split(
       (needsBenign && !e.answer.lure) ||
       (needsLures && e.answer.lure);
     const allowed = (g: string) => holdable(g) && (!samplesIn(g) || spares(g)) && sparesHardNegatives(g);
-    const preferred = rest.findIndex((g) => allowed(g) && real(g).some((e) => admit(e) && needs(e)));
+    const helpsBalance = (g: string) => {
+      if (!floors.splitBalance || !hardFloorsMet) return true;
+      const admitted = real(g).filter(admit);
+      const gLures = admitted.filter((e) => e.answer.lure).length;
+      const gBenign = admitted.length - gLures;
+      if (needsBenign && !needsLures) return gBenign > gLures;
+      if (needsLures && !needsBenign) return gLures > gBenign;
+      return true;
+    };
+    const preferred = rest.findIndex((g) => allowed(g) && helpsBalance(g) && real(g).some((e) => admit(e) && needs(e)));
     const index = preferred >= 0 ? preferred : rest.findIndex((g) => allowed(g) && real(g).some(admit));
     // A group with nothing to admit adds nothing to evaluation and would only take its pages from training.
     if (index < 0) break;

@@ -31,7 +31,7 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Experiment: edited invoice digits | D03 T01 §5 | [x] |
-| 2 | §2 | Experiment: SAM and Spark on stamps | §1, D03 T03 §1 | [ ] |
+| 2 | §2 | Experiment: SAM and Spark on stamps | §1, D03 T03 §1 | [x] |
 | 3 | §3 | Experiment: Wonder on a multi-step lure | §2, D04 T02 §4 | [ ] |
 | 4 | §4 | Experiment: transcribing SA languages | §3, D01 T03 §4 | [ ] |
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
@@ -100,12 +100,15 @@ Does segmenting the stamp and signature with SAM 3.1 and sending the crops with 
 
 1. Compare chain and whole-page on 20 synthetic POP pairs. Done when: the log entry records both accuracies and costs.
 
-- [x] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen. Done 2026-11-02: code-made pairs in `eval/frontier/stamps.ts` (`buildSet`, 20 labelled pairs: stamp-date, signature-swap and stamp-colour alterations plus genuine controls, with the genuine reference stamp both arms receive); tested in `test/node/eval-frontier-stamps.test.ts`.
-- [ ] Run the chain (SAM crops plus reference to Spark) and the whole-page prompt on each. Done when: results are stored.
-- [ ] Write the log entry and decide whether the chain becomes the default in D06 T02 §2. Done when: the entry exists and a section is filed if adopted.
-- [ ] Commit: `frontier: SAM and Spark chain on stamps and signatures`
+- [x] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen. Done 2026-11-02 (expanded to 20 genuine/doctored pairs = 40 pages on 2026-11-04): code-made pairs in `eval/frontier/stamps.ts` (`buildSet`, 20 labelled pairs: 7 `stamp-date`, 7 `signature-swap` and 6 `stamp-colour` alterations plus 20 genuine controls, with the genuine reference stamp/signature band both arms receive); tested in `test/node/eval-frontier-stamps.test.ts`.
+- [x] Run the chain (SAM crops plus reference to Spark) and the whole-page prompt on each. Done when: results are stored. Done 2026-11-04: 80 outcomes (40 `whole` answered, 40 `chain` `empty-segmentation` via real `sam-3.1` streaming segmentation without fixed-coordinate fallback) stored in `eval/frontier/sets/stamps/results.json`, bound to `fileSha256` and `fingerprint: baad738ed2b85c3d9febeab94865895824efc794fea285fc60b694d89b74d87b`; whole detection 65.0% (13/20: 7/7 stamp-date, 6/6 stamp-colour, 0/7 signature-swap), whole false positives 0.0% (0/20), settled cost US$0.1335 whole (40 calls, median 4964 ms, worst 7851 ms) vs US$0.2000 chain (80 SAM calls returning 0 boxes on flat vector stamps/signatures, median 1731 ms, worst 3514 ms).
+- [x] Write the log entry and decide whether the chain becomes the default in D06 T02 §2. Done when: the entry exists and a section is filed if adopted. Done 2026-11-04: entry in `docs/frontier-log.md` (`score --check` exit 0, `Decision: cut | fingerprint: baad738ed2b85c3d9febeab94865895824efc794fea285fc60b694d89b74d87b`); not adopted into `D06 T02 §2` because SAM 3.1 returns 0 boxes on flat vector-rendered synthetic POP stamps and signatures.
+- [x] Commit: `frontier: SAM and Spark chain on stamps and signatures`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-frontier-stamps.test.ts` passes (stubbed arms, payload and completeness refusals) and `node eval/frontier/stamps.ts score --check docs/frontier-log.md` exits 0 on the stored results.
+
+> **Verified:** 2026-11-04 | §2 | 2e3478ee80cea9110c466e538af448f1a4b7c846
+> **Review:** `docs/reviews/d08-t03-s2.json`
 
 ## 3. Experiment: Wonder on a multi-step lure
 
