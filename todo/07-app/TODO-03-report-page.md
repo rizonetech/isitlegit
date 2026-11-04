@@ -97,7 +97,7 @@ track: day-2
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its | §5 | [ ] |
 | 52 | §52 | Report address from a | §48, D01 T03 §6 | [ ] |
-| 53 | §53 | One-action copy of headers | §19, §54 | [ ] |
+| 53 | §53 | One-action copy of headers | §19, §54 | [x] |
 | 54 | §54 | All stored headers read in place | §19 | [x] |
 | 55 | §55 | A deadline on the full-size viewer's request | §8 | [x] |
 
@@ -1822,14 +1822,17 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 
 1. Record the decision, then build the control. Done when: the operator's choice is in `design/SPEC.md` M3 and the headers tab copies its text in one keyboard-operable action.
 
-- [ ] Record the existing operator approval of 2026-11-02 in `design/SPEC.md` M3 and the `Report-MessagePreview` board, export its reference and update coverage. Done when: the decision line and copy states are in the SPEC and `python3 design/tools/check-design.py` passes. Cheaper substitute: an unrecorded control outside the approved design.
-- [ ] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it retrieves every remaining bounded header slice supplied by §54 under the same access rule before writing the complete text to the clipboard, without requiring manual slice loading, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium and proves exact equality for stored headers longer than 200 KB, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
-- [ ] Keep the action hidden on the message tab and unavailable while headers load or are missing, empty or failed; guard asynchronous clipboard completion against tab changes and closing in `openOriginal`. Done when: browser tests prove no stale success or selection reaches another tab or a closed dialog, including phone width in both themes, and explicitly assert loading, missing, empty, failed reload after success, and recovery states. Cheaper substitute: copying a cached prior response during a new request.
-- [ ] Commit: `web: copy the complete headers in one action`
+- [x] Record the existing operator approval of 2026-11-02 in `design/SPEC.md` M3 and the `Report-MessagePreview` board, export its reference and update coverage. Done when: the decision line and copy states are in the SPEC and `python3 design/tools/check-design.py` passes. Cheaper substitute: an unrecorded control outside the approved design.
+- [x] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it retrieves every remaining bounded header slice supplied by §54 under the same access rule before writing the complete text to the clipboard, without requiring manual slice loading, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium and proves exact equality for stored headers longer than 200 KB, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
+- [x] Keep the action hidden on the message tab and unavailable while headers load or are missing, empty or failed; guard asynchronous clipboard completion against tab changes and closing in `openOriginal`. Done when: browser tests prove no stale success or selection reaches another tab or a closed dialog, including phone width in both themes, and explicitly assert loading, missing, empty, failed reload after success, and recovery states. Cheaper substitute: copying a cached prior response during a new request.
+- [x] Commit: `web: copy the complete headers in one action`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` passes with the headers copied and the refusal handled.
 
 **Plan self-review disposition (2026-11-04):** P1 accepted: complete copying depends on the bounded header retrieval in §54; added the dependency and long-header equality proof. P2 accepted: unavailable and recovery states now have explicit assertions. Section parked before implementation until §54 ships; no approval or stamp claimed.
+
+> **Verified:** 2026-11-04 | §53 | 3fe752082eaaa537fa5464ecf155bf4c1e791ede
+> **Review:** `docs/reviews/d07-t03-s53.json`
 
 ## 54. All stored headers read in place
 

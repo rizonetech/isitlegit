@@ -554,7 +554,7 @@ Sections: 224 | Checklist items: 1008
 | [ ]    | D07 T03 §51 | Walkthrough action to its                                   | none                 | 4     |
 | [ ]    | D07 T03 §52 | Report address from a                                       | none                 | 4     |
 | [x]    | D07 T03 §54 | All stored headers read in place                            | none                 | 7     |
-| [ ]    | D07 T03 §53 | One-action copy of headers                                  | none                 | 4     |
+| [x]    | D07 T03 §53 | One-action copy of headers                                  | none                 | 4     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification                      | none                 | 9     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                                | none                 | 6     |
 | [x]    | D07 T04 §8  | A chosen date range in the                                  | none                 | 7     |
@@ -676,6 +676,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 423/600 verified sections, 114 ready to run now.
+Progress: 424/600 verified sections, 113 ready to run now.
 
-Checklist: 3094/3709 items completed (includes Commit items).
+Checklist: 3098/3709 items completed (includes Commit items).

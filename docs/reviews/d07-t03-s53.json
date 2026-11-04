@@ -1,0 +1,162 @@
+{
+  "ref": "D07 T03 \u00a753",
+  "title": "One-action copy of headers",
+  "implementation_sha": "3fe752082eaaa537fa5464ecf155bf4c1e791ede",
+  "date": "2026-11-04",
+  "reviews": [],
+  "checks": [
+    "Test checkpoint: pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx passes with the headers copied and the refusal handled. Observed: 49 tests passed (140.30s), including actual complete Chromium clipboard readback above 200 KB, verified selection, visible outcomes, access failures and stale-result cancellation; full typecheck/build/lint exit 0 (24 lint warnings, 2 infos), design zero problems. Original failed reviews and regressions preserved."
+  ],
+  "review_policy": "codex-two-pass-v1",
+  "policy_transition": {
+    "from_policy": "codex-self-review",
+    "plan_candidate": "d8c1356c17df265cfe4e9a831a84f2f7d1aa30ee",
+    "plan_digest": "c2db772206d5192d",
+    "plan_pin": "0bb45776a2b27198b4bb6e41128b2ff411cac1e7",
+    "prefix_bytes": 1340,
+    "prefix_sha256": "4e940c881155f7d57c41a93768855f3bab4ab459c52ba06ee11571c99a917977",
+    "to_policy": "codex-two-pass-v1",
+    "version": 1
+  },
+  "reconciliation": {
+    "report": "docs/reviews/07-app/D07-T03-s53.md",
+    "verdict": "complete",
+    "candidate": "3fe752082eaaa537fa5464ecf155bf4c1e791ede",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "pin": "32964f402266d843985f1d518be5c8d08ee081b9",
+    "binding": {
+      "candidate": "3fe752082eaaa537fa5464ecf155bf4c1e791ede",
+      "completion_candidate": "972108f035eb580bd93aa5929b4f5478e7b16f77",
+      "completion_digest": "01bb8bc130ea1371",
+      "contract_path": "todo/07-app/TODO-03-report-page.md",
+      "contract_sha256": "f90562e8b9538695c4bd6112617db8cae05eb94ded2d2e99e98fd7695092f03f",
+      "disposition_blob": "80be35364f4d5114cf10d4c56934bc556570853b",
+      "disposition_commit": "3fe752082eaaa537fa5464ecf155bf4c1e791ede",
+      "disposition_path": "docs/reviews/07-app/D07-T03-s53-disposition.md",
+      "plan_candidate": "d8c1356c17df265cfe4e9a831a84f2f7d1aa30ee",
+      "plan_contract_sha256": "e7320d069c56970d8ecbbde718fe8bcd8505eb6ac197e247b365301499dfb6fb",
+      "prefix_bytes": 8274,
+      "prefix_sha256": "41f962c822b7a0c4d4d1f56a723655b772b8fe419f0e3919f674da6d5e301a19",
+      "report": "docs/reviews/07-app/D07-T03-s53.md",
+      "version": 1
+    },
+    "digest": "60ecf35c9e36be60"
+  },
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s53.md",
+    "verdict": "gaps",
+    "candidate": "972108f035eb580bd93aa5929b4f5478e7b16f77",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 0,
+  "round_cap": 0,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s53.md",
+    "candidate": "d8c1356c17df265cfe4e9a831a84f2f7d1aa30ee",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "low",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "low"
+    },
+    "rounds": [
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "low",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "low",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    },
+    "reconciliation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "plan-delivery",
+        "record"
+      ]
+    },
+    "combined": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery",
+        "consistency",
+        "record",
+        "quality",
+        "optimization",
+        "design"
+      ]
+    }
+  }
+}
