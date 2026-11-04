@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 228 | Checklist items: 1031
+Sections: 228 | Checklist items: 1035
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -515,7 +515,7 @@ Sections: 228 | Checklist items: 1031
 | [x]    | D05 T04 §12 | Monitor case allowance and quality                          | meta-api             | 3     |
 | [ ]    | D05 T04 §13 | Unseeded autonomous discovery evaluation                    | none                 | 4     |
 | [x]    | D06 T01 §3  | Bank-change rules with the fixed action                     | none                 | 12    |
-| [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 6     |
+| [ ]    | D05 T03 §1  | Verification request to the contact                         | none                 | 10    |
 | [ ]    | D05 T03 §2  | Reply capture into the case                                 | cloudflare           | 5     |
 | [x]    | D06 T01 §5  | Synthetic invoices in genuine and                           | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                           | none                 | 5     |
@@ -682,4 +682,4 @@ Sections: 20 | Checklist items: 77
 
 Progress: 422/604 verified sections, 117 ready to run now.
 
-Checklist: 3097/3732 items completed (includes Commit items).
+Checklist: 3097/3736 items completed (includes Commit items).

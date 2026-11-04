@@ -35,21 +35,29 @@ track: day-5
 
 ## 1. Verification request to the contact
 
+> **Started:** 2026-11-04T08:12:11.509439+00:00
+
 The recipient is the supplier's registered finance contact from code and stored records, never from the invoice or a model (spec 4.6a). One request per case; the body states the amount and the last three digits of the account on the invoice (the invoice is the member's document) and asks for a yes or no reply.
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
 
+**Delivery decision 2026-11-04:** Coordinator allocated migration 0093; historical 0012 is not available. Shared workflow/evidence integration is escalated to the coordinator; this section cannot stamp with an uncalled helper. Request evidence and messages disclose only invoice-owned last-three digits, never registered bank details.
+
 **Build order:**
 
 1. Send the request. Done when: the demo fixture sends one `verify` mail with a signed reply token.
 
-- [ ] Add migration `0012_verifications.sql` with `verifications` (`case_id`, `supplier_org_id`, `token_hash`, `sent_at`, `expires_at` 72 hours, `answer` nullable, `answered_at`). Done when: it applies locally.
+- [ ] Add migration `0093_verifications.sql` with `verifications` (`case_id`, `supplier_org_id`, `token_hash`, `sent_at`, `expires_at` 72 hours, `answer` nullable, `answered_at`). Done when: it applies locally.
 - [ ] Build the request in `src/trust/verify-request.ts` from `verify@isitlegit.co.za` with `Reply-To: verify+<token>@isitlegit.co.za`. Done when: `test/trust/verify-request.test.ts` snapshots it.
 - [ ] Send only to the identity's `finance_contact_email` through the allowlist, once per case. Done when: the test proves the invoice's own contact address is never used. Cheaper substitute: replying to the invoice sender.
 - [ ] Add a `verification.requested` evidence item. Done when: the case shows it.
 - [ ] Send a verification request only while the organisation has `closed-loop` (`hasFeature`, D07 T02 §8), checked when the queued request runs. Done when: an organisation that lapses before its queued request runs sends nothing, an entitled one sends, and removing the check fails the test. Source: D07 T02 §8 plan review.
+- [ ] Persist a unique case request before sending, with a 72-hour expiry, recipient hash, immutable invoice amount/currency/last-three snapshot and token hash; derive the opaque reply token with a domain-separated MAC under the existing auth secret, never store or expose its plaintext. Done when: concurrent and replayed attempts never resubmit a sent or uncertain delivery and a resumed request uses the same token; the reply address remains within the mailbox local-part limit.
+- [ ] Select only a stored `invoice.bank_changed` registry mismatch for this case and its actual owning organisation; re-read the supplier's effective protection and verified finance contact and the caller's entitlement at execution. Refuse ambiguous multiple supplier/account requests rather than silently confirm all invoices through one reply. Done when: cross-tenant, lapsed, ledger-only, missing/unverified contact, multiple conflicting invoices and malformed evidence send nothing with explicit outcomes, and the registered account never appears in a message or evidence.
+- [ ] Preserve SMTP2GO's sent/failed/refused/uncertain distinction and durable idempotency key, adding `verification.requested` only for a confirmed send and explicit unavailable coverage otherwise. Done when: storage failure, transport uncertainty and replay do not fabricate delivery or send twice; evidence recovery after a confirmed send does not submit again.
+- [ ] Connect the service after persisted invoice rules in the queued analysis workflow, with the `verification` producer admitted through the evidence registry. Shared pipeline/registry changes require coordinator-assigned exclusive ownership before edits. Done when: a targeted workflow integration test triggers the service from a stored registry mismatch and proves entitlement is checked when execution occurs, not only when intake queued the case. Reply routing and answer handling remain owned by §2.
 - [ ] Commit: `trust: verification request to the registered finance contact`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/verify-request.test.ts` passes and fails if the recipient comes from the invoice.
