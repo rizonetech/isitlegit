@@ -15,6 +15,7 @@ SETUP_FILES = (
     "AGENTS.md", ".agents/skills/codex-lane-workflow/SKILL.md", ".conclave/reviewers.toml",
     "scripts/review-dispatch.py", "scripts/lib/todo_graph.py", "scripts/codex-lanes.py",
     "todo/lanes.json", "docs/codex-lanes.md",
+    "scripts/codex_continuation.py", "scripts/codex_rpc.py", ".codex/hooks.json",
 )
 
 
@@ -125,7 +126,11 @@ def command(status: dict, session: str | None = None) -> list[str]:
         "and do not run two writers in one checkout. Record your Codex session ID and a dated Resume point "
         "in your outbox, ending with WAITING: <blocker> or WAITING: none. "
         "Continue authorized ready work until complete or genuinely blocked. Do not claim a heartbeat is "
-        "installed unless a native recurring job was actually created and verified in this session."
+        "installed without observed runtime evidence. This is an unattended session: no blocking questions. "
+        "Record decisions and reversals, escalate cross-lane issues to the coordinator, and continue other ready work. "
+        "Honor every user stop by running scripts/codex_continuation.py pause for this exact lane and session before "
+        "acknowledging it; complete the owner when the authorized run finishes. Native hooks and the explicitly "
+        "named host-timer workaround have separate runtime proof; neither is implied by this launcher."
     )
     if session:
         return ["codex", "resume", "-C", status["worktree"],
@@ -159,9 +164,24 @@ def main(argv: list[str] | None = None) -> int:
             raise LaneError("codex is not installed on PATH")
         # Lane identity comes from the checked branch, never an inherited coordinator override.
         os.environ.pop("TODO_LANE", None)
+        from codex_continuation import Registry
+        registry = Registry(root)
+        existing = registry.read(args.lane)
+        if existing:
+            if not args.resume or existing.get("session") != args.resume:
+                raise LaneError("lane has an exclusive launch claim; resume its exact owner or explicitly release it")
+            if registry.paused(existing):
+                raise LaneError("owner is paused; explicitly activate it before unattended resume")
+            claim = existing["claim"]
+        else:
+            claim = registry.reserve(args.lane)
+        argv[-1] += (f" Launch claim: {claim}. Before writing, activate ownership with "
+                     f"python3 scripts/codex_continuation.py activate --lane {args.lane} "
+                     f"--session YOUR_ACTUAL_CODEX_SESSION_ID --claim {claim}. If native hook trust is absent, "
+                     "record the runtime blocker and preserve this claim; do not invent activation proof.")
         os.execvp(argv[0], argv)
         return 0
-    except (LaneError, OSError, subprocess.TimeoutExpired) as exc:
+    except (LaneError, OSError, RuntimeError, ValueError, subprocess.TimeoutExpired) as exc:
         print(f"codex-lanes: {exc}", file=sys.stderr)
         return 2
 

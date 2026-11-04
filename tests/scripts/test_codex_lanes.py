@@ -141,7 +141,8 @@ class CodexLanes(unittest.TestCase):
     def test_launch_removes_inherited_lane_override(self):
         with mock.patch.object(self.module, "git", side_effect=self.git), \
                 mock.patch.object(self.module.shutil, "which", return_value="/bin/codex"), \
-                mock.patch.dict(self.module.os.environ, {"TODO_LANE": "eval"}), \
+                mock.patch.dict(self.module.os.environ, {"TODO_LANE": "eval",
+                    "ISITLEGIT_CONTINUATION_DIR": str(Path(self.temp.name) / "continuation")}), \
                 mock.patch.object(self.module.os, "execvp") as launch:
             self.module.main(["--root", str(self.root), "launch", "checks"])
             self.assertNotIn("TODO_LANE", self.module.os.environ)
