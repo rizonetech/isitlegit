@@ -1,10 +1,10 @@
 # Completion and excellence review prompt
 
-Copy this into a scratch file, fill in the placeholders, delete the lines that do not apply, and pass it to `scripts/review-dispatch.py --kind completion --candidate <FULL_SHA> --writer claude --prompt <file> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md`. It runs once per section, after the section is built and before the regular review rounds (`docs/review-round-prompt.md`), and is not counted as a round.
+Copy this into a scratch file, fill in the placeholders, delete the lines that do not apply, and use the writer and order authorized by the committed pin. For Codex, run `scripts/review-dispatch.py --kind completion --candidate <FULL_SHA> --writer codex --prompt <file> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md` once after the single implementation round and its repairs. Identify the role below as Codex final completion self-review. Other writers retain their recorded policy and order; this is not a regular round.
 
 ---
 
-You are an independent product reviewer. Do not modify any file. The candidate below is a feature a TODO section has just built. Answer two questions about it: is it complete for a user, and does it do the job better than the strongest alternative a user could pick instead. Report what is missing or weaker, not what is present and fine.
+You are the product completion reviewer under the candidate's recorded review policy (Codex final completion self-review for a Codex chain). Do not modify any file. The candidate below is a feature a TODO section has just built. Answer two questions about it: is it complete for a user, and does it do the job better than the strongest alternative a user could pick instead. Report what is missing or weaker, not what is present and fine.
 
 ## Candidate
 
@@ -14,6 +14,10 @@ You are an independent product reviewer. Do not modify any file. The candidate b
 - Fidelity: `<the design source the section names>`, or `none (Surface: no)`.
 - What the feature is for: `<one or two sentences: the user, the verb, what consumes the result>`.
 - Governing documents: `AGENTS.md` and `<the plan, spec or competitive analysis that applies>`.
+
+## Scope and acceptance boundary
+
+For the current Codex policy, assess the approved section, its plan and dispositions, governing design, safety contract and actual regressions. These obligations cannot be narrowed after implementation to obtain acceptance. An unmet requirement, safety breach, real in-scope defect or regression is blocking even if a checklist omitted it. A genuinely additional improvement requiring a new scope or design decision is a separate recommendation with a named owner and explicit disposition; do not describe it as delivered, but do not make it block this section solely because it would improve a larger product. Verify classifications against source and evidence, not the author's labels. Preserve the required fidelity and all already-decided improvements. Other writers remain subject to their recorded policy.
 
 ## Part 1: completeness
 
@@ -47,4 +51,4 @@ Give each shortfall a measurable target where you can (a time, a step count, a g
 
 ## Reply format
 
-Part 1 as a numbered list of every item with its mark and evidence. Part 2 as the competitor named, then a numbered list of shortfalls, each with its target and mark. Then a numbered gap list that repeats every `missing-in-scope`, `missing-out-of-scope`, `in-scope` and `out-of-scope` item in one place, one line each, with its mark. Then a final line: `COMPLETION: complete` when the gap list is empty, or `COMPLETION: gaps` when it is not. If you could not read the candidate at all (the commit, the diff or the files), say why in one line and end with `COMPLETION: blocked` instead: that is not a review.
+Part 1 as a numbered list of every item with its mark and evidence. Part 2 as the competitor named, then a numbered list of shortfalls, each with its target and mark. For Codex, finish with separate numbered lists headed `Blocking findings` and `Additional suggestions`. Every blocking finding names its unmet approved obligation or concrete defect/regression and falsifiable evidence. Every additional suggestion names why it is outside the unchanged approved obligations, its owner and disposition. End with `COMPLETION: complete` only when no blocking findings remain and every approved obligation is verified; additional suggestions alone do not force gaps. Otherwise end with `COMPLETION: gaps`. For another writer whose recorded policy requires all gaps to be filed or completed, retain that policy's combined gap list and verdict rule. If the candidate or evidence needed for acceptance cannot be read, say why and end with `COMPLETION: blocked`: that is not approval. Never rewrite an earlier failed completion using this format; an existing Codex gaps verdict requires the explicit bounded reconciliation route in `docs/reconciliation-review-prompt.md`.

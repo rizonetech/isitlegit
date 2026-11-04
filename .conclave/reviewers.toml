@@ -18,6 +18,8 @@ schema_version = 1
 
 # Operator, 2026-11-04: Codex writes and self-reviews plan, one round, then completion.
 self_review = ["codex"]
+# Operator, 2026-11-04: one bound reconciliation after a returned completion with gaps.
+reconciliation = ["codex"]
 
 # GPT-6 Astra through the Codex CLI, read-only sandbox. The effort here is the
 # default for a pass the schedule does not cover; [schedule] sets each pass's
@@ -112,3 +114,7 @@ reviewer = "wonder"
 effort = "medium"
 lenses = ["adversarial", "integration", "source-defect", "plan-delivery"]
 mode = "off"
+
+[schedule.reconciliation]
+effort = "low"
+lenses = ["adversarial", "integration", "plan-delivery", "record"]

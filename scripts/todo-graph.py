@@ -14,7 +14,7 @@
     python scripts/todo-graph.py classify 'D02 T01 §1' ...   # dispositions as JSON
     python scripts/todo-graph.py stamp 'D02 T01 §1' --sha <40-char commit> \
         --plan '<findings file>' \
-        --completion '<findings file>:<complete|completed|filed>' \
+        --completion '<findings file>:<complete|completed|filed|gaps>' \
         --review '<round>:<report path>:<clean|fixed|stopped-at-3|stopped-low-severity>' --check '<command> -> <result>' \
         [--cap-outcome '<what was done when the review cap was reached>']   # required with a stopped verdict
         [--final '<findings file>:<clean|fixed>']   # required when the schedule has a final step
@@ -91,7 +91,9 @@ def main():
     s.add_argument("--cap-outcome", help="with a stopped-at verdict: what was done when the review cap was reached")
     s.add_argument("--plan", help="required: <findings file>, the one-pass plan review before the build")
     s.add_argument("--completion", type=completion_review,
-                   help="required: <findings file>:<complete|completed|filed>, the one-pass completion review")
+                   help="required: <findings file>:<complete|completed|filed|gaps>, the one-pass completion review")
+    s.add_argument("--reconciliation", type=completion_review,
+                   help="explicit bounded follow-up: <findings file>:complete; preserves original completion gaps")
     s.add_argument("--final", type=final_review,
                    help="required when the schedule has a final step: <findings file>:<clean|fixed>, the final review")
     pc = sub.add_parser("plan-candidate", help="check a plan review's candidate before the review runs: exit 0 when "
@@ -114,7 +116,7 @@ def main():
     if args.command == "stamp":
         receipt = stamp(ROOT, args.ref, args.sha, args.review, args.checks, args.date, sync_plan=True,
                         cap_outcome=args.cap_outcome, completion=args.completion, plan=args.plan,
-                        final=args.final)
+                        final=args.final, reconciliation=args.reconciliation)
         print(f"stamped {args.ref}; receipt {receipt}; plan synchronized")
         return 0
     rows = graph()

@@ -2961,7 +2961,7 @@ class Repository(unittest.TestCase):
         # D00 T01 §28, completion review E1: a documented stamp, filled in, runs without a missing-argument retry.
         readme = (REPO / "todo/README.md").read_text(encoding="utf-8")
         examples = [line for line in readme.splitlines() if "todo-graph.py stamp " in line]
-        self.assertEqual(len(examples), 2)
+        self.assertGreaterEqual(len(examples), 2)
         for line in examples:
             for flag in ("--sha ", "--plan ", "--completion ", "--review ", "--check "):
                 self.assertIn(flag, line)
@@ -3083,6 +3083,97 @@ class CodexSelfStamp(Stamp):
         with self.assertRaisesRegex(tg.Refused, "completion verdict complete"):
             self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-11-04",
                        completion={"report": self.COMPLETION, "verdict": "completed"})
+
+
+    def reconcile(self, verdict="complete", repair=False, dispatched=False):
+        self.chain(completion="COMPLETION: gaps")
+        original = self.root / self.PLAN
+        before = original.read_bytes()
+        if repair:
+            (self.root / "repair.txt").write_text("Real repair candidate\n")
+            self.sha = self.commit("repair completion finding")
+        pin_path = self.root / tg.PIN
+        pin_text = pin_path.read_text().replace('self_review = ["codex"]',
+            'self_review = ["codex"]\nreconciliation = ["codex"]')
+        pin_text += '\n[schedule.reconciliation]\neffort = "medium"\nlenses = ["record"]\n'
+        pin_path.write_text(pin_text)
+        disposition = "docs/reviews/reconciliation-disposition.md"
+        (self.root / disposition).write_text("All original findings: evidence and scope disposition.\n")
+        self.commit("authorize reconciliation and record disposition")
+        dispatch = tg.review_dispatch()
+        binding = dispatch.make_reconciliation_binding(self.root, self.PLAN, self.sha, disposition)
+        result = {"writer": "codex", "reviewer": "astra", "model": "m", "cli": "codex",
+                  "effort": "medium", "lenses": ["record"], "failover": [],
+                  "pin": dispatch.pin_blob(pin_text.encode()), "policy": "codex-self-review",
+                  "binding": binding, "review": "RECONCILIATION: " + verdict}
+        if dispatched:
+            prompt = self.root / "reconciliation-prompt.txt"
+            prompt.write_text("Verify original findings and all repairs.\n")
+            args = types.SimpleNamespace(writer="codex", record=str(original), disposition=disposition,
+                candidate=self.sha, surface=False, prompt=str(prompt), timeout=5)
+            with mock.patch.object(dispatch, "ROOT", self.root), \
+                 mock.patch.object(dispatch, "review", return_value=result) as reviewer, \
+                 mock.patch.object(dispatch, "datetime", wraps=dispatch.datetime) as clock:
+                clock.now.return_value = dispatch.datetime.fromisoformat("2026-11-05T10:03:00+00:00")
+                response = dispatch.run_reconciliation(args, dispatch.load_pin(data=pin_text.encode()), result["pin"])
+            self.assertTrue(response["recorded"])
+            self.assertEqual(reviewer.call_count, 1)
+        else:
+            dispatch.record_completion(original, result, "2026-11-04T10:03:00Z", self.sha, "reconciliation")
+        self.assertTrue(original.read_bytes().startswith(before))
+        return before
+
+    def stamp_reconciled(self):
+        return self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-11-04",
+            completion={"report": self.PLAN, "verdict": "gaps"},
+            reconciliation={"report": self.PLAN, "verdict": "complete"})
+
+    def test_reconciliation_keeps_original_gaps_and_revalidates(self):
+        before = self.reconcile()
+        receipt = self.stamp_reconciled()
+        data = json.loads((self.root / receipt).read_text())
+        self.assertEqual(data["completion"]["verdict"], "gaps")
+        self.assertEqual(data["reconciliation"]["candidate"], self.sha)
+        self.assertTrue((self.root / self.PLAN).read_bytes().startswith(before))
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciliation_dispatch_to_stamp(self):
+        self.reconcile(repair=True, dispatched=True)
+        self.stamp_reconciled()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciliation_accepts_verified_descendant(self):
+        self.reconcile(repair=True)
+        self.stamp_reconciled()
+        self.assertTrue(tg.graph(self.root)["D00 T01 §1"].done)
+
+    def test_reconciliation_still_gaps_refuses_stamp(self):
+        self.reconcile("gaps")
+        with self.assertRaisesRegex(tg.Refused, "reconciliation.*complete|RECONCILIATION: complete"):
+            self.stamp_reconciled()
+
+    def test_reconciliation_stale_candidate_refuses_stamp(self):
+        self.reconcile()
+        self.sha = self.commit("later unreviewed code")
+        with self.assertRaisesRegex(tg.Refused, "exact.*candidate|exact.*commit"):
+            self.stamp_reconciled()
+
+    def test_reconciliation_altered_original_refuses_stamp(self):
+        self.reconcile()
+        path = self.root / self.PLAN
+        path.write_bytes(path.read_bytes().replace(b"# Self review", b"# Changed review"))
+        with self.assertRaises(tg.Refused):
+            self.stamp_reconciled()
+
+    def test_reconciliation_receipt_tampering_refuses_revalidation(self):
+        self.reconcile()
+        receipt = self.stamp_reconciled()
+        path = self.root / receipt
+        data = json.loads(path.read_text())
+        data["reconciliation"]["candidate"] = self.start
+        path.write_text(json.dumps(data))
+        with self.assertRaises(tg.Refused):
+            tg.graph(self.root)
 
 
 for _name in [n for n in vars(Stamp) if n.startswith("test_") and n not in vars(CodexSelfStamp)]:

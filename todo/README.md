@@ -110,6 +110,22 @@ python scripts/todo-graph.py stamp 'D01 T01 §1' --sha <full 40-char implementat
 
 The section's plan review (`--plan`) must have read the contract before the build: its candidate is the commit that records the section's `> **Started:**` line or an earlier one, or a later commit only when the section has an explicit `Started:` line and, every commit that descends from the Started commit and leads to the candidate (a branch forked after it included) changes only `todo/` and `docs/reviews/`, or reformats an existing JSON file under `test/` or `tests/` to the same parsed value, and leaves the section's contract (its text and its TODO file's preamble, its own Implementation Order row found by its `§N` column) byte for byte as it was; the receipt records that evidence as `plan.after_started` and validation rebuilds it, and refuses it missing when the candidate follows the Started commit (D00 T01 §28).
 
+### Codex reconciliation receipts (4 November 2026)
+
+The current Codex policy in `AGENTS.md` supersedes historical review ordering for Codex only. Its ordinary chain is plan self-review, one implementation self-review round, then exact-candidate completion. Genuine additional suggestions outside the approved contract are recorded separately with an owner and disposition; unmet requirements, safety breaches, real in-scope defects and regressions still block. Historical reviews retain their original verdict and pin.
+
+D00 T01 §35 adds one explicit reconciliation to a Codex chain ending `COMPLETION: gaps`, when its committed pin authorizes it. The original plan, round and failed completion remain unchanged. A committed disposition document addresses every original finding against the unchanged approved requirements; the reviewer verifies that evidence and all repairs on the same or a descendant candidate. Only a real `RECONCILIATION: complete` supports this command:
+
+```bash
+python3 scripts/todo-graph.py stamp 'DNN TNN §N' --sha <verified-sha> --plan <findings-path> --completion '<findings-path>:gaps' --reconciliation '<findings-path>:complete' --review '<original-round>:<findings-path>:fixed' --check '<quoted checkpoint and command> -> <observed result>'
+```
+
+Use the actual original round and `clean` if it found nothing. The receipt retains `completion.verdict = "gaps"` and adds a separate `reconciliation` record. Validation replays the exact candidate, original findings and completion binding, unchanged contract, committed disposition, authorized reconciliation pin and chronological chain. Missing, changed, stale, unrelated or still-gaps evidence refuses. Old receipts are never rewritten and old gaps are not accepted automatically.
+
+A second returned reconciliation is refused; one returning gaps leaves the section blocked pending an explicit coordinator decision. A known outage without a returned review may retry. A returned result whose findings write failed must be recovered from its durable pending state with `python3 scripts/review-dispatch.py --recover-reconciliation --record <findings-path>`, without invoking the reviewer again. An unresolved call or lost result stays blocked; preserve the marker and report it. `--list-rounds` and `--list-rounds --json` expose pending and returned reconciliation state. Full dispatch and recovery commands are in `docs/todo-workflow.md` and `.agents/skills/codex-lane-workflow/SKILL.md`.
+
+Rollback disables authorization for new calls in a new committed pin while retaining historical pins, findings, dispositions, pending state and receipts for validation. It never deletes evidence or converts a failed completion into approval.
+
 ## Commands
 
 ```powershell
