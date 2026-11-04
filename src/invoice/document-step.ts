@@ -71,12 +71,24 @@ const toBase64 = (bytes: Uint8Array) => {
 
 const isDocumentMediaType = (mediaType: string) => mediaType === "application/pdf" || mediaType.startsWith("image/");
 
-const stripMarkup = (html: string) =>
-  html
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+const hasHtmlContent = (html: string): boolean => {
+  if (
+    /<(a|img|iframe|form|svg|object|embed|video|audio|button|input|select|textarea|area|map|canvas|script)\b/i.test(
+      html,
+    )
+  ) {
+    return true;
+  }
+  if (/\b(href|src|srcdoc|action)\s*=/i.test(html)) {
+    return true;
+  }
+  const text = html
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
     .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
+    .replace(/&nbsp;|&#160;|&#xa0;/gi, " ")
     .trim();
+  return text !== "";
+};
 
 // Classifies whether a case takes the standalone payment-document route (D06 T02 §3 item 1):
 // an uploaded document or image (`sourceKind = "document"` or `"image"`), or an email whose
@@ -91,7 +103,7 @@ export function isStandaloneDocumentCase(input: {
     return input.attachments.length > 0 && input.attachments.every((a) => isDocumentMediaType(a.mediaType));
   }
   const hasText = Boolean(input.textBody && input.textBody.trim() !== "");
-  const hasHtml = Boolean(input.htmlBody && stripMarkup(input.htmlBody) !== "");
+  const hasHtml = Boolean(input.htmlBody && hasHtmlContent(input.htmlBody));
   if (hasText || hasHtml) return false;
   return input.attachments.length === 1 && isDocumentMediaType(input.attachments[0]?.mediaType ?? "");
 }
