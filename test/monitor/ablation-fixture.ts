@@ -11,9 +11,8 @@ import { fakeJpeg } from "../fixtures/jpeg";
 import { makeOrg } from "../trust/helpers";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
-export async function monitorFixture(parked = false, ownerOrg?: string, pageCount = 1) {
+export async function monitorFixture(parked = false, ownerOrg?: string, pageCount = 1, deployment = "a".repeat(40)) {
   const org = ownerOrg ?? (await makeOrg());
-  const deployment = "a".repeat(40);
   const image = fakeJpeg(640, 480),
     text = bytes(parked ? "" : "A fictional login page");
   const signals = bytes(

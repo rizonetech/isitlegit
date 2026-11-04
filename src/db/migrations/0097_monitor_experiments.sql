@@ -4,6 +4,8 @@ CREATE TABLE monitor_experiments (
  experiment_id TEXT NOT NULL,
  manifest_digest TEXT NOT NULL,
  deployment TEXT NOT NULL,
+ model_versions_json TEXT NOT NULL CHECK(length(model_versions_json)<=4096 AND json_valid(model_versions_json)),
+ settings_digest TEXT NOT NULL CHECK(length(settings_digest)=64),
  PRIMARY KEY(org_id,experiment_id)
 );
 CREATE TABLE monitor_experiment_pages (

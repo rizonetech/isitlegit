@@ -5,7 +5,7 @@ import { readExperimentReport } from "../../src/monitor/ablation-readback";
 import { admitExperiment } from "../../src/monitor/ablation-store";
 import { makeOrg } from "../trust/helpers";
 
-async function fixture() {
+async function fixture(versions = modelVersions()) {
   const org = await makeOrg();
   const deployment = "a".repeat(40);
   const manifest = {
@@ -13,7 +13,7 @@ async function fixture() {
     kind: "monitor-screening",
     seed: "readback",
     deployment,
-    modelVersions: modelVersions(),
+    modelVersions: versions,
     settingsDigest: await settingsDigest(deployment),
     pages: [{ experimentCaseId: "e1", pageId: "p1", captureDigest: "1".repeat(64), labelDigest: "2".repeat(64) }],
   };
@@ -113,4 +113,18 @@ it("returns validated stored results and refuses corrupt persisted fields", asyn
     .bind(JSON.stringify({ ...checkpoint, privateText: "must-not-leak" }), operation)
     .run();
   await expect(readExperimentReport(env.DB, org, run.monitorRunId)).rejects.toThrow();
+});
+
+it("retains exact admitted model revisions and settings in historical readback", async () => {
+  const versions = { loupe: "historical-loupe-revision", spark: "historical-spark-revision" };
+  const { org, run } = await fixture(versions);
+  expect(await readExperimentReport(env.DB, org, run.monitorRunId)).toMatchObject({
+    modelVersions: versions,
+    settingsDigest: await settingsDigest("a".repeat(40)),
+  });
+  await expect(
+    env.DB.prepare("UPDATE monitor_experiments SET model_versions_json=? WHERE org_id=?")
+      .bind(JSON.stringify(modelVersions()), org)
+      .run(),
+  ).rejects.toThrow();
 });

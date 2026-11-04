@@ -1,5 +1,6 @@
-import { env } from "cloudflare:test";
+import { createExecutionContext, env } from "cloudflare:test";
 import { afterEach, expect, it } from "vitest";
+import worker from "../../src/index";
 import { monitorAblationRoutes } from "../../src/monitor/ablation-routes";
 import { call, signIn, stubSmtp2go } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
@@ -9,7 +10,7 @@ afterEach(async () => {
   await env.DB.prepare("DELETE FROM model_spend WHERE id IN ('headroom-route','repeat-headroom')").run();
 });
 
-async function world() {
+async function world(mounted = false) {
   const email = `monitor-${crypto.randomUUID()}@demo.isitlegit.co.za`,
     code = `code-${crypto.randomUUID()}`;
   await addInviteCode(env.DB, code);
@@ -39,14 +40,14 @@ async function world() {
   const starts: string[] = [];
   const restarts: string[] = [];
   let unknownRestart = false;
-  const routes = monitorAblationRoutes(() => ({
-    create: async ({ id }) => {
+  const binding = {
+    create: async ({ id }: { id: string; params: { orgId: string; experimentRunId: string } }) => {
       if (instances.has(id)) throw new Error("exists");
       starts.push(id);
       instances.set(id, "queued");
       return { id };
     },
-    get: async (id) => {
+    get: async (id: string) => {
       if (!instances.has(id)) throw new Error("missing");
       return {
         status: async () => ({ status: instances.get(id) ?? "unknown" }),
@@ -57,7 +58,8 @@ async function world() {
         },
       };
     },
-  }));
+  };
+  const routes = monitorAblationRoutes(() => binding);
   const request = {
     experimentId: "route",
     arm: "no-screening",
@@ -66,13 +68,14 @@ async function world() {
     replayRunId: "no-screening",
   };
   const fetch = (path: string, value?: unknown, runtime = fixture.runtime, customCookie = cookie) =>
-    routes.fetch(
-      new Request(`http://localhost${path}`, {
+    (mounted ? worker.fetch : routes.fetch)(
+      new Request(`http://localhost${mounted ? "/api/monitor" : ""}${path}`, {
         method: value === undefined ? "GET" : "POST",
         headers: { cookie: customCookie, accept: "application/json", "content-type": "application/json" },
         ...(value !== undefined ? { body: typeof value === "string" ? value : JSON.stringify(value) } : {}),
       }),
-      runtime,
+      mounted ? { ...runtime, MONITOR: binding as unknown as Env["MONITOR"] } : runtime,
+      createExecutionContext(),
     );
   return {
     ...fixture,
@@ -205,4 +208,15 @@ it("returns an already completed immutable arm at zero remaining headroom withou
   expect((await w.fetch("/ablation-runs", w.request)).status).toBe(202);
   expect(w.starts).toEqual([run.monitorRunId]);
   expect((await w.fetch("/ablation-runs", { ...w.request, replayRunId: "replacement" })).status).toBe(409);
+});
+
+it("mounts monitor capability and immutable admission behind actual Worker authentication", async () => {
+  const w = await world(true);
+  expect((await w.fetch("/ablation-capabilities", undefined, w.runtime, "")).status).toBe(401);
+  expect((await w.fetch("/ablation-capabilities")).status).toBe(200);
+  const response = await w.fetch("/ablation-runs", w.request);
+  expect(response.status).toBe(202);
+  const run = (await response.json()) as { monitorRunId: string };
+  expect(w.starts).toEqual([run.monitorRunId]);
+  expect((await w.fetch(`/ablation-runs/${run.monitorRunId}`)).status).toBe(200);
 });

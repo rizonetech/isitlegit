@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ulid } from "../db/ulid";
 import { randomNonce } from "../meta/untrusted";
-import { Arm, Manifest, manifestDigest, Trigger } from "./ablation-manifest";
+import { Arm, Digest, Manifest, manifestDigest, parseStrictJson, Trigger } from "./ablation-manifest";
 
 export class MonitorIdentityConflict extends Error {
   constructor() {
@@ -19,6 +19,11 @@ const Identity = z.strictObject({
   status: Status,
   manifestDigest: z.string(),
   deployment: z.string(),
+  modelVersions: z.preprocess(
+    (value) => (typeof value === "string" ? parseStrictJson(value, 4096) : value),
+    Manifest.shape.modelVersions,
+  ),
+  settingsDigest: Digest,
   createdAt: z
     .number()
     .int()
@@ -43,7 +48,7 @@ export async function readExperiment(
 ): Promise<StoredExperiment | null> {
   const row = await db
     .prepare(
-      `SELECT a.org_id AS orgId,a.experiment_id AS experimentId,a.arm,a.replay_run_id AS replayRunId,a.monitor_run_id AS monitorRunId,a.status,e.manifest_digest AS manifestDigest,e.deployment,a.created_at AS createdAt,a.spark_deadline AS sparkDeadline FROM monitor_experiment_arms a JOIN monitor_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id WHERE a.org_id=? AND a.monitor_run_id=?`,
+      `SELECT a.org_id AS orgId,a.experiment_id AS experimentId,a.arm,a.replay_run_id AS replayRunId,a.monitor_run_id AS monitorRunId,a.status,e.manifest_digest AS manifestDigest,e.deployment,e.model_versions_json AS modelVersions,e.settings_digest AS settingsDigest,a.created_at AS createdAt,a.spark_deadline AS sparkDeadline FROM monitor_experiment_arms a JOIN monitor_experiments e ON e.org_id=a.org_id AND e.experiment_id=a.experiment_id WHERE a.org_id=? AND a.monitor_run_id=?`,
     )
     .bind(orgId, monitorRunId)
     .first();
@@ -81,9 +86,16 @@ export async function admitExperiment(
   const batch = [
     db
       .prepare(
-        `INSERT INTO monitor_experiments(org_id,experiment_id,manifest_digest,deployment) VALUES(?,?,?,?) ON CONFLICT(org_id,experiment_id) DO UPDATE SET manifest_digest=excluded.manifest_digest,deployment=excluded.deployment WHERE manifest_digest!=excluded.manifest_digest OR deployment!=excluded.deployment`,
+        `INSERT INTO monitor_experiments(org_id,experiment_id,manifest_digest,deployment,model_versions_json,settings_digest) VALUES(?,?,?,?,?,?) ON CONFLICT(org_id,experiment_id) DO UPDATE SET manifest_digest=excluded.manifest_digest,deployment=excluded.deployment WHERE manifest_digest!=excluded.manifest_digest OR deployment!=excluded.deployment OR model_versions_json!=excluded.model_versions_json OR settings_digest!=excluded.settings_digest`,
       )
-      .bind(orgId, request.experimentId, request.manifestDigest, request.deployment),
+      .bind(
+        orgId,
+        request.experimentId,
+        request.manifestDigest,
+        request.deployment,
+        JSON.stringify(manifest.modelVersions),
+        manifest.settingsDigest,
+      ),
   ];
   for (const page of manifest.pages)
     batch.push(

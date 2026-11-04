@@ -93,7 +93,9 @@ function enabled(env: Env, orgId: string) {
 }
 async function schemaReady(db: D1Database) {
   const results = await db.batch([
-    db.prepare("SELECT manifest_digest,deployment FROM monitor_experiments LIMIT 0"),
+    db.prepare(
+      "SELECT manifest_digest,deployment,model_versions_json,settings_digest FROM monitor_experiments LIMIT 0",
+    ),
     db.prepare("SELECT capture_digest,label_digest FROM monitor_experiment_pages LIMIT 0"),
     db.prepare("SELECT spark_deadline,resume_state,resume_token FROM monitor_experiment_arms LIMIT 0"),
     db.prepare(

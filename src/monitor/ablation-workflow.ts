@@ -9,6 +9,7 @@ export const ExperimentParams = z.strictObject({
   orgId: z.string().min(1).max(128),
   experimentRunId: ExperimentId,
 });
+export type ExperimentParams = z.infer<typeof ExperimentParams>;
 const Pass = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("waiting"), until: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER) }),
   z.strictObject({ status: z.literal("complete") }),
