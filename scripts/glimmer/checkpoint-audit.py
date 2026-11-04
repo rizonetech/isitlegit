@@ -27,6 +27,7 @@ HARD_FLOORS = {"unseen-brand": 100, "own-page": 100, "small-site": 100, "news-or
 LURE_TYPES = {"none", "credential", "payment", "fake_shop", "impersonation"}
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 VERSION = re.compile(r"[0-9]+\.[0-9]+\Z")
+MAX_JSON_BYTES = 64 * 1024 * 1024
 
 
 def sha(data):
@@ -104,13 +105,16 @@ class Reader:
         if not self.begin(path, role):
             return None
         try:
+            if path.stat().st_size > MAX_JSON_BYTES:
+                self.issue("oversized_json_object", role)
+                return None
             data = path.read_bytes()
             self.finish(path, role, sha(data))
             result = strict_json(data)
             if not isinstance(result, dict):
                 raise ValueError()
             return result
-        except (OSError, ValueError, UnicodeError):
+        except (OSError, ValueError, UnicodeError, RecursionError):
             self.issue("invalid_json_object", role)
             return None
 
@@ -121,8 +125,19 @@ class Reader:
         count = 0
         try:
             with path.open("rb") as handle:
-                for count, line in enumerate(handle, 1):
+                while line := handle.readline(MAX_JSON_BYTES + 1):
+                    count += 1
                     digest.update(line)
+                    if len(line) > MAX_JSON_BYTES:
+                        self.issue("oversized_json_line", role, line=count)
+                        while not line.endswith(b"\n"):
+                            line = handle.readline(MAX_JSON_BYTES + 1)
+                            if not line:
+                                self.issue("unterminated_line", role, line=count)
+                                break
+                            digest.update(line)
+                        yield None
+                        continue
                     if not line.endswith(b"\n"):
                         self.issue("unterminated_line", role, line=count)
                     try:
@@ -130,7 +145,7 @@ class Reader:
                         if not isinstance(row, dict):
                             self.issue("not_object", role, line=count)
                             row = None
-                    except (ValueError, UnicodeError):
+                    except (ValueError, UnicodeError, RecursionError):
                         self.issue("invalid_json", role, line=count)
                         row = None
                     yield row
@@ -213,12 +228,15 @@ def paired(reader, directory, part, role):
                 if archived_image != sha(image):
                     reader.issue("archive_image_mismatch", role, line=number)
                 if reader.begin(text_path, role + f"/archive-text-{number}"):
+                    if text_path.stat().st_size > MAX_JSON_BYTES:
+                        reader.issue("oversized_archive_text", role, line=number)
+                        continue
                     original_text = text_path.read_bytes()
                     reader.finish(text_path, role + f"/archive-text-{number}", sha(original_text))
                     expected = str(meta.get("source")) + "-" + sha(image + b"\0" + original_text)[:16]
                     if expected != page_id:
                         reader.issue("archive_identity_mismatch", role, line=number)
-        except (KeyError, IndexError, TypeError, ValueError, OSError):
+        except (KeyError, IndexError, TypeError, ValueError, OSError, RecursionError):
             reader.issue("invalid_serialized_example", role, line=number)
     return ids, labels
 
@@ -264,13 +282,15 @@ def provenance(reader, store, version, summary, ids, counts):
     else:
         saved = reader.object(store / "raw" / f"FROZEN-{version}.json", version + "/freeze")
         pages = saved.get("pages") if saved else None
-        if not isinstance(pages, list) or not all(isinstance(p, str) for p in pages) or len(pages) != len(set(pages)):
+        if saved is None:
+            pass  # Reader already distinguishes an absent file from a malformed one.
+        elif not isinstance(pages, list) or not all(isinstance(p, str) for p in pages) or len(pages) != len(set(pages)):
             reader.issue("invalid_freeze_membership", role)
         elif len(pages) != freeze["pages"] or sha("".join(p + "\n" for p in sorted(pages)).encode()) != freeze["sha256"]:
             reader.issue("freeze_digest_mismatch", role)
     held = list(reader.rows(store / "raw/dataset" / f"{version}.heldout-items.jsonl", version + "/heldout-items"))
     held_ids = [r.get("id") for r in held if isinstance(r, dict)]
-    if len(held_ids) != len(set(x for x in held_ids if isinstance(x, str))) or set(x for x in held_ids if isinstance(x, str)) != ids:
+    if version + "/heldout-items" in reader.files and (len(held_ids) != len(set(x for x in held_ids if isinstance(x, str))) or set(x for x in held_ids if isinstance(x, str)) != ids):
         reader.issue("heldout_membership_mismatch", role)
     if not integer(summary.get("heldOut")):
         reader.issue("missing_heldout_provenance", role, "incomplete")

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 from concurrent.futures import ThreadPoolExecutor
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts/glimmer/checkpoint-audit.py"
@@ -105,11 +106,28 @@ class Audit(unittest.TestCase):
         write_json(self.dataset / "summary.json", self.summary)
         self.assertIn("missing_freeze", self.codes())
 
+    def test_absent_evidence_is_not_called_conflicting_evidence(self):
+        (self.store / "raw/FROZEN-1.1.json").unlink()
+        (self.store / "raw/dataset/1.1.heldout-items.jsonl").unlink()
+        codes = self.codes()
+        self.assertNotIn("invalid_freeze_membership", codes)
+        self.assertNotIn("heldout_membership_mismatch", codes)
+
     def test_malformed_and_unterminated_jsonl_refuse(self):
         for data, code in [(b"{\n", "invalid_json"), (b"{}", "unterminated_line"), (b"[]\n", "not_object")]:
             with self.subTest(code=code):
                 (self.dataset / "train.jsonl").write_bytes(data)
                 self.assertIn(code, self.codes())
+
+    def test_oversized_row_is_streamed_and_next_row_is_kept(self):
+        data = b'{"value":"' + b'x' * 1024 + b'"}\n{}\n'
+        path = self.store / "large.jsonl"
+        path.write_bytes(data)
+        reader = audit.Reader()
+        with mock.patch.object(audit, "MAX_JSON_BYTES", 128, create=True):
+            self.assertEqual(list(reader.rows(path, "large")), [None, {}])
+        self.assertEqual(reader.files["large"], {"sha256": digest(data), "lines": 2})
+        self.assertEqual(reader.issues[0]["code"], "oversized_json_line")
 
     def test_metadata_count_duplicate_and_pairing_refuse(self):
         meta = self.dataset / "train.meta.jsonl"
