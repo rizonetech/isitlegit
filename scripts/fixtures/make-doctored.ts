@@ -11,8 +11,17 @@
 // to the shared ledger through localBudget and never raised. Completed pairs are reused on a
 // restart; nothing already saved is sent again.
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
 import type sharp from "sharp";
 import { z } from "zod";
 import { metaRaw } from "../../src/meta/client.ts";
@@ -136,7 +145,7 @@ const NormalizationReceipt = z.object({ version: z.literal(1), records: z.array(
 export async function normalizeExistingFixtures(
   out: string,
   backupDir: string,
-  publish: (name: string, bytes: Buffer | string, directory: string) => void = save,
+  publish: (name: string, bytes: Buffer | string, directory: string) => void = publishFixtureFile,
 ) {
   const backupRelative = relative(resolve(out), resolve(backupDir));
   if (!backupRelative || (!backupRelative.startsWith("..") && !backupRelative.startsWith("/"))) {
@@ -160,6 +169,7 @@ export async function normalizeExistingFixtures(
       if (record) {
         const original = readFileSync(backupFile);
         if (sha256(original) !== record.beforeSha256) throw new Error(`backup hash mismatch: ${file}`);
+        syncFixtureFile(backupFile);
         const normalized = await normalizePng(original);
         if (
           sha256(normalized.png) !== record.afterSha256 ||
@@ -178,8 +188,9 @@ export async function normalizeExistingFixtures(
       const normalized = await normalizePng(current);
       if (normalized.sourceFormat === "png") continue;
       if (existing) throw new Error(`unrecorded non-PNG fixture: ${file}`);
-      if (!existsSync(backupFile)) writeFileSync(backupFile, current, { flag: "wx" });
+      if (!existsSync(backupFile)) publish(`${file}.original`, current, backupDir);
       if (!readFileSync(backupFile).equals(current)) throw new Error(`backup differs: ${file}`);
+      syncFixtureFile(backupFile);
       records.push(
         NormalizationRecord.parse({
           file,
@@ -202,10 +213,12 @@ export async function normalizeExistingFixtures(
   }
   const receipt = { version: 1 as const, records };
   if (!existing) publish("normalization.json", `${JSON.stringify(receipt, null, 2)}\n`, out);
+  syncFixtureFile(receiptFile);
   for (const { file, png } of replacements) publish(file, png, out);
   for (const record of records) {
     if (sha256(readFileSync(join(out, record.file))) !== record.afterSha256)
       throw new Error(`publication failed: ${record.file}`);
+    syncFixtureFile(join(out, record.file));
   }
   return receipt;
 }
@@ -238,11 +251,50 @@ export type Label = {
   note?: string;
 };
 
-const save = (name: string, bytes: Buffer | string, out: string = OUT) => {
+const FILE_IO = { writeFileSync, renameSync, openSync, fsyncSync, closeSync };
+
+// Flush the complete temporary file before its rename, then persist that name and the
+// directory chain. Backups and conversion intent are durable before image publication begins.
+export function publishFixtureFile(name: string, bytes: Buffer | string, out: string = OUT, io = FILE_IO): void {
   const tmp = join(out, `.${name}.tmp`);
-  writeFileSync(tmp, bytes);
-  renameSync(tmp, join(out, name));
-};
+  io.writeFileSync(tmp, bytes, { flush: true });
+  io.renameSync(tmp, join(out, name));
+  let directory = resolve(out);
+  while (true) {
+    const fd = io.openSync(directory, "r");
+    try {
+      io.fsyncSync(fd);
+    } finally {
+      io.closeSync(fd);
+    }
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+}
+
+function syncFixtureFile(file: string): void {
+  const fd = openSync(file, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  let directory = dirname(resolve(file));
+  while (true) {
+    const directoryFd = openSync(directory, "r");
+    try {
+      fsyncSync(directoryFd);
+    } finally {
+      closeSync(directoryFd);
+    }
+    const parent = dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+}
+
+const save = publishFixtureFile;
 
 export async function makePair(spec: DocSpec, edit: EditFn | null, out: string = OUT): Promise<Label[]> {
   mkdirSync(out, { recursive: true });

@@ -19,3 +19,9 @@ The conversion receipt is written before atomic image replacement. A resumed ope
 The two producer regressions failed before the fix: saved output was WebP instead of PNG, and losslessly re-encoded genuine pixels were attributed to a model edit. The targeted command `taskset -c 9 pnpm exec vitest run --project node test/node/make-doctored.test.ts` passed 10 tests after repair, including interrupted publication before and after image replacement, corrupted-backup refusal, invalid-image preservation and truncated provider output. Full-buffer equality uses Buffer.equals, avoiding per-byte assertion overhead without changing the assertion.
 
 This corrects raster encoding only. Native-PDF detection and missing-date coverage remain D06 T02 §8; no medium evidence was promoted, no corpus label changed and no detection target is claimed met by this conversion.
+
+## Implementation review repairs
+
+Round 1 P2-1: backups now use flushed temporary files and atomic rename, so a partial write never occupies the final backup name. P2-2: file data and the directory chain are synchronized before publication returns; normalization synchronizes verified pre-existing backups and its receipt before replacing images, including on resume. Final output files are synchronized after hash read-back. This is storage ordering, not a claim that an actual power cut was tested.
+
+The two new regression tests fail when atomic backup publication and file flushing are removed: the partial backup becomes visible and the required flush option is absent. Restoring the repair passes all 12 targeted tests. Targeted Node TypeScript checking passed; corpus verification reran successfully for all 19 entries with the durability repair. The implementation round independently compared the 19 original and converted Git objects and confirmed hashes, formats, dimensions and exact decoded pixels.

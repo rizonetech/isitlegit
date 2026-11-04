@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 // The doctored pairs generator (D06 T02 §4): 20 genuine synthetic documents, one labelled edit
 // each, a model refusal replaced in code, and a restart that reuses completed pairs.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -12,6 +13,7 @@ import {
   makePair,
   normalizeExistingFixtures,
   pngOf,
+  publishFixtureFile,
   runAll,
   svgOf,
 } from "../../scripts/fixtures/make-doctored.ts";
@@ -194,5 +196,68 @@ it("fully decodes provider images before publication and records code fallback o
     expect((await sharp(readFileSync(join(dir, `${spec.pair}-doctored.png`))).metadata()).format).toBe("png");
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+it("retries a partial backup write without leaving a corrupt published backup", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doctored-backup-write-"));
+  const out = join(root, "fixtures");
+  const backup = join(root, "originals");
+  mkdirSync(out);
+  try {
+    const spec = DOCS[0] as (typeof DOCS)[number];
+    const filename = `${spec.pair}-doctored.png`;
+    const source = await sharp(await pngOf(spec, true))
+      .webp({ lossless: true })
+      .toBuffer();
+    writeFileSync(join(out, filename), source);
+    const publish = (name: string, bytes: Buffer | string, dir: string) => {
+      if (!name.endsWith(".original")) return publishFixtureFile(name, bytes, dir);
+      publishFixtureFile(name, bytes, dir, {
+        ...fs,
+        writeFileSync: (path, data) => {
+          fs.writeFileSync(path, Buffer.from(data as Buffer).subarray(0, 20));
+          throw new Error("injected disk exhaustion");
+        },
+      });
+    };
+    await expect(normalizeExistingFixtures(out, backup, publish)).rejects.toThrow("disk exhaustion");
+    expect(existsSync(join(backup, `${filename}.original`))).toBe(false);
+    expect(existsSync(join(out, "normalization.json"))).toBe(false);
+    expect(readFileSync(join(out, filename)).equals(source)).toBe(true);
+    const receipt = await normalizeExistingFixtures(out, backup);
+    expect(receipt.records).toHaveLength(1);
+    expect(readFileSync(join(backup, `${filename}.original`)).equals(source)).toBe(true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it("flushes file data before rename and synchronizes its directory before returning", () => {
+  const root = mkdtempSync(join(tmpdir(), "doctored-durability-"));
+  const events: string[] = [];
+  try {
+    publishFixtureFile("receipt.json", "{}", root, {
+      ...fs,
+      writeFileSync: (path, data, options) => {
+        expect(options).toMatchObject({ flush: true });
+        events.push("write-flushed");
+        fs.writeFileSync(path, data, options);
+      },
+      renameSync: (from, to) => {
+        expect(events).toEqual(["write-flushed"]);
+        events.push("rename");
+        fs.renameSync(from, to);
+      },
+      fsyncSync: (fd) => {
+        expect(events).toContain("rename");
+        events.push("directory-flushed");
+        fs.fsyncSync(fd);
+      },
+    });
+    expect(events.slice(0, 3)).toEqual(["write-flushed", "rename", "directory-flushed"]);
+    expect(readFileSync(join(root, "receipt.json"), "utf8")).toBe("{}");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
