@@ -405,7 +405,7 @@ Sections: 108 | Checklist items: 680
 
 ### Phase 7: After the event
 
-Sections: 221 | Checklist items: 987
+Sections: 222 | Checklist items: 993
 
 | Status | Reference   | Deliverable                                                 | Needs                | Items |
 | ------ | ----------- | ----------------------------------------------------------- | -------------------- | ----- |
@@ -629,6 +629,7 @@ Sections: 221 | Checklist items: 987
 | [ ]    | D07 T09 §19 | Diagnostic detail on the early authentication card          | none                 | 2     |
 | [ ]    | D07 T09 §20 | Masked bank-block preview on invoice cards                  | none                 | 3     |
 | [ ]    | D07 T09 §21 | Baseline provenance on bank comparisons                     | none                 | 3     |
+| [ ]    | D10 T01 §11 | Videos re-cut as the live gaps close                        | none                 | 6     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                                        | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -673,6 +674,6 @@ Sections: 20 | Checklist items: 77
 | [ ]    | D99 T02 §8  | Post the demo on X for the Most Viral Project award       | operator | 2     |
 | [ ]    | D99 T02 §9  | Judge Getting-Started guide and access verification       | operator | 2     |
 
-Progress: 400/597 verified sections, 121 ready to run now.
+Progress: 400/598 verified sections, 121 ready to run now.
 
-Checklist: 3011/3686 items completed (includes Commit items).
+Checklist: 3011/3692 items completed (includes Commit items).

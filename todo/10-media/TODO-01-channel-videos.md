@@ -48,6 +48,7 @@ track: day-6
 | 8 | §8 | Video 04: judge getting-started guide | §1, §2 | [ ] |
 | 9 | §9 | X 45-second viral teaser clip | §1, §2 | [ ] |
 | 10 | §10 | YouTube channel banner (@DerickPayneDev) | §1, §2 | [ ] |
+| 11 | §11 | Videos re-cut as the live gaps close | §8, §9 | [ ] |
 
 ## 1. Media package and stats collector
 
@@ -255,6 +256,28 @@ A personal developer YouTube channel banner (`2560 x 1440` PNG with all key typo
 - [x] Commit: `media: @DerickPayneDev YouTube channel banner (D10 T01 §10)`
 
 **Test checkpoint:** `ffprobe -v error -show_entries stream=width,height -of csv=p=0 media/out/youtube-banner-derickpaynedev.png` prints `2560,1440`.
+
+## 11. Videos re-cut as the live gaps close
+
+The 2026-11-04 rebuild left four things out of the demo, the judge guide and the teaser because the live service could not back them (operator review): the public verify page renders with no styling, the website seal page answers 404, the report's model-trace panel (`?trace=1`) does not show in the capture, and the Loupe adapter on Hugging Face is not public. Each joins the videos the day it works, through a capture beat and a scene, never a board or a mock. The fixes themselves belong to other lanes and are asked for through the coordinator (outbox, 2026-11-04).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Re-check each gap against the live service before every re-render. Done when: each item below records `live` or `still missing` with the date.
+2. Capture and cut in each gap that is live. Done when: the re-rendered files in `media/out2/` show it, and `docs/demo-script.md` names it.
+
+- [ ] Verify page: when `https://isitlegit.co.za/v/fynbos-freight` renders with its stylesheet, add it to the trust scene of `media/src/videos/Demo.tsx` from the `verify` beat in `media/capture/beats.ts` (already captured). Done when: a still of the scene shows the styled page. Cheaper substitute: showing the board `design/mockups/png/Verify-Protected.png` fails the no-mocks rule.
+- [ ] Website seal: when `https://app.isitlegit.co.za/s/fynbos-freight` answers 200, add a `seal` beat to `media/capture/beats.ts` and its shot to the trust scene. Done when: the capture manifest lists `seal` and the scene shows it.
+- [ ] Model trace: when `#model-trace` shows on `/r/:id?trace=1`, cut the trace view (`traceShown` to `traceDone` in the `upload-and-report` beat) into the report scene with the models it lists named in the window's title bar. Done when: a still shows the panel with real model calls.
+- [ ] Loupe on Hugging Face: when `https://huggingface.co/rizonetech/isitlegit-loupe` answers 200 logged out, add it to the proof scene and the close card of `Demo.tsx` and to `media/src/videos/JudgeGuide.tsx`. Done when: `curl -s -o /dev/null -w '%{http_code}' https://huggingface.co/rizonetech/isitlegit-loupe` prints `200` and the stills show the link.
+- [ ] Re-render `pnpm render:demo`, `pnpm render:04` and `pnpm render:teaser`, and update `docs/demo-script.md`. Done when: the three files in `media/out2/` are newer than the last gap closed.
+- [ ] Commit: `media: re-cut the videos as the live gaps close (D10 T01 §11)`
+
+**Test checkpoint:** `for u in https://isitlegit.co.za/v/fynbos-freight https://app.isitlegit.co.za/s/fynbos-freight https://huggingface.co/rizonetech/isitlegit-loupe; do curl -s -o /dev/null -w "%{http_code} $u\n" $u; done` prints `200` for each URL cut into the videos.
 
 ## Verification
 
