@@ -380,6 +380,8 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 
 ## 10. A failed check's reply points to its retry
 
+> **Started:** 2026-11-04T00:40Z
+
 Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check that failed for a passing reason tells the member to forward the message again, though the case can now be retried from its report (D01 T01 §17, the report's "Retry the check", D07 T03 §20). The reply leads to the report instead, keeping its own advice for a message that cannot be read and for a spent daily allowance.
 
 **Corrected 2026-10-31** (at start, checked against the graph): the item waits for D07 T03 §20's "Retry the check" control on the report (the app lane's, open), but the section named only D01 T01 §17 as its dependency, so `query ready` listed it as runnable. D07 T03 §20 is now a dependency in the Implementation Order row; the section waits for it to be stamped and merged into `checks-lane`. Before: Depends On `D01 T01 §17`.
@@ -499,6 +501,10 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 > **Review:** `docs/reviews/d01-t02-s14.json`
 
 ## 15. Early refusal alert before attribution
+
+> **Started:** 2026-11-04T00:40Z
+
+**Coordinator decision 2026-11-03 (Wave 2 dispatch):** the Phase 7 deferral is lifted; build option A now.
 
 **Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 

@@ -338,6 +338,8 @@ It builds on D07 T02 §20's `registrable()` and `claimable()`, which reach `main
 
 ## 12. Lookalike clean summary names the domains compared
 
+> **Started:** 2026-11-04T00:40Z
+
 Filed 2026-11-03 from D07 T03 §44's completion review (`docs/reviews/07-app/D07-T03-s44.md`, gaps 1 and 4, and round 1's P3 on `design/SPEC.md` M3): when `domain.lookalike` runs clean, `lookalikeSummary` in `src/checks/domain-lookalike.ts` stores "no lookalike of a known name", so the report's Checks that found nothing cannot say what the check looked at, where the board (`Report-Safe`) shows the domains seen. This section makes the clean summary name how many domains were compared and the first of them, inside D02 T01 §7's 120-character bound; the report already draws the stored summary (D07 T03 §44).
 
 **Phase:** 7

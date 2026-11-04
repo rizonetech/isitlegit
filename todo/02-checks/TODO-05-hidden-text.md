@@ -287,6 +287,8 @@ Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads
 
 ## 10. Role and system-marker shapes the phrases miss
 
+> **Started:** 2026-11-04T00:40Z
+
 Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measurement: through the real `PhraseStream`, `content.ai_instructions` detects 2 of 4 steering texts (recall 0.5, precision 1.0, 0 of 4 genuine flagged); the missed shapes are role-assignment and system-marker variants. Measured, not asserted: the eval lane's RESULTS row carries the figures.
 
 **Phase:** 7
