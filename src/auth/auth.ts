@@ -28,6 +28,7 @@ import { boundedName, defaultPasskeyName } from "./names";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { isProtectedAccount, PROTECTED_ACCOUNT } from "./protected";
+import { publicDemo } from "./public-demo";
 import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { CODE_COOKIE, drawCode, HANDLE_COOKIE, newHandle, readHandle, spaced } from "./signin-code";
@@ -181,6 +182,7 @@ export function authOptions(
     // Auth's own (its tables are migration 0013).
     plugins: [
       ...schema.plugins,
+      publicDemo(() => mail().db, env.APP_URL),
       inviteSignup(
         () => mail().db,
         sendFirstLink,

@@ -99,3 +99,5 @@ The "well-known site" counter-signal (D02 T06 §3; spec 4.3a) reads the top 100,
 
 Chosen on 2026-11-01 from both providers' own pages: Tranco (https://tranco-list.eu) builds its default list from five providers, one of them Cloudflare Radar "available under a CC BY-NC 4.0 license" and another the Chrome UX Report under CC BY-SA 4.0, so it is not safe for a commercial service.
 
+
+The site development dependency `@emnapi/runtime` 1.11.3 is MIT licensed (its installed `LICENSE`); it supplies the runtime required by Astro type checking and is not shipped as application code.

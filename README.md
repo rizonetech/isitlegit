@@ -6,6 +6,9 @@
   <img alt="IsItLegit" src="design/brand/logo-svg/isitlegit-logo.svg" width="360">
 </picture>
 
+<p><a href="https://app.isitlegit.co.za/demo"><strong>JUDGES: OPEN THE LIVE FYNBOS DEMO</strong></a></p>
+<p>No code or email sign-in required. Shared public workspace: synthetic files only.</p>
+
 <br>
 <br>
 
@@ -39,7 +42,11 @@
 
 ## Getting started
 
-**Judges: [open the public demo](https://isitlegit.co.za/demo/).** No login, access code, email inbox or API key is required. Explore three clearly labelled synthetic examples, their illustrative verdicts, cited message evidence and recommended actions. This static walkthrough runs no models and shows no customer data; the submitted video demonstrates the live application. [Judge guide and no-key local demo instructions](docs/judge-getting-started.md).
+### [OPEN THE LIVE FYNBOS DEMO](https://app.isitlegit.co.za/demo)
+
+**Judges: click the link above to enter the real Fynbos Freight workspace. No access code, email sign-in or API key is required.** Open Cases, inspect existing investigations, or choose **Upload a file** to run a real check. This is a shared public demo: all visitors can see its cases and changes. Use synthetic files only, never private or client information. Existing service limits and model availability apply. [Judge guide](docs/judge-getting-started.md).
+
+An optional [illustrative walkthrough](https://isitlegit.co.za/demo/) is also available. It is labelled mock data and runs no models.
 
 ## Contents
 

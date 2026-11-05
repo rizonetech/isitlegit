@@ -45,6 +45,7 @@ export async function memberShell(
   if (!plan) throw new ShellUnavailable("the organisation could not be read");
   return {
     variant: "member",
+    publicDemo: user.email.startsWith("public-demo-") && user.email.endsWith("@example.invalid"),
     active,
     organization: { id: orgId, name: current.name },
     otherOrganizations: memberships

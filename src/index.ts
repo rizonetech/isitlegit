@@ -9,6 +9,7 @@ import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
 import { sameSitePath } from "./auth/paths";
+import { publicDemoRoutes } from "./auth/public-demo-route";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { scheduledSearchRefresh } from "./db/case-search";
@@ -106,6 +107,7 @@ app.get("/internal/smoke", (c) =>
 // The sign-in link's confirm page, and the old verify URL sent to it (D07 T02 §10, src/auth/confirm.tsx): before
 // Better Auth's routes, so a GET of its verify URL never signs in.
 app.route("/", confirmRoutes);
+app.route("/", publicDemoRoutes);
 // Better Auth's endpoints: magic links, sessions, its health check (D07 T02 §1, src/auth/auth.ts).
 app.on(["GET", "POST"], "/api/auth/*", (c) => createAuth(c.env).handler(c.req.raw));
 // The app shell's Sign out form (D07 T01 §3), src/auth/sign-out.ts.

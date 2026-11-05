@@ -1,6 +1,16 @@
 # Judge getting started
 
-Open the [public IsItLegit demo](https://isitlegit.co.za/demo/). No login, access code, email inbox, API key or local setup is required.
+## Open the live app
+
+**[Enter the live Fynbos Freight demo](https://app.isitlegit.co.za/demo).** The link opens the real shared workspace without a code, email sign-in or API key. If you are already signed in, it preserves your current session.
+
+Open **Cases** to inspect existing reports and model traces. Choose **Upload a file** to run a real investigation. Download a [synthetic changed-bank-details email](../data/demo/judge/tampered-invoice.eml) using GitHub's Download raw file control, then upload the saved `.eml`. Read the actual verdict and any checks-not-run messages; model availability and normal service limits still apply.
+
+**This workspace is public and shared. All visitors can see its cases and changes. Upload synthetic files only, never private or client information.**
+
+## Optional static walkthrough
+
+The [illustrative walkthrough](https://isitlegit.co.za/demo/) needs no login and runs no models. It is separate from the live app above.
 
 1. Choose the changed-bank-details, sign-in phishing or ordinary supplier example.
 2. Read the illustrative verdict and recommended action.

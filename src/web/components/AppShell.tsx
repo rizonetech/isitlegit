@@ -41,6 +41,7 @@ export type MemberShellProps = {
   // Trial days left while a trial runs, else the plan's name.
   plan: { trialDaysLeft: number } | { name: string };
   user: { name: string; role: string };
+  publicDemo?: boolean;
   children: Child;
 };
 
@@ -400,7 +401,18 @@ export function AppShell(props: AppShellProps) {
         homeLabel={member ? "IsItLegit, cases" : "IsItLegit admin, overview"}
       />
       {member ? <MemberNav {...props} /> : <AdminNav {...props} />}
-      <Main besideSidebar>{props.children}</Main>
+      <Main besideSidebar>
+        {member && props.publicDemo && (
+          <aside
+            class="border border-line rounded-card bg-subtle p-16 mb-24 text-14"
+            aria-label="Public demo workspace"
+          >
+            <strong>Public Fynbos demo.</strong> This workspace is shared with all visitors. Upload synthetic files
+            only. Other visitors can see the cases and changes. Live checks use the normal service limits.
+          </aside>
+        )}
+        {props.children}
+      </Main>
     </>
   );
 }

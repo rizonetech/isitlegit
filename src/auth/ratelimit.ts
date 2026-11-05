@@ -11,6 +11,7 @@ export const LINK_WINDOW_SECONDS = 600;
 export const LINK_MAX = 20;
 export const SIGNUP_MAX = 10;
 export const RATE_RULES = {
+  "/sign-in/public-demo": { window: LINK_WINDOW_SECONDS, max: SIGNUP_MAX },
   "/sign-in/magic-link": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
   "/magic-link/verify": { window: LINK_WINDOW_SECONDS, max: LINK_MAX },
   // A passkey sign-in is a challenge then its proof, each bounded the same (completion review, G1).
