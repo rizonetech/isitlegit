@@ -39,7 +39,7 @@
 
 ## Getting started
 
-**Judges: [try the hosted app in five steps](docs/judge-getting-started.md).** Use the demo invitation code provided in our submission. No API keys or local setup are needed. Start with a synthetic invoice case, then inspect its evidence and model trace.
+**Judges: [open the public demo](https://isitlegit.co.za/demo/).** No login, access code, email inbox or API key is required. Explore three clearly labelled synthetic examples, their illustrative verdicts, cited message evidence and recommended actions. This static walkthrough runs no models and shows no customer data; the submitted video demonstrates the live application. [Judge guide and no-key local demo instructions](docs/judge-getting-started.md).
 
 ## Contents
 

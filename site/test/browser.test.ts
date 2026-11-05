@@ -63,6 +63,7 @@ async function open(context: BrowserContext, route = "/"): Promise<Page> {
 
 // Every page the site builds so far, as its route and a name for its screenshots.
 const ROUTES = [
+  { route: "/demo", name: "demo" },
   { route: "/", name: "home" },
   { route: "/how-it-works", name: "how-it-works" },
   { route: "/invoice-fraud", name: "invoice-fraud" },
@@ -518,6 +519,29 @@ describe("the error pages", () => {
       assert.equal(page.url(), failing, "Try again went to another address");
       assert.deepEqual(requests, [failing, failing], "the failed address was not asked for again");
       assert.match(await page.locator("h1").first().textContent() ?? "", /What does IsItLegit cost\?/);
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+
+describe("public demo without JavaScript", () => {
+  it("opens and closes all three original emails by keyboard", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+    try {
+      const page = await open(context, "/demo");
+      assert.equal(await page.locator("[data-demo-case]").count(), 3);
+      for (const detail of await page.locator("details").all()) {
+        const summary = detail.locator("summary");
+        await summary.focus();
+        await page.keyboard.press("Enter");
+        assert.equal(await detail.getAttribute("open"), "");
+        assert.ok(await detail.locator("pre").isVisible());
+        await page.keyboard.press("Enter");
+        assert.equal(await detail.getAttribute("open"), null);
+      }
+      assert.equal((await context.cookies()).length, 0);
     } finally {
       await context.close();
     }

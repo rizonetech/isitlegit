@@ -1,0 +1,71 @@
+---
+import invoiceMail from "../../../data/demo/judge/tampered-invoice.eml?raw";
+import phishingMail from "../../../data/demo/judge/walkthrough-phishing.eml?raw";
+import ordinaryMail from "../../../data/demo/judge/genuine-supplier.eml?raw";
+import Base from "../layouts/Base.astro";
+import { CARD, FOCUS, LINK, button } from "../lib/classes.ts";
+
+const examples = [
+  {
+    id: "invoice", title: "An invoice with changed bank details", file: "tampered-invoice.eml", mail: invoiceMail,
+    verdict: "Suspicious", reason: "The message asks you to replace the supplier's banking details.",
+    evidence: "Note that our banking details have changed. Please pay this and future invoices to:",
+    action: "Pause the payment. Call the supplier on a number you already trust and verify the change independently.",
+    limit: "A request to change bank details is a warning, not proof of fraud. This illustration does not verify any bank account.",
+  },
+  {
+    id: "phishing", title: "A request for your sign-in details", file: "walkthrough-phishing.eml", mail: phishingMail,
+    verdict: "Malicious", reason: "The message directs you to a sign-in page and says it will ask for your password.",
+    evidence: "You will be asked for your username, password and contact number. This takes less than five minutes.",
+    action: "Do not follow the link or enter credentials. Open the bank through your saved address and contact it directly.",
+    limit: "This fictional phishing scenario illustrates a malicious result. No website is visited or assessed by this demo.",
+  },
+  {
+    id: "ordinary", title: "An ordinary supplier statement", file: "genuine-supplier.eml", mail: ordinaryMail,
+    verdict: "Safe", reason: "This fictional statement explicitly says the banking details have not changed.",
+    evidence: "Our banking details have not changed. If anything about this mail looks wrong, call the number on our previous invoices before paying anything new.",
+    action: "File the statement. For any new payment, use your normal supplier verification process.",
+    limit: "Safe is the illustrative outcome for this fixture, not a guarantee. A sender's own statement does not independently authenticate it.",
+  },
+];
+---
+<Base title="IsItLegit public demo" description="Explore three clearly labelled synthetic investigation examples. No login or access code required.">
+  <section class="site-container py-48 md:py-80 flex flex-col gap-24" aria-labelledby="demo-title">
+    <p class="type-eyebrow text-orange-text">Public walkthrough</p>
+    <h1 id="demo-title" class="type-h1 md:type-display max-w-heading">Inspect the evidence before you act.</h1>
+    <p class="text-18 text-ink-2 max-w-quote">No account, access code or API key is needed. Choose an example, read its illustrative verdict, then inspect the evidence and original email.</p>
+    <aside class={`${CARD} p-24 flex flex-col gap-8`} aria-label="Demo limitations">
+      <p class="weight-text-strong">Synthetic demo: illustrative reports</p>
+      <p>All companies, messages and results below are fictional demonstration data. The verdicts and explanations are authored examples, not recorded model responses. No models run on this page, no uploads are accepted, and no customer data is shown.</p>
+      <p>The submitted video demonstrates the live application. See the <a class={LINK} href="https://github.com/rizonetech/isitlegit#how-it-uses-metas-models">model map and implementation</a> for the production pipeline and its limits. This walkthrough does not measure detection accuracy.</p>
+    </aside>
+    <nav aria-label="Choose an example" class="flex flex-wrap gap-12">
+      {examples.map((example) => <a class={button.ghost} href={`#${example.id}`}>{example.verdict}: {example.id === "invoice" ? "bank change" : example.id === "phishing" ? "sign-in request" : "supplier statement"}</a>)}
+    </nav>
+    {examples.map((example) => (
+      <article id={example.id} data-demo-case={example.id} class={`${CARD} p-24 md:p-32 flex flex-col gap-24`} aria-labelledby={`${example.id}-title`}>
+        <div class="flex flex-col gap-8">
+          <p class="type-eyebrow text-orange-text">Fictional example</p>
+          <h2 id={`${example.id}-title`} class="type-h2">{example.title}</h2>
+          <p class="text-20 weight-text-strong">Illustrative verdict: {example.verdict}</p>
+          <p>{example.reason} <a class={LINK} href={`#${example.id}-E1`}>Evidence E1</a></p>
+        </div>
+        <div class="flex flex-col gap-8">
+          <h3 class="type-h3">Recommended action</h3>
+          <p>{example.action}</p>
+        </div>
+        <div id={`${example.id}-E1`} class="flex flex-col gap-8">
+          <h3 class="type-h3">E1: original message text</h3>
+          <blockquote class="border-l border-line-strong pl-16 text-ink-2"><p>{example.evidence}</p></blockquote>
+          <p class="type-small text-muted">{example.limit}</p>
+        </div>
+        <details class="border-t border-line pt-16">
+          <summary class={`cursor-pointer weight-text-strong rounded-small ${FOCUS}`}>Read the original fictional email</summary>
+          <pre class="mt-16 whitespace-pre-wrap break-words text-14 font-mono">{example.mail}</pre>
+          <p class="mt-16"><a class={LINK} href={`https://github.com/rizonetech/isitlegit/blob/main/data/demo/judge/${example.file}`}>View this synthetic fixture in the public repository</a></p>
+        </details>
+      </article>
+    ))}
+    <p class="type-small text-muted">This read-only walkthrough works without JavaScript. To run the same demo locally, follow the <a class={LINK} href="https://github.com/rizonetech/isitlegit/blob/main/docs/judge-getting-started.md">judge guide</a>.</p>
+  </section>
+</Base>
