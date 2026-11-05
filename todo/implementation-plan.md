@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 147
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 130 | Checklist items: 810
+Sections: 131 | Checklist items: 814
 
 | Status | Reference   | Deliverable                                               | Needs                 | Items |
 | ------ | ----------- | --------------------------------------------------------- | --------------------- | ----- |
@@ -302,6 +302,7 @@ Sections: 130 | Checklist items: 810
 | [x]    | D00 T01 §42 | Synthetic review pin authorization isolation              | none                  | 4     |
 | [x]    | D00 T01 §45 | Batched CI with complete project test shards              | none                  | 5     |
 | [x]    | D00 T01 §46 | Explicit withdrawn work in the live plan                  | none                  | 5     |
+| [ ]    | D00 T01 §47 | Public synthetic judge walkthrough                        | none                  | 4     |
 | [x]    | D01 T03 §17 | Immutable per-case ablation admission                     | none                  | 8     |
 | [x]    | D00 T01 §43 | Upload refusal matches reviewed admission                 | none                  | 4     |
 | [x]    | D03 T03 §7  | Compared reference in logo_match detail                   | none                  | 5     |
@@ -713,8 +714,8 @@ Withdrawn D99 T01 §11: 2026-11-04 | operator | Accept existing checks as is; ad
 
 Withdrawn D99 T02 §3: 2026-11-04 | operator | Separate operator recording checklist is redundant; recording remains media-owned.
 
-Progress: 469/628 verified sections, 99 ready to run now.
+Progress: 469/629 verified sections, 100 ready to run now.
 
-Checklist: 3340/3905 items completed (includes Commit items).
+Checklist: 3340/3909 items completed (includes Commit items).
 
 Withdrawn: 3 sections (not verified or delivered).

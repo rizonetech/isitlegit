@@ -84,6 +84,7 @@ track: day-0
 | 43 | §43 | Upload refusal matches reviewed admission | D01 T03 §17 | [x] |
 | 44 | §45 | Batched CI with complete project test shards | -- | [x] |
 | 45 | §46 | Explicit withdrawn work in the live plan | -- | [x] |
+| 46 | §47 | Public synthetic judge walkthrough | -- | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1486,6 +1487,30 @@ Operator requests truthful plan progress after explicitly withdrawing three unve
 
 > **Verified:** 2026-11-04 | §46 | ea5f271b0e9698eb2177f064e5506a66df17bb82
 > **Review:** `docs/reviews/d00-t01-s46.json`
+
+## 47. Public synthetic judge walkthrough
+
+Organiser clarification supplied by the operator on 5 November rejects submission access codes and permits an open demo with labelled mock data. Coordinator owns this urgent public entry point and documentation correction. Existing customer authentication and report access remain unchanged. This section introduces a static public walkthrough, not anonymous access to customer records or live model execution.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` marketing tokens and existing site layout; this section defines the new synthetic walkthrough.
+**Job:** judges inspect illustrative evidence and next actions without signing in.
+**Treatment:** explicit mock-data label, three readable case cards and native disclosures, no animation.
+**Chrome:** `site/src/layouts/Base.astro` with existing header and footer.
+
+**Build order:**
+
+1. Add an accessible public synthetic walkthrough at `/demo/` on the marketing host using the existing site layout and design tokens. Done when: anonymous visitors can inspect three labelled fictional cases, illustrative verdicts, cited evidence and next actions without a code, login, JavaScript or network model call.
+2. Correct judge documentation and verify deployment. Done when: README and judge guide link to the public demo, distinguish illustrative data from live analysis, and contain no private-credential instruction; deployed HTTP and browser checks confirm the actual page.
+
+- [ ] Add `site/src/pages/demo.astro` with phishing, changed-bank and ordinary-mail examples, native disclosure controls, unique evidence anchors and explicit mock-data labels. Done when: keyboard and no-JavaScript access work, every illustrative reason cites evidence, and no account data, secrets, uploads, API calls or fabricated execution traces are present. Cheaper substitute: opening real reports publicly would weaken access control and is rejected.
+- [ ] Update `README.md` and `docs/judge-getting-started.md` to the no-login walkthrough and retain local setup guidance. Done when: the recommended judge path needs no code or account and accurately describes static examples. Cheaper substitute: sharing an invitation contradicts the organiser clarification.
+- [ ] Add `site/test/demo.test.ts` regression coverage for built HTML, labels, evidence targets, absence of forms and live-call scripts, and documentation links. Done when: the test fails before implementation and passes after the site build; site check, tests and link gate pass. Verify anonymous live HTTP plus browser disclosure behavior after the supported site deploy. Record actual results only. Cheaper substitute: source inspection alone cannot prove the deployed path.
+- [ ] Commit: `feat: add public synthetic judge walkthrough`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test` passes, public demo evidence anchors resolve, and anonymous deployed `/demo/` returns HTTP200 with the labelled synthetic walkthrough and working native disclosures.
 
 ## Verification
 
