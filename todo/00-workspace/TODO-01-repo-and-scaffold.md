@@ -1490,6 +1490,8 @@ Operator requests truthful plan progress after explicitly withdrawing three unve
 
 ## 47. Public synthetic judge walkthrough
 
+> **Started:** 2026-11-05T01:16:36.394555+00:00 (plan preparation only; no implementation before plan review)
+
 Organiser clarification supplied by the operator on 5 November rejects submission access codes and permits an open demo with labelled mock data. Coordinator owns this urgent public entry point and documentation correction. Existing customer authentication and report access remain unchanged. This section introduces a static public walkthrough, not anonymous access to customer records or live model execution.
 
 **Phase:** 6
