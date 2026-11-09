@@ -73,8 +73,8 @@ importers:
         specifier: 1.2.2
         version: 1.2.2
       openai:
-        specifier: 7.45.1
-        version: 7.45.1(undici@8.12.3)(ws@8.21.0)(zod@4.6.7)
+        specifier: 7.53.0
+        version: 7.53.0(undici@8.12.3)(ws@8.21.0)(zod@4.6.7)
       opusscript:
         specifier: 0.1.1
         version: 0.1.1
@@ -2392,8 +2392,8 @@ packages:
   oniguruma-to-es@4.3.6:
     resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
 
-  openai@7.45.1:
-    resolution: {integrity: sha512-mutrJXwhJIMZ24Lab2COFtNp44OcpZSnV4O2O7q38wAHUa2m2fQqUO5pj1XS3PqLfOTeODBUS9YoadqDnnGk5A==}
+  openai@7.53.0:
+    resolution: {integrity: sha512-PXiIZraFYMb2QYgTtWqDA16Oszj4fWRZNn7qLIAddmiJxM5uQPWBFaxp9O8MhLfTUOQ+iQsnFSRJhLPecsGovQ==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
@@ -5084,7 +5084,7 @@ snapshots:
       regex: 6.1.0
       regex-recursion: 6.0.2
 
-  openai@7.45.1(undici@8.12.3)(ws@8.21.0)(zod@4.6.7):
+  openai@7.53.0(undici@8.12.3)(ws@8.21.0)(zod@4.6.7):
     optionalDependencies:
       undici: 8.12.3
       ws: 8.21.0
